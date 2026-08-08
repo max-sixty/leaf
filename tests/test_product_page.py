@@ -7,23 +7,34 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets"
+BUNDLED = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "bundled"
 DOCS = ROOT / "docs"
 
 
 def test_docs_pages_link_the_shipped_theme():
-    target = "../plugins/colloquy/skills/colloquy/assets/theme.css"
-    assert (ASSETS / "theme.css").is_file()
+    # Both shipped layers, in cascade order — a docs page renders the whole
+    # vocabulary script-free, and the bundled widgets' rules are the second file.
+    targets = (
+        "../plugins/colloquy/skills/colloquy/assets/theme.css",
+        "../plugins/colloquy/skills/colloquy/bundled/theme.css",
+    )
+    for layer, target in zip((ASSETS, BUNDLED), targets):
+        assert (layer / "theme.css").is_file()
     # The <link> around the href, not the whole tag spelled out: customizing.html also
     # links that same file as source to read, so the path alone would pass on a page
     # that had dropped its stylesheet. Attributes in any order and on any number of
     # lines, because a formatter decides that — prettier puts this one on four.
-    link = re.compile(rf'<link\b[^>]*?"{re.escape(target)}"')
     for page in DOCS.glob("*.html"):
-        assert link.search(page.read_text()), page.name
+        text = page.read_text()
+        for target in targets:
+            link = re.compile(rf'<link\b[^>]*?"{re.escape(target)}"')
+            assert link.search(text), (page.name, target)
 
 
 def test_docs_pages_use_only_registered_widgets():
-    registry = json.loads((ASSETS / "registry.json").read_text())
+    registry = json.loads((ASSETS / "registry.json").read_text()) | json.loads(
+        (BUNDLED / "registry.json").read_text()
+    )
     used = {
         tag
         for page in DOCS.glob("*.html")

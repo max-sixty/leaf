@@ -120,8 +120,11 @@ including the page's status, since the colloquy outlives the session that
 answered on it for an afternoon.
 
 `page init` vendors the runtime, theme, registry, widgets, and vendor assets into the
-page directory, overlaying by precedence: colloquy's shipped defaults, then the
-user layer (~/.config/colloquy/), then the project layer
+page directory, overlaying by precedence: colloquy's integrated layer (the runtime,
+the theme's own rules, the suggestion family and the $ keys), then its bundled
+widgets (the content families, an overlay like any other so they reach a page
+through the same door a project's widgets do), then the user layer
+(~/.config/colloquy/), then the project layer
 (./.colloquy/). Theme stylesheets concatenate in that order, so a layer
 can override one token or rule without copying the defaults. Registry entries
 merge by top-level name, with a later layer replacing one complete entry rather
@@ -530,6 +533,7 @@ EXTENSION_SCHEMA = {
 }
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
+BUNDLED = Path(__file__).resolve().parent.parent / "bundled"
 VENDORED_FILES = ("colloquy.js", "theme.css", "registry.json", "icon.svg")
 VENDORED_DIRS = ("widgets", "vendor")
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
@@ -1471,13 +1475,15 @@ def handler_for(
 
 
 def layer_dirs() -> list:
-    """Widget-layer sources, lowest precedence first: colloquy's shipped defaults,
-    the user layer, the project layer (resolved against the working directory).
-    Each mirrors the assets layout: theme.css/registry.json/colloquy.js at the
-    top, modules in widgets/, third-party files in vendor/. Theme files form one
-    cascade, registry files are additive by top-level entry, and every other
-    file replaces by path."""
-    return [ASSETS, config_home(), Path.cwd() / ".colloquy"]
+    """Widget-layer sources, lowest precedence first: colloquy's integrated layer
+    (the runtime and the machine's own vocabulary), its bundled widgets (the
+    content families, shipped as an overlay so they reach a page through the door
+    any layer's widgets use), the user layer, the project layer (resolved against
+    the working directory). Each mirrors the assets layout:
+    theme.css/registry.json/colloquy.js at the top, modules in widgets/,
+    third-party files in vendor/. Theme files form one cascade, registry files
+    are additive by top-level entry, and every other file replaces by path."""
+    return [ASSETS, BUNDLED, config_home(), Path.cwd() / ".colloquy"]
 
 
 def checked_layers(sources: list) -> list:
@@ -2002,7 +2008,11 @@ def cmd_customize_widget(tag: str, user: bool, upgrade: bool) -> None:
     layer = customization_dir(user)
     protected = validate_customization_dir(layer)
     registry_path = layer / "registry.json"
-    registry_layers = layer_dirs()[:2] if user else layer_dirs()
+    # Every layer up to and including the write scope: a collision is checked
+    # against what this scope's merge can see, and a project tag may shadow
+    # nothing while a user tag may not collide with the shipped layers.
+    all_layers = layer_dirs()
+    registry_layers = all_layers[: all_layers.index(layer) + 1]
     checked_layers(registry_layers[:-1])
     for source_layer in registry_layers:
         source_path = source_layer / "registry.json"
@@ -3879,6 +3889,37 @@ def css_rules(css: str):
     )
 
 
+def _css_unclosed_blocks(css: str) -> int:
+    """How many blocks a stylesheet leaves open at end of file.
+
+    The CSS parser auto-closes these (so tinycss2 reports no error), which is
+    exactly what makes one dangerous here: stylesheets are layer sources that
+    concatenate, so a block left open swallows every rule after it — the rest
+    of the file's and every later layer's — into its own scope. Counted
+    outside comments and strings; an over-closed sheet floors at zero, since
+    the stray brace is a parse error tinycss2 already names."""
+    depth = 0
+    i = 0
+    while i < len(css):
+        ch = css[i]
+        if css.startswith("/*", i):
+            end = css.find("*/", i + 2)
+            i = len(css) if end == -1 else end + 2
+        elif ch in "\"'":
+            quote = ch
+            i += 1
+            while i < len(css) and css[i] not in (quote, "\n"):
+                i += 2 if css[i] == "\\" else 1
+            i += 1
+        else:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth = max(0, depth - 1)
+            i += 1
+    return depth
+
+
 def css_syntax_errors(css: str, source: str, *, block=False) -> list:
     """Every parse error in a stylesheet or declaration block, including nested rules."""
     parse = (
@@ -3890,6 +3931,12 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> list:
     )
     errors = []
     seen = set()
+    if not block and (depth := _css_unclosed_blocks(css)):
+        errors.append(
+            f"{source}: {depth} block(s) left open at end of file — every rule "
+            "after the unclosed brace, this stylesheet's or a later layer's, "
+            "lands inside its scope"
+        )
 
     def record(node):
         key = (node.source_line, node.source_column, node.message)

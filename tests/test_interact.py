@@ -444,6 +444,26 @@ def test_init_project_layer_wins(tmp_path, monkeypatch):
     assert (d / "registry.json").is_file()
 
 
+def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypatch):
+    """The CSS parser auto-closes a block left open at end of file, so tinycss2
+    reports nothing — but layer stylesheets concatenate, and an unclosed block
+    swallows every later layer's rules into its own scope. The shipped split hit
+    exactly this: a cut that dropped one closing brace nested the whole bundled
+    layer inside a min-width media query, and the only symptom was print styles
+    quietly not applying. The gate names the file while the author is still in
+    front of it."""
+    project = tmp_path / "proj"
+    (project / ".colloquy").mkdir(parents=True)
+    (project / ".colloquy" / "theme.css").write_text(
+        "@media screen and (min-width: 900px) {\n  :root { --accent: red }\n"
+    )
+    monkeypatch.chdir(project)
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
+    assert result.exit_code == 1
+    assert "block(s) left open at end of file" in result.output
+    assert "theme.css" in result.output
+
+
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     """A custom widget adds one entry; it need not fork the shipped vocabulary.
 
@@ -1808,14 +1828,14 @@ def test_the_block_content_lists_agree_and_cover_the_vocabulary():
     and to the registry: every top-level widget appears in each. cq-suggestion is
     the one exemption, display: contents, so the wrapper generates no box and its
     slots answer the block question instead."""
-    theme = (interact.ASSETS / "theme.css").read_text()
+    theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
     lists = re.findall(r":is\((p, h1[^)]*)\)", theme)
     assert len(lists) == 2, (
         "expected the suggestion-slot list and cq-compare's stacked-variant trigger"
     )
     tag_sets = [{t.strip() for t in found.split(",")} for found in lists]
     assert tag_sets[0] == tag_sets[1], "the block-content lists have drifted"
-    registry = json.loads((interact.ASSETS / "registry.json").read_text())
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
     top_level = {
         tag
         for tag, entry in registry.items()
@@ -5368,9 +5388,7 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     cq-shot and cq-specimen were outside them from the day each was written.
     examples/CLAUDE.md carries the rest, including the shapes this floor doesn't
     reach."""
-    registry = json.loads(
-        (PLUGIN_ROOT / "skills" / "colloquy" / "assets" / "registry.json").read_text()
-    )
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
     # The gallery is generated from the others, so it can only repeat their coverage.
     authored = " ".join(
         p.read_text()

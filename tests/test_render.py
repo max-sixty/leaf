@@ -10502,6 +10502,12 @@ def test_a_press_takes_the_keys_a_button_came_with(browser, serve):
                 {key: ' ', repeat: true, bubbles: true, cancelable: true}));
     }""")
     expect(page.locator(f"#{chosen}[chosen]")).to_have_count(1)
+    # The mark paints its own press before the post answers, so the DOM leads the log:
+    # read the file straight after and the first press's event may not be in it yet,
+    # which reads exactly like a press that sent nothing. A press that sent nothing
+    # satisfies this too, which is what makes it the right wait for both assertions —
+    # the repeats below must add none of their own.
+    page.wait_for_function(ROUND_TRIP)
     sent = [
         json.loads(line)
         for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()

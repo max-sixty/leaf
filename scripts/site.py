@@ -35,6 +35,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 COLLOQUY = ROOT / "plugins" / "colloquy" / "bin" / "colloquy"
 ASSETS = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets"
+BUNDLED = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "bundled"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 OUT = (
@@ -58,12 +59,19 @@ REPO = "https://github.com/max-sixty/colloquy"
 # instead, and every page shipped with its stylesheet pointing at a GitHub blob view —
 # a link that resolves, so the dead-link check has nothing to say, over a page with no
 # theme on it.
-WORN_ASSETS = ("theme.css", "icon.svg")
+#
+# The published name is stated per asset rather than taken from the basename: a page
+# wears both shipped layers' stylesheets, and both are called theme.css.
+WORN_ASSETS = {
+    ASSETS / "theme.css": "theme.css",
+    ASSETS / "icon.svg": "icon.svg",
+    BUNDLED / "theme.css": "bundled-theme.css",
+}
 WORN_LINKS = {
     name: re.compile(
-        rf'(<link\b[^>]*?)"\.\./{re.escape(str((ASSETS / name).relative_to(ROOT)))}"'
+        rf'(<link\b[^>]*?)"\.\./{re.escape(str(source.relative_to(ROOT)))}"'
     )
-    for name in WORN_ASSETS
+    for source, name in WORN_ASSETS.items()
 }
 
 # What a checkout path becomes once the site is one directory, in order. Everything a
@@ -179,8 +187,8 @@ def build(out: Path) -> None:
             target.write_text(text, encoding="utf-8")
         else:
             shutil.copy2(source, target)
-    for name in WORN_ASSETS:
-        shutil.copy2(ASSETS / name, out / name)
+    for source, name in WORN_ASSETS.items():
+        shutil.copy2(source, out / name)
 
     # The layer a visitor gets is the shipped one, plus this project's: a page dir
     # vendors the user's ~/.config/colloquy overlay too, and that one belongs to

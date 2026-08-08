@@ -530,7 +530,8 @@ knows that happened.
 
 ## Customizing the widget layer
 
-`page init` vendors the layer into the page directory from colloquy's shipped defaults,
+`page init` vendors the layer into the page directory from colloquy's integrated
+layer, then its bundled widgets (the shipped content families ride this same overlay),
 then the user's `~/.config/colloquy/`, then the project's `.colloquy/`. Each
 mirrors the same layout (`theme.css`, `registry.json`, `icon.svg`, `widgets/`,
 `vendor/`). Theme

@@ -532,8 +532,17 @@ export const pageScroller = document.body;
 // between columns). The caller has already applied the edit to its own DOM; the
 // poll's replay re-applies it once (see applyActions), which is why applyAction
 // implementations must state an absolute placement, never a relative mutation.
-export function sendAction(el, action, detail) {
-  return post({ kind: "action", version: VNUM, widget: el.id, action, detail });
+// The counter is the layer's word that a send is in flight — midComposition holds
+// the version auto-follow on it, since navigating away could lose the unrecorded
+// edit — and it lives here because every widget's action passes through this door.
+let actionsInFlight = 0;
+export async function sendAction(el, action, detail) {
+  actionsInFlight++;
+  try {
+    return await post({ kind: "action", version: VNUM, widget: el.id, action, detail });
+  } finally {
+    actionsInFlight--;
+  }
 }
 
 // A widget's box for words. A page can ask a question its options don't cover the
@@ -5422,16 +5431,19 @@ function renderVersions(state) {
     diffBtn.title = `Highlight what changed since v${diffBase}`;
   }
 }
-// A live widget gesture (.cq-dragging) counts: navigating mid-drag would unload
-// the document from under the pointer and lose the move.
+// The user is mid-something navigation would destroy, asked of the layer's own
+// signals rather than of any widget by name: a drag wears .cq-dragging (the module
+// sets it), a send in flight is sendAction's counter, and a composition surface is a
+// focused textarea — any holding words, or a widget-built one (data-cq-offer) even
+// empty, because deleting everything is still an edit.
 const midComposition = () =>
   composerOpen ||
   Boolean(fabAnchor) ||
+  actionsInFlight > 0 ||
   Boolean(document.querySelector(".cq-dragging")) ||
-  Boolean(document.querySelector('cq-draft[aria-busy="true"]')) ||
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
-      document.activeElement.classList.contains("cq-draft-edit")));
+      document.activeElement.hasAttribute("data-cq-offer")));
 latestChip.onclick = () => (location.href = "/");
 
 // ---------- polling ----------

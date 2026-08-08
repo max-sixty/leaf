@@ -42,9 +42,13 @@ def test_the_pages_link_the_theme_the_site_serves(site):
     for page in sorted(DOCS.glob("*.html")):
         published = (site / page.name).read_text()
         assert 'href="theme.css"' in published
+        assert 'href="bundled-theme.css"' in published
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
     assert (site / "theme.css").read_text() == (ASSETS / "theme.css").read_text()
+    assert (site / "bundled-theme.css").read_text() == (
+        ASSETS.parent / "bundled" / "theme.css"
+    ).read_text()
 
 
 def test_only_the_stylesheet_link_becomes_the_served_copy(site):

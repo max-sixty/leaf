@@ -30,7 +30,7 @@ station take a screenshot and record the geometry it claims:
 
 ## Judge
 
-Read the frames against assets/CLAUDE.md — each norm there is a checklist row —
+Read the frames against plugins/colloquy/skills/colloquy/CLAUDE.md — each norm there is a checklist row —
 and against the craft the norms don't state: nothing stands on words being read or
 written about, nothing renders below legibility, nothing runs out of room while
 the screen has some, floats track what they point at. A finding is a reproduced

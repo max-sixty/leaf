@@ -2,7 +2,7 @@
 #
 # The vendored bundles are upstream's bytes, re-fetched by scripts/vendor-*.sh, so
 # every hook leaves them alone; a formatted copy conflicts on the next fetch.
-exclude: ^plugins/colloquy/skills/colloquy/assets/vendor/
+exclude: ^plugins/colloquy/skills/colloquy/(assets|bundled)/vendor/
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

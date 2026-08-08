@@ -32,6 +32,10 @@
       rel="stylesheet"
       href="../plugins/colloquy/skills/colloquy/assets/theme.css"
     />
+    <link
+      rel="stylesheet"
+      href="../plugins/colloquy/skills/colloquy/bundled/theme.css"
+    />
     <link rel="stylesheet" href="site.css" />
   </head>
   <body>
@@ -50,8 +54,14 @@
         <p class="lede" id="lede">
           A customization layer can change the theme, add <code>cq-*</code> elements,
           and supply browser behavior. <code>page init</code> combines that layer with
-          the shipped one and vendors the result into each page, where the normal
-          catalog and checks cover the additions too.
+          the shipped ones and vendors the result into each page, where the normal
+          catalog and checks cover the additions too. Colloquy's own content widgets
+          ride this same mechanism — the shipped
+          <a
+            href="https://github.com/max-sixty/colloquy/tree/main/plugins/colloquy/skills/colloquy/bundled"
+            ><code>bundled/</code></a
+          >
+          layer is a complete worked example of everything this page describes.
         </p>
       </header>
 
@@ -84,11 +94,12 @@
         <p>
           Run project commands from the project root. Both theme and widget scaffold
           commands accept <code>--user</code> to write the user layer instead. During
-          <code>page init</code>, the shipped layer loads first, the user layer second,
-          and the project layer last. Theme files join in that order. A later registry
-          entry or module with the same name replaces the earlier one. Files may be
-          managed through symlinks, but user, project, and page-owned paths must resolve
-          separately so one scope can never overwrite another.
+          <code>page init</code>, the shipped layers load first — integrated, then the
+          bundled widgets — the user layer next, and the project layer last. Theme files
+          join in that order. A later registry entry or module with the same name
+          replaces the earlier one. Files may be managed through symlinks, but user,
+          project, and page-owned paths must resolve separately so one scope can never
+          overwrite another.
         </p>
       </section>
 

@@ -53,15 +53,21 @@ the product, and nothing sits between them. Six are the skill's, under
 - `assets/colloquy.js` — the runtime the page loads. One ES module owning the widget
   layer and the comment layer, with its stylesheet in a `<style>` block inside it. No
   build step.
-- `assets/widgets/*.js` — one module per interactive widget, importing a small helper
-  surface from the runtime.
-- `assets/registry.json` — the vocabulary. The renderer, the linter, and the agent's
-  documentation all read it, so none of them can drift from the others.
-- `assets/theme.css` — the tokens and rules every page links, and that the runtime
-  styles its own chrome from, so a page themes as one thing.
+- `assets/registry.json` — the machine's own vocabulary: the suggestion family and
+  the layer-wide `$` keys. The renderer, the linter, and the agent's documentation
+  all read the merged registry, so none of them can drift from the others.
+- `assets/theme.css` — the tokens, elements and idioms every page links, the
+  suggestion family's rules, and what the runtime styles its own chrome from, so a
+  page themes as one thing.
 - `assets/icon.svg` — the mark, worn by the tab of every served page and by the
   published site alike, so there is one of it. Its `cq-tone` element is what the runtime
   paints the page's status onto.
+- `bundled/` — the content widget families, an overlay layer in the integrated
+  layer's own layout: their registry entries, one module per upgraded widget, their
+  theme rules, mermaid and sortable beside them. `page init` merges it exactly as it
+  merges a user's `~/.config/colloquy/` or a project's `.colloquy/`, so the shipped
+  widgets reach a page through the same door a customization's do — every vendoring
+  is the proof the door works.
 
 The seventh is `examples/` at the repo root — complete pages that are also the render
 suite's corpus, plus `gallery.html`, all on one page (generated; edit the examples, not
@@ -81,8 +87,8 @@ Each of these was learned by getting it wrong, and the failure is named with the
 because the rule alone is just a preference. They live next to the code they bind, so
 opening that code is how you meet them:
 
-- the page in the browser — the runtime, the widget modules, the theme:
-  `plugins/colloquy/skills/colloquy/assets/CLAUDE.md`
+- the page in the browser — the runtime, the widget modules, the theme, in the
+  integrated and bundled layers both: `plugins/colloquy/skills/colloquy/CLAUDE.md`
 - the server, the log, and the lint: `interact.py`, in its
   module docstring and beside the code each one binds
 - the tests: `tests/CLAUDE.md`

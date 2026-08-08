@@ -2,11 +2,11 @@
 """Assemble the published site (https://max-sixty.github.io/colloquy/) into .tmp/site.
 
 The site is the pages the repo already holds. `docs/` is written to be opened from
-a checkout — the theme arrives by a relative path into the plugin payload, and an
-example link points at the example — so publishing is three substitutions plus the
-files those paths then name. Nothing here templates or generates a page: what is
-on the web is the file in the tree, which is why the pages can double as specimens
-of the theme.
+a checkout — the theme and the tab icon arrive by relative paths into the plugin
+payload, and an example link points at the example — so publishing is four
+substitutions plus the files those paths then name. Nothing here templates or
+generates a page: what is on the web is the file in the tree, which is why the
+pages can double as specimens of the theme.
 
 The examples cannot be copied. An example links /theme.css and /colloquy.js at a
 server root, and half of what it says is written by the widget layer in the browser
@@ -34,7 +34,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 COLLOQUY = ROOT / "plugins" / "colloquy" / "bin" / "colloquy"
-THEME = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets" / "theme.css"
+ASSETS = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 OUT = (
@@ -43,12 +43,13 @@ OUT = (
 
 REPO = "https://github.com/max-sixty/colloquy"
 
-# The stylesheet is a path into the payload like any other, and the one exception to
-# what happens to those: the site serves its own copy rather than sending the reader to
-# GitHub. So it is rewritten first and on its own, and the rule has to say *the link
-# element's* href — `customizing.html` also links that same file as source to read, and
-# a match on the path alone would send a reader after the token block to the stylesheet
-# the site serves instead of to the source.
+# The payload files a page is *wearing* rather than pointing at: the stylesheet it is
+# styled by and the icon its tab shows. Every other path into the payload is source to
+# read and becomes a GitHub link (REWRITES); these have to resolve on the host, so the
+# site serves its own copy and the link is rewritten to name it. Rewritten first and on
+# their own, and the rule has to say *the link element's* href — `customizing.html` also
+# links the stylesheet as source to read, and a match on the path alone would send a
+# reader after the token block to the copy the site serves instead of to the source.
 #
 # A pattern rather than a literal, because the literal is the same rule with a
 # formatter's opinion baked into it. It read as the whole <link> tag until prettier
@@ -57,9 +58,13 @@ REPO = "https://github.com/max-sixty/colloquy"
 # instead, and every page shipped with its stylesheet pointing at a GitHub blob view —
 # a link that resolves, so the dead-link check has nothing to say, over a page with no
 # theme on it.
-THEME_LINK = re.compile(
-    rf'(<link\b[^>]*?)"\.\./{re.escape(str(THEME.relative_to(ROOT)))}"'
-)
+WORN_ASSETS = ("theme.css", "icon.svg")
+WORN_LINKS = {
+    name: re.compile(
+        rf'(<link\b[^>]*?)"\.\./{re.escape(str((ASSETS / name).relative_to(ROOT)))}"'
+    )
+    for name in WORN_ASSETS
+}
 
 # What a checkout path becomes once the site is one directory, in order. Everything a
 # page reaches into the payload for is source to read. Both sides are literal, so a page
@@ -166,13 +171,16 @@ def build(out: Path) -> None:
     for source in sorted(DOCS.iterdir()):
         target = out / source.name
         if source.suffix == ".html":
-            text = THEME_LINK.sub(r'\1"theme.css"', source.read_text(encoding="utf-8"))
+            text = source.read_text(encoding="utf-8")
+            for name, pattern in WORN_LINKS.items():
+                text = pattern.sub(rf'\1"{name}"', text)
             for checkout, published in REWRITES.items():
                 text = text.replace(checkout, published)
             target.write_text(text, encoding="utf-8")
         else:
             shutil.copy2(source, target)
-    shutil.copy2(THEME, out / "theme.css")
+    for name in WORN_ASSETS:
+        shutil.copy2(ASSETS / name, out / name)
 
     # The layer a visitor gets is the shipped one, plus this project's: a page dir
     # vendors the user's ~/.config/colloquy overlay too, and that one belongs to

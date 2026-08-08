@@ -24,6 +24,10 @@ A page directory holds:
                          layer-wide facts under $ — $idioms, $languages, and the page's
                          vocabulary stamp ($events, x-state): the one statement of what
                          this page's vendored runtime speaks
+    icon.svg             the mark the tab wears, whose cq-tone element the runtime
+                         paints in whatever colour the banner's dot is wearing — so a
+                         reader with six colloquys open sees which one wants them
+                         without opening any
     widgets/             one ES module per upgraded widget (cq-tabs.js, cq-diagram.js)
     vendor/              vendored third-party assets (mermaid.min.js, sortable.esm.js)
     media/               images the page shows, each named by the hash of its bytes
@@ -526,7 +530,7 @@ EXTENSION_SCHEMA = {
 }
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
-VENDORED_FILES = ("colloquy.js", "theme.css", "registry.json")
+VENDORED_FILES = ("colloquy.js", "theme.css", "registry.json", "icon.svg")
 VENDORED_DIRS = ("widgets", "vendor")
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
@@ -1285,9 +1289,11 @@ class Handler(BaseHTTPRequestHandler):
             state["others"] = other_colloquys(self.page_dir)
             self._json(state)
             return
-        # Browsers ask for this unprompted. Answering "no content" rather than
-        # letting it fall through to 404 keeps the console clean, which is what
-        # makes an empty console worth asserting on (tests/test_render.py).
+        # Browsers ask for this unprompted, and go on asking where nothing in the
+        # markup names an icon — the runtime's link is written as the chrome is built,
+        # which is after the parse. Answering "no content" rather than letting it fall
+        # through to 404 keeps the console clean, which is what makes an empty console
+        # worth asserting on (tests/test_render.py).
         if path == "/favicon.ico":
             self._send(204, "image/x-icon", b"")
             return
@@ -6079,6 +6085,15 @@ def render_check(page_dir: Path, version: int) -> int:
 BAKE = """() => {
     document.documentElement.classList.add('cq-copy');
     document.querySelectorAll('script, .cq-chrome').forEach(el => el.remove());
+    // The tab icon is the third seat of the banner's status (paintTab), and a file has
+    // no session behind it — a copy keeping the tone it was exported under would claim
+    // one, which is the same lie the chrome above is dropped for. So it drops back to
+    // the mark as authored, which the runtime left here for exactly this.
+    const icon = document.querySelector('link[rel="icon"][data-cq-rest]');
+    if (icon) {
+        icon.href = icon.dataset.cqRest;
+        icon.removeAttribute('data-cq-rest');
+    }
     // hidden="until-found" is the page saying "collapsed, but the reader can still
     // get here" — a tab's inactive panel, a settled group's cards. In a copy the
     // control that would get them there is inert, so the attribute is a promise

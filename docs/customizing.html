@@ -8,7 +8,11 @@
       name="description"
       content="Customize colloquy's theme and add project or user widgets through the registry, CSS, and optional ES modules."
     />
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link
+      rel="icon"
+      href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
+      type="image/svg+xml"
+    />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="customize colloquy" />
     <meta
@@ -124,6 +128,16 @@ cq-options {
           is the reference. Presentation unique to one page still belongs in that
           version's own <code>&lt;style&gt;</code>; the layer is for a look reused
           across pages.
+        </p>
+        <p>
+          The tab carries a mark too. A layer may drop in its own
+          <code>icon.svg</code>, replacing
+          <a href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
+            >the shipped mark</a
+          >. It has to keep one promise: an element marked <code>class="cq-tone"</code>,
+          which the page paints in the color the banner's status dot is wearing. A row
+          of tabs then says which colloquy is working, which is waiting on you, and
+          which has nobody behind it, without opening any of them.
         </p>
       </section>
 

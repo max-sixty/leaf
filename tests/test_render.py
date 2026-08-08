@@ -11070,6 +11070,109 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     page.close()
 
 
+# What the tab is wearing, once the banner has judged `want` and the tab agrees with it.
+# The runtime builds the href, so reading it back is reading what the browser was handed;
+# null until both hold, which is what makes this a wait — a status arrives on a poll, and
+# the tab is repainted in the pass that repaints the dot.
+#
+# Naming the state is what keeps a read off one the page is passing through: dropping the
+# watcher takes a waiting page through `away` on its way to `unheld`, and a wait asking
+# only for agreement is answered from there, by a tab that is perfectly correct about a
+# state the test is not about.
+#
+# The tone read is the sheet the runtime appended, never the mark's own — and the two are
+# not told apart by their colours. The mark is authored in the accent, so a working page
+# paints it the shade it already was, and a reading that took the first rule it found
+# agreed with the banner on the one state where nothing had to have happened.
+TAB_TONE = """(want) => {
+    const el = document.querySelector('.cq-banner .cq-dot');
+    const judged = el.className.replace('cq-dot', '').trim();
+    const prefix = 'data:image/svg+xml,';
+    const href = document.querySelector('link[rel=icon]').getAttribute('href');
+    const svg = href.startsWith(prefix)
+        ? new DOMParser().parseFromString(
+              decodeURIComponent(href.slice(prefix.length)), 'image/svg+xml',
+          ).documentElement
+        : null;
+    const sheets = svg ? [...svg.querySelectorAll('style')] : [];
+    const tone =
+        sheets.length > 1 ? /fill: ([^}]+) \\}/.exec(sheets.at(-1).textContent)?.[1] : null;
+    const dot = getComputedStyle(el).backgroundColor;
+    return VERDICT;
+}"""
+# The same reading with nothing required of it, for a failure that says what it found.
+TAB_AND_DOT = TAB_TONE.replace("VERDICT", "[judged, tone, dot]")
+TAB_TONE = TAB_TONE.replace("VERDICT", "judged === want && tone === dot ? tone : null")
+
+
+def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
+    """The judgment's third seat, and the only one a reader with six colloquys open in a
+    row of tabs can see without opening any. The mark is the vendored icon.svg and the
+    runtime paints the element it declares in whatever colour the dot is wearing, so the
+    tab and the banner are one fact read twice: a palette written out again for the tab
+    would be free to drift from the theme the day a project overrode a token, and drift
+    silently, since a tab nobody is watching closely is exactly the case this is for.
+
+    What a copy does with all of it is the export section's
+    (test_a_copy_wears_the_mark_and_claims_no_session)."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    d = tmp_path / "page"
+
+    def tone(want, why):
+        try:
+            return page.wait_for_function(TAB_TONE, arg=want).json_value()
+        except PlaywrightTimeout:
+            # The console with it: a mark the runtime refuses reads here as a tab with
+            # no tone on it, and the reason it refused is the only thing that says why.
+            found = page.evaluate(TAB_AND_DOT, want)
+            pytest.fail(
+                f"the tab never said {why} as the banner does: {found} {errors}"
+            )
+
+    def declare(state, **status):
+        interact.write_json(
+            d / "status.json",
+            {"state": state, "ts": interact.now_iso(), **status},
+        )
+        told(page)
+
+    # `page init` leaves a fresh working claim, so the tab arrives already saying so.
+    working = tone("working", "working")
+    declare("waiting")
+    with live_watcher(d, page):
+        awaits = tone("listening", "awaits")
+    # The distinctness is the half agreement alone can't prove: a tab painted once and
+    # never again agrees with a dot that never moved either, and the two states a reader
+    # is choosing between — this page wants me, that one is busy — are exactly the pair
+    # that would collapse.
+    assert awaits != working, (
+        f"a page awaiting its reader wears the same tab as one that is working ({awaits})"
+    )
+
+    # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
+    # in the tab, which is the whole of what the reader can see of it from a tab strip.
+    interact.write_json(
+        d / "session.json", {"id": "s", "pid": dead_pid, "agent": "Claude", "ts": "t"}
+    )
+    unheld = tone("", "unheld")
+    assert unheld not in (working, awaits), (
+        f"a page nothing holds wears a tab claiming a session ({unheld})"
+    )
+
+    # And the mark itself is an image the browser will render, which is the one thing
+    # a string comparison above cannot say: an SVG this file mangles decodes to nothing
+    # and shows as a blank tab, with no error anywhere to find it by.
+    drawn = page.evaluate("""() => new Promise((done) => {
+        const img = new Image();
+        img.onload = () => done(img.naturalWidth);
+        img.onerror = () => done(0);
+        img.src = document.querySelector('link[rel=icon]').getAttribute('href');
+    })""")
+    assert drawn > 0, "the tab's mark is not an image the browser can decode"
+    assert errors == []
+    page.close()
+
+
 # ---------- anchors written without a browser ----------
 # `colloquy comment` writes an anchor by reading the version file; the runtime
 # resolves it against the DOM that file becomes. Nothing static can check that those
@@ -11565,3 +11668,45 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     expect(page.locator("#t-parser")).to_have_attribute("status", "done")
     expect(page.locator("#t-feeders > .cq-chips")).to_contain_text("2/2 done")
     page.close()
+
+
+def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
+    """A copy keeps the mark and drops the status painted on it. The live page was
+    exported under a working claim — `page init` leaves one — so the tone it was wearing
+    is a session that does not exist behind a file, which is the same lie the chrome is
+    dropped for. Nothing else on the tab is worth losing over it: the mark still says
+    which product wrote the file, and it is inlined, so it survives the copy leaving the
+    machine that served it (test_an_exported_example_stands_on_its_own is what says no
+    link here still points at a server)."""
+    url = serve(LONG_PAGE)
+    out = tmp_path / "standalone.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    # The tone is a stylesheet the runtime appends to the mark, so what says the copy is
+    # wearing none is the mark carrying only the one its file was written with.
+    icon = page.evaluate("""() => {
+        const el = document.querySelector('link[rel=icon]');
+        const prefix = 'data:image/svg+xml,';
+        const href = el.getAttribute('href');
+        if (!href.startsWith(prefix)) return { inlined: false };
+        const svg = new DOMParser()
+            .parseFromString(decodeURIComponent(href.slice(prefix.length)), 'image/svg+xml')
+            .documentElement;
+        return {
+            inlined: true,
+            rest: el.getAttribute('data-cq-rest'),
+            toned: svg.querySelectorAll('style').length,
+            mark: Boolean(svg.querySelector('.cq-tone')),
+        };
+    }""")
+    page.close()
+
+    assert icon["inlined"], "the copy's tab icon is not a mark the file carries itself"
+    assert icon["mark"], "the copy lost the mark rather than the status painted on it"
+    assert icon["toned"] == 1, (
+        "the copy's tab wears a tone it was exported under, claiming a session no file "
+        f"has — {icon['toned']} stylesheets on a mark authored with one"
+    )
+    assert icon["rest"] is None, "the handover attribute rode along into the copy"

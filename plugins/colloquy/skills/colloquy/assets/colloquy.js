@@ -5071,8 +5071,91 @@ function presented(state) {
     detail: status.state === DETAIL_FROM[kind] ? status.detail : "",
   };
 }
-// One writer for the dot and the line, offline included: null is the poll saying it
-// couldn't reach the server, not a second function's own rendering. The line is one of
+// The judgment's third seat. A reader keeps a colloquy in a tab for days and looks at
+// six of them; the tab strip is the whole of what the browser shows about a page nobody
+// has open, so the state that decides whether to go there belongs in it. Same judgment
+// (presented), same writer as the dot and the line, and the tone is taken off the dot
+// itself rather than mapped from kind to token again — one answer to what a tone looks
+// like, so a project overriding --ok overrides the tab with it and the two cannot come
+// apart. It is a read of the theme, not of the rendering: what colour this tone paints
+// as is a question nothing else can answer, where what state the page is in is already
+// in hand.
+//
+// The mark is the vendored icon.svg — the page's own asset like the theme, so a project
+// can put its own there — and all the runtime does to it is paint the one element it
+// declares. Refused rather than defaulted, as the theme's shadow block is: a mark with
+// no cq-tone leaves a tab that never changes, which is a status readout that silently
+// isn't one.
+const tabLink = Object.assign(document.createElement("link"), {
+  rel: "icon",
+  type: "image/svg+xml",
+  href: "/icon.svg",
+});
+document.head.append(tabLink);
+let iconMark = null;
+const iconUrls = new Map();
+// The mark with one colour written over it, or — for "" — the mark as authored. A style
+// element appended last outranks the file's own rules, the dark-scheme block included,
+// since a media query carries no specificity of its own. So this knows nothing about the
+// icon beyond the class it promises, and a project's own mark is painted on the same
+// terms.
+function iconUrl(color) {
+  let url = iconUrls.get(color);
+  if (url === undefined) {
+    const svg = iconMark.cloneNode(true);
+    if (color) {
+      const style = svg.ownerDocument.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "style",
+      );
+      style.textContent = `.cq-tone { fill: ${color} }`;
+      svg.append(style);
+    }
+    url =
+      "data:image/svg+xml," +
+      encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    iconUrls.set(color, url);
+  }
+  return url;
+}
+async function loadIcon() {
+  const response = await fetch("/icon.svg");
+  if (!response.ok)
+    throw new Error(`colloquy: the tab icon failed to load (${response.status})`);
+  const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
+  // Two failures, and the same symptom: no element to paint. A parse error is reported
+  // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
+  // check and fails it — sending whoever overrode the file to look for a class that is
+  // sitting right there in it.
+  const broken = doc.querySelector("parsererror");
+  if (broken)
+    throw new Error(
+      // Collapsed, because the browser's report is laid out as a page and reads as
+      // several lines of it; what matters is the line and column it names.
+      `colloquy: icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
+    );
+  if (!doc.querySelector(".cq-tone"))
+    throw new Error(
+      "colloquy: icon.svg carries no cq-tone element, which is where the page's " +
+        "status is painted",
+    );
+  iconMark = doc.documentElement;
+  // Left where `version export` can find it: a file has no session behind it, so a copy
+  // wears the mark saying nothing rather than the tone it was exported under.
+  tabLink.dataset.cqRest = iconUrl("");
+  paintTab();
+}
+// A declaration, and called from two places, because the fetch above can land after the
+// first poll has already judged the page.
+function paintTab() {
+  if (!iconMark) return;
+  const url = iconUrl(getComputedStyle(dot).backgroundColor);
+  // Written only on change: an unchanged poll must not hand the browser its icon again
+  // every two seconds.
+  if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
+}
+// One writer for the dot, the line and the tab, offline included: null is the poll saying
+// it couldn't reach the server, not a second function's own rendering. The line is one of
 // the two things on the row that give up width when it runs out (see the theme), so what
 // a narrow window clips is a hover away, the way the version chooser's label is — worth
 // more now that the line carries the ask and not only the state. Written every time
@@ -5083,6 +5166,7 @@ const showStatus = (tone, ...parts) => {
   statusText.textContent = "";
   statusText.append(...parts);
   statusText.title = statusText.textContent;
+  paintTab();
 };
 function renderStatus(state) {
   if (state === null) {
@@ -5660,7 +5744,15 @@ const savedComposer = loadDraft("composer");
 // never a top-level await: widget modules import this module's helpers, and awaiting
 // their import at top level would deadlock the cycle (their evaluation waits on this
 // module's async evaluation completing).
-upgradeWidgets().then(() => {
+Promise.all([
+  upgradeWidgets(),
+  // Alongside rather than after, and caught rather than fatal: the tab icon is not
+  // what the page is for, so a layer missing it says so in the console and leaves the
+  // rest working — the same bargain a widget module that fails to import makes. It is
+  // still awaited here, because `version export` copies the page at the stamp below
+  // and a mark that arrived after it would leave the copy's tab to chance.
+  loadIcon().catch((err) => console.error(err)),
+]).then(() => {
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.
   captureAuthoredFacets();

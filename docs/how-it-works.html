@@ -8,7 +8,11 @@
       name="description"
       content="The mechanism behind colloquy: one uv script, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link
+      rel="icon"
+      href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
+      type="image/svg+xml"
+    />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="how colloquy works" />
     <meta
@@ -242,7 +246,9 @@
           to no session, so nothing takes it down but <code>colloquy server stop</code>.
           Sessions then come and go around a page that stays up, and between them the
           banner says so — no session holds this page, and it picks up again when one
-          does.
+          does. The tab says it too: a colloquy's icon wears the color of that banner's
+          dot, so a row of them tells you which page is working, which is waiting on
+          you, and which has nobody behind it, without opening any.
         </p>
       </section>
 

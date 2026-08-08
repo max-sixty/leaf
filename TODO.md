@@ -92,3 +92,21 @@
   directory, against the 75 KB `highlight.esm.js` spends on the same fifteen. Split
   view is the only feature on the far side of that, and it would pull `cq-code` and the
   plain `<pre><code>` path onto Shiki with it.
+
+- (2026-08-08) The tab wears one bubble in one colour, which is enough to pick a page
+  out of a row of tabs and is the whole of it. Two things it is not. It carries no
+  count, where the banner's `Asks (n)` already has one from `x-awaits`, so a reader who
+  wants to know how much is waiting still has to open the page — and whether a 16px
+  square can say a number, or show anything but a still image, is a measurement nobody
+  has made, because no automated browser can see its own tab strip. And the mark is
+  themed only in its status: `icon.svg` spells out paper, ink and the marked line as
+  literals, since a favicon cannot link a stylesheet, so a project that overrides
+  `--paper` gets a tab still drawn in colloquy's.
+
+  The second is the one with a shape already. The runtime writes one declaration into
+  the mark on every paint — `.cq-tone { fill: … }`, from the dot's own colour — so the
+  fix is to write the theme's tokens in beside it and let a mark read them with `var()`.
+  That turns the contract from "keep this class" into "these tokens reach you", which is
+  the difference between a mark that must be built around one hardcoded property and one
+  that can take its status on a stroke, a gradient stop, or nothing at all. Worth doing
+  the first time someone themes a page and notices the tab didn't follow.

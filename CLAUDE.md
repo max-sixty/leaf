@@ -42,8 +42,8 @@ field rather than asking a second time whether it arrived.
 
 Claude Code and Codex both resolve `plugins/colloquy/` as the plugin payload:
 `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` are the two
-repo-root pointers, and the payload carries one manifest for each host. Six things make
-the product, and nothing sits between them. Five are the skill's, under
+repo-root pointers, and the payload carries one manifest for each host. Seven things make
+the product, and nothing sits between them. Six are the skill's, under
 `plugins/colloquy/skills/colloquy/`:
 
 - `scripts/interact.py` — a `uv` script: the server, the event log, the lint
@@ -59,8 +59,11 @@ the product, and nothing sits between them. Five are the skill's, under
   documentation all read it, so none of them can drift from the others.
 - `assets/theme.css` — the tokens and rules every page links, and that the runtime
   styles its own chrome from, so a page themes as one thing.
+- `assets/icon.svg` — the mark, worn by the tab of every served page and by the
+  published site alike, so there is one of it. Its `cq-tone` element is what the runtime
+  paints the page's status onto.
 
-The sixth is `examples/` at the repo root — complete pages that are also the render
+The seventh is `examples/` at the repo root — complete pages that are also the render
 suite's corpus, plus `gallery.html`, all on one page (generated; edit the examples, not
 it).
 

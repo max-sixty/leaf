@@ -492,7 +492,7 @@ def main() -> None:
     # `write_gif` has a directory to write into.
     page_dir.mkdir(parents=True)
     # The recording gets a state home of its own, staged beside the page for the same
-    # reason the page is. The banner's `Other colloquys` control lists the live pages
+    # reason the page is. The banner's `All colloquys` control lists the live pages
     # the state home knows about, so recording on a machine with pages open puts a
     # control in the picture that the staged scene never had — and one that takes its
     # width out of everything left of it, so the whole row lands somewhere else than

@@ -1398,6 +1398,12 @@ const othersPanel = el("nav", "cq-ui cq-others-panel");
 othersPanel.setAttribute("aria-label", "Colloquys on this machine");
 let others = [];
 let othersOpen = false;
+// The board's one offer: neighbours to show, or the board already standing — the
+// key that opened it must still close it, and its button must still be pressable.
+// The button's visibility and the o key both ask this predicate, so the two
+// surfaces cannot disagree about whether there is a board to open. A board of one
+// — the page the reader is already on — is not worth a control.
+const boardOffered = () => others.length > 0 || othersOpen;
 // The panel survives a reload like the comment panel does (see PANEL_KEY):
 // reloading is not resetting, and a board someone stood up to watch stays stood.
 const OTHERS_KEY = "cq-others-open";
@@ -1506,9 +1512,8 @@ function renderOthers(state) {
   // the status the server ships. This page's own row is not in the list and so is
   // never dropped: a reader looking at a closed page is still looking at it.
   others = (state.others ?? []).filter((entry) => presented(entry).kind !== "closed");
-  othersBtn.textContent = `Other colloquys (${others.length})`;
   // While the panel stands its button stands too, whatever the count just did.
-  showNews(othersBtn, others.length > 0 || othersOpen);
+  showNews(othersBtn, boardOffered());
   // Registered from here rather than at load, because the section promises a board
   // to walk and only a machine with a neighbour on it has one — the liveness a
   // widget's section gets for free by loading only when its widget is on the page.
@@ -1517,6 +1522,11 @@ function renderOthers(state) {
     { key: "self", title: document.title, entry: state },
     ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
   ];
+  // The button names the board it opens, so the count is these rows — the list the
+  // press will show, headed by this page's own row — and never arithmetic beside
+  // them. "Other colloquys" counted the neighbours alone, one off the list it
+  // promised: a machine with one neighbour said (1) over a board of two.
+  othersBtn.textContent = `All colloquys (${wanted.length})`;
   let anchor = null; // the row before this one, so order holds without rebuilding
   for (const { key, title, entry } of wanted) {
     let row = othersRows.get(key);
@@ -1677,13 +1687,13 @@ chromeRoot.append(
 document.body.append(chromeRoot);
 // The controls that rewrite their own words hold the widest of them now, measured in
 // the face the banner just rendered them in (see the stylesheet's banner comment).
-// The counting two hold the widest they reach anywhere below a thousand, so no
-// arithmetic on the count can move them — a page with a thousand open threads on it
-// is not one anyone hands a user.
+// The counters hold the widest they reach anywhere below a thousand, so no count
+// they write can move them — a page with a thousand open threads, or a machine with
+// a thousand live pages, is not one anyone hands a user.
 if (SIGNOFF) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
-reserve(othersBtn, ["Other colloquys (999)"]);
+reserve(othersBtn, ["All colloquys (999)"]);
 const basePaddingTop = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
 document.body.style.paddingTop = basePaddingTop + banner.offsetHeight + "px";
 // The banner's reservation at the other edge: the key line stands for the page's
@@ -3875,6 +3885,11 @@ document.addEventListener("keyup", (ev) => {
 // the press rather than about who receives it: the aim takes a press away from the page
 // (see claimPress) and must not take this with it, or the keyboard reference stays up over
 // the composer that press just opened. Hence one function, called from both.
+// The two side panels are absent from it on purpose. A float answers the press in front
+// of it and stands down behind it; the comment panel and the colloquys board are
+// workspaces the reader stood up, kept through a reload (PANEL_KEY, OTHERS_KEY) and so
+// through a click all the more — a board any press removes cannot be watched while
+// working, which is the board's point. Each closes by its own button, its key, or Esc.
 function standDown(target) {
   if (!target.closest?.(".cq-fab, .cq-composer")) {
     showFab(null);
@@ -4304,11 +4319,9 @@ const KEYS = [
   {
     key: "o",
     label: "o",
-    does: "Show or hide the machine's other colloquys",
+    does: "Show or hide the machine's colloquys",
     line: "colloquys",
-    // Live with neighbours to show, and while the panel stands whatever the
-    // count did — the key that opened it must still close it.
-    when: () => others.length > 0 || othersOpen,
+    when: boardOffered,
     run: () => {
       showOthers(!othersOpen);
       // Opening lands on the first neighbour, so the board's own keys are the next
@@ -4423,6 +4436,21 @@ function escapeKey() {
   scene().esc?.out();
 }
 
+// The panels' rung, one definition for every scene that reaches past the focused
+// control, so the thread's, the list's and the page's rungs cannot disagree. With
+// both panels standing, Esc takes the colloquys board first — it was opened for a
+// glance, where the comment panel is the work itself — unless focus stands inside
+// the comment panel: a reader backing out of its general box is standing on its
+// list, and their next Esc taking a board off the far side of the screen took the
+// key away from the work it was unwinding. Asked of the focus rather than of which
+// thing is open, because "in the panel" is where the reader is, not what stands.
+function panelsRung(active) {
+  if (othersOpen && !panel.contains(active))
+    return { says: "close colloquys", out: () => showOthers(false) };
+  if (panelOpen) return { says: "close comments", out: () => setPanel(false) };
+  return null;
+}
+
 // The current keyboard scope, top layer first: what the next press can do (rows),
 // and what Escape backs out of (esc — null where Escape deliberately does nothing:
 // a box words are typed into outside the panel keeps its own Escape, and a widget
@@ -4463,10 +4491,7 @@ function scene() {
     if (!panel.contains(active))
       return {
         rows: [],
-        esc:
-          !typedInto(active) && panelOpen
-            ? { says: "close comments", out: () => setPanel(false) }
-            : null,
+        esc: typedInto(active) ? null : panelsRung(active),
       };
     const thread = active.closest(".cq-thread");
     return {
@@ -4508,23 +4533,16 @@ function scene() {
           : []),
         ...(live(jk) ? [[keyLabel(jk), jk.line]] : []),
       ],
-      esc: { says: "close comments", out: () => setPanel(false) },
+      esc: panelsRung(active),
     };
   }
-  // With both panels standing, Esc takes the colloquys board first: it was opened
-  // for a glance, where the comment panel is the work itself — and a reader whose
-  // focus is in a thread is past this return, so their Esc stays the panel's.
   // Focus inside the board is a scope of its own, the way a focused thread is: what
   // the next press does there is the board's business and not the page's.
   return {
     rows: othersPanel.contains(active)
       ? OTHERS_KEYS
       : KEYS.filter((b) => b.line && live(b)).map((b) => [keyLabel(b), b.line]),
-    esc: othersOpen
-      ? { says: "close colloquys", out: () => showOthers(false) }
-      : panelOpen
-        ? { says: "close comments", out: () => setPanel(false) }
-        : null,
+    esc: panelsRung(active),
   };
 }
 

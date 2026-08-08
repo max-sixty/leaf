@@ -1806,17 +1806,17 @@ def other_colloquy(live_colloquy):
 def test_the_banner_opens_a_panel_of_the_machines_colloquys(
     browser, serve, other_colloquy
 ):
-    """The colloquys panel, end to end: the banner counts the machine's other live
-    pages, a press slides out a left board headed by this page's own marked, unlinked
-    row, each neighbour is a link named by its title and saying what that page is
-    doing — the same judgment its own banner would show, from the same facts — and a
+    """The colloquys panel, end to end: the banner counts the machine's live pages,
+    this one included, a press slides out a left board headed by this page's own
+    marked, unlinked row, each neighbour is a link named by its title and saying what
+    that page is doing — the same judgment its own banner would show, from the same facts — and a
     link opens that page in a tab of its own, leaving this one where it was, panel
     standing. Esc is the panel's rung on the ladder. On a machine serving nothing
     else the button never appears, which every other test here shows for free."""
     other_url, _ = other_colloquy
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".cq-others")
-    expect(btn).to_have_text("Other colloquys (1)")
+    expect(btn).to_have_text("All colloquys (2)")
     btn.click()
     others_panel = page.locator(".cq-others-panel")
     expect(others_panel).to_be_visible()
@@ -1841,7 +1841,7 @@ def test_the_banner_opens_a_panel_of_the_machines_colloquys(
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
     expect(btn).to_be_visible()  # closing the panel keeps the standing button
-    expect(btn).to_have_text("Other colloquys (1)")  # and the count
+    expect(btn).to_have_text("All colloquys (2)")  # and the count
     # The count's reservation, swept here because this is the one test that ever
     # renders the button — every other page here runs under an isolated HOME, so
     # neither the press sweep nor the poll test can reach it. The widest label
@@ -1849,11 +1849,11 @@ def test_the_banner_opens_a_panel_of_the_machines_colloquys(
     before, widest = page.evaluate(
         """() => { const b = document.querySelector('.cq-others');
                    const before = b.offsetWidth;
-                   b.textContent = 'Other colloquys (999)';
+                   b.textContent = 'All colloquys (999)';
                    return [before, b.offsetWidth]; }"""
     )
     assert widest == before, (
-        f"'Other colloquys (999)' grew the button {before}px -> {widest}px: its "
+        f"'All colloquys (999)' grew the button {before}px -> {widest}px: its "
         "reserve list no longer names the widest label renderOthers writes"
     )
     assert errors == []
@@ -1870,7 +1870,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     _, other_dir = other_colloquy
     page, errors = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
-    expect(page.locator(".cq-others")).to_have_text("Other colloquys (1)")
+    expect(page.locator(".cq-others")).to_have_text("All colloquys (2)")
     page.keyboard.press("o")  # the key opens the panel like the button does
     row = page.locator("a.cq-others-row")
     expect(row.locator(".cq-others-line")).to_have_text("Working — running the suite")
@@ -1925,13 +1925,13 @@ def test_a_closed_colloquy_clears_itself_off_the_board(browser, serve, other_col
     """A closed colloquy leaves the board on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
     count a reader glances at to find who needs them would become a tally of
-    everything that has ever run here. This page's own row is not one of the
-    neighbours the count is over, so a board with nothing live left on it still says
-    where the reader is."""
+    everything that has ever run here. This page's own row never drops — a reader
+    looking at a closed page is still looking at it — so a board with nothing live
+    left on it still says where the reader is, and the count says (1) for it."""
     _, other_dir = other_colloquy
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".cq-others")
-    expect(btn).to_have_text("Other colloquys (1)")
+    expect(btn).to_have_text("All colloquys (2)")
     page.keyboard.press("o")
     rows = page.locator("a.cq-others-row")
     expect(rows).to_have_count(1)
@@ -1941,7 +1941,7 @@ def test_a_closed_colloquy_clears_itself_off_the_board(browser, serve, other_col
     )
     told(page)
     expect(rows).to_have_count(0)
-    expect(btn).to_have_text("Other colloquys (0)")
+    expect(btn).to_have_text("All colloquys (1)")
     expect(page.locator(".cq-others-self .cq-others-title")).to_have_text("long")
     # Nothing live left to open: the button stands while the panel does and stands
     # down with it, which is the count's other half.
@@ -1963,7 +1963,7 @@ def test_the_colloquys_board_takes_the_keyboard(browser, serve, live_colloquy):
     other_url, _ = live_colloquy("other", "The other colloquy")
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".cq-others")
-    expect(btn).to_have_text("Other colloquys (2)")
+    expect(btn).to_have_text("All colloquys (3)")
     keyline = page.locator(".cq-keyline")
     # A shortcut no surface names is a shortcut nobody finds: the line carries o for
     # exactly as long as there is a board to open.
@@ -1999,6 +1999,37 @@ def test_the_colloquys_board_takes_the_keyboard(browser, serve, live_colloquy):
     page.close()
 
 
+def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
+    browser, serve, other_colloquy
+):
+    """With both panels standing, Esc takes the colloquys board first — but only
+    while focus stands outside the comment panel. A reader backing out of the
+    general box is standing on the panel's list, and their next Esc used to close
+    the board on the far side of the screen instead: the key left the work it was
+    unwinding, and the reader watching the right edge saw nothing happen. The rung
+    asks where focus is, not which things are open, and there is one definition of
+    it for the thread, the list and the page scenes alike."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    expect(page.locator(".cq-others")).to_have_text("All colloquys (2)")
+    page.keyboard.press("o")  # the board first, then the panel over it
+    page.keyboard.press("c")
+    expect(page.locator(".cq-general textarea")).to_be_focused()
+    page.keyboard.press("Escape")  # back out of the box, onto the panel's list
+    expect(page.locator(".cq-threads")).to_be_focused()
+    expect(page.locator(".cq-keyline")).to_contain_text("close comments")
+    page.keyboard.press("Escape")  # the panel the reader stands in, not the board
+    expect(page.locator(".cq-panel")).to_be_hidden()
+    expect(page.locator(".cq-others-panel")).to_be_visible()
+    # Focus lands on the panel's reopening control, outside both panels, so the
+    # ladder's next rung is the board's — the glance closes last.
+    expect(page.locator(".cq-comments")).to_be_focused()
+    expect(page.locator(".cq-keyline")).to_contain_text("close colloquys")
+    page.keyboard.press("Escape")
+    expect(page.locator(".cq-others-panel")).not_to_be_visible()
+    assert errors == []
+    page.close()
+
+
 def test_a_walk_down_the_board_stops_clear_of_the_key_line(
     browser, serve, live_colloquy
 ):
@@ -2012,7 +2043,7 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(
     for i, title in enumerate(names):
         live_colloquy(f"n{i}", title)
     page, errors = open_page(browser, serve(LONG_PAGE))
-    expect(page.locator(".cq-others")).to_have_text(f"Other colloquys ({len(names)})")
+    expect(page.locator(".cq-others")).to_have_text(f"All colloquys ({len(names) + 1})")
     # Short enough that the rows overflow the board, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)

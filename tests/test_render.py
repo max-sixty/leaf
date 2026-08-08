@@ -44,6 +44,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -581,6 +582,41 @@ def open_page(
     if LOADED:
         page.evaluate("() => { window.__cqHold = true; }")
     return page, errors
+
+
+def exporting(browser, prepare=None):
+    """The browser `export_page` opens its page on, with the suite's hands on that page.
+
+    The sweep installs through `open_page`, and export opens its page itself, so the
+    throttle reached every page the suite opens and not the one whose whole job is
+    waiting for a page to catch up — and a test could only watch export from outside the
+    copy it returned. `browser` is the entire seam, since `new_page` is all export asks
+    of it; a stand-in that makes the page, hands it over, and returns it needs no
+    parameter added to export for a caller that is only ever a test.
+
+    `render_version` opens its two pages the same way and is still outside, which this
+    would wrap verbatim — it survives the throttle at about twice the wall clock,
+    measured on `test_example_renders`. Twenty-odd call sites each wrapping their own
+    argument is the arrangement a twenty-third quietly opts out of, though; the seam
+    that cannot be missed is the `browser` fixture handing out an instrumented browser,
+    and that is a change to what every test in the suite runs under.
+
+    No hold here, even under the sweep. The hold turns on after `open_page` has the page
+    loaded, and export owns its own load — arming it earlier only moves export's
+    `networkidle` past the held poll, which is the poll being waited for. `prepare` is
+    where a test states the timing it wants instead."""
+
+    def new_page(**kwargs):
+        page = browser.new_page(**kwargs)
+        if LOADED:
+            page.context.new_cdp_session(page).send(
+                "Emulation.setCPUThrottlingRate", {"rate": CPU_SLOWDOWN}
+            )
+        if prepare:
+            prepare(page)
+        return page
+
+    return SimpleNamespace(new_page=new_page)
 
 
 def panel_settled(page, open=True):
@@ -11442,7 +11478,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     it lacks was the broken one."""
     url = serve(example.read_text())
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(interact.export_page(exporting(browser), url, serve.page_dir))
 
     errors = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -11488,24 +11524,41 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
-    """The copy is the page as replay left it, and a report is replay's other
-    channel — none of the corpus can say so, because an example is one version
-    with an empty log. The caught-up wait counts reports beside actions, as the
-    render gate does; what this run can prove of that is the overcount
-    direction, a wait that would hang on a number the stamp never reaches. The
-    undercount — a report-only page copied before its first poll painted —
-    outruns even a held `/api/state`, since export's own networkidle waits that
-    poll out; only a machine slow enough to open the gap between the last
-    resource and the first poll reaches it, and the loaded-machine sweep's
-    harness rides open_page, which export's own page never passes through."""
+    """The copy is the page as replay left it, and a report is replay's other channel —
+    none of the corpus can say so, because an example is one version with an empty log.
+
+    The gap the wait covers is real and narrow: the runtime stamps `cq-upgraded` in the
+    same breath as it *starts* the first poll, never awaiting it, so the stamp export
+    opens on is no promise that anything in the log has been painted. Ordinarily the
+    poll goes out during load and export's own `networkidle` waits it out, which is why
+    the page arrives painted however the wait is written and why the count being wrong
+    stayed invisible. Refusing that first poll is the whole of the difference — replay's
+    only chance is then the 2s retry, on the far side of both the stamp and networkidle,
+    which is exactly where a loaded machine would have put it. Counting actions alone
+    leaves nothing to wait for on a log holding one report, and the copy goes out blank.
+
+    The refusal is served to export's own page rather than the copy's, through the
+    stand-in `exporting` supplies."""
     url = serve(REPORT_PAGE)
     sent = CliRunner().invoke(
         interact.cli,
         ["report", str(serve.page_dir), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
+
+    def refuse_the_first_poll(page):
+        polls = itertools.count()
+        page.route(
+            "**/api/state*",
+            lambda route: route.abort() if next(polls) == 0 else route.continue_(),
+        )
+
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(
+        interact.export_page(
+            exporting(browser, refuse_the_first_poll), url, serve.page_dir
+        )
+    )
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")

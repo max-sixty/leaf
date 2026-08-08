@@ -1199,6 +1199,23 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def handle(self):
+        """The exchange, ending quietly when the reader is no longer there.
+
+        A reader who closes the tab mid-response leaves the handler writing into a
+        socket the kernel answers with a reset, and `socketserver` prints the
+        `BrokenPipeError` as a twenty-five-line traceback naming this file — a
+        server fault, by every appearance, for the one thing a page is most
+        certain to do. Closing a tab is not an error and there is nothing to
+        answer with, the peer being gone; every read and write on the connection
+        passes through here, so this is where it ends. `ConnectionError` is the
+        whole of that case: its other subclass, a refused connection, cannot
+        reach a socket the server already accepted."""
+        try:
+            super().handle()
+        except ConnectionError:
+            pass
+
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are

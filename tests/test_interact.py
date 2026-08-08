@@ -13,13 +13,14 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
 import urllib.request
-from http.server import ThreadingHTTPServer
+from http.server import HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -3746,6 +3747,50 @@ def fetch(url, data=None, token=TOKEN):
             return res.status, res.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
+
+
+def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
+    """Closing a tab mid-response is how nearly every page ends, and it used to put a
+    BrokenPipeError traceback naming interact.py on the server's stderr —
+    indistinguishable, in a log or in a suite's output, from the server having a
+    fault.
+
+    Both halves run the handler the way socketserver runs it, `RequestHandlerClass(
+    request, client_address, server)` being the frame the traceback came out of. That
+    is also what makes the failure deterministic: a socketpair whose far end is closed
+    answers the first write with EPIPE, where a TCP client has to be raced into sending
+    a reset between the server's read and its write. The answered half is here so the
+    silent one cannot pass by refusing the request before it ever writes. The server
+    object only supplies the argument; nothing is accepting on it.
+
+    The poll, of everything a page asks for, because it is the request a closing tab
+    is most likely to be holding — the runtime asks again forever — and because a
+    socketpair's buffer is a few kilobytes: nothing drains this one until the handler
+    has returned, so the answered half asks for a response that fits. The runtime is
+    297kB and deadlocks the test rather than the server."""
+    handler = interact.handler_for(page_dir, TOKEN)
+    httpd = HTTPServer(("127.0.0.1", 0), handler)
+    request = f"GET /api/state?t={TOKEN} HTTP/1.0\r\nHost: x\r\n\r\n".encode()
+
+    reader, edge = socket.socketpair()
+    reader.sendall(request)
+    handler(edge, ("127.0.0.1", 0), httpd)
+    edge.close()  # so the drain below ends rather than waiting on a live connection
+    answer = b""
+    while chunk := reader.recv(65536):
+        answer += chunk
+    reader.close()
+    assert answer.startswith(b"HTTP/1.0 200")
+    head, body = answer.split(b"\r\n\r\n", 1)
+    assert f"Content-Length: {len(body)}".encode() in head
+    assert "versions" in json.loads(body)
+
+    gone, edge = socket.socketpair()
+    gone.sendall(request)
+    gone.close()
+    handler(edge, ("127.0.0.1", 0), httpd)  # the raise was here
+    edge.close()
+    httpd.server_close()
 
 
 def test_server_round_trip(server, page_dir):

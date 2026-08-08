@@ -109,6 +109,26 @@ ordinary busy run, and being that machine on purpose found seven more standing o
 margin: the ones that go red are only ever those with the least room, so fixing them
 without running this again hands the next loaded run a different victim.
 
+Both halves install through `open_page`, which is every page the suite opens and none of
+the ones the product opens for itself — so the sweep reached everything except the two
+paths whose whole job is waiting for a page to catch up. `exporting` is that seam for
+`version export`: it asks its browser for `new_page` and nothing else, so a stand-in
+carries the throttle in and hands the page to a test before the first navigation.
+`render_version` opens its two pages the same way and is still outside; it survives the
+throttle at about twice the wall clock, but wrapping twenty-odd call sites one at a time
+is the arrangement the next call site quietly opts out of, and the seam that cannot be
+missed — the `browser` fixture handing out an instrumented browser — changes what every
+test here runs under.
+
+Not the hold, in either case. It arms after `open_page` has the page loaded, and these
+own their load; arming it earlier only pushes their `networkidle` out past the held poll,
+which is the poll being waited for. A test that wants a particular timing on such a page
+states it in `prepare` instead, and the sharper instrument turned out to be refusing the
+first `/api/state` outright: the runtime stamps `cq-upgraded` in the same breath as it
+starts that poll, never awaiting it, so a refusal puts replay on the far side of both the
+stamp and networkidle — where a slow machine would have put it — deterministically and in
+a second rather than by loading the box.
+
 ## A page's source is formatted, so ask what it says
 
 Prettier formats the `.html` under `docs/` and `examples/`, and it re-derives every line

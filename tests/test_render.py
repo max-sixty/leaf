@@ -676,6 +676,23 @@ def resized(page, width, height):
     page.wait_for_function("() => window.cqResizes > window.cqResizesWas")
 
 
+def compare_with(page, version=None):
+    """Mark what changed since a version, the way the page offers it.
+
+    The chooser opens and the row for that version carries the press, beside the note
+    that says in words what it changed. With no version named it is the one before the
+    version being read — the last Δ in the menu, a row offering one only where it is
+    older than this. A press rather than the `v` key, since the press is the control;
+    the tests about the key press the key."""
+    page.locator(".cq-version").click()
+    press = (
+        page.locator(".cq-version-diff").last
+        if version is None
+        else page.locator(f'.cq-version-diff[data-cq-version="{version}"]')
+    )
+    press.click()
+
+
 CUSTOM_WIDGET_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -3594,7 +3611,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
     expect(page.locator(".cq-thread .cq-quote.detached")).to_have_count(0)
 
-    page.locator(".cq-banner button", has_text="Δ").click()
+    compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.cq-ins-block').length > 0"
     )
@@ -3710,7 +3727,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(
         1
     )  # replay carried the pick
-    page.locator(".cq-banner button", has_text="Δ").click()
+    compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.cq-ins-block').length > 0"
     )
@@ -5650,7 +5667,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The diff's state half, mirror-image: v1's markup also said `active`, but
     # the reader last saw v1 wearing the report's `done`, so the overrule is a
     # change since the base — the report-layered base facet is what says so.
-    page.locator(".cq-banner button", has_text="Δ").click()
+    compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.cq-ins-block').length > 0"
     )
@@ -7084,7 +7101,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/versions/v2.html*")
-    expect(page.locator("button", has_text="Δ v1")).to_be_visible()
+    expect(page.locator('.cq-version-diff[data-cq-version="1"]')).to_have_count(1)
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Older / newer version")
     expect(help_el).to_contain_text("Highlight changes since the previous version")
@@ -7651,7 +7668,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
         "the comment came loose from the heading when the version turned over"
     )
 
-    page.locator(".cq-banner button", has_text="Δ").click()
+    compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.cq-ins-block').length > 0"
     )
@@ -9285,8 +9302,16 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
         f"v{n}" for n in range(1, 11)
     ]
     expect(rows.last).to_have_text("v10 (latest)")
-    # The base a diff runs against is the version before this one in that order.
-    expect(page.locator(".cq-banner button", has_text="Δ")).to_have_text("Δ v9")
+    # The bases a diff can run against are every version older than this one, so the
+    # last press in the menu is v9 — and it is the one the page's own v reaches for,
+    # which is the reading of "the version before this" that the ordering decides.
+    presses = page.locator(".cq-version-diff")
+    expect(presses).to_have_count(9)
+    expect(presses.last).to_have_attribute("data-cq-version", "9")
+    page.keyboard.press("v")
+    expect(page.locator(".cq-version")).to_have_attribute(
+        "title", re.compile(r"changed since v9 ")
+    )
     # Nothing is newer than v10, so no chip offers one.
     expect(page.locator(".cq-latest-chip")).to_be_hidden()
     assert errors == []
@@ -9438,6 +9463,78 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     # And it arrives on the next poll rather than waiting on a fourth version.
     expect(page.locator(".cq-version-row")).to_have_count(3)
     expect(page.locator(".cq-version-row").last).to_contain_text("v3 (latest)")
+    assert errors == []
+    page.close()
+
+
+def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
+    """A page that ships a version whenever the work moves leaves its reader behind by
+    more than one, and "what changed since the previous version" is then the wrong
+    question: what they want marked is everything since they last looked. The base was
+    the previous version for exactly as long as it was a control's own label — one
+    button can name one version — so the menu is where it stops being one, and every row
+    older than this one offers itself.
+
+    The rest is what the reader can tell afterwards: the closed control says a
+    comparison is standing, and reopening says which one, on the rows it spans."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    _publish(serve.page_dir, 3, v3, "reworded the compound")
+    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+
+    # The previous version: the one change this version made.
+    compare_with(page, 2)
+    expect(page.locator(".cq-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\bcq-ins-block\b"))
+
+    # Two versions back, which no single-label control could have offered: both.
+    compare_with(page, 1)
+    expect(page.locator(".cq-ins-block")).to_have_count(2)
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\bcq-ins-block\b"))
+
+    # What the closed chooser says about it — a word, not the accent alone, since a
+    # reader in a stretch that changed nothing has only this to read it back off.
+    expect(page.locator(".cq-version")).to_have_text("Δ v3 ▾")
+    page.locator(".cq-version").click()
+    expect(page.locator('.cq-version-diff[data-cq-version="1"]')).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(page.locator('.cq-version-diff[data-cq-version="2"]')).to_have_attribute(
+        "aria-checked", "false"
+    )
+    # And the span it covers, which is what a base three versions back makes worth
+    # saying: the rail runs from it to the version being read.
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.cq-version-row.cq-compared')]"
+        ".map(r => r.dataset.cqVersion)"
+    ) == ["1", "2", "3"]
+
+    # Pressing the standing base again is the way off, and it takes the marks and the
+    # word with it.
+    page.locator('.cq-version-diff[data-cq-version="1"]').click()
+    expect(page.locator(".cq-ins-block")).to_have_count(0)
+    expect(page.locator(".cq-version")).to_have_text("v3 ▾")
+
+    # From the keyboard the press is a Tab off the row it belongs to, which is what
+    # puts the walk's own landing spot next to it: the menu takes no key for this,
+    # since the row it opens on is the version being read and that is the one row with
+    # nothing to compare against.
+    page.locator(".cq-version").click()
+    page.locator('.cq-version-row[data-cq-version="1"]').focus()
+    page.keyboard.press("Tab")
+    expect(page.locator('.cq-version-diff[data-cq-version="1"]')).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator(".cq-ins-block")).to_have_count(2)
+
+    # The page's own v is the way off a comparison whatever it is against, which is why
+    # the key stays live under one; with nothing standing it takes the previous
+    # version, as it always did.
+    page.keyboard.press("v")
+    expect(page.locator(".cq-ins-block")).to_have_count(0)
+    page.keyboard.press("v")
+    expect(page.locator(".cq-ins-block")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -10863,7 +10960,7 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
 
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
-    page.get_by_role("button", name=re.compile("Δ")).click()
+    compare_with(page)
     page.wait_for_function(
         "() => document.querySelector('.cq-banner .cq-btn.on') !== null"
     )
@@ -10891,7 +10988,7 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
         d, 2, _card_done(JOURNEY_V1).replace(_CARD, noted), "moved the card to Done"
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    page.get_by_role("button", name=re.compile("Δ")).click()
+    compare_with(page)
     page.wait_for_function(
         "() => document.getElementById('card-x').classList.contains('cq-ins-block')"
     )

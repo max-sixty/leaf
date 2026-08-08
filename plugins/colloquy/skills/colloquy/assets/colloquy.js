@@ -57,7 +57,9 @@
  *
  * Versions: an unpinned page follows the newest version, navigating to each revision as
  * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
- * page stays put and offers the newest version as a chip instead.
+ * page stays put and offers the newest version as a chip instead. One control on the bar
+ * holds all of it — the version being read, the list of the rest with what each changed,
+ * and the press on any older one that marks that change on the page.
  *
  * Composing: every textarea behaves identically — saves its draft on each keystroke,
  * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
@@ -1186,9 +1188,9 @@ ${MARK_RULES}
 
        The chooser was the one control here that had to state a width, because its label
        carried the version's note and a note has no widest to reserve. It says the version
-       alone now, which is this document's own and never rewritten, so every control on
-       the row is either floored at its own words or saying one unchanging thing, and no
-       number on this row is a fact about a font any more. */
+       and, while a comparison is standing, a Δ — two words, both enumerable — so it is
+       floored at its own like the rest, and no number on this row is a fact about a font
+       any more. */
     @layer cq-reset {
       .cq-resolve { font: inherit; }
     }
@@ -1197,20 +1199,30 @@ ${MARK_RULES}
        It is the only place the version notes are, so a row wraps to hold one whole —
        the reason a menu is worth having over a control whose closed label and open list
        are forced to be the same string. Capped at the viewport's remaining height and
-       scrolling inside itself, since a page's versions are unbounded. */
+       scrolling inside itself, since a page's versions are unbounded.
+
+       Two columns, because a version and what it changed are one row's two halves: the
+       note says it in words and the Δ marks it on the page. That press was a second
+       control out on the bar, naming a second version number beside the chooser's, and
+       the two together said no more than either — a reader could tell that v2 and v3
+       were both being mentioned and not what either mention was for. The pair are grid
+       siblings rather than a wrapper each, because a role="menu" owns menuitems and a
+       div between them is a claim about ARIA that nothing here needed to make. */
     .cq-version { anchor-name: --cq-version-btn; }
     .cq-version-menu { position: fixed; position-anchor: --cq-version-btn;
       top: calc(anchor(bottom) + 6px); right: anchor(right); z-index: 8950;
-      display: none; flex-direction: column; min-width: anchor-size(width);
+      display: none; grid-template-columns: 1fr auto; align-items: start;
+      min-width: anchor-size(width);
       max-width: min(360px, calc(100vw - 16px));
       max-height: calc(100vh - var(--cq-banner-h) - 20px); overflow-y: auto;
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
-    .cq-version-menu.open { display: flex; }
+    .cq-version-menu.open { display: grid; }
     /* Left-aligned text in a control that is otherwise a press: the rows are a list to
        read down, and a centred note re-ragged on every line is not one. */
-    .cq-version-row { display: flex; flex-direction: column; gap: 1px; align-items: start;
+    .cq-version-row { grid-column: 1; position: relative;
+      display: flex; flex-direction: column; gap: 1px; align-items: start;
       text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
       background: none; color: inherit; cursor: pointer; width: 100%; }
     .cq-version-row:hover { background: var(--chip); }
@@ -1220,6 +1232,29 @@ ${MARK_RULES}
     .cq-version-row[aria-current] .cq-version-num { color: var(--accent); font-weight: 600; }
     .cq-version-num { white-space: nowrap; }
     .cq-version-note { color: var(--muted); font-size: var(--t-6); }
+    /* The comparison a row offers: mark what changed between that version and the one
+       being read. It draws its own box rather than waiting for a hover to draw one,
+       which is the same rule a group taking a pick keeps: a form may decide how it
+       looks and may not decide whether it says it takes an answer, and a wash that
+       arrives on hover arrives after the reader has committed the pointer. Lit from
+       aria-checked rather than a class of its own, the state being the button's to
+       state — a menuitem may not be pressed, a menu's toggle being a
+       menuitemcheckbox, which axe said of the aria-pressed this started as on the one
+       page in the suite that asks with the menu standing open. */
+    .cq-version-diff { grid-column: 2; margin: 4px 2px 0 4px; padding: 3px 8px;
+      border: 1px solid var(--rule); border-radius: 4px; background: none;
+      color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
+    .cq-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
+    .cq-version-diff:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .cq-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
+      background: var(--chip); }
+    /* A diff is a span rather than a point — everything that changed across the versions
+       from its base to the one being read — and a base three versions back says something
+       very different from the one before. The rail is that span, drawn down the rows it
+       covers: inside the row's own box, so it is paint and moves nothing, and drawn on
+       the rows rather than the presses because the rows are the run that touch. */
+    .cq-version-row.cq-compared::before { content: ""; position: absolute;
+      left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
     /* The colloquys panel: the comment panel's mirror on the left, a board of the
        machine's live pages that stands while the reader works. Fixed over the content —
        opening it moves nothing — and its own scroll region, so one wheel gesture moves
@@ -1428,7 +1463,6 @@ const showNews = (control, on) => {
   control.style.visibility = on ? "" : "hidden";
 };
 const latestChip = el("button", "cq-ui cq-btn cq-latest-chip", "");
-const diffBtn = el("button", "cq-btn", "Δ");
 // What the page is still waiting on the reader for, and the way to the next one — the
 // same list the a key steps and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
@@ -1630,29 +1664,35 @@ function renderOthers(state) {
       othersRows.delete(key);
     }
 }
-for (const control of [latestChip, diffBtn, asksBtn, othersBtn])
-  showNews(control, false);
+for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false);
 // The version chooser: a press that says which version this is, and a menu that says
-// what each one was. It was a <select>, and the two things that cost were both the
-// control's rather than the styling's. A select takes its inner height from Chrome's
-// own metrics and refuses line-height, so it could never stand level with the buttons
-// beside it; and its closed label is its selected option's whole text, so the note had
-// to be in both places or neither — 190px of bar, the widest control on the row, for
-// about nine characters of a note that then ellipsized. A press states the version
-// alone (48px), and the menu is the only place the notes are, where a row can wrap and
-// carry one whole.
+// what each one was and what it changed. It was a <select>, and the two things that
+// cost were both the control's rather than the styling's. A select takes its inner
+// height from Chrome's own metrics and refuses line-height, so it could never stand
+// level with the buttons beside it; and its closed label is its selected option's whole
+// text, so the note had to be in both places or neither — 190px of bar, the widest
+// control on the row, for about nine characters of a note that then ellipsized. A press
+// states the version alone, and the menu is the only place the notes are, where a row
+// can wrap and carry one whole.
+//
+// The diff was a second press beside it, and everything the two shared was in the
+// menu already. It named the previous version because a control with one label can
+// offer one base, and the previous version is the least useful of them on a page that
+// ships a version whenever the work moves: what the reader wants marked is what has
+// changed since they last looked, which is as far back as they were away. The base is
+// the menu's to say, so every version older than this one offers itself as one.
 //
 // Which version this is, is the document's own answer (VNUM, off the path), so the
-// press says it now rather than standing empty until the first poll answers, and it
-// never rewrites that word afterwards — the label is this document's version for as
-// long as this document is on screen, so the control has no widest word to reserve and
-// nothing it can do to the row.
-const versionBtn = el(
-  "button",
-  "cq-btn cq-version",
-  VNUM === null ? "▾" : `v${VNUM} ▾`,
-);
-versionBtn.title = "Version";
+// press says it now rather than standing empty until the first poll answers, and the
+// only word it ever rewrites is the Δ that says a comparison is standing — enumerable,
+// so the room for it is taken from the words themselves at load (reserve) and the
+// control still cannot move the row. It is a word rather than the accent alone because
+// a reader who leaves a comparison on and scrolls into a stretch that changed nothing
+// has only this control to read it back off, and a colour is not a thing a screen
+// reader announces.
+const versionLabel = (comparing) =>
+  (comparing ? "Δ " : "") + (VNUM === null ? "▾" : `v${VNUM} ▾`);
+const versionBtn = el("button", "cq-btn cq-version", versionLabel(false));
 versionBtn.setAttribute("aria-haspopup", "menu");
 versionBtn.setAttribute("aria-expanded", "false");
 const versionMenu = el("div", "cq-ui cq-version-menu");
@@ -1662,13 +1702,17 @@ versionMenu.setAttribute("aria-label", "Versions");
 // inside it (scene) and the "?" overlay — so neither can drift from the listener
 // below. Enter is the browser's, a row being a button; the walk is the menu's, bound
 // here rather than to the dispatcher because ArrowUp and ArrowDown anywhere else are
-// the page's own scroll.
+// the page's own scroll. A row's Δ is reached from it by Tab, the way every other
+// press in the chrome is, and takes no key of its own: the walk would have had to
+// promise one the row it lands on cannot keep, since the row a press opens the menu on
+// is the version being read and that is the one row with nothing to compare against.
 const VERSION_KEYS = [
   ["↑ / ↓", "walk the versions"],
   ["⏎", "open that version"],
 ];
 let versionMenuOpen = false;
-const versionRows = () => [...versionMenu.querySelectorAll("button")];
+// The walk is the versions, not every press in the menu.
+const versionRows = () => [...versionMenu.querySelectorAll(".cq-version-row")];
 // One setter stating the whole outcome, per showComposer and showFab: nothing reads
 // the class back to find out whether the menu is up.
 function showVersionMenu(open) {
@@ -1714,7 +1758,6 @@ banner.append(
   othersBtn,
   latestChip,
   asksBtn,
-  diffBtn,
   versionBtn,
   toggleBtn,
 );
@@ -1799,6 +1842,7 @@ document.body.append(chromeRoot);
 // they write can move them — a page with a thousand open threads, or a machine with
 // a thousand live pages, is not one anyone hands a user.
 if (SIGNOFF) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+reserve(versionBtn, [versionLabel(false), versionLabel(true)]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
 reserve(othersBtn, ["All colloquys (999)"]);
@@ -4449,8 +4493,12 @@ const KEYS = [
     key: "v",
     label: "v",
     does: "Highlight changes since the previous version",
-    when: () => Boolean(diffBase),
-    run: () => diffBtn.onclick(),
+    // The page's v takes the previous version, which is the one a reader who saw the
+    // last one means; any other base is a press in the menu, where the version is
+    // named. Live once there is a previous version — and while a comparison against
+    // some further-back base is standing, since this is then the way off it.
+    when: () => diffOn || Boolean(previousVersion()),
+    run: () => (diffOn ? setDiff(false) : showComparison(previousVersion())),
   },
   {
     key: "[",
@@ -4925,7 +4973,7 @@ function buildBulkAnswers() {
     };
     showNews(btn, false);
     bulkButtons.set(verb, { btn, word });
-    banner.insertBefore(btn, diffBtn);
+    banner.insertBefore(btn, versionBtn);
     // In the row now, so it holds the widest it reaches below a thousand — the same
     // words syncAsks writes, measured in the face it will render in (see reserve).
     reserve(btn, [`✓ ${word} all (999)`]);
@@ -5003,7 +5051,9 @@ function stepAsk() {
 // isn't present in the base version get a tinted marker, so re-reading a
 // revision is cheap. Block-level and additions-only — deleted text has no home
 // to mark — and a widget that renders its own body is opaque to it. The base is
-// the previous published version.
+// any version older than the one being read, offered by its own row in the
+// chooser's menu, where the note saying what changed in words sits beside the
+// press that marks it on the page.
 //
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its entry: a widget item whose content
@@ -5027,6 +5077,9 @@ const diffOpaqueSel = () =>
     ),
     "svg",
   ].join(",");
+// What is being compared, and whether the comparison is standing. Every rendering of
+// the pair — the chooser's word and paint, each row's press, the rail down the span —
+// is written by paintDiff and read back by nothing.
 let diffBase = null;
 let diffOn = false;
 const diffMarked = [];
@@ -5116,35 +5169,72 @@ async function applyDiff(baseVersion) {
   document.dispatchEvent(new CustomEvent("cq-diff"));
   return diffMarked.length;
 }
-// Whether the diff is showing, and the only thing that decides it: the button's
-// class and the page's marks are renderings of diffOn, not a second and third
-// copy of it.
-function setDiff(on) {
+// Whether a version can be compared with the one being read: anything published
+// before it, which is which rows the menu builds a press onto.
+const comparable = (version) => VNUM !== null && version < VNUM;
+// The version the page's own v compares against: the one before this, which is what
+// "what changed" means to a reader who was here for the last one.
+const previousVersion = () => {
+  const at = versions.indexOf(VNUM);
+  return at > 0 ? versions[at - 1] : null;
+};
+// Every rendering of the pair above, written in one place: the chooser's word, its
+// paint and what it says it will do, the checked state of each row's Δ, and the rail
+// down the rows the comparison spans. Called by the setter, by a menu rebuild — the
+// other thing that can leave a rendering behind the state — and once at load, so what
+// the chooser says it will do is written here from the start rather than standing as a
+// second copy of these sentences up where the control is built.
+function paintDiff() {
+  versionBtn.textContent = versionLabel(diffOn);
+  versionBtn.classList.toggle("on", diffOn);
+  versionBtn.title = diffOn
+    ? `Showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
+    : "Versions: read one, or mark what changed since it";
+  for (const row of versionMenu.querySelectorAll(".cq-version-row")) {
+    const version = +row.dataset.cqVersion;
+    row.classList.toggle(
+      "cq-compared",
+      diffOn && version >= diffBase && version <= VNUM,
+    );
+  }
+  for (const press of versionMenu.querySelectorAll(".cq-version-diff"))
+    press.setAttribute(
+      "aria-checked",
+      String(diffOn && +press.dataset.cqVersion === diffBase),
+    );
+}
+paintDiff();
+// Whether the comparison is standing and what against — the only thing that decides
+// it, the marks and the paint being renderings rather than a second copy.
+function setDiff(on, base) {
   diffOn = on;
-  diffBtn.classList.toggle("on", on);
-  diffBtn.setAttribute("aria-pressed", String(on)); // the class is the eye's copy
-
+  if (on) diffBase = base;
   if (!on) {
     for (const b of diffMarked) b.classList.remove("cq-ins-block");
     diffMarked.length = 0;
     document.dispatchEvent(new CustomEvent("cq-diff"));
   }
+  paintDiff();
 }
-diffBtn.onclick = async () => {
-  if (diffOn) return setDiff(false);
+// The one way a comparison starts or stops, from a row's press or from the page's v.
+// Pressing the standing base again is the way off, so a Δ is a toggle where it is lit
+// and a switch of base where it isn't.
+async function showComparison(base) {
+  showVersionMenu(false);
+  if (diffOn && base === diffBase) return setDiff(false);
   try {
-    const n = await applyDiff(diffBase);
-    setDiff(true);
-    const baseLabel = `v${diffBase}`;
+    if (diffOn) setDiff(false); // the old base's marks, before the new base's land
+    const n = await applyDiff(base);
+    setDiff(true, base);
     showToast(
       n
-        ? `${n} changed passage${n === 1 ? "" : "s"} since ${baseLabel}`
-        : `No text changes since ${baseLabel}`,
+        ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
+        : `No text changes since v${base}`,
     );
   } catch {
-    showToast("Couldn't load the previous version");
+    showToast(`Couldn't load v${base}`);
   }
-};
+}
 
 // ---------- banner ----------
 // "Claude is working" is a claim in status.json, and nothing revises a claim once the
@@ -5406,7 +5496,21 @@ function renderVersions(state) {
         goVersion(version);
       };
       versionMenu.append(row);
+      // The comparison this row offers, in the menu's second column beside the note
+      // that says the same thing in words. A grid sibling rather than a child, a
+      // button inside a button being no markup at all, and named in full: the glyph
+      // is the eye's shorthand and says nothing aloud.
+      if (comparable(version)) {
+        const press = el("button", "cq-version-diff", "Δ");
+        press.setAttribute("role", "menuitemcheckbox");
+        press.dataset.cqVersion = version;
+        press.setAttribute("aria-label", `Mark what changed since v${version}`);
+        press.title = `Mark what changed since v${version}`;
+        press.onclick = () => showComparison(version);
+        versionMenu.append(press);
+      }
     }
+    paintDiff(); // a fresh list, and a standing comparison to show on it
     // Registered from here rather than at load, for the reason the colloquys board's
     // rows are: the section promises a list to walk, and only a page with a second
     // version has one.
@@ -5423,13 +5527,6 @@ function renderVersions(state) {
   }
   showNews(latestChip, behind);
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
-  const idx = current === null ? -1 : state.versions.indexOf(current);
-  diffBase = idx > 0 ? state.versions[idx - 1] : null;
-  showNews(diffBtn, Boolean(diffBase));
-  if (diffBase) {
-    diffBtn.textContent = `Δ v${diffBase}`;
-    diffBtn.title = `Highlight what changed since v${diffBase}`;
-  }
 }
 // The user is mid-something navigation would destroy, asked of the layer's own
 // signals rather than of any widget by name: a drag wears .cq-dragging (the module

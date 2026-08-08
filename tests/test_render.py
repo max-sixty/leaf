@@ -11459,3 +11459,30 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     )
     assert covered == [], f"the copy draws its own words over each other: {covered}"
     assert errors == [], f"{example.stem} needs a server to render: {errors}"
+
+
+def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
+    """The copy is the page as replay left it, and a report is replay's other
+    channel — none of the corpus can say so, because an example is one version
+    with an empty log. The caught-up wait counts reports beside actions, as the
+    render gate does; what this run can prove of that is the overcount
+    direction, a wait that would hang on a number the stamp never reaches. The
+    undercount — a report-only page copied before its first poll painted —
+    outruns even a held `/api/state`, since export's own networkidle waits that
+    poll out; only a machine slow enough to open the gap between the last
+    resource and the first poll reaches it, and the loaded-machine sweep's
+    harness rides open_page, which export's own page never passes through."""
+    url = serve(REPORT_PAGE)
+    sent = CliRunner().invoke(
+        interact.cli,
+        ["report", str(serve.page_dir), "t-parser", "status", "status=done"],
+    )
+    assert sent.exit_code == 0, sent.output
+    out = tmp_path / "standalone.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("#t-parser")).to_have_attribute("status", "done")
+    expect(page.locator("#t-feeders > .cq-chips")).to_contain_text("2/2 done")
+    page.close()

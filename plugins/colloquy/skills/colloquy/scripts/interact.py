@@ -604,6 +604,11 @@ def read_json(path: Path):
         return None
 
 
+def read_cursor(page_dir: Path) -> int:
+    """The seq the agent has acknowledged through (`colloquy ack`); 0 before any."""
+    return (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
+
+
 def replace_files(files: list) -> None:
     """Stage every (path, bytes, follow_symlink) write before replacing targets."""
     staged = []
@@ -1086,11 +1091,7 @@ def other_colloquys(page_dir: Path) -> list:
             # A server up before its page's first publish serves nothing to link.
             if not published:
                 continue
-            parser = _StructParser()
-            parser.feed(
-                version_path(candidate, published[-1]).read_text(encoding="utf-8")
-            )
-            parser.close()
+            parser = parse_version(candidate, published[-1])
         except (OSError, ValueError):
             continue
         others.append(
@@ -1140,7 +1141,7 @@ def presence(page_dir: Path, events: list) -> dict:
     # What the agent has acknowledged from model context: an action past this seq
     # can't have been seen (so not declined), which is what lets the runtime carry
     # it forward onto versions written without it.
-    cursor = (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
+    cursor = read_cursor(page_dir)
     return {
         "status": status,
         "listening": time.time() - heartbeat["t"] < HEARTBEAT_FRESH_SECS,
@@ -2198,7 +2199,7 @@ def cmd_wait(page_dir: Path) -> int:
     that handed it over, so the report comes from them; SKILL.md's "Where the
     page is served" carries the recourse."""
     claim_page(page_dir)
-    cursor = (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
+    cursor = read_cursor(page_dir)
     server_check_at = 0.0
     revived = False
     try:
@@ -2272,8 +2273,7 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
     target = events[seq - 1]
     if target["author"] != "user" and target["kind"] != "report":
         sys.exit(f"event {seq} is neither a user event nor a report")
-    cursor = (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
-    if seq > cursor:
+    if seq > read_cursor(page_dir):
         write_json(page_dir / "cursor.json", {"seq": seq})
 
 
@@ -2295,9 +2295,7 @@ def thread_widget_ids(events: list) -> set:
     ids = set()
     for e in events:
         if markup := e.get("markup"):
-            p = _StructParser()
-            p.feed(markup)
-            ids |= p.ids
+            ids |= parse_structure(markup).ids
     return ids
 
 
@@ -2314,15 +2312,17 @@ def action_widget_tags(page_dir: Path, version: int, events: list) -> dict:
     sources.extend(e["markup"] for e in events if e.get("markup"))
     widgets = {}
     for source in sources:
-        parser = _StructParser()
-        parser.feed(source)
-        parser.close()
         widgets.update(
-            (rec["attrs"]["id"], rec["tag"])
-            for rec in parser.cq_elements
-            if rec["attrs"].get("id")
+            (wid, rec["tag"]) for wid, rec in parse_structure(source).by_id.items()
         )
     return widgets
+
+
+def detail_error(schema: dict, detail: dict):
+    """The first schema complaint about an event's detail payload, or None —
+    sorted so which one speaks doesn't depend on validator iteration order."""
+    errors = sorted(Draft202012Validator(schema).iter_errors(detail), key=str)
+    return errors[0].message if errors else None
 
 
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
@@ -2341,16 +2341,8 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     state = entry.get("x-state", {})
     if event["action"] not in state:
         return f"<{tag}> does not declare action verb {event['action']!r}"
-    errors = sorted(
-        Draft202012Validator(state[event["action"]]["detail"]).iter_errors(
-            event["detail"]
-        ),
-        key=str,
-    )
-    if errors:
-        return (
-            f"<{tag}> action {event['action']!r} detail is invalid: {errors[0].message}"
-        )
+    if message := detail_error(state[event["action"]]["detail"], event["detail"]):
+        return f"<{tag}> action {event['action']!r} detail is invalid: {message}"
     return None
 
 
@@ -2360,15 +2352,8 @@ def report_contract_error(page_dir: Path, event: dict, registry: dict):
     only, never a reply's: a report has to be answerable, and thread markup is
     frozen in the log, so no version could ever absorb or overrule one made
     there."""
-    parser = _StructParser()
-    parser.feed(version_path(page_dir, event["version"]).read_text(encoding="utf-8"))
-    parser.close()
-    tags = {
-        rec["attrs"]["id"]: rec["tag"]
-        for rec in parser.cq_elements
-        if rec["attrs"].get("id")
-    }
-    tag = tags.get(event["widget"])
+    rec = parse_version(page_dir, event["version"]).by_id.get(event["widget"])
+    tag = rec["tag"] if rec else None
     if tag is None:
         return (
             f"unknown report widget {event['widget']!r} in v{event['version']} — "
@@ -2385,25 +2370,15 @@ def report_contract_error(page_dir: Path, event: dict, registry: dict):
         return f"<{tag}> does not declare report verb {event['action']!r}" + (
             f"; it declares {sorted(declared)}" if declared else ""
         )
-    errors = sorted(
-        Draft202012Validator(declared[event["action"]]["detail"]).iter_errors(
-            event["detail"]
-        ),
-        key=str,
-    )
-    if errors:
-        return (
-            f"<{tag}> report {event['action']!r} detail is invalid: {errors[0].message}"
-        )
+    if message := detail_error(declared[event["action"]]["detail"], event["detail"]):
+        return f"<{tag}> report {event['action']!r} detail is invalid: {message}"
     return None
 
 
 def version_ids(page_dir: Path) -> set:
     ids = set()
     for version in list_versions(page_dir):
-        p = _StructParser()
-        p.feed(version_path(page_dir, version).read_text(encoding="utf-8"))
-        ids |= p.ids
+        ids |= parse_version(page_dir, version).ids
     return ids
 
 
@@ -2425,12 +2400,8 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no gate at all — the runtime renders it with every tag
     escaped, so it cannot claim a widget. Exits with what's wrong."""
-    registry = load_registry(page_dir)
-    if registry is None:
-        sys.exit(f"no registry.json in {page_dir}; run `colloquy page init` first")
-    frag = _StructParser()
-    frag.feed(markup)
-    frag.close()
+    registry = require_registry(page_dir)
+    frag = parse_structure(markup)
     errs = fragment_errors(frag, registry, registry["$languages"]["names"])
     if errs:
         sys.exit(
@@ -2474,9 +2445,7 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
     anchor = None
     if quote or section:
         html = version_path(page_dir, version).read_text(encoding="utf-8")
-        registry = load_registry(page_dir)
-        if registry is None:
-            sys.exit(f"no registry.json in {page_dir}; run `colloquy page init` first")
+        registry = require_registry(page_dir)
         fold, _, _ = page_fold(html, events, registry, version)
         decided = decisions(fold, registry)
         edited = rewritten_bodies(fold)
@@ -2534,9 +2503,7 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     published = published_versions(page_dir, events)
     if not published:
         sys.exit("no published version; run `colloquy version publish` first")
-    registry = load_registry(page_dir)
-    if registry is None:
-        sys.exit(f"no registry.json in {page_dir}; run `colloquy page init` first")
+    registry = require_registry(page_dir)
     detail = {}
     for field in fields:
         name, eq, value = field.partition("=")
@@ -2578,9 +2545,7 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
     # note itself rather than a second event: `note` is one act, and two appends
     # can be torn by a crash into a retraction for a version that never published.
     html = path.read_text(encoding="utf-8")
-    parser = _StructParser()
-    parser.feed(html)
-    parser.close()
+    parser = parse_structure(html)
     retracts = sorted(parser.restated)
     # Publishing is also where a standing report is answered, and the answer is
     # explicit, by id: the note names every report this version carried into its
@@ -2591,7 +2556,7 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
     # The check above already required the vendored registry, so read it plainly.
     registry = load_registry(page_dir)
     events = read_events(page_dir)
-    byid = {r["attrs"]["id"]: r for r in parser.cq_elements if r["attrs"].get("id")}
+    byid = parser.by_id
     spk = spoken(html, registry)
     answered = []
     for unit, reports in standing_reports(events, byid, registry, None).items():
@@ -2626,10 +2591,7 @@ def cmd_transcript(page_dir: Path) -> None:
     versions = list_versions(page_dir)
     title = ""
     if versions:
-        parser = _StructParser()
-        parser.feed(version_path(page_dir, versions[-1]).read_text(encoding="utf-8"))
-        parser.close()
-        title = parser.title.strip()
+        title = parse_version(page_dir, versions[-1]).title.strip()
     print(f"## Colloquy: {title or page_dir.name}")
 
     notes = [e for e in events if e["kind"] == "note"]
@@ -2733,9 +2695,7 @@ CATALOG_PREAMBLE = """\
 
 
 def cmd_catalog(page_dir: Path) -> None:
-    reg = load_registry(page_dir)
-    if reg is None:
-        sys.exit(f"no registry.json in {page_dir}; run `colloquy page init` first")
+    reg = require_registry(page_dir)
     print(CATALOG_PREAMBLE)
     print(
         json.dumps(
@@ -3086,6 +3046,11 @@ class _StructParser(HTMLParser):
         return set(self.all_ids)
 
     @property
+    def by_id(self) -> dict:
+        """id → its element record, for every id-bearing cq-* element."""
+        return {r["attrs"]["id"]: r for r in self.cq_elements if r["attrs"].get("id")}
+
+    @property
     def restated(self) -> set:
         """Ids this version declares it has rewritten, retracting whatever the
         user had recorded on them."""
@@ -3304,11 +3269,22 @@ class _StructParser(HTMLParser):
             )
 
 
+def parse_structure(markup: str) -> _StructParser:
+    """One structural reading of a document or fragment — fed and closed, so
+    every reader gets the flushed parse rather than each restating the ritual."""
+    parser = _StructParser()
+    parser.feed(markup)
+    parser.close()
+    return parser
+
+
+def parse_version(page_dir: Path, version: int) -> _StructParser:
+    return parse_structure(version_path(page_dir, version).read_text(encoding="utf-8"))
+
+
 def version_review_mode(page_dir: Path, version: int):
     """The review ask declared by a published version, or None for comments only."""
-    parser = _StructParser()
-    parser.feed(version_path(page_dir, version).read_text(encoding="utf-8"))
-    parser.close()
+    parser = parse_version(page_dir, version)
     return next(
         (meta["content"] for meta in parser.cq_metas if meta["name"] == "cq-review"),
         None,
@@ -3719,9 +3695,7 @@ def capture_anchor(
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
         # on a diagram or an image, and those hold no text to look for.
-        structure = _StructParser()
-        structure.feed(html)
-        if section not in structure.ids:
+        if section not in parse_structure(html).ids:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
             sid = retired[section]
@@ -4382,9 +4356,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
     for tag, entry in registry.items():
         if not tag.startswith("cq-") or (example := entry.get("x-example")) is None:
             continue
-        parser = _StructParser()
-        parser.feed(example)
-        parser.close()
+        parser = parse_structure(example)
         errors = fragment_errors(parser, registry, known)
         if parser.duplicate_ids:
             errors.append(
@@ -4406,6 +4378,14 @@ def read_registry(path: Path):
 def load_registry(page_dir: Path):
     """The page's complete vendored vocabulary, or None before `page init`."""
     return read_registry(page_dir / "registry.json")
+
+
+def require_registry(page_dir: Path) -> dict:
+    """The vendored vocabulary, for a command that has nothing to do without one."""
+    registry = load_registry(page_dir)
+    if registry is None:
+        sys.exit(f"no registry.json in {page_dir}; run `colloquy page init` first")
+    return registry
 
 
 def incoming_registry(layers: list) -> dict:
@@ -4737,6 +4717,26 @@ def report_absorptions(events: list, upto=None) -> dict:
     return at
 
 
+def event_spec(event: dict, byid: dict, registry: dict, channel: str):
+    """The verb spec the current markup declares behind an action or report:
+    None where no element holds the event's widget id, or where its tag no
+    longer declares the verb — a recorded event the vocabulary has moved past
+    folds to nothing rather than standing on trust."""
+    rec = byid.get(event["widget"])
+    if rec is None:
+        return None
+    return (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+
+
+def fold_unit(event: dict, spec: dict):
+    """The unit an event folds to: the widget itself for a verb absolute across
+    the group, else the element its detail names — the declaration state_fold's
+    docstring explains. Non-string means the detail named nothing foldable."""
+    if spec.get("unit", "widget") == "widget":
+        return event["widget"]
+    return event["detail"].get(spec["unit"])
+
+
 def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dict:
     """unit id → the live report events on it, oldest first, each with its
     x-report spec. Live means made against a version inside the window and not
@@ -4756,19 +4756,10 @@ def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dic
             continue
         if e["id"] in absorbed:
             continue
-        rec = byid.get(e["widget"])
-        spec = (
-            (registry.get(rec["tag"], {}).get("x-report") or {}).get(e["action"])
-            if rec
-            else None
-        )
+        spec = event_spec(e, byid, registry, "x-report")
         if not spec:
             continue
-        unit = (
-            e["widget"]
-            if spec.get("unit", "widget") == "widget"
-            else e["detail"].get(spec["unit"])
-        )
+        unit = fold_unit(e, spec)
         if isinstance(unit, str):
             per_unit.setdefault(unit, []).append((e, spec))
     return per_unit
@@ -4817,21 +4808,12 @@ def state_fold(
             continue
         if upto is not None and e["version"] > upto:
             continue
-        rec = byid.get(e["widget"])
-        spec = (
-            (registry.get(rec["tag"], {}).get("x-state") or {}).get(e["action"])
-            if rec
-            else None
-        )
+        spec = event_spec(e, byid, registry, "x-state")
         if not spec:
             continue
         if any(floors.get(i, 0) > e["version"] for i in action_rests_on(e, spk)):
             continue
-        unit = (
-            e["widget"]
-            if spec.get("unit", "widget") == "widget"
-            else e["detail"].get(spec["unit"])
-        )
+        unit = fold_unit(e, spec)
         if isinstance(unit, str):
             fold[unit] = (e, spec)
     return fold
@@ -4891,10 +4873,7 @@ def page_fold(html: str, events: list, registry: dict, upto):
     cannot drift on floors or window. Returns (fold, byid, spk); the extras are
     the page readings the fold was built from, for a caller comparing it back
     against the markup."""
-    parser = _StructParser()
-    parser.feed(html)
-    parser.close()
-    byid = {r["attrs"]["id"]: r for r in parser.cq_elements if r["attrs"].get("id")}
+    byid = parse_structure(html).by_id
     spk = spoken(html, registry)
     return (
         state_fold(events, byid, spk, registry, upto, retractions(events, upto)),
@@ -5043,7 +5022,7 @@ def restatement_errors(
     # here to declare, so re-checking a published version reaches the same
     # verdict as checking it did.
     taken_back = retractions(events, prev_num)
-    byid = {r["attrs"]["id"]: r for r in cur.cq_elements if r["attrs"].get("id")}
+    byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
     for e in events:
@@ -5063,7 +5042,7 @@ def restatement_errors(
                 decided.setdefault(subject, []).append(e)
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
-    prev_byid = {r["attrs"]["id"]: r for r in prev.cq_elements if r["attrs"].get("id")}
+    prev_byid = prev.by_id
     fold = state_fold(events, byid, now, registry, prev_num, taken_back)
     facet_earned = set()
     for unit in sorted(fold):
@@ -5168,8 +5147,8 @@ def report_errors(
     the same verdict as checking it did."""
     errors = []
     declared = cur.overruled
-    byid = {r["attrs"]["id"]: r for r in cur.cq_elements if r["attrs"].get("id")}
-    prev_byid = {r["attrs"]["id"]: r for r in prev.cq_elements if r["attrs"].get("id")}
+    byid = cur.by_id
+    prev_byid = prev.by_id
     standing = standing_reports(events, byid, registry, prev_num)
     earned = set()
     for unit in sorted(standing):
@@ -5205,19 +5184,10 @@ def report_errors(
         for e in events:
             if e["kind"] != "report" or e["id"] not in absorbed:
                 continue
-            rec = byid.get(e["widget"])
-            spec = (
-                (registry.get(rec["tag"], {}).get("x-report") or {}).get(e["action"])
-                if rec
-                else None
-            )
+            spec = event_spec(e, byid, registry, "x-report")
             if not spec:
                 continue
-            unit = (
-                e["widget"]
-                if spec.get("unit", "widget") == "widget"
-                else e["detail"].get(spec["unit"])
-            )
+            unit = fold_unit(e, spec)
             if isinstance(unit, str):
                 answered_at[unit] = max(answered_at.get(unit, 0), absorbed[e["id"]])
     for sid in sorted(unearned):
@@ -5291,9 +5261,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
             "to vendor the layer"
         )
 
-    parser = _StructParser()
-    parser.feed(html)
-    parser.close()
+    parser = parse_structure(html)
     errors.extend(structure_errors(parser))
 
     scripts = parser.external_scripts
@@ -5377,15 +5345,12 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         for candidate in versions
         if candidate < selected and candidate in noted
     ]
-    prev, prev_num, was = _StructParser(), 0, {}
-    prev.close()
+    prev, prev_num, was = parse_structure(""), 0, {}
     if earlier:
         prev_num = earlier[-1]
         prev_name = version_name(prev_num)
         prev_html = version_path(page_dir, prev_num).read_text(encoding="utf-8")
-        prev = _StructParser()
-        prev.feed(prev_html)
-        prev.close()
+        prev = parse_structure(prev_html)
         was = spoken(prev_html, registry or {})
         # An id may retire when the log has settled what holds it; everything
         # else must survive, or the anchors on it break.
@@ -6171,10 +6136,15 @@ def export_page(browser, url: str, page_dir: Path) -> str:
         page.goto(url, wait_until="networkidle")
         try:
             page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
-            n_actions = len([e for e in read_events(page_dir) if e["kind"] == "action"])
-            if n_actions:
+            # Both replayed kinds, as the render gate counts them: the caught-up
+            # stamp counts reports beside actions, and a page whose only recorded
+            # state is a worker's report would otherwise copy before it painted.
+            n_replayed = len(
+                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
+            )
+            if n_replayed:
                 page.wait_for_function(
-                    f"() => Number(document.body.dataset.cqApplied ?? -1) >= {n_actions}"
+                    f"() => Number(document.body.dataset.cqApplied ?? -1) >= {n_replayed}"
                 )
         except PlaywrightTimeout:
             sys.exit(
@@ -6436,8 +6406,7 @@ def status(dir: str, state: str, detail: str) -> None:
     pending = 0
     if state == "idle":
         events = read_events(page_dir)
-        cursor = (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
-        pending = len(unacknowledged(events, cursor))
+        pending = len(unacknowledged(events, read_cursor(page_dir)))
     if pending:
         sys.exit(
             f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "

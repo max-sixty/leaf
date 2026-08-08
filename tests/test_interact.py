@@ -3968,6 +3968,50 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
 
+@pytest.mark.parametrize(
+    ("corrupt", "message"),
+    [
+        (lambda registry: "{broken", "invalid JSON"),
+        # The reachable one. A page's registry is vendored once and the layer around it
+        # goes on moving, so a stamp that no longer names what this layer writes is
+        # ordinary state — and the reader meets it by clicking, not by running anything.
+        (
+            lambda registry: json.dumps({**registry, "$events": {"kinds": {}}}),
+            "$events.kinds omits vocabulary the current layer writes",
+        ),
+    ],
+)
+def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
+    server, page_dir, corrupt, message
+):
+    """A registry that stopped being a vocabulary refuses like everything else on this
+    path. It exited the process instead, which is the one refusal a reader cannot read:
+    the handler died mid-request and the click came back a dead socket, saying nothing
+    about the page, the action, or what to do next."""
+    publish(page_dir)
+    registry = json.loads((page_dir / "registry.json").read_text())
+    (page_dir / "registry.json").write_text(corrupt(registry))
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "version": 1,
+                "widget": "feeder-board",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            }
+        ).encode(),
+    )
+    assert status == 400
+    assert message in json.loads(body)["error"]
+    assert not [e for e in interact.read_events(page_dir) if e["kind"] == "action"]
+    # The refusal cost the request and nothing else: the server is still serving, so a
+    # page whose stamp fell behind still reads even where it can no longer be acted on.
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
 def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
     publish(page_dir)
     interact.append_event(
@@ -5798,7 +5842,12 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     source anchors on text no search will find. Pointing at the element is what a click
     on that diagram does in the browser, and that is the anchor offered instead."""
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
-    assert body.exit_code != 0 and "--section" in body.output
+    assert body.exit_code != 0
+    # Named, not merely refused. "the page doesn't say it" was the old answer, and it is
+    # a wider claim than this reading can make — for a widget whose body does reach the
+    # reader as text it is simply false, and it sent the writer to fix a page that was
+    # never wrong.
+    assert "§ flow's data body" in body.output and "--section flow" in body.output
     element = comment(
         page_dir, "--section", "flow", "--text", "the retry edge is missing"
     )

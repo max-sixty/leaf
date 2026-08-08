@@ -9259,6 +9259,58 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     page.close()
 
 
+def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
+    """Every question the runtime asks by id goes through one lookup, and a widget that
+    stages its authored children carries their ids into its shadow tree with them. While
+    that lookup was the document's alone the answer came back null and each caller quietly
+    did nothing — here, an anchor stored and a mark never painted, with no error to find.
+
+    Staged by hand because the one shipped x-shadow widget builds its tree out of parsed
+    data and mints no ids, so nothing reaches this yet; what the next one does is exactly
+    this move. The clearing sweep is the other half — a mark the repaint cannot reach is
+    a mark that outlives its reason — so the second comment has to take the first's place
+    rather than stand beside it."""
+    page, errors = open_page(browser, serve(TWICE_PAGE))
+    page.wait_for_function(
+        "() => document.querySelector('cq-diff.cq-rendered') !== null"
+    )
+    page.evaluate(
+        "() => document.getElementById('patch').shadowRoot"
+        ".querySelector('pre').id = 'row'"
+    )
+    # Through a locator: the paint lands on the poll that follows the write rather than
+    # with it, so a read taken straight after passes on a quiet machine and fails on a
+    # busy one. `#row` reaches into the open tree the way the runtime now has to.
+    row = page.locator("#row")
+    marked = re.compile(r"\bcq-mark-el\b")
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-staged",
+            "author": "user",
+            "version": 1,
+            "text": "About the staged line.",
+            "anchor": {"section": "row"},
+        },
+    )
+    told(page)
+    expect(row).to_have_class(marked)
+    expect(row).to_contain_text("1 comment")
+
+    # Resolved, so the next repaint has nothing to say here: the count line has to go,
+    # and it can only go if the sweep that clears it enters the tree that holds it.
+    interact.append_event(
+        d, {"kind": "resolve", "author": "user", "parent": "c-staged"}
+    )
+    told(page)
+    expect(row).not_to_have_class(marked)
+    expect(row).not_to_contain_text("comment")
+    assert not errors, errors
+    page.close()
+
+
 # The journey's page: a passage to comment on, a board to drag, and a draft to
 # edit. In v2 the commented paragraph moves below the notes heading — same text,
 # new position — so the anchor has to re-find its passage rather than replay a

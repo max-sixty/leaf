@@ -1402,7 +1402,15 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
         if kind == "action":
-            registry = load_registry(self.page_dir)
+            # A page's vendored registry is frozen at `page init` and the layer around it
+            # is not, so a stamp that no longer parses — or no longer declares what this
+            # layer writes — is state the reader can reach by clicking. It is theirs to
+            # hear about, in the same shape as every rejection above.
+            try:
+                registry = load_registry(self.page_dir)
+            except RegistryError as error:
+                self._json({"error": str(error)}, 400)
+                return
             if registry is None:
                 self._json({"error": "the page has no registry.json"}, 400)
                 return
@@ -3406,10 +3414,11 @@ class _PassageParser(HTMLParser):
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
         self.rewritten = {}  # id whose body the user rewrote → the verb that did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
+        self.shown = {}  # id whose data body this reading withheld → the words in it
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "fenced", "retired_by", "tb", "block", "tail"}]
+        self.stack = []  # [{"tag", "id", "ids", "skip", "shows", "sub", "opaque", "fenced", "retired_by", "tb", "block", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -3496,15 +3505,19 @@ class _PassageParser(HTMLParser):
             and self.decided.get(parent["id"]) == entry["x-retired-when"]
             else None
         )
-        # Silenced from above: the element shows nothing of its own, so a rewrite of
-        # its body has nothing to stand in for — an edited draft inside a slot the
-        # user accepted away left the page with the slot.
-        silenced = bool(
-            (parent and parent["skip"])
-            or retired_by
+        # A wall this element raises itself: its words are off the reader's page, whatever
+        # holds it. Named apart from the inherited half below because the two answer
+        # different questions — an element under a withheld data body is still showing
+        # its words, and one under a retired slot is not.
+        own_wall = bool(
+            retired_by
             or tag in UNQUOTABLE_TAGS
             or "cq-ui" in (attrs_d.get("class") or "").split()
         )
+        # Silenced from above: the element shows nothing of its own, so a rewrite of
+        # its body has nothing to stand in for — an edited draft inside a slot the
+        # user accepted away left the page with the slot.
+        silenced = bool((parent and parent["skip"]) or own_wall)
         # A surviving child keeps its parent on the page even where it holds no text —
         # a kept slot whose only content is an image. The text case marks every
         # enclosing id in _write.
@@ -3514,6 +3527,22 @@ class _PassageParser(HTMLParser):
         # through this element's x-state, so an id in the dict is the whole test:
         # the fold decides, this pass only applies.
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
+        # The element whose data body this reading is withholding, carried down to
+        # everything under it. The page shows whatever its module made of that body, so a
+        # quote landing inside one is told where it landed rather than told the page never
+        # said it — a claim wider than this reading can make. Only where the body still
+        # stands: a retired or rewritten one is `retired`/`rewritten`'s to answer for, and
+        # each of those names the act that did it.
+        shows = (
+            None
+            if own_wall or sub is not None
+            else (parent["shows"] if parent else None)
+            or (
+                attrs_d.get("id")
+                if opaque and entry.get("x-content") == "data"
+                else None
+            )
+        )
         frame = {
             "tag": tag,
             "id": attrs_d.get("id"),
@@ -3522,6 +3551,7 @@ class _PassageParser(HTMLParser):
             "skip": silenced
             or sub is not None
             or (opaque and entry.get("x-content") == "data"),
+            "shows": shows,
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,
@@ -3557,8 +3587,12 @@ class _PassageParser(HTMLParser):
 
     def handle_data(self, data):
         frame = self.stack[-1] if self.stack else None
-        if frame and not frame["skip"]:
+        if not frame:
+            return
+        if not frame["skip"]:
             self._write(data, frame["block"], frame["ids"])
+        elif frame["shows"]:
+            self.shown[frame["shows"]] = self.shown.get(frame["shows"], "") + data
 
     def handle_endtag(self, tag):
         if tag in VOID_TAGS:
@@ -3581,6 +3615,7 @@ class Passages(NamedTuple):
     retired: dict  # id under a retired slot → the suggestion whose decision did it
     rewritten: dict  # id whose body the user rewrote → the verb that did it
     gone: dict  # decided id whose decision left it empty → the outcome that did it
+    shown: dict  # id whose data body this withheld → the words a module shows there
 
 
 def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Passages:
@@ -3594,6 +3629,8 @@ def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Pass
         parser.retired,
         parser.rewritten,
         parser.gone,
+        # Collapsed the way `text` is, so one comparison answers for both.
+        {id: " ".join(words.split()) for id, words in parser.shown.items()},
     )
 
 
@@ -3676,7 +3713,7 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
-    text, owner, fences, retired, rewritten, gone = page_passages(
+    text, owner, fences, retired, rewritten, gone, shown = page_passages(
         html, registry, decided, rewrites
     )
     if section:
@@ -3725,21 +3762,29 @@ def capture_anchor(
         was = _removed_by(html, registry, wanted, section, decided or {}, rewritten)
         if was:
             raise ValueError(f"{where} said {wanted!r} until {was}")
+        holder = next((el for el, words in shown.items() if wanted in words), None)
+        if holder:
+            raise ValueError(
+                f"{wanted!r} is in § {holder}'s data body, which is the widget's source "
+                "and not its words — the page shows whatever its module made of that, "
+                "and this reading holds nothing there to anchor on. Point at the element "
+                f"instead: --section {holder}."
+            )
         raise ValueError(
             f"{where} doesn't say {wanted!r} — quote it as the version file holds it. A "
             "widget's data body is the widget's source, not its words (a diagram's body "
             "is a picture by the time it is read), so --section the element instead."
         )
     if len(hits) > 1:
-        shown = [
+        around = [
             f"  - …{text[max(lo_bound, at - 30) : at + len(wanted) + 30]}…"
             for at in hits[:4]
         ]
-        if len(hits) > len(shown):
-            shown.append(f"  - …and {len(hits) - len(shown)} more")
+        if len(hits) > len(around):
+            around.append(f"  - …and {len(hits) - len(around)} more")
         raise ValueError(
             f"{where} says {wanted!r} {len(hits)} times, so this quote names no one "
-            "passage. Extend it, or scope it with --section:\n" + "\n".join(shown)
+            "passage. Extend it, or scope it with --section:\n" + "\n".join(around)
         )
 
     lo = hits[0]
@@ -3969,27 +4014,40 @@ def _overwide_elements(parser: _StructParser, column: int) -> list:
     return hits
 
 
+class RegistryError(click.ClickException):
+    """A registry that is not a vocabulary, raised rather than exited because two doors
+    read one. The CLI prints the message and stops; the page server owes the browser an
+    answer, and `sys.exit` inside its request handler killed the connection mid-POST
+    while every other rejection beside it returned a 400 — so a page whose vendored
+    stamp had fallen behind the running layer met the reader's click with a dead socket
+    and no words. Click renders an escaped one bare, at whichever command reached it, so
+    a refusal from here reads like every other refusal this CLI writes."""
+
+    def show(self, file=None) -> None:
+        click.echo(self.message, file=file or click.get_text_stream("stderr"))
+
+
 def read_registry_entries(path: Path):
     """Read the top-level entries one registry layer contributes."""
     if (path.exists() or path.is_symlink()) and not path.is_file():
-        sys.exit(f"{path}: registry.json must be a file")
+        raise RegistryError(f"{path}: registry.json must be a file")
     try:
         registry = read_json(path)
     except json.JSONDecodeError as error:
-        sys.exit(f"{path}: invalid JSON ({error.msg}, line {error.lineno})")
+        raise RegistryError(f"{path}: invalid JSON ({error.msg}, line {error.lineno})")
     except UnicodeDecodeError:
-        sys.exit(f"{path} must be UTF-8")
+        raise RegistryError(f"{path} must be UTF-8")
     if registry is None:
         if not path.is_file():
             return None
-        sys.exit(f"{path}: registry must be a JSON object")
+        raise RegistryError(f"{path}: registry must be a JSON object")
     if not isinstance(registry, dict):
-        sys.exit(f"{path}: registry must be a JSON object")
+        raise RegistryError(f"{path}: registry must be a JSON object")
     non_objects = [
         name for name, entry in registry.items() if not isinstance(entry, dict)
     ]
     if non_objects:
-        sys.exit(f"{path}: registry entries must be objects: {non_objects}")
+        raise RegistryError(f"{path}: registry entries must be objects: {non_objects}")
     return registry
 
 
@@ -4009,7 +4067,7 @@ def validate_registry(registry: dict, source) -> dict:
         paths = registry["$languages"]["paths"]
         tones = registry["$tones"]["names"]
     except (KeyError, TypeError):
-        sys.exit(
+        raise RegistryError(
             f"{path}: registry must declare $events.kinds, $languages.names/paths "
             "and $tones.names"
         )
@@ -4020,7 +4078,7 @@ def validate_registry(registry: dict, source) -> dict:
         and len(fields) == len(set(fields))
         for kind, fields in kinds.items()
     ):
-        sys.exit(
+        raise RegistryError(
             f"{path}: $events.kinds must map event names to unique field-name lists"
         )
     missing_events = []
@@ -4032,7 +4090,7 @@ def validate_registry(registry: dict, source) -> dict:
         if fields:
             missing_events.append(f"`{kind}` fields {sorted(fields)}")
     if missing_events:
-        sys.exit(
+        raise RegistryError(
             f"{path}: $events.kinds omits vocabulary the current layer writes: "
             + ", ".join(missing_events)
         )
@@ -4041,12 +4099,16 @@ def validate_registry(registry: dict, source) -> dict:
         or not all(isinstance(name, str) for name in names)
         or len(names) != len(set(names))
     ):
-        sys.exit(f"{path}: $languages.names must be a unique list of strings")
+        raise RegistryError(
+            f"{path}: $languages.names must be a unique list of strings"
+        )
     if not isinstance(paths, dict) or not all(
         isinstance(extension, str) and language in names
         for extension, language in paths.items()
     ):
-        sys.exit(f"{path}: $languages.paths must map extensions to declared languages")
+        raise RegistryError(
+            f"{path}: $languages.paths must map extensions to declared languages"
+        )
     # Shape, not just presence, because `tone_errors` asks a list for membership and a
     # string answers the same question by substring: a layer declaring `"names": "ok"`
     # would pass every one-letter tone and paint none of them, which is exactly the
@@ -4056,14 +4118,14 @@ def validate_registry(registry: dict, source) -> dict:
         or not all(isinstance(tone, str) for tone in tones)
         or len(tones) != len(set(tones))
     ):
-        sys.exit(f"{path}: $tones.names must be a unique list of strings")
+        raise RegistryError(f"{path}: $tones.names must be a unique list of strings")
     invalid_names = [
         tag
         for tag in registry
         if not tag.startswith("$") and re.fullmatch(WIDGET_NAME, tag) is None
     ]
     if invalid_names:
-        sys.exit(f"{path}: invalid registry entry names: {invalid_names}")
+        raise RegistryError(f"{path}: invalid registry entry names: {invalid_names}")
     widgets = {tag: entry for tag, entry in registry.items() if tag.startswith("cq-")}
     # First validate every entry in isolation. Cross-entry checks run only after this
     # pass, so their result cannot depend on which widget happened to be written first.
@@ -4071,7 +4133,9 @@ def validate_registry(registry: dict, source) -> dict:
         try:
             Draft202012Validator.check_schema(entry)
         except SchemaError as error:
-            sys.exit(f"{path}: <{tag}> is not a valid JSON Schema: {error.message}")
+            raise RegistryError(
+                f"{path}: <{tag}> is not a valid JSON Schema: {error.message}"
+            )
         extensions = {
             key: value for key, value in entry.items() if key.startswith("x-")
         }
@@ -4079,7 +4143,7 @@ def validate_registry(registry: dict, source) -> dict:
             Draft202012Validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
         )
         if errors:
-            sys.exit(
+            raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
         for channel in ("x-state", "x-report"):
@@ -4087,31 +4151,39 @@ def validate_registry(registry: dict, source) -> dict:
                 try:
                     Draft202012Validator.check_schema(spec["detail"])
                 except SchemaError as error:
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
                         f"detail schema: {error.message}"
                     )
                 if spec["detail"].get("type") != "object":
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
                         "must declare an object"
                     )
 
     for tag, entry in widgets.items():
         if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
-            sys.exit(f"{path}: <{tag}> x-parent names unknown widgets {unknown}")
+            raise RegistryError(
+                f"{path}: <{tag}> x-parent names unknown widgets {unknown}"
+            )
         properties = entry.get("properties", {})
         said = set(entry.get("x-says", {}))
         if unknown := sorted(said - set(properties)):
-            sys.exit(f"{path}: <{tag}> x-says names undeclared attributes {unknown}")
+            raise RegistryError(
+                f"{path}: <{tag}> x-says names undeclared attributes {unknown}"
+            )
         if unknown := sorted(set(entry.get("x-refers", [])) - set(properties)):
-            sys.exit(f"{path}: <{tag}> x-refers names undeclared attributes {unknown}")
+            raise RegistryError(
+                f"{path}: <{tag}> x-refers names undeclared attributes {unknown}"
+            )
         tone = entry.get("x-tone")
         if tone and tone not in properties:
-            sys.exit(f"{path}: <{tag}> x-tone names undeclared attribute `{tone}`")
+            raise RegistryError(
+                f"{path}: <{tag}> x-tone names undeclared attribute `{tone}`"
+            )
         language = entry.get("x-language")
         if language and language not in properties:
-            sys.exit(
+            raise RegistryError(
                 f"{path}: <{tag}> x-language names undeclared attribute `{language}`"
             )
         # An ask names attributes and values the page can actually carry, or it asks
@@ -4126,7 +4198,7 @@ def validate_registry(registry: dict, source) -> dict:
             *awaits.get("until", {}).get("when", {}).items(),
         ]:
             if attr not in properties:
-                sys.exit(
+                raise RegistryError(
                     f"{path}: <{tag}> x-awaits names undeclared attribute `{attr}`"
                 )
             declared = properties[attr] if isinstance(properties[attr], dict) else {}
@@ -4137,26 +4209,26 @@ def validate_registry(registry: dict, source) -> dict:
                     if declared.get("type") not in (None, "boolean") or declared.get(
                         "enum"
                     ):
-                        sys.exit(
+                        raise RegistryError(
                             f"{path}: <{tag}> x-awaits waits on `{attr}` being "
                             f"{str(value).lower()}, but that attribute is not a flag"
                         )
                 elif declared.get("type") == "boolean":
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> x-awaits waits on flag `{attr}` holding "
                         f"{value!r}; a flag is there or it isn't"
                     )
                 elif (allowed := declared.get("enum")) is not None and (
                     value not in allowed
                 ):
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> x-awaits waits on `{attr}` at {value!r}, "
                         f"which its own enum does not admit"
                     )
         # A blanket answer is one of this widget's own verbs, so the log records it
         # the way every other decision is recorded.
         if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
-            sys.exit(
+            raise RegistryError(
                 f"{path}: <{tag}> x-awaits answers every one at once with "
                 f"`{blanket}`, which it does not declare as an x-state verb"
             )
@@ -4165,7 +4237,7 @@ def validate_registry(registry: dict, source) -> dict:
         if (until := awaits.get("until")) and until["verb"] not in entry.get(
             "x-state", {}
         ):
-            sys.exit(
+            raise RegistryError(
                 f"{path}: <{tag}> x-awaits holds asks open until `{until['verb']}`, "
                 "which it does not declare as an x-state verb"
             )
@@ -4175,7 +4247,7 @@ def validate_registry(registry: dict, source) -> dict:
             if entry.get(key) and not entry["x-upgrade"]
         ]
         if needs_upgrade:
-            sys.exit(
+            raise RegistryError(
                 f"{path}: <{tag}> declares {', '.join(needs_upgrade)} "
                 "but has no upgraded handler"
             )
@@ -4186,7 +4258,7 @@ def validate_registry(registry: dict, source) -> dict:
             isinstance(properties.get("overruled"), dict)
             and properties["overruled"].get("type") == "boolean"
         ):
-            sys.exit(
+            raise RegistryError(
                 f"{path}: <{tag}> declares x-report but not the boolean `overruled` "
                 "attribute a version overrules a standing report with"
             )
@@ -4202,14 +4274,14 @@ def validate_registry(registry: dict, source) -> dict:
                 if record:
                     fields.append(record["value"])
                     if record["kind"] == "position" and record["within"] not in widgets:
-                        sys.exit(
+                        raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` records a position "
                             f"within unknown widget <{record['within']}>"
                         )
                     if record["kind"] == "value":
                         attr = record["attr"]
                         if attr not in properties:
-                            sys.exit(
+                            raise RegistryError(
                                 f"{path}: <{tag}> {channel} verb `{verb}` records "
                                 f"undeclared attribute `{attr}`"
                             )
@@ -4218,7 +4290,7 @@ def validate_registry(registry: dict, source) -> dict:
                         # would change what the page says while that reading held
                         # still, the desync the fence rules exist to prevent.
                         if attr in said:
-                            sys.exit(
+                            raise RegistryError(
                                 f"{path}: <{tag}> {channel} verb `{verb}` records "
                                 f"x-says attribute `{attr}`, whose value is words "
                                 "the reader sees — declared state may not move the "
@@ -4234,18 +4306,18 @@ def validate_registry(registry: dict, source) -> dict:
                         if undeclared
                         else f"does not require {optional}"
                     )
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
                         f"its schema {problem}"
                     )
                 if unit != "widget" and record and record["kind"] != "position":
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
                         "state; only position records support that"
                     )
 
                 if unit != "widget" and not declares_string(detail_properties[unit]):
-                    sys.exit(
+                    raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
                         "must be a string"
                     )
@@ -4265,7 +4337,7 @@ def validate_registry(registry: dict, source) -> dict:
                             and isinstance(items, dict)
                             and items.get("type") == "string"
                         ):
-                            sys.exit(
+                            raise RegistryError(
                                 f"{path}: <{tag}> {channel} verb `{verb}` record "
                                 f"value `{value}` must be an array of strings"
                             )
@@ -4274,13 +4346,13 @@ def validate_registry(registry: dict, source) -> dict:
                         # field speaks the attribute's own schema — one vocabulary,
                         # or the log's contract and the markup's drift apart.
                         if schema != properties[record["attr"]]:
-                            sys.exit(
+                            raise RegistryError(
                                 f"{path}: <{tag}> {channel} verb `{verb}` record "
                                 f"value `{value}` must carry attribute "
                                 f"`{record['attr']}`'s own schema"
                             )
                     elif not declares_string(schema):
-                        sys.exit(
+                        raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
                             f"value `{value}` must be a string"
                         )
@@ -4293,12 +4365,12 @@ def validate_registry(registry: dict, source) -> dict:
         for parent in entry["x-parent"]:
             parent_state = widgets[parent].get("x-state", {})
             if retired not in parent_state:
-                sys.exit(
+                raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` is invalid: "
                     f"<{parent}> does not declare that x-state verb"
                 )
             if parent_state[retired].get("unit", "widget") != "widget":
-                sys.exit(
+                raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
                 )
     return registry
@@ -4321,7 +4393,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
         if parser.reserved_ids:
             errors.append(reserved_ids_error(parser.reserved_ids))
         if errors:
-            sys.exit(f"{source}: <{tag}> x-example is invalid: {errors[0]}")
+            raise RegistryError(f"{source}: <{tag}> x-example is invalid: {errors[0]}")
     return registry
 
 
@@ -4352,7 +4424,7 @@ def incoming_registry(layers: list) -> dict:
         paths.append(path)
         merged.update(read_registry_entries(path))
     if not paths:
-        sys.exit("the incoming layer has no registry.json")
+        raise RegistryError("the incoming layer has no registry.json")
     source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"
     return validate_registry_examples(validate_registry(merged, source), source)
 

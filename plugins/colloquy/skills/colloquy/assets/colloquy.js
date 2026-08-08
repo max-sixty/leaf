@@ -2101,7 +2101,7 @@ function msgNode(m) {
 function anchorLabel(anchor) {
   if (anchor?.quote) return `“${anchor.quote}”`;
   if (!anchor?.section) return "";
-  const item = document.getElementById(anchor.section);
+  const item = elementById(anchor.section);
   const says = itemSays(item);
   return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
 }
@@ -2441,7 +2441,10 @@ const inUi = (node) => {
 // what that container holds, and the reading position is a place in the page rather than
 // in the panel over it. `.cq-ui` reached those elements and a widget's own controls out
 // on the page besides, which is the look standing in for the place.
-export const inChrome = (node) => Boolean(node?.closest(".cq-chrome"));
+// Across the boundary for the same reason the climb below is: the marker lives out in
+// the document, so a node inside a widget's shadow tree can only reach it by leaving the
+// tree, and a widget staged inside a reply would otherwise read as page content.
+export const inChrome = (node) => Boolean(node && closestAcross(node, ".cq-chrome"));
 const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 // The two readings, each one predicate over a text node and named for the question it
@@ -2529,6 +2532,52 @@ function closestAcross(node, selector) {
   }
   return null;
 }
+
+// getElementById searches the document tree alone, which is the same boundary again and
+// the one every question the runtime asks by id runs into: which element an anchor names,
+// what an action rests on, which unit a fold paints, which ask a key steps to. A widget
+// that stages its authored children into a shadow tree takes their ids in there with it,
+// and each of those answers would come back null and quietly do nothing — the anchor
+// captured, the mark never painted, no error anywhere. The document first, because that
+// is where everything but a staged widget's own parts lives, and only the roots the
+// registry declares after it, so the walk sees what the capture saw.
+const elementById = (id) => {
+  const found = document.getElementById(id);
+  if (found) return found;
+  for (const root of pageShadowRoots()) {
+    const inside = root.getElementById(id);
+    if (inside) return inside;
+  }
+  return null;
+};
+
+// elementFromPoint retargets to the host for a point over a shadow tree, so it names the
+// widget rather than the thing in it, and each root answers for its own. Asked only where
+// the question is which element exactly the pointer is over (markAt, deciding which of
+// several marks it touched). Where the question is which *item* the reader is aiming at,
+// the host is the right answer and this is the wrong helper: aiming at a diff means the
+// diff, whose rows are nothing anyone can anchor on (aimedItem).
+const elementFromPointAcross = (x, y) => {
+  let el = document.elementFromPoint(x, y);
+  while (el?.shadowRoot) {
+    const inner = el.shadowRoot.elementFromPoint(x, y);
+    if (!inner || inner === el) break;
+    el = inner;
+  }
+  return el;
+};
+
+// A pass that clears its own marks before repainting has to sweep everywhere it can
+// write, and `elementById` above is what widened that: a mark placed on a staged element
+// sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
+// the mark outlive the reason for it. Only the runtime's own marks are read back this
+// way. Which widgets the page holds is a different question and still the document's:
+// a widget staged inside another's tree is a nesting the registry's x-parent contract
+// does not model, and answering it here would be inventing that contract in a sweep.
+const pageQueryAll = (selector) =>
+  [document, ...pageShadowRoots()].flatMap((root) => [
+    ...root.querySelectorAll(selector),
+  ]);
 
 // The range the reader actually drew. Chrome keeps the legacy Range in the light DOM: a
 // drag wholly inside a widget's shadow tree comes back with `commonAncestorContainer` at
@@ -3019,8 +3068,7 @@ function restoreView(view) {
 // Which element an anchor names, asked in one place: the element it resolves to when it
 // carries no quote, the subtree a candidate has to sit inside when it does, and the holder
 // of the line saying a passage carries a comment are all this question.
-const sectionOf = (anchor) =>
-  anchor.section ? document.getElementById(anchor.section) : null;
+const sectionOf = (anchor) => (anchor.section ? elementById(anchor.section) : null);
 
 // ---------- pointing at an item ----------
 // One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
@@ -3199,7 +3247,7 @@ function noteMarks(noted) {
     const said = `${n} comment${n === 1 ? "" : "s"}`;
     if (note.textContent !== said) note.textContent = said;
   }
-  for (const note of document.querySelectorAll(`.${NOTE}`))
+  for (const note of pageQueryAll(`.${NOTE}`))
     if (!noted.has(note.parentElement)) note.remove();
 }
 
@@ -3372,6 +3420,10 @@ panel.addEventListener("click", (ev) => {
 function markAt(x, y) {
   const over = document.elementFromPoint(x, y);
   if (inUi(over)) return null;
+  // The retargeted element answers the chrome question, whose subject is which layer the
+  // pointer is in; an element mark needs the tree's own answer, because a host contains
+  // every mark staged inside it and so tells none of them apart.
+  const deep = elementFromPointAcross(x, y);
   for (const [id, marks] of marked)
     for (const where of marks) {
       const hit =
@@ -3379,7 +3431,7 @@ function markAt(x, y) {
           ? [...where.getClientRects()].some(
               (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom,
             )
-          : where.contains(over);
+          : containsAcross(where, deep);
       if (hit) return id;
     }
   return null;
@@ -4784,7 +4836,7 @@ const ASK_CONTROL = "[data-cq-offer][tabindex]";
 function stepAsk() {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
-  const to = (asks.indexOf(document.getElementById(askAt)) + 1) % asks.length;
+  const to = (asks.indexOf(elementById(askAt)) + 1) % asks.length;
   const next = asks[to];
   askAt = next.id;
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
@@ -4914,8 +4966,7 @@ async function applyDiff(baseVersion) {
         // The element the change reads on: the option now picked, or the moved
         // card itself.
         const target =
-          (spec.record.kind === "attribute" && now && document.getElementById(now)) ||
-          el;
+          (spec.record.kind === "attribute" && now && elementById(now)) || el;
         if (!target.classList.contains("cq-ins-block")) {
           target.classList.add("cq-ins-block");
           diffMarked.push(target);
@@ -5189,8 +5240,8 @@ function restsOn(e, widget) {
   // set of picks) and each of them is something the action rests on.
   const parts = Object.values(e.detail)
     .flat()
-    .map((v) => (typeof v === "string" ? document.getElementById(v) : null))
-    .filter((el) => el && widget.contains(el))
+    .map((v) => (typeof v === "string" ? elementById(v) : null))
+    .filter((el) => el && containsAcross(widget, el))
     .map((el) => el.id);
   return [e.widget, ...parts];
 }
@@ -5273,7 +5324,7 @@ function applyActions() {
     for (const e of events) {
       if (e.kind !== kind || appliedActions.has(e.seq) || deferredWidgets.has(e.widget))
         continue;
-      const el = document.getElementById(e.widget);
+      const el = elementById(e.widget);
       // Every terminal action is decided here and never looked at again. This pass runs
       // after the panel has rendered the log, so a widget that isn't here is one no
       // version can carry — an honored suggestion, whose wrapper the version replaced.
@@ -5306,7 +5357,7 @@ function applyActions() {
           // Say so on the page: a decision undone looks exactly like one never
           // made, and the user is owed the difference.
           for (const id of gone) {
-            const target = document.getElementById(id);
+            const target = elementById(id);
             if (target) target.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
           }
           appliedActions.add(e.seq);
@@ -5330,7 +5381,7 @@ function applyActions() {
     // markup already held the state; only a page widget can contradict its
     // version, so a reply's widget (.cq-chrome, no version) goes unrecorded.
     const changed = [...new Set([...before.keys(), ...now.keys()])].filter(
-      (id) => before.get(id) !== now.get(id) && !inChrome(document.getElementById(id)),
+      (id) => before.get(id) !== now.get(id) && !inChrome(elementById(id)),
     );
     if (changed.length) {
       const prior = document.body.getAttribute(wroteAttr)?.split(" ") ?? [];
@@ -5439,7 +5490,7 @@ function stateFold(upto) {
   const fold = new Map();
   for (const e of events) {
     if (e.kind !== "action" || e.version > upto) continue;
-    const el = document.getElementById(e.widget);
+    const el = elementById(e.widget);
     if (!el?.applyAction || inChrome(el)) continue;
     const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
     if (!spec) continue;
@@ -5459,7 +5510,7 @@ function reportFold(upto) {
   const fold = new Map();
   for (const e of events) {
     if (e.kind !== "report" || e.version > upto || answered.has(e.id)) continue;
-    const el = document.getElementById(e.widget);
+    const el = elementById(e.widget);
     if (!el?.applyAction || inChrome(el)) continue;
     const spec = registry[el.tagName.toLowerCase()]?.["x-report"]?.[e.action];
     if (!spec) continue;
@@ -5477,9 +5528,9 @@ function reportFold(upto) {
 // stands.
 function paintPending() {
   for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
-    for (const el of document.querySelectorAll(`[${attr}]`)) el.removeAttribute(attr);
+    for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
   for (const [unit, { e, spec }] of stateFold(VNUM)) {
-    const el = document.getElementById(unit);
+    const el = elementById(unit);
     if (!el) continue;
     const behind = spec.record
       ? foldedFacet(e, spec.record) !== authoredFacets.get(unit)
@@ -5491,7 +5542,7 @@ function paintPending() {
   // version's markup has not absorbed — provisional until a version answers it,
   // where data-cq-pending says the reader decided and the record lags.
   for (const [unit, { e, spec }] of reportFold(VNUM)) {
-    const el = document.getElementById(unit);
+    const el = elementById(unit);
     if (!el) continue;
     if (foldedFacet(e, spec.record) !== authoredFacets.get(unit))
       el.setAttribute(PAGE_PAINT_ATTRIBUTE.reported, "1");

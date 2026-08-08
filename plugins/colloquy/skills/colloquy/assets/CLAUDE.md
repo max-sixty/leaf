@@ -336,6 +336,38 @@ construction; that mistake is now made where the label is written, in front of w
 wrote the word, rather than in a print rule three files away that nobody thought to
 write.
 
+## A shadow tree carries the page's words, and its ids
+
+`x-shadow` made a widget's rendered text part of the page. The passage walk crosses the
+boundary (`textNodesUnder`), the capture asks `getComposedRanges` for exactly the roots
+the registry declares, and `upFrom`, `containsAcross` and `closestAcross` climb out of a
+tree the way `parentElement` and `closest` climb inside one — so a reader selects a line
+of a diff, comments on it, and the mark paints where they drew it.
+
+Element identity is the same boundary, and it did not follow at first. `getElementById`
+searches the document tree alone, so an id inside a shadow tree was invisible to every
+question the runtime asks by id: which element an anchor names (`sectionOf`), what an
+action rests on (`restsOn`), which unit a fold paints, which ask the `a` key steps to.
+Each answers null and then quietly does nothing — the anchor stored, the mark never
+painted, no error anywhere to find it by. `elementById` is the document first and the
+declared roots after, and every one of those questions goes through it.
+
+Two things follow from that rather than sit beside it. A pass that clears its own marks
+before repainting has to sweep everywhere it can now write (`pageQueryAll`), or a mark on
+a staged element outlives its reason. And `elementFromPoint` retargets to the host, which
+is the right answer where the question is which *item* the pointer is aimed at — aiming
+at a diff means the diff, whose rows are nothing to anchor on — and the wrong one where
+it is which of several marks it touched, since a host contains them all. So `markAt`
+takes the tree's own answer and `aimedItem` keeps the document's.
+
+Which widgets the page holds stays the document's question. A widget staged inside
+another's tree is a nesting `x-parent` does not model, and settling it in a sweep would be
+writing that contract where nobody would look for it. The line is that an id names one
+element wherever it was staged, and what a page *contains* is declared rather than
+discovered. Nothing shipped crosses it either way — `cq-diff` stages a tree built out of
+parsed data and mints no ids — so the render suite stages one by hand, that move being the
+whole of what the next such widget does differently.
+
 ## Three voices, because the page has three kinds of words
 
 What the page *says* is prose the user reads closely and points at. What it *labels* —

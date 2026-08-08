@@ -944,7 +944,16 @@ style.textContent = `
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
      the body's own top padding is measured off the rendered bar (see the append
      below) rather than restated. */
-  body { --cq-banner-h: 42px; }
+  /* The chrome's line box, said once, because one control in the banner cannot be
+     told it. Chrome computes a select's inner height from its own metrics and
+     refuses line-height outright — the computed value stays normal however the
+     rule is written — so the chooser stood 3.3px shorter than every button beside
+     it, centred, and read as sunk into the row. Its height is stated instead, from
+     this and its own padding (see the chooser's rule), which is the same number
+     .cq-btn arrives at through the line box. Stated in one place so the two cannot
+     come apart: a third copy of 1.45 is exactly the drift the reserve comment below
+     is about, and this one would show as the chooser sinking again. */
+  body { --cq-banner-h: 42px; --cq-ui-lh: 1.45; }
   body { position: relative; box-sizing: border-box; height: 100%; overflow-y: auto;
          scroll-padding-top: calc(var(--cq-banner-h) + 12px); scrollbar-gutter: stable; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
@@ -962,7 +971,7 @@ style.textContent = `
      runtime marks the page's own elements (cq-mark-el, cq-ins-block). Adding one
      widens the vocabulary; a rule that styles the runtime's own layer goes in the
      @scope block below instead. */
-  .cq-ui { font-family: var(--sans); font-size: var(--t-5); line-height: 1.45; color: var(--ink); box-sizing: border-box; }
+  .cq-ui { font-family: var(--sans); font-size: var(--t-5); line-height: var(--cq-ui-lh); color: var(--ink); box-sizing: border-box; }
   .cq-ui *, .cq-ui *::before, .cq-ui *::after { box-sizing: inherit; }
   /* Clearing the UA's form-control face is a different kind of declaration from
      choosing one, so the clearing lives in a layer, which any unlayered choice
@@ -1141,7 +1150,7 @@ ${MARK_RULES}
        into the page's serif at 17px that way — and this is the same answer for the
        text around the controls. */
     :scope { cursor: auto;
-      font-family: var(--sans); font-size: var(--t-5); line-height: 1.45; }
+      font-family: var(--sans); font-size: var(--t-5); line-height: var(--cq-ui-lh); }
     .cq-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--cq-banner-h);
       display: flex; align-items: center; gap: 10px; padding: 0 14px;
       background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
@@ -1166,13 +1175,42 @@ ${MARK_RULES}
        a press, and the poll — stay the check that the words reserved are the words the
        writers actually write.
 
-       The chooser is the different case: its label carries the version's note, which
-       has no widest to reserve, so it states a width as a cap and its own menu and
-       tooltip hold what the cap cuts off. */
+       The chooser was the one control here that had to state a width, because its label
+       carried the version's note and a note has no widest to reserve. It says the version
+       alone now, which is this document's own and never rewritten, so every control on
+       the row is either floored at its own words or saying one unchanging thing, and no
+       number on this row is a fact about a font any more. */
     @layer cq-reset {
-      .cq-banner select, .cq-resolve { font: inherit; }
+      .cq-resolve { font: inherit; }
     }
-    .cq-banner select { padding: 3px 6px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); color: inherit; flex: none; width: 190px; text-overflow: ellipsis; }
+    /* The chooser's menu: fixed under the button it hangs off, anchored rather than
+       measured, so nothing recomputes a position when the row's contents change width.
+       It is the only place the version notes are, so a row wraps to hold one whole —
+       the reason a menu is worth having over a control whose closed label and open list
+       are forced to be the same string. Capped at the viewport's remaining height and
+       scrolling inside itself, since a page's versions are unbounded. */
+    .cq-version { anchor-name: --cq-version-btn; }
+    .cq-version-menu { position: fixed; position-anchor: --cq-version-btn;
+      top: calc(anchor(bottom) + 6px); right: anchor(right); z-index: 8950;
+      display: none; flex-direction: column; min-width: anchor-size(width);
+      max-width: min(360px, calc(100vw - 16px));
+      max-height: calc(100vh - var(--cq-banner-h) - 20px); overflow-y: auto;
+      overscroll-behavior: contain;
+      background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
+    .cq-version-menu.open { display: flex; }
+    /* Left-aligned text in a control that is otherwise a press: the rows are a list to
+       read down, and a centred note re-ragged on every line is not one. */
+    .cq-version-row { display: flex; flex-direction: column; gap: 1px; align-items: start;
+      text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
+      background: none; color: inherit; cursor: pointer; width: 100%; }
+    .cq-version-row:hover { background: var(--chip); }
+    .cq-version-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    /* The version being read wears the accent rather than a fill, so the row the
+       pointer is over stays the one that looks pressable. */
+    .cq-version-row[aria-current] .cq-version-num { color: var(--accent); font-weight: 600; }
+    .cq-version-num { white-space: nowrap; }
+    .cq-version-note { color: var(--muted); font-size: var(--t-6); }
     /* The colloquys panel: the comment panel's mirror on the left, a board of the
        machine's live pages that stands while the reader works. Fixed over the content —
        opening it moves nothing — and its own scroll region, so one wheel gesture moves
@@ -1324,7 +1362,14 @@ ${MARK_RULES}
     .cq-help table { width: 100%; border-collapse: collapse; }
     .cq-help td { padding: 3px 0; vertical-align: baseline; }
     .cq-help td:first-child { width: 84px; white-space: nowrap; }
+    /* The glyph states its own ink rather than taking the line's. A key chip is the
+       one word on either surface the reader has to read to press anything, and it
+       is set at 12px on --chip, where the surrounding line's --muted came to 4.46:1
+       — under AA, and quietly, since the line is aria-hidden and the corpus sweep
+       walks pages with it empty. --ink-2 clears it on both schemes. The words beside
+       the chips keep --muted: they sit on --card, which it clears. */
     .cq-help kbd, .cq-keyline kbd { font-family: ui-monospace, monospace; font-size: 12px; background: var(--chip);
+      color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
     /* The key line: what a key does right now, rendered from the same scene() that
        runs Escape (see the module docstring). Floating chrome nothing presses
@@ -1578,20 +1623,73 @@ function renderOthers(state) {
 }
 for (const control of [latestChip, diffBtn, asksBtn, othersBtn])
   showNews(control, false);
-const versionSelect = document.createElement("select");
-versionSelect.title = "Version";
-versionSelect.setAttribute("aria-label", "Version");
+// The version chooser: a press that says which version this is, and a menu that says
+// what each one was. It was a <select>, and the two things that cost were both the
+// control's rather than the styling's. A select takes its inner height from Chrome's
+// own metrics and refuses line-height, so it could never stand level with the buttons
+// beside it; and its closed label is its selected option's whole text, so the note had
+// to be in both places or neither — 190px of bar, the widest control on the row, for
+// about nine characters of a note that then ellipsized. A press states the version
+// alone (48px), and the menu is the only place the notes are, where a row can wrap and
+// carry one whole.
+//
 // Which version this is, is the document's own answer (VNUM, off the path), so the
-// chooser states it now rather than standing empty until the first poll answers.
-// A blank control beside a rendered page is a page still loading, which this one
-// isn't; the width is the theme's either way, so the list arriving moves nothing.
-if (VNUM !== null)
-  versionSelect.append(
-    Object.assign(document.createElement("option"), {
-      value: VNUM,
-      textContent: `v${VNUM}`,
-    }),
-  );
+// press says it now rather than standing empty until the first poll answers, and it
+// never rewrites that word afterwards — the label is this document's version for as
+// long as this document is on screen, so the control has no widest word to reserve and
+// nothing it can do to the row.
+const versionBtn = el(
+  "button",
+  "cq-btn cq-version",
+  VNUM === null ? "▾" : `v${VNUM} ▾`,
+);
+versionBtn.title = "Version";
+versionBtn.setAttribute("aria-haspopup", "menu");
+versionBtn.setAttribute("aria-expanded", "false");
+const versionMenu = el("div", "cq-ui cq-version-menu");
+versionMenu.setAttribute("role", "menu");
+versionMenu.setAttribute("aria-label", "Versions");
+// The menu's own keys, declared once and read twice — the key line while focus is
+// inside it (scene) and the "?" overlay — so neither can drift from the listener
+// below. Enter is the browser's, a row being a button; the walk is the menu's, bound
+// here rather than to the dispatcher because ArrowUp and ArrowDown anywhere else are
+// the page's own scroll.
+const VERSION_KEYS = [
+  ["↑ / ↓", "walk the versions"],
+  ["⏎", "open that version"],
+];
+let versionMenuOpen = false;
+const versionRows = () => [...versionMenu.querySelectorAll("button")];
+// One setter stating the whole outcome, per showComposer and showFab: nothing reads
+// the class back to find out whether the menu is up.
+function showVersionMenu(open) {
+  versionMenuOpen = open;
+  versionMenu.classList.toggle("open", open);
+  versionBtn.setAttribute("aria-expanded", String(open));
+  // Opening lands on the version being read, so the menu's own keys are the next
+  // press rather than a Tab-hunt — the same move o makes into the colloquys board.
+  if (open)
+    (
+      versionRows().find((r) => r.dataset.cqVersion === String(VNUM)) ??
+      versionRows()[0]
+    )?.focus();
+  else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
+  paintLine();
+}
+versionBtn.onclick = () => showVersionMenu(!versionMenuOpen);
+versionMenu.addEventListener("keydown", (ev) => {
+  const dir = ev.key === "ArrowDown" ? 1 : ev.key === "ArrowUp" ? -1 : 0;
+  if (!dir) return;
+  const rows = versionRows();
+  // Clamped at the ends, the way j/k walks threads and ↑/↓ walks the board: ↓ on the
+  // last row lands where it already stands rather than wrapping, and the press stays
+  // the menu's, so it doesn't scroll out from under a walk that reached its end.
+  const at = rows.indexOf(document.activeElement);
+  const next = rows[Math.max(0, Math.min(rows.length - 1, at + dir))];
+  if (!next) return;
+  ev.preventDefault();
+  next.focus();
+});
 const toggleBtn = el("button", "cq-btn cq-comments", "Comments");
 toggleBtn.title =
   "Show or hide the comment panel (c comments, Esc closes, ? lists all keys)";
@@ -1608,7 +1706,7 @@ banner.append(
   latestChip,
   asksBtn,
   diffBtn,
-  versionSelect,
+  versionBtn,
   toggleBtn,
 );
 banner.append(SIGNOFF ? approveBtn : endColloquyBtn);
@@ -1675,6 +1773,7 @@ keylineEl.setAttribute("aria-hidden", "true");
 const chromeRoot = el("div", "cq-chrome");
 chromeRoot.append(
   banner,
+  versionMenu,
   othersPanel,
   panel,
   fab,
@@ -3899,6 +3998,10 @@ function standDown(target) {
     if (composerOpen && !composerInput.value) hideComposer();
   }
   if (helpOpen && !target.closest?.(".cq-help")) showHelp(false);
+  // The press on the button itself is its own toggle, so it is not an outside click;
+  // without that the open and this close would both run and the menu could never open.
+  if (versionMenuOpen && !target.closest?.(".cq-version-menu, .cq-version"))
+    showVersionMenu(false);
 }
 document.addEventListener("mousedown", (ev) => standDown(ev.target));
 
@@ -4468,6 +4571,13 @@ function scene() {
     };
   if (helpOpen)
     return { rows: [], esc: { says: "close help", out: () => showHelp(false) } };
+  // Above the panels because it is a press's own popup: it opens over whatever was
+  // standing and the next Escape is the one that closes it, never the layer beneath.
+  if (versionMenuOpen)
+    return {
+      rows: VERSION_KEYS,
+      esc: { says: "close versions", out: () => showVersionMenu(false) },
+    };
   if (composerOpen)
     return {
       rows:
@@ -4485,9 +4595,10 @@ function scene() {
   if (editable(active)) {
     // The rows stand down on every editable — the dispatcher's letters do too —
     // but the rung stands down only where the press would take something from
-    // the control. A select or a radio has no Escape of its own, and swallowing
-    // the rung there left the panel unclosable by key while focus sat on the
-    // banner's own version chooser.
+    // the control. A select, a slider or a radio has no Escape of its own, and
+    // swallowing the rung there left the panel unclosable by key while focus sat
+    // on one. The banner's own version chooser was the case that found it, and is
+    // a button now; what keeps the rule is the page, which may author any of them.
     if (!panel.contains(active))
       return {
         rows: [],
@@ -5255,23 +5366,42 @@ function renderVersions(state) {
   for (const e of events) if (e.kind === "note") notes[e.version] = e.text;
   const key = JSON.stringify([state.versions, notes]);
   const current = state.versions.includes(VNUM) ? VNUM : null;
-  if (key !== lastVersionsKey) {
+  // Rebuilt rather than reconciled: this runs only when the versions or their notes
+  // actually changed, which on a page's whole life is a handful of times, and the
+  // menu is only ever read while it is open — where a rebuild would take the focused
+  // row out from under a walk. So an open menu defers the rebuild, and the key is
+  // what the built list holds rather than what the last poll saw: consuming it here
+  // and skipping the build inside would mark the change handled and leave that
+  // version out of the menu until some later one happened along. A version arriving
+  // under an open menu is the new-version chip's news; the list catches up on the
+  // next poll after it closes.
+  if (key !== lastVersionsKey && !versionMenuOpen) {
     lastVersionsKey = key;
-    versionSelect.textContent = "";
+    versionMenu.textContent = "";
     for (const version of state.versions) {
-      const opt = document.createElement("option");
-      opt.value = version;
       const isLatest = version === state.versions.at(-1);
-      opt.textContent = `v${version}${isLatest ? " (latest)" : ""}${
-        notes[version] ? " · " + notes[version] : ""
-      }`;
-      versionSelect.append(opt);
+      const row = el("button", "cq-version-row");
+      row.setAttribute("role", "menuitem");
+      row.dataset.cqVersion = version;
+      // The version and its note are two kinds of word — which one this is, and
+      // what it was — so they are two elements rather than one string. That is
+      // what lets the note wrap to as many lines as it needs, which is the whole
+      // reason the notes are here rather than on a control 190px wide.
+      row.append(
+        el("span", "cq-version-num", `v${version}${isLatest ? " (latest)" : ""}`),
+      );
+      if (notes[version]) row.append(el("span", "cq-version-note", notes[version]));
+      if (version === current) row.setAttribute("aria-current", "true");
+      row.onclick = () => {
+        showVersionMenu(false);
+        goVersion(version);
+      };
+      versionMenu.append(row);
     }
-    versionSelect.value = current ?? "";
-    // The box states its width rather than taking one (see the theme), so a note
-    // longer than it ends in an ellipsis. Carrying the whole label as the tooltip
-    // puts the rest a hover away instead of only inside the open menu.
-    versionSelect.title = versionSelect.selectedOptions[0]?.textContent || "Version";
+    // Registered from here rather than at load, for the reason the colloquys board's
+    // rows are: the section promises a list to walk, and only a page with a second
+    // version has one.
+    if (state.versions.length > 1) keyHelp("In the versions menu", VERSION_KEYS);
   }
   latestVersion = state.versions.at(-1) ?? null;
   const behind = latestVersion !== null && VNUM !== null && latestVersion !== VNUM;
@@ -5302,7 +5432,6 @@ const midComposition = () =>
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
       document.activeElement.classList.contains("cq-draft-edit")));
-versionSelect.onchange = () => goVersion(Number(versionSelect.value));
 latestChip.onclick = () => (location.href = "/");
 
 // ---------- polling ----------

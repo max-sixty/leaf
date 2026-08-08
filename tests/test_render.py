@@ -1723,17 +1723,19 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
     # A reservation is a promise the row can keep only while it has the room, and a row
-    # out of room takes it from whatever will give. Every control up there but the
-    # chooser is a .cq-btn, floored at its own words by nowrap, so the chooser was the
-    # one thing that could — and it did, dropping under the width it states and putting
-    # every arrival above back in play on any window narrow enough. What gives now is the
-    # status text and the chip, which is where the spacer's slack was: both are left of
-    # everything else on the row, so what they give up moves nothing.
-    states_a_width = (
-        "() => ['select', '.cq-comments', '.cq-signoff', '.cq-answer-all', '.cq-asks']"
+    # out of room takes it from whatever will give. Every control up there is a .cq-btn,
+    # floored at its own words by nowrap, so none of them is what gives: what does is the
+    # status text and the chip, which is where the spacer's slack was — both left of
+    # everything else on the row, so what they give up moves nothing. The chooser was the
+    # exception while it was a <select> stating a width against unbounded notes: it was
+    # the one control that could give, so it did, dropping under the width it states and
+    # putting every arrival above back in play on any window narrow enough. It says the
+    # version alone now, so it is floored like the rest and this list covers the whole row.
+    holds_its_width = (
+        "() => ['.cq-version', '.cq-comments', '.cq-signoff', '.cq-answer-all', '.cq-asks']"
         ".map((s) => document.querySelector('.cq-banner ' + s).offsetWidth)"
     )
-    wide = page.evaluate(states_a_width)
+    wide = page.evaluate(holds_its_width)
     resized(page, 900, 900)
     # Out of room, and something has visibly given: no spacer left, and the chip showing
     # less than it holds. Without both, a window that still had slack would assert nothing.
@@ -1742,8 +1744,8 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         "        return document.querySelector('.cq-spacer').offsetWidth === 0"
         "               && chip.offsetWidth < chip.scrollWidth; }"
     )
-    assert page.evaluate(states_a_width) == wide, (
-        "a banner with no room left took it out of the controls that state a width, "
+    assert page.evaluate(holds_its_width) == wide, (
+        "a banner with no room left took it out of the controls that hold their width, "
         "which is what leaves them free to move on the next thing that arrives"
     )
     assert errors == []
@@ -6998,14 +7000,21 @@ def test_c_reaches_the_general_box_while_the_panel_stands_open(browser, serve):
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     """Letters stand down on any editable — a select's letters jump its options —
     but the ladder asks what the press would take from the control, and only
-    typed text has an Escape of its own. The version chooser swallowed the rung,
-    so the panel could not be closed by key right after the user worked it; the
-    authored slider is the same fact past the first fix's two-item denylist."""
-    html = NOTED_PAGE.replace("</main>", '<input id="zoom" type="range"></main>')
+    typed text has an Escape of its own. The banner's version chooser swallowed
+    the rung, so the panel could not be closed by key right after the user worked
+    it; the fix's first attempt was a two-item denylist, which an authored slider
+    walked straight past. The chooser is a button now and no longer editable at
+    all, so what holds the rule is the page's own controls — which is where it
+    always mattered, a page being free to author any of them."""
+    html = NOTED_PAGE.replace(
+        "</main>",
+        '<input id="zoom" type="range">'
+        '<select id="pick"><option>one</option><option>two</option></select></main>',
+    )
     page, errors = open_page(browser, serve(html))
     # The mouse opens between rounds because c is shadowed on the very controls
     # under test: their letters are the control's own.
-    for control in (".cq-banner select", "#zoom"):
+    for control in ("#zoom", "#pick"):
         page.get_by_role("button", name=re.compile("^Comments")).click()
         expect(page.locator(".cq-panel")).to_be_visible()
         page.locator(control).focus()
@@ -9268,12 +9277,14 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
         _publish(serve.page_dir, n, INLINE_PAGE, f"cut {n}")
     page, errors = open_page(browser, url.replace("v1.html", "v10.html"))
 
-    options = page.locator(".cq-banner select option")
-    expect(options).to_have_count(10)
-    assert [t.split(" ")[0] for t in options.all_text_contents()] == [
+    # The menu is built whether or not it is open, so the order is readable without
+    # a press — and the press is not what this test is about.
+    rows = page.locator(".cq-version-menu .cq-version-row .cq-version-num")
+    expect(rows).to_have_count(10)
+    assert [t.split(" ")[0] for t in rows.all_text_contents()] == [
         f"v{n}" for n in range(1, 11)
     ]
-    expect(options.last).to_contain_text("v10 (latest)")
+    expect(rows.last).to_have_text("v10 (latest)")
     # The base a diff runs against is the version before this one in that order.
     expect(page.locator(".cq-banner button", has_text="Δ")).to_have_text("Δ v9")
     # Nothing is newer than v10, so no chip offers one.
@@ -9287,6 +9298,146 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     expect(page.locator(".cq-latest-chip")).to_have_text(
         "New version available → open v10"
     )
+    assert errors == []
+    page.close()
+
+
+def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
+    """The chooser is a press and a menu rather than a select, which buys the notes
+    somewhere they can be read whole and costs the platform's own popup: opening,
+    closing, and the keys between. A select came with all of that, so what this
+    asserts is the part that had to be written back — the press toggles rather than
+    only opens, focus lands on the version being read so the walk starts where the
+    reader is, ↑/↓ clamp at the ends, Escape hands focus back to the press it came
+    from, and a click anywhere else closes without navigating.
+
+    The note is the reason the menu exists at all: a select's closed label is its
+    selected option's whole text, so the note had to be on the bar or nowhere, and on
+    the bar it ellipsized. Here it wraps."""
+    long_note = (
+        "a note far too long to have ever fitted on the bar, which is the whole "
+        "reason the notes moved off it and into a list that can give them a line each"
+    )
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, long_note)
+    _publish(serve.page_dir, 3, INLINE_PAGE, "third")
+    # Pinned to v2, so there is a version either side of the one being read.
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
+
+    btn = page.locator(".cq-version")
+    menu = page.locator(".cq-version-menu")
+    expect(btn).to_have_text("v2 ▾")
+    expect(btn).to_have_attribute("aria-expanded", "false")
+    expect(menu).to_be_hidden()
+
+    btn.click()
+    expect(menu).to_be_visible()
+    expect(btn).to_have_attribute("aria-expanded", "true")
+    # The walk starts on the version being read, not at the top of the list.
+    expect(page.locator('.cq-version-row[data-cq-version="2"]')).to_be_focused()
+    # The note is the whole note, on its own lines under the version it belongs to.
+    expect(
+        page.locator('.cq-version-row[data-cq-version="2"] .cq-version-note')
+    ).to_have_text(long_note)
+    assert page.evaluate(
+        "() => { const n = document.querySelector("
+        "'.cq-version-row[data-cq-version=\"2\"] .cq-version-note');"
+        "  return n.getBoundingClientRect().height > "
+        "         parseFloat(getComputedStyle(n).fontSize) * 1.6; }"
+    ), "the note that a select could not hold is on one line here too"
+
+    # The corpus axe pass walks every example with this menu shut, so the role
+    # relationship it declares open — a menu owning menuitems, named — is checked
+    # nowhere else. A select carried all of that from the platform and this does not.
+    result = Axe().run(
+        page,
+        options={
+            "runOnly": {"type": "tag", "values": ["wcag2a", "wcag2aa", "wcag21a"]},
+            "resultTypes": ["violations"],
+        },
+    )
+    assert [
+        v["id"]
+        for v in result.response["violations"]
+        if v["impact"] in {"serious", "critical"}
+    ] == []
+
+    # The keys are one declaration, so the "?" reference names them too — a page with
+    # a second version is the first that has a list to walk.
+    page.keyboard.press("?")
+    expect(page.locator(".cq-help")).to_contain_text("In the versions menu")
+    expect(page.locator(".cq-help")).to_contain_text("walk the versions")
+    page.keyboard.press("Escape")
+    expect(page.locator(".cq-help")).not_to_have_class(re.compile("open"))
+    expect(menu).to_be_visible()
+
+    page.locator('.cq-version-row[data-cq-version="2"]').focus()
+    page.keyboard.press("ArrowDown")
+    expect(page.locator('.cq-version-row[data-cq-version="3"]')).to_be_focused()
+    page.keyboard.press("ArrowDown")  # clamped: the last row keeps the focus
+    expect(page.locator('.cq-version-row[data-cq-version="3"]')).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("ArrowUp")
+    expect(page.locator('.cq-version-row[data-cq-version="1"]')).to_be_focused()
+    page.keyboard.press("ArrowUp")  # clamped at the other end too
+    expect(page.locator('.cq-version-row[data-cq-version="1"]')).to_be_focused()
+
+    # Escape closes and hands focus back to the press, so the next Tab carries on
+    # from the banner rather than from the top of the document.
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    expect(btn).to_be_focused()
+
+    # A second press is a close, not a re-open: without that the outside-click
+    # handler and the toggle would both run and the menu could never stand.
+    btn.click()
+    expect(menu).to_be_visible()
+    btn.click()
+    expect(menu).to_be_hidden()
+
+    # A click on the page closes it and leaves the reader where they were.
+    btn.click()
+    expect(menu).to_be_visible()
+    # A point in the page's left margin: outside the column, and well clear of a menu
+    # that hangs from the right of the bar over whatever the column has at the top.
+    page.mouse.click(30, 700)
+    expect(menu).to_be_hidden()
+    assert "/versions/v2.html" in page.url, "closing the menu navigated"
+
+    # Choosing a row is the navigation, and the newest is the one that unpins.
+    btn.click()
+    page.locator('.cq-version-row[data-cq-version="3"]').click()
+    page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    assert errors == []
+    page.close()
+
+
+def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
+    """The list is rebuilt rather than reconciled, and an open menu defers the
+    rebuild so a version landing mid-walk can't take the focused row away. What
+    that defers has to survive the deferral: the key saying the list is current
+    was consumed before the deferral was checked, so a version published while
+    the menu stood marked the change handled and never wrote the row. The menu
+    then sat one version short for as long as nothing else was published — and
+    the poll it needed had already been and gone, so nothing was coming."""
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+    page, errors = open_page(browser, url, pin=True)
+    menu = page.locator(".cq-version-menu")
+    expect(page.locator(".cq-version-row")).to_have_count(2)
+
+    page.locator(".cq-version").click()
+    expect(menu).to_be_visible()
+    _publish(serve.page_dir, 3, INLINE_PAGE, "three")
+    told(page)  # the poll that carries it has been and gone
+    # Deferred, so the walk the reader is in the middle of is undisturbed.
+    expect(page.locator(".cq-version-row")).to_have_count(2)
+
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    # And it arrives on the next poll rather than waiting on a fourth version.
+    expect(page.locator(".cq-version-row")).to_have_count(3)
+    expect(page.locator(".cq-version-row").last).to_contain_text("v3 (latest)")
     assert errors == []
     page.close()
 

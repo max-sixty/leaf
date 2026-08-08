@@ -109,9 +109,9 @@ a shadow. Emphasis paints inside the box it belongs to.
 Said positively, room is reserved before it is needed rather than taken when it is: the
 draft's control row exists in both its views, so opening the editor adds no height; a
 `choose` group holds the pick mark's strip on every card, because the pick can land on any
-of them; the version chooser states a width rather than taking one from the longest note
-Claude has yet published. Each spends something on a case that may not arrive, and that is
-the trade — the alternative is paid at the moment the user had something to say.
+of them; a control that will rewrite its own label holds the widest word it may say. Each
+spends something on a case that may not arrive, and that is the trade — the alternative is
+paid at the moment the user had something to say.
 
 The rule has an edge, and it is the pressed control's own line. Below that line the page
 is content and may move, since a tab showing another panel is what the press was for. On
@@ -140,9 +140,12 @@ widest, measured in the control's own box and live face at load — so the reser
 re-measures itself when the type moves, instead of standing as a number somebody once
 read out of a browser. Three numbers stood in the banner that way and all three quietly
 stopped covering the day `--t-5` grew half a pixel. A number is stated only where there
-is no widest word to measure: the version chooser's cap against unbounded notes, which
-is a fact about one font and free to stop covering silently, and the pick column's dot
-room, which is a fact about a shape and stays true when the type moves. The two sweeps
+is no widest word to measure: the pick column's dot room, which is a fact about a shape
+and stays true when the type moves. The banner had the other kind — the version chooser
+capped its width against notes nothing bounds, a fact about one font and free to stop
+covering silently — and the way that number left was the control changing rather than the
+number being re-measured: the chooser says the version and the menu says the note, so
+there is no unbounded word on the row to hold a cap against. The two sweeps
 are what check both kinds, and between them they work every one: a press, and the poll,
 which is the half no gesture can reach. For the measured kind they check the words listed
 are the words the writers write; for the stated kind they are the only thing standing
@@ -162,9 +165,19 @@ get, and reserving nothing is the movement, so this spends only where the altern
 control moving and only on the pages that got the news. And a row out of room takes it from
 whatever will give, so which control that is has to be chosen rather than left to the
 stylesheet: the chooser was the one that could, so it did, dropping under the width it
-states and putting every arrival back in play on any window narrow enough. What gives now
+stated and putting every arrival back in play on any window narrow enough. What gives now
 is the status text and the chip, both of them left of everything else on the row, where
-what they give up moves nothing.
+what they give up moves nothing — and nothing else on the row can give, every control on
+it now being floored at its own words.
+
+The room a control takes is also a fact about the row it has to fit in, which the width
+question above kept separate from and shouldn't have. The chooser was the widest thing on
+the bar at 190px, spending it on a note it then ellipsized to about nine characters, and
+that was 142px the row did not have: under about 990px the bar overflowed the window
+outright, with no wrap and no scroll to reach what had gone past the edge. The reason it
+could not simply be made narrow is the control it was — a `select`'s closed label is its
+selected option's whole text, so the note was on the bar or it was nowhere. A press and a
+menu separates the two questions, and the row fits a 900px window because of it.
 
 A shift before the first paint is not jerk, since nothing was on screen to move, and nearly
 every widget upgrade measured on the shipped examples lands there, ahead of its own page's

@@ -95,6 +95,34 @@ any text to comment on the example it belongs to.</p>
             </cq-option>
           </cq-options>
         </cq-specimen>
+        <cq-compare id="service-pair">
+          <cq-variant id="var-payments-regime">
+            <strong>Payments, March</strong>
+            <dl class="facts">
+              <dt>Writes</dt>
+              <dd>a tenth of ours</dd>
+              <dt>Store down</dt>
+              <dd>queue and retry</dd>
+            </dl>
+            <p>
+              A payment is seconds long, so a Redis blip is a spinner and a retry, and
+              nothing about their answer had to outlive the store.
+            </p>
+          </cq-variant>
+          <cq-variant id="var-sessions-regime">
+            <strong>Sessions, today</strong>
+            <dl class="facts">
+              <dt>Writes</dt>
+              <dd>every request</dd>
+              <dt>Store down</dt>
+              <dd>readers stay signed in</dd>
+            </dl>
+            <p>
+              Rolling expiry writes on every request, and an outage must not sign the
+              fleet out — the constraint their page never had to argue.
+            </p>
+          </cq-variant>
+        </cq-compare>
       </section>
 
       <section id="options">

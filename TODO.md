@@ -1,5 +1,12 @@
 # TODO
 
+- (2026-08-08) cq-compare's terse variants keep the auto-fit grid the options gave up,
+  and with it the geometry the options were complained about: equal-height cells and an
+  orphaned last row once a group holds more than the columns take. It stayed by
+  argument — an exhibition is looked across, and shipped compares are pairs — not
+  because the failure was verified unreachable, so the day a page holds four terse
+  variants, this is that report.
+
 - (2026-07-30) The g leader shipped with digits only (`g 1` reaches the nth open
   thread's reply box) and the namespace open. Settle its shape before growing it:
   should the sequence carry a verb (`g r 1`, leaving `g` room for other nouns), or

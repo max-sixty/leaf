@@ -18,11 +18,12 @@ registry, so the next widget joins the corpus by being declared.
 
 The floor is the widget; the shapes it takes are a judgement. A `cq-options` group takes
 its form from what its options hold and its arity from `multiple`, independently, so a
-rule written for one form governs the other five combinations without saying so. No
-example held a card-form `multiple` group. The empty box saying a slot is untaken was
-then suppressed as though drawing it were the list form's business, every example stayed
-green, and a card group asking "which of these" gave the reader nothing to count. Where
-an attribute or a content shape changes what a reader sees, a page here shows it.
+rule written for one form governs the other three combinations without saying so. No
+example held a titled `multiple` group (a card form, in the days the forms were three).
+The empty box saying a slot is untaken was then suppressed as though drawing it were the
+list form's business, every example stayed green, and a titled group asking "which of
+these" gave the reader nothing to count. Where an attribute or a content shape changes
+what a reader sees, a page here shows it.
 
 ## An example is one version with an empty log
 

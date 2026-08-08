@@ -2146,7 +2146,13 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     it out is the only thing keeping this page clean, so the reading is taken twice: once
     as the gate runs it, and once with the line no longer held out, where it has to
     report."""
-    url = serve(INLINE_PAGE, anchored=[("opt-a", "Keep the store")])
+    # The last option, because the unheld half below needs the line to land on words:
+    # the note is the holder's last child, so its characters fall from the end of the
+    # option's own prose, and from a mid-group option they fall through the whitespace
+    # tails of the shorter cells below and are spent before any paragraph. From the
+    # group's last option they cross straight into #p, whose full-width lines have a
+    # word at any x the option's prose can end on.
+    url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
     page, errors = open_page(browser, url)
     # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
     page.wait_for_function(
@@ -3175,6 +3181,10 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
     <dl class="facts"><dt>Seal</dt><dd>yearly</dd></dl>
     <p>Cheaper up front; seal it every autumn.</p></cq-variant>
 </cq-compare>
+<cq-compare id="terse-pair">
+  <cq-variant id="cv-oiled"><strong>Oiled</strong> Darker, and a spring job.</cq-variant>
+  <cq-variant id="cv-bare"><strong>Bare</strong> Silver by June.</cq-variant>
+</cq-compare>
 </main>
 </body>
 </html>
@@ -3182,13 +3192,14 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
 
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
-    """Layout follows substance: an option carrying block content turns its group
-    into full-width rows — the grid's ~13rem cards were a shape for labels, and a
-    page whose options held real argument grew a comparison table and an "in
-    detail" section outside the widget it decides in. The rows keep the
-    comparison inside the group: every option's `.facts` list docks right at one
-    fixed width, so scalars align down the page like that table's column. A terse
-    group on the same page keeps the grid.
+    """A titled option is a full-width card and the cards stack, terse or
+    substantial alike. The grid this replaced laid terse options across at
+    ~13rem, and its geometry moved with the count — a fourth option orphaned
+    under the first row, every cell as tall as the row's longest argument —
+    where a page whose options held real argument grew a comparison table and
+    an "in detail" section outside the widget it decides in. Stacked, the
+    comparison stays inside the group: every option's `.facts` list docks right
+    at one fixed width, so scalars align down the page like that table's column.
 
     The chip band is the one part no form places, and the reason is that its words
     are the author's: an attribute pair the theme knew the names of could be
@@ -3248,12 +3259,30 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
 
     paper = page.locator("#t-paper").bounding_box()
     gps = page.locator("#t-gps").bounding_box()
-    assert abs(paper["y"] - gps["y"]) < 1, "terse options keep the grid row"
-    assert paper["x"] + paper["width"] <= gps["x"], "terse options sit side by side"
+    terse = page.locator("#terse").bounding_box()
+    assert paper["y"] + paper["height"] <= gps["y"], "terse options stack too"
+    assert gps["width"] > terse["width"] * 0.95, "a terse card takes the whole column"
+
+    # cq-compare is the same shape without the decision, and follows it for block
+    # content; an exhibition is looked across, so its terse form keeps the grid —
+    # the one side-by-side layout left, asserted here or nowhere.
+    cedar = page.locator("#cv-cedar").bounding_box()
+    pine = page.locator("#cv-pine").bounding_box()
+    assert cedar["y"] + cedar["height"] <= pine["y"], "substantial variants stack too"
+    rail = page.locator("#cv-cedar > dl.facts").bounding_box()
+    assert rail["x"] > cedar["x"] + cedar["width"] / 2, "a variant's facts dock right"
+    oiled = page.locator("#cv-oiled").bounding_box()
+    bare = page.locator("#cv-bare").bounding_box()
+    assert abs(oiled["y"] - bare["y"]) < 1, "terse variants keep the side-by-side grid"
+    assert oiled["x"] + oiled["width"] <= bare["x"], "terse variants share the row"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
     # The pair this replaced could not: each was an absolutely-positioned box sized to
-    # room the theme had reserved by knowing both words in advance.
+    # room the theme had reserved by knowing both words in advance. A full-width card
+    # outgrows the band at the desktop column, so the narrow window is where the wrap
+    # is still reachable. Last, because the width moves every box read above.
+    page.set_viewport_size({"width": 400, "height": 900})
+    gps = page.locator("#t-gps").bounding_box()
     long_chips = page.locator("#t-gps > cq-chip")
     expect(long_chips).to_have_count(3)
     wrapped = [long_chips.nth(i).bounding_box() for i in range(3)]
@@ -3264,13 +3293,6 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         assert chip["x"] + chip["width"] <= gps["x"] + gps["width"], (
             "no chip the author wrote may cross the card's edge"
         )
-
-    # cq-compare is the same shape without the decision, and follows it.
-    cedar = page.locator("#cv-cedar").bounding_box()
-    pine = page.locator("#cv-pine").bounding_box()
-    assert cedar["y"] + cedar["height"] <= pine["y"], "substantial variants stack too"
-    rail = page.locator("#cv-cedar > dl.facts").bounding_box()
-    assert rail["x"] > cedar["x"] + cedar["width"] / 2, "a variant's facts dock right"
     page.close()
 
 
@@ -3580,10 +3602,10 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     # the next gesture's aim with it.
     #
     # Measured across an empty group rather than across a swap. Moving the pick from one
-    # card to another gives the strip back exactly as fast as it takes it, and in the grid
-    # form the row is as tall as its tallest cell either way, so a swap holds still whether
-    # or not anything is reserved — which is a test that passes with the reservation
-    # deleted. Clearing the pick first is what makes the room actually go missing.
+    # card to another gives the strip back exactly as fast as it takes it — and in the
+    # days the group was a grid, the row stood as tall as its tallest cell either way —
+    # so a swap can hold still with the reservation deleted. Clearing the pick first is
+    # what makes the room actually go missing.
     box = """el => { const r = el.getBoundingClientRect();
                      return [Math.round(r.width), Math.round(r.height)]; }"""
     strict.click()  # clicking the pick clears it, so now the group holds no answer
@@ -3797,7 +3819,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 # row lays out beside its own apparatus and neither is anything a card would notice.
 #
 # Form and arity are independent, so the page carries both values of each: `multiple` is
-# on a list (#jobs) and on a grid of cards (#tools), against single-pick cards
+# on a list (#jobs) and on a titled group (#tools), against single-pick cards
 # (#bracket). Which is what makes a claim about arity testable on its own — #jobs against
 # #bracket differs in two things at once, and a rule that was really the list form's
 # would pass that pair either way.
@@ -3849,8 +3871,8 @@ def sent_events(page_dir):
 def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serve):
     """Which form a group takes is a fact about its options rather than an attribute
     saying so, and the whole of that fact is whether an option leads with a title. So
-    one page carries both and neither knows about the other: the labels lay out as rows
-    and the titled pair as a grid.
+    one page carries both and neither knows about the other: the labels lay out as
+    compact rows and the titled pair as full-width cards stacked down the page.
 
     Two things the lint cannot see. A resting mark shows no word in either form, because
     an offer states nothing a reader could disagree with — and what a *picked* mark says
@@ -3868,11 +3890,15 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     page, errors = open_page(browser, serve(ASK_PAGE))
     assert errors == []
 
-    # One row per option in the list form, whatever the container is: a single column
-    # with no template stated, against the card form's own auto-fit tracks.
-    tracks = "el => getComputedStyle(el).gridTemplateColumns.split(' ').length"
-    assert page.locator("#jobs").evaluate(tracks) == 1
-    assert page.locator("#bracket").evaluate(tracks) > 1
+    # One row per option in both forms: a single column with no template stated, so
+    # the joined control below is a list whatever the options hold. The display is
+    # asserted with the track count because "none".split(" ") is also one entry — a
+    # group that lost `display: grid` entirely (and the hairline gaps with it) would
+    # answer 1 as convincingly as the single-column control does.
+    tracks = """el => { const s = getComputedStyle(el);
+                        return [s.display, s.gridTemplateColumns.split(' ').length]; }"""
+    assert page.locator("#jobs").evaluate(tracks) == ["grid", 1]
+    assert page.locator("#bracket").evaluate(tracks) == ["grid", 1]
 
     # Under `choose` the group is one control in every form, and the list was the form
     # that went without: rows draw no border, no fill and no rule between them, so at
@@ -3951,8 +3977,8 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
 
     Arity is not the form, which is why the contrast is card against card. Both of the
     rules here were the list form's once, on the reading that a `multiple` group is a
-    list of slots; `multiple` is orthogonal to which form a group takes, so a grid of
-    cards asking "which of these" inherited neither and offered the reader nothing to
+    list of slots; `multiple` is orthogonal to which form a group takes, so a titled
+    group asking "which of these" inherited neither and offered the reader nothing to
     count. Hence the second half: an unticked box is a fact about that option, not the
     group's offer said again, so it draws under `multiple` where a single-pick card —
     whose state has the whole cell to live in — gives it up.

@@ -140,8 +140,8 @@ watching it fail; a gate that has only ever passed has been tested for nothing.
 A geometry assertion is worth only as much as the transition it is measured across, and the
 transition that comes to hand is often the one that cannot move whatever the rule says. Room
 reserved for a pick mark is the case. Moving a pick from one card to another gives the strip
-back exactly as fast as it takes it, and in the grid form the row stands as tall as its
-tallest cell either way — so "the card is the same box after the pick as before it" held
+back exactly as fast as it takes it, and in the grid form of the day the row stood as tall as
+its tallest cell either way — so "the card is the same box after the pick as before it" held
 perfectly with the reservation deleted, and a gate written to catch that deletion passed with
 the bug in. Clearing the pick first is what makes the room actually go missing: the
 assertion has to run from a group holding no answer to one holding an answer, not from one

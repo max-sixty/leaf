@@ -1798,25 +1798,22 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
 
 
 def test_the_block_content_lists_agree_and_cover_the_vocabulary():
-    """Four selectors in the theme enumerate what counts as block content: the
-    suggestion slots' blockization, the card form's exclusion, and the two
-    stacked-group triggers (cq-options, cq-compare). A list like that fails
-    quietly — a new block-level widget missing
+    """Two selectors in the theme enumerate what counts as block content: the
+    suggestion slots' blockization and cq-compare's stacked-variant trigger
+    (cq-options stacks on the title alone, so it asks no block question). A list
+    like that fails quietly — a new block-level widget missing
     from one keeps rendering, just wrong: a suggestion wrapping it stays inline, a
-    group holding it keeps the 13rem grid — so the copies are pinned to each other
+    compare holding it keeps the 13rem grid — so the copies are pinned to each other
     and to the registry: every top-level widget appears in each. cq-suggestion is
     the one exemption, display: contents, so the wrapper generates no box and its
     slots answer the block question instead."""
     theme = (interact.ASSETS / "theme.css").read_text()
     lists = re.findall(r":is\((p, h1[^)]*)\)", theme)
-    assert len(lists) == 4, (
-        "expected the suggestion-slot list, the card form's exclusion, and the two "
-        "stacked-group triggers"
+    assert len(lists) == 2, (
+        "expected the suggestion-slot list and cq-compare's stacked-variant trigger"
     )
     tag_sets = [{t.strip() for t in found.split(",")} for found in lists]
-    assert tag_sets[0] == tag_sets[1] == tag_sets[2], (
-        "the block-content lists have drifted"
-    )
+    assert tag_sets[0] == tag_sets[1], "the block-content lists have drifted"
     registry = json.loads((interact.ASSETS / "registry.json").read_text())
     top_level = {
         tag

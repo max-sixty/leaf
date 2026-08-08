@@ -37,11 +37,13 @@ the job of rebuilding the list you dissolved; the same five as items, each carry
 own state, are read at a glance and commented on one at a time.
 
 **A page that asks leaves somewhere to answer.** Anything you want a decision on ends in
-a `cq-options … choose`, wherever on the page the question falls. Where the alternatives
-are short, they are the cards. Where each one needs a section of its own — a diagram, a
-diff, three paragraphs — write those sections and let the group be bare labels naming
-them (`for="<section id>"`), which renders as a compact list; `multiple` where more than
-one can win. Every such group carries a box for words, so "none of these" and a pick's
+a `cq-options … choose`, wherever on the page the question falls. Give each alternative a
+`<strong>` title and its case — a sentence, or paragraphs with a `<dl class="facts">`
+rail — and the options stack as full-width cards, so an argued decision lives inside the
+group rather than in a table beside it. Where an alternative is a section of the page
+itself — a diagram, a diff, something no card should hold — let the group be bare labels
+naming those sections (`for="<section id>"`), which renders as a compact list; `multiple`
+where more than one can win. Every such group carries a box for words, so "none of these" and a pick's
 why need no separate gesture. A page presenting five candidates in prose and offering
 nothing to press has handed the reader a document where it meant to ask a question.
 

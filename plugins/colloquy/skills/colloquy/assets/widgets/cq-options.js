@@ -3,8 +3,9 @@
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
- * an option leading with a <strong> title argues its own case and is a card, and a
- * group whose options are bare labels is a question *about* the page, drawn as rows.
+ * an option leading with a <strong> title argues its own case and is a card on a row of
+ * its own, and a group whose options are bare labels is a question *about* the page,
+ * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the reader can follow. It points and never
  * speaks: the label stays written in the markup, so the file's reading of the page

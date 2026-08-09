@@ -20,6 +20,26 @@ bug in that arrangement was the two drifting apart.
 When you find yourself writing a guard that reads state another function wrote, the fix
 is to merge the writers, not to add the guard.
 
+## A gesture the log has not taken outranks everything the page has read
+
+A widget paints the user's gesture before the log has taken it, so from that paint until
+the poll that reads the action back, the page holds state no log it can read accounts
+for. Replay leaves the widget alone for exactly that long. Every `applyAction` states the
+widget whole, so an action from before the gesture — this tab's own previous one, most of
+the time — hands the reader their older state back, and the gesture after that computes
+from what it painted: a `multiple` group two picks in, repainted holding one, sends the
+next toggle as a set the reader never chose. Applying each action exactly once is what
+makes replay converge, and it says nothing about *when* — an action recorded before a
+click can still be applied after it, which is what a loaded machine does to a page's own
+polls.
+
+The hold is the layer's, in `sendAction`'s record of what is in flight, and no module
+writes one. `cq-draft` did, privately (`#sending`), and was the only widget that had it:
+right for drafts, and missing from every pick and every drag, because it was written at
+the level of the widget in front of it rather than the level the problem is general at.
+What a module still owes is the state the layer cannot see — an open editor is a live
+gesture no send accounts for, so `applyAction` returns `false` for that.
+
 ## Derive rendering from state; never read it back
 
 `composerOpen`, `fabAnchor`, `diffBase` are the state. `style.display` is a rendering of

@@ -587,16 +587,22 @@ export const pageScroller = document.body;
 // between columns). The caller has already applied the edit to its own DOM; the
 // poll's replay re-applies it once (see applyActions), which is why applyAction
 // implementations must state an absolute placement, never a relative mutation.
-// The counter is the layer's word that a send is in flight — midComposition holds
-// the version auto-follow on it, since navigating away could lose the unrecorded
-// edit — and it lives here because every widget's action passes through this door.
-let actionsInFlight = 0;
+//
+// A map rather than a count because replay needs to know which widget: from the
+// gesture until the poll that reads its action back, the page holds state no log it
+// can read accounts for, and replay leaves that widget alone for exactly that long
+// (see applyActions). midComposition asks the same store whether anything at all is
+// in flight — navigating away could lose the unrecorded edit — and it lives here
+// because every widget's action passes through this door.
+const sending = new Map(); // widget id -> sends in flight for it
 export async function sendAction(el, action, detail) {
-  actionsInFlight++;
+  sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
   try {
     return await post({ kind: "action", version: VNUM, widget: el.id, action, detail });
   } finally {
-    actionsInFlight--;
+    const left = sending.get(el.id) - 1;
+    if (left) sending.set(el.id, left);
+    else sending.delete(el.id);
   }
 }
 
@@ -5583,13 +5589,13 @@ function renderVersions(state) {
 }
 // The user is mid-something navigation would destroy, asked of the layer's own
 // signals rather than of any widget by name: a drag wears .cq-dragging (the module
-// sets it), a send in flight is sendAction's counter, and a composition surface is a
+// sets it), a send in flight is sendAction's own record, and a composition surface is a
 // focused textarea — any holding words, or a widget-built one (data-cq-offer) even
 // empty, because deleting everything is still an edit.
 const midComposition = () =>
   composerOpen ||
   Boolean(fabAnchor) ||
-  actionsInFlight > 0 ||
+  sending.size > 0 ||
   Boolean(document.querySelector(".cq-dragging")) ||
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
@@ -5604,6 +5610,18 @@ latestChip.onclick = () => (location.href = "/");
 // the sender's own action is a no-op. The first poll runs after upgrades
 // settle, so the methods exist, and the pass runs at the end of a poll, so the
 // panel's own widgets do too.
+//
+// Absolute is what makes replay converge, and the order is the rest of what it
+// owes: an action applied after the gesture that superseded it states the widget
+// from its older place in that order, and the reader's next gesture computes from
+// what it painted and sends a decision they never made. Applying each action once
+// says nothing about *when* — an action recorded before a click can still be applied
+// after it. Two facts keep the order between them. A widget whose own send is in
+// flight is left alone (`sending`): until the log has taken that gesture, the page's
+// copy of the widget is ahead of every log it can read, so nothing in one can be
+// shown to sit after it. And that hold ends on the poll `post` awaits, which has
+// read the log past the gesture — from there the log being append-only carries it,
+// since an answer the page has already read past is stale whole and dropped (poll).
 //
 // Reports ride the same pass with the precedence reversed. A report is a
 // worker's provisional news (`colloquy report`, x-report in the registry): it
@@ -5715,7 +5733,16 @@ function applyActions() {
     const priorMotion = before && new Set(document.getAnimations());
     let wrote = false;
     for (const e of events) {
-      if (e.kind !== kind || appliedActions.has(e.seq) || deferredWidgets.has(e.widget))
+      // Held rather than decided, both of them: a widget the page has painted ahead
+      // of the log (`sending`, see above) has its events reconsidered on the poll
+      // that reads its own gesture back, and a widget that asked for time gets the
+      // next poll — so nothing here is retired on a page state that was temporary.
+      if (
+        e.kind !== kind ||
+        appliedActions.has(e.seq) ||
+        deferredWidgets.has(e.widget) ||
+        sending.has(e.widget)
+      )
         continue;
       const el = elementById(e.widget);
       // Every terminal action is decided here and never looked at again. This pass runs

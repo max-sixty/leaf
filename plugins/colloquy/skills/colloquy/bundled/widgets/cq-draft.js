@@ -432,7 +432,11 @@ customElements.define(
     // the authored text and marks data-cq-pending for every widget alike.
     applyAction(action, detail) {
       if (action !== "edit" || typeof detail?.text !== "string") return;
-      if (this.#ta || this.#sending) return false; // defer rather than yank words out from under a live edit/send
+      // Defer rather than yank words out from under a live edit. Only the open box
+      // is named here: a send in flight held this off too, and holding replay off a
+      // widget the page has painted ahead of the log is the layer's now, for every
+      // widget alike (sendAction).
+      if (this.#ta) return false;
       this.#body.textContent = detail.text;
     }
   },

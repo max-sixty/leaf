@@ -1,20 +1,5 @@
 # TODO
 
-- (2026-08-08) A replayed action can land after the gesture that superseded it, and the
-  next gesture then computes from what it painted. Every applyAction is absolute and
-  each event is applied once, which is what makes replay converge — but "once" says
-  nothing about *when*: an action recorded before a click can be applied after it, and
-  the write states the whole widget, so a `multiple` group two picks in is repainted
-  holding one. The toggle after that starts from the older set and sends it, which puts
-  a decision in the log the reader never made — the failure the absoluteness is there to
-  prevent, arriving by the clock instead of by the order. Reproduced by picking three
-  options in a row while the first poll is held: `test_a_pick_states_the_whole_set`
-  under a loaded machine reads the group's pick count as 0, then 2, then 0. What a fix
-  has to keep is the sender's own action replaying as a no-op, since that is what lets a
-  second tab converge on the same log — so the answer is not for a tab to skip its own
-  events, but for replay to know this widget has been painted past the event's own place
-  in the order.
-
 - (2026-08-08) cq-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an
   orphaned last row once a group holds more than the columns take. It stayed by

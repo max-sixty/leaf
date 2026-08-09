@@ -4465,6 +4465,94 @@ def test_a_pick_states_the_whole_set(browser, serve):
     page.close()
 
 
+def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
+    """Replay states a widget whole, so the order is what it owes: an action applied
+    after the gesture that superseded it hands the reader their older state back, and
+    the gesture after that computes from what it painted and sends a decision they
+    never made. Applying each action once says nothing about *when* — a pick recorded
+    before a click can still be replayed after it, which is what a loaded machine does
+    to this page's own polls.
+
+    So the instrument is that answer, stated from outside: every poll is served the log
+    truncated to what the page may see, and the one that lands while the second pick is
+    still in flight carries only the first — a poll snapshotted between the two picks,
+    arriving after both, where a slow machine would have put it. Which poll that is
+    cannot be timed from here, so the answers are gated on the page's own traffic. After
+    it every poll is refused, so nothing heals what that answer did and the third pick
+    reads the page the answer left.
+
+    Another tab's pick on the group beside it rides the same answer, and is what says
+    the batch was replayed at all: a trip is over when its response lands, which is
+    before the page has done anything about it, so without that edge both the count
+    below and the third click would be about a page nothing had happened to yet."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    d = serve.page_dir
+    # The log, and how much of it the page is shown. Seq 1 is the note it opened on,
+    # 2 the other tab's pick, 3 this tab's first — so an answer capped at 3 is one
+    # snapshotted between this tab's two picks, and one capped at 1 keeps the page
+    # from seeing either until then.
+    OPENED_ON, THROUGH_THE_FIRST_PICK = 1, 3
+    interact.append_event(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "bracket",
+            "action": "choose",
+            "detail": {"options": ["br-cedar"]},
+        },
+    )
+
+    served = []  # what each answer was capped at, and so the record that one was
+
+    def answer(route):
+        # On posts answered rather than posts sent: the page asks for state the moment
+        # one comes back, so the first poll after the second answer is the one that
+        # pick's own send is still open across — which is the whole of the race.
+        if _traffic(page).acked < 2:
+            cap = OPENED_ON
+        elif THROUGH_THE_FIRST_PICK not in served:
+            cap = THROUGH_THE_FIRST_PICK
+        else:
+            route.abort()
+            return
+        served.append(cap)
+        state = route.fetch().json()
+        state["events"] = [e for e in state["events"] if e["seq"] <= cap]
+        route.fulfill(json=state)
+
+    page.route("**/api/state*", answer)
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    page.locator("#job-camera").click()
+    round_trip(page)
+    expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
+    # Nothing else here says the answers were the ones the test wrote: served at full
+    # length they carry the second pick too, and the page converges either way — so the
+    # day this route stops matching, the test goes quiet rather than red.
+    assert THROUGH_THE_FIRST_PICK in served, f"the log was never held back: {served}"
+    expect(page.locator("#jobs > cq-option[chosen]")).to_have_count(2)
+
+    # The page is deaf from here, so half of a round trip is never coming back: what
+    # says the log holds this pick is the post's own answer, the server having appended
+    # before it. Counted from before the click, so the picks already answered can't
+    # satisfy it.
+    answered = _traffic(page).acked
+    page.locator("#job-heater").click()
+    _until(page, lambda t: t.acked > answered)
+    assert [
+        e["detail"]["options"] for e in sent_events(d) if e.get("widget") == "jobs"
+    ] == [
+        ["job-mounts"],
+        ["job-mounts", "job-camera"],
+        ["job-mounts", "job-camera", "job-heater"],
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_the_box_for_words_reaches_the_log_as_a_comment_on_the_question(browser, serve):
     """A question can always be answered off its own menu, and without a box that answer
     costs the reader a hunt for some passage to select. What they type is an ordinary

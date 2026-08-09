@@ -122,6 +122,37 @@ genuinely busy one rather than on demand. That is what a clean runtime cost, and
 for by the waits above being right — a wait consumes a fact the system states, and there is
 no longer anything behind that rule to catch a wait that doesn't.
 
+## A motion is a sequence, and every other check here reads a state
+
+Both ways of reading an animation from outside read states. A held frame
+(`HOLD_MOTION`) is one state stopped where the assertions can reach it; a geometry
+read before and after is two. Each frame can be right on its own while the sequence
+they belong to is wrong, and that gap has exactly one shape: a frame that puts back
+what the frames before it took.
+
+It is a reachable shape rather than a hypothetical, because a Web Animations effect
+stops applying at the end of its own interval. Between that instant and whatever the
+`finished` handler does — remove the node, restore the styles — the element is its
+unanimated self again, full height and full opacity. Today the removal wins, in a
+microtask ahead of the paint; nothing in the code says so, and one frame's slip is
+the whole of the distance between a fold and a fold that flashes the thread back
+before it goes.
+
+So the fold is watched frame by frame at real speed
+(`test_the_fold_never_paints_a_frame_that_undoes_the_last`), and that is the one
+check here that samples from inside the page: what painted, in order, is not a fact
+the browser reports from out here, where a request or a detached node is. The wait
+still isn't the sampler's — the node leaving the list is the browser's own statement
+and is what the test waits on — so what the injection buys is the record and not the
+wait, which is the line the rule above draws.
+
+The same reading is what a recording of a motion owes, and the first GIF of this fold
+is why the rule is written here. Frames were stepped by `currentTime` and one was
+taken at exactly the duration, which is already past the animation's own interval: it
+recorded the thread springing back to full size, a frame the product never paints.
+Every still was correct, the sequence was a lie, and nothing between the frames and
+the reader looked at them in order.
+
 ## A page's source is formatted, so ask what it says
 
 Prettier formats the `.html` under `docs/` and `examples/`, and it re-derives every line

@@ -3113,6 +3113,228 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     page.close()
 
 
+# What the list is holding, from the one query that answers both halves of the
+# question a departing thread raises: what stands where, and what the keys can still
+# reach. The two lists differ by exactly the thread on its way out.
+LIST_STATE = """() => {
+  const list = document.querySelector(".cq-threads");
+  return {
+    standing: [...list.children].map((n) => n.dataset.id).filter(Boolean),
+    walkable: [...list.querySelectorAll(":scope > .cq-thread")].map(
+      (n) => n.dataset.id,
+    ),
+  };
+}"""
+
+
+def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
+    """Resolving a thread empties its place in the list over a fifth of a second,
+    not in the frame of the press.
+
+    The node used to go the moment the log settled it: the ✓ Resolve the user had
+    just pressed took itself off the page, and every thread under it arrived
+    somewhere else with no path between the two — the same pair of failures the
+    suggestion's decided slot was already fixed for, in the panel this time. So the
+    thread stays where it stood, states on the pressed control what was done to it,
+    and folds; the disclosure gets it when the fold is over.
+
+    What the log says is true from that first frame regardless — Comments counts down
+    and Resolved counts up while the pixels catch up — and a thread on its way out is
+    out of the keys' reach from the same frame, so j/k and the g addresses walk what
+    is left rather than a corpse that is about to go. Its own reply box gives up the
+    address with them: the box under it has just taken that digit, and two boxes
+    offering g 1 is a key line promising a press that lands on one of them.
+
+    Held at its first frame rather than sampled mid-flight, the way the suggestion's
+    own fold is read: mid-flight is a race with the clock that passes on a fast
+    machine whatever the code does, where the held frame is the fold's opening state
+    for as long as the assertions need it."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
+    )
+    page.locator(".cq-comments").click()
+    panel_settled(page)
+    c1, c2, c3 = [
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
+    first = page.locator(f'.cq-thread[data-id="{c1}"]').bounding_box()
+    stood = page.locator(f'.cq-thread[data-id="{c2}"]').bounding_box()
+    # The room the first thread holds, the gap under it included, which is what its
+    # neighbour rises by once the fold has given it back.
+    room = stood["y"] - first["y"]
+
+    page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
+    round_trip(page)
+    expect(page.locator(f'[data-id="{c1}"] .cq-resolve')).to_have_text("✓ Resolved")
+    held = page.evaluate(LIST_STATE)
+    assert held["standing"] == [c1, c2, c3], (
+        "the resolved thread gave up its place in the frame it was resolved in, so "
+        f"the list stood as {held['standing']} with the fold still to play"
+    )
+    assert held["walkable"] == [c2, c3], (
+        "a thread on its way out is still walkable by j/k and addressable by g, so a "
+        f"key can land on room that is about to go: the list offered {held['walkable']}"
+    )
+    assert page.evaluate("() => window.__cqHeld.length") == 1, (
+        "the room went back without motion carrying it"
+    )
+    now = page.locator(f'.cq-thread[data-id="{c2}"]').bounding_box()
+    assert now == stood, (
+        f"the thread below stood at {stood} and reads {now} in the frame the outcome "
+        "was stated, so the fold started from somewhere other than the box the reader "
+        "was looking at"
+    )
+    expect(page.locator(".cq-comments")).to_have_text("Comments (2)")
+    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
+    # The address the fold gave up, read where a reader reads it.
+    expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
+        "placeholder", "Reply"
+    )
+    expect(page.locator(f'.cq-thread[data-id="{c2}"] textarea')).to_have_attribute(
+        "placeholder", "Reply · g 1"
+    )
+
+    # Half way down, the outcome is still on screen. A fold from the bottom takes the
+    # thread's last line first, and the actions row is that line, so a word left in
+    # flow is legible for the frame before the box swallows it and no longer — which
+    # is a flash, not a statement. It rides the closing edge instead, and what says so
+    # is its box being inside the box the fold has left.
+    page.evaluate("() => window.__cqHeld.forEach((m) => (m.currentTime = 110))")
+    clip, says = page.evaluate(
+        """(id) => {
+          const going = document.querySelector(`[data-id="${id}"]`);
+          const row = going.querySelector(".cq-thread-actions");
+          return [going.getBoundingClientRect(), row.getBoundingClientRect()];
+        }""",
+        c1,
+    )
+    assert says["top"] < clip["bottom"] and clip["top"] < says["bottom"], (
+        f"the outcome sat at {says['top']:.0f}–{says['bottom']:.0f} with the fold "
+        f"clipped to {clip['top']:.0f}–{clip['bottom']:.0f}, so the word the press "
+        "left was already under the clip half way through"
+    )
+
+    # And the far end: the thread lands in the disclosure, once, and the room it held
+    # has gone back to the threads under it.
+    page.evaluate("() => window.__cqHeld.forEach((m) => m.finish())")
+    expect(page.locator(f'.cq-details .cq-thread[data-id="{c1}"]')).to_have_count(1)
+    expect(page.locator(f'[data-id="{c1}"]')).to_have_count(1)
+    risen = page.locator(f'.cq-thread[data-id="{c2}"]').bounding_box()
+    assert stood["y"] - risen["y"] == pytest.approx(room, abs=1), (
+        f"the thread below rose {stood['y'] - risen['y']:.1f}px where the resolved "
+        f"thread held {room:.1f}px"
+    )
+    assert errors == []
+    page.close()
+
+
+# Every frame the fold paints, sampled from the page because there is nowhere else to
+# sample it: what a motion looks like is a sequence, and every other check here reads a
+# state. One height per animation frame until the node leaves the page, which is the
+# fold's own end and so the wait's fact.
+FRAME_BY_FRAME = """(sel) => {
+  window.__seen = [];
+  window.__done = false;
+  const tick = () => {
+    const el = document.querySelector(sel);
+    if (!el) return void (window.__done = true);
+    window.__seen.push(+el.getBoundingClientRect().height.toFixed(1));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}"""
+
+
+def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
+    """A fold is a sequence, and every other check here reads a state.
+
+    The gap that leaves is a frame that puts back what the frames before it took:
+    a Web Animations effect stops applying at the end of its own interval, so
+    anything holding the collapsed box open — a removal that slips a frame past
+    the finish, a fill the helper stopped stating — paints the whole thread back
+    at full height and full opacity for a frame before it goes. Held frames can't
+    see it; each one is correct on its own. This watches the real fold at real
+    speed and asks the only question a sequence can be wrong about, which is
+    whether any frame is taller than the one before it.
+
+    It is also what the first recording of this fold got wrong, in the other
+    direction: sampled at exactly the duration, an animation is already past its
+    own interval and reads as the element it never was."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".cq-comments").click()
+    panel_settled(page)
+    c1 = next(
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    # Watching from before the press, so the frames it holds still are in the record
+    # alongside the ones that move.
+    page.evaluate(FRAME_BY_FRAME, f'.cq-threads > [data-id="{c1}"]')
+    page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
+    # The node leaving the list is the fold's end and the browser's own statement, so
+    # the wait is that rather than the sampler's flag: what runs in the page is the
+    # record, which nothing out here can take, and not the wait, which is already
+    # answered from outside.
+    page.wait_for_selector(f'.cq-threads > [data-id="{c1}"]', state="detached")
+    seen = page.evaluate("() => window.__seen")
+
+    grew = [
+        (i, seen[i - 1], seen[i]) for i in range(1, len(seen)) if seen[i] > seen[i - 1]
+    ]
+    assert not grew, (
+        "the fold painted a frame taller than the one before it: "
+        + ", ".join(f"frame {i} went {was:.0f}px → {now:.0f}px" for i, was, now in grew)
+    )
+    # And it folded rather than vanishing between two samples, which would pass the
+    # line above by having nothing to compare.
+    assert any(0 < h < seen[0] for h in seen), (
+        f"no frame caught the fold part way down (heights: {seen}), so a thread that "
+        "went in one frame would read the same as one that folded"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
+    browser, serve
+):
+    """The fold is a courtesy to the eye, and an eye that asked for stillness is owed
+    the outcome instead — the bargain the suggestion's own fold already makes, asked
+    again here because the thread's is the path with somewhere to be left stranded:
+    the node stays in the list until its fold ends, so a fold that never starts is a
+    node that has to reach the disclosure by the same render that declined to play
+    one."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        color_scheme="light",
+        reduced_motion="reduce",
+    )
+    try:
+        page, errors = open_page(
+            browser,
+            serve(LONG_PAGE, comments=2),
+            context=context,
+            init_script=HOLD_MOTION,
+        )
+        page.locator(".cq-comments").click()
+        panel_settled(page)
+        c1, c2 = [
+            e["id"]
+            for e in interact.read_events(serve.page_dir)
+            if e["kind"] == "comment"
+        ]
+        page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
+        expect(page.locator(f'.cq-details .cq-thread[data-id="{c1}"]')).to_have_count(1)
+        assert page.evaluate("() => window.__cqHeld.length") == 0, (
+            "a reader who asked for less motion was given a fold to sit through"
+        )
+        assert page.evaluate(LIST_STATE) == {"standing": [c2], "walkable": [c2]}, (
+            "the thread that declined its fold was left standing in the list"
+        )
+        assert errors == []
+    finally:
+        context.close()
+
+
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of

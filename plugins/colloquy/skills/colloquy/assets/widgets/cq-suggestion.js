@@ -58,6 +58,7 @@
  * each other, which a translate nudges apart without touching layout. */
 import {
   agentName,
+  FOLD_MS,
   motion,
   offer,
   once,
@@ -67,12 +68,6 @@ import {
   sendAction,
   toast,
 } from "/colloquy.js";
-
-// How long the retired slot takes to fold away. Long enough that the eye can follow a
-// paragraph's worth of page closing, short enough that the decision still reads as
-// having happened at the press: the board's own FLIP is 150ms over a card's width, and
-// this is a taller distance travelled by the whole column below it.
-const FOLD_MS = 220;
 
 // Each control's word in both states — what #name writes, and what the control
 // reserves room for, out of the one table so neither can outgrow the other.

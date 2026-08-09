@@ -244,6 +244,31 @@ page's life once any change is on it, so a decided row is standing in space that
 never going to be reclaimed — and a user who scrolls back can see which changes they
 took, which nothing on the page said before.
 
+Resolving a thread was the same pair in the panel, and one difference decides its
+shape: the control cannot stay. A resolved thread belongs in the disclosure at the
+foot of the list, so the row the press was made on is leaving whatever else happens
+and there is no rail to keep it standing in. What can be held is its place. The node
+stays where it stood, says on the pressed control what was done to it, and folds over
+the same fifth of a second, so the threads under it rise where the eye can follow
+rather than arriving somewhere else in the frame of the press; the disclosure gets the
+thread when the fold is over, which is what keeps one node per thread the whole way
+through. The log is true from the first frame either way — Comments counts down,
+Resolved counts up, and a second tab reads both.
+
+The fold is the reconcile's and not the press's, because the log is what resolves a
+thread. A second tab's resolve takes the same room out of the same list with no
+gesture behind it, which is the case that needs the motion more: a reader who did
+nothing has nothing to account for the gap. One writer covers both, and the pressed
+path is the reconcile its own trip brought back.
+
+What is left standing must then not still be a thread. Everything that walks the list
+asks for `.cq-thread`, so renaming the node once takes it out of j/k, out of the g
+addresses, out of r's press and out of the panel's repaint in a stroke — and it was
+that last repaint the departing box turned out to need, since it went on offering
+`g 1` while the thread that had just taken the address offered it too. A key on screen
+is a key that works, so the address goes the frame the log settles the thread and the
+box says "Reply" on its way out.
+
 ## Assume the browser it already assumes
 
 The runtime requires ES modules, custom elements, `field-sizing`, `color-mix`, `:has()`,

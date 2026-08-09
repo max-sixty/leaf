@@ -359,12 +359,21 @@ export const SCROLL = REDUCED ? "instant" : "smooth";
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Ease, no options — the board's FLIP and a suggestion's fold are the two
-// motions the product makes, and they agree.
+// state. Ease, no options — the board's FLIP and the folds (FOLD_MS) are the motions
+// the product makes, and they agree.
 export function motion(el, keyframes, ms) {
   if (REDUCED) return null;
   return el.animate(keyframes, { duration: ms, easing: "ease" });
 }
+
+// How long room takes to go back. Long enough that the eye can follow a paragraph's
+// worth of page closing, short enough that the act still reads as having happened at
+// the press: the board's own FLIP is 150ms over a card's width, and this is a taller
+// distance travelled by the whole column below it. One number, because the product
+// makes this motion twice for one reason — a decided suggestion's retired slot and a
+// resolved thread's place in the list are both room the reader watches come back —
+// and two numbers would be that reason written down twice, free to disagree.
+export const FOLD_MS = 220;
 
 // Mention, not use: a widget inside one the registry marks x-exhibit is quoted
 // material. An interactive widget consults this before wiring anything that would carry
@@ -1351,7 +1360,22 @@ ${MARK_RULES}
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
     .cq-threads:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .cq-empty { color: var(--muted); padding: 18px 4px; }
-    .cq-thread { position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: 10px; margin-bottom: 12px; }
+    /* A thread and the room a resolved one is still giving back (foldOut) are the same
+       box, so the fold starts from the box the reader was looking at rather than from
+       a second description of it. What .cq-going adds is the clip the fold needs and
+       the outcome said in paint: the box is on its way out and may not also state
+       that in metrics the fold is animating. */
+    .cq-thread, .cq-going { --cq-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--cq-thread-pad); margin-bottom: 12px; }
+    .cq-going { overflow: hidden; box-sizing: border-box; }
+    /* The outcome rides the closing edge, so it is legible for the whole fold rather
+       than for the frame before the box swallows it: the actions row is the thread's
+       last line, and a fold from the bottom takes it first. Pinned to the box's own
+       bottom padding, which is where it already sits in flow, so the fold starts from
+       the layout the reader was looking at and nothing shifts on the press. It occludes
+       what it passes (background) rather than reading through it, and it says the
+       outcome in ink, since the metrics here are what the fold is animating. */
+    .cq-going .cq-thread-actions { position: absolute; inset: auto var(--cq-thread-pad) var(--cq-thread-pad); background: var(--card); }
+    .cq-going .cq-resolve { color: var(--ok); }
     .cq-thread.flash { animation: cq-runtime-4f3c2a8d-flash 1.2s ease-out; }
     /* An arrival the reconcile added while the user was watching. Motion, not a
        jump: nothing above it moves, and the newcomer settles rather than appears. */
@@ -2487,13 +2511,17 @@ function threadNode(t, grow) {
     div.cqSync(); // a restored reply draft enables its Reply button
     const actions = el("div", "cq-thread-actions");
     const resolve = el("button", "cq-resolve", "✓ Resolve");
-    // Resolving rebuilds this node into the disclosure and takes focus with it —
-    // the blind drive fell to body here. Land where j would have gone: the thread
-    // that now holds this one's place, else the previous, else the list.
+    // Resolving takes this node out of the open list and focus with it — the blind
+    // drive fell to body here. Land where j would have gone: the thread that now
+    // holds this one's place, else the previous, else the list. Which is read after
+    // the trip, off the list the fold has already left (foldOut renames the node the
+    // frame the log settles it), so the landing is a thread rather than the room the
+    // pressed one is still giving back.
     // Disabled for the flight (the bulk-answer buttons' shape): the r key repeats while
     // held, and every repeat before the poll replaces this node would post the
     // same resolve again. Re-enabled for the one path that keeps the node — a
-    // send that failed, where the press must stay pressable.
+    // send that failed, where the press must stay pressable; where it went through,
+    // the fold has made the whole node inert and there is nothing to re-enable into.
     resolve.onclick = async () => {
       const open = [...threadsBox.querySelectorAll(":scope > .cq-thread")];
       const at = open.indexOf(div);
@@ -2510,6 +2538,81 @@ function threadNode(t, grow) {
     div.append(row, actions);
   }
   return div;
+}
+
+// A thread the log has resolved and the open list is still holding. Its place is not
+// given up in the frame the log settles it: the node stays where it stood, says what
+// was done to it on the control that was pressed, and folds, so the threads under it
+// rise where the eye can follow instead of arriving somewhere else. The disclosure
+// gets the thread when the fold is over, which is what keeps one node per thread the
+// whole way through.
+//
+// Driven from the reconcile rather than from the press, because the log is what
+// resolves a thread and a second tab's resolve takes the same room out of the same
+// list — with no gesture behind it, which is the case that needs the motion more.
+//
+// Everything that walks the list asks for .cq-thread, so the one rename takes the
+// node out of j/k, out of the g addresses, out of r's press and out of what the panel
+// repaints, in a stroke: what stands there is room, not a thread. `inert` says the
+// same to the pointer and the tab order, so the fold can't be pressed a second time
+// or typed into on its way out.
+//
+// Null where there is nothing to fold: a thread this page never drew open, or a
+// reader who asked for less motion, for whom the room goes in the frame it always did.
+const folding = new Map(); // thread id -> the node folding out of the open list
+function foldOut(t) {
+  const going = folding.get(t.root.id);
+  if (going) return going;
+  const node = threadsBox.querySelector(`:scope > .cq-thread[data-id="${t.root.id}"]`);
+  if (!node) return null;
+  // Measured before anything about the node changes, and stated as a border box —
+  // the measurement to hand is the rendered one, and .cq-going sizes to match. The
+  // border and padding go with the height because border-box floors the box at
+  // their sum: left standing, they would hold 22px open under a height of zero.
+  const style = getComputedStyle(node);
+  const from = {
+    height: node.getBoundingClientRect().height + "px",
+    marginBottom: style.marginBottom,
+    borderTopWidth: style.borderTopWidth,
+    borderBottomWidth: style.borderBottomWidth,
+    paddingTop: style.paddingTop,
+    paddingBottom: style.paddingBottom,
+    opacity: 1,
+  };
+  const to = Object.fromEntries(Object.keys(from).map((k) => [k, "0px"]));
+  to.opacity = 0;
+  const played = motion(node, [from, to], FOLD_MS);
+  if (!played) return null;
+  // The control the press was made on states the outcome where it stood. It needs no
+  // reservation for the longer word: the actions row holds this one control against
+  // an empty span, so the extra room comes out of the gap beside it and moves
+  // nothing. A second control on that row would change that answer.
+  node.querySelector(":scope > .cq-thread-actions > .cq-resolve").textContent =
+    "✓ Resolved";
+  node.className = "cq-going";
+  node.inert = true;
+  // A key on screen is a key that works, and this box's placeholder was still
+  // offering the address the thread under it has just taken: the repaint every other
+  // reply box gets is the trailing loop's, which asks for .cq-thread and so no longer
+  // finds this one. Painted here, from the same map, at the one moment the answer
+  // changes — the address is gone the frame the log settles the thread, and what the
+  // box says on its way out is "Reply" and no promise.
+  node.cqSync();
+  folding.set(t.root.id, node);
+  // Straight off the promise, and nothing between: the effect stops applying at the
+  // end of its own interval, so from that instant until this runs the node is its
+  // unanimated self — full height, full opacity — and a frame painted in that window
+  // puts the whole thread back before it goes. The microtask beats the paint and one
+  // deferral loses it, which is the distance a `requestAnimationFrame` here would
+  // travel. What holds the line is
+  // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
+  // see it.
+  played.finished.then(() => {
+    folding.delete(t.root.id);
+    node.remove();
+    renderPanel();
+  });
+  return node;
 }
 
 // The DOM is the one record of what's rendered, reconciled against the log: nodes the
@@ -2533,12 +2636,23 @@ function renderThreads() {
   const wanted = [];
   if (!threads.length) wanted.push(emptyNote);
   threadAddress.clear();
-  // The first nine open threads are addressable (g 1–9), in the order j/k walk;
-  // past nine, digits stop and j/k still reach everything.
-  open.forEach((t, i) => {
-    threadAddress.set(t.root.id, i < 9 ? i + 1 : 0);
+  // Walked in the log's order rather than the open list's, because a thread on its way
+  // out still stands between its neighbours while it folds (foldOut) and the two
+  // orders are the same walk with one of them filtered. The first nine open threads
+  // are addressable (g 1–9), in the order j/k walk; past nine, digits stop and j/k
+  // still reach everything. A folding thread takes no address and is walked by
+  // nothing: the log has already settled it, and only its room is still here.
+  let nth = 0;
+  for (const t of threads) {
+    if (t.resolved) {
+      const going = foldOut(t);
+      if (going) wanted.push(going);
+      continue;
+    }
+    threadAddress.set(t.root.id, nth < 9 ? nth + 1 : 0);
+    nth += 1;
     wanted.push(threadNode(t, grow));
-  });
+  }
   for (const e of events) {
     if (e.kind === "done") wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
     else if (e.kind === "close")
@@ -2550,9 +2664,18 @@ function renderThreads() {
       resolvedBox.append(el("summary"));
     }
     const summary = resolvedBox.firstChild;
+    // Counted off the log, listed off the page: a thread still folding out of the
+    // open list is resolved and says so in the count from the first frame, and is
+    // rebuilt in here when its fold is done rather than standing in two places at
+    // once.
     const said = `Resolved (${resolved.length})`;
     if (summary.textContent !== said) summary.textContent = said;
-    setChildren(resolvedBox, [summary, ...resolved.map((t) => threadNode(t, false))]);
+    setChildren(resolvedBox, [
+      summary,
+      ...resolved
+        .filter((t) => !folding.has(t.root.id))
+        .map((t) => threadNode(t, false)),
+    ]);
     wanted.push(resolvedBox);
   }
   setChildren(threadsBox, wanted);

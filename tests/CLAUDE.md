@@ -25,16 +25,24 @@ The runtime answers a post by polling, so what the page does about a send arrive
 that poll rather than with the post. The press sweep learned this the expensive way: two
 matching frames read the page from before the press had an effect, and it caught its own
 regression on about half of the runs written to prove it caught it. Watch the trip rather
-than timing it. The runtime posts and reads state back through `fetch`, so one wrapper
+than timing it. The runtime posts and reads state back over the network, so one watcher
 sees both halves and no widget declares anything; a hold sized to `POLL_MS` states a
 number the runtime is free to change, still guesses on a loaded machine, and charges every
 press two seconds for a trip that takes ten milliseconds.
 `wait_for_load_state("networkidle")` is not the wait either: with no navigation to answer
 for, it returns at once.
 
-`open_page` puts that wrapper on every page: a test that had to ask for the counter first
+Watch it from outside the page. `Traffic` counts on the browser's own `request`,
+`response` and `requestfailed` events, which is where a test belongs — the same five
+numbers used to come from an init script wrapping `window.fetch` on every page of every
+run, behind no flag, which is permanent surgery on the runtime under test to learn what
+the browser was already saying. It also made the suite carry a second copy of a primitive
+it already used, since `page.route` is the same interception the other way round. A failed
+trip counts where a response would, or a wait outlives a request that is never coming back.
+
+`open_page` hangs that watcher on every page: a test that had to ask for the counter first
 is a test that asserted straight through the trip instead, and counting costs a page
-nothing. `ROUND_TRIP` is the page's own sends coming back, which is what to wait on before
+nothing. `round_trip(page)` is the page's own sends coming back, which is what to wait on before
 reading the event log — a widget settles a decision in front of the user before the
 server has taken it, so the page reading done is not the log holding it. Polling the log
 instead only ever asks after the send it names, and a stray one from the widget that was
@@ -64,9 +72,9 @@ The press sweep drew the same wrong inference from two matching frames before it
 learned to watch the trip (above).
 
 So a wait asks for what the system declares — an element existing,
-`document.body.getAnimations()` emptying, the wrapped fetch resolving, a resize reaching
-its listeners. Where stillness is itself the assertion, an observed edge precedes it: the
-press sweep measures "nothing moved" only after `ROUND_TRIP` has watched the response
+`document.body.getAnimations()` emptying, a request coming back, a resize reaching its
+listeners. Where stillness is itself the assertion, an observed edge precedes it: the
+press sweep measures "nothing moved" only after `round_trip` has watched the response
 land, so the quiet it reads is after the effect. And a timing flake reproduces by
 emulating the poller's own schedule in the page — `wait_for_function` runs its predicate
 once at injection, then once per animation frame — which makes the failure a rate to
@@ -90,44 +98,29 @@ absence here holds none at all. A POST the test aborted cannot reach the log, an
 decision the page never took cannot be in it; those assert straight after the edge that
 proves the gesture was handled.
 
-## Be the loaded machine on purpose
+## Nothing of the suite runs inside the page
 
-Only a slow machine can say a suite is clear of all this. `COLLOQUY_TEST_LOAD=1` is that
-machine: every `/api/state` answer held back three and a half seconds, so a poll-carried
-effect lands a long way after the write that caused it, and the page's own JS throttled
-twentyfold, so a listener, a frame, or a queued timer is still outstanding when the next
-read arrives. The hold spends the margin an assertion made straight after a write lives
-on. The throttle reaches what holding the network cannot, which is the page not having got
-to its own work yet: `resized` exists because `set_viewport_size` returns on a fact about
-the browser and the runtime's listener had not run, and `open_page` waits for the upgrade
-stamp because the gallery, the heaviest page here, had not finished upgrading when the
-banner appeared. Run it before believing the suite.
+The tests drive the runtime; they do not join it. What the suite knows about a page's
+traffic it gets from the browser — `request`, `response` and `requestfailed` to watch,
+`page.route` to stop or delay — and a page that a product path opens for itself is reached
+the same way, through `primed`. Nothing is injected to make a wait possible, so what the
+tests exercise is the runtime a user gets rather than one wearing the suite's hooks.
 
-The hold goes on once the page is up, since a request permanently in flight is a page that
-never reaches networkidle and so never finishes loading at all. Two tests went red on an
-ordinary busy run, and being that machine on purpose found seven more standing on the same
-margin: the ones that go red are only ever those with the least room, so fixing them
-without running this again hands the next loaded run a different victim.
+That was not always so, and what went is worth knowing when a wait looks unnecessary. An
+init script wrapped `window.fetch` on every page to count trips, and `COLLOQUY_TEST_LOAD=1`
+added a second wrapper holding each `/api/state` answer back three and a half seconds,
+alongside a CPU throttle slowing the page's own JS twentyfold — a machine slow in the two
+ways a busy one is, run on purpose. Two tests had gone red on an ordinary busy run and that
+sweep found seven more standing on the same margin. `resized` and `open_page`'s
+upgrade-stamp wait are both its finds: `set_viewport_size` returns on a fact about the
+browser rather than about the page, and the gallery, the heaviest page here, had not
+finished upgrading when the banner appeared.
 
-Both halves install through `open_page`, which is every page the suite opens and none of
-the ones the product opens for itself — so the sweep reached everything except the two
-paths whose whole job is waiting for a page to catch up. `exporting` is that seam for
-`version export`: it asks its browser for `new_page` and nothing else, so a stand-in
-carries the throttle in and hands the page to a test before the first navigation.
-`render_version` opens its two pages the same way and is still outside; it survives the
-throttle at about twice the wall clock, but wrapping twenty-odd call sites one at a time
-is the arrangement the next call site quietly opts out of, and the seam that cannot be
-missed — the `browser` fixture handing out an instrumented browser — changes what every
-test here runs under.
-
-Not the hold, in either case. It arms after `open_page` has the page loaded, and these
-own their load; arming it earlier only pushes their `networkidle` out past the held poll,
-which is the poll being waited for. A test that wants a particular timing on such a page
-states it in `prepare` instead, and the sharper instrument turned out to be refusing the
-first `/api/state` outright: the runtime stamps `cq-upgraded` in the same breath as it
-starts that poll, never awaiting it, so a refusal puts replay on the far side of both the
-stamp and networkidle — where a slow machine would have put it — deterministically and in
-a second rather than by loading the box.
+The waits stand; the instrument is gone. So a wait that is missing now passes on every
+machine quick enough to hide it, and the next fault of that shape arrives by luck on a
+genuinely busy one rather than on demand. That is what a clean runtime cost, and it is paid
+for by the waits above being right — a wait consumes a fact the system states, and there is
+no longer anything behind that rule to catch a wait that doesn't.
 
 ## A page's source is formatted, so ask what it says
 
@@ -168,8 +161,8 @@ assertion has to run from a group holding no answer to one holding an answer, no
 answer to another.
 
 So before writing "nothing moved", ask what would move if the rule were gone, and put the
-test where that is. It is the same question `page.emulate_media` and the loaded machine ask
-in their own registers, and it is the one the bug-back check above answers for you when the
+test where that is. It is the same question `page.emulate_media` asks in its own register,
+and it is the one the bug-back check above answers for you when the
 measurement is too clever to reason about.
 
 ## A captured stream nothing reads is a failure that names nothing

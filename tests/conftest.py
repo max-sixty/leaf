@@ -2,6 +2,7 @@
 not an installed module."""
 
 import importlib.util
+import os
 import subprocess
 from pathlib import Path
 
@@ -23,6 +24,22 @@ UV_CACHE = subprocess.run(
     text=True,
     check=True,
 ).stdout.strip()
+
+# Set on import rather than per test, because a fixture cannot reach what runs before it.
+# These two say where uv looks and that it looks no further than there, which is a fact
+# about the whole run; `isolated_session` below is about one test's session and is the
+# wrong scope for them. It had them, and the higher-scoped fixtures that shell out — the
+# `site` fixture, which exports every example — were built first and so went out to the
+# index unprotected: seven setups spending 113 to 121 seconds each revalidating an
+# unpinned Playwright against PyPI, and erroring outright the day the network was gone.
+# The same seven run in 28 seconds against the cache.
+#
+# `version export` supplies Playwright outside interact.py.lock (bin/colloquy says why),
+# leaving its version unpinned, so uv revalidates it whenever the cached answer goes
+# stale. The cache already holds what uv.lock pinned, so reading from it is both the fix
+# and the faster path.
+os.environ["UV_CACHE_DIR"] = UV_CACHE
+os.environ["UV_OFFLINE"] = "1"
 
 _spec = importlib.util.spec_from_file_location(
     "interact",
@@ -47,13 +64,6 @@ def isolated_session(tmp_path_factory, monkeypatch):
     a dozen throwaway fixtures per run. An untagged page is nobody's, which is
     what a fixture should be."""
     monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
-    monkeypatch.setenv("UV_CACHE_DIR", UV_CACHE)
-    # `version export` supplies Playwright outside interact.py.lock (bin/colloquy
-    # says why), leaving its version unpinned, so uv revalidates it against the
-    # index whenever the cached answer goes stale — three retries per call, and
-    # test_site.py exports every example. The cache above already holds what
-    # uv.lock pinned, so reading from it is both the fix and the faster path.
-    monkeypatch.setenv("UV_OFFLINE", "1")
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)

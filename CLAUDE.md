@@ -137,6 +137,18 @@ A second representation earns its place only when the two things are genuinely d
 (an element anchor has no text to paint, so it wears an outline). Not when they are the
 same thing reached by different code.
 
+One representation means one budget too, and the budget belongs to whatever is actually
+scarce. A quote was capped at four hundred characters, which read as an economy over a
+log line and was a claim about the page: the stored quote is the passage, so the mark
+paints it and the comment is on it, and a reader who selected a paragraph past the cap
+got a comment on its opening with a highlight that shrank to match — silently, on most
+of the paragraphs a colloquy page holds. What could not afford the passage was never the
+log; it was the search's pattern, one regular expression with a term per character, which
+V8 refuses to compile at all past some length between five and twelve thousand of them.
+So the bound sits on the pattern (`LEAD_CAP`), which finds the candidates, and the rest
+of the quote is walked against the text from each. A cap on the wrong side of a
+representation reads as thrift and spends what the representation was for.
+
 Two readings of one element's words are the case that does earn it, because they answer
 different questions. `says` is what is on the screen for the user to point at, so a
 label a widget declared as the page's words is in it; `wrote` is what the author put

@@ -2618,6 +2618,22 @@ def cmd_events(page_dir: Path, after: int) -> None:
             print(json.dumps(event, ensure_ascii=False))
 
 
+# A quote as a transcript names it. The anchor stores the passage whole, because that
+# is the extent the page marks; a transcript is prose someone pastes into an MR, where
+# a paragraph of quoted page inside every thread head buries the exchange it is there
+# to carry. Both ends rather than the opening alone: a passage is identified by where
+# it starts and where it stops, and an elision that keeps only the head reads as a
+# short quote rather than as a long one shown briefly.
+QUOTE_SHOWN = 240
+
+
+def shown(quote: str) -> str:
+    if len(quote) <= QUOTE_SHOWN:
+        return quote
+    half = QUOTE_SHOWN // 2
+    return f"{quote[:half].rstrip()} … {quote[-half:].lstrip()}"
+
+
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
@@ -2670,7 +2686,7 @@ def cmd_transcript(page_dir: Path) -> None:
     for t in threads.values():
         anchor = t["root"].get("anchor") or {}
         if anchor.get("quote"):
-            head = f"> “{anchor['quote']}”"
+            head = f"> “{shown(anchor['quote'])}”"
         elif anchor.get("section"):
             head = f"> § {anchor['section']}"
         else:
@@ -3389,9 +3405,10 @@ TEXT_BLOCK_TAGS = {
 # outside the tree it searches at all, the runtime rooting a section-less anchor at
 # document.body — without it a page's <title> would be quotable and land nowhere.
 UNQUOTABLE_TAGS = {"script", "style", "head"}
-# The caps colloquy.js captures at: how much quote an anchor stores, and how much of the
-# surrounding text it stores to tell two identical passages apart.
-QUOTE_CAP = 400
+# How much of the surrounding text an anchor stores to tell two identical passages
+# apart, as colloquy.js captures it. The quote itself is stored whole, however long the
+# passage: it is the extent the page marks, and a cap on it was a comment quietly made
+# on less than was quoted (colloquy.js, above selectionAnchor).
 CONTEXT = 24
 
 
@@ -3797,8 +3814,6 @@ def capture_anchor(
     lo = hits[0]
     hi = lo + len(wanted)
     section = section or enclosing_section(owner, lo, hi)
-    stored = wanted[:QUOTE_CAP]
-    tail = lo + len(stored)  # a quote cut to the cap ends inside itself
     # The neighbours come from the whole reading, as the browser's do — the section
     # filters where the search may land, never what surrounds a passage — so a passage
     # closing its section still stores a full suffix. Each side reaches only to the
@@ -3809,12 +3824,12 @@ def capture_anchor(
     # the same collapse, which trims — a stored space no occurrence produces fails at the
     # first comparison.
     prefix = text[max([0] + [f for f in fences if f <= lo]) : lo].strip()[-CONTEXT:]
-    suffix = text[tail : min([len(text)] + [f for f in fences if f >= tail])].strip()[
+    suffix = text[hi : min([len(text)] + [f for f in fences if f >= hi])].strip()[
         :CONTEXT
     ]
     return {
         "section": section,
-        "quote": stored,
+        "quote": wanted,
         **({"prefix": prefix} if prefix else {}),
         **({"suffix": suffix} if suffix else {}),
     }

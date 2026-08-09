@@ -619,6 +619,34 @@ unlisted until the next open, one press away; neither is a false promise. The wi
 sections (`keyHelp`) hold the rule for free — a module registers rows only when its
 widget is on the page, because only then does it load.
 
+## A key's word says what this press does
+
+The two rules above make a press real and singular; this one is about the word over it.
+`c` opens a box on the selection, on the item a click raised the 💬 on, or on the page,
+and all three read "comment" — a word true of the key and silent about the press. A
+reader who had just selected a paragraph and one who had selected nothing were told the
+same thing about two different boxes, and the reader who reported it had already seen the
+difference on screen.
+
+The tell is a word wide enough to cover every branch of its own `run`: "comment", "show
+or hide", "toggle". Such a word reads as accurate because it is never wrong, and it is
+never wrong because it says nothing. Where the branch is a fact about the page rather
+than about the key — what is selected, what stands open — the reader can already see
+which branch they are in, so the word has to agree with them. A row's cells are therefore
+read where they are painted (`word`), the way a label naming a range already was, and
+both surfaces get the same answer: `c` names what it would comment on, `o` says whether
+the press shows or hides.
+
+Passable for both is the argument to refuse. A word kept because it survives a change of
+meaning is a word nobody reads, and a legend read that way is chrome the page is paying
+screen for.
+
+Keeping it true costs a repaint wherever the state a word reads changes, which is the
+rule the runtime already follows for everything it renders: `showFab` writes the anchor
+`c` names, so it paints the line, as `showOthers` does for the board. `paintLine`
+coalesces to a frame, so painting from each writer costs nothing and saves reasoning
+about which one is last.
+
 ## A widget's chrome outlives its handlers
 
 `cq-shot` flips between two screenshots with a radio group and one `:has(:checked)` rule,

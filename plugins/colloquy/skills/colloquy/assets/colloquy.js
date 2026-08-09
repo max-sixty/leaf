@@ -1369,6 +1369,13 @@ ${MARK_RULES}
     .cq-leader-armed .cq-compose > .cq-address:not(:empty) { display: block; }
     .cq-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--quote-bar); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .cq-quote:hover { color: var(--ink-2); }
+    /* A quote is the passage, and a passage is as long as the reader's selection — a
+       paragraph of it in a 320px column buries the words written about it. So the panel
+       names the passage in three lines and the page shows the rest: the mark is already
+       on it, and the quote is what one clicks to go there. The composer's copy is
+       scrolled rather than clipped a few rules down, because it stands alone in a box
+       the reader is typing into and has no thread beneath it to bury. */
+    .cq-thread .cq-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
     .cq-quote.detached { border-left-style: dashed; border-left-color: var(--border-2); color: var(--muted-2); cursor: default; }
     /* Out of the picture, still in the accessibility tree — see the composer's quote in
        paintAnchors for the one thing that wears this and why. */
@@ -3162,24 +3169,63 @@ function pageText() {
   return { raw, origin, positions, fences: [...fences].sort((a, b) => a - b) };
 }
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// How much of a quote the search compiles into its pattern. The bound is the pattern's,
+// never the passage's: one expression covering every word of a long passage is a term
+// per character, and V8 refuses to compile one that long at all — a ceiling a reader
+// reaches by selecting a page and pressing c. Measured on the gallery: 1.3ms at this
+// length, 11.6ms at five thousand characters, and a SyntaxError at twelve. So the lead
+// finds the candidates and the rest of the quote is walked against the text from each,
+// which is a comparison per character rather than a term, and the search stays flat in
+// the passage's length instead of ending at a wall.
+const LEAD_CAP = 400;
+// The rest of a quote, matched from `at` by the pattern's own rules: any run of
+// whitespace or edges between words, an edge free to fall between two characters of
+// one. Answers where the passage ends, or -1 where the text stops saying it.
+function confirmRest(raw, at, words) {
+  let i = at;
+  for (const w of words) {
+    const gap = i;
+    while (i < raw.length && (raw[i] === EDGE || /\s/.test(raw[i]))) i++;
+    if (i === gap) return -1; // two words the text runs together are not these two
+    for (const ch of w) {
+      while (raw[i] === EDGE) i++;
+      if (!raw.startsWith(ch, i)) return -1;
+      i += ch.length;
+    }
+  }
+  return i;
+}
 function findQuote(text, quote, anchor, within) {
   const { raw, origin } = text;
   const words = quote.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
+  // Whole words up to the cap, and never none: a single word longer than it is still
+  // the only lead there is, and one that spent the cap exactly is not worth a term
+  // the walk would take anyway.
+  const lead = [];
+  for (let spent = 0; words.length > lead.length;) {
+    const next = words[lead.length];
+    if (lead.length && spent + next.length > LEAD_CAP) break;
+    lead.push(next);
+    spent += next.length + 1;
+  }
+  const rest = words.slice(lead.length);
   const pattern = new RegExp(
-    words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
+    lead.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
     "g",
   );
   // A unique exact-context occurrence wins. If no context survives, a sole quote
   // occurrence is still identifiable; two are not. Document order is not identity:
   // guessing the first copy after the intended one's neighbours changed quietly moves
-  // a comment to words it was never made on. matchAll steps past each hit, so
-  // overlapping occurrences of a quote that repeats inside itself are not candidates.
+  // a comment to words it was never made on. matchAll steps past each lead, so two
+  // occurrences overlapping within it are one candidate — which is the lead's own
+  // repetition and not the passage's, since the walk still has to confirm the rest.
   const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
   const candidates = [];
   const exact = [];
   for (const at of raw.matchAll(pattern)) {
-    const stop = at.index + at[0].length;
+    const stop = confirmRest(raw, at.index + at[0].length, rest);
+    if (stop === -1) continue;
     if (
       within &&
       !(
@@ -3188,9 +3234,10 @@ function findQuote(text, quote, anchor, within) {
       )
     )
       continue;
-    candidates.push(at);
-    if (holds(text, at.index, pre, true) && holds(text, stop, post, false))
-      exact.push(at);
+    const hit = { from: at.index, to: stop };
+    candidates.push(hit);
+    if (holds(text, hit.from, pre, true) && holds(text, hit.to, post, false))
+      exact.push(hit);
   }
   const found =
     exact.length === 1
@@ -3201,7 +3248,7 @@ function findQuote(text, quote, anchor, within) {
   // The characters the match covers, cut out of the index the same way a neighbourhood is —
   // walking the segments a second time to rebuild the span would be a second answer to
   // "which text is this", and the two disagree wherever an edge falls inside the match.
-  return found ? spanOf(origin, found.index, found.index + found[0].length) : [];
+  return found ? spanOf(origin, found.from, found.to) : [];
 }
 
 // ---------- view continuity ----------
@@ -3835,7 +3882,13 @@ function placeComposer(left, top) {
 // composing and a comment that posts permanently detached. A selection with nothing
 // quotable in it yields no quote, which makes it an element anchor on its section: what
 // such a selection meant anyway.
-const QUOTE_CAP = 400;
+//
+// The whole of it, however long. A cap here read as an economy and was a claim: the
+// stored quote is the passage, so the mark paints it and the comment is on it, and a
+// reader who selected a paragraph past the cap got a comment on its opening and a
+// highlight that shrank to match — silently, on most of the paragraphs a colloquy page
+// holds. What the cap was really bounding is the search's pattern, which is where the
+// bound now lives (LEAD_CAP), so nothing has to be given up to keep it cheap.
 const LANDMARK_CAP = 160;
 // How much of a passage's surroundings an anchor writes down. Only the capture decides
 // this; the search asks for whatever a given anchor happens to hold.
@@ -3850,8 +3903,7 @@ function selectionAnchor(sel) {
   // a module generated and may quote them; it does not pretend the file can confirm
   // context across their seam.
   const segments = segmentsIn(range);
-  const whole = quoteFrom(segments);
-  const quote = cut(whole, 0, QUOTE_CAP);
+  const quote = quoteFrom(segments);
   const reading = pageText();
   const first = segments[0];
   const last = segments.at(-1);
@@ -3867,24 +3919,14 @@ function selectionAnchor(sel) {
     0,
     CONTEXT,
   );
-  // Only what there is, and only what follows the quote. A passage against the document's
-  // own edge has no neighbour on that side, and writing that down as an empty string puts
-  // a field in the event that never says anything. A quote cut to the cap ends inside the
-  // selection, so what follows it is the rest of the selection rather than the text after
-  // it — read from there, the suffix still names the place the search will look.
-  // trimStart because the search reads its side through quoteFrom, which trims, and `whole`
-  // is already collapsed so there is at most one space to lose. Without it, a cut landing
-  // just before a space stored a suffix beginning with one — a character no occurrence can
-  // produce, so every one failed at the first comparison.
-  const tail =
-    quote === whole
-      ? suffix
-      : cut(cut(whole, QUOTE_CAP, Infinity).trimStart(), 0, CONTEXT);
+  // Only what there is. A passage against the document's own edge has no neighbour on
+  // that side, and writing that down as an empty string puts a field in the event that
+  // never says anything.
   return {
     section,
     quote,
     ...(prefix && { prefix }),
-    ...(tail && { suffix: tail }),
+    ...(suffix && { suffix }),
   };
 }
 
@@ -3928,6 +3970,7 @@ function showFab(anchor, left, top) {
   fabAnchor = anchor;
   fab.style.display = anchor ? "block" : "none";
   if (anchor) placeClear(fab, left, top);
+  paintLine(); // the c row names this anchor, so the line is one more rendering of it
 }
 // The one way an item under a gesture becomes the composer's anchor, so no two routes
 // can come to write different anchors for the same press.
@@ -4466,13 +4509,36 @@ const canStepVersions = () => versions.length > 1 && versions.includes(VNUM);
 // most nine open threads are addressable, fewer when fewer are open.
 const addressable = () => Math.min(9, threadAddress.size);
 const digits = () => (addressable() > 1 ? `1–${addressable()}` : "1");
-const keyLabel = (b) => (typeof b.label === "function" ? b.label() : b.label);
+// A row's cells are read where they are painted, never where they are written, so a
+// cell may be a function of the page. That is what lets a key whose meaning moves say
+// the meaning it has: the surfaces render this press rather than the set of presses
+// the key could be.
+const word = (cell) => (typeof cell === "function" ? cell() : cell);
+// What c would comment on, read off the anchor the 💬 carries — the same one
+// commentKey acts on, so the word and the button on screen cannot name different
+// things. An element anchor answers in its own word (a figure, a card), the way the
+// panel names one.
+const commentTarget = () =>
+  !fabAnchor
+    ? "page"
+    : fabAnchor.quote
+      ? "selection"
+      : itemWord(elementById(fabAnchor.section)) || "item";
 const KEYS = [
   {
     key: "c",
     label: "c",
-    does: "Comment on the selection or the raised 💬 — or the page as a whole",
-    line: "comment",
+    // One key, three destinations, and the surfaces name the one in front of the
+    // reader: a live selection, the item a click raised the 💬 on, or the page
+    // itself when nothing is pending. "Comment" covered all three and so promised
+    // none of them.
+    does: () => `Comment on the ${commentTarget()}`,
+    line: () => `comment on the ${commentTarget()}`,
+    // A selection made before the anchor pass has run can't be quoted yet, and
+    // commenting on the page instead is not what the reader asked for — so the
+    // press waits, and the row's own `when` is where that is said rather than a
+    // refusal inside run that no surface can see.
+    when: () => anchoringReady || !pageSelection(),
     run: commentKey,
   },
   // The aim chord's own declaration: the object the listeners and the press guard
@@ -4534,8 +4600,8 @@ const KEYS = [
   {
     key: "o",
     label: "o",
-    does: "Show or hide the machine's colloquys",
-    line: "colloquys",
+    does: () => `${othersOpen ? "Hide" : "Show"} the machine's colloquys`,
+    line: () => `${othersOpen ? "hide" : "show"} colloquys`,
     when: boardOffered,
     run: () => {
       showOthers(!othersOpen);
@@ -4551,7 +4617,14 @@ const KEYS = [
   {
     key: "v",
     label: "v",
-    does: "Highlight changes since the previous version",
+    // The two branches of the run below, said in the reference: the row is live while
+    // a comparison stands precisely so v can end it, and a word naming only the
+    // opening would promise the wrong half of the press to the reader who is looking
+    // at a page already marked up.
+    does: () =>
+      diffOn
+        ? "Stop highlighting changes"
+        : "Highlight changes since the previous version",
     // The page's v takes the previous version, which is the one a reader who saw the
     // last one means; any other base is a press in the menu, where the version is
     // named. Live once there is a previous version — and while a comparison against
@@ -4755,10 +4828,10 @@ function scene() {
         ...(thread.querySelector(":scope > .cq-compose")
           ? [
               ["Enter", "reply"],
-              [keyLabel(rk), "resolve"],
+              [word(rk.label), "resolve"],
             ]
           : []),
-        ...(live(jk) ? [[keyLabel(jk), jk.line]] : []),
+        ...(live(jk) ? [[word(jk.label), word(jk.line)]] : []),
       ],
       esc: panelsRung(active),
     };
@@ -4768,7 +4841,7 @@ function scene() {
   return {
     rows: othersPanel.contains(active)
       ? OTHERS_KEYS
-      : KEYS.filter((b) => b.line && live(b)).map((b) => [keyLabel(b), b.line]),
+      : KEYS.filter((b) => b.line && live(b)).map((b) => [word(b.label), word(b.line)]),
     esc: panelsRung(active),
   };
 }
@@ -4820,7 +4893,6 @@ paintLine();
 // promised "comment" answered "close", and no shortcut reached the box.
 // Backing out is the ladder's (Esc), which already closes the panel rung by rung.
 function commentKey() {
-  if (!anchoringReady && pageSelection()) return;
   updateFab(); // the selection may be newer than the mouseup that last placed the button
   if (fabAnchor) return fab.onclick();
   setPanel(true);
@@ -4919,7 +4991,9 @@ function showHelp(open) {
       return t;
     };
     helpEl.append(
-      table(KEYS.filter((b) => b.does && live(b)).map((b) => [keyLabel(b), b.does])),
+      table(
+        KEYS.filter((b) => b.does && live(b)).map((b) => [word(b.label), word(b.does)]),
+      ),
     );
     for (const { title, rows } of helpSections.values())
       helpEl.append(el("h3", "", title), table(rows));
@@ -6097,6 +6171,7 @@ Promise.all([
   anchoringReady = true;
   paintAnchors(); // an early general post may already have loaded anchored threads
   updateFab(); // an early selection is now read from the fully upgraded page
+  paintLine(); // c is live again, whether or not that selection raised the button
   landArrival();
   if (savedView && savedView.v < VNUM) showToast(`Updated to v${VNUM}`);
   if (savedComposer)

@@ -7209,6 +7209,95 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     page.close()
 
 
+# c's three destinations on one page: prose to select, a visual to click (no words to
+# quote, so it anchors on the element), and the page itself with neither in hand.
+TARGETS_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>targets</title>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/colloquy.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Targets</h1>
+<p id="prose">A paragraph with enough words in it to select by dragging across, which
+is what raises the button the key then presses.</p>
+<figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
+aria-label="specimen"><rect x="2" y="2" width="236" height="56" fill="none"
+stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
+</main>
+</body>
+</html>
+"""
+
+
+def test_the_key_line_names_what_this_press_will_comment_on(
+    browser, serve, other_colloquy
+):
+    """A key's word is the meaning it has now, not one wide enough to cover every
+    meaning it could have. c opens a box on the selection, on the item a click raised
+    the 💬 on, or on the page, and all three read "comment" — true of the key and
+    silent about the press, so a reader with a paragraph selected and one with nothing
+    selected were told the same thing about two different boxes. Both surfaces read the
+    row where they paint it, so both say which box this press opens; o is the same
+    defect and says show or hide rather than both."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    line = page.locator(".cq-keyline")
+    help_el = page.locator(".cq-help")
+
+    # Nothing in hand: the box c opens is the page's.
+    expect(line).to_contain_text("comment on the page")
+    page.keyboard.press("?")
+    expect(help_el).to_contain_text("Comment on the page")
+    page.keyboard.press("Escape")
+
+    # A selection under the hand moves the word, on the gesture that raises the button
+    # — the anchor the line names and the one the press takes are the same one. Dragged
+    # rather than select_text()'d, which sets the selection through the injected script
+    # and fires neither mouseup nor keyup: the button would never rise, and the press
+    # under test would be answered by a state no gesture produced.
+    box = page.locator("#prose").bounding_box()
+    page.mouse.move(box["x"] + 1, box["y"] + 4)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] - 1, box["y"] + box["height"] - 4, steps=12)
+    page.mouse.up()
+    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(line).to_contain_text("comment on the selection")
+    page.keyboard.press("?")
+    expect(help_el).to_contain_text("Comment on the selection")
+    page.keyboard.press("Escape")
+    # And the press does what the word said: a composer carrying that passage, which
+    # is what makes the suggestion row (a replacement for quoted words) offered at all.
+    page.keyboard.press("c")
+    expect(page.locator(".cq-composer")).to_be_visible()
+    expect(page.locator(".cq-composer .cq-suggest-row")).to_be_visible()
+    page.keyboard.press("Escape")
+
+    # A visual has no words to quote, so the press lands on the element — and the word
+    # is the item's own, the way the panel names one.
+    page.locator("#fig svg").click()
+    expect(line).to_contain_text("comment on the figure")
+    page.keyboard.press("c")
+    expect(page.locator(".cq-composer")).to_be_visible()
+    expect(page.locator(".cq-composer .cq-suggest-row")).to_be_hidden()
+    page.keyboard.press("Escape")
+
+    # o names the direction of its own toggle. Opened from the banner, because opening
+    # it by key lands focus inside the board, and the line is then the board's own scope
+    # rather than the page's — the o row is only on screen while the page's is.
+    expect(line).to_contain_text("show colloquys")
+    page.get_by_role("button", name=re.compile("^All colloquys")).click()
+    expect(page.locator(".cq-others-panel")).to_have_class(re.compile("open"))
+    expect(line).to_contain_text("hide colloquys")
+    page.keyboard.press("o")
+    expect(page.locator(".cq-others-panel")).not_to_have_class(re.compile("open"))
+    expect(line).to_contain_text("show colloquys")
+    assert errors == []
+    page.close()
+
+
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the key line asked `when`,
@@ -7225,7 +7314,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # No open threads, one version: the reference names only what a press would do.
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(help_el).to_contain_text("Comment on the selection")
+    # Nothing is selected, so c's own row says the box it would open — the word is the
+    # press's, not the key's (see the row's neighbour test below).
+    expect(help_el).to_contain_text("Comment on the page")
     expect(help_el).not_to_contain_text("Reply to the nth")
     expect(help_el).not_to_contain_text("Next / previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
@@ -7274,6 +7365,18 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("Highlight changes since the previous version")
     expect(help_el).to_contain_text("g 1–2")
     page.keyboard.press("Escape")
+
+    # v is a toggle, and its row stays live over a standing comparison precisely so the
+    # press can end one — so over a marked-up page the reference has to say the half of
+    # the run this press would take, not the half that already happened.
+    page.keyboard.press("v")
+    expect(page.locator(".cq-version")).to_have_class(re.compile(r"\bon\b"))
+    page.keyboard.press("?")
+    expect(help_el).to_contain_text("Stop highlighting changes")
+    expect(help_el).not_to_contain_text("Highlight changes since the previous version")
+    page.keyboard.press("Escape")
+    page.keyboard.press("v")
+    expect(page.locator(".cq-version")).not_to_have_class(re.compile(r"\bon\b"))
 
     # A resolved thread stays focusable after the last open one is gone, and the
     # scene branch that restates the j/k row over it asks the same liveness.
@@ -9317,60 +9420,161 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
     page.close()
 
 
-# A passage past the 400-code-point quote cap whose 400th code point is a space — the cut
-# lands where the search's own reading of that spot would begin with whitespace, and it
-# trims. Roughly one capped quote in six for English prose.
-CAPPED_PASSAGE = "Note: the migration replays on every deploy because the version stamp never lands, and the guard reads a column the writer never fills, and the whole batch runs again from the top on each release, and the counters disagree with the log and with each other, and the retry budget is spent before anyone looks at it, and the operator reads the dashboard at noon and files the incident, and the fix ships behind a flag nobody remembers to turn on, and the runbook still names a host that was retired last spring."
-CAPPED_PAGE = """<!doctype html>
+# A passage longer than the search's pattern, twice over, so the pattern's own lead
+# matches both copies and only their neighbours tell them apart. Prose rather than
+# filler, because the walk that confirms the rest of a quote steps word by word.
+LONG_PASSAGE = "Note: the migration replays on every deploy because the version stamp never lands, and the guard reads a column the writer never fills, and the whole batch runs again from the top on each release, and the counters disagree with the log and with each other, and the retry budget is spent before anyone looks at it, and the operator reads the dashboard at noon and files the incident, and the fix ships behind a flag nobody remembers to turn on, and the runbook still names a host that was retired last spring."
+TWO_COPIES_PAGE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>capped</title>
+<title>long passages</title>
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/colloquy.js"></script>
 </head>
 <body>
 <main>
-<h1 id="t">Capped</h1>
-<section id="capped">
-<p>Ahead of the first copy sits this line. {passage}</p>
-<p>Between the copies sits this other line. {passage}</p>
+<h1 id="t">Long passages</h1>
+<section id="copies">
+<p>Ahead of the first copy sits this line.</p>
+<p id="first">{passage}</p>
+<p>Between the copies sits this other line.</p>
+<p id="second">{passage}</p>
 </section>
 </main>
 </body>
 </html>
-""".replace("{passage}", CAPPED_PASSAGE)
+""".replace("{passage}", LONG_PASSAGE)
 
 
-def test_a_capped_quote_keeps_a_suffix_the_page_can_show(browser, serve):
-    """A quote longer than the cap ends inside the selection, so its neighbours are read
-    from after the cut rather than after the selection. The search reads its side through
-    the same collapsing that trims leading whitespace — so a cut landing just before a space
-    must not store one, or the stored suffix names a string no occurrence can produce and
-    every copy fails at the first character."""
-    assert CAPPED_PASSAGE[400] == " ", "the fixture no longer cuts on a space"
-    page, errors = open_page(browser, serve(CAPPED_PAGE))
-    landed = page.evaluate("""async () => {
-        const copies = document.querySelectorAll('#capped p');
-        if (copies.length !== 2) return `fixture holds ${copies.length} copies, wanted 2`;
-        const p = copies[1];
-        const text = p.firstChild.data;
-        const at = text.indexOf('Note:');
+def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
+    """A quote is the passage, so what is stored is what the page marks and what the
+    comment is on. It used to be cut at four hundred characters: a reader who selected
+    a paragraph got a comment on its opening and a highlight that shrank to match, on
+    most of the paragraphs a colloquy page holds, and nothing said so. Storing the
+    whole of it is only affordable because the bound moved to the search's pattern,
+    which is what could not take a long passage — so this drags one past that bound and
+    asks the mark, the log and the panel the same question, on the second of two
+    identical copies, which is also the case where the lead alone cannot answer it."""
+    url = serve(TWO_COPIES_PAGE)
+    page, errors = open_page(browser, url)
+    passage = page.locator("#second")
+    picked = page.evaluate("() => document.querySelector('#second').textContent.length")
+    assert picked > 400, "the fixture no longer outruns the pattern's own lead"
+
+    # The whole paragraph, dragged: from its first glyph to its last.
+    box = passage.bounding_box()
+    page.mouse.move(box["x"] + 1, box["y"] + 4)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] - 1, box["y"] + box["height"] - 4, steps=12)
+    page.mouse.up()
+    expect(page.locator(".cq-fab")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".cq-composer")).to_be_visible()
+
+    # The mark under the open composer is the selection, both ends of it — and on the
+    # copy the reader dragged, which only the stored neighbours can decide.
+    on_the_selection = page.evaluate("""() => {
+        const words = document.querySelector('#second').firstChild;
         const want = document.createRange();
-        want.setStart(p.firstChild, at); want.setEnd(p.firstChild, text.length);
-        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.cq-fab');
-        if (fab.style.display !== 'block') return 'no button';
-        fab.click();
-        await new Promise(r => setTimeout(r, 60));
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])][0];
-        if (!painted) return 'no mark';
-        return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
+        want.setStart(words, 0);
+        want.setEnd(words, words.data.length);
+        const painted = [...(CSS.highlights.get('cq-pending') ?? [])];
+        if (!painted.length) return 'no mark';
+        return [
+          painted[0].compareBoundaryPoints(Range.START_TO_START, want) === 0,
+          painted.at(-1).compareBoundaryPoints(Range.END_TO_END, want) === 0,
+          painted.map((r) => r.toString()).join('').length,
+        ];
     }""")
-    assert landed is True, (
-        f"the second copy was picked, the mark went elsewhere ({landed})"
+    assert on_the_selection == [True, True, picked], (
+        f"the mark is not the passage that was dragged ({on_the_selection}, "
+        f"wanted [True, True, {picked}])"
+    )
+
+    # And the anchor that posts says the same thing, since the mark is drawn from it.
+    page.locator(".cq-composer textarea").fill("The whole of it.")
+    page.locator(".cq-composer button.primary").click()
+    round_trip(page)
+    expect(page.locator(".cq-thread")).to_have_count(1)
+    expect(page.locator(".cq-thread .cq-quote")).not_to_have_class(
+        re.compile("detached")
+    )
+    anchor = [
+        e["anchor"] for e in interact.read_events(serve.page_dir) if e.get("anchor")
+    ][-1]
+    assert len(anchor["quote"]) == picked, (
+        f"the log holds {len(anchor['quote'])} characters of a {picked}-character "
+        "passage"
+    )
+    assert anchor["prefix"].endswith("this other line."), (
+        f"the neighbour naming which copy was picked is {anchor['prefix']!r}"
+    )
+    assert errors == []
+    page.close()
+
+
+# Prose past the pattern's own ceiling. One expression with a term per character stops
+# compiling somewhere past ten thousand of them — measured on the gallery: 1.3ms at four
+# hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
+# would land inside the pass that draws every mark on the page, not just this one's. A
+# reader reaches it in one keystroke, so the guard is a page long enough to prove it.
+CEILING_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>everything</title>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/colloquy.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Everything</h1>
+{paras}
+</main>
+</body>
+</html>
+""".format(
+    paras="\n".join(
+        f"<p>Paragraph {i} of the record. "
+        + f"The deploy replays and the guard reads a column the writer never fills, "
+        f"so the whole batch runs again from the top on release {i}. " * 3 + "</p>"
+        for i in range(40)
+    )
+)
+
+
+def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
+    """Select-all and comment. The quote is then the page, which is past what a search
+    built from the whole of one can compile at all — and a throw there is not a missing
+    mark but every mark, since one pass draws them. The bound is the pattern's, so the
+    lead finds the candidates and the rest of the quote is walked from each; what this
+    asks is that the passage is still found, on the pass that runs after the send as
+    much as on the one under the composer."""
+    url = serve(CEILING_PAGE)
+    page, errors = open_page(browser, url)
+    prose = page.evaluate("() => document.querySelector('main').textContent.length")
+    assert prose > 12000, f"the fixture holds {prose} characters, under the ceiling"
+
+    page.keyboard.press("ControlOrMeta+a")
+    expect(page.locator(".cq-fab")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".cq-composer")).to_be_visible()
+    painted = page.evaluate(
+        "() => [...(CSS.highlights.get('cq-pending') ?? [])]"
+        ".map((r) => r.toString()).join('').length"
+    )
+    assert painted > 12000, f"the mark under the composer covers {painted} characters"
+
+    page.locator(".cq-composer textarea").fill("All of it.")
+    page.locator(".cq-composer button.primary").click()
+    round_trip(page)
+    expect(page.locator(".cq-thread")).to_have_count(1)
+    # The posted anchor resolves on the ordinary pass too, which is the one that would
+    # have thrown: a detached quote here is the search having failed to find the page
+    # inside the page.
+    expect(page.locator(".cq-thread .cq-quote")).not_to_have_class(
+        re.compile("detached")
     )
     assert errors == []
     page.close()

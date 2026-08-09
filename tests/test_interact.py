@@ -5717,6 +5717,21 @@ def test_export_prints_threads_and_versions(page_dir):
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
         },
     )
+    # An anchor holds the whole passage, because that is the extent the page marks; a
+    # transcript is prose someone pastes into an MR, so a passage of any length is
+    # named by its ends and the exchange stays readable under it.
+    said = "The batch replays from the top."
+    long_quote = " ".join([said] * 20)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c3",
+            "author": "user",
+            "anchor": {"quote": long_quote},
+            "text": "all of it",
+        },
+    )
     result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "## Colloquy: Cutoff & backfill" in result.output
@@ -5729,6 +5744,12 @@ def test_export_prints_threads_and_versions(page_dir):
     # The widget rides its message into the transcript, indented under the words.
     assert "- **Claude**: reversibility\n  <cq-diagram" in result.output
     assert "> § flow" in result.output  # element-anchored comments keep their target
+    assert long_quote not in result.output, "the whole passage went into the transcript"
+    head = next(
+        ln for ln in result.output.splitlines() if ln.startswith("> “The batch")
+    )
+    assert head.startswith(f"> “{said}") and head.endswith(f"{said}”"), head
+    assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
 def test_markup_needs_the_registry_and_text_does_not(page_dir):
@@ -5851,6 +5872,35 @@ def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
     assert (
         anchor["suffix"] == "."
     )  # the option's last words; the fence ends the reading
+
+
+def test_a_written_comment_quotes_the_whole_passage(page_dir):
+    """A quote is the passage the page marks, so the capture writes the whole of it
+    however long, and the neighbour after it is the page's next words rather than the
+    rest of the passage. Cut at four hundred characters, both were wrong together: the
+    comment landed on the passage's opening, and the suffix that was meant to tell one
+    copy from another was text the quote itself already held. The runtime captures the
+    same anchor from the DOM, so a cap here would have been a cap there too."""
+    passage = (
+        "The cutoff moves whenever the backfill runs, and the guard reads a column "
+        "the writer never fills, so the batch replays from the top on each release, "
+        "and the counters disagree with the log and with each other, and the retry "
+        "budget is spent long before anyone looks at it, and the operator reads the "
+        "dashboard at noon and files the incident against the wrong service, and "
+        "the runbook it links still names a host that was retired last spring."
+    )
+    assert len(passage) > 400, "the fixture no longer outruns the old cap"
+    long = PAGE.replace(
+        '  <cq-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></cq-diagram>\n',
+        f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n",
+    )
+    (page_dir / "versions" / "v1.html").write_text(long)
+    event = json.loads(
+        comment(published(page_dir), "--quote", passage, "--text", "x").output
+    )
+    anchor = event["anchor"]
+    assert anchor["quote"] == passage
+    assert anchor["suffix"] == "Deploys pause overnight."
 
 
 def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):

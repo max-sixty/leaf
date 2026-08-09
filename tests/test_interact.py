@@ -408,6 +408,19 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
 
 
+def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
+    """What `isolated_session` promises, asserted where a break would show. The
+    two homes are the only thing colloquy reads from the developer's own, and a
+    suite that reached theirs fails silently in both directions: it would vendor
+    their overlay into fixtures that never say what a theme should contain, and
+    register a dozen throwaway pages a run in the state home the loop guard reads,
+    for pages nobody has. Every other test here sets whichever home it is about,
+    so none of them would notice."""
+    root = tmp_path_factory.getbasetemp()
+    assert interact.config_home().is_relative_to(root)
+    assert interact.state_home().is_relative_to(root)
+
+
 def test_init_user_layer_applies(tmp_path, monkeypatch):
     home = tmp_path / "home"
     (home / ".config" / "colloquy" / "widgets").mkdir(parents=True)
@@ -416,6 +429,9 @@ def test_init_user_layer_applies(tmp_path, monkeypatch):
     (home / ".config" / "colloquy" / "widgets" / "cq-foo.js").write_text(
         "// user widget"
     )
+    # The ~/.config fallback, which is the path a machine with no XDG_CONFIG_HOME
+    # set takes — so the variable the fixtures isolate with has to come back off.
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.chdir(tmp_path)
     d = tmp_path / "page"

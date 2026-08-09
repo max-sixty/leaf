@@ -20,11 +20,8 @@ docker build --platform linux/amd64 -t colloquy-linux-suite \
   -f "$HERE/linux-suite.Dockerfile" "$HERE"
 
 # --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite. The
-# named volume is uv's cache, which the run fills once: the suite runs uv offline, so
-# everything it drives has to be there already, and `version export` is what fetches the
-# one thing `uv.lock` doesn't cache (README, "Developing").
+# named volume is uv's cache, which the first run fills and the rest read, so a container
+# thrown away after every run still resolves against a warm one.
 exec docker run --rm --platform linux/amd64 --shm-size=2g \
   -v "$ROOT:/repo" -v colloquy-linux-suite-uv:/root/.cache/uv \
-  colloquy-linux-suite bash -c \
-  'plugins/colloquy/bin/colloquy version export --help >/dev/null
-   exec uv run --frozen pytest "$@"' bash "$@"
+  colloquy-linux-suite uv run --frozen pytest "$@"

@@ -121,14 +121,19 @@ alone. The tests need the same set anyway, because they load `interact.py` by pa
 uv run pytest tests
 ```
 
-Two minutes rather than eleven, because `pyproject.toml` shards it across eight workers,
-and no network at all, because `conftest.py` runs uv offline — `version export` supplies
-Playwright outside the script's lock (`bin/colloquy` says why) and would otherwise
-revalidate it against the index. It is the one thing outside `uv.lock`, which is what
-fills that cache, so a fresh checkout asks for it once:
+Two minutes rather than eleven, because `pyproject.toml` shards it across eight workers.
+That is the whole command: no variable in front of it and no step before it. The fixtures
+move the two XDG directories colloquy reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `colloquy` the suite shells out to finds the uv cache the
+developer already has, and a fresh checkout fills it the way any other run would.
+
+One resolution sits outside `uv.lock`: the Playwright `bin/colloquy` supplies to
+`version export` on top of the script's header (it says why), which uv asks the index for
+whenever its cached answer has gone stale — a second or so, once. On a machine with no
+network, hold the whole run to the cache instead:
 
 ```
-plugins/colloquy/bin/colloquy version export --help
+UV_OFFLINE=1 uv run pytest tests
 ```
 
 Ruff and prettier run from `.pre-commit-config.yaml`, which says what each covers

@@ -1854,7 +1854,7 @@ def test_the_banner_opens_a_panel_of_the_machines_colloquys(
     expect(btn).to_be_visible()  # closing the panel keeps the standing button
     expect(btn).to_have_text("All colloquys (2)")  # and the count
     # The count's reservation, swept here because this is the one test that ever
-    # renders the button — every other page here runs under an isolated HOME, so
+    # renders the button — every other page here runs under an isolated state home, so
     # neither the press sweep nor the poll test can reach it. The widest label
     # below a thousand must not move the control.
     before, widest = page.evaluate(

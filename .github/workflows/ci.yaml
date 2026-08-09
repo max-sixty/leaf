@@ -19,22 +19,10 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
-      # The suite runs uv offline (`tests/conftest.py` says why), so everything it
-      # drives has to come from the cache, and `uv sync` fills it from `uv.lock`
-      # alone. One thing lives outside that lock: the Playwright `bin/colloquy`
-      # hands `version export` on top of its script header (it says why), which a
-      # fresh cache has no resolution for. `--help` is that path doing nothing but
-      # fetch one.
-      #
-      # Pinning it would not do instead. `uv sync` fetches wheels from the URLs in
-      # `uv.lock` and never asks the index, so what a cold cache lacks for a
-      # `--with` is the resolution, and it lacks that at any version.
-      - name: 🌐 Fetch what uv.lock doesn't cache
-        run: plugins/colloquy/bin/colloquy version export --help
-
-      # Playwright then attaches to the runner's own Chrome (`channel="chrome"`),
-      # the same one `publish-site` draws the examples with, so there is no
-      # browser to install either.
+      # Nothing to install first. The suite resolves what it shells out to the way
+      # a user's machine does, and Playwright attaches to the runner's own Chrome
+      # (`channel="chrome"`), the same one `publish-site` draws the examples with,
+      # so there is no browser to fetch either.
       - name: 🧪 Test suite
         run: uv run pytest tests
 

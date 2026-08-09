@@ -1,4 +1,4 @@
-# colloquy
+# leaf
 
 > **Not ready for general use.** Watch this space, and hopefully there'll be more to
 > say soon.
@@ -11,12 +11,12 @@ in question, rather than in the terminal. A page tracking work in progress keeps
 it: items go from planned to done as the agent works through them, and the browser follows
 each new version on its own.
 
-![colloquy demo](docs/demo.gif)
+![leaf demo](docs/demo.gif)
 
-[`docs/`](docs/) is the site, published at <https://max-sixty.github.io/colloquy/>:
+[`docs/`](docs/) is the site, published at <https://leaf.page/>:
 `index.html` is the tour (what it does, and one session end to end), `examples.html` lists
 the example pages, `how-it-works.html` covers the mechanism, and `customizing.html`
-covers themes and project widgets. Each uses colloquy's own theme, so they double as
+covers themes and project widgets. Each uses leaf's own theme, so they double as
 specimens, and each opens the same from a checkout as from the web.
 
 ## Install
@@ -24,40 +24,40 @@ specimens, and each opens the same from a checkout as from the web.
 Claude Code:
 
 ```
-/plugin marketplace add max-sixty/colloquy
-/plugin install colloquy@colloquy
+/plugin marketplace add max-sixty/leaf
+/plugin install leaf@leaf
 ```
 
 Codex:
 
 ```
-codex plugin marketplace add max-sixty/colloquy
-codex plugin add colloquy@colloquy
+codex plugin marketplace add max-sixty/leaf
+codex plugin add leaf@leaf
 ```
 
-No config or account is required. Colloquy needs
+No config or account is required. Leaf needs
 [`uv`](https://docs.astral.sh/uv/) on `PATH` (`interact.py` declares its dependencies
 in a PEP 723 header) and a browser on the same machine as the session.
 
-Then ask the agent for a page. The explicit skill is `/colloquy [topic]` in Claude Code
-and `$colloquy [topic]` in Codex; with no argument it presents whatever the session is
+Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
+and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
 currently about.
 
 ## Customize
 
-Project customizations live in `.colloquy/`; user customizations live in
-`~/.config/colloquy/`. A short theme file cascades over the defaults, and a widget
+Project customizations live in `.leaf/`; user customizations live in
+`~/.config/leaf/`. A short theme file cascades over the defaults, and a widget
 scaffold adds a registry entry, CSS, and optionally an ES module:
 
 ```
-colloquy customize theme
-colloquy customize widget cq-callout
+leaf customize theme
+leaf customize widget lf-callout
 ```
 
 Add `--upgrade` to the widget's first scaffold command when it needs browser
 behavior.
 
-The next `colloquy page init <page-dir>` vendors the merged layer. The
+The next `leaf page init <page-dir>` vendors the merged layer. The
 [customization guide](docs/customizing.html) covers the file contracts and the
 project/user precedence.
 
@@ -69,15 +69,15 @@ dashboard meant to change as work finishes. `gallery.html` puts them on one page
 shipped layer to try it:
 
 ```
-plugins/colloquy/bin/colloquy page init /tmp/demo
+plugins/leaf/bin/leaf page init /tmp/demo
 cp examples/triage-board.html /tmp/demo/versions/v1.html
-plugins/colloquy/bin/colloquy version publish /tmp/demo --version 1 --text "demo"
-plugins/colloquy/bin/colloquy server run /tmp/demo
+plugins/leaf/bin/leaf version publish /tmp/demo --version 1 --text "demo"
+plugins/leaf/bin/leaf server run /tmp/demo
 ```
 
 ## The website
 
-`scripts/site.py` assembles <https://max-sixty.github.io/colloquy/> into `.tmp/site`,
+`scripts/site.py` assembles <https://leaf.page/> into `.tmp/site`,
 and `.github/workflows/publish-site.yaml` runs it on every push to `main` that touches
 the pages, the examples, or the layer. The docs pages are copied with their three
 checkout-relative paths substituted (the theme, a link into the payload, and a link to
@@ -94,7 +94,7 @@ scripts/site.py
 
 The suite is integration tests over the real thing. `test_interact.py` exercises the
 lint, vendoring, publishing, catalog, export, thread-markup validation, and the anchors
-`colloquy comment` writes by reading a version file. `test_render.py`
+`leaf comment` writes by reading a version file. `test_render.py`
 loads the shipped examples in a real browser (both color schemes) and asserts what a
 static lint can't reach: every widget upgrades into a box with usable size, the document
 and the comment panel scroll in separate regions, the comment box grows without any
@@ -113,7 +113,7 @@ as the fixtures do, opening the page with that key in the query (`?t=…`). `ser
 loop's hooks then hold it to watching that page.
 
 The suite runs in the environment `pyproject.toml` names and `uv.lock` pins. That is the
-developer's environment only: colloquy declares what it needs in `interact.py`'s PEP 723
+developer's environment only: leaf declares what it needs in `interact.py`'s PEP 723
 header, which is what installs it with no build step, and the project file leaves that
 alone. The tests need the same set anyway, because they load `interact.py` by path.
 
@@ -123,11 +123,11 @@ uv run pytest tests
 
 Two minutes rather than eleven, because `pyproject.toml` shards it across eight workers.
 That is the whole command: no variable in front of it and no step before it. The fixtures
-move the two XDG directories colloquy reads (`config_home`, `state_home`) and leave the
-rest of the home alone, so every `colloquy` the suite shells out to finds the uv cache the
+move the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
 developer already has, and a fresh checkout fills it the way any other run would.
 
-One resolution sits outside `uv.lock`: the Playwright `bin/colloquy` supplies to
+One resolution sits outside `uv.lock`: the Playwright `bin/leaf` supplies to
 `version export` on top of the script's header (it says why), which uv asks the index for
 whenever its cached answer has gone stale — a second or so, once. On a machine with no
 network, hold the whole run to the cache instead:
@@ -159,7 +159,7 @@ scripts/linux-suite.sh
 ## Rebuilding the syntax bundle
 
 Code blocks are colored in the browser from
-`plugins/colloquy/skills/colloquy/assets/vendor/highlight.esm.js`, which upstream
+`plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js`, which upstream
 doesn't ship in a form a page can import — so it is bundled here.
 `scripts/vendor-highlight.sh` rebuilds it, reading the language list out of the
 registry's `$languages.names` so the bundle can't offer a language the lint rejects. Add a
@@ -177,7 +177,7 @@ writes the resulting animation to `docs/demo.gif`.
 ## Related
 
 [`notes/comparisons.md`](notes/comparisons.md) reads the nearby projects against
-colloquy, and covers where colloquy is the wrong choice.
+leaf, and covers where leaf is the wrong choice.
 
 ## License
 

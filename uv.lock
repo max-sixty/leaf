@@ -40,7 +40,7 @@ wheels = [
 ]
 
 [[package]]
-name = "colloquy"
+name = "leaf"
 version = "0"
 source = { virtual = "." }
 

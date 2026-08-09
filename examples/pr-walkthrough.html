@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PR walkthrough: per-token rate limits</title>
-    <meta name="cq-review" content="sign-off" />
+    <meta name="lf-review" content="sign-off" />
     <link rel="stylesheet" href="/theme.css" />
-    <script type="module" src="/colloquy.js"></script>
+    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main>
@@ -20,7 +20,7 @@
 
       <section id="shape">
         <h2>Shape of the change</h2>
-        <cq-tree id="files">
+        <lf-tree id="files">
           <pre>
 gateway/
   limits.py  +38 -9
@@ -28,7 +28,7 @@ gateway/
   migrations/
     0042_token_buckets.sql  +11
 </pre>
-        </cq-tree>
+        </lf-tree>
         <p id="p-shape">
           The interesting part is
           <a href="https://github.com/example/gateway/blob/main/gateway/limits.py#L41"
@@ -88,7 +88,7 @@ gateway/
 
       <section id="core">
         <h2>The core diff</h2>
-        <cq-diff id="limits-diff">
+        <lf-diff id="limits-diff">
           <pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -105,23 +105,23 @@ diff --git a/gateway/limits.py b/gateway/limits.py
          key = self.bucket_key(request)
          return self.buckets[key].take()
 </pre>
-        </cq-diff>
+        </lf-diff>
       </section>
 
       <section id="walkthrough">
         <h2>Why the prefixes matter</h2>
-        <cq-code id="key-walk" language="python" hi="3-4">
+        <lf-code id="key-walk" language="python" hi="3-4">
           <pre>
 def bucket_key(self, request):
     if request.token:
         return f"tok:{request.token.id}"
     return f"ip:{request.remote_addr}"
 </pre>
-          <cq-note at="3"
+          <lf-note at="3"
             >Unprefixed, a token id that happens to look like an IP would share a bucket
-            with that address. The prefixes make the two namespaces disjoint.</cq-note
+            with that address. The prefixes make the two namespaces disjoint.</lf-note
           >
-        </cq-code>
+        </lf-code>
         <aside class="callout" id="migration-note">
           Existing buckets are keyed by bare address, so the migration renames them once
           at deploy; mixed keys never coexist.

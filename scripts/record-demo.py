@@ -27,7 +27,7 @@ from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
-COLLOQUY = ROOT / "plugins" / "colloquy" / "bin" / "colloquy"
+LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
 DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
 # The size docs/index.html states on the <img>, so a reshoot needs no edit there.
@@ -61,9 +61,9 @@ def demo_page(version: int) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Migration plan</title>
-<meta name="cq-review" content="sign-off">
+<meta name="lf-review" content="sign-off">
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -74,11 +74,11 @@ def demo_page(version: int) -> str:
 new version as the checks finish.</p>
 </header>
 
-<cq-metrics id="demo-metrics">
-  <cq-metric id="demo-progress" value="{progress}"{delta}>checks complete</cq-metric>
-  <cq-metric id="demo-errors" value="0.08%">error rate</cq-metric>
-  <cq-metric id="demo-p95" value="181 ms">p95 latency</cq-metric>
-</cq-metrics>
+<lf-metrics id="demo-metrics">
+  <lf-metric id="demo-progress" value="{progress}"{delta}>checks complete</lf-metric>
+  <lf-metric id="demo-errors" value="0.08%">error rate</lf-metric>
+  <lf-metric id="demo-p95" value="181 ms">p95 latency</lf-metric>
+</lf-metrics>
 
 <section id="phases">
 <h2>Phases</h2>
@@ -91,37 +91,37 @@ new version as the checks finish.</p>
 
 <section id="rehearsal">
 <h2>Rehearsal progress</h2>
-<cq-milestones id="demo-milestones">
-  <cq-milestone id="demo-ms-baseline" status="done" when="14:02">
+<lf-milestones id="demo-milestones">
+  <lf-milestone id="demo-ms-baseline" status="done" when="14:02">
     <strong>Capture the baseline</strong> Counts and guardrails recorded.
-  </cq-milestone>
-  <cq-milestone id="demo-ms-shadow" status="{shadow_status}" when="14:08">
+  </lf-milestone>
+  <lf-milestone id="demo-ms-shadow" status="{shadow_status}" when="14:08">
     <strong>Shadow and backfill</strong> {shadow_copy}
-  </cq-milestone>
-  <cq-milestone id="demo-ms-rollback" status="{rollback_status}" when="next">
+  </lf-milestone>
+  <lf-milestone id="demo-ms-rollback" status="{rollback_status}" when="next">
     <strong>Prove rollback</strong> {rollback_copy}
-  </cq-milestone>
-  <cq-milestone id="demo-ms-report" status="planned" when="last">
+  </lf-milestone>
+  <lf-milestone id="demo-ms-report" status="planned" when="last">
     <strong>Publish the rehearsal report</strong>
-  </cq-milestone>
-</cq-milestones>
+  </lf-milestone>
+</lf-milestones>
 </section>
 
 <section id="work">
 <h2>Cutover punch list</h2>
 <p id="work-note">Drag a card to change the plan; the move reaches the agent directly.</p>
-<cq-board id="punch-list">
-  <cq-column id="col-before" label="Before">
-    <cq-card id="card-dryrun"><strong>Dry-run the backfill</strong></cq-card>
-    <cq-card id="card-oncall"><strong>Staff the on-call rota</strong></cq-card>
-  </cq-column>
-  <cq-column id="col-during" label="During">
-    <cq-card id="card-flip"><strong>Flip reads</strong></cq-card>
-  </cq-column>
-  <cq-column id="col-after" label="After">
-    <cq-card id="card-retire"><strong>Retire the old store</strong></cq-card>
-  </cq-column>
-</cq-board>
+<lf-board id="punch-list">
+  <lf-column id="col-before" label="Before">
+    <lf-card id="card-dryrun"><strong>Dry-run the backfill</strong></lf-card>
+    <lf-card id="card-oncall"><strong>Staff the on-call rota</strong></lf-card>
+  </lf-column>
+  <lf-column id="col-during" label="During">
+    <lf-card id="card-flip"><strong>Flip reads</strong></lf-card>
+  </lf-column>
+  <lf-column id="col-after" label="After">
+    <lf-card id="card-retire"><strong>Retire the old store</strong></lf-card>
+  </lf-column>
+</lf-board>
 </section>
 </main>
 </body>
@@ -129,19 +129,19 @@ new version as the checks finish.</p>
 """
 
 
-def run_colloquy(*args: str) -> None:
-    """A colloquy command, or a failure carrying what it said.
+def run_leaf(*args: str) -> None:
+    """A leaf command, or a failure carrying what it said.
 
     Not `check=True`: the CalledProcessError it raises names the command and the
     exit status, and the streams it captured — the only thing that says what went
     wrong — die with it, because nothing prints them. Every step of staging the
     recording is one of these, so that is what the suite gets to report."""
     done = subprocess.run(
-        [str(COLLOQUY), *args], text=True, capture_output=True, check=False
+        [str(LEAF), *args], text=True, capture_output=True, check=False
     )
     if done.returncode:
         raise RuntimeError(
-            f"colloquy {' '.join(args)} exited {done.returncode}\n"
+            f"leaf {' '.join(args)} exited {done.returncode}\n"
             f"{done.stdout}{done.stderr}".rstrip()
         )
 
@@ -153,7 +153,7 @@ def stop_server(page_dir: Path) -> None:
     is cleaning up after, and on a leftover there is nothing to say about a
     server that had already gone."""
     subprocess.run(
-        [str(COLLOQUY), "server", "stop", str(page_dir)],
+        [str(LEAF), "server", "stop", str(page_dir)],
         check=False,
         text=True,
         stdout=subprocess.DEVNULL,
@@ -183,8 +183,7 @@ def wait_for_server(server: subprocess.Popen[str], page_dir: Path) -> str:
             if server.poll() is not None:
                 out, err = server.communicate()
                 raise RuntimeError(
-                    f"colloquy server run exited {server.returncode}\n"
-                    f"{out}{err}".rstrip()
+                    f"leaf server run exited {server.returncode}\n{out}{err}".rstrip()
                 ) from None
             time.sleep(0.05)
     raise RuntimeError(f"the demo server never answered for {page_dir}")
@@ -233,7 +232,7 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 def start_waiter(page_dir: Path) -> subprocess.Popen[str]:
     return subprocess.Popen(
-        [str(COLLOQUY), "wait", str(page_dir)],
+        [str(LEAF), "wait", str(page_dir)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -254,7 +253,7 @@ def receive(waiter: subprocess.Popen[str], page_dir: Path) -> list[dict]:
             f"the demo waiter exited {waiter.returncode} with no user events\n"
             f"{stderr}".rstrip()
         )
-    run_colloquy("ack", str(page_dir), str(events[-1]["seq"]))
+    run_leaf("ack", str(page_dir), str(events[-1]["seq"]))
     return events
 
 
@@ -272,40 +271,40 @@ def record(
         frames.append(image)
         durations.append(duration)
 
-    page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
-        "() => document.querySelector('.cq-status-text').textContent.includes('awaits')"
+        "() => document.querySelector('.lf-status-text').textContent.includes('awaits')"
     )
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    page.locator(".cq-fab").click()
-    page.locator(".cq-composer textarea").fill("Can the backfill stay online?")
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Can the backfill stay online?")
     page.wait_for_function(
-        """() => document.querySelector('.cq-composer').style.display === 'block'
-            && (CSS.highlights.get('cq-pending')?.size ?? 0) > 0
-            && document.getElementById('cq-composer-quote').classList.contains('cq-unseen')"""
+        """() => document.querySelector('.lf-composer').style.display === 'block'
+            && (CSS.highlights.get('lf-pending')?.size ?? 0) > 0
+            && document.getElementById('lf-composer-quote').classList.contains('lf-unseen')"""
     )
     shot(2300)
 
-    page.locator(".cq-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_selector(".cq-thread")
+    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.wait_for_selector(".lf-thread")
     shot(1500)
 
     comment_id = wait_for_comment(page_dir)
     receive(waiters[0], page_dir)
-    run_colloquy(
+    run_leaf(
         "status",
         str(page_dir),
         "working",
         "answering the backfill question",
     )
     page.wait_for_function(
-        "() => document.querySelector('.cq-status-text').textContent.includes('answering')"
+        "() => document.querySelector('.lf-status-text').textContent.includes('answering')"
     )
     shot(900)
 
-    run_colloquy(
+    run_leaf(
         "reply",
         str(page_dir),
         "--to",
@@ -314,7 +313,7 @@ def record(
         "Yes. The fixed rate limit keeps the backfill online.",
     )
     (page_dir / "versions" / "v2.html").write_text(demo_page(2), encoding="utf-8")
-    run_colloquy(
+    run_leaf(
         "version",
         "publish",
         str(page_dir),
@@ -323,12 +322,12 @@ def record(
         "--text",
         "Backfill stays online; rehearsal progress is now 3 of 4",
     )
-    run_colloquy("status", str(page_dir), "waiting")
+    run_leaf("status", str(page_dir), "waiting")
     waiters.append(start_waiter(page_dir))
     page.wait_for_url("**/v2.html", timeout=15_000)
     page.wait_for_function(
-        "() => document.body.dataset.cqUpgraded === '1'"
-        " && document.querySelectorAll('.cq-thread .cq-msg.claude').length > 0"
+        "() => document.body.dataset.lfUpgraded === '1'"
+        " && document.querySelectorAll('.lf-thread .lf-msg.claude').length > 0"
     )
     shot(2300)
 
@@ -338,7 +337,7 @@ def record(
 
     page.locator("#work").scroll_into_view_if_needed()
     shot(1000)
-    grip = page.locator("#card-oncall .cq-grip").bounding_box()
+    grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
     if not grip or not destination:
         raise RuntimeError("the demo board did not render")
@@ -352,7 +351,7 @@ def record(
     page.mouse.up()
     page.wait_for_selector("#col-during #card-oncall")
     page.wait_for_function(
-        "() => document.querySelector('.cq-toast').classList.contains('show')"
+        "() => document.querySelector('.lf-toast').classList.contains('show')"
     )
     shot(2400)
     receive(waiters[-1], page_dir)
@@ -392,7 +391,7 @@ def shoot_stills(
     started, so no user event remains to make this fresh waiter return immediately.
     State the scene, then start that waiter: its heartbeat is the proof the browser
     renders."""
-    run_colloquy("status", str(page_dir), "waiting")
+    run_leaf("status", str(page_dir), "waiting")
     waiters.append(start_waiter(page_dir))
     # The user's board move has to have landed in each shot, or it shows a page
     # mid-replay — the same wait `version export` takes for the same reason. Counted
@@ -411,16 +410,16 @@ def shoot_stills(
         )
         page = context.new_page()
         page.goto(url)
-        page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         page.wait_for_function(
-            f"() => Number(document.body.dataset.cqApplied ?? -1) >= {actions}"
+            f"() => Number(document.body.dataset.lfApplied ?? -1) >= {actions}"
         )
         page.wait_for_function(
-            "() => document.querySelector('.cq-status-text')"
+            "() => document.querySelector('.lf-status-text')"
             ".textContent.includes('awaits')"
         )
-        page.locator(".cq-banner .cq-comments").click()
-        page.wait_for_selector(".cq-thread .cq-msg.claude")
+        page.locator(".lf-banner .lf-comments").click()
+        page.wait_for_selector(".lf-thread .lf-msg.claude")
         page.locator("#top").scroll_into_view_if_needed()
         # The panel's margin transition, asked of the transition rather than waited out:
         # a finished one has left the list, and this context asks for reduced motion, so
@@ -492,12 +491,12 @@ def main() -> None:
     # `write_gif` has a directory to write into.
     page_dir.mkdir(parents=True)
     # The recording gets a state home of its own, staged beside the page for the same
-    # reason the page is. The banner's `All colloquys` control lists the live pages
+    # reason the page is. The banner's `All leaves` control lists the live pages
     # the state home knows about, so recording on a machine with pages open puts a
     # control in the picture that the staged scene never had — and one that takes its
     # width out of everything left of it, so the whole row lands somewhere else than
     # the alt text describes. Whose machine recorded it is not a fact about the
-    # product. Set before the first colloquy command, so every one of them and the
+    # product. Set before the first leaf command, so every one of them and the
     # server they start inherit it.
     state_dir = page_dir.parent / f"{page_dir.name}-state"
     if state_dir.exists():
@@ -509,9 +508,9 @@ def main() -> None:
     # different moments: the staging directory exists from here on, the processes
     # only once the server is up.
     try:
-        run_colloquy("page", "init", str(page_dir))
+        run_leaf("page", "init", str(page_dir))
         (page_dir / "versions" / "v1.html").write_text(demo_page(1), encoding="utf-8")
-        run_colloquy(
+        run_leaf(
             "version",
             "publish",
             str(page_dir),
@@ -520,13 +519,13 @@ def main() -> None:
             "--text",
             "Migration rehearsal started; 2 of 4 checks complete",
         )
-        run_colloquy("status", str(page_dir), "waiting")
+        run_leaf("status", str(page_dir), "waiting")
         # Piped rather than discarded, so `wait_for_server` has the server's own
         # account of a start that didn't take. Nothing drains these while it
         # serves, which is safe only because the handler logs nothing: the URL is
         # the one line it writes.
         server = subprocess.Popen(
-            [str(COLLOQUY), "server", "run", str(page_dir)],
+            [str(LEAF), "server", "run", str(page_dir)],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -3,54 +3,42 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>how colloquy works</title>
+    <title>how leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind colloquy: one uv script, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
+      content="The mechanism behind leaf: one uv script, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
     <link
       rel="icon"
-      href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
+      href="../plugins/leaf/skills/leaf/assets/icon.svg"
       type="image/svg+xml"
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="how colloquy works" />
+    <meta property="og:title" content="how leaf works" />
     <meta
       property="og:description"
       content="One uv script, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
-    <meta
-      property="og:url"
-      content="https://max-sixty.github.io/colloquy/how-it-works.html"
-    />
-    <meta
-      property="og:image"
-      content="https://max-sixty.github.io/colloquy/session-light.png"
-    />
+    <meta property="og:url" content="https://leaf.page/how-it-works.html" />
+    <meta property="og:image" content="https://leaf.page/session-light.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link
-      rel="stylesheet"
-      href="../plugins/colloquy/skills/colloquy/assets/theme.css"
-    />
-    <link
-      rel="stylesheet"
-      href="../plugins/colloquy/skills/colloquy/bundled/theme.css"
-    />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/assets/theme.css" />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/bundled/theme.css" />
     <link rel="stylesheet" href="site.css" />
   </head>
   <body>
     <main>
       <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="index.html">colloquy</a>
+        <a class="brand" href="index.html">leaf</a>
         <a href="examples.html">Examples</a>
         <a href="how-it-works.html" aria-current="page">How it works</a>
         <a href="customizing.html">Customize</a>
-        <a href="https://github.com/max-sixty/colloquy">GitHub</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
       <header id="top">
         <p class="eyebrow">how it works</p>
-        <h1>How colloquy works</h1>
+        <h1>How leaf works</h1>
         <p class="lede" id="lede">
           No daemon, no database, no build step: the server starts with the session and
           stops with it. One <code>uv</code> script serves the page and mediates an
@@ -70,9 +58,9 @@
           aria-labelledby="arch-title"
         >
           <title id="arch-title">
-            The agent writes version files and runs colloquy commands, both reaching the
-            browser through interact.py's loopback server; colloquy wait carries a
-            comment back into the agent's context.
+            The agent writes version files and runs leaf commands, both reaching the
+            browser through interact.py's loopback server; leaf wait carries a comment
+            back into the agent's context.
           </title>
           <defs>
             <marker
@@ -220,15 +208,15 @@
             font-size="12"
             fill="var(--accent)"
           >
-            colloquy wait carries a comment into the agent's context
+            leaf wait carries a comment into the agent's context
           </text>
         </svg>
 
         <p id="wait-trick">
           The two hosts carry that context through different loops. On Claude Code,
-          <code>colloquy wait</code> is a background task whose completion joins the
-          same queue as a terminal message: an idle session takes it as a new turn, and
-          a working one folds it in between tool calls. On Codex, the wait runs in a
+          <code>leaf wait</code> is a background task whose completion joins the same
+          queue as a terminal message: an idle session takes it as a new turn, and a
+          working one folds it in between tool calls. On Codex, the wait runs in a
           unified-exec session inside the turn that handed over the URL; the agent keeps
           that turn active and polls that exact session until it returns. A detached
           Codex command has no completion that can start a future turn, which is why the
@@ -247,12 +235,12 @@
           The server and the wait both go down with the session, and the page directory
           is the whole state. Which is what lets a page outlive every session that works
           on it: start <code>server run</code> from a shell of your own and it belongs
-          to no session, so nothing takes it down but <code>colloquy server stop</code>.
+          to no session, so nothing takes it down but <code>leaf server stop</code>.
           Sessions then come and go around a page that stays up, and between them the
           banner says so — no session holds this page, and it picks up again when one
-          does. The tab says it too: a colloquy's icon wears the color of that banner's
-          dot, so a row of them tells you which page is working, which is waiting on
-          you, and which has nobody behind it, without opening any.
+          does. The tab says it too: a leaf's icon wears the color of that banner's dot,
+          so a row of them tells you which page is working, which is waiting on you, and
+          which has nobody behind it, without opening any.
         </p>
       </section>
 
@@ -262,12 +250,12 @@
           The agent has two ways in, and only one of them is HTML. A version is a file:
           the agent writes the whole document into the page directory, an ordinary file
           write with nothing mediating it. Everything it has to <em>say</em> goes
-          through the <code>colloquy</code> command instead — a reply in a thread, a
-          comment it opens on a passage of its own, the changelog note that publishes a
-          version — and each of those appends one event to the log. The log takes a
-          command rather than a file write because it isn't the agent's alone: the
-          browser appends to it too, and one writer is what gives every event an id to
-          reply to and a place in the order.
+          through the <code>leaf</code> command instead — a reply in a thread, a comment
+          it opens on a passage of its own, the changelog note that publishes a version
+          — and each of those appends one event to the log. The log takes a command
+          rather than a file write because it isn't the agent's alone: the browser
+          appends to it too, and one writer is what gives every event an id to reply to
+          and a place in the order.
         </p>
         <p id="agent-render">
           So the agent's words reach the screen without the document changing. What the
@@ -275,9 +263,9 @@
           poll: the reply appears in a thread in the injected panel, the passage it
           answers is lit by the browser's highlight registry — which paints a range and
           touches no nodes — and the banner's line is whatever
-          <code>colloquy status</code> last wrote. Nothing in the document was rewritten
-          to put any of it there, and it is the same composition that shows the user
-          their own edits before a version carries them.
+          <code>leaf status</code> last wrote. Nothing in the document was rewritten to
+          put any of it there, and it is the same composition that shows the user their
+          own edits before a version carries them.
         </p>
         <p id="agent-versions">
           The HTML changes once per version, and even then nothing is edited in place: a
@@ -287,7 +275,7 @@
           lints it first, so a broken version is never exposed. The next poll moves the
           tab onto the new version, keeping the reader's place, and holds while the user
           is mid-comment or mid-drag. Coming back the other way,
-          <code>colloquy wait</code> starts after the last acknowledged user event, so a
+          <code>leaf wait</code> starts after the last acknowledged user event, so a
           comment posted between a wait and its acknowledgement remains beyond the
           cursor and still lands.
         </p>
@@ -315,9 +303,9 @@
             <code>.facts</code>, and <code>ol.steps</code>, which numbers this list.
           </li>
           <li id="src-widgets">
-            <strong><code>cq-*</code> widgets.</strong> Custom elements that say what
-            things are: <code>&lt;cq-options&gt;</code> for a question the reader
-            answers, <code>&lt;cq-board&gt;</code> for work in columns. Attributes carry
+            <strong><code>lf-*</code> widgets.</strong> Custom elements that say what
+            things are: <code>&lt;lf-options&gt;</code> for a question the reader
+            answers, <code>&lt;lf-board&gt;</code> for work in columns. Attributes carry
             scalars, children carry prose, a leading <code>&lt;strong&gt;</code> is an
             item's title, and a JSON-Schema registry keeps the renderer, the linter, and
             the agent's documentation agreeing about the vocabulary.
@@ -332,7 +320,7 @@
         <p id="boundaries">
           Each language has one owner. HTML is the author's whole medium: pages carry
           markup and never script, and interactivity is authored as markup too, so
-          writing <code>&lt;cq-board&gt;</code> is what adds dragging. CSS is the
+          writing <code>&lt;lf-board&gt;</code> is what adds dragging. CSS is the
           theme's: it renders every widget's look, and many widgets need nothing else.
           JS is the runtime's, opt-in per widget: a registry flag
           (<code>x-upgrade</code>) names the tags whose behavior module loads, and the
@@ -342,84 +330,84 @@
         <p id="review-meta">
           The head's meta channel carries what the page asks of its reader: one that
           seeks approval declares
-          <code>&lt;meta name="cq-review" content="sign-off"&gt;</code>, and only then
+          <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>, and only then
           does the banner offer "✓ Looks good". The declaration versions with the
-          document; without it the banner offers a neutral "End colloquy" for a
+          document; without it the banner offers a neutral "End leaf" for a
           comments-only page.
         </p>
         <p id="dogfood">
           This page is set in the plugin's own <code>theme.css</code>, and the widgets
           below are rendering in it right now, with no script involved. Each sits in a
-          <code>cq-specimen</code> — the gutter that marks quoted material — so an
+          <code>lf-specimen</code> — the gutter that marks quoted material — so an
           example decision never reads as one the page is asking you to make.
         </p>
 
         <figure>
-          <cq-specimen id="spec-options-frame" label="cq-options">
-            <cq-options id="spec-options">
-              <cq-option id="so-rewrite"
-                ><cq-chip>effort: high</cq-chip><cq-chip>risk: med</cq-chip
+          <lf-specimen id="spec-options-frame" label="lf-options">
+            <lf-options id="spec-options">
+              <lf-option id="so-rewrite"
+                ><lf-chip>effort: high</lf-chip><lf-chip>risk: med</lf-chip
                 ><strong>Rewrite the importer</strong> A clean slate on the new schema;
-                the old importer keeps running until parity.</cq-option
+                the old importer keeps running until parity.</lf-option
               >
-              <cq-option id="so-shim"
-                ><cq-chip>effort: low</cq-chip><cq-chip>risk: high</cq-chip
+              <lf-option id="so-shim"
+                ><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip
                 ><strong>Shim the old schema</strong> Fastest to ship; every future
-                field pays the translation tax.</cq-option
+                field pays the translation tax.</lf-option
               >
-              <cq-option id="so-stage" recommended
-                ><cq-chip>effort: med</cq-chip><cq-chip>risk: low</cq-chip
+              <lf-option id="so-stage" recommended
+                ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip
                 ><strong>Migrate in stages</strong> New fields land on the new schema
-                while reads fall back, table by table.</cq-option
+                while reads fall back, table by table.</lf-option
               >
-            </cq-options>
+            </lf-options>
             <p id="spec-jobs-ask">
               Whichever way that goes, which of the three jobs behind it are worth
               starting now?
             </p>
-            <cq-options id="spec-jobs">
-              <cq-option id="sj-backfill">Backfill last month's rows</cq-option>
-              <cq-option id="sj-contract"
-                >Contract tests against the old schema</cq-option
+            <lf-options id="spec-jobs">
+              <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
+              <lf-option id="sj-contract"
+                >Contract tests against the old schema</lf-option
               >
-              <cq-option id="sj-fallback">A read fallback behind a flag</cq-option>
-            </cq-options>
-          </cq-specimen>
+              <lf-option id="sj-fallback">A read fallback behind a flag</lf-option>
+            </lf-options>
+          </lf-specimen>
           <figcaption>
             The form follows the options, and nothing declares it: options that argue
             their own case render as cards, bare labels as rows — a question about the
             page, where each row can name the section that makes its case. In a live
-            colloquy either form takes your pick by click, the next version ships with
-            your choice marked, and a box under the group takes anything the options
-            don't cover.
+            leaf either form takes your pick by click, the next version ships with your
+            choice marked, and a box under the group takes anything the options don't
+            cover.
           </figcaption>
         </figure>
 
         <figure>
-          <cq-specimen id="spec-board-frame" label="cq-board">
-            <cq-board id="spec-board">
-              <cq-column id="sb-incoming" label="Incoming">
-                <cq-card id="sc-flaky"
+          <lf-specimen id="spec-board-frame" label="lf-board">
+            <lf-board id="spec-board">
+              <lf-column id="sb-incoming" label="Incoming">
+                <lf-card id="sc-flaky"
                   ><strong>Flaky auth test</strong> Fails one run in twenty on CI
-                  only.</cq-card
+                  only.</lf-card
                 >
-                <cq-card id="sc-contrast"
-                  ><strong>Dark-mode contrast pass</strong></cq-card
+                <lf-card id="sc-contrast"
+                  ><strong>Dark-mode contrast pass</strong></lf-card
                 >
-              </cq-column>
-              <cq-column id="sb-sprint" label="This week">
-                <cq-card id="sc-ratelimit"
-                  ><strong>Rate-limit the export</strong></cq-card
+              </lf-column>
+              <lf-column id="sb-sprint" label="This week">
+                <lf-card id="sc-ratelimit"
+                  ><strong>Rate-limit the export</strong></lf-card
                 >
-              </cq-column>
-              <cq-column id="sb-done" label="Done">
-                <cq-card id="sc-tokens"><strong>Tokenize the palette</strong></cq-card>
-              </cq-column>
-            </cq-board>
-          </cq-specimen>
+              </lf-column>
+              <lf-column id="sb-done" label="Done">
+                <lf-card id="sc-tokens"><strong>Tokenize the palette</strong></lf-card>
+              </lf-column>
+            </lf-board>
+          </lf-specimen>
           <figcaption>
-            In a live colloquy, cards drag between columns by a grip, and each drop
-            reaches the agent as a structured move.
+            In a live leaf, cards drag between columns by a grip, and each drop reaches
+            the agent as a structured move.
           </figcaption>
         </figure>
 
@@ -427,7 +415,7 @@
           The committed catalog runs wider: mermaid diagrams, unified diffs with
           per-file collapse, annotated code walkthroughs, file trees, timelines, metric
           rows, plans with milestones, and tabbed parallel workstreams. The
-          <a href="https://github.com/max-sixty/colloquy/tree/main/examples"
+          <a href="https://github.com/max-sixty/leaf/tree/main/examples"
             >examples gallery</a
           >
           holds complete pages showing the range.
@@ -455,9 +443,9 @@
         <p>
           <code>page init</code> vendors the whole layer (runtime, theme, registry,
           widget modules) into the page's directory, overlaying the shipped defaults
-          with <code>~/.config/colloquy/</code> and the project's
-          <code>.colloquy/</code>. Theme rules cascade over the defaults; registry
-          entries add or replace widgets; modules replace by filename. The
+          with <code>~/.config/leaf/</code> and the project's <code>.leaf/</code>. Theme
+          rules cascade over the defaults; registry entries add or replace widgets;
+          modules replace by filename. The
           <a href="customizing.html">customization guide</a> shows how to scaffold each
           shape. Because pages are self-contained, a version you approved can't change
           under you when the defaults do.
@@ -470,8 +458,8 @@
           Before a version is published, <code>version check</code> lints it
           deterministically, with no browser: the HTML parses with balanced tags, the
           scaffold is exactly the theme link and the runtime module, every
-          <code>cq-*</code> element validates against the page's registry along with the
-          head's <code>cq-*</code> metas, ids stay unique and every comment anchor from
+          <code>lf-*</code> element validates against the page's registry along with the
+          head's <code>lf-*</code> metas, ids stay unique and every comment anchor from
           the previous version survives, and nothing is wider than the readable column.
           The changelog note runs the lint and refuses a failing version, so an open
           browser never sees one. Before a page's URL first goes out,
@@ -486,7 +474,7 @@
         <p>
           A page is served on the address its session arrived on: over SSH, the one your
           client just reached the machine on; otherwise <code>127.0.0.1</code>. The URL
-          colloquy prints opens as-is either way, with no port to forward and nothing to
+          leaf prints opens as-is either way, with no port to forward and nothing to
           configure. It carries a key — the machine's, shared by every page it serves —
           and the browser keeps that key in a cookie from the first request, so the open
           port is still a page nobody without a link can read or comment on.
@@ -495,8 +483,8 @@
           When a jump host or NAT leaves that address unroutable from your browser, say
           so and the agent re-serves the page with
           <code>server run --host NAME</code> on a hostname you do reach (a tailnet name
-          works). The key still gates every request, and colloquy serves only networks
-          the machine is already on: there is no public tunnel.
+          works). The key still gates every request, and leaf serves only networks the
+          machine is already on: there is no public tunnel.
         </p>
       </section>
 
@@ -505,10 +493,8 @@
           <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
           <a href="how-it-works.html">How it works</a> ·
           <a href="customizing.html">Customize</a> ·
-          <a href="https://github.com/max-sixty/colloquy">GitHub</a> ·
-          <a href="https://github.com/max-sixty/colloquy/blob/main/LICENSE"
-            >MIT license</a
-          >
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
           This page is a static render of the theme and widgets it describes; the

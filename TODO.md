@@ -1,6 +1,6 @@
 # TODO
 
-- (2026-08-08) cq-compare's terse variants keep the auto-fit grid the options gave up,
+- (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an
   orphaned last row once a group holds more than the columns take. It stayed by
   argument — an exhibition is looked across, and shipped compares are pairs — not
@@ -48,32 +48,9 @@
   that box for its thread's life, so the index would be one more store to hold in step
   with the list. The server is where Slack keeps drafts and the one place
   these cannot go: here the server is the agent, and an unsent draft would be words the
-  user has not decided to say, sitting where the next `colloquy wait` can read them.
+  user has not decided to say, sitting where the next `leaf wait` can read them.
 
-- (2026-08-02) Probably rename to `leaf`, taking `leaf.page` with it. Not settled.
-  `/colloquy` comes late in Claude Code's completion menu, and the rule behind that is
-  three keys: the length of the displayed name ascending, then use count descending
-  between names of equal length, then registration order. A plugin skill displays as
-  `plugin:skill`, so this one ranks as `/colloquy:colloquy` at seventeen characters —
-  alone in its length bucket, which is why reaching for it has never moved it and
-  can't. Keystrokes come from being the only command on a two-letter prefix rather
-  than from being short: `/le` reaches leaf in three, and `/ap` would reach a
-  seven-letter `apostil` in the same three. `leaf` names the gesture as well as the
-  object, since to leaf through a document is to move over its pages looking for a
-  line.
-
-  What to weigh before committing: `leaf` is a term of art in this territory — a leaf
-  node ends a tree, and a versioned document is one — and its live trademarks run from
-  Nissan to a candy company. That it is taken on npm, PyPI and crates.io separates it
-  from nothing, since every candidate is. `gloss` is the alternative whose meaning is
-  what the product does and whose collisions all sit outside this field, at the cost
-  of `gloss over` meaning to skim. The rename is avoidable too: setting the skill's
-  `name:` to `cq` is one frontmatter line, keeps `/coll` working, and takes the
-  unclaimed `/cq` at three keystrokes — at the price of Codex's `$colloquy`, if that
-  host reads the same field, which is unchecked. `colloquy.dev` and `colloquy.page`
-  are both free either way.
-
-- (2026-08-07) A changed line in `cq-diff` says only that the line changed. jsdiff's
+- (2026-08-07) A changed line in `lf-diff` says only that the line changed. jsdiff's
   `diffWordsWithSpace` narrows it to the words that moved, and bundles to 6 KB on its
   own, vendored beside the tokenizer the way `highlight.esm.js` already is. Pairing is
   what has to be settled first: a word-level mark compares one deletion against one
@@ -90,7 +67,7 @@
   a module-level singleton with no injection point on the component, so taking it means
   Shiki's engine and a TextMate grammar per language: about 1.25 MB in every page
   directory, against the 75 KB `highlight.esm.js` spends on the same fifteen. Split
-  view is the only feature on the far side of that, and it would pull `cq-code` and the
+  view is the only feature on the far side of that, and it would pull `lf-code` and the
   plain `<pre><code>` path onto Shiki with it.
 
 - (2026-08-08) The tab wears one bubble in one colour, which is enough to pick a page
@@ -101,10 +78,10 @@
   has made, because no automated browser can see its own tab strip. And the mark is
   themed only in its status: `icon.svg` spells out paper, ink and the marked line as
   literals, since a favicon cannot link a stylesheet, so a project that overrides
-  `--paper` gets a tab still drawn in colloquy's.
+  `--paper` gets a tab still drawn in leaf's.
 
   The second is the one with a shape already. The runtime writes one declaration into
-  the mark on every paint — `.cq-tone { fill: … }`, from the dot's own colour — so the
+  the mark on every paint — `.lf-tone { fill: … }`, from the dot's own colour — so the
   fix is to write the theme's tokens in beside it and let a mark read them with `var()`.
   That turns the contract from "keep this class" into "these tokens reach you", which is
   the difference between a mark that must be built around one hardcoded property and one

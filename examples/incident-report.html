@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Incident: export queue backlog</title>
     <link rel="stylesheet" href="/theme.css" />
-    <script type="module" src="/colloquy.js"></script>
+    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main>
@@ -25,38 +25,38 @@
         <dd>exports only; imports and sync unaffected</dd>
       </dl>
 
-      <cq-metrics id="impact">
-        <cq-metric id="m-delayed" value="1,204" delta="+1,204" direction="up-bad"
-          >exports delayed</cq-metric
+      <lf-metrics id="impact">
+        <lf-metric id="m-delayed" value="1,204" delta="+1,204" direction="up-bad"
+          >exports delayed</lf-metric
         >
-        <cq-metric id="m-oldest" value="81 min">oldest delay</cq-metric>
-        <cq-metric id="m-lost" value="0">exports lost</cq-metric>
-      </cq-metrics>
+        <lf-metric id="m-oldest" value="81 min">oldest delay</lf-metric>
+        <lf-metric id="m-lost" value="0">exports lost</lf-metric>
+      </lf-metrics>
 
       <section id="timeline">
         <h2>Timeline</h2>
-        <cq-timeline id="incident-timeline">
-          <cq-event id="e-alert" at="09:14" kind="warning">
+        <lf-timeline id="incident-timeline">
+          <lf-event id="e-alert" at="09:14" kind="warning">
             <strong>Queue-depth alert fires</strong> Depth crosses 500; normal peak is
             60.
-          </cq-event>
-          <cq-event id="e-triage" at="09:26" kind="action">
+          </lf-event>
+          <lf-event id="e-triage" at="09:26" kind="action">
             <strong>On-call confirms a single hot job</strong> The same export id
             retrying at the head of the queue, every 45 seconds.
-          </cq-event>
-          <cq-event id="e-wrong" at="09:51" kind="failure">
+          </lf-event>
+          <lf-event id="e-wrong" at="09:51" kind="failure">
             <strong>First fix doesn't hold</strong> Raising worker count clears depth
             briefly; the retry storm refills it because the head job still fails first.
-          </cq-event>
-          <cq-event id="e-quarantine" at="10:32" kind="action">
+          </lf-event>
+          <lf-event id="e-quarantine" at="10:32" kind="action">
             <strong>Poison job quarantined</strong> The workspace's export is parked in
             a dead-letter table; the queue drains at normal rate.
-          </cq-event>
-          <cq-event id="e-resolved" at="10:48" kind="info">
+          </lf-event>
+          <lf-event id="e-resolved" at="10:48" kind="info">
             <strong>Backlog cleared</strong> Depth back under 60; delayed exports
             delivered.
-          </cq-event>
-        </cq-timeline>
+          </lf-event>
+        </lf-timeline>
       </section>
 
       <section id="cause">
@@ -67,7 +67,7 @@
           with retries capped by attempt count but not by queue position, the job
           returned to the head on each attempt and starved everything behind it.
         </p>
-        <cq-diagram id="failure-path">
+        <lf-diagram id="failure-path">
           <pre>
 graph LR
   Q[queue head] --> W[worker]
@@ -75,7 +75,7 @@ graph LR
   R --> Q
   Q -.->|starved| B[1,204 jobs behind]
 </pre>
-        </cq-diagram>
+        </lf-diagram>
         <aside class="callout" id="fix-note">
           The fix is one classification: serialization errors are permanent, not
           retryable. Retryable failures also now re-enqueue at the tail, so no single

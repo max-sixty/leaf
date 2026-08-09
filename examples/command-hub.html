@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Command hub: Atlas importer rewrite</title>
     <link rel="stylesheet" href="/theme.css" />
-    <script type="module" src="/colloquy.js"></script>
+    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main>
@@ -18,14 +18,14 @@
         section below the numbers.
       </p>
 
-      <cq-metrics id="hub-metrics">
-        <cq-metric id="hub-k-done" value="4 of 10" delta="+2" direction="up-good"
-          >tasks done</cq-metric
+      <lf-metrics id="hub-metrics">
+        <lf-metric id="hub-k-done" value="4 of 10" delta="+2" direction="up-good"
+          >tasks done</lf-metric
         >
-        <cq-metric id="hub-k-agents" value="3">agents live</cq-metric>
-        <cq-metric id="hub-k-you" value="2">decisions waiting</cq-metric>
-        <cq-metric id="hub-k-reverts" value="0">reverts this week</cq-metric>
-      </cq-metrics>
+        <lf-metric id="hub-k-agents" value="3">agents live</lf-metric>
+        <lf-metric id="hub-k-you" value="2">decisions waiting</lf-metric>
+        <lf-metric id="hub-k-reverts" value="0">reverts this week</lf-metric>
+      </lf-metrics>
 
       <section id="hub-attention">
         <h2>Needs you</h2>
@@ -43,13 +43,13 @@
           unblocks the variance report; holding it keeps main untouched but idles finch
           after today. Click an option to decide.
         </p>
-        <cq-options id="hub-gate-schema" choose>
-          <cq-option id="hub-gs-land">Land it now</cq-option>
-          <cq-option id="hub-gs-hold">Hold until the backfill is written</cq-option>
-          <cq-option id="hub-gs-look" for="t-schema"
-            >Walk me through it first</cq-option
+        <lf-options id="hub-gate-schema" choose>
+          <lf-option id="hub-gs-land">Land it now</lf-option>
+          <lf-option id="hub-gs-hold">Hold until the backfill is written</lf-option>
+          <lf-option id="hub-gs-look" for="t-schema"
+            >Walk me through it first</lf-option
           >
-        </cq-options>
+        </lf-options>
         <h3 id="hub-att-fixture">The reconciliation fixture is yours</h3>
         <p id="hub-att-fixture-why">
           <strong>Reconcile ledger exports</strong> is blocked on a fixture with a
@@ -64,28 +64,28 @@
           The plan as it stands, counted by its leaves. Amber means finished by its
           agent and waiting on your review; red is stuck, and says on what.
         </p>
-        <cq-tasks id="hub-plan">
-          <cq-task id="t-ground" status="done" when="weeks 1-2">
+        <lf-tasks id="hub-plan">
+          <lf-task id="t-ground" status="done" when="weeks 1-2">
             <strong>Groundwork</strong>
-            <cq-task id="t-ground-corpus" status="done" owner="wren">
+            <lf-task id="t-ground-corpus" status="done" owner="wren">
               <strong>Snapshot the import corpus</strong>
-            </cq-task>
-            <cq-task id="t-ground-harness" status="done" owner="junco">
+            </lf-task>
+            <lf-task id="t-ground-harness" status="done" owner="junco">
               <strong>Replay harness</strong> Old and new importer over the same corpus,
               diffed.
-            </cq-task>
-            <cq-task id="t-ground-schema" status="done" owner="finch">
+            </lf-task>
+            <lf-task id="t-ground-schema" status="done" owner="finch">
               <strong>Schema draft</strong>
-            </cq-task>
-          </cq-task>
-          <cq-task id="t-parser" status="active" owner="wren" when="week 3">
+            </lf-task>
+          </lf-task>
+          <lf-task id="t-parser" status="active" owner="wren" when="week 3">
             <strong>Replace the XML parser</strong> The streaming parser is in; the two
             format edge cases remain.
-            <cq-task id="t-parser-stream" status="done" owner="wren">
+            <lf-task id="t-parser-stream" status="done" owner="wren">
               <strong>Streaming core</strong> Constant-memory parse of the 4&nbsp;GB
               nightly export.
-            </cq-task>
-            <cq-task
+            </lf-task>
+            <lf-task
               id="t-parser-cdata"
               status="review"
               owner="wren"
@@ -93,29 +93,29 @@
             >
               <strong>CDATA edge cases</strong> Diff is small and green; awaiting your
               read.
-            </cq-task>
-            <cq-task id="t-parser-decl" status="planned">
+            </lf-task>
+            <lf-task id="t-parser-decl" status="planned">
               <strong>Encoding declarations</strong> Starts once CDATA lands.
-            </cq-task>
-          </cq-task>
-          <cq-task id="t-schema" status="review" owner="finch" tags="atlas-schema">
+            </lf-task>
+          </lf-task>
+          <lf-task id="t-schema" status="review" owner="finch" tags="atlas-schema">
             <strong>Schema migration</strong> Written and tested; gated above because it
             touches the overlap zone.
-          </cq-task>
-          <cq-task id="t-ledger" status="active" owner="junco" when="week 3-4">
+          </lf-task>
+          <lf-task id="t-ledger" status="active" owner="junco" when="week 3-4">
             <strong>Ledger reconciliation</strong>
-            <cq-task id="t-ledger-export" status="blocked" owner="junco">
+            <lf-task id="t-ledger-export" status="blocked" owner="junco">
               <strong>Reconcile ledger exports</strong> Needs the fixture named above.
-            </cq-task>
-            <cq-task id="t-ledger-report" status="planned">
+            </lf-task>
+            <lf-task id="t-ledger-report" status="planned">
               <strong>Nightly variance report</strong> Needs the schema migration
               landed.
-            </cq-task>
-          </cq-task>
-          <cq-task id="t-cutover" status="planned" when="week 5">
+            </lf-task>
+          </lf-task>
+          <lf-task id="t-cutover" status="planned" when="week 5">
             <strong>Cut over the nightly job</strong> Shadow first, then swap.
-          </cq-task>
-        </cq-tasks>
+          </lf-task>
+        </lf-tasks>
       </section>
 
       <section id="hub-agents">
@@ -158,19 +158,19 @@
 
       <section id="hub-feed">
         <h2>Feed</h2>
-        <cq-timeline id="hub-timeline">
-          <cq-event id="hub-e-cdata" at="thu 14:12" kind="info">
+        <lf-timeline id="hub-timeline">
+          <lf-event id="hub-e-cdata" at="thu 14:12" kind="info">
             <strong>CDATA branch went green</strong> wren moved the task to review.
-          </cq-event>
-          <cq-event id="hub-e-schema" at="thu 13:40" kind="warning">
+          </lf-event>
+          <lf-event id="hub-e-schema" at="thu 13:40" kind="warning">
             <strong>Schema migration held at the gate</strong> Overlap-zone file;
             waiting on you above.
-          </cq-event>
-          <cq-event id="hub-e-stream" at="thu 11:03" kind="action">
+          </lf-event>
+          <lf-event id="hub-e-stream" at="thu 11:03" kind="action">
             <strong>Streaming core merged</strong> Serialized onto main after the
             merge-slot test run.
-          </cq-event>
-        </cq-timeline>
+          </lf-event>
+        </lf-timeline>
       </section>
 
       <section id="hub-policy">
@@ -183,10 +183,10 @@
           yours, recorded below — click to tighten or revoke it any time — and any
           landed change is a revert away for as long as you care to look.
         </p>
-        <cq-options id="hub-policy-grant" choose>
-          <cq-option id="hub-pg-tiers" chosen> Two-tier gates as stated </cq-option>
-          <cq-option id="hub-pg-all">Everything waits for my word</cq-option>
-        </cq-options>
+        <lf-options id="hub-policy-grant" choose>
+          <lf-option id="hub-pg-tiers" chosen> Two-tier gates as stated </lf-option>
+          <lf-option id="hub-pg-all">Everything waits for my word</lf-option>
+        </lf-options>
       </section>
     </main>
   </body>

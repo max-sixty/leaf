@@ -16,12 +16,12 @@ ROOT="$(cd "$HERE/.." && pwd)"
 
 if [ $# -eq 0 ]; then set -- tests; fi
 
-docker build --platform linux/amd64 -t colloquy-linux-suite \
+docker build --platform linux/amd64 -t leaf-linux-suite \
   -f "$HERE/linux-suite.Dockerfile" "$HERE"
 
 # --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite. The
 # named volume is uv's cache, which the first run fills and the rest read, so a container
 # thrown away after every run still resolves against a warm one.
 exec docker run --rm --platform linux/amd64 --shm-size=2g \
-  -v "$ROOT:/repo" -v colloquy-linux-suite-uv:/root/.cache/uv \
-  colloquy-linux-suite uv run --frozen pytest "$@"
+  -v "$ROOT:/repo" -v leaf-linux-suite-uv:/root/.cache/uv \
+  leaf-linux-suite uv run --frozen pytest "$@"

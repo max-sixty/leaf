@@ -1,6 +1,6 @@
 # The developer's environment, not the plugin's.
 #
-# What colloquy itself needs is declared in `interact.py`'s PEP 723 header and
+# What leaf itself needs is declared in `interact.py`'s PEP 723 header and
 # resolved by `uv` at each invocation — that is what lets the plugin install with
 # no build step and no venv, and this file does not change it. What is here is
 # what the *suite* needs: that same set, because the tests load `interact.py` by
@@ -20,7 +20,7 @@
 # key its cache on.
 
 [project]
-name = "colloquy"
+name = "leaf"
 version = "0"
 requires-python = ">=3.10"
 

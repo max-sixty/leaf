@@ -1,14 +1,14 @@
 {
-  "name": "colloquy",
+  "name": "leaf",
   "interface": {
-    "displayName": "Colloquy"
+    "displayName": "Leaf"
   },
   "plugins": [
     {
-      "name": "colloquy",
+      "name": "leaf",
       "source": {
         "source": "local",
-        "path": "./plugins/colloquy"
+        "path": "./plugins/leaf"
       },
       "policy": {
         "installation": "AVAILABLE",

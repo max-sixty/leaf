@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-ASSETS = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets"
-BUNDLED = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "bundled"
+ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
+BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
 DOCS = ROOT / "docs"
 
 
@@ -15,8 +15,8 @@ def test_docs_pages_link_the_shipped_theme():
     # Both shipped layers, in cascade order — a docs page renders the whole
     # vocabulary script-free, and the bundled widgets' rules are the second file.
     targets = (
-        "../plugins/colloquy/skills/colloquy/assets/theme.css",
-        "../plugins/colloquy/skills/colloquy/bundled/theme.css",
+        "../plugins/leaf/skills/leaf/assets/theme.css",
+        "../plugins/leaf/skills/leaf/bundled/theme.css",
     )
     for layer, target in zip((ASSETS, BUNDLED), targets):
         assert (layer / "theme.css").is_file()
@@ -38,7 +38,7 @@ def test_docs_pages_use_only_registered_widgets():
     used = {
         tag
         for page in DOCS.glob("*.html")
-        for tag in re.findall(r"<(cq-[a-z-]+)", page.read_text())
+        for tag in re.findall(r"<(lf-[a-z-]+)", page.read_text())
     }
     assert used and used <= set(registry)
 
@@ -53,18 +53,18 @@ def test_customizing_guide_sits_beside_how_it_works():
 def test_customizing_guide_uses_the_current_layer_and_cli_names():
     customizing = (DOCS / "customizing.html").read_text()
 
-    assert ".claude/colloquy" not in customizing
-    assert "<code>.colloquy/</code>" in customizing
+    assert ".claude/leaf" not in customizing
+    assert "<code>.leaf/</code>" in customizing
     for stale in (
-        "colloquy init ",
-        "colloquy catalog ",
-        "colloquy check ",
+        "leaf init ",
+        "leaf catalog ",
+        "leaf check ",
     ):
         assert stale not in customizing
     for current in (
-        "colloquy page init ",
-        "colloquy page catalog ",
-        "colloquy version check ",
+        "leaf page init ",
+        "leaf page catalog ",
+        "leaf version check ",
         'actionSequence(this, "verb")',
         'watchActions(this, "verb", render)',
     ):

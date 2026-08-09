@@ -27,10 +27,10 @@ import pytest
 from click.testing import CliRunner
 
 ROOT = Path(__file__).parent.parent
-PLUGIN_ROOT = ROOT / "plugins" / "colloquy"
+PLUGIN_ROOT = ROOT / "plugins" / "leaf"
 
 _spec = importlib.util.spec_from_file_location(
-    "interact", PLUGIN_ROOT / "skills" / "colloquy" / "scripts" / "interact.py"
+    "interact", PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "interact.py"
 )
 interact = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(interact)
@@ -48,21 +48,21 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <cq-options>
-    <cq-option id="flag-first"><cq-chip>effort: low</cq-chip><cq-chip>risk: med</cq-chip>
+  <lf-options>
+    <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
       <strong>Flag first</strong> Ship dark.
-    </cq-option>
-    <cq-option id="backfill-first" recommended><cq-chip>effort: med</cq-chip><cq-chip>risk: low</cq-chip>
+    </lf-option>
+    <lf-option id="backfill-first" recommended><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
       <strong>Backfill first</strong> Verify, then flip.
-    </cq-option>
-  </cq-options>
-  <cq-diagram id="flow"><pre>
+    </lf-option>
+  </lf-options>
+  <lf-diagram id="flow"><pre>
 graph LR
   A --> B
-  </pre></cq-diagram>
+  </pre></lf-diagram>
 </section>
 </main>
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """
@@ -73,7 +73,7 @@ graph LR
     [
         pytest.param(
             ["--help"],
-            """Usage: colloquy [OPTIONS] COMMAND [ARGS]...
+            """Usage: leaf [OPTIONS] COMMAND [ARGS]...
 
   Build and run interactive pages a session shares with its user.
 
@@ -98,7 +98,7 @@ Commands:
         ),
         pytest.param(
             ["customize", "--help"],
-            """Usage: colloquy customize [OPTIONS] COMMAND [ARGS]...
+            """Usage: leaf customize [OPTIONS] COMMAND [ARGS]...
 
   Create theme and widget customizations.
 
@@ -113,7 +113,7 @@ Commands:
         ),
         pytest.param(
             ["page", "--help"],
-            """Usage: colloquy page [OPTIONS] COMMAND [ARGS]...
+            """Usage: leaf page [OPTIONS] COMMAND [ARGS]...
 
   Create pages and add media.
 
@@ -129,7 +129,7 @@ Commands:
         ),
         pytest.param(
             ["version", "--help"],
-            """Usage: colloquy version [OPTIONS] COMMAND [ARGS]...
+            """Usage: leaf version [OPTIONS] COMMAND [ARGS]...
 
   Check, publish, and export versions.
 
@@ -145,7 +145,7 @@ Commands:
         ),
         pytest.param(
             ["server", "--help"],
-            """Usage: colloquy server [OPTIONS] COMMAND [ARGS]...
+            """Usage: leaf server [OPTIONS] COMMAND [ARGS]...
 
   Run or stop the local server.
 
@@ -164,7 +164,7 @@ def test_cli_help_groups_commands_with_complete_summaries(args, expected):
     result = CliRunner().invoke(
         interact.cli,
         args,
-        prog_name="colloquy",
+        prog_name="leaf",
         terminal_width=80,
     )
 
@@ -190,7 +190,7 @@ def test_ack_batch_instruction_preserves_scalar_cursor_safety():
     assert interact.ACK_BATCH_INSTRUCTION == (
         "If wait output is truncated, acknowledge nothing and rerun with enough output "
         "capacity for the whole batch. After a complete batch enters context, run "
-        "`colloquy ack <page> <highest-seq>`."
+        "`leaf ack <page> <highest-seq>`."
     )
 
 
@@ -205,7 +205,7 @@ def test_init_help_names_the_version_file_layout():
     result = CliRunner().invoke(
         interact.cli,
         ["page", "init", "--help"],
-        prog_name="colloquy",
+        prog_name="leaf",
         terminal_width=80,
     )
 
@@ -231,7 +231,7 @@ def test_shim_adds_playwright_only_for_browser_commands(
     )
     fake_uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
-    shim = PLUGIN_ROOT / "bin" / "colloquy"
+    shim = PLUGIN_ROOT / "bin" / "leaf"
 
     result = subprocess.run(
         [shim, *args],
@@ -303,34 +303,34 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text()
     )
 
-    assert claude_marketplace["plugins"][0]["source"] == "./plugins/colloquy"
+    assert claude_marketplace["plugins"][0]["source"] == "./plugins/leaf"
     assert codex_marketplace["plugins"][0]["source"] == {
         "source": "local",
-        "path": "./plugins/colloquy",
+        "path": "./plugins/leaf",
     }
     assert codex_marketplace["plugins"][0]["policy"] == {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL",
     }
-    assert claude_manifest["name"] == codex_manifest["name"] == "colloquy"
+    assert claude_manifest["name"] == codex_manifest["name"] == "leaf"
     assert "version" not in claude_manifest
     assert "version" not in codex_manifest
     for relative in [
-        "bin/colloquy",
+        "bin/leaf",
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
-        "skills/colloquy/SKILL.md",
-        "skills/colloquy/scripts/interact.py",
+        "skills/leaf/SKILL.md",
+        "skills/leaf/scripts/interact.py",
         # The lock only pins what it ships beside; an install that loses it
         # resolves fresh and looks identical from the outside.
-        "skills/colloquy/scripts/interact.py.lock",
+        "skills/leaf/scripts/interact.py.lock",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
     assert not [path for path in PLUGIN_ROOT.rglob("*") if path.is_symlink()]
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
-    installed = tmp_path / "host" / "plugins" / "colloquy"
+    installed = tmp_path / "host" / "plugins" / "leaf"
     shutil.copytree(PLUGIN_ROOT, installed)
 
     conflicts = []
@@ -348,7 +348,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
 
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
-    launcher = installed / "bin" / "colloquy"
+    launcher = installed / "bin" / "leaf"
     page = tmp_path / "state" / "page"
 
     help_result = subprocess.run(
@@ -401,16 +401,16 @@ def case_alias(path):
 
 
 def test_init_vendors_the_layer(page_dir):
-    for name in ["colloquy.js", "theme.css", "registry.json"]:
+    for name in ["leaf.js", "theme.css", "registry.json"]:
         assert (page_dir / name).is_file()
-    assert (page_dir / "widgets" / "cq-tabs.js").is_file()
-    assert (page_dir / "widgets" / "cq-diagram.js").is_file()
+    assert (page_dir / "widgets" / "lf-tabs.js").is_file()
+    assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
     """What `isolated_session` promises, asserted where a break would show. The
-    two homes are the only thing colloquy reads from the developer's own, and a
+    two homes are the only thing leaf reads from the developer's own, and a
     suite that reached theirs fails silently in both directions: it would vendor
     their overlay into fixtures that never say what a theme should contain, and
     register a dozen throwaway pages a run in the state home the loop guard reads,
@@ -423,12 +423,10 @@ def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
 
 def test_init_user_layer_applies(tmp_path, monkeypatch):
     home = tmp_path / "home"
-    (home / ".config" / "colloquy" / "widgets").mkdir(parents=True)
+    (home / ".config" / "leaf" / "widgets").mkdir(parents=True)
     custom_theme = ":root { --accent: teal }\n"
-    (home / ".config" / "colloquy" / "theme.css").write_text(custom_theme)
-    (home / ".config" / "colloquy" / "widgets" / "cq-foo.js").write_text(
-        "// user widget"
-    )
+    (home / ".config" / "leaf" / "theme.css").write_text(custom_theme)
+    (home / ".config" / "leaf" / "widgets" / "lf-foo.js").write_text("// user widget")
     # The ~/.config fallback, which is the path a machine with no XDG_CONFIG_HOME
     # set takes — so the variable the fixtures isolate with has to come back off.
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
@@ -440,15 +438,15 @@ def test_init_user_layer_applies(tmp_path, monkeypatch):
     vendored_theme = (d / "theme.css").read_text()
     assert vendored_theme.startswith((interact.ASSETS / "theme.css").read_text())
     assert vendored_theme.endswith(custom_theme)
-    assert (d / "widgets" / "cq-foo.js").read_text() == "// user widget"
-    assert (d / "widgets" / "cq-tabs.js").is_file()  # shipped modules still vendored
+    assert (d / "widgets" / "lf-foo.js").read_text() == "// user widget"
+    assert (d / "widgets" / "lf-tabs.js").is_file()  # shipped modules still vendored
 
 
 def test_init_project_layer_wins(tmp_path, monkeypatch):
     project = tmp_path / "proj"
-    (project / ".colloquy").mkdir(parents=True)
+    (project / ".leaf").mkdir(parents=True)
     custom_theme = ":root { --accent: red }\n"
-    (project / ".colloquy" / "theme.css").write_text(custom_theme)
+    (project / ".leaf" / "theme.css").write_text(custom_theme)
     monkeypatch.chdir(project)
     d = tmp_path / "page"
     result = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
@@ -469,8 +467,8 @@ def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypat
     quietly not applying. The gate names the file while the author is still in
     front of it."""
     project = tmp_path / "proj"
-    (project / ".colloquy").mkdir(parents=True)
-    (project / ".colloquy" / "theme.css").write_text(
+    (project / ".leaf").mkdir(parents=True)
+    (project / ".leaf" / "theme.css").write_text(
         "@media screen and (min-width: 900px) {\n  :root { --accent: red }\n"
     )
     monkeypatch.chdir(project)
@@ -487,9 +485,9 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     project entry replaces the user's whole schema rather than inheriting stale
     fields from it.
     """
-    user = tmp_path / "config" / "colloquy"
+    user = tmp_path / "config" / "leaf"
     project = tmp_path / "project"
-    project_layer = project / ".colloquy"
+    project_layer = project / ".leaf"
     user.mkdir(parents=True)
     project_layer.mkdir(parents=True)
     user_entry = {
@@ -515,9 +513,9 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "x-content": "none",
         "x-upgrade": False,
     }
-    (user / "registry.json").write_text(json.dumps({"cq-local": user_entry}))
+    (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
     (project_layer / "registry.json").write_text(
-        json.dumps({"cq-local": project_entry, "cq-project-only": project_only})
+        json.dumps({"lf-local": project_entry, "lf-project-only": project_only})
     )
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
@@ -527,9 +525,9 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     registry = json.loads((page / "registry.json").read_text())
-    assert registry["cq-local"] == project_entry
-    assert registry["cq-project-only"] == project_only
-    assert "cq-options" in registry and "$events" in registry
+    assert registry["lf-local"] == project_entry
+    assert registry["lf-project-only"] == project_only
+    assert "lf-options" in registry and "$events" in registry
 
 
 def test_customize_scaffolds_a_project_widget_that_init_can_vendor(
@@ -542,33 +540,33 @@ def test_customize_scaffolds_a_project_widget_that_init_can_vendor(
     assert theme.exit_code == 0, theme.output
 
     widget = runner.invoke(
-        interact.cli, ["customize", "widget", "cq-callout", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
     )
     assert widget.exit_code == 0, widget.output
 
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     registry = json.loads((layer / "registry.json").read_text())
-    entry = registry["cq-callout"]
+    entry = registry["lf-callout"]
     assert entry["x-content"] == "prose"
     assert entry["x-upgrade"] is True
     assert entry["x-verbatim"] is True
-    assert "<cq-callout" in entry["x-example"]
-    assert "cq-callout {" in (layer / "theme.css").read_text()
-    assert "customElements.define(" in (layer / "widgets" / "cq-callout.js").read_text()
+    assert "<lf-callout" in entry["x-example"]
+    assert "lf-callout {" in (layer / "theme.css").read_text()
+    assert "customElements.define(" in (layer / "widgets" / "lf-callout.js").read_text()
 
     page = tmp_path / "page"
     initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    assert "cq-callout {" in (page / "theme.css").read_text()
-    assert json.loads((page / "registry.json").read_text())["cq-callout"] == entry
-    assert (page / "widgets" / "cq-callout.js").is_file()
+    assert "lf-callout {" in (page / "theme.css").read_text()
+    assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
+    assert (page / "widgets" / "lf-callout.js").is_file()
 
     (page / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><cq-callout id="custom-note">'
+            '<h2>Plan</h2><lf-callout id="custom-note">'
             "<strong>Heads up</strong> Custom project guidance."
-            "</cq-callout>",
+            "</lf-callout>",
         )
     )
     result = check(page)
@@ -577,7 +575,7 @@ def test_customize_scaffolds_a_project_widget_that_init_can_vendor(
 
 def test_customize_scaffolds_a_long_widget_name(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    tag = "cq-" + "a" * 237
+    tag = "lf-" + "a" * 237
     module_name = f"{tag}.js"
     try:
         name_max = os.pathconf(tmp_path, "PC_NAME_MAX")
@@ -589,7 +587,7 @@ def test_customize_scaffolds_a_long_widget_name(tmp_path, monkeypatch):
     result = CliRunner().invoke(interact.cli, ["customize", "widget", tag, "--upgrade"])
 
     assert result.exit_code == 0, result.output
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     assert (layer / "widgets" / module_name).is_file()
     assert tag in json.loads((layer / "registry.json").read_text())
 
@@ -597,7 +595,7 @@ def test_customize_scaffolds_a_long_widget_name(tmp_path, monkeypatch):
 def test_customize_never_overwrites_an_existing_layer(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     theme = layer / "theme.css"
     theme.write_text(":root { --accent: rebeccapurple; }\n")
@@ -607,19 +605,19 @@ def test_customize_never_overwrites_an_existing_layer(tmp_path, monkeypatch):
     assert theme.read_text() == ":root { --accent: rebeccapurple; }\n"
 
     assert (
-        runner.invoke(interact.cli, ["customize", "widget", "cq-note-card"]).exit_code
+        runner.invoke(interact.cli, ["customize", "widget", "lf-note-card"]).exit_code
         == 0
     )
     registry_before = (layer / "registry.json").read_text()
     theme_before = theme.read_text()
 
-    duplicate = runner.invoke(interact.cli, ["customize", "widget", "cq-note-card"])
+    duplicate = runner.invoke(interact.cli, ["customize", "widget", "lf-note-card"])
     assert duplicate.exit_code != 0
     assert "already exists" in duplicate.output
     assert (layer / "registry.json").read_text() == registry_before
     assert theme.read_text() == theme_before
 
-    shipped = runner.invoke(interact.cli, ["customize", "widget", "cq-options"])
+    shipped = runner.invoke(interact.cli, ["customize", "widget", "lf-options"])
     assert shipped.exit_code != 0
     assert "already exists" in shipped.output
     assert (layer / "registry.json").read_text() == registry_before
@@ -632,30 +630,30 @@ def test_customize_can_target_the_user_layer(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "cq-personal-note", "--user"]
+        interact.cli, ["customize", "widget", "lf-personal-note", "--user"]
     )
 
     assert result.exit_code == 0, result.output
-    layer = config / "colloquy"
-    assert "cq-personal-note" in json.loads((layer / "registry.json").read_text())
+    layer = config / "leaf"
+    assert "lf-personal-note" in json.loads((layer / "registry.json").read_text())
     assert (layer / "theme.css").is_file()
-    assert not (tmp_path / ".colloquy").exists()
+    assert not (tmp_path / ".leaf").exists()
 
 
 def test_customize_preserves_a_symlinked_registry(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     shared_registry = tmp_path / "shared-registry.json"
     shared_registry.write_text("{}\n")
     registry = layer / "registry.json"
     registry.symlink_to(shared_registry)
 
-    result = CliRunner().invoke(interact.cli, ["customize", "widget", "cq-shared-note"])
+    result = CliRunner().invoke(interact.cli, ["customize", "widget", "lf-shared-note"])
 
     assert result.exit_code == 0, result.output
     assert registry.is_symlink()
-    assert "cq-shared-note" in json.loads(shared_registry.read_text())
+    assert "lf-shared-note" in json.loads(shared_registry.read_text())
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX umask and mode semantics")
@@ -670,7 +668,7 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
     finally:
         os.umask(old_umask)
     assert customized.exit_code == 0, customized.output
-    custom_theme = tmp_path / ".colloquy" / "theme.css"
+    custom_theme = tmp_path / ".leaf" / "theme.css"
     assert custom_theme.stat().st_mode & 0o777 == 0o600
 
     page = tmp_path / "page"
@@ -700,14 +698,14 @@ def test_customize_refuses_targets_aliased_to_another_layer(
     project = tmp_path / "project"
     project.mkdir()
     config = tmp_path / "config"
-    user = config / "colloquy"
+    user = config / "leaf"
     user.mkdir(parents=True)
     (user / "theme.css").write_text(":root { --accent: teal; }\n")
     (user / "registry.json").write_text("{}\n")
     (user / "widgets").mkdir()
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
-    layer = project / ".colloquy"
+    layer = project / ".leaf"
     if alias == "root":
         layer.symlink_to(user, target_is_directory=True)
     else:
@@ -719,7 +717,7 @@ def test_customize_refuses_targets_aliased_to_another_layer(
         if path.is_file()
     }
 
-    args = ["customize", "widget", "cq-no-scope-alias"]
+    args = ["customize", "widget", "lf-no-scope-alias"]
     if alias in {"root", "widgets"}:
         args.append("--upgrade")
     result = CliRunner().invoke(interact.cli, args)
@@ -738,9 +736,9 @@ def test_customize_refuses_targets_aliased_to_another_layer(
     "args",
     [
         ["customize", "theme"],
-        ["customize", "widget", "cq-future-alias"],
+        ["customize", "widget", "lf-future-alias"],
         ["customize", "theme", "--user"],
-        ["customize", "widget", "cq-future-alias", "--user"],
+        ["customize", "widget", "lf-future-alias", "--user"],
     ],
     ids=["project-theme", "project-widget", "user-theme", "user-widget"],
 )
@@ -749,7 +747,7 @@ def test_customize_protects_another_layers_future_root(tmp_path, monkeypatch, ar
     project.mkdir()
     config = tmp_path / "config"
     config.mkdir()
-    (project / ".colloquy").symlink_to(config / "colloquy", target_is_directory=True)
+    (project / ".leaf").symlink_to(config / "leaf", target_is_directory=True)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
@@ -760,7 +758,7 @@ def test_customize_protects_another_layers_future_root(tmp_path, monkeypatch, ar
         assert "overlaps another layer source" in result.output
     else:
         assert "must be a directory" in result.output
-    assert not (config / "colloquy").exists()
+    assert not (config / "leaf").exists()
 
 
 def test_path_case_policy_matches_the_filesystem(tmp_path):
@@ -785,14 +783,14 @@ def test_customize_refuses_case_aliased_future_roots(tmp_path, monkeypatch):
     project = tmp_path / "Project"
     project.mkdir()
     alias = case_alias(project)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".COLLOQUY"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".LEAF"))
     monkeypatch.chdir(project)
 
     result = CliRunner().invoke(interact.cli, ["customize", "theme"])
 
     assert result.exit_code != 0
     assert "overlaps another layer source" in result.output
-    assert not (project / ".colloquy").exists()
+    assert not (project / ".leaf").exists()
 
 
 def test_customize_refuses_a_broken_case_alias_to_its_future_target(
@@ -802,9 +800,9 @@ def test_customize_refuses_a_broken_case_alias_to_its_future_target(
     project.mkdir()
     alias = case_alias(project)
     config = tmp_path / "Config"
-    user_theme = config / "colloquy" / "theme.css"
+    user_theme = config / "leaf" / "theme.css"
     user_theme.parent.mkdir(parents=True)
-    user_theme.symlink_to(alias / ".COLLOQUY" / "THEME.CSS")
+    user_theme.symlink_to(alias / ".LEAF" / "THEME.CSS")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
@@ -813,25 +811,25 @@ def test_customize_refuses_a_broken_case_alias_to_its_future_target(
     assert result.exit_code != 0
     assert "overlaps another layer source" in result.output
     assert user_theme.is_symlink() and not user_theme.exists()
-    assert not (project / ".colloquy" / "theme.css").exists()
+    assert not (project / ".leaf" / "theme.css").exists()
 
 
 def test_customize_refuses_an_existing_member_case_alias(tmp_path, monkeypatch):
     project = tmp_path / "Project"
     project.mkdir()
     config = tmp_path / "Config"
-    user_theme = config / "colloquy" / "theme.css"
+    user_theme = config / "leaf" / "theme.css"
     user_theme.parent.mkdir(parents=True)
     user_theme.write_text(":root { --accent: teal; }\n")
     config_alias = case_alias(config)
-    project_theme = project / ".colloquy" / "theme.css"
+    project_theme = project / ".leaf" / "theme.css"
     project_theme.parent.mkdir(parents=True)
-    project_theme.symlink_to(config_alias / "COLLOQUY" / "THEME.CSS")
+    project_theme.symlink_to(config_alias / "LEAF" / "THEME.CSS")
     before = user_theme.read_bytes()
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["customize", "widget", "cq-case-member"])
+    result = CliRunner().invoke(interact.cli, ["customize", "widget", "lf-case-member"])
 
     assert result.exit_code != 0
     assert "overlaps another layer source" in result.output
@@ -856,10 +854,10 @@ def test_customize_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch,
         if path.is_file()
     }
 
-    layer = config / "colloquy" if user else project / ".colloquy"
+    layer = config / "leaf" if user else project / ".leaf"
     layer.parent.mkdir(parents=True, exist_ok=True)
     layer.symlink_to(page, target_is_directory=True)
-    args = ["customize", "widget", "cq-page-alias", "--upgrade"]
+    args = ["customize", "widget", "lf-page-alias", "--upgrade"]
     if user:
         args.append("--user")
 
@@ -877,7 +875,7 @@ def test_customize_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch,
 
 @pytest.mark.parametrize(
     "relative",
-    ["theme.css", "registry.json", "widgets", "widgets/cq-tabs.js"],
+    ["theme.css", "registry.json", "widgets", "widgets/lf-tabs.js"],
 )
 def test_customize_refuses_members_aliased_into_an_initialized_page(
     tmp_path, monkeypatch, relative
@@ -896,7 +894,7 @@ def test_customize_refuses_members_aliased_into_an_initialized_page(
         if path.is_file()
     }
 
-    layer = project / ".colloquy"
+    layer = project / ".leaf"
     alias = layer / relative
     alias.parent.mkdir(parents=True, exist_ok=True)
     target = page / relative
@@ -904,7 +902,7 @@ def test_customize_refuses_members_aliased_into_an_initialized_page(
 
     result = runner.invoke(
         interact.cli,
-        ["customize", "widget", "cq-page-member-alias", "--upgrade"],
+        ["customize", "widget", "lf-page-member-alias", "--upgrade"],
     )
 
     assert result.exit_code != 0
@@ -931,13 +929,13 @@ def test_customize_recognizes_a_page_without_runtime_status(tmp_path, monkeypatc
     (page / "status.json").unlink()
     before = (page / "theme.css").read_bytes()
 
-    layer = project / ".colloquy"
+    layer = project / ".leaf"
     layer.mkdir(parents=True)
     (layer / "theme.css").symlink_to(page / "theme.css")
 
     result = runner.invoke(
         interact.cli,
-        ["customize", "widget", "cq-page-without-status", "--upgrade"],
+        ["customize", "widget", "lf-page-without-status", "--upgrade"],
     )
 
     assert result.exit_code != 0
@@ -974,13 +972,13 @@ def test_customize_refuses_sources_aliased_to_page_owned_state(
         if path.is_file()
     }
 
-    layer = project / ".colloquy"
+    layer = project / ".leaf"
     layer.mkdir(parents=True)
     (layer / source_name).symlink_to(target, target_is_directory=target.is_dir())
 
     result = runner.invoke(
         interact.cli,
-        ["customize", "widget", "cq-page-owned-alias", "--upgrade"],
+        ["customize", "widget", "lf-page-owned-alias", "--upgrade"],
     )
 
     assert result.exit_code != 0
@@ -1013,7 +1011,7 @@ def test_customize_continues_when_the_project_root_is_the_page(tmp_path, monkeyp
 
     scaffold = runner.invoke(
         interact.cli,
-        ["customize", "widget", "cq-after-init", "--upgrade"],
+        ["customize", "widget", "lf-after-init", "--upgrade"],
     )
 
     assert scaffold.exit_code == 0, scaffold.output
@@ -1024,14 +1022,14 @@ def test_customize_continues_when_the_project_root_is_the_page(tmp_path, monkeyp
         for path in (tmp_path / "widgets").iterdir()
         if path.is_file()
     } == before_widgets
-    source = tmp_path / ".colloquy"
-    assert (source / "widgets" / "cq-after-init.js").is_file()
+    source = tmp_path / ".leaf"
+    assert (source / "widgets" / "lf-after-init.js").is_file()
 
     revendored = runner.invoke(interact.cli, ["page", "init", "."])
 
     assert revendored.exit_code == 0, revendored.output
-    assert "cq-after-init" in json.loads(page_registry.read_text())
-    assert (tmp_path / "widgets" / "cq-after-init.js").is_file()
+    assert "lf-after-init" in json.loads(page_registry.read_text())
+    assert (tmp_path / "widgets" / "lf-after-init.js").is_file()
 
 
 @pytest.mark.parametrize(
@@ -1053,7 +1051,7 @@ def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     assert initialized.exit_code == 0, initialized.output
 
     assert interact.initialized_page_owning(page / name) == page
-    assert interact.initialized_page_owning(page / ".colloquy" / name) is None
+    assert interact.initialized_page_owning(page / ".leaf" / name) is None
 
 
 @pytest.mark.parametrize("directory", ("versions", "widgets", "vendor", "media"))
@@ -1070,7 +1068,7 @@ def test_initialized_page_owns_declared_directory_trees(
 
 def test_customize_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     managed = tmp_path / "managed"
     widgets = managed / "widgets"
@@ -1085,16 +1083,16 @@ def test_customize_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch
 
     result = CliRunner().invoke(
         interact.cli,
-        ["customize", "widget", "cq-managed", "--upgrade"],
+        ["customize", "widget", "lf-managed", "--upgrade"],
     )
 
     assert result.exit_code == 0, result.output
     assert (layer / "theme.css").is_symlink()
     assert (layer / "registry.json").is_symlink()
     assert (layer / "widgets").is_symlink()
-    assert "cq-managed {" in theme.read_text()
-    assert "cq-managed" in json.loads(registry.read_text())
-    assert (widgets / "cq-managed.js").is_file()
+    assert "lf-managed {" in theme.read_text()
+    assert "lf-managed" in json.loads(registry.read_text())
+    assert (widgets / "lf-managed.js").is_file()
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
@@ -1113,28 +1111,28 @@ def test_customize_widget_names_a_wrong_kind_lower_layer(tmp_path, monkeypatch):
     project.mkdir()
     config = tmp_path / "config"
     config.mkdir()
-    user_layer = config / "colloquy"
+    user_layer = config / "leaf"
     user_layer.write_text("not a directory")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["customize", "widget", "cq-clear-error"])
+    result = CliRunner().invoke(interact.cli, ["customize", "widget", "lf-clear-error"])
 
     assert result.exit_code != 0
     assert f"{user_layer} must be a directory" in result.output
     assert user_layer.read_text() == "not a directory"
-    assert not (project / ".colloquy").exists()
+    assert not (project / ".leaf").exists()
 
 
 @pytest.mark.parametrize(
     ("relative", "directory"),
-    [("vendor", False), ("colloquy.js", True)],
+    [("vendor", False), ("leaf.js", True)],
 )
 def test_customize_widget_validates_the_complete_selected_layer(
     tmp_path, monkeypatch, relative, directory
 ):
     monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     malformed = layer / relative
     if directory:
@@ -1143,7 +1141,7 @@ def test_customize_widget_validates_the_complete_selected_layer(
         malformed.write_text("not a directory")
 
     result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "cq-complete-layer", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-complete-layer", "--upgrade"]
     )
 
     assert result.exit_code != 0
@@ -1159,9 +1157,9 @@ def test_customize_refuses_a_broken_lower_alias_to_its_planned_target(
     project = tmp_path / "project"
     project.mkdir()
     config = tmp_path / "config"
-    user_layer = config / "colloquy"
+    user_layer = config / "leaf"
     user_layer.mkdir(parents=True)
-    project_theme = project / ".colloquy" / "theme.css"
+    project_theme = project / ".leaf" / "theme.css"
     user_theme = user_layer / "theme.css"
     user_theme.symlink_to(project_theme)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
@@ -1181,10 +1179,10 @@ def test_customize_refuses_an_existing_member_aliased_to_another_scope(
     project = tmp_path / "project"
     project.mkdir()
     config = tmp_path / "config"
-    user_module = config / "colloquy" / "widgets" / "cq-shared.js"
+    user_module = config / "leaf" / "widgets" / "lf-shared.js"
     user_module.parent.mkdir(parents=True)
     user_module.write_text("// shared source\n")
-    project_module = project / ".colloquy" / "widgets" / "cq-shared.js"
+    project_module = project / ".leaf" / "widgets" / "lf-shared.js"
     project_module.parent.mkdir(parents=True)
     project_module.symlink_to(user_module)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
@@ -1196,7 +1194,7 @@ def test_customize_refuses_an_existing_member_aliased_to_another_scope(
     assert "overlaps another layer source" in result.output
     assert project_module.is_symlink()
     assert user_module.read_text() == "// shared source\n"
-    assert not (project / ".colloquy" / "theme.css").exists()
+    assert not (project / ".leaf" / "theme.css").exists()
 
 
 @pytest.mark.parametrize("user", [False, True], ids=["project", "user"])
@@ -1207,13 +1205,13 @@ def test_init_refuses_to_overwrite_a_customization_source(tmp_path, monkeypatch,
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
     runner = CliRunner()
-    args = ["customize", "widget", "cq-safe-source", "--upgrade"]
+    args = ["customize", "widget", "lf-safe-source", "--upgrade"]
     if user:
         args.append("--user")
     scaffold = runner.invoke(interact.cli, args)
     assert scaffold.exit_code == 0, scaffold.output
 
-    layer = config / "colloquy" if user else project / ".colloquy"
+    layer = config / "leaf" if user else project / ".leaf"
     before = {
         path.relative_to(layer): path.read_bytes()
         for path in layer.rglob("*")
@@ -1237,10 +1235,10 @@ def test_init_refuses_overlapping_customization_scopes(tmp_path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
     config = tmp_path / "config"
-    user = config / "colloquy"
+    user = config / "leaf"
     user.mkdir(parents=True)
     (user / "theme.css").write_text(":root { --accent: teal; }\n")
-    project_layer = project / ".colloquy"
+    project_layer = project / ".leaf"
     project_layer.symlink_to(user, target_is_directory=True)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
@@ -1268,9 +1266,9 @@ def test_init_refuses_case_aliased_layer_scopes(tmp_path, monkeypatch):
     project = tmp_path / "Project"
     project.mkdir()
     alias = case_alias(project)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".COLLOQUY"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".LEAF"))
     monkeypatch.chdir(project)
-    user_layer = alias / ".COLLOQUY" / "colloquy"
+    user_layer = alias / ".LEAF" / "leaf"
     user_layer.mkdir(parents=True)
     theme = user_layer / "theme.css"
     theme.write_text(":root { --accent: teal; }\n")
@@ -1289,10 +1287,10 @@ def test_init_refuses_to_write_inside_a_customization_source(tmp_path, monkeypat
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     scaffold = runner.invoke(
-        interact.cli, ["customize", "widget", "cq-safe-source", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-safe-source", "--upgrade"]
     )
     assert scaffold.exit_code == 0, scaffold.output
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     before = {
         path.relative_to(layer): path.read_bytes()
         for path in layer.rglob("*")
@@ -1322,11 +1320,11 @@ def test_init_refuses_a_case_aliased_page_inside_a_customization_source(
     runner = CliRunner()
     scaffold = runner.invoke(
         interact.cli,
-        ["customize", "widget", "cq-case-source", "--upgrade"],
+        ["customize", "widget", "lf-case-source", "--upgrade"],
     )
     assert scaffold.exit_code == 0, scaffold.output
-    layer = project / ".colloquy"
-    page = alias / ".COLLOQUY" / "WIDGETS"
+    layer = project / ".leaf"
+    page = alias / ".LEAF" / "WIDGETS"
     assert page.samefile(layer / "widgets")
     before = {
         path.relative_to(layer): path.read_bytes()
@@ -1348,14 +1346,14 @@ def test_init_refuses_a_case_aliased_page_inside_a_customization_source(
 
 def test_customize_widget_validates_every_target_before_writing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     theme = layer / "theme.css"
     theme.mkdir(parents=True)
     sentinel = theme / "keep.txt"
     sentinel.write_text("keep")
 
     result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "cq-no-partial", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-no-partial", "--upgrade"]
     )
 
     assert result.exit_code != 0
@@ -1367,13 +1365,13 @@ def test_customize_widget_validates_every_target_before_writing(tmp_path, monkey
 
 def test_customize_widget_refuses_malformed_css_before_writing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     theme = layer / "theme.css"
     theme.write_text(".bad { color red; }\n")
 
     result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "cq-no-broken-css", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-no-broken-css", "--upgrade"]
     )
 
     assert result.exit_code != 0
@@ -1395,11 +1393,11 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
         if path.is_file()
     }
 
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     (layer / "registry.json").write_text(
         json.dumps(
-            {"cq-bad-theme": interact.custom_widget_entry("cq-bad-theme", False)}
+            {"lf-bad-theme": interact.custom_widget_entry("lf-bad-theme", False)}
         )
     )
     (layer / "theme.css").write_bytes(b"\xff")
@@ -1427,7 +1425,7 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
         for path in page.rglob("*")
         if path.is_file()
     }
-    theme = tmp_path / ".colloquy" / "theme.css"
+    theme = tmp_path / ".leaf" / "theme.css"
     theme.parent.mkdir(parents=True)
     theme.write_text(".bad { color red; }\n")
 
@@ -1454,15 +1452,15 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     theme_before = (page / "theme.css").read_bytes()
     registry_before = (page / "registry.json").read_bytes()
 
-    conflict = page / "widgets" / "cq-tabs.js"
+    conflict = page / "widgets" / "lf-tabs.js"
     conflict.unlink()
     conflict.mkdir()
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     (layer / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
     (layer / "registry.json").write_text(
         json.dumps(
-            {"cq-new-shape": interact.custom_widget_entry("cq-new-shape", False)}
+            {"lf-new-shape": interact.custom_widget_entry("lf-new-shape", False)}
         )
     )
 
@@ -1514,7 +1512,7 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
             "stale pruning must not delete a customization source"
         )
 
-    source = tmp_path / ".colloquy" / source_relative
+    source = tmp_path / ".leaf" / source_relative
     source.parent.mkdir(parents=True)
     source.symlink_to(destination, target_is_directory=destination.is_dir())
     before = {
@@ -1554,7 +1552,7 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
         for path in page.rglob("*")
         if path.is_file()
     }
-    layer_theme = project / ".colloquy" / "theme.css"
+    layer_theme = project / ".leaf" / "theme.css"
     layer_theme.parent.mkdir(parents=True)
     layer_theme.symlink_to(target)
 
@@ -1578,7 +1576,7 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
     assert initialized.exit_code == 0, initialized.output
     source = page / f"theme.css.{os.getpid()}.0.tmp"
     source.write_text(":root { --accent: rebeccapurple; }\n")
-    layer = tmp_path / ".colloquy"
+    layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     (layer / "theme.css").symlink_to(source)
 
@@ -1602,7 +1600,7 @@ def test_init_refuses_wrong_kind_customization_paths(
     tmp_path, monkeypatch, relative, directory
 ):
     monkeypatch.chdir(tmp_path)
-    path = tmp_path / ".colloquy" / relative
+    path = tmp_path / ".leaf" / relative
     path.parent.mkdir(parents=True)
     if directory:
         path.mkdir()
@@ -1620,18 +1618,18 @@ def test_init_refuses_an_upgraded_custom_widget_without_its_module(
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    scaffold = runner.invoke(interact.cli, ["customize", "widget", "cq-unfinished"])
+    scaffold = runner.invoke(interact.cli, ["customize", "widget", "lf-unfinished"])
     assert scaffold.exit_code == 0, scaffold.output
 
-    registry_path = tmp_path / ".colloquy" / "registry.json"
+    registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["cq-unfinished"]["x-upgrade"] = True
-    registry["cq-unfinished"]["x-verbatim"] = True
+    registry["lf-unfinished"]["x-upgrade"] = True
+    registry["lf-unfinished"]["x-verbatim"] = True
     registry_path.write_text(json.dumps(registry))
 
     result = runner.invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
     assert result.exit_code != 0
-    assert "widgets/cq-unfinished.js" in result.output
+    assert "widgets/lf-unfinished.js" in result.output
 
 
 def test_init_refuses_a_registry_example_that_violates_its_schema(
@@ -1639,12 +1637,12 @@ def test_init_refuses_a_registry_example_that_violates_its_schema(
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    scaffold = runner.invoke(interact.cli, ["customize", "widget", "cq-toned-note"])
+    scaffold = runner.invoke(interact.cli, ["customize", "widget", "lf-toned-note"])
     assert scaffold.exit_code == 0, scaffold.output
 
-    registry_path = tmp_path / ".colloquy" / "registry.json"
+    registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    entry = registry["cq-toned-note"]
+    entry = registry["lf-toned-note"]
     entry["properties"]["tone"] = {"enum": ["quiet", "loud"]}
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
@@ -1652,7 +1650,7 @@ def test_init_refuses_a_registry_example_that_violates_its_schema(
     result = runner.invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
 
     assert result.exit_code != 0
-    assert "<cq-toned-note> x-example is invalid" in result.output
+    assert "<lf-toned-note> x-example is invalid" in result.output
     assert "'tone' is a required property" in result.output
 
 
@@ -1660,12 +1658,12 @@ def test_init_refuses_a_registry_example_that_violates_its_schema(
     ("example", "message"),
     [
         (
-            '<cq-toned-note id="repeat"><p id="repeat">Two</p></cq-toned-note>',
+            '<lf-toned-note id="repeat"><p id="repeat">Two</p></lf-toned-note>',
             "duplicate ids",
         ),
         (
-            '<cq-toned-note id="cq-example">One</cq-toned-note>',
-            "cq- namespace",
+            '<lf-toned-note id="lf-example">One</lf-toned-note>',
+            "lf- namespace",
         ),
     ],
     ids=["duplicate", "reserved"],
@@ -1675,22 +1673,22 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    scaffold = runner.invoke(interact.cli, ["customize", "widget", "cq-toned-note"])
+    scaffold = runner.invoke(interact.cli, ["customize", "widget", "lf-toned-note"])
     assert scaffold.exit_code == 0, scaffold.output
-    registry_path = tmp_path / ".colloquy" / "registry.json"
+    registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["cq-toned-note"]["x-example"] = example
+    registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
     result = runner.invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
 
     assert result.exit_code != 0
-    assert "<cq-toned-note> x-example is invalid" in result.output
+    assert "<lf-toned-note> x-example is invalid" in result.output
     assert message in result.output
 
 
 def test_revendoring_removes_files_the_layer_retired(page_dir):
-    stale = page_dir / "widgets" / "cq-retired.js"
+    stale = page_dir / "widgets" / "lf-retired.js"
     stale.write_text("// no longer in any layer")
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
@@ -1699,7 +1697,7 @@ def test_revendoring_removes_files_the_layer_retired(page_dir):
 
 @pytest.mark.parametrize(
     ("sub", "name"),
-    [("widgets", "cq-returned.js"), ("vendor", "returned.js")],
+    [("widgets", "lf-returned.js"), ("vendor", "returned.js")],
 )
 def test_revendoring_removes_stale_broken_links_before_a_file_returns(
     page_dir, sub, name
@@ -1712,7 +1710,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
     assert retired.exit_code == 0, retired.output
     assert not stale.is_symlink()
 
-    source = page_dir.parent / ".colloquy" / sub / name
+    source = page_dir.parent / ".leaf" / sub / name
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("// returned\n")
     returned = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
@@ -1732,15 +1730,15 @@ def test_check_rejects_widget_violations(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
-            '<cq-metric id="bad-metric" value="1"/>'
+            '<lf-metric id="bad-metric" value="1"/>'
             "<figure/>"
-            "<cq-bogus></cq-bogus>"
-            '<cq-timeline id="bad-timeline">'
-            '<cq-event id="stray-event" kind="medium">S</cq-event></cq-timeline>'
-            '<cq-option id="stray"><strong>S</strong></cq-option>'
-            '<cq-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></cq-diagram>'
-            '<cq-diagram id="bare-body">graph LR</cq-diagram>',
-        ).replace('<cq-option id="flag-first"', "<cq-option")
+            "<lf-bogus></lf-bogus>"
+            '<lf-timeline id="bad-timeline">'
+            '<lf-event id="stray-event" kind="medium">S</lf-event></lf-timeline>'
+            '<lf-option id="stray"><strong>S</strong></lf-option>'
+            '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
+            '<lf-diagram id="bare-body">graph LR</lf-diagram>',
+        ).replace('<lf-option id="flag-first"', "<lf-option")
     )
     result = check(page_dir)
     assert result.exit_code == 1
@@ -1750,7 +1748,7 @@ def test_check_rejects_widget_violations(page_dir):
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
     assert "'medium' is not one of" in out
-    assert "must be a direct child of <cq-options>" in out
+    assert "must be a direct child of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
     # A stray element beside the <pre>, and a body that never opened one: both are
@@ -1767,7 +1765,7 @@ def test_check_rejects_duplicate_attributes_the_browser_reads_differently(page_d
     a stateful widget under an id its browser can never send.
     """
     registry = json.loads((page_dir / "registry.json").read_text())
-    board = registry["cq-board"]["x-example"].replace(
+    board = registry["lf-board"]["x-example"].replace(
         'id="feeder-board"', 'id="browser-board" id="file-board"'
     )
     version = page_dir / "versions" / "v1.html"
@@ -1796,7 +1794,7 @@ def test_check_rejects_a_language_nothing_will_color(page_dir):
             "<h2>Plan</h2>\n"
             '<pre><code class="language-pythn">x = 1</code></pre>\n'
             '<div class="note language-python">not a code block</div>\n'
-            '<cq-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></cq-code>\n'
+            '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>\n'
             '<pre><code class="language-python">y = 2</code></pre>',
         )
     )
@@ -1808,7 +1806,7 @@ def test_check_rejects_a_language_nothing_will_color(page_dir):
         and "not a language this page's layer speaks" in out
     )
     assert 'class="language-python"' in out and "only <pre><code> is colored" in out
-    assert '<cq-code language="pythn">' in out, out
+    assert '<lf-code language="pythn">' in out, out
     # The well-formed block is not among the complaints.
     assert out.count('class="language-python"') == 1
 
@@ -1819,35 +1817,35 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-tree"]["properties"]["dialect"] = {"type": "string"}
-    registry["cq-tree"]["x-language"] = "dialect"
+    registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
+    registry["lf-tree"]["x-language"] = "dialect"
     (page_dir / "registry.json").write_text(json.dumps(registry))
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<cq-tree id="t" dialect="lisp"><pre>\nfeeders/\n</pre></cq-tree>',
+            '<h2>Plan</h2>\n<lf-tree id="t" dialect="lisp"><pre>\nfeeders/\n</pre></lf-tree>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert '<cq-tree dialect="lisp">' in result.output
+    assert '<lf-tree dialect="lisp">' in result.output
     assert "not a language this page's layer speaks" in result.output
 
 
 def test_the_block_content_lists_agree_and_cover_the_vocabulary():
     """Two selectors in the theme enumerate what counts as block content: the
-    suggestion slots' blockization and cq-compare's stacked-variant trigger
-    (cq-options stacks on the title alone, so it asks no block question). A list
+    suggestion slots' blockization and lf-compare's stacked-variant trigger
+    (lf-options stacks on the title alone, so it asks no block question). A list
     like that fails quietly — a new block-level widget missing
     from one keeps rendering, just wrong: a suggestion wrapping it stays inline, a
     compare holding it keeps the 13rem grid — so the copies are pinned to each other
-    and to the registry: every top-level widget appears in each. cq-suggestion is
+    and to the registry: every top-level widget appears in each. lf-suggestion is
     the one exemption, display: contents, so the wrapper generates no box and its
     slots answer the block question instead."""
     theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
     lists = re.findall(r":is\((p, h1[^)]*)\)", theme)
     assert len(lists) == 2, (
-        "expected the suggestion-slot list and cq-compare's stacked-variant trigger"
+        "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
     tag_sets = [{t.strip() for t in found.split(",")} for found in lists]
     assert tag_sets[0] == tag_sets[1], "the block-content lists have drifted"
@@ -1855,8 +1853,8 @@ def test_the_block_content_lists_agree_and_cover_the_vocabulary():
     top_level = {
         tag
         for tag, entry in registry.items()
-        if tag.startswith("cq-") and "x-parent" not in entry
-    } - {"cq-suggestion"}
+        if tag.startswith("lf-") and "x-parent" not in entry
+    } - {"lf-suggestion"}
     assert top_level <= tag_sets[0], (
         f"block-level widgets missing from the theme's block-content lists: "
         f"{sorted(top_level - tag_sets[0])}"
@@ -1874,8 +1872,8 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     between the attribute and a class, which nothing checks."""
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
-            '<cq-option id="flag-first">',
-            '<cq-option id="flag-first"><cq-chip tone="dangre">risk: high</cq-chip>',
+            '<lf-option id="flag-first">',
+            '<lf-option id="flag-first"><lf-chip tone="dangre">risk: high</lf-chip>',
         )
     )
     result = check(page_dir)
@@ -1884,7 +1882,7 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     assert "'ok', 'warn', 'danger'" in result.output.replace('"', "'")
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
-    # touched — which is the point of $tones over an enum on cq-chip.
+    # touched — which is the point of $tones over an enum on lf-chip.
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["$tones"]["names"].append("dangre")
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -1893,24 +1891,24 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
 
 def test_a_chip_is_admissible_in_both_its_holders(page_dir):
     """x-parent is a list because one element can belong to two holders, and a chip
-    is written in a cq-option and in a cq-variant — the same shape either side of the
+    is written in a lf-option and in a lf-variant — the same shape either side of the
     decision. Neither is special-cased anywhere: the nesting check reads the list."""
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
-            "<cq-options>",
-            '<cq-compare id="cmp"><cq-variant id="v-a"><cq-chip tone="ok">cheap</cq-chip>'
-            "<strong>A</strong> One.</cq-variant></cq-compare>\n  <cq-options>",
+            "<lf-options>",
+            '<lf-compare id="cmp"><lf-variant id="v-a"><lf-chip tone="ok">cheap</lf-chip>'
+            "<strong>A</strong> One.</lf-variant></lf-compare>\n  <lf-options>",
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
 
     # And refused where neither holder is its parent, naming both.
     (page_dir / "versions" / "v1.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><cq-chip>stray</cq-chip>")
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-chip>stray</lf-chip>")
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <cq-option> or <cq-variant>" in result.output
+    assert "must be a direct child of <lf-option> or <lf-variant>" in result.output
 
 
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
@@ -1939,11 +1937,11 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
-        PAGE.replace("<cq-options>", "<cq-options>\nloose text\n<p>stray</p>\n<br/>")
+        PAGE.replace("<lf-options>", "<lf-options>\nloose text\n<p>stray</p>\n<br/>")
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "admits only ['cq-option'] children" in result.output
+    assert "admits only ['lf-option'] children" in result.output
     assert "'br'" in result.output  # self-closed strays count as children too
     assert "loose text" in result.output
 
@@ -1962,69 +1960,69 @@ def test_flag_attribute_accepts_both_html_spellings(page_dir):
 
 
 def test_milestones_compose(page_dir):
-    nested = """<cq-milestones>
-    <cq-milestone id="m-one" status="done" when="week 1"><strong>Survey</strong> Sites.</cq-milestone>
-    <cq-milestone id="m-two" status="active" tags="wood,solar"><strong>Build</strong></cq-milestone>
-  </cq-milestones>
-<cq-options>"""
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<cq-options>", nested))
+    nested = """<lf-milestones>
+    <lf-milestone id="m-one" status="done" when="week 1"><strong>Survey</strong> Sites.</lf-milestone>
+    <lf-milestone id="m-two" status="active" tags="wood,solar"><strong>Build</strong></lf-milestone>
+  </lf-milestones>
+<lf-options>"""
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", nested))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
-            "<cq-options>",
-            '<cq-milestone id="m-stray" status="done"><strong>X</strong></cq-milestone><cq-options>',
+            "<lf-options>",
+            '<lf-milestone id="m-stray" status="done"><strong>X</strong></lf-milestone><lf-options>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <cq-milestones>" in result.output
+    assert "must be a direct child of <lf-milestones>" in result.output
 
 
 def test_tabs_validate_and_compose(page_dir):
-    tabs = """<cq-tabs id="ws">
-  <cq-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></cq-tab>
-  <cq-tab id="ws-search" label="Search">
-    <cq-metrics><cq-metric id="k-lat" value="118 ms"></cq-metric></cq-metrics>
-  </cq-tab>
-</cq-tabs>
-<cq-options>"""
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<cq-options>", tabs))
+    tabs = """<lf-tabs id="ws">
+  <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
+  <lf-tab id="ws-search" label="Search">
+    <lf-metrics><lf-metric id="k-lat" value="118 ms"></lf-metric></lf-metrics>
+  </lf-tab>
+</lf-tabs>
+<lf-options>"""
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", tabs))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
 
 def test_tabs_reject_structural_violations(page_dir):
-    # A label-less panel, a stray panel outside cq-tabs, and loose text between
+    # A label-less panel, a stray panel outside lf-tabs, and loose text between
     # panels are each refused.
-    bad = """<cq-tabs id="ws">
+    bad = """<lf-tabs id="ws">
   loose text
-  <cq-tab id="ws-a"><p>x</p></cq-tab>
-</cq-tabs>
-<cq-tab id="ws-stray" label="Stray"><p>y</p></cq-tab>
-<cq-options>"""
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<cq-options>", bad))
+  <lf-tab id="ws-a"><p>x</p></lf-tab>
+</lf-tabs>
+<lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
+<lf-options>"""
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", bad))
     result = check(page_dir)
     assert result.exit_code == 1
     assert "'label' is a required property" in result.output
-    assert "must be a direct child of <cq-tabs>" in result.output
+    assert "must be a direct child of <lf-tabs>" in result.output
     assert "loose text" in result.output
 
 
-SUGGESTION = """<cq-suggestion id="sug-refill">
-  <cq-old><p id="refill-rule">Refill every feeder each morning.</p></cq-old>
-  <cq-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></cq-new>
-</cq-suggestion>
-<cq-options>"""
+SUGGESTION = """<lf-suggestion id="sug-refill">
+  <lf-old><p id="refill-rule">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<lf-options>"""
 
 
 def suggest(page_dir, version=2, markup=SUGGESTION):
     """Write and publish v1 carrying a suggestion, and an unchanged v2 to
     check against."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<cq-options>", markup))
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", markup))
     publish(page_dir)
     (page_dir / "versions" / f"v{version}.html").write_text(
-        PAGE.replace("<cq-options>", markup)
+        PAGE.replace("<lf-options>", markup)
     )
 
 
@@ -2049,36 +2047,36 @@ def test_suggestion_validates(page_dir):
 
 def test_suggestion_rejects_malformed_shapes(page_dir):
     for markup, expected in [
-        ('<cq-suggestion id="sug-a"></cq-suggestion><cq-options>', "needs a <cq-old>"),
+        ('<lf-suggestion id="sug-a"></lf-suggestion><lf-options>', "needs a <lf-old>"),
         (
             (
-                '<cq-suggestion id="sug-a"><cq-new><p>x</p></cq-new>'
-                "<cq-new><p>y</p></cq-new></cq-suggestion><cq-options>"
+                '<lf-suggestion id="sug-a"><lf-new><p>x</p></lf-new>'
+                "<lf-new><p>y</p></lf-new></lf-suggestion><lf-options>"
             ),
             "one at most",
         ),
         (
             (
-                '<cq-suggestion id="sug-a"><cq-new>'
-                '<cq-suggestion id="sug-b"><cq-new>x</cq-new></cq-suggestion>'
-                "</cq-new></cq-suggestion><cq-options>"
+                '<lf-suggestion id="sug-a"><lf-new>'
+                '<lf-suggestion id="sug-b"><lf-new>x</lf-new></lf-suggestion>'
+                "</lf-new></lf-suggestion><lf-options>"
             ),
             "don't nest",
         ),
         (
-            "<cq-old><p>orphan</p></cq-old><cq-options>",
-            "must be a direct child of <cq-suggestion>",
+            "<lf-old><p>orphan</p></lf-old><lf-options>",
+            "must be a direct child of <lf-suggestion>",
         ),
         (
             (
-                '<cq-suggestion id="sug-a" resolves="nosuch"><cq-new><p>x</p></cq-new>'
-                "</cq-suggestion><cq-options>"
+                '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
+                "</lf-suggestion><lf-options>"
             ),
             "names no comment in the log",
         ),
     ]:
         (page_dir / "versions" / "v1.html").write_text(
-            PAGE.replace("<cq-options>", markup)
+            PAGE.replace("<lf-options>", markup)
         )
         result = check(page_dir, version=1)
         assert result.exit_code == 1, markup
@@ -2089,8 +2087,8 @@ def test_suggestion_resolves_accepts_a_real_comment(page_dir):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    markup = '<cq-suggestion id="sug-a" resolves="c1"><cq-new><p>x</p></cq-new></cq-suggestion><cq-options>'
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<cq-options>", markup))
+    markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion><lf-options>'
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", markup))
     assert check(page_dir, version=1).exit_code == 0
 
 
@@ -2099,8 +2097,8 @@ def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
     # proposal inlined. Nothing but a logged accept makes that legal.
     suggest(page_dir)
     honored = PAGE.replace(
-        "<cq-options>",
-        '<p id="refill-camera">Refill when the camera shows it half-empty.</p><cq-options>',
+        "<lf-options>",
+        '<p id="refill-camera">Refill when the camera shows it half-empty.</p><lf-options>',
     )
     (page_dir / "versions" / "v2.html").write_text(honored)
     result = check(page_dir, version=2)
@@ -2114,15 +2112,15 @@ def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
 def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
     # Self-accepting: the wrapper goes but its proposal stays, presented as
     # ordinary prose the user never agreed to. Withdrawal is whole or not.
-    insert = """<cq-suggestion id="sug-thistle">
-  <cq-new><p id="thistle-plan">Switch the north feeder to thistle in autumn.</p></cq-new>
-</cq-suggestion>
-<cq-options>"""
+    insert = """<lf-suggestion id="sug-thistle">
+  <lf-new><p id="thistle-plan">Switch the north feeder to thistle in autumn.</p></lf-new>
+</lf-suggestion>
+<lf-options>"""
     suggest(page_dir, markup=insert)
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
-            "<cq-options>",
-            '<p id="thistle-plan">Switch the north feeder to thistle in autumn.</p><cq-options>',
+            "<lf-options>",
+            '<p id="thistle-plan">Switch the north feeder to thistle in autumn.</p><lf-options>',
         )
     )
     result = check(page_dir, version=2)
@@ -2143,8 +2141,8 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
     suggest(page_dir)
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
-            "<cq-options>",
-            '<p id="refill-rule">Refill every feeder each morning.</p><cq-options>',
+            "<lf-options>",
+            '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
         )
     )
     interact.append_event(
@@ -2170,10 +2168,10 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
 def test_an_unanswered_deletion_cant_delete(page_dir):
     # The mirror of self-accepting an insertion: dropping the markup a pending
     # deletion wraps, without the accept that consents to losing it.
-    delete = """<cq-suggestion id="sug-drop">
-  <cq-old><p id="hand-log">The manual sightings log.</p></cq-old>
-</cq-suggestion>
-<cq-options>"""
+    delete = """<lf-suggestion id="sug-drop">
+  <lf-old><p id="hand-log">The manual sightings log.</p></lf-old>
+</lf-suggestion>
+<lf-options>"""
     suggest(page_dir, markup=delete)
     (page_dir / "versions" / "v2.html").write_text(PAGE)
     result = check(page_dir, version=2)
@@ -2189,8 +2187,8 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     suggest(page_dir)
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
-            "<cq-options>",
-            '<p id="refill-rule">Refill every feeder each morning.</p><cq-options>',
+            "<lf-options>",
+            '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
         )
     )
     assert check(page_dir, version=2).exit_code == 0
@@ -2227,7 +2225,7 @@ def test_reply_refuses_a_suggestion(page_dir):
             "--text",
             "Fixed:",
             "--markup",
-            '<cq-suggestion id="sug-x"><cq-new><p>fixed</p></cq-new></cq-suggestion>',
+            '<lf-suggestion id="sug-x"><lf-new><p>fixed</p></lf-new></lf-suggestion>',
         ],
     )
     assert result.exit_code != 0
@@ -2235,9 +2233,9 @@ def test_reply_refuses_a_suggestion(page_dir):
 
 
 def test_check_rejects_wrong_scaffold(page_dir):
-    html = PAGE.replace(
-        '<script type="module" src="/colloquy.js"></script>', ""
-    ).replace('<link rel="stylesheet" href="/theme.css">', "")
+    html = PAGE.replace('<script type="module" src="/leaf.js"></script>', "").replace(
+        '<link rel="stylesheet" href="/theme.css">', ""
+    )
     (page_dir / "versions" / "v1.html").write_text(html)
     result = check(page_dir)
     assert result.exit_code == 1
@@ -2245,12 +2243,12 @@ def test_check_rejects_wrong_scaffold(page_dir):
     assert "exactly one stylesheet" in result.output
 
 
-def test_check_owns_the_cq_meta_vocabulary(page_dir):
+def test_check_owns_the_lf_meta_vocabulary(page_dir):
     # The sign-off declaration: valid on its one value, rejected on a misspelled
     # value or name — either would silently declare nothing in the browser.
     signoff = PAGE.replace(
         "<title>t</title>",
-        '<title>t</title>\n<meta name="cq-review" content="sign-off">',
+        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     )
     (page_dir / "versions" / "v1.html").write_text(signoff)
     assert check(page_dir).exit_code == 0
@@ -2263,12 +2261,12 @@ def test_check_owns_the_cq_meta_vocabulary(page_dir):
     assert "content must be one of ['sign-off'], found 'approve'" in result.output
 
     (page_dir / "versions" / "v1.html").write_text(
-        signoff.replace("cq-review", "cq-signoff")
+        signoff.replace("lf-review", "lf-signoff")
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "unknown cq- meta" in result.output
-    assert "cq-review" in result.output  # the error names the known vocabulary
+    assert "unknown lf- meta" in result.output
+    assert "lf-review" in result.output  # the error names the known vocabulary
 
 
 def test_check_rejects_duplicate_ids_and_dropped_ids(page_dir):
@@ -2291,7 +2289,7 @@ def _decided(page_dir, words):
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            f'<h2>Plan</h2><cq-draft id="d1"><pre>{words}</pre></cq-draft>',
+            f'<h2>Plan</h2><lf-draft id="d1"><pre>{words}</pre></lf-draft>',
         )
     )
     publish(page_dir)
@@ -2309,7 +2307,7 @@ def _decided(page_dir, words):
     return lambda words, attrs="": (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            f'<h2>Plan</h2><cq-draft id="d1"{attrs}><pre>{words}</pre></cq-draft>',
+            f'<h2>Plan</h2><lf-draft id="d1"{attrs}><pre>{words}</pre></lf-draft>',
         )
     )
 
@@ -2357,7 +2355,7 @@ def test_restating_on_the_first_version_is_refused(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><cq-draft id="d1" restated><pre>Words.</pre></cq-draft>',
+            '<h2>Plan</h2><lf-draft id="d1" restated><pre>Words.</pre></lf-draft>',
         )
     )
     result = check(page_dir)
@@ -2381,9 +2379,9 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
 def _tasks(status, extra=""):
     """A one-task tree whose task carries the given status and extra attributes."""
     return (
-        '<cq-tasks id="tree">'
-        f'<cq-task id="t-parser" status="{status}"{extra}><strong>Parser</strong></cq-task>'
-        "</cq-tasks>"
+        '<lf-tasks id="tree">'
+        f'<lf-task id="t-parser" status="{status}"{extra}><strong>Parser</strong></lf-task>'
+        "</lf-tasks>"
     )
 
 
@@ -2398,7 +2396,7 @@ def _report(page_dir, *args):
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
-    """`colloquy report` is the report event's one door, so the widget, verb, and
+    """`leaf report` is the report event's one door, so the widget, verb, and
     detail are held to the x-report declaration there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the version the reader is looking at."""
@@ -2422,7 +2420,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert all(e["kind"] != "report" for e in interact.read_events(page_dir))
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
-    monkeypatch.setenv("COLLOQUY_AGENT", "Indexer")
+    monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0, sent.output
     event = interact.read_events(page_dir)[-1]
@@ -2548,12 +2546,12 @@ def test_an_unearned_overruled_is_refused(page_dir):
 
 def _board(todo, done):
     """A two-column board, each column given its cards as (id, attrs, title)."""
-    card = lambda c: f'<cq-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></cq-card>'
+    card = lambda c: f'<lf-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
     return (
-        '<cq-board id="b1">'
-        f'<cq-column id="c-todo" label="Todo">{"".join(map(card, todo))}</cq-column>'
-        f'<cq-column id="c-done" label="Done">{"".join(map(card, done))}</cq-column>'
-        "</cq-board>"
+        '<lf-board id="b1">'
+        f'<lf-column id="c-todo" label="Todo">{"".join(map(card, todo))}</lf-column>'
+        f'<lf-column id="c-done" label="Done">{"".join(map(card, done))}</lf-column>'
+        "</lf-board>"
     )
 
 
@@ -2622,17 +2620,17 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     (page_dir / "versions" / "v2.html").write_text(
         (page_dir / "versions" / "v2.html")
         .read_text()
-        .replace('<cq-board id="b1">', '<cq-board id="b1" restated>')
+        .replace('<lf-board id="b1">', '<lf-board id="b1" restated>')
     )
     result = check(page_dir, version=2)
     assert result.exit_code == 1
-    assert "restated" in result.output and "cq-board" in result.output
+    assert "restated" in result.output and "lf-board" in result.output
 
 
-OPTIONS = """<cq-options id="g1" choose>
-  <cq-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</cq-option>
-  <cq-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</cq-option>
-</cq-options>"""
+OPTIONS = """<lf-options id="g1" choose>
+  <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
+  <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
+</lf-options>"""
 
 
 def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
@@ -2701,12 +2699,12 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
     # A chip is a word on the page: one appearing on the option they picked reads
     # to them as the option changing, and is caught the same way its prose is.
-    write(2, a=" chosen", chip="<cq-chip>effort: high</cq-chip>")
+    write(2, a=" chosen", chip="<lf-chip>effort: high</lf-chip>")
     result = check(page_dir, version=2)
     assert result.exit_code == 1, "a chip is words the user read"
     assert "o-shim" in result.output
 
-    write(2, a=" chosen restated", chip="<cq-chip>effort: high</cq-chip>")
+    write(2, a=" chosen restated", chip="<lf-chip>effort: high</lf-chip>")
     assert check(page_dir, version=2).exit_code == 0
 
 
@@ -2724,7 +2722,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
                 "<h2>Plan</h2>",
                 "<h2>Plan</h2>"
                 + opts.replace(
-                    '<cq-options id="g1" choose>', f'<cq-options id="g1" choose{attrs}>'
+                    '<lf-options id="g1" choose>', f'<lf-options id="g1" choose{attrs}>'
                 ),
             )
         )
@@ -2745,7 +2743,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
     write(2, shim="Fastest to ship, and we own the shim forever.")
     result = check(page_dir, version=2)
     assert result.exit_code == 1
-    assert "cq-options id='g1'" in result.output
+    assert "lf-options id='g1'" in result.output
 
     write(2, shim="Fastest to ship, and we own the shim forever.", attrs=" restated")
     assert check(page_dir, version=2).exit_code == 0
@@ -2767,7 +2765,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
                 "<h2>Plan</h2>",
                 "<h2>Plan</h2>"
                 + opts.replace(
-                    '<cq-options id="g1" choose>', f'<cq-options id="g1" choose{attrs}>'
+                    '<lf-options id="g1" choose>', f'<lf-options id="g1" choose{attrs}>'
                 ),
             )
         )
@@ -2826,7 +2824,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
 def test_check_reports_record_lag_without_erroring(page_dir):
     """Silence is blessed — replay resolves it — but a log-less reader sees only
     the markup, so `version check` says where it lags the log, as advice on a passing
-    run. `colloquy transcript` says the same to stderr, where the debt stops being
+    run. `leaf transcript` says the same to stderr, where the debt stops being
     fixable."""
 
     def write(version, a=""):
@@ -2951,13 +2949,13 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     re-vendoring over one is how recorded decisions fall silent — annabels-drafts
     holds fifteen `decide` events today's widgets would drop on the first reload.
     The re-vendor is refused rather than offering a way to discard that history."""
-    # This models a page made under an older registry where cq-draft declared
+    # This models a page made under an older registry where lf-draft declared
     # `decide`: the tag and widget id survive, but the incoming verb does not.
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><cq-draft id="d1"><pre>A decision.</pre></cq-draft>',
+            '<h2>Plan</h2><lf-draft id="d1"><pre>A decision.</pre></lf-draft>',
         )
     )
     publish(page_dir)
@@ -3007,7 +3005,7 @@ def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
 def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
     """Another tag using the same verb cannot keep a retired contract alive."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    board = registry["cq-board"]["x-example"]
+    board = registry["lf-board"]["x-example"]
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", board + "\n</section>")
@@ -3025,19 +3023,19 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         },
     )
 
-    move_spec = registry["cq-board"]["x-state"]["move"]
-    board_entry = registry["cq-board"]
+    move_spec = registry["lf-board"]["x-state"]["move"]
+    board_entry = registry["lf-board"]
     board_entry.pop("x-state")
     # Reusing the generic verb on another widget leaves the global verb set
-    # unchanged, but cannot make an old cq-board action meaningful there.
-    registry["cq-draft"]["x-state"]["move"] = move_spec
-    overlay = page_dir.parent / ".colloquy"
+    # unchanged, but cannot make an old lf-board action meaningful there.
+    registry["lf-draft"]["x-state"]["move"] = move_spec
+    overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
         json.dumps(
             {
-                "cq-board": board_entry,
-                "cq-draft": registry["cq-draft"],
+                "lf-board": board_entry,
+                "lf-draft": registry["lf-draft"],
             }
         )
     )
@@ -3046,7 +3044,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
-    assert "cq-board" in result.output and "move" in result.output
+    assert "lf-board" in result.output and "move" in result.output
 
 
 def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
@@ -3054,7 +3052,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
 ):
     """Keeping a verb's spelling is not enough if its payload no longer replays."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    board = registry["cq-board"]["x-example"]
+    board = registry["lf-board"]["x-example"]
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", board + "\n</section>")
@@ -3072,20 +3070,20 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
         },
     )
 
-    registry["cq-board"]["x-state"]["move"]["detail"]["properties"]["index"][
+    registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["index"][
         "minimum"
     ] = 1
-    overlay = page_dir.parent / ".colloquy"
+    overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps({"cq-board": registry["cq-board"]})
+        json.dumps({"lf-board": registry["lf-board"]})
     )
 
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
-    assert "cq-board" in result.output and "move" in result.output
+    assert "lf-board" in result.output and "move" in result.output
     assert "detail" in result.output
 
 
@@ -3098,8 +3096,8 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<cq-tasks id="tree"><cq-task id="t1" status="active">'
-            "<strong>Parse</strong></cq-task></cq-tasks></section>",
+            '<lf-tasks id="tree"><lf-task id="t1" status="active">'
+            "<strong>Parse</strong></lf-task></lf-tasks></section>",
         )
     )
     publish(page_dir)
@@ -3111,18 +3109,18 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     )
 
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["cq-task"]
+    task = registry["lf-task"]
     task.pop("x-report")
-    overlay = page_dir.parent / ".colloquy"
+    overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"cq-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "report contract" in result.output
-    assert "cq-task" in result.output and "status" in result.output
+    assert "lf-task" in result.output and "status" in result.output
 
 
 def test_check_refuses_a_malformed_registry(page_dir):
@@ -3141,11 +3139,11 @@ def test_check_refuses_a_malformed_registry(page_dir):
 )
 def test_check_refuses_a_malformed_widget_schema(page_dir, entry, message):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-options"] = entry
+    registry["lf-options"] = entry
     (page_dir / "registry.json").write_text(json.dumps(registry))
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "cq-options" in result.output and message in result.output
+    assert "lf-options" in result.output and message in result.output
 
 
 @pytest.mark.parametrize(("subschema", "exit_code"), [(True, 0), (False, 1)])
@@ -3153,11 +3151,11 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     page_dir, subschema, exit_code
 ):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-options"]["properties"]["choose"] = subschema
+    registry["lf-options"]["properties"]["choose"] = subschema
     (page_dir / "registry.json").write_text(json.dumps(registry))
     version = page_dir / "versions" / "v1.html"
     version.write_text(
-        version.read_text().replace("<cq-options>", '<cq-options id="opts" choose>')
+        version.read_text().replace("<lf-options>", '<lf-options id="opts" choose>')
     )
 
     result = check(page_dir)
@@ -3182,12 +3180,12 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
 def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     """Custom registry keywords are executable contracts, not schema comments."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-options"][key] = value
+    registry["lf-options"][key] = value
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<cq-options> registry extensions are invalid" in result.output
+    assert "<lf-options> registry extensions are invalid" in result.output
 
 
 def _mutated_registry_check(page_dir, mutate):
@@ -3198,23 +3196,23 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["cq-task"]["x-report"]["status"]["record"] = {
+    registry["lf-task"]["x-report"]["status"]["record"] = {
         "kind": "body",
         "value": "status",
     }
 
 
 def _report_no_record(registry):
-    del registry["cq-task"]["x-report"]["status"]["record"]
+    del registry["lf-task"]["x-report"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["cq-task"]["x-report"]["status"]["record"]["attr"] = "phase"
+    registry["lf-task"]["x-report"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
-    registry["cq-task"]["x-says"] = {"owner": "before"}
-    registry["cq-task"]["x-report"]["status"] = {
+    registry["lf-task"]["x-says"] = {"owner": "before"}
+    registry["lf-task"]["x-report"]["status"] = {
         "detail": {
             "type": "object",
             "properties": {"owner": {"type": "string"}},
@@ -3227,17 +3225,17 @@ def _report_says_attr(registry):
 
 
 def _report_detail_drift(registry):
-    registry["cq-task"]["x-report"]["status"]["detail"]["properties"]["status"] = {
+    registry["lf-task"]["x-report"]["status"]["detail"]["properties"]["status"] = {
         "type": "string"
     }
 
 
 def _report_without_overruled(registry):
-    del registry["cq-task"]["properties"]["overruled"]
+    del registry["lf-task"]["properties"]["overruled"]
 
 
 def _report_without_upgrade(registry):
-    registry["cq-task"]["x-upgrade"] = False
+    registry["lf-task"]["x-upgrade"] = False
 
 
 @pytest.mark.parametrize(
@@ -3269,10 +3267,10 @@ def test_an_x_report_declaration_is_checked_whole(page_dir, mutate, message):
     assert message in result.output
 
 
-@pytest.mark.parametrize("tag", ["cq-options[", "CQ-options", "cq_options"])
+@pytest.mark.parametrize("tag", ["lf-options[", "LF-options", "lf_options"])
 def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry[tag] = registry.pop("cq-options")
+    registry[tag] = registry.pop("lf-options")
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3282,20 +3280,20 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-options"]["x-state"]["choose"]["detail"]["type"] = "not-a-type"
+    registry["lf-options"]["x-state"]["choose"]["detail"]["type"] = "not-a-type"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
     assert (
-        "<cq-options> x-state verb `choose` has an invalid detail schema"
+        "<lf-options> x-state verb `choose` has an invalid detail schema"
         in result.output
     )
 
 
 def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-suggestion"]["x-state"]["accept"]["detail"] = {"type": "string"}
+    registry["lf-suggestion"]["x-state"]["accept"]["detail"] = {"type": "string"}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3306,7 +3304,7 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
 @pytest.mark.parametrize("subschema", [True, False])
 def test_state_reader_fields_reject_boolean_subschemas(page_dir, subschema):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-options"]["x-state"]["choose"]["detail"]["properties"]["options"] = (
+    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["options"] = (
         subschema
     )
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3318,7 +3316,7 @@ def test_state_reader_fields_reject_boolean_subschemas(page_dir, subschema):
 
 def test_fold_units_are_required_strings(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    card = registry["cq-board"]["x-state"]["move"]["detail"]["properties"]["card"]
+    card = registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["card"]
     card["type"] = "integer"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3330,8 +3328,8 @@ def test_fold_units_are_required_strings(page_dir):
 @pytest.mark.parametrize(
     ("tag", "verb", "field"),
     [
-        ("cq-options", "choose", "options"),
-        ("cq-draft", "edit", "text"),
+        ("lf-options", "choose", "options"),
+        ("lf-draft", "edit", "text"),
     ],
 )
 def test_per_part_state_records_positions(page_dir, tag, verb, field):
@@ -3352,9 +3350,9 @@ def test_per_part_state_records_positions(page_dir, tag, verb, field):
     [
         # An attribute record names the set of elements wearing it, so its detail field
         # is a list whatever the widget allows at once; the other two name one thing.
-        ("cq-options", "choose", "options", "must be an array of strings"),
-        ("cq-board", "move", "to", "must be a string"),
-        ("cq-draft", "edit", "text", "must be a string"),
+        ("lf-options", "choose", "options", "must be an array of strings"),
+        ("lf-board", "move", "to", "must be a string"),
+        ("lf-draft", "edit", "text", "must be a string"),
     ],
 )
 def test_record_values_have_the_type_the_reader_uses(
@@ -3374,34 +3372,34 @@ def test_record_values_have_the_type_the_reader_uses(
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     """A child appearing first must not inspect a malformed parent half-validated."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    child = registry.pop("cq-old")
-    registry["cq-suggestion"]["x-state"] = 42
-    registry = {"cq-old": child, **registry}
+    child = registry.pop("lf-old")
+    registry["lf-suggestion"]["x-state"] = 42
+    registry = {"lf-old": child, **registry}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<cq-suggestion> registry extensions are invalid" in result.output
+    assert "<lf-suggestion> registry extensions are invalid" in result.output
 
 
 def test_state_requires_an_upgraded_widget(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-options"]["x-upgrade"] = False
+    registry["lf-options"]["x-upgrade"] = False
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<cq-options> declares x-state but has no upgraded handler" in result.output
+    assert "<lf-options> declares x-state but has no upgraded handler" in result.output
 
 
 def test_retirement_requires_a_parent(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["cq-old"]["x-parent"]
+    del registry["lf-old"]["x-parent"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<cq-old> registry extensions are invalid" in result.output
+    assert "<lf-old> registry extensions are invalid" in result.output
 
 
 def test_check_refuses_a_retirement_verb_its_parent_does_not_declare(page_dir):
@@ -3413,46 +3411,46 @@ def test_check_refuses_a_retirement_verb_its_parent_does_not_declare(page_dir):
     consumer to rediscover the broken reference.
     """
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["cq-old"]["x-retired-when"] = "approve"
+    registry["lf-old"]["x-retired-when"] = "approve"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<cq-old> x-retired-when `approve`" in result.output
-    assert "<cq-suggestion> does not declare that x-state verb" in result.output
+    assert "<lf-old> x-retired-when `approve`" in result.output
+    assert "<lf-suggestion> does not declare that x-state verb" in result.output
 
 
 def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    accept = registry["cq-suggestion"]["x-state"]["accept"]
+    accept = registry["lf-suggestion"]["x-state"]["accept"]
     accept["unit"] = "resolves"
     accept["detail"]["required"] = ["resolves"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<cq-old> x-retired-when `accept` must fold by widget" in result.output
+    assert "<lf-old> x-retired-when `accept` must fold by widget" in result.output
 
 
 @pytest.mark.parametrize(
     ("tag", "awaits", "message"),
     [
-        ("cq-options", {"when": {"pick": [True]}}, "names undeclared attribute `pick`"),
-        ("cq-options", {"when": {"choose": ["yes"]}}, "a flag is there or it isn't"),
-        ("cq-task", {"when": {"status": [True]}}, "that attribute is not a flag"),
-        ("cq-task", {"when": {"status": ["reviewing"]}}, "its own enum does not admit"),
+        ("lf-options", {"when": {"pick": [True]}}, "names undeclared attribute `pick`"),
+        ("lf-options", {"when": {"choose": ["yes"]}}, "a flag is there or it isn't"),
+        ("lf-task", {"when": {"status": [True]}}, "that attribute is not a flag"),
+        ("lf-task", {"when": {"status": ["reviewing"]}}, "its own enum does not admit"),
         (
-            "cq-suggestion",
+            "lf-suggestion",
             {"all": "approve"},
             "does not declare as an x-state verb",
         ),
         (
-            "cq-options",
+            "lf-options",
             {"until": {"verb": "submit", "when": {"multiple": [True]}}},
             "does not declare as an x-state verb",
         ),
         (
-            "cq-options",
+            "lf-options",
             {"until": {"verb": "answer", "when": {"batch": [True]}}},
             "names undeclared attribute `batch`",
         ),
@@ -3477,7 +3475,7 @@ def test_check_refuses_an_ask_no_page_could_carry(page_dir, tag, awaits, message
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
 def test_init_requires_the_complete_registry_contract(page_dir, tmp_path, section):
-    overlay = tmp_path / ".colloquy"
+    overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     # Omission inherits the lower layer; supplying an entry replaces it whole,
     # so this incomplete replacement must fail merged-registry validation.
@@ -3496,7 +3494,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     A string answers by substring, so a layer declaring `"names": "ok"` would pass
     `tone="o"` and paint nothing — the invisible failure the tone check exists to
     catch, arriving through the very entry that declares the vocabulary."""
-    overlay = tmp_path / ".colloquy"
+    overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"$tones": {"names": names}}))
 
@@ -3507,7 +3505,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
 
 @pytest.mark.parametrize("field", [None, "restated", "session"])
 def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path, field):
-    overlay = tmp_path / ".colloquy"
+    overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
     if field is None:
@@ -3530,14 +3528,14 @@ def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><cq-draft id="d1"><pre>First words.</pre></cq-draft>',
+            '<h2>Plan</h2><lf-draft id="d1"><pre>First words.</pre></lf-draft>',
         )
     )
     publish(page_dir)
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><cq-draft id="d1"><pre>Quite different words.</pre></cq-draft>',
+            '<h2>Plan</h2><lf-draft id="d1"><pre>Quite different words.</pre></lf-draft>',
         )
     )
     assert check(page_dir, version=2).exit_code == 0
@@ -3549,7 +3547,7 @@ def test_check_requires_the_vendored_layer(tmp_path):
     (d / "versions" / "v1.html").write_text(PAGE)
     result = check(d)
     assert result.exit_code == 1
-    assert "run `colloquy page init` to vendor the layer" in result.output
+    assert "run `leaf page init` to vendor the layer" in result.output
 
 
 def test_check_takes_column_width_from_vendored_theme(page_dir):
@@ -3598,7 +3596,7 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
     assert result.exit_code == 1
     assert "/media/deadbeefdeadbeef.png isn't in the page directory" in result.output
 
-    # A mention is not a reference: a page explaining colloquy writes one of these
+    # A mention is not a reference: a page explaining leaf writes one of these
     # paths in its prose, and reading the markup rather than the attributes would
     # send its author hunting for a screenshot the page never asks for.
     (page_dir / "versions" / "v1.html").write_text(
@@ -3834,7 +3832,7 @@ def test_server_round_trip(server, page_dir):
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
-            "</section>", registry["cq-board"]["x-example"] + "\n</section>"
+            "</section>", registry["lf-board"]["x-example"] + "\n</section>"
         )
     )
     # Unnoted version: nothing published yet.
@@ -3847,9 +3845,9 @@ def test_server_round_trip(server, page_dir):
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
     status, body = fetch(f"{server}/")  # urllib follows the 302
-    assert status == 200 and b"cq-options" in body
+    assert status == 200 and b"lf-options" in body
     # Vendored files serve; the log and directory paths don't.
-    for path in ["/colloquy.js", "/theme.css", "/registry.json", "/widgets/cq-tabs.js"]:
+    for path in ["/leaf.js", "/theme.css", "/registry.json", "/widgets/lf-tabs.js"]:
         assert fetch(server + path)[0] == 200, path
     for path in ["/comments.jsonl", "/vendor/..", "/status.json", "/../secret"]:
         assert fetch(server + path)[0] == 404, path
@@ -3944,7 +3942,7 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "reply", "parent": "nope", "version": 1, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
-        # A report is agent-authored: its one door is `colloquy report`, so the
+        # A report is agent-authored: its one door is `leaf report`, so the
         # browser door refuses the kind outright rather than minting user
         # events that outrank nothing.
         {
@@ -3969,12 +3967,12 @@ def test_server_keeps_approval_separate_from_ending_comments(server, page_dir):
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "version 1 uses 'close' for ending its comments-only colloquy"
+        "version 1 uses 'close' for ending its comments-only leaf"
     )
 
     signoff = PAGE.replace(
         "<title>t</title>",
-        '<title>t</title>\n<meta name="cq-review" content="sign-off">',
+        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     )
     (page_dir / "versions" / "v2.html").write_text(signoff)
     publish(page_dir, version=2)
@@ -3988,7 +3986,7 @@ def test_server_keeps_approval_separate_from_ending_comments(server, page_dir):
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    board = registry["cq-board"]["x-example"]
+    board = registry["lf-board"]["x-example"]
     v1 = page_dir / "versions" / "v1.html"
     v1.write_text(v1.read_text().replace("</section>", board + "\n</section>"))
     publish(page_dir, version=1)
@@ -4014,7 +4012,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
             },
-            "<cq-diagram> does not declare action verb",
+            "<lf-diagram> does not declare action verb",
         ),
         (
             {
@@ -4113,9 +4111,9 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "Pick one:",
             "--markup",
             (
-                '<cq-options id="thread-pick" choose>'
-                '<cq-option id="thread-a"><strong>A</strong></cq-option>'
-                "</cq-options>"
+                '<lf-options id="thread-pick" choose>'
+                '<lf-option id="thread-a"><strong>A</strong></lf-option>'
+                "</lf-options>"
             ),
         ],
     )
@@ -4127,7 +4125,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "author": "user",
             "parent": "c1",
             "version": 1,
-            "text": '<cq-options id="quoted-pick" choose></cq-options>',
+            "text": '<lf-options id="quoted-pick" choose></lf-options>',
         },
     )
 
@@ -4155,13 +4153,13 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
 ):
     """An open old tab may outlive the custom layer that upgraded its widget."""
     shipped = json.loads((page_dir / "registry.json").read_text())
-    overlay = page_dir.parent / ".colloquy"
+    overlay = page_dir.parent / ".leaf"
     (overlay / "widgets").mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps({"cq-local-draft": shipped["cq-draft"]})
+        json.dumps({"lf-local-draft": shipped["lf-draft"]})
     )
-    (overlay / "widgets" / "cq-local-draft.js").write_text(
-        "customElements.define('cq-local-draft', class extends HTMLElement {});"
+    (overlay / "widgets" / "lf-local-draft.js").write_text(
+        "customElements.define('lf-local-draft', class extends HTMLElement {});"
     )
     assert (
         CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)]).exit_code == 0
@@ -4170,8 +4168,8 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
     version.write_text(
         version.read_text().replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><cq-local-draft id="local-draft"><pre>Words.</pre>'
-            "</cq-local-draft>",
+            '<h2>Plan</h2><lf-local-draft id="local-draft"><pre>Words.</pre>'
+            "</lf-local-draft>",
         )
     )
     noted = CliRunner().invoke(
@@ -4191,7 +4189,7 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
     # The explicit re-vendor is allowed because no recorded action rests on this
     # tag yet. A browser that loaded it before the re-vendor can still send one.
     (overlay / "registry.json").unlink()
-    (overlay / "widgets" / "cq-local-draft.js").unlink()
+    (overlay / "widgets" / "lf-local-draft.js").unlink()
     assert (
         CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)]).exit_code == 0
     )
@@ -4270,7 +4268,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     """What makes the key invisible: it is in the link once, and the cookie carries
     it from there. The runtime's own fetches are relative and hold no query, and a
     user who reloads the bare address is the same user — so nothing has to
-    thread it through the page, and `colloquy.js` never learns there is one."""
+    thread it through the page, and `leaf.js` never learns there is one."""
     CliRunner().invoke(
         interact.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
@@ -4420,7 +4418,7 @@ def neighbour_page(directory, title=None, pid=None, published=True):
     return url
 
 
-def test_state_ships_the_machines_other_live_colloquys(page_dir, server, tmp_path):
+def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the
     live-session registry — titled by its newest published version, and nothing
@@ -4567,7 +4565,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     interact.cmd_ack(page_dir, 3)
     assert page_state(page_dir)["pending"] == 0
     # The wait status is marked a handoff, which dates the claim: the agent's own
-    # `colloquy status` clears the mark, so the mark surviving is a pickup that never landed.
+    # `leaf status` clears the mark, so the mark surviving is a pickup that never landed.
     status = interact.read_json(page_dir / "status.json")
     assert (status["state"], status["handoff"]) == ("working", True)
     interact.cmd_status(page_dir, "working", "revising the plan")
@@ -4663,7 +4661,7 @@ def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
 
 def test_wait_restarts_a_server_that_died_under_it(page_dir, capsys):
     """A page whose server died is offline in the user's browser and nowhere
-    else — so `colloquy wait`, the one thing positioned to notice, brings it back
+    else — so `leaf wait`, the one thing positioned to notice, brings it back
     rather than exiting and leaving the discovery to the user."""
 
     def comment_once_served():
@@ -4735,11 +4733,11 @@ def claimed(page_dir, monkeypatch):
 @pytest.fixture
 def codex_claimed_page(tmp_path, request):
     page = tmp_path / "codex-page"
-    launcher = PLUGIN_ROOT / "bin" / "colloquy"
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
     env = os.environ | {"CODEX_THREAD_ID": "codex-thread"}
 
     # Uncaptured, so `check=True` reports something: a CalledProcessError over
-    # captured streams names the command and the exit status and takes colloquy's
+    # captured streams names the command and the exit status and takes leaf's
     # own message down with it, and nothing here reads either stream. Left to
     # pytest, the message is in the failure it belongs to.
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
@@ -4769,11 +4767,11 @@ def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
 
 
 def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(tmp_path):
-    """A Codex worker launched with COLLOQUY_AGENT set keeps that voice: the
+    """A Codex worker launched with LEAF_AGENT set keeps that voice: the
     launcher's Codex branch supplies the default name, not the last word."""
     page = tmp_path / "worker-page"
-    launcher = PLUGIN_ROOT / "bin" / "colloquy"
-    env = os.environ | {"CODEX_THREAD_ID": "thread-9", "COLLOQUY_AGENT": "Indexer"}
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    env = os.environ | {"CODEX_THREAD_ID": "thread-9", "LEAF_AGENT": "Indexer"}
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     subprocess.run([launcher, "wait", page], env=env, check=True)
@@ -4785,12 +4783,12 @@ def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(tmp_path):
 def test_hook_remedies_follow_the_host_not_the_display_name(
     page_dir, monkeypatch, capsys
 ):
-    """COLLOQUY_AGENT names the voice the banner and threads show; which
+    """LEAF_AGENT names the voice the banner and threads show; which
     machinery the hook prescribes (unified exec vs background tasks) keys on the
     recorded host, so a renamed Codex worker still gets Codex remedies."""
-    monkeypatch.setenv("COLLOQUY_SESSION_ID", "w1")
-    monkeypatch.setenv("COLLOQUY_SESSION_PID", str(os.getpid()))
-    monkeypatch.setenv("COLLOQUY_AGENT", "Indexer")
+    monkeypatch.setenv("LEAF_SESSION_ID", "w1")
+    monkeypatch.setenv("LEAF_SESSION_PID", str(os.getpid()))
+    monkeypatch.setenv("LEAF_AGENT", "Indexer")
     interact.claim_page(page_dir)
     interact.cmd_status(page_dir, "waiting", "")
 
@@ -4827,7 +4825,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     (page / "heartbeat.json").unlink()
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "Start `colloquy wait`" in reason
+    assert "Start `leaf wait`" in reason
     assert "unified exec" in reason and "write_stdin" in reason
 
     # Pending output still has to cross context and be acknowledged before handling.
@@ -4835,7 +4833,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     interact.write_json(page / "heartbeat.json", {"t": time.time()})
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "colloquy ack" in reason and "address every one" in reason
+    assert "leaf ack" in reason and "address every one" in reason
     assert interact.ACK_BATCH_INSTRUCTION in reason
 
     interact.cmd_ack(page, 1)
@@ -4846,7 +4844,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
 def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     """Between turns a page is either watched or idle. The failure this prevents:
-    a `colloquy wait` exits, its notification is buried behind the next thing the
+    a `leaf wait` exits, its notification is buried behind the next thing the
     user types, and the page keeps saying "Claude is working" over nobody."""
     interact.cmd_status(claimed, "waiting", "")
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -4891,7 +4889,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     assert "1 update you haven't picked up" in context
 
     # Not while a watcher is live: it prints them itself, and sending Claude to start a
-    # second `colloquy wait` would print every unacknowledged event twice.
+    # second `leaf wait` would print every unacknowledged event twice.
     interact.write_json(claimed / "heartbeat.json", {"t": time.time()})
     interact.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -4953,9 +4951,9 @@ def test_loop_guard_agrees_with_interact_on_state_home(tmp_path, monkeypatch):
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
-    """`colloquy status PAGE idle` is the way out of the guard's other case, so it
+    """`leaf status PAGE idle` is the way out of the guard's other case, so it
     reads as the way out of this one too. The events are the user's: a page
-    idled over them ends the colloquy on someone still waiting for an answer, and
+    idled over them ends the leaf on someone still waiting for an answer, and
     from the browser that looks exactly like one that ran its course."""
     interact.append_event(claimed, {"kind": "comment", "author": "user", "text": "hi"})
     refused = CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"])
@@ -4964,7 +4962,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert interact.ACK_BATCH_INSTRUCTION in refused.output
     assert interact.read_json(claimed / "status.json")["state"] != "idle"
 
-    # `colloquy wait` returns at once, and acknowledgement records that its output
+    # `leaf wait` returns at once, and acknowledgement records that its output
     # reached model context; only then can idle close the page.
     assert CliRunner().invoke(interact.cli, ["wait", str(claimed)]).exit_code == 0
     assert CliRunner().invoke(interact.cli, ["ack", str(claimed), "1"]).exit_code == 0
@@ -5009,9 +5007,9 @@ def test_session_end_idles_the_page_and_stops_its_server(claimed):
 
 def start_managed_server(page_dir, session_id, session_pid):
     env = os.environ | {
-        "COLLOQUY_SESSION_ID": session_id,
-        "COLLOQUY_SESSION_PID": str(session_pid),
-        "COLLOQUY_AGENT": "Codex",
+        "LEAF_SESSION_ID": session_id,
+        "LEAF_SESSION_PID": str(session_pid),
+        "LEAF_AGENT": "Codex",
     }
     process = subprocess.Popen(
         [
@@ -5074,9 +5072,9 @@ def start_standing_server(page_dir):
     for name in (
         "CLAUDE_CODE_SESSION_ID",
         "CLAUDE_PID",
-        "COLLOQUY_SESSION_ID",
-        "COLLOQUY_SESSION_PID",
-        "COLLOQUY_AGENT",
+        "LEAF_SESSION_ID",
+        "LEAF_SESSION_PID",
+        "LEAF_AGENT",
     ):
         env.pop(name, None)
     process = subprocess.Popen(
@@ -5183,13 +5181,13 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     """The standing serve, the whole way round: a page kept up across sessions, and a
     session that works on it for an afternoon and goes. Picking a page up earns the
     watch obligation and nothing else, so the session's end must take down neither the
-    process it didn't start nor a colloquy that outlives it."""
+    process it didn't start nor a leaf that outlives it."""
     server = start_standing_server(page_dir)
     try:
         launched = interact.read_json(page_dir / "server.json")
         assert launched["lifetime"] == "standing"
 
-        # A session picks the page up, the way `colloquy wait` does.
+        # A session picks the page up, the way `leaf wait` does.
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
         assert interact.claim_page(page_dir)
@@ -5287,7 +5285,7 @@ def test_choose_requires_an_id(page_dir):
     # Actions name their widget by id, so an interactive group can't go without one.
     registry = interact.load_registry(page_dir)
     errs = fragment_errors(
-        '<cq-options choose><cq-option id="o1"><strong>A</strong></cq-option></cq-options>',
+        '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
     assert errs and "'id' is a dependency of 'choose'" in " ".join(errs)
@@ -5296,14 +5294,14 @@ def test_choose_requires_an_id(page_dir):
 def test_specimen_admits_interactive_widgets(page_dir):
     # The registry marks a specimen's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
-    # wrapper: nesting rules (cq-option under cq-options) still hold.
+    # wrapper: nesting rules (lf-option under lf-options) still hold.
     registry = interact.load_registry(page_dir)
     errs = fragment_errors(
-        '<cq-specimen id="sp" label="a decision">'
-        '<cq-options id="g" choose><cq-option id="o1"><strong>A</strong></cq-option></cq-options>'
-        '<cq-board id="b"><cq-column id="c" label="To do">'
-        '<cq-card id="k"><strong>Card</strong></cq-card></cq-column></cq-board>'
-        "</cq-specimen>",
+        '<lf-specimen id="sp" label="a decision">'
+        '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
+        '<lf-board id="b"><lf-column id="c" label="To do">'
+        '<lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>'
+        "</lf-specimen>",
         registry,
     )
     assert errs == []
@@ -5318,13 +5316,13 @@ def test_settling_a_decision_drops_no_ids(page_dir):
     registry = interact.load_registry(page_dir)
     assert "'id' is a dependency of 'settled'" in " ".join(
         fragment_errors(
-            '<cq-options settled><cq-option id="o1"><strong>A</strong></cq-option></cq-options>',
+            '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
             registry,
         )
     )
 
-    group = '<cq-options id="pick" choose{}><cq-option id="opt-a"{}><strong>A</strong></cq-option>'
-    group += '<cq-option id="opt-b"><strong>B</strong></cq-option></cq-options>'
+    group = '<lf-options id="pick" choose{}><lf-option id="opt-a"{}><strong>A</strong></lf-option>'
+    group += '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options>'
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
@@ -5342,7 +5340,7 @@ def test_settling_a_decision_drops_no_ids(page_dir):
 def test_registry_examples_validate(page_dir):
     registry = interact.load_registry(page_dir)
     assert any(
-        tag.startswith("cq-") and "x-example" in entry
+        tag.startswith("lf-") and "x-example" in entry
         for tag, entry in registry.items()
     )
     assert (
@@ -5352,11 +5350,11 @@ def test_registry_examples_validate(page_dir):
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
     registry = interact.load_registry(page_dir)
-    registry["cq-diff"]["x-example"] = (
-        '<cq-diff id="shared"><pre>one changed line</pre></cq-diff>'
+    registry["lf-diff"]["x-example"] = (
+        '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
-    registry["cq-tree"]["x-example"] = (
-        '<cq-tree id="shared"><pre>one/file.py</pre></cq-tree>'
+    registry["lf-tree"]["x-example"] = (
+        '<lf-tree id="shared"><pre>one/file.py</pre></lf-tree>'
     )
 
     assert (
@@ -5401,7 +5399,7 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     """Eight sweeps in test_render.py read a widget inside a whole page, and their
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
-    cq-shot and cq-specimen were outside them from the day each was written.
+    lf-shot and lf-specimen were outside them from the day each was written.
     examples/CLAUDE.md carries the rest, including the shapes this floor doesn't
     reach."""
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
@@ -5433,7 +5431,7 @@ def test_gallery_is_generated_from_the_examples():
 def test_catalog_prints_widgets_and_idioms(page_dir):
     result = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
     assert result.exit_code == 0
-    assert "cq-options" in result.output
+    assert "lf-options" in result.output
     assert "x-example" in result.output
     assert ".callout" in result.output
     assert "$idioms" not in result.output  # sections are split out, not dumped raw
@@ -5456,11 +5454,11 @@ def test_reply_validates_widget_markup(page_dir):
             markup,
         ],
     )
-    bad = reply('<cq-diagram id="f"><pre>graph LR</pre><b>x</b></cq-diagram>')
+    bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
     duplicate = reply(
-        '<cq-diagram id="browser-id" id="file-id"><pre>graph LR\nA --> B</pre></cq-diagram>'
+        '<lf-diagram id="browser-id" id="file-id"><pre>graph LR\nA --> B</pre></lf-diagram>'
     )
     assert duplicate.exit_code != 0
     assert "duplicate attribute" in duplicate.output
@@ -5469,13 +5467,13 @@ def test_reply_validates_widget_markup(page_dir):
     prose = reply("just words")
     assert prose.exit_code != 0
     assert "carries no widget" in prose.output
-    good = reply('<cq-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></cq-diagram>')
+    good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
     assert good.exit_code == 0, good.output
     event = interact.read_events(page_dir)[-1]
     assert event["kind"] == "reply"
     assert event["author"] == "claude"
     assert event["text"] == "See:"
-    assert event["markup"].startswith("<cq-diagram")
+    assert event["markup"].startswith("<lf-diagram")
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
@@ -5497,22 +5495,22 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             markup,
         ],
     )
-    # `flow` is the page's cq-diagram id (PAGE fixture) — refused.
+    # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
     clash = reply(
-        '<cq-options id="flow" choose><cq-option id="o1"><strong>A</strong></cq-option></cq-options>'
+        '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
     )
     assert clash.exit_code != 0 and "flow" in clash.output
     fresh = reply(
-        '<cq-options id="q1" choose><cq-option id="q1-a"><strong>A</strong></cq-option></cq-options>'
+        '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>'
     )
     assert fresh.exit_code == 0, fresh.output
     # A second reply can't reuse the first reply's ids either, nor its own within itself.
     again = reply(
-        '<cq-options id="q1" choose><cq-option id="q1-b"><strong>B</strong></cq-option></cq-options>'
+        '<lf-options id="q1" choose><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>'
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
-        '<cq-options id="q2" choose><cq-option id="q2"><strong>B</strong></cq-option></cq-options>'
+        '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>'
     )
     assert selfdup.exit_code != 0 and "within itself" in selfdup.output
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
@@ -5524,11 +5522,11 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             "kind": "reply",
             "author": "user",
             "parent": "c1",
-            "text": 'why not <cq-diagram id="quoted"> here?',
+            "text": 'why not <lf-diagram id="quoted"> here?',
         },
     )
     ok = reply(
-        '<cq-options id="quoted" choose><cq-option id="quoted-a"><strong>A</strong></cq-option></cq-options>'
+        '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>'
     )
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
@@ -5542,19 +5540,19 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
 
 
-def test_the_runtimes_cq_id_namespace_is_off_limits(page_dir):
-    """colloquy.js coins document ids under cq- for its own chrome — cq-composer-quote —
+def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
+    """leaf.js coins document ids under lf- for its own chrome — lf-composer-quote —
     and points ARIA at them. An authored id there would aim those references at the page
     instead, silently. One rule over both places an id can be authored: a version, and
     the widget markup in Claude's reply."""
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
-            '<section id="plan">', '<section id="plan"><p id="cq-msg-7">mine</p>'
+            '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
         )
     )
     result = check(page_dir, version=2)
     assert result.exit_code == 1
-    assert "cq- namespace" in result.output and "cq-msg-7" in result.output
+    assert "lf- namespace" in result.output and "lf-msg-7" in result.output
 
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -5569,11 +5567,11 @@ def test_the_runtimes_cq_id_namespace_is_off_limits(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<cq-options id="cq-pick" choose><cq-option id="o1"><strong>A</strong></cq-option></cq-options>',
+            '<lf-options id="lf-pick" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         ],
     )
     assert reply.exit_code != 0
-    assert "cq- namespace" in reply.output and "cq-pick" in reply.output
+    assert "lf- namespace" in reply.output and "lf-pick" in reply.output
 
 
 # ---------- messages: text is Markdown for the browser, markup is the gate's ----------
@@ -5603,14 +5601,14 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "--text",
             "Fixed in `poll()`.",
             "--markup",
-            '<cq-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></cq-diagram>',
+            '<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert result.exit_code == 0, result.output
     wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
     assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
     assert "html" not in wire["comment"] and "html" not in wire["reply"]
-    assert wire["reply"]["markup"].startswith("<cq-diagram")
+    assert wire["reply"]["markup"].startswith("<lf-diagram")
 
 
 def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
@@ -5620,7 +5618,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     watcher the banner names — stays the hub's, untouched by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    monkeypatch.setenv("COLLOQUY_AGENT", "Hub")
+    monkeypatch.setenv("LEAF_AGENT", "Hub")
     interact.claim_page(page_dir)
     published(page_dir)
     interact.append_event(
@@ -5633,10 +5631,10 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
-    monkeypatch.setenv("COLLOQUY_AGENT", "Indexer")
+    monkeypatch.setenv("LEAF_AGENT", "Indexer")
     assert reply("indexing done").exit_code == 0
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
-    monkeypatch.setenv("COLLOQUY_AGENT", "Crawler")
+    monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
     events = interact.read_events(page_dir)
@@ -5669,7 +5667,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
                 "kind": "comment",
                 "version": 1,
                 "text": "hi",
-                "markup": '<cq-diagram id="m"><pre>graph LR\n  A --> B</pre></cq-diagram>',
+                "markup": '<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
             }
         ).encode(),
     )
@@ -5706,7 +5704,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "agent": "Claude",
             "parent": "c1",
             "text": "reversibility",
-            "markup": '<cq-diagram id="why"><pre>graph LR\n  A --> B</pre></cq-diagram>',
+            "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
     )
     interact.append_event(
@@ -5750,7 +5748,7 @@ def test_export_prints_threads_and_versions(page_dir):
     )
     result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
-    assert "## Colloquy: Cutoff & backfill" in result.output
+    assert "## Leaf: Cutoff & backfill" in result.output
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
@@ -5758,7 +5756,7 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "> “flip reads”  — resolved" in result.output
     assert "- **User**: why?" in result.output
     # The widget rides its message into the transcript, indented under the words.
-    assert "- **Claude**: reversibility\n  <cq-diagram" in result.output
+    assert "- **Claude**: reversibility\n  <lf-diagram" in result.output
     assert "> § flow" in result.output  # element-anchored comments keep their target
     assert long_quote not in result.output, "the whole passage went into the transcript"
     head = next(
@@ -5798,7 +5796,7 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
             "--text",
             "See:",
             "--markup",
-            '<cq-diagram id="f"><pre>graph LR\n  A --> B</pre></cq-diagram>',
+            '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
     assert with_markup.exit_code != 0
@@ -5812,8 +5810,7 @@ def test_comment_requires_the_registry_its_runtime_reads(page_dir):
     result = comment(page_dir, "--quote", "Ship dark", "--text", "Still posts")
     assert result.exit_code != 0
     assert (
-        "no registry.json" in result.output
-        and "run `colloquy page init`" in result.output
+        "no registry.json" in result.output and "run `leaf page init`" in result.output
     )
     assert interact.read_events(page_dir) == before
 
@@ -5907,7 +5904,7 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
     )
     assert len(passage) > 400, "the fixture no longer outruns the old cap"
     long = PAGE.replace(
-        '  <cq-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></cq-diagram>\n',
+        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
         f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n",
     )
     (page_dir / "versions" / "v1.html").write_text(long)
@@ -5925,7 +5922,7 @@ def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
     The section the anchor names scopes where the search may land, never what surrounds
     the passage."""
     two = PAGE.replace(
-        '  <cq-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></cq-diagram>\n',
+        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
         "  <p>Deploys pause overnight.</p>\n",
     ).replace(
         "</main>",
@@ -5987,9 +5984,9 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     user's browser, so it's refused here, where someone can still do something about
     it. Either side of the join quotes fine."""
     fenced = PAGE.replace(
-        '  <cq-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></cq-diagram>',
+        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>',
         "  <p>Before the diagram.</p>\n"
-        '  <cq-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></cq-diagram>\n'
+        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n'
         "  <p>After the diagram.</p>",
     )
     (page_dir / "versions" / "v1.html").write_text(fenced)
@@ -6011,7 +6008,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 DRAFTED = PAGE.replace(
     "<h2>Plan</h2>",
-    '<h2>Plan</h2>\n  <cq-draft id="note"><pre>\nAdds --dry-run to every mutating command.\n  </pre></cq-draft>',
+    '<h2>Plan</h2>\n  <lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.\n  </pre></lf-draft>',
 )
 
 
@@ -6036,8 +6033,8 @@ def edit(page_dir, text, widget="note", version=1):
 
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
-    """The registry draws the line: cq-draft renders the authored text into a plain div
-    the anchor pass can see (x-verbatim), and cq-diagram renders a picture instead."""
+    """The registry draws the line: lf-draft renders the authored text into a plain div
+    the anchor pass can see (x-verbatim), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
     )
@@ -6048,7 +6045,7 @@ def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
 def test_an_edited_draft_reads_as_the_users_words(page_dir):
     """An `edit` is absolute — the log carries the whole new body, and replay writes
     exactly that into the DOM the anchor pass searches — so the reading
-    `colloquy comment` captures against holds the user's words in the authored
+    `leaf comment` captures against holds the user's words in the authored
     body's place: quotable, collapsed like any passage, genuinely adjacent to the
     prose around them (no fence — the screen shows that adjacency too)."""
     drafted(page_dir)
@@ -6082,8 +6079,8 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     revised = DRAFTED.replace(
-        '<cq-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
-        '<cq-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
+        '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
+        '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
     )
     (page_dir / "versions" / "v2.html").write_text(revised)
     noted = CliRunner().invoke(
@@ -6165,10 +6162,10 @@ def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir)
     chip band opens the element, and the metric's delta closes it."""
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
-            '  <cq-diagram id="flow">',
-            '  <cq-metrics><cq-metric id="k-visits" value="312" delta="+41"'
-            ' direction="up-good">daily visits</cq-metric></cq-metrics>\n'
-            '  <cq-diagram id="flow">',
+            '  <lf-diagram id="flow">',
+            '  <lf-metrics><lf-metric id="k-visits" value="312" delta="+41"'
+            ' direction="up-good">daily visits</lf-metric></lf-metrics>\n'
+            '  <lf-diagram id="flow">',
         )
     )
     published(page_dir)
@@ -6181,7 +6178,7 @@ def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir)
         assert json.loads(result.output)["anchor"]["section"] == section
 
 
-SUGGESTED = PAGE.replace("<cq-options>", SUGGESTION)
+SUGGESTED = PAGE.replace("<lf-options>", SUGGESTION)
 
 
 def suggested(page_dir):
@@ -6191,7 +6188,7 @@ def suggested(page_dir):
 
 
 def test_a_decision_retires_its_losing_slot_from_comments_reach(page_dir):
-    """The user's accept removes cq-old from the page (the browser's anchor pass
+    """The user's accept removes lf-old from the page (the browser's anchor pass
     skips it), so a quote into it is refused naming the decision — posted, it would
     detach in front of them. The surviving slot quotes as ever, and a re-decision
     moves the line: the reading follows the log the way replay does, last word
@@ -6233,13 +6230,13 @@ def test_a_decision_that_empties_its_widget_takes_it_off_sections_reach(page_dir
     Pending, the wrapper answers like any element; settled empty, the refusal names
     the decision that emptied it."""
     lone = PAGE.replace(
-        "<cq-options>",
-        '<cq-suggestion id="sug-drop">\n'
-        "  <cq-old><p>The manual sightings log.</p></cq-old>\n"
-        "</cq-suggestion>\n"
-        '<cq-suggestion id="sug-add">\n'
-        "  <cq-new><p>Switch the north feeder to thistle.</p></cq-new>\n"
-        "</cq-suggestion>\n<cq-options>",
+        "<lf-options>",
+        '<lf-suggestion id="sug-drop">\n'
+        "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
+        "</lf-suggestion>\n"
+        '<lf-suggestion id="sug-add">\n'
+        "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
+        "</lf-suggestion>\n<lf-options>",
     )
     (page_dir / "versions" / "v1.html").write_text(lone)
     published(page_dir)
@@ -6295,7 +6292,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
         "Refill when the camera shows it half-empty.",
         "Refill when the camera shows it two-thirds empty.",
     ).replace(
-        '<cq-suggestion id="sug-refill">', '<cq-suggestion id="sug-refill" restated>'
+        '<lf-suggestion id="sug-refill">', '<lf-suggestion id="sug-refill" restated>'
     )
     (page_dir / "versions" / "v2.html").write_text(revised)
     noted = CliRunner().invoke(
@@ -6347,7 +6344,7 @@ def test_a_comment_without_an_anchor_asks_the_page_whole(page_dir):
 
 
 def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
-    """`colloquy wait` and the banner's unread count both turn on author, so a note
+    """`leaf wait` and the banner's unread count both turn on author, so a note
     Claude leaves can't wake its own watcher or read as a comment nobody answered."""
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
@@ -6367,7 +6364,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<cq-options id="q1" choose><cq-option id="q1-a"><strong>A</strong></cq-option></cq-options>',
+            '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
         ).exit_code
         == 0
     )
@@ -6384,7 +6381,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "See:",
             "--markup",
-            '<cq-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></cq-diagram>',
+            '<lf-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert clash.exit_code != 0 and "q1" in clash.output

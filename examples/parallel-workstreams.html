@@ -16,111 +16,111 @@
         switching isn't a comment and doesn't reach the agent.
       </p>
 
-      <cq-tabs id="projects">
-        <cq-tab id="tab-feeders" label="Feeders">
-          <cq-metrics id="feeder-kpis">
-            <cq-metric id="k-mounted" value="2 of 4" delta="+1" direction="up-good"
-              >feeders mounted</cq-metric
+      <lf-tabs id="projects">
+        <lf-tab id="tab-feeders" label="Feeders">
+          <lf-metrics id="feeder-kpis">
+            <lf-metric id="k-mounted" value="2 of 4" delta="+1" direction="up-good"
+              >feeders mounted</lf-metric
             >
-            <cq-metric id="k-visits" value="312" delta="+41" direction="up-good"
-              >daily visits</cq-metric
+            <lf-metric id="k-visits" value="312" delta="+41" direction="up-good"
+              >daily visits</lf-metric
             >
-            <cq-metric id="k-refills" value="2.1/wk" delta="+0.4" direction="up-bad"
-              >refills</cq-metric
+            <lf-metric id="k-refills" value="2.1/wk" delta="+0.4" direction="up-bad"
+              >refills</lf-metric
             >
-          </cq-metrics>
+          </lf-metrics>
           <p id="feeder-note">
             The south pair is up and drawing traffic; the north pair waits on brackets.
             Drag cards to reprioritize — your edits reach the agent directly.
           </p>
-          <cq-board id="feeder-board">
-            <cq-column id="col-todo" label="To do">
-              <cq-card id="card-brackets"
-                ><strong>Steel brackets</strong> Order for the north pair.</cq-card
+          <lf-board id="feeder-board">
+            <lf-column id="col-todo" label="To do">
+              <lf-card id="card-brackets"
+                ><strong>Steel brackets</strong> Order for the north pair.</lf-card
               >
-              <cq-card id="card-baffle"><strong>Squirrel baffle</strong></cq-card>
-            </cq-column>
-            <cq-column id="col-doing" label="Doing">
-              <cq-card id="card-heater"
-                ><strong>Heated perch</strong> Wire the south feeder.</cq-card
+              <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+            </lf-column>
+            <lf-column id="col-doing" label="Doing">
+              <lf-card id="card-heater"
+                ><strong>Heated perch</strong> Wire the south feeder.</lf-card
               >
-            </cq-column>
-            <cq-column id="col-done" label="Done">
-              <cq-card id="card-mounts"><strong>South mounts</strong></cq-card>
-            </cq-column>
-          </cq-board>
+            </lf-column>
+            <lf-column id="col-done" label="Done">
+              <lf-card id="card-mounts"><strong>South mounts</strong></lf-card>
+            </lf-column>
+          </lf-board>
           <p id="feeder-order">
             The bracket order goes in on Friday and there is room in it. These are the
             extras the south pair turned out to want.
           </p>
-          <cq-options id="feeder-extras" choose multiple>
-            <cq-option id="fx-tray"
-              ><cq-chip>£9 the pair</cq-chip
-              ><cq-chip tone="warn">more cleaning</cq-chip>
+          <lf-options id="feeder-extras" choose multiple>
+            <lf-option id="fx-tray"
+              ><lf-chip>£9 the pair</lf-chip
+              ><lf-chip tone="warn">more cleaning</lf-chip>
               <strong>Seed tray</strong> Catches the spill under the south pair, where
               the grass has thinned to bare earth.
-            </cq-option>
-            <cq-option id="fx-dome"
-              ><cq-chip>£15 each</cq-chip><cq-chip tone="ok">fits both pairs</cq-chip>
+            </lf-option>
+            <lf-option id="fx-dome"
+              ><lf-chip>£15 each</lf-chip><lf-chip tone="ok">fits both pairs</lf-chip>
               <strong>Weather dome</strong> Keeps the seed dry; the south feeders
               clogged twice in the wet week.
-            </cq-option>
-            <cq-option id="fx-mount"
-              ><cq-chip>£24 fitted</cq-chip><cq-chip>uses the spare camera</cq-chip>
+            </lf-option>
+            <lf-option id="fx-mount"
+              ><lf-chip>£24 fitted</lf-chip><lf-chip>uses the spare camera</lf-chip>
               <strong>Second camera mount</strong> Puts the spare on the north post once
               the feeders are up.
-            </cq-option>
-          </cq-options>
-        </cq-tab>
+            </lf-option>
+          </lf-options>
+        </lf-tab>
 
-        <cq-tab id="tab-bath" label="Bird bath">
+        <lf-tab id="tab-bath" label="Bird bath">
           <p id="bath-status">
             The basin is level and holding water; the open question is how to keep it
             liquid through January. Click an option to decide.
           </p>
-          <cq-options id="bath-heat" choose>
-            <cq-option id="heat-immersion"
-              ><cq-chip>£18</cq-chip><cq-chip>a cord across the lawn</cq-chip
-              ><cq-chip tone="ok">liquid all winter</cq-chip>
+          <lf-options id="bath-heat" choose>
+            <lf-option id="heat-immersion"
+              ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
+              ><lf-chip tone="ok">liquid all winter</lf-chip>
               <strong>Immersion heater</strong> Drops into the basin; needs a cord run
               across the lawn.
-            </cq-option>
-            <cq-option id="heat-solar" recommended
-              ><cq-chip>£70</cq-chip><cq-chip>swap the basin</cq-chip
-              ><cq-chip tone="ok">liquid but the hardest frosts</cq-chip>
+            </lf-option>
+            <lf-option id="heat-solar" recommended
+              ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
+              ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
               <strong>Solar basin</strong> Replace the basin with the heated model; no
               cord, reversible.
-            </cq-option>
-            <cq-option id="heat-none"
-              ><cq-chip>£0</cq-chip><cq-chip>nothing to install</cq-chip
-              ><cq-chip tone="danger">liquid on thaw days</cq-chip>
+            </lf-option>
+            <lf-option id="heat-none"
+              ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip
+              ><lf-chip tone="danger">liquid on thaw days</lf-chip>
               <strong>Let it freeze</strong> Refill on thaw days only.
-            </cq-option>
-          </cq-options>
-        </cq-tab>
+            </lf-option>
+          </lf-options>
+        </lf-tab>
 
-        <cq-tab id="tab-camera" label="Camera">
+        <lf-tab id="tab-camera" label="Camera">
           <p id="camera-note">
             The feed has been stable since the battery swap; one open follow-up on
             storage.
           </p>
-          <cq-timeline id="camera-log">
-            <cq-event id="e-offline" at="Mon 09:14" kind="warning">
+          <lf-timeline id="camera-log">
+            <lf-event id="e-offline" at="Mon 09:14" kind="warning">
               <strong>Camera offline</strong> Battery alert from the north post.
-            </cq-event>
-            <cq-event id="e-swap" at="Mon 09:40" kind="action">
+            </lf-event>
+            <lf-event id="e-swap" at="Mon 09:40" kind="action">
               <strong>Battery swapped</strong>
-            </cq-event>
-            <cq-event id="e-ok" at="Mon 09:41" kind="info">
+            </lf-event>
+            <lf-event id="e-ok" at="Mon 09:41" kind="info">
               <strong>Feed resumed</strong> Stable since.
-            </cq-event>
-          </cq-timeline>
+            </lf-event>
+          </lf-timeline>
           <p id="camera-next">
             Next: rotate clips to the shed NAS before the card fills, likely week 4.
           </p>
-        </cq-tab>
-      </cq-tabs>
+        </lf-tab>
+      </lf-tabs>
     </main>
-    <script type="module" src="/colloquy.js"></script>
+    <script type="module" src="/leaf.js"></script>
   </body>
 </html>

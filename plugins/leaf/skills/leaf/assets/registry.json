@@ -1,0 +1,148 @@
+{
+  "lf-suggestion": {
+    "description": "One proposed change to content the user has already seen, decided in place. lf-old holds the current markup verbatim, lf-new the proposal: both slots replace, lf-new alone inserts, lf-old alone deletes. A widget-state change has no separate patch shape: put the complete old and new widget markup in those slots when one is genuinely needed. Pending, the old reads struck and the new tinted, with accept/reject controls in the page margin; deciding folds the retired half away and reaches the agent as an `accept` or `reject` action for the next version to carry. The control the reader pressed stays where it stood and says what it did (“✓ Accepted”), so the margin holds a record of what they took. Settlement is final on that version — that record is not an undo mark; a mistaken decision is corrected by a comment or the next version. `resolves` names the comment whose thread this change answers — accepting resolves that thread too. Suggestions don't nest, and a reply can't carry one (reply markup is frozen in the log, so no version could settle it). Fresh content — a new section, the first version — is written straight instead, and a block the user is to write in their own words is a lf-draft: theirs to rewrite, not the agent's to propose. The user can also just comment on a pending suggestion rather than decide it. An undecided one is a standing ask (see $awaits) — counted in the banner, stepped to by `a`, and the one kind a single press answers wholesale, which is the banner's ✓ Accept all.",
+    "type": "object",
+    "properties": {
+      "id":       {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+      "resolves": {"type": "string", "pattern": "^[a-z0-9]+$"},
+      "restated": {"type": "boolean"}
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "items",
+    "x-upgrade": true,
+    "x-awaits": {"all": "accept"},
+    "x-state": {
+      "accept": {
+        "detail": {"type": "object", "properties": {"resolves": {"type": "string"}}, "additionalProperties": false},
+        "unit": "widget"
+      },
+      "reject": {
+        "detail": {"type": "object", "additionalProperties": false},
+        "unit": "widget"
+      }
+    },
+    "x-example": "<p>Refill rules for the season:</p>\n<lf-suggestion id=\"sug-refill\">\n  <lf-old><p id=\"refill-rule\">Refill every feeder each morning.</p></lf-old>\n  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>\n</lf-suggestion>"
+  },
+  "lf-old": {
+    "description": "The markup a suggestion would replace or delete, verbatim — ids and all, which live here while the suggestion is pending. Omitted when the suggestion only inserts. Accepting the suggestion retires this slot: its words leave the page's reading, so nothing can anchor on them after.",
+    "type": "object",
+    "properties": {
+      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+    },
+    "additionalProperties": false,
+    "x-parent": ["lf-suggestion"],
+    "x-content": "prose",
+    "x-upgrade": false,
+    "x-retired-when": "accept"
+  },
+  "lf-new": {
+    "description": "The markup a suggestion proposes. Omitted when the suggestion only deletes. Rejecting the suggestion retires this slot: its words leave the page's reading, so nothing can anchor on them after.",
+    "type": "object",
+    "properties": {
+      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+    },
+    "additionalProperties": false,
+    "x-parent": ["lf-suggestion"],
+    "x-content": "prose",
+    "x-upgrade": false,
+    "x-retired-when": "reject"
+  },
+  "$languages": {
+    "description": "The languages this page's layer can color, and what a filename means. `names` is the whole vocabulary: what an author may declare, what the lint refuses a word outside, and what scripts/vendor-highlight.sh builds the tokenizer bundle from. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `language` — a widget declares that one of its attributes names a language (x-language) and the lint reads the list from here, so a second tag taking one costs a declaration and no new reader. `paths` is the half nobody writes: the one place a language is derived rather than declared, because a unified diff spans files and so has no attribute to carry one. An extension is the diff's own statement about what a file holds, which is a declaration like any other; an extension absent here leaves that file plain.",
+    "why-diff-is-not-a-path": "`diff` is in `names` and deliberately not in `paths`: a .patch inside a diff would be colored by the diff grammar, whose addition and deletion ink is the same statement the widget's own tints already make — said twice, in two channels, about the same line.",
+    "names": ["bash", "css", "diff", "go", "html", "java", "javascript", "json", "markdown", "python", "rust", "sql", "toml", "typescript", "yaml"],
+    "paths": {
+      "bash": "bash", "cjs": "javascript", "css": "css", "go": "go", "htm": "html",
+      "html": "html", "java": "java", "js": "javascript", "json": "json",
+      "jsx": "javascript", "md": "markdown", "mjs": "javascript", "py": "python",
+      "rs": "rust", "sh": "bash", "sql": "sql", "toml": "toml", "ts": "typescript",
+      "tsx": "typescript", "yaml": "yaml", "yml": "yaml"
+    }
+  },
+  "$events": {
+    "description": "The vocabulary stamp: the event kinds this layer's runtime and CLI read, and the fields each carries beyond id/ts/author/kind/seq. Vendored with the page, it is the one statement of what that page's runtime speaks. `page init` refuses to re-vendor over a log recorded in kinds or verbs (x-state, per widget) the incoming layer no longer speaks, because those events would never replay again.",
+    "kinds": {
+      "comment": ["version", "text", "anchor", "suggestion", "agent", "session", "markup"],
+      "reply": ["parent", "version", "text", "agent", "session", "markup"],
+      "resolve": ["parent"],
+      "done": ["version", "text"],
+      "close": ["version"],
+      "action": ["widget", "action", "detail", "version"],
+      "report": ["widget", "action", "detail", "version", "agent", "session"],
+      "note": ["version", "text", "restated", "reports", "agent", "session"]
+    }
+  },
+  "$state": {
+    "description": "What x-state declares, once per widget with an action channel: each verb's detail schema (the payload half of the log's forever-contract), its fold unit, and the record form its state takes in markup. Every applyAction is absolute, so the user's standing state is a fold — the last surviving action per unit — and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), the record-lag report, the runtime's decided-but-unhonored mark, and the version diff's state half.",
+    "unit": "\"widget\" for a verb absolute across the group (choose toggles every sibling), or the detail field naming the element the verb is absolute per (move's \"card\").",
+    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value} — the enclosing `within` element, compared at that granularity (indexes compose across cards, so column is the whole comparison); {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. A verb with no record (accept/reject) folds for the runtime's pending mark, and retirement stays retirable_ids' business."
+  },
+  "$report": {
+    "description": "What x-report declares, once per widget with an agent channel: report verbs a worker folds onto the page through `leaf report`, each with a detail schema (the payload half of the log's forever-contract, exactly as x-state's), a fold unit, and a required record form drawn from $state's vocabulary minus `body` — a report moves declared state only, never the page's words, which is what keeps the passage reading untouched by it. The runtime paints a standing report live (data-lf-reported) with precedence opposite to a reviewer's action: an action outranks every later version until `restated` retracts it; a report is provisional news, standing only until a version answers it.",
+    "answering": "Explicit, by id. `version publish` names on the note (`reports`) every standing report the version answered: one whose recorded state the markup writes is absorbed, and one on an element marked `overruled` is overruled — the why belongs in the note's text. Replay stops a named report at that version. Silence — markup unchanged — is blessed and names nothing, so the report keeps painting. `version check` refuses the third thing, markup that contradicts a standing report it never names, and refuses an `overruled` with nothing to overrule, exactly as the reviewer gate polices `restated`.",
+    "overruled": "A boolean attribute on the reported element, declared by every x-report widget: this version keeps its own state over the standing report. It belongs to the one version that does the overruling — publishing records the answer on the note, so later versions leave it off.",
+    "wakes": "A report joins the watcher's batch: `leaf wait` prints it beside user events, the same `ack` acknowledges it, and idling is refused over one nobody read. The reader's banner counts none of this — a report is news the agent owes the page, not something the reader owes an answer."
+  },
+  "$awaits": {
+    "description": "What x-awaits declares: an instance of this tag is a standing request to the reader — a question with no pick, a change nobody has decided, a piece of work the page says is waiting on them. One declaration is the whole of it. The banner's count, the `a` key that steps them, and the `?` overlay's row are three readings of one list, so nothing counts asks by naming a tag and the twelfth widget joins by declaring rather than by being taught to three consumers. Quoted material asks nothing — an exhibited decision is a mention (x-exhibit). A widget inside a thread asks like one on the page — a question is a request to the reader wherever it stands, and `a` opens the panel to reach it — with one bound set by what a thread is: its markup is frozen, so no version can answer there, and only a widget with an action channel (x-state) asks in a thread at all.",
+    "when": "The attribute condition that makes an instance an ask: each attribute mapped to the values of it that ask, a flag attribute's values being true and false. A group takes picks only with `choose` and stops asking once it is `settled`; a task waits only at `review` or `blocked`. An entry with no `when` asks on every instance, which is what a pending suggestion is.",
+    "answered": "Never bookkeeping of its own — it is the state the widget already declares. Where a verb records its state as an attribute (x-state, record kind \"attribute\"), the page carries the answer itself, which is what lets a version that honors a pick read as answered with no log at all and a pick the reader cleared read as open again. Where a verb records nothing — accept and reject retire the wrapper, so no markup could hold them — the log is the only record there is, and the ask is answered by a surviving action naming it. A widget with no action channel can therefore only be answered by the next version, which is exactly what a task in `review` is waiting for.",
+    "until": "The verb that closes a thread ask a record can't: an instance matching `until.when` stays asking, whatever its record state, until the reader has posted `until.verb` on it. It exists for the set-valued question — a `multiple` group's toggles each reach the agent live, so only the reader can say the set is whole, and the widget renders the press that says it (lf-options' Done). Consulted only in the comment layer: on the page the record answers as ever, versions can honor and retire, and no submit stands between a pick and the agent.",
+    "all": "The verb a blanket yes takes, where one press can answer every ask of this kind at once: the banner carries one control per declared verb (`✓ Accept all (3)`) and the `A` key presses every one of them, and the widget exposes a method of that name answering one instance, so the log records each decision separately rather than one blanket consent. Leave it off and the ask is answered where the reader is, one at a time."
+  },
+  "$restated": {
+    "description": "A boolean attribute saying this version has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
+    "why": "A move, pick, edit or accept is recorded in the log against the version it was made on, and the page replays every recorded action onto every later version. A decision therefore survives a republish on its own — you never carry one into the next version's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
+    "when": "Only where a later version has to change what the user decided about: an error you found in a draft they rewrote, a picked option whose prose was wrong. Write the new words, mark that element, and say why in the note — to the user this reads as a decision undone, and the note is where a version explains itself. `version check` refuses a version that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
+    "once": "It belongs to the one version that does the rewriting. Publishing records the retraction in the log, so it holds for good — later versions leave the attribute off, and `version check` refuses one that repeats it.",
+    "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
+  },
+  "$tones": {
+    "description": "The semantic tints this layer paints, and the whole vocabulary an author may declare: what the lint refuses a word outside, and what the theme has a rule for. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `tone` — a widget declares that one of its attributes names one (x-tone) and the lint reads the list from here, so a second tag taking a tone costs a declaration and no new reader. The list is short on purpose: a page that can paint anything paints nothing, and three is what the palette already answers for. Which facts earn a tint is never the theme's to decide — `ok` on one page's chip and `danger` on another's may be the same word, because the author is the only one who knows whether the answer is good news.",
+    "names": ["ok", "warn", "danger"]
+  },
+  "$idioms": {
+    "description": "Recurring shapes the theme styles directly — no registry entry, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for.",
+    ".eyebrow": {
+      "description": "A small-caps label above a heading.",
+      "example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
+    },
+    ".lede": {
+      "description": "The opening paragraph, set slightly larger.",
+      "example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
+    },
+    ".tag": {
+      "description": "An inline pill label.",
+      "example": "<span class=\"tag\">experimental</span>"
+    },
+    ".callout": {
+      "description": "An aside set off from the prose — a tinted field with a hairline border.",
+      "example": "<aside class=\"callout\">Rollback is one flag flip; the backfill is idempotent.</aside>"
+    },
+    ".facts": {
+      "description": "A label/value grid for summary facts, as a definition list. Inside a lf-option or lf-variant it docks right as a fixed-width rail instead, aligning each item's scalars down the group.",
+      "example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
+    },
+    "ol.steps": {
+      "description": "An ordered procedure with numbered markers.",
+      "example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"
+    },
+    "table": {
+      "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for lf-metrics when the numbers are a handful of headline figures rather than a grid, and lf-options when the rows are alternatives the reader picks between.",
+      "example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
+    },
+    "td.num": {
+      "description": "A cell holding a quantity, right-aligned so a column of them lines up on its last digit — the comparison a column of figures is there for. Say it on the column's heading cell too, or the heading hangs left of its own figures. Nothing is guessed from the text: \"60\" and \"60 sessions\" are the same shape and different things.",
+      "example": "<tr><th scope=\"row\">Enterprise</th><td class=\"num\">6,000</td><td class=\"num\">12,000</td></tr>"
+    },
+    "details": {
+      "description": "Evidence: a claim as the <summary>, its backing collapsed beneath. Native disclosure; find-in-page reaches the collapsed content.",
+      "example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-metric\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
+    },
+    "pre > code.language-*": {
+      "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to, and `version check` refuses one outside it. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for lf-code instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
+      "example": "<pre><code class=\"language-bash\">leaf version check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
+    }
+  }
+}

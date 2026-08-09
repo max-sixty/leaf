@@ -7,7 +7,7 @@ on:
     paths:
       - 'docs/**'
       - 'examples/**'
-      - 'plugins/colloquy/skills/colloquy/assets/**'
+      - 'plugins/leaf/skills/leaf/assets/**'
       - 'scripts/site.py'
       - '.github/workflows/publish-site.yaml'
   workflow_dispatch:

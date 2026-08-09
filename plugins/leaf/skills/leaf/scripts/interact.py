@@ -1,0 +1,6612 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["click>=8", "jsonschema>=4", "tinycss2>=1.4"]
+# ///
+"""Serve and mediate an interactive leaf page.
+
+A `uv` script: the PEP 723 header above declares the dependencies and
+`interact.py.lock` beside it pins them, so every install runs the same versions;
+editing the header re-resolves the lock on the next run. `uv` is the one
+prerequisite for the whole plugin — no venv to create, no build step.
+Run it with `uv run interact.py <group> <command> …`, or as
+`leaf <group> <command> …` through the plugin's `bin/leaf` launcher.
+Claude Code puts that launcher on PATH; Codex resolves it from the active skill.
+
+A page directory holds:
+    versions/v1.html…    immutable page versions (the agent writes them). The server
+                         exposes a version only once `version publish` lands its
+                         note, after `version check` passes, so a half-written or
+                         broken file is never live to an open browser.
+    leaf.js          the runtime (widget layer + comment layer), served at /leaf.js
+    theme.css            tokens, element styles, class idioms, element-widget CSS
+    registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
+                         layer-wide facts under $ — $idioms, $languages, and the page's
+                         vocabulary stamp ($events, x-state): the one statement of what
+                         this page's vendored runtime speaks
+    icon.svg             the mark the tab wears, whose lf-tone element the runtime
+                         paints in whatever colour the banner's dot is wearing — so a
+                         reader with six leaves open sees which one wants them
+                         without opening any
+    widgets/             one ES module per upgraded widget (lf-tabs.js, lf-diagram.js)
+    vendor/              vendored third-party assets (mermaid.min.js, sortable.esm.js)
+    media/               images the page shows, each named by the hash of its bytes
+                         (`page media`). Not vendored — this is the page's content,
+                         not the layer's — but served the same way, and
+                         content-addressing is what lets content live here at all: a
+                         name means one set of bytes forever, so a version the
+                         user approved cannot show them different pixels later,
+                         and two versions showing the same screenshot share the one
+                         file rather than a copy each. It is also the only door an
+                         image has: the page's author is a language model, and a
+                         screenshot is a megabyte of base64 it cannot type — nor
+                         should each version carry a copy of one that `version check`
+                         walks and a browser reloads. The transport was never an
+                         optimisation over inlining; inlining was never available
+    comments.jsonl       append-only event log; an event's seq is its line number (1-based)
+    status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
+                         detail is the finer grain the banner reads out after the
+                         state — what the agent is doing while working, what it
+                         needs from the reader while waiting;
+                         when `leaf wait` prints for a non-working page, it
+                         writes working with "handoff": true until the agent's
+                         own `leaf status` lands
+    heartbeat.json       watcher liveness, bumped by `leaf wait` while it runs
+    cursor.json          seq of the last user event acknowledged from the agent's
+                         model context, written by `leaf ack`
+    server.json          {"port", "pid", "url", "lifetime"} for the running server.
+                         lifetime is "session" when the launching `server run` claimed
+                         the page and "standing" when nothing did — see below, since
+                         it decides what is allowed to take the server down
+    access.json          {"host", "bind"}: the name the page's URL carries and the
+                         interface its server binds. Derived at the first `server run`
+                         and kept, because a restart has to reproduce the URL an open
+                         browser is already polling. The key that URL also carries is
+                         the machine's, not the page's, and lives in the state home
+    session.json         {"id", "host", "pid", "agent"} of the agent session last
+                         working on the page — the watcher the banner names, not
+                         necessarily the author of any given message
+
+status.json is a claim, and a claim never expires on its own: an agent that
+stopped watching renders exactly like one that is watching and has nothing to
+say, so a comment can sit unread with the page still reading "Claude is
+working". The directory therefore also carries what it can prove — a heartbeat
+only a live `leaf wait` bumps, the acknowledgement cursor, and the owning
+session's pid — and `/api/state` ships those beside the claim, so the banner can
+say when the claim has outlived them. When a wait prints for a non-working page, it
+marks the status it writes "handoff", which dates it: after acknowledgement the agent
+writes its own `leaf status`, so the mark surviving is a dropped pickup rather than a
+long turn, and the banner gives it a much shorter rope. Wait output that lands
+while the agent is already working leaves that claim untouched; there is no pickup
+gap to date.
+
+Where nothing answers for the claim at all, the banner drops it rather than
+repeating it: a claimant pid that has exited settles the question outright, and a
+page nothing ever claimed has only the claim's own age to go on, so it falls to
+the same grace. Either way the page is unheld, and the banner says that instead —
+"no session holds this page" is a fact it computed, where "Claude is working"
+would be a fortnight-old sentence someone else wrote. It is also not a fault: a
+page that stands for weeks (below) spends most of its life unheld, and picks up
+again the moment a session does.
+
+The `hook` command closes the same gap from the agent's side. Registered on
+Stop, UserPromptSubmit and SessionEnd, it refuses to let a turn end with one of
+this session's pages unwatched, surfaces unacknowledged user events at the next
+prompt, and idles the pages and stops their servers when the session exits. It
+finds them through ~/.local/state/leaf/sessions/<session id>.json, which
+`server run` and `leaf wait` write the host session identity supplied by the
+launcher — absent that (interact.py run outside an agent host), nothing is claimed
+and the hooks stand down. Unacknowledged events are the one thing
+`leaf status <page> idle` can't close over: idling is how a leaf ends,
+and one can't end on comments nobody read.
+
+Whether a session's end reaches a server is decided once, by the launch, and
+written down in server.json as its lifetime. `server run` from an agent host
+claims the page, and that claim is what two reapers act on: a watcher thread
+stops the process when the claimant pid goes, and SessionEnd idles the page and
+stops the server. `server run` from a bare shell — a terminal, a launchd job —
+claims nothing, and that is the standing serve: a page kept up across sessions,
+for a command hub or a dashboard someone leaves open for weeks.
+`server run --standing` makes the same statement from inside a host: the launch
+declines the claim, for a page meant to outlive the session that starts it —
+under a harness that restarts mid-session the claimant pid churns, and a claimed
+server reads the old pid's death as the session ending. No daemon is
+involved and nothing revives it; `leaf server stop` is its one reaper, which
+is the whole of what "standing" means. A session that picks the page up later
+owes it a watcher while it lives, exactly as it would any page, and takes
+nothing down when it ends: no watcher was ever started for a server it didn't
+launch, and SessionEnd leaves a standing one alone rather than adopting it —
+including the page's status, since the leaf outlives the session that
+answered on it for an afternoon.
+
+`page init` vendors the runtime, theme, registry, widgets, and vendor assets into the
+page directory, overlaying by precedence: leaf's integrated layer (the runtime,
+the theme's own rules, the suggestion family and the $ keys), then its bundled
+widgets (the content families, an overlay like any other so they reach a page
+through the same door a project's widgets do), then the user layer
+(~/.config/leaf/), then the project layer
+(./.leaf/). Theme stylesheets concatenate in that order, so a layer
+can override one token or rule without copying the defaults. Registry entries
+merge by top-level name, with a later layer replacing one complete entry rather
+than deep-merging its schema; runtime, widget, and vendor files replace by path.
+The page directory itself lives wherever the caller says —
+conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
+so an approved version can't change under its user; re-running `page init`
+is the explicit re-vendor, noted in the next version's changelog.
+
+The registry is shared by the JS runtime, the POST and re-vendor action gates,
+this file's `version check` and thread-markup validation, the passage reader
+`leaf comment` anchors through, and the `page catalog` the agent reads. Each
+entry is JSON Schema over the instance built from the element's attributes
+(values as strings, flag attributes as True). What JSON Schema has no
+vocabulary for rides in the custom keywords below:
+    x-parent    the tags this element may be a direct child of
+    x-content   the content model: "prose" (flow content, widgets welcome),
+                "items" (element children only, no loose text), "data" (one <pre>
+                holding text in the notation the description names), "none"
+                (empty). <pre> because a data body's whitespace is load-bearing
+                and that tag is HTML's only way to say so — otherwise it is a CSS
+                fact, and a tool reading the markup alone collapses what it
+                cannot see the rule for.
+                Children that name this tag in x-parent are admissible under
+                any model — that is what x-parent means. A list because one
+                element can belong to two holders: a chip is written in a
+                lf-option and in a lf-variant, which are the same shape either
+                side of the decision.
+    x-inline    true when the element is set among the words around it rather
+                than laid out as a region of its own. The render gate floors a
+                widget's box to catch one that upgraded into nothing, and an
+                inline element's box is the words in it: so it keeps the height
+                floor and takes no width floor at all, a chip reading `£9` being
+                31px wide and correct. Declared rather than read off the
+                rendered display, which answers "inline" for a widget whose
+                theme rule went missing too.
+    x-says      attributes whose values are words the reader sees, mapped to the
+                edge they render at ("before" = first child, "after" = last).
+                The runtime renders them as real text there, because a user
+                can only quote what a text node holds — the theme's matching
+                `content: attr()` is the same words for a page with no script.
+    x-refers    attributes whose values name another element on the page. The
+                reader follows one, so `version check` holds each to an id the
+                version actually carries; a reply's fragment is exempt, having no
+                page to check against.
+    x-tone      the attribute whose value names one of $tones.names, the semantic
+                tints the theme paints. Declared rather than known by tag, so a
+                second widget taking a tone costs a line and no new reader — and
+                the list lives with the layer, since the palette is the page's
+                rather than any one widget's.
+    x-language  the attribute whose value names a code language. The layer colors
+                what $languages.names holds, so a widget taking one declares which
+                attribute carries it and `version check` validates every such
+                attribute against that list — the same list a plain <pre><code
+                class="language-*"> is held to.
+    x-upgrade   true when the runtime imports /widgets/<tag>.js for it
+    x-verbatim  true when an upgraded element's body reaches the reader as its own
+                words. Otherwise a module may render anything in place of them, so
+                `leaf comment` treats the element as opaque and won't quote
+                through it.
+    x-state     the widget's action verbs: each verb's detail schema, its fold
+                unit, and the record form its state takes in markup. Every
+                applyAction is absolute, so the user's standing state is a
+                fold — the last surviving action per unit — and one declaration
+                drives the POST and re-vendor contract gates, check's state gate,
+                the record-lag report, the runtime's pending mark, and the diff's
+                state half (see $state in the registry).
+    x-report    the widget's agent channel: report verbs a worker folds onto the
+                page through `leaf report`, each with a detail schema, fold
+                unit, and *required* record form — declared state only, never
+                body words, so the passage reading is untouched by one. The
+                precedence is opposite to x-state's: an action outranks every
+                later version until `restated` retracts it, while a report is
+                provisional and stands only until a version answers it by id —
+                `reports` on the note, written by `version publish`; `overruled`
+                on the element is how a version keeps its own state over one.
+                See $report in the registry.
+    x-awaits    an instance of this tag is a standing request to the reader:
+                `when` says which instances ask (attribute values, a flag's
+                being true and false), `all` names the verb one press answers
+                every one with. What counts as answered is no new bookkeeping —
+                the record x-state already declares where there is one, the fold
+                where there isn't — so the banner's count, the key that steps
+                them and the `?` overlay read one list (see $awaits).
+    x-example   one authored example, printed by `page catalog`
+
+Event kinds: comment (optional anchor {section, quote, and the neighbouring
+text as prefix/suffix where there is any, which is what tells two identical
+passages apart), reply (parent=id),
+resolve (parent=id), done (user sign-off; the banner offers it only on a page
+declaring <meta name="lf-review" content="sign-off">), close (a neutral end to a
+comments-only leaf), action (user; a widget reporting the
+user editing the document through it — widget=element id, action=verb, detail
+per widget, version the edit was made against), report (agent; a worker's
+provisional state change on a page widget — same widget/action/detail/version
+shape as an action, validated by the widget's x-report declaration at the
+`leaf report` door, and standing only until a version answers it), note
+(agent; per-version changelog, carrying `restated`: the element ids whose
+decisions the publishing version took back, and `reports`: the report event ids
+the version absorbed or overruled). The server stamps every browser-posted event
+author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
+and `version publish` stamp the wire
+role author=claude plus the posting session's own voice: `agent`, its display name,
+and `session`, its host session id. Several agent sessions can write to one page,
+so the voice is read from the poster's environment rather than from session.json,
+which names only the watcher — and identity is the session id, because a display
+name is anyone's to choose and two workers may share one.
+A message body is Markdown, stored as typed and
+rendered by the page's own vendored runtime — the browser is where the page's other
+rendering already lives, and vendoring the renderer beside the panel's styles is what
+keeps the two versioning together. A fragment link in a body — `[the group](#d-channel)`,
+either author's — points at an element of the page, and the browser's own navigation
+carries the reader there, opening whatever tab or settled group hides it. Two things are
+the runtime's: an arrival aimed by such a link (⌘-click opens a tab the browser answers
+before any widget has upgraded), and marking one this version can't follow, since a
+message outlives the version it was written on. Raw HTML in a body renders as its characters there,
+so text cannot inject markup; a widget rides the event's `markup` field instead, whose
+one door is `leaf comment`/`leaf reply`, where it is validated against the
+vendored registry — the discussion-side analog of `version check`. The browser door refuses the
+field, so everything in the log under that name has been through the gate.
+
+Either side can open a thread, and `author` is the whole difference between them. The
+user selects a passage and the browser writes the anchor from the
+selection; `leaf comment` writes the same anchor from a quote, reading the
+version the way the anchor pass reads the DOM (see "passages" below).
+Everything downstream already turns on `author`: `leaf wait` prints user
+events and the banner counts them, so Claude's own comment neither wakes its
+watcher nor reads as unanswered. What Claude cannot do is `resolve` — a note's
+purpose is discharged by being read, and only the reader knows that happened;
+closing one from this side would file it away unread.
+
+Commands:
+    status, wait, ack, comment, reply, report, events, transcript
+    page       init catalog media
+    customize  theme widget
+    version    check publish export
+    server     run stop
+
+`version check` is a deterministic pre-handover lint (no browser, near-free;
+`version publish` re-runs it on every version): the HTML parses with balanced
+tags; the page carries exactly one external script
+(<script type="module" src="/leaf.js">) and one stylesheet link
+(/theme.css); every lf-* element validates against the vendored registry
+(schema, nesting, no self-closing form); every lf-* meta is a known page
+declaration with an allowed value; each lf-suggestion is well formed (at most
+one of each slot, at least one of them, no nesting, `resolves` naming a real
+comment); ids are unique and every id from the previous version survives
+unless the log settled the suggestion holding it; no fixed-pixel-width element
+is wider than the readable column. Near-free and deterministic is what makes
+running it on every version affordable, so keep a new check that way; anything
+needing a browser belongs in `--render`.
+
+`version check --render` adds the browser half, run once before a page's URL is first
+handed over: the version loads in the machine's installed Chrome (Playwright
+`channel="chrome"` — the caller supplies playwright, which `bin/leaf` does
+on seeing `--render`) and the render invariants the static lint cannot reach run
+against it — no console or page errors, no fail-soft error box, every visible
+widget occupies real space, code that reads against the block it is set on, no
+sideways scroll, in both color schemes.
+The invariants live in render_version, which tests/test_render.py drives over
+the shipped examples, so the gate and the suite cannot drift apart.
+
+Passages: an anchor is resolved in the browser and written down here, so
+`leaf comment` reads a version the way the anchor pass reads the DOM — text
+in document order, minus the runtime's own words, plus the words a widget says
+through an x-says attribute, one space wherever the enclosing text block
+changes, whitespace collapsed. What the file cannot know is what a widget's
+module will write, so the reading stops where the registry stops telling it:
+an upgraded element is opaque unless x-verbatim says its body reaches the
+reader as its own words, and an opaque element and each of its children is
+fenced. A quote never spans a fence, so "the page has words here that the file
+doesn't" is a refusal when the comment is written rather than an anchor that
+detaches later in the user's browser. Element-anchor an opaque widget
+instead (`--section`), which is the anchor a click on a diagram makes.
+
+A version is written in more than one language, and each is read by a parser for
+that language: _StructParser for what the markup declares, page_passages for what
+it says, tinycss2 for the CSS a <style> block holds. A
+new question about a version is a field on one of those readings rather than a
+pattern over the file's text, because a pattern answers something adjacent to the
+question asked — the readable-column check below carries what that cost.
+"""
+
+import base64
+import contextlib
+import ctypes
+import errno
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import secrets
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+import zlib
+from datetime import datetime
+from html.parser import HTMLParser
+from http.cookies import SimpleCookie
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import NamedTuple
+from urllib.parse import parse_qs, urlsplit
+
+import click
+import tinycss2
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
+
+HEARTBEAT_FRESH_SECS = 8
+# A session-managed server gives a replacement session one short poll window to
+# claim the page before it closes. The claim itself is the ownership record:
+# manual servers have none and therefore remain up until `server stop`.
+ORPHAN_GRACE_SECS = 1
+# The browser's event kinds, and per kind the fields something downstream reads.
+# POST /api/event is the one door they come through, so this is where the shape is
+# checked; every reader indexes the fields rather than asking whether they arrived.
+BROWSER_EVENT_FIELDS = {
+    "comment": {"version": int, "text": str},
+    "reply": {"parent": str, "version": int, "text": str},
+    "resolve": {"parent": str},
+    "done": {"version": int, "text": str},
+    "close": {"version": int},
+    "action": {"widget": str, "action": str, "detail": dict, "version": int},
+}
+# Every field the current browser and CLI may write, beyond append_event's
+# id/ts/author/kind and read_events' seq. A registry may grow this vocabulary,
+# but it cannot omit a word the producers beside it already speak.
+EVENT_VOCABULARY = {
+    "comment": {
+        "version",
+        "text",
+        "anchor",
+        "suggestion",
+        "agent",
+        "session",
+        "markup",
+    },
+    "reply": {"parent", "version", "text", "agent", "session", "markup"},
+    "resolve": {"parent"},
+    "done": {"version", "text"},
+    "close": {"version"},
+    "action": {"widget", "action", "detail", "version"},
+    "report": {"widget", "action", "detail", "version", "agent", "session"},
+    "note": {"version", "text", "restated", "reports", "agent", "session"},
+}
+ACK_BATCH_INSTRUCTION = (
+    "If wait output is truncated, acknowledge nothing and rerun with enough output "
+    "capacity for the whole batch. After a complete batch enters context, run "
+    "`leaf ack <page> <highest-seq>`."
+)
+# Fields whose one door is the CLI. The browser door refuses them rather than
+# silently dropping: `markup` enters only through the gate `leaf comment` and
+# `leaf reply` run, which is what lets every reader trust what the log holds
+# under that name.
+AGENT_ONLY_FIELDS = {"markup"}
+EVENT_BASE_FIELDS = {"id", "ts", "author", "kind", "seq"}
+HTML_NAME = r"[a-z][a-z0-9-]*"
+WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+# The record forms one vocabulary of declared state draws on ($state in the
+# registry): how a unit's state reads in markup, each dispatched on by the gate,
+# the runtime, and the diff without any of them knowing a widget by name.
+_RECORD_ATTRIBUTE = {
+    "type": "object",
+    "properties": {
+        "kind": {"const": "attribute"},
+        "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "value": {"type": "string", "minLength": 1},
+    },
+    "required": ["kind", "attr", "value"],
+    "additionalProperties": False,
+}
+_RECORD_POSITION = {
+    "type": "object",
+    "properties": {
+        "kind": {"const": "position"},
+        "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+        "value": {"type": "string", "minLength": 1},
+    },
+    "required": ["kind", "within", "value"],
+    "additionalProperties": False,
+}
+_RECORD_BODY = {
+    "type": "object",
+    "properties": {
+        "kind": {"const": "body"},
+        "value": {"type": "string", "minLength": 1},
+    },
+    "required": ["kind", "value"],
+    "additionalProperties": False,
+}
+_RECORD_VALUE = {
+    "type": "object",
+    "properties": {
+        "kind": {"const": "value"},
+        "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "value": {"type": "string", "minLength": 1},
+    },
+    "required": ["kind", "attr", "value"],
+    "additionalProperties": False,
+}
+
+
+def _verbs_schema(records: list, required: list) -> dict:
+    """The shape x-state and x-report share: verbs to {detail, unit, record},
+    differing only in which record forms a channel admits and whether one is
+    required at all."""
+    return {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "additionalProperties": {
+            "type": "object",
+            "properties": {
+                "detail": {"type": "object"},
+                "unit": {"type": "string", "minLength": 1},
+                "record": {"oneOf": records},
+            },
+            "required": required,
+            "additionalProperties": False,
+        },
+    }
+
+
+STATE_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE], ["detail"]
+)
+# A report moves declared state only, never body words — no body record, so the
+# passage reading never has to model one — and the record itself is required:
+# the gate compares record forms, and a recordless report would be a claim
+# nothing could check a version against.
+REPORT_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE], ["detail", "record"]
+)
+# An ask is a standing request to the reader, and both halves of it are already
+# written down: `when` says which instances ask (attribute values, a flag's being
+# true and false), and x-state says what an answer looks like. See $awaits. One
+# condition shape serves both `when` and `until.when`, because they ask the same
+# question of the same attributes.
+ASK_CONDITION = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {
+        "type": "array",
+        "items": {"type": ["string", "boolean"]},
+        "minItems": 1,
+    },
+}
+AWAITS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "when": ASK_CONDITION,
+        "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "until": {
+            "type": "object",
+            "properties": {
+                "verb": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+                "when": ASK_CONDITION,
+            },
+            "required": ["verb", "when"],
+            "additionalProperties": False,
+        },
+    },
+    "additionalProperties": False,
+}
+EXTENSION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "x-awaits": AWAITS_SCHEMA,
+        "x-content": {"enum": ["prose", "items", "data", "none"]},
+        "x-example": {"type": "string"},
+        "x-exhibit": {"type": "boolean"},
+        "x-inline": {"type": "boolean"},
+        "x-language": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-parent": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "minItems": 1,
+        },
+        "x-refers": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        },
+        "x-report": REPORT_SCHEMA,
+        "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-says": {
+            "type": "object",
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {"enum": ["before", "after"]},
+        },
+        "x-shadow": {"type": "boolean"},
+        "x-state": STATE_SCHEMA,
+        "x-tone": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-upgrade": {"type": "boolean"},
+        "x-verbatim": {"type": "boolean"},
+        "x-visual": {"type": "boolean"},
+    },
+    "required": ["x-content", "x-upgrade"],
+    "dependentRequired": {"x-retired-when": ["x-parent"]},
+    "additionalProperties": False,
+}
+
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+BUNDLED = Path(__file__).resolve().parent.parent / "bundled"
+VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
+VENDORED_DIRS = ("widgets", "vendor")
+# Images the page shows, named by the hash of their bytes (`page media`). Not vendored
+# — they are the page's content, not the layer's — but served like it, and the
+# naming is what keeps the directory's promise: same name, same bytes, so a
+# version the user approved cannot show them something else later.
+MEDIA_DIR = "media"
+MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+}
+NO_KEY = "open the link leaf printed; it carries the key"
+# One name, because there is one key (`host_key`). Cookies are scoped by host and
+# blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
+# with every other server the user has running, which is what the prefix is for.
+KEY_COOKIE = "lf_key"
+PAGE_STATE_FILES = (
+    "comments.jsonl",
+    "status.json",
+    "heartbeat.json",
+    "cursor.json",
+    "server.json",
+    "access.json",
+    "session.json",
+)
+PAGE_OWNED_FILES = (*VENDORED_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("versions", *VENDORED_DIRS, MEDIA_DIR)
+# What the server exposes from a page directory: exactly what init vendors, plus
+# the media and the versions — built from the vendoring constants, so growing
+# them grows this. The dir patterns are keyed by the directories themselves:
+# vendoring a new dir without saying what it may serve fails here, at import.
+_DIR_FILES = {
+    "widgets": r"[a-z0-9-]+\.js",
+    "vendor": r"[A-Za-z0-9._-]+",
+    MEDIA_DIR: r"[a-f0-9]{16}(?:" + "|".join(re.escape(e) for e in MEDIA_TYPES) + ")",
+}
+SERVED_PATH = re.compile(
+    "/(?:"
+    + "|".join(
+        [re.escape(f) for f in VENDORED_FILES]
+        + [f"{d}/{_DIR_FILES[d]}" for d in (*VENDORED_DIRS, MEDIA_DIR)]
+        + [r"versions/v[1-9][0-9]*\.html"]
+    )
+    + ")"
+)
+CONTENT_TYPES = {
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".html": "text/html",
+    **MEDIA_TYPES,
+}
+BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
+
+# On Windows there is no fcntl; the append lock degrades to a no-op. The log is
+# append-only and a torn final line is tolerated by read_events, so this only
+# loses the belt-and-suspenders against simultaneous writers, which are rare.
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows fallback
+    fcntl = None
+
+
+def now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def read_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+
+
+def read_cursor(page_dir: Path) -> int:
+    """The seq the agent has acknowledged through (`leaf ack`); 0 before any."""
+    return (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
+
+
+def replace_files(files: list) -> None:
+    """Stage every (path, bytes, follow_symlink) write before replacing targets."""
+    staged = []
+    targets = [
+        path.resolve() if follow_symlink and path.is_symlink() else path
+        for path, _, follow_symlink in files
+    ]
+    if any(
+        paths_same(left, right)
+        for index, left in enumerate(targets)
+        for right in targets[index + 1 :]
+    ):
+        sys.exit("two customization files resolve to the same target")
+    try:
+        for (path, data, follow_symlink), target in zip(files, targets):
+            for _ in range(100):
+                tmp = target.with_name(f".{secrets.token_hex(8)}.tmp")
+                try:
+                    fd = os.open(
+                        tmp,
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | getattr(os, "O_BINARY", 0),
+                        0o666,
+                    )
+                    break
+                except FileExistsError:
+                    continue
+            else:  # pragma: no cover - 64 random bits collided 100 times
+                raise FileExistsError(f"could not reserve a temp file beside {target}")
+            staged.append((tmp, target))
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+            if target.exists() and (follow_symlink or not path.is_symlink()):
+                tmp.chmod(target.stat().st_mode & 0o777)
+        for tmp, target in staged:
+            os.replace(tmp, target)
+    finally:
+        for tmp, _ in staged:
+            tmp.unlink(missing_ok=True)
+
+
+def json_bytes(obj, *, indent=None) -> bytes:
+    return (json.dumps(obj, ensure_ascii=False, indent=indent) + "\n").encode()
+
+
+def write_json(path: Path, obj) -> None:
+    # Atomic: the serve process reads these files while the CLI commands write them;
+    # a torn cursor or status would make the page report false state. Each writer
+    # stages through an exclusively created name so simultaneous writers cannot
+    # replace one another's temp file.
+    replace_files([(path, json_bytes(obj), False)])
+
+
+def append_event(page_dir: Path, event: dict) -> dict:
+    event.setdefault("id", secrets.token_hex(4))
+    event.setdefault("ts", now_iso())
+    with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
+        if fcntl is not None:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    return event
+
+
+def read_events(page_dir: Path) -> list:
+    path = page_dir / "comments.jsonl"
+    if not path.exists():
+        return []
+    events = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            if (
+                i == len(lines) - 1
+            ):  # a concurrent append mid-flush; complete on the next read
+                break
+            raise
+        event["seq"] = i + 1
+        events.append(event)
+    return events
+
+
+def build_threads(events: list) -> dict:
+    """Fold the chronological log into comment threads by root id."""
+    threads = {}
+    thread_for = {}
+    for e in events:
+        if e["kind"] == "comment":
+            thread = {"root": e, "msgs": [e], "resolved": False}
+            threads[e["id"]] = thread
+            thread_for[e["id"]] = thread
+            continue
+        if e["kind"] == "action" and e["action"] == "accept":
+            answered = threads.get(e["detail"].get("resolves"))
+            if answered:
+                answered["resolved"] = True
+            continue
+        if e["kind"] == "reply":
+            thread = thread_for[e["parent"]]
+            thread["msgs"].append(e)
+            thread_for[e["id"]] = thread
+        elif e["kind"] == "resolve":
+            thread = thread_for[e["parent"]]
+            thread["resolved"] = True
+    return threads
+
+
+def anchored_ids(events: list) -> set:
+    """Element ids an unresolved thread still points at."""
+    return {
+        (t["root"].get("anchor") or {}).get("section")
+        for t in build_threads(events).values()
+        if not t["resolved"]
+    } - {None}
+
+
+VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
+
+
+def version_num(name: str) -> int:
+    """A version's number is its identity; its file name only renders it. So
+    everything that orders or addresses versions parses the number out rather
+    than working on the name, and the names carry no zero padding — padding is
+    what you add to make a string comparison come out right, and nothing here
+    compares names. `v10.html` precedes `v9.html` in every ordering a string
+    has, and follows it in the only one that means anything."""
+    return int(VERSION_FILE.fullmatch(name).group(1))
+
+
+def version_name(version: int) -> str:
+    return f"v{version}.html"
+
+
+def version_path(page_dir: Path, version: int) -> Path:
+    return page_dir / "versions" / version_name(version)
+
+
+def list_versions(page_dir: Path) -> list:
+    versions_dir = page_dir / "versions"
+    if not versions_dir.exists():
+        return []
+    return sorted(
+        version_num(p.name)
+        for p in versions_dir.iterdir()
+        if p.is_file() and VERSION_FILE.fullmatch(p.name)
+    )
+
+
+def published_versions(page_dir: Path, events: list) -> list:
+    """Versions the server exposes: those whose `note` event has landed. `version
+    publish` runs `version check` first, so a half-written or failing version is
+    never live to an open browser — the file existing is not enough."""
+    noted = {e["version"] for e in events if e["kind"] == "note"}
+    return [version for version in list_versions(page_dir) if version in noted]
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
+
+
+def running_server(page_dir: Path):
+    info = read_json(page_dir / "server.json")
+    if info and pid_alive(info["pid"]):
+        return info
+    return None
+
+
+def standing_server(page_dir: Path) -> bool:
+    """Whether the page's running server is one no session's end may take down.
+
+    The launch decided this and server.json records it, so the two reapers a
+    session has — this module's watcher thread and the SessionEnd hook — ask one
+    question rather than each guessing from what it can see. Neither could
+    reconstruct the answer anyway: a session may claim a page long after a bare
+    shell started serving it, and from that point the claim says nothing about
+    who launched the process."""
+    info = running_server(page_dir)
+    return bool(info) and info["lifetime"] == "standing"
+
+
+def lifetime_note(page_dir: Path, lifetime: str) -> str:
+    """What ends this server, said at the moment it starts.
+
+    The two lifetimes are indistinguishable from the terminal — same command,
+    same URL — and the difference only shows up hours later, when one process is
+    gone and the other isn't. So `server run` states which it is rather than
+    leaving it to be discovered, and names the command where that is the only way
+    out."""
+    if lifetime == "standing":
+        return (
+            "standing server: no agent session claimed this page, so it outlives "
+            f"this shell. `leaf server stop {page_dir}` is what stops it."
+        )
+    return (
+        "session server: it stops when the agent session that claimed this page ends."
+    )
+
+
+def stop_when_session_ends(httpd: ThreadingHTTPServer, page_dir: Path) -> None:
+    """Stop a session-managed server once the page's current claimant is gone.
+
+    Read the claim afresh on every pass: another live session may take over the
+    already-running server, and then its pid — not the process that originally
+    launched the server — is the one whose lifetime matters. This watcher is
+    only started when `server run` has a claim, which is what makes the standing
+    serve work: a bare-shell server has no watcher to retarget, so a session
+    claiming the page afterwards inherits no power to end it.
+    """
+    orphaned_at = None
+    while True:
+        session = read_json(page_dir / "session.json")
+        if session and pid_alive(session["pid"]):
+            orphaned_at = None
+        elif orphaned_at is None:
+            orphaned_at = time.monotonic()
+        elif time.monotonic() - orphaned_at >= ORPHAN_GRACE_SECS:
+            httpd.shutdown()
+            return
+        time.sleep(0.1)
+
+
+def page_access(page_dir: Path, host: str | None = None) -> dict:
+    """Where a page is reached: the name its URL carries and the interface its
+    server binds. The key that URL also carries is the machine's — `host_key`.
+
+    Derived — no `host` — the address is read from SSH_CONNECTION, whose third
+    field is this machine as the client just reached it: a route the session
+    carrying the request has already demonstrated, rather than a guess about what
+    resolves from where. No SSH_CONNECTION is the same answer for a reader on
+    this machine: loopback. The server binds that address alone, so the open port
+    faces only the network the session crossed.
+
+    But a route the session demonstrated is not one the user's browser
+    shares: a jump host or NAT between them and this machine leaves it
+    unroutable from where they sit, and no derivation from this end can know the
+    name they do route to. `--host` states it. A stated name goes in the URL and
+    the bind widens to every interface of both families (`::`, V6ONLY off),
+    because the name need not resolve to an address this machine could bind (a
+    NAT'd public IP), let alone say which family the user reaches it by. An
+    overlay network the machine has joined (a tailnet) is just one more
+    interface. That widens exposure to the machine's other networks and no
+    further — leaf never creates a route that didn't exist.
+
+    Recorded once and kept. `revive_server` restarts a dead server by re-running
+    `server run` bare, and a fresh address there would leave the user's open page
+    polling a URL that no longer answers — which is why a stated host is recorded
+    here rather than passed per run."""
+    access = read_json(page_dir / "access.json")
+    if access and host is None:
+        return access
+    if host:
+        # The record's one door checks what it keeps: a scheme, a port, or a
+        # path pasted into --host would mint a URL no browser resolves, handed
+        # to the one reader who can't report it.
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?", host):
+                sys.exit(
+                    f"--host {host}: not a hostname or IP address "
+                    "(no scheme, no port — leaf picks the port)"
+                )
+        access = {"host": host, "bind": "::"}
+    else:
+        ssh = os.environ.get("SSH_CONNECTION", "").split()
+        addr = ssh[2] if len(ssh) == 4 else "127.0.0.1"
+        access = {"host": addr, "bind": addr}
+    write_json(page_dir / "access.json", access)
+    return access
+
+
+def host_key() -> str:
+    """The key every page this machine serves is read with, minted at the first
+    `server run` and kept in the state home. It rides in the URL Claude hands
+    over, and `authorized` puts it in a cookie on arrival.
+
+    The key exists because serving anywhere but loopback puts an unauthenticated
+    writer on whatever network reached us, and `POST /api/event` appends to a log
+    that outranks the document and replays onto every version after.
+
+    One key for the machine rather than one per page, because every page here
+    goes to the same reader — the one person the agent is working with. A page
+    has nothing to keep from another page's reader, which is what lets the
+    `others` menu link them, and what lets the cookie jar, scoped by host and
+    blind to the port, hold one key under one name.
+
+    The cost is that handing out any page's URL hands out every page on the
+    machine, present and future. Leaf has one reader; giving it a second
+    means scoping the key back to the page first.
+
+    Linked into place rather than written over, so two first serves racing on a
+    fresh machine agree on whichever won. Each keeping its own would have their
+    servers overwrite the one shared cookie in turn, for as long as both ran."""
+    path = state_home() / "access.json"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        staged = path.with_name(f".{secrets.token_hex(8)}.tmp")
+        staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
+        try:
+            os.link(staged, path)
+        except FileExistsError:
+            pass  # someone minted first; theirs is the key, read below
+        staged.unlink()
+    return read_json(path)["token"]
+
+
+def page_url(host: str, port: int, token: str) -> str:
+    """The handover URL. A bare IPv6 address is bracketed, since the authority
+    already separates its port with a colon."""
+    host = f"[{host}]" if ":" in host else host
+    return f"http://{host}:{port}/?t={token}"
+
+
+def config_home() -> Path:
+    """$XDG_CONFIG_HOME/leaf (~/.config/leaf/) — the user's overlay layer."""
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "leaf"
+
+
+def state_home() -> Path:
+    """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
+    directories by convention, sessions/ the live-session registry, access.json
+    the one key every page here is served with (`host_key`). State, not config:
+    page directories carry pids, ports, and absolute paths, so they are bound to
+    this machine, and so is the key that reaches them."""
+    return (
+        Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+        / "leaf"
+    )
+
+
+def host_identity() -> dict | None:
+    """The identity the host session supplies through the environment, or None
+    outside an agent host: `id`, the session's own stable id; `host`, which
+    program is running it; `agent`, the display name the page shows for it.
+
+    The name is LEAF_AGENT where the launch set one — naming a worker in its
+    environment needs no cooperation from the agent, so every command it runs
+    speaks as that voice — and the host's own name otherwise. `host` stays a
+    separate fact because behavior keys on it (unattended_pages prescribes
+    unified exec or background tasks by host) and a display name is anyone's to
+    choose. The LEAF_* door is the launcher's mapping of Codex today; a
+    third host earns its own value when one arrives."""
+    if sid := os.environ.get("CLAUDE_CODE_SESSION_ID"):
+        agent = os.environ.get("LEAF_AGENT") or "Claude"
+        return {"id": sid, "host": "claude-code", "agent": agent}
+    if sid := os.environ.get("LEAF_SESSION_ID"):
+        # The launcher sets LEAF_AGENT beside the id; an environment built
+        # by hand that didn't is missing half the identity, so fail on it here.
+        return {"id": sid, "host": "codex", "agent": os.environ["LEAF_AGENT"]}
+    return None
+
+
+def message_identity() -> dict:
+    """The voice an agent-authored event carries: the posting session's display
+    name and session id, read from its own environment rather than the page's
+    session.json — the claimant is whoever watches the page, and on a page
+    several sessions report to, that is usually not the poster. Empty outside a
+    host session: the readers' generic label covers an event with no voice, and
+    a stored placeholder would only impersonate a name."""
+    identity = host_identity()
+    if identity is None:
+        return {}
+    return {"agent": identity["agent"], "session": identity["id"]}
+
+
+def claim_page(page_dir: Path) -> bool:
+    """Record that this agent session is the one working on the page, in
+    both directions: the page names its session (so the server can see when that
+    session is gone), the session lists its pages (so the hooks can find them
+    wherever they live). The host identity reaches this process through the
+    environment, so this needs no cooperation from the agent.
+
+    `server run` and `leaf wait` claim; nothing else does. The claim tracks
+    the watch obligation the hooks enforce: `server run` puts the page in front
+    of a user and incurs it, while `leaf wait` takes it up. Authoring
+    commands neither incur the obligation nor discharge it, so a directory a
+    session only wrote to, like a throwaway page for testing the widget layer,
+    owes nobody a watcher. Return whether this invocation made a claim, so a
+    bare-shell server never inherits a stale claim's lifetime."""
+    identity = host_identity()
+    pid = os.environ.get("CLAUDE_PID") or os.environ.get("LEAF_SESSION_PID")
+    if not identity or not pid:
+        return False
+    sid = identity["id"]
+    write_json(
+        page_dir / "session.json",
+        {**identity, "pid": int(pid), "ts": now_iso()},
+    )
+    sessions = state_home() / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    # Sessions that died without a SessionEnd hook leave their file behind; drop
+    # them here when the next live session makes a claim rather than on a timer.
+    for stale in sessions.glob("*.json"):
+        entry = read_json(stale)
+        if entry and not pid_alive(entry["pid"]):
+            stale.unlink(missing_ok=True)
+    entry = read_json(sessions / f"{sid}.json") or {"pages": []}
+    pages = sorted({*entry["pages"], str(page_dir)})
+    write_json(
+        sessions / f"{sid}.json", {"pid": int(pid), "pages": pages, "ts": now_iso()}
+    )
+    return True
+
+
+def session_pages(session_id: str) -> list:
+    """The page directories a session has worked on, those still on disk."""
+    entry = read_json(state_home() / "sessions" / f"{session_id}.json") or {"pages": []}
+    return [d for d in (Path(p) for p in entry["pages"]) if d.is_dir()]
+
+
+def owned_pages(session_id: str) -> list:
+    """The pages a session is answerable for: those it worked on most recently.
+    A page another session has since picked up belongs to that one — its watcher,
+    its server, its turn to be held to the loop."""
+    return [
+        d
+        for d in session_pages(session_id)
+        if (read_json(d / "session.json") or {"id": None})["id"] == session_id
+    ]
+
+
+def other_leaves(page_dir: Path) -> list:
+    """The machine's other live leaves, for the banner's panel: each page
+    whose server is up, as a title, its handover URL, and the same presence
+    facts the page ships about itself — so a row there and the banner above it
+    are the one judgment reading the one shape.
+
+    Candidates are the two places page directories are already written down:
+    the conventional pages/ home and the live-session registry, which is what
+    finds a page served from a session's scratch directory. Liveness is
+    server.json's pid, the same answer `running_server` gives everything else,
+    and the URL is the one that server minted, key included. The title is the
+    newest published version's — the version that page's own root URL answers
+    with — read the way `transcript` reads it.
+
+    Uncached, on every /api/state: the whole scan, presence reads included,
+    measured ~1.4ms against a state home holding forty pages, three of them
+    live."""
+    candidates = []
+    pages = state_home() / "pages"
+    if pages.is_dir():
+        candidates += (d for d in pages.iterdir() if d.is_dir())
+    sessions = state_home() / "sessions"
+    if sessions.is_dir():
+        for record in sessions.glob("*.json"):
+            # claim_page prunes dead sessions' records; one can vanish mid-scan.
+            entry = read_json(record)
+            if entry:
+                candidates += (Path(p) for p in entry["pages"])
+    others = []
+    seen = {page_dir.resolve()}
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        if candidate in seen or not candidate.is_dir():
+            continue
+        seen.add(candidate)
+        # A neighbour's fault stays its own. This is the one read of state some
+        # other page owns: a directory deleted mid-scan (stale pages are deleted
+        # and made again) or a log a disk fault corrupted would otherwise 500
+        # every open page's poll on the machine, blaming the page that asked.
+        try:
+            info = running_server(candidate)
+            if not info:
+                continue
+            events = read_events(candidate)
+            published = published_versions(candidate, events)
+            # A server up before its page's first publish serves nothing to link.
+            if not published:
+                continue
+            parser = parse_version(candidate, published[-1])
+        except (OSError, ValueError):
+            continue
+        others.append(
+            {
+                "title": parser.title.strip() or candidate.name,
+                "url": info["url"],
+                **presence(candidate, events),
+            }
+        )
+    return sorted(others, key=lambda entry: entry["title"].lower())
+
+
+def unacknowledged(events: list, cursor: int) -> list:
+    """The events past the acknowledgement cursor that the page's watcher owes a
+    reading: the user's own, and workers' reports — a report moves the page the
+    way a user's action does, and the watcher is the one who can absorb it into
+    a version. One cursor and one predicate for the whole batch, so `leaf
+    wait`'s output, the Stop hook's count, and the idle gate cannot disagree
+    about what is still owed. The reader's banner counts only the user half
+    (full_state's `pending`): a report is news the agent owes the page, not
+    something the reader owes an answer. A session that reports to a page it
+    also watches reads its own report back once — rare enough (workers report,
+    the watcher publishes) that a session-keyed carve-out would cost a second,
+    parameterized predicate for no failure anyone has hit."""
+    return [
+        e
+        for e in events
+        if e["seq"] > cursor and (e["author"] == "user" or e["kind"] == "report")
+    ]
+
+
+def presence(page_dir: Path, events: list) -> dict:
+    """The facts a shown status derives from: the agent's claim, and everything the
+    directory holds that can answer for it. One gatherer for both places a status
+    is shown — `full_state` spreads it into the page's own poll answer, and
+    `other_leaves` attaches it to each entry — so the runtime's one
+    claim-against-proof judgment reads the same fields whichever page it judges."""
+    # A file that isn't there stands in as its whole record, so every read below
+    # indexes rather than asking twice whether the field arrived.
+    status = read_json(page_dir / "status.json") or {
+        "state": "idle",
+        "detail": "",
+        "ts": None,
+    }
+    heartbeat = read_json(page_dir / "heartbeat.json") or {"t": 0}
+    session = read_json(page_dir / "session.json")
+    # What the agent has acknowledged from model context: an action past this seq
+    # can't have been seen (so not declined), which is what lets the runtime carry
+    # it forward onto versions written without it.
+    cursor = read_cursor(page_dir)
+    return {
+        "status": status,
+        "listening": time.time() - heartbeat["t"] < HEARTBEAT_FRESH_SECS,
+        "cursor": cursor,
+        # The reader's number, not the watcher's: their own messages the agent
+        # hasn't taken in. Reports ride the same cursor but are the agent's debt,
+        # so the banner never tells a reader that a worker's news is waiting on them.
+        "pending": sum(
+            1 for e in unacknowledged(events, cursor) if e["author"] == "user"
+        ),
+        "agent": session.get("agent", "Claude") if session else "Claude",
+        # The claimant's host program, for behavior that keys on it — the display
+        # name above is anyone's to choose, so nothing may dispatch on it.
+        "host": session.get("host") if session else None,
+        # None when nothing claimed the page — interact.py run outside an agent host.
+        "session_alive": pid_alive(session["pid"]) if session else None,
+    }
+
+
+def full_state(page_dir: Path, events: list, versions: list) -> dict:
+    return {
+        "versions": versions,
+        **presence(page_dir, events),
+        # As logged: a message's text is Markdown the page's vendored runtime renders,
+        # and its markup is the fragment the CLI gate validated. The wire adds nothing,
+        # so the only vocabulary a page's frozen layer has to keep speaking is the
+        # log's own, which $events already stamps.
+        "events": events,
+    }
+
+
+class Handler(BaseHTTPRequestHandler):
+    page_dir = None
+    token = None
+    # Set by `authorized` when the key arrived in the query, cleared by the one
+    # writer that spends it.
+    set_cookie = False
+    # The render gate previews a version before its `note` publishes it —
+    # refusing the note is the gate's whole job. Set to that version's number,
+    # the handler exposes on-disk versions up to it, previewed one included as
+    # latest, so the runtime neither 404s the preview nor follows the published
+    # latest away from it mid-check. None — every server a user reaches —
+    # exposes noted versions only.
+    preview_upto = None
+
+    def versions_live(self, events):
+        if self.preview_upto is None:
+            return published_versions(self.page_dir, events)
+        return [
+            version
+            for version in list_versions(self.page_dir)
+            if version <= self.preview_upto
+        ]
+
+    def log_message(self, *args):
+        pass
+
+    def handle(self):
+        """The exchange, ending quietly when the reader is no longer there.
+
+        A reader who closes the tab mid-response leaves the handler writing into a
+        socket the kernel answers with a reset, and `socketserver` prints the
+        `BrokenPipeError` as a twenty-five-line traceback naming this file — a
+        server fault, by every appearance, for the one thing a page is most
+        certain to do. Closing a tab is not an error and there is nothing to
+        answer with, the peer being gone; every read and write on the connection
+        passes through here, so this is where it ends. `ConnectionError` is the
+        whole of that case: its other subclass, a refused connection, cannot
+        reach a socket the server already accepted."""
+        try:
+            super().handle()
+        except ConnectionError:
+            pass
+
+    def authorized(self) -> bool:
+        """The key, from the handover URL or from the cookie an earlier request
+        set out of it. One arrival is enough: the runtime's own fetches are
+        relative and carry no query, and a reader who reloads or bookmarks the bare
+        address is the same reader. So nothing has to thread the key through the
+        page, and `leaf.js` never learns there is one."""
+        if secrets.compare_digest(
+            parse_qs(urlsplit(self.path).query).get("t", [""])[0], self.token
+        ):
+            self.set_cookie = True
+        else:
+            jar = SimpleCookie(self.headers.get("Cookie", ""))
+            if KEY_COOKIE not in jar or not secrets.compare_digest(
+                jar[KEY_COOKIE].value, self.token
+            ):
+                return False
+        return True
+
+    def end_headers(self):
+        # Every response ends here — answered, redirected, or refused — so the
+        # cookie has one writer rather than one per path that sends a header.
+        if self.set_cookie:
+            self.send_header(
+                "Set-Cookie",
+                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict",
+            )
+            self.set_cookie = False
+        super().end_headers()
+
+    def _send(self, status: int, ctype: str, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, obj, status: int = 200) -> None:
+        self._send(
+            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
+        )
+
+    def do_GET(self):
+        if not self.authorized():
+            self._json({"error": NO_KEY}, 403)
+            return
+        path = urlsplit(self.path).path
+        if path == "/":
+            versions = self.versions_live(read_events(self.page_dir))
+            if not versions:
+                self._json({"error": "no published versions yet"}, 404)
+                return
+            self.send_response(302)
+            self.send_header("Location", f"/versions/{version_name(versions[-1])}")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if path == "/api/state":
+            # versions through the handler's own view, so a preview server's
+            # state agrees with what it serves (identical when not previewing).
+            events = read_events(self.page_dir)
+            state = full_state(self.page_dir, events, self.versions_live(events))
+            # Every URL in `others` carries the key this reader arrived on, since
+            # there is one key for the machine (`host_key`) — so the list is a
+            # way to the neighbours rather than a way past anything.
+            state["others"] = other_leaves(self.page_dir)
+            self._json(state)
+            return
+        # Browsers ask for this unprompted, and go on asking where nothing in the
+        # markup names an icon — the runtime's link is written as the chrome is built,
+        # which is after the parse. Answering "no content" rather than letting it fall
+        # through to 404 keeps the console clean, which is what makes an empty console
+        # worth asserting on (tests/test_render.py).
+        if path == "/favicon.ico":
+            self._send(204, "image/x-icon", b"")
+            return
+        if SERVED_PATH.fullmatch(path):
+            if path.startswith("/versions/"):
+                version = version_num(Path(path).name)
+                if version not in self.versions_live(read_events(self.page_dir)):
+                    self._json(
+                        {
+                            "error": "not published yet; run `leaf version publish` first"
+                        },
+                        404,
+                    )
+                    return
+            file = self.page_dir / path.lstrip("/")
+            # is_file, not exists: the vendor pattern admits "." and "..", which
+            # resolve to directories.
+            if file.is_file():
+                ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
+                # charset describes an encoding, so it rides on the types that
+                # have one. On a PNG it is noise.
+                if ctype not in BINARY_TYPES:
+                    ctype += "; charset=utf-8"
+                self._send(200, ctype, file.read_bytes())
+                return
+        self._json({"error": "not found"}, 404)
+
+    def do_POST(self):
+        if not self.authorized():
+            self._json({"error": NO_KEY}, 403)
+            return
+        if urlsplit(self.path).path != "/api/event":
+            self._json({"error": "not found"}, 404)
+            return
+        try:
+            event = json.loads(
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            )
+        except json.JSONDecodeError:
+            self._json({"error": "invalid JSON"}, 400)
+            return
+        if not isinstance(event, dict):
+            self._json({"error": "event must be a JSON object"}, 400)
+            return
+        kind = event.get("kind")
+        if not isinstance(kind, str) or kind not in BROWSER_EVENT_FIELDS:
+            self._json(
+                {"error": f"kind must be one of {sorted(BROWSER_EVENT_FIELDS)}"}, 400
+            )
+            return
+        # Identity, authorship, and time belong to the server. Drop client copies
+        # before checking the kind's declared payload, so none can be forged into
+        # the append-only record.
+        for field in ("id", "author", "agent", "session", "ts"):
+            event.pop(field, None)
+        unexpected = (
+            set(event) - {"kind"} - (EVENT_VOCABULARY[kind] - AGENT_ONLY_FIELDS)
+        )
+        if unexpected:
+            self._json(
+                {
+                    "error": f"{event['kind']} events have unexpected fields {sorted(unexpected)}"
+                },
+                400,
+            )
+            return
+        wrong = [
+            f"`{name}` ({typ.__name__})"
+            for name, typ in BROWSER_EVENT_FIELDS[kind].items()
+            if type(event.get(name)) is not typ or event[name] == ""
+        ]
+        if wrong:
+            self._json({"error": f"{kind} events need {', '.join(wrong)}"}, 400)
+            return
+        if kind == "comment" and "anchor" in event:
+            anchor = event["anchor"]
+            fields = {"section", "quote", "prefix", "suffix"}
+            invalid = (
+                not isinstance(anchor, dict)
+                or set(anchor) - fields
+                or any(
+                    name in anchor
+                    and not (
+                        isinstance(anchor[name], str)
+                        or (name == "section" and anchor[name] is None)
+                    )
+                    for name in fields
+                )
+                or not (anchor.get("section") or anchor.get("quote"))
+            )
+            if invalid:
+                self._json(
+                    {
+                        "error": "comment anchor must contain a string section or quote, "
+                        "with optional string prefix/suffix"
+                    },
+                    400,
+                )
+                return
+        if (
+            kind == "comment"
+            and "suggestion" in event
+            and type(event["suggestion"]) is not bool
+        ):
+            self._json({"error": "comment suggestion must be boolean"}, 400)
+            return
+        events = read_events(self.page_dir)
+        if "version" in event:
+            live_versions = self.versions_live(events)
+            if event["version"] not in live_versions:
+                self._json(
+                    {"error": f"{kind} version must be one of {live_versions}"},
+                    400,
+                )
+                return
+        if kind in {"done", "close"}:
+            mode = version_review_mode(self.page_dir, event["version"])
+            terminal = "done" if mode == "sign-off" else "close"
+            if kind != terminal:
+                purpose = (
+                    "sign-off"
+                    if terminal == "done"
+                    else "ending its comments-only leaf"
+                )
+                self._json(
+                    {
+                        "error": f"version {event['version']} uses {terminal!r} for {purpose}"
+                    },
+                    400,
+                )
+                return
+        if kind == "action":
+            # A page's vendored registry is frozen at `page init` and the layer around it
+            # is not, so a stamp that no longer parses — or no longer declares what this
+            # layer writes — is state the reader can reach by clicking. It is theirs to
+            # hear about, in the same shape as every rejection above.
+            try:
+                registry = load_registry(self.page_dir)
+            except RegistryError as error:
+                self._json({"error": str(error)}, 400)
+                return
+            if registry is None:
+                self._json({"error": "the page has no registry.json"}, 400)
+                return
+            if error := action_contract_error(self.page_dir, event, events, registry):
+                self._json({"error": error}, 400)
+                return
+        # A parent names a message in a thread, the same rule `leaf reply`
+        # holds Claude to. Enforced so a walk up the log terminates at a comment.
+        if "parent" in event and event["parent"] not in {
+            e["id"] for e in events if e["kind"] in {"comment", "reply"}
+        }:
+            self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
+            return
+        event["author"] = "user"
+        self._json({"ok": True, "event": append_event(self.page_dir, event)})
+
+
+def handler_for(
+    page_dir: Path, token: str, preview_upto=None, protocol_version="HTTP/1.0"
+):
+    """A request handler bound to one page, publication view, and key. The key has no
+    default: every server over a page directory is reachable by whatever reached the
+    machine, so there is no construction that should quietly go without one."""
+    return type(
+        "PageHandler",
+        (Handler,),
+        {
+            "page_dir": page_dir,
+            "token": token,
+            "preview_upto": preview_upto,
+            "protocol_version": protocol_version,
+        },
+    )
+
+
+def layer_dirs() -> list:
+    """Widget-layer sources, lowest precedence first: leaf's integrated layer
+    (the runtime and the machine's own vocabulary), its bundled widgets (the
+    content families, shipped as an overlay so they reach a page through the door
+    any layer's widgets use), the user layer, the project layer (resolved against
+    the working directory). Each mirrors the assets layout:
+    theme.css/registry.json/leaf.js at the top, modules in widgets/,
+    third-party files in vendor/. Theme files form one cascade, registry files
+    are additive by top-level entry, and every other file replaces by path."""
+    return [ASSETS, BUNDLED, config_home(), Path.cwd() / ".leaf"]
+
+
+def checked_layers(sources: list) -> list:
+    """Existing, structurally complete layer roots.
+
+    An overlay path of the wrong kind is authored input, not an absent
+    customization. Refuse it here once so every merger can assume the layer
+    shape the public guide describes.
+    """
+    layers = []
+    for layer in sources:
+        if not (layer.exists() or layer.is_symlink()):
+            continue
+        if not layer.is_dir():
+            sys.exit(f"{layer} must be a directory")
+        for name in VENDORED_FILES:
+            path = layer / name
+            if (path.exists() or path.is_symlink()) and not path.is_file():
+                sys.exit(f"{path} must be a file")
+        for sub in VENDORED_DIRS:
+            directory = layer / sub
+            if not (directory.exists() or directory.is_symlink()):
+                continue
+            if not directory.is_dir():
+                sys.exit(f"{directory} must be a directory")
+            for path in directory.iterdir():
+                if not path.is_file():
+                    sys.exit(f"{path} must be a file")
+        layers.append(layer)
+    return layers
+
+
+def layer_source_paths(layers: list) -> list:
+    """Every path a layer reads, including the targets of nested symlinks."""
+    paths = []
+    for layer in layers:
+        paths.append(layer.resolve())
+        paths.extend(
+            path.resolve()
+            for name in VENDORED_FILES
+            if ((path := layer / name).exists() or path.is_symlink())
+        )
+        for sub in VENDORED_DIRS:
+            directory = layer / sub
+            if not (directory.exists() or directory.is_symlink()):
+                continue
+            paths.append(directory.resolve())
+            if directory.is_dir():
+                paths.extend(path.resolve() for path in directory.iterdir())
+    return paths
+
+
+def _path_location(path: Path) -> tuple:
+    """Deepest existing ancestor and the unresolved path components below it."""
+    ancestor = path.resolve()
+    tail = []
+    while True:
+        try:
+            ancestor.stat()
+        except (FileNotFoundError, NotADirectoryError):
+            tail.append(ancestor.name)
+            ancestor = ancestor.parent
+            continue
+        return ancestor, tuple(reversed(tail))
+
+
+def _filesystem_case_sensitive(path: Path) -> bool:
+    """Whether new names on path's filesystem distinguish letter case."""
+    if sys.platform != "darwin":
+        return os.path.normcase("A") != os.path.normcase("a")
+
+    # Darwin exposes this per volume rather than through normcase: APFS can be
+    # mounted either way, and normcase leaves names unchanged in both cases.
+    class AttrList(ctypes.Structure):
+        _fields_ = [
+            ("bitmapcount", ctypes.c_uint16),
+            ("reserved", ctypes.c_uint16),
+            ("commonattr", ctypes.c_uint32),
+            ("volattr", ctypes.c_uint32),
+            ("dirattr", ctypes.c_uint32),
+            ("fileattr", ctypes.c_uint32),
+            ("forkattr", ctypes.c_uint32),
+        ]
+
+    class VolumeCapabilities(ctypes.Structure):
+        _fields_ = [
+            ("length", ctypes.c_uint32),
+            ("capabilities", ctypes.c_uint32 * 4),
+            ("valid", ctypes.c_uint32 * 4),
+        ]
+
+    attr_vol_info = 0x80000000
+    attr_vol_capabilities = 0x00020000
+    case_sensitive = 0x00000100
+    attributes = AttrList(5, 0, 0, attr_vol_info | attr_vol_capabilities, 0, 0, 0)
+    result = VolumeCapabilities()
+    getattrlist = ctypes.CDLL(None, use_errno=True).getattrlist
+    getattrlist.argtypes = [
+        ctypes.c_char_p,
+        ctypes.POINTER(AttrList),
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_ulong,
+    ]
+    getattrlist.restype = ctypes.c_int
+    if getattrlist(
+        os.fsencode(path),
+        ctypes.byref(attributes),
+        ctypes.byref(result),
+        ctypes.sizeof(result),
+        0,
+    ):
+        return True
+    if not result.valid[0] & case_sensitive:
+        return True
+    return bool(result.capabilities[0] & case_sensitive)
+
+
+def _same_existing_path(left: Path, right: Path) -> bool:
+    try:
+        return left.samefile(right)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+
+
+def path_is_within(path: Path, root: Path) -> bool:
+    """Filesystem-aware containment, including not-yet-created descendants."""
+    path_ancestor, path_tail = _path_location(path)
+    root_ancestor, root_tail = _path_location(root)
+    if not root_tail:
+        return any(
+            _same_existing_path(candidate, root_ancestor)
+            for candidate in (path_ancestor, *path_ancestor.parents)
+        )
+    if not _same_existing_path(path_ancestor, root_ancestor):
+        return False
+    if not _filesystem_case_sensitive(root_ancestor):
+        path_tail = tuple(part.casefold() for part in path_tail)
+        root_tail = tuple(part.casefold() for part in root_tail)
+    return path_tail[: len(root_tail)] == root_tail
+
+
+def paths_same(left: Path, right: Path) -> bool:
+    return path_is_within(left, right) and path_is_within(right, left)
+
+
+def paths_overlap(left: Path, right: Path) -> bool:
+    return path_is_within(left, right) or path_is_within(right, left)
+
+
+def overlapping_layer_sources(layers: list):
+    """The first resolved path shared by two precedence scopes."""
+    sources = [(layer, layer_source_paths([layer])) for layer in layers]
+    return next(
+        (
+            (left_layer, left, right_layer, right)
+            for index, (left_layer, left_paths) in enumerate(sources)
+            for right_layer, right_paths in sources[index + 1 :]
+            for left in left_paths
+            for right in right_paths
+            if paths_overlap(left, right)
+        ),
+        None,
+    )
+
+
+def layered_dir_files(layers: list, sub: str) -> dict:
+    """The winning source for every file in one overlaid directory."""
+    sources = {}
+    for layer in layers:
+        source_dir = layer / sub
+        if not source_dir.is_dir():
+            continue
+        for source in sorted(source_dir.iterdir()):
+            if source.is_file():
+                sources[source.name] = source
+    return sources
+
+
+def layered_theme(layers: list) -> str:
+    """One stylesheet whose source order is the layer precedence."""
+    sources = [
+        layer / "theme.css" for layer in layers if (layer / "theme.css").is_file()
+    ]
+    if not sources:
+        sys.exit("the incoming layer has no theme.css")
+    parts = []
+    for source in sources:
+        try:
+            css = source.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            sys.exit(f"{source} must be UTF-8")
+        if errors := css_syntax_errors(css, str(source)):
+            sys.exit(errors[0])
+        parts.append(css if css.endswith("\n") else css + "\n")
+    return "".join(parts)
+
+
+def cmd_init(page_dir: Path) -> None:
+    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
+    # where drift has to be caught: a tag or verb the new layer omits, or a
+    # detail schema that no longer accepts an old payload, makes a recorded
+    # action foreign on the first reload — the lost-decision bug reintroduced
+    # through vocabulary drift instead of version-scoping.
+    sources = layer_dirs()
+    page_target = page_dir.resolve()
+    if source := next(
+        (layer for layer in sources if path_is_within(page_target, layer)),
+        None,
+    ):
+        sys.exit(
+            f"{page_dir} is inside the widget-layer customization source "
+            f"{source}, not a page directory"
+        )
+    layers = checked_layers(sources)
+    if overlap := overlapping_layer_sources(layers):
+        left_layer, left, right_layer, right = overlap
+        sys.exit(
+            f"widget-layer sources {left_layer} and {right_layer} overlap "
+            f"at {left} and {right}; layer scopes must be separate"
+        )
+    destinations = [
+        *(page_target / name for name in VENDORED_FILES),
+        *(page_target / sub for sub in ("versions", *VENDORED_DIRS)),
+    ]
+    if overlap := next(
+        (
+            (source, destination)
+            for source in layer_source_paths(layers)
+            for destination in destinations
+            if paths_overlap(source, destination)
+        ),
+        None,
+    ):
+        source, destination = overlap
+        sys.exit(
+            f"widget-layer source {source} overlaps page destination "
+            f"{destination}; source and vendored page paths must be separate"
+        )
+    incoming = incoming_registry(layers)
+    directory_sources = {sub: layered_dir_files(layers, sub) for sub in VENDORED_DIRS}
+    missing_modules = sorted(
+        tag
+        for tag, entry in incoming.items()
+        if tag.startswith("lf-")
+        and entry["x-upgrade"]
+        and f"{tag}.js" not in directory_sources["widgets"]
+    )
+    if missing_modules:
+        sys.exit(
+            "the incoming registry marks widgets as upgraded but their modules "
+            "are missing:\n"
+            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
+        )
+    events = read_events(page_dir)
+    gaps = vocabulary_gaps(page_dir, events, incoming)
+    if gaps:
+        sys.exit(
+            "this page's log holds vocabulary the incoming layer no longer speaks:\n"
+            + "\n".join(f"  - {g}" for g in gaps)
+            + "\nre-vendoring would silently stop these replaying — the user's"
+            " recorded decisions among them."
+        )
+
+    # Resolve and read the complete incoming layer before the first page write.
+    # A bad late source must not leave the registry newer than the theme or its
+    # modules.
+    top_files = {"theme.css": layered_theme(layers).encode()}
+    for name in VENDORED_FILES:
+        if name == "registry.json" or name in top_files:
+            continue
+        source = next(
+            (layer / name for layer in reversed(layers) if (layer / name).is_file()),
+            None,
+        )
+        if source is None:
+            sys.exit(f"the incoming layer has no {name}")
+        top_files[name] = source.read_bytes()
+    # The registry makes the theme and modules live, so it commits last.
+    top_files["registry.json"] = json_bytes(incoming)
+    directory_files = {
+        sub: {
+            name: source.read_bytes() for name, source in directory_sources[sub].items()
+        }
+        for sub in VENDORED_DIRS
+    }
+
+    # Resolve every destination conflict before touching the page. A directory
+    # where one vendored file belongs must not leave the top-level layer newer
+    # than its modules.
+    if (page_dir.exists() or page_dir.is_symlink()) and not page_dir.is_dir():
+        sys.exit(f"{page_dir} must be a directory")
+    directories = [page_dir / "versions"] + [page_dir / sub for sub in VENDORED_DIRS]
+    for destination in directories:
+        if destination.is_symlink():
+            sys.exit(f"{destination} must be a real directory, not a symlink")
+        if (
+            destination.exists() or destination.is_symlink()
+        ) and not destination.is_dir():
+            sys.exit(f"{destination} must be a directory")
+    file_targets = [
+        *(page_dir / name for name in top_files),
+        *(
+            page_dir / sub / name
+            for sub in VENDORED_DIRS
+            for name in directory_files[sub]
+        ),
+    ]
+    for target in file_targets:
+        if (target.exists() or target.is_symlink()) and not target.is_file():
+            sys.exit(f"{target} must be a file")
+
+    (page_dir / "versions").mkdir(parents=True, exist_ok=True)
+    for sub in VENDORED_DIRS:
+        (page_dir / sub).mkdir(exist_ok=True)
+
+    # Stage the whole layer together. The registry is the declaration that
+    # makes every other file live, so it is the final replacement.
+    writes = [
+        (page_dir / name, data, False)
+        for name, data in top_files.items()
+        if name != "registry.json"
+    ]
+    writes.extend(
+        (page_dir / sub / name, data, False)
+        for sub in VENDORED_DIRS
+        for name, data in directory_files[sub].items()
+    )
+    writes.append((page_dir / "registry.json", top_files["registry.json"], False))
+    replace_files(writes)
+
+    for sub in VENDORED_DIRS:
+        destination = page_dir / sub
+        for stale in destination.iterdir():
+            if stale.name not in directory_files[sub] and (
+                stale.is_symlink() or stale.is_file()
+            ):
+                stale.unlink()
+    if not (page_dir / "status.json").exists():
+        cmd_status(page_dir, "working", "Writing the page")
+    print(f"initialized {page_dir}")
+
+
+CUSTOM_THEME = """\
+/* Appended after Leaf's defaults by `page init`.
+ * Override tokens for broad changes and selectors for specific elements. */
+:root {
+  /* --accent: #7c3aed; */
+}
+"""
+
+
+def customization_dir(user: bool) -> Path:
+    return config_home() if user else Path.cwd() / ".leaf"
+
+
+def custom_theme_content(layer: Path) -> tuple:
+    path = layer / "theme.css"
+    if path.exists() or path.is_symlink():
+        if not path.is_file():
+            sys.exit(f"{path} must be a file")
+        try:
+            return path, path.read_text(encoding="utf-8"), True
+        except UnicodeDecodeError:
+            sys.exit(f"{path} must be UTF-8")
+    return path, CUSTOM_THEME, False
+
+
+def customization_protected_paths(layer: Path) -> list:
+    """Resolved paths owned by every layer other than the selected write scope."""
+    paths = []
+    for source in layer_dirs():
+        if source == layer:
+            continue
+        paths.append(source.resolve())
+        if source.is_dir():
+            paths.extend(layer_source_paths([source]))
+    return paths
+
+
+def customization_overlap(targets: list, protected: list):
+    return next(
+        (
+            (target.resolve(), source)
+            for target in targets
+            for source in protected
+            if paths_overlap(target.resolve(), source)
+        ),
+        None,
+    )
+
+
+def initialized_page_owning(path: Path):
+    """The initialized page that owns path, if there is one."""
+    resolved = path.resolve()
+    for root in (resolved, *resolved.parents):
+        # Runtime state is disposable and regenerated; it cannot identify the
+        # page whose owned paths this gate protects.
+        if not (
+            (root / "versions").is_dir()
+            and all((root / name).is_file() for name in VENDORED_FILES)
+            and all((root / name).is_dir() for name in VENDORED_DIRS)
+        ):
+            continue
+        if (
+            paths_same(resolved, root)
+            or any(paths_same(resolved, root / name) for name in PAGE_OWNED_FILES)
+            or any(path_is_within(resolved, root / name) for name in PAGE_OWNED_DIRS)
+        ):
+            return root
+    return None
+
+
+def customization_page_overlap(paths: list):
+    for path in paths:
+        resolved = path.resolve()
+        if page := initialized_page_owning(resolved):
+            return resolved, page
+    return None
+
+
+def validate_customization_dir(layer: Path) -> list:
+    if (layer.exists() or layer.is_symlink()) and not layer.is_dir():
+        sys.exit(f"{layer} must be a directory")
+    if layer.is_dir():
+        checked_layers([layer])
+    protected = customization_protected_paths(layer)
+    selected = layer_source_paths([layer]) if layer.is_dir() else [layer]
+    if overlap := customization_page_overlap(selected):
+        target, page = overlap
+        sys.exit(
+            f"customization path {target} is owned by initialized page {page}; "
+            "customization sources must stay separate from page-owned paths, "
+            "then run `page init` to re-vendor the page"
+        )
+    if overlap := customization_overlap(selected, protected):
+        target, source = overlap
+        sys.exit(
+            f"customization target {target} overlaps another layer source "
+            f"{source}; customization scopes must be separate"
+        )
+    return protected
+
+
+def cmd_customize_theme(user: bool) -> Path:
+    layer = customization_dir(user)
+    protected = validate_customization_dir(layer)
+    path, css, exists = custom_theme_content(layer)
+    if overlap := customization_overlap([path], protected):
+        target, source = overlap
+        sys.exit(
+            f"customization target {target} overlaps another layer source "
+            f"{source}; customization scopes must be separate"
+        )
+    if exists:
+        print(f"using {path}")
+        return path
+    layer.mkdir(parents=True, exist_ok=True)
+    replace_files([(path, css.encode(), True)])
+    print(f"created {path}")
+    return path
+
+
+def custom_widget_entry(tag: str, upgrade: bool) -> dict:
+    stem = tag.removeprefix("lf-")
+    entry = {
+        "description": f"A custom <{tag}> block.",
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+            }
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": upgrade,
+        "x-example": (
+            f'<{tag} id="{stem}-example"><strong>Example</strong> '
+            f"Replace this content.</{tag}>"
+        ),
+    }
+    if upgrade:
+        entry["x-verbatim"] = True
+    return entry
+
+
+def custom_widget_css(tag: str) -> str:
+    return f"""\
+/* <{tag}> */
+{tag} {{
+  display: block;
+  margin: var(--sp-3) 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card);
+}}
+"""
+
+
+def custom_widget_module(tag: str) -> str:
+    return f"""\
+import {{ once }} from "/leaf.js";
+
+customElements.define(
+  "{tag}",
+  class extends HTMLElement {{
+    connectedCallback() {{
+      if (!once(this)) return;
+    }}
+  }},
+);
+"""
+
+
+def cmd_customize_widget(tag: str, user: bool, upgrade: bool) -> None:
+    if re.fullmatch(WIDGET_NAME, tag) is None:
+        sys.exit("widget tag must start with `lf-` and use lowercase kebab-case")
+
+    layer = customization_dir(user)
+    protected = validate_customization_dir(layer)
+    registry_path = layer / "registry.json"
+    # Every layer up to and including the write scope: a collision is checked
+    # against what this scope's merge can see, and a project tag may shadow
+    # nothing while a user tag may not collide with the shipped layers.
+    all_layers = layer_dirs()
+    registry_layers = all_layers[: all_layers.index(layer) + 1]
+    checked_layers(registry_layers[:-1])
+    for source_layer in registry_layers:
+        source_path = source_layer / "registry.json"
+        source_entries = read_registry_entries(source_path) or {}
+        if tag in source_entries:
+            sys.exit(f"<{tag}> already exists in {source_path}")
+
+    widgets_dir = layer / "widgets"
+    if (widgets_dir.exists() or widgets_dir.is_symlink()) and not widgets_dir.is_dir():
+        sys.exit(f"{widgets_dir} must be a directory")
+    module_path = layer / "widgets" / f"{tag}.js"
+    if module_path.exists() or module_path.is_symlink():
+        sys.exit(f"{module_path} already exists")
+
+    entries = read_registry_entries(registry_path) or {}
+    entries[tag] = custom_widget_entry(tag, upgrade)
+    merged = {}
+    for source_layer in registry_layers:
+        source_entries = (
+            entries
+            if source_layer.resolve() == layer.resolve()
+            else read_registry_entries(source_layer / "registry.json") or {}
+        )
+        merged.update(source_entries)
+    source = f"custom widget <{tag}>"
+    validate_registry_examples(validate_registry(merged, source), source)
+
+    theme_path, css, _ = custom_theme_content(layer)
+    if css and not css.endswith("\n"):
+        css += "\n"
+    css += "\n" + custom_widget_css(tag)
+    if errors := css_syntax_errors(css, str(theme_path)):
+        sys.exit(errors[0])
+
+    layer.mkdir(parents=True, exist_ok=True)
+    writes = [(theme_path, css.encode(), True)]
+    created = [registry_path, theme_path]
+    if upgrade:
+        writes.append((module_path, custom_widget_module(tag).encode(), False))
+        created.append(module_path)
+    # The registry is the declaration that makes the other files live, so it
+    # commits last after every target has been staged.
+    writes.append((registry_path, json_bytes(entries, indent=2), True))
+    if overlap := customization_overlap([path for path, _, _ in writes], protected):
+        target, source = overlap
+        sys.exit(
+            f"customization target {target} overlaps another layer source "
+            f"{source}; customization scopes must be separate"
+        )
+    if upgrade:
+        widgets_dir.mkdir(parents=True, exist_ok=True)
+    replace_files(writes)
+    print("custom widget scaffold:")
+    for path in created:
+        print(f"  {path}")
+
+
+def cmd_media(page_dir: Path, files: list) -> list:
+    """Copy images into the page's media directory, named by the hash of their
+    bytes; returns (source, served path) per file, in the order given.
+
+    Content-addressing is doing two jobs. It keeps the directory's promise —
+    a name can only ever mean one set of bytes, so a version the user
+    approved shows them the same picture forever, which is the same guarantee
+    vendoring gives the layer. And it de-duplicates for free: a version that
+    re-shows last version's screenshot re-uses the file rather than a second
+    copy of it, which is what makes the version history cheap to keep."""
+    out = []
+    (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
+    for src in files:
+        if src.suffix.lower() not in MEDIA_TYPES:
+            sys.exit(
+                f"{src}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
+            )
+        data = src.read_bytes()
+        name = hashlib.sha256(data).hexdigest()[:16] + src.suffix.lower()
+        (page_dir / MEDIA_DIR / name).write_bytes(data)
+        out.append((str(src), f"/{MEDIA_DIR}/{name}"))
+    return out
+
+
+class DualStackHTTPServer(ThreadingHTTPServer):
+    """For a bind with ":" in it. The stated-host wildcard is "::" with V6ONLY
+    off, which answers IPv4 too (as ::ffff:...), so the URL is reachable
+    whichever family the stated name resolves to; a derived IPv6 address just
+    needs the family at all."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
+def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -> None:
+    # `--standing` declines the claim rather than adding a second lifetime
+    # mechanism: everything downstream still reads "session iff claimed".
+    claimed = False if standing else claim_page(page_dir)
+    existing = running_server(page_dir)
+    if existing:
+        # A stated host silently ignored would print a URL that contradicts the
+        # flag, so compare against that URL — what the user would be handed.
+        if host and urlsplit(existing["url"]).hostname != host.lower():
+            sys.exit(
+                f"already serving at {existing['url']}; `leaf server stop` "
+                "first, then re-run with --host"
+            )
+        # A stated lifetime silently ignored would print a note that contradicts
+        # the flag, exactly as a stated host would — same refusal, same way out.
+        if standing and existing["lifetime"] != "standing":
+            sys.exit(
+                f"already serving as a session server at {existing['url']}; "
+                "`leaf server stop` first, then re-run with --standing"
+            )
+        print(existing["url"], flush=True)
+        # The running server's lifetime, not this invocation's: claiming the page
+        # does not adopt a server this launch found already up.
+        print(
+            lifetime_note(page_dir, existing["lifetime"]), file=sys.stderr, flush=True
+        )
+        return
+    access = page_access(page_dir, host)
+    token = host_key()
+    base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
+    server_cls = DualStackHTTPServer if ":" in access["bind"] else ThreadingHTTPServer
+    httpd = None
+    for port in [*range(base, base + 10), 0]:
+        try:
+            httpd = server_cls(
+                (access["bind"], port),
+                handler_for(page_dir, token, protocol_version="HTTP/1.1"),
+            )
+            break
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                continue
+            # The address outlived the session that derived it — a page created
+            # over SSH and served again from elsewhere, or from a box that has
+            # since moved. Naming where it was recorded is the whole fix.
+            sys.exit(
+                f"can't serve {page_dir} on {access['bind']}: {e}\n"
+                f"that address came from the session that first served this page and is "
+                f"kept in {page_dir / 'access.json'}; delete that file to derive the "
+                "address again from this one, or re-run with --host NAME to bind every "
+                "interface and put NAME in the URL."
+            )
+    url = page_url(access["host"], httpd.server_address[1], token)
+    lifetime = "session" if claimed else "standing"
+    write_json(
+        page_dir / "server.json",
+        {
+            "port": httpd.server_address[1],
+            "pid": os.getpid(),
+            "url": url,
+            "lifetime": lifetime,
+        },
+    )
+    # The URL is the payload and goes to stdout alone, as everything downstream
+    # reads it there; what ends this process is the account beside it, and stderr
+    # is where leaf's other accounts of themselves already go.
+    print(url, flush=True)
+    print(lifetime_note(page_dir, lifetime), file=sys.stderr, flush=True)
+    if claimed:
+        threading.Thread(
+            target=stop_when_session_ends,
+            args=(httpd, page_dir),
+            daemon=True,
+        ).start()
+    try:
+        httpd.serve_forever()
+    finally:
+        (page_dir / "server.json").unlink(missing_ok=True)
+
+
+def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -> None:
+    status = {"state": state, "detail": detail, "ts": now_iso()}
+    if handoff:
+        status["handoff"] = True
+    write_json(page_dir / "status.json", status)
+
+
+def revive_server(page_dir: Path) -> bool:
+    """Bring a page back up after its server died. The user's browser has
+    been showing "Server offline" since it happened, and `leaf wait` is the
+    only thing positioned to notice — so it restarts the server rather than
+    handing the diagnosis to Claude and the discovery to the user.
+
+    Detached, because the restarted server has to outlive both this
+    `leaf wait` and the background task that started it, exactly as the
+    original `server run` does. sys.executable is the resolved uv environment,
+    so this skips uv entirely."""
+    (page_dir / "server.json").unlink(missing_ok=True)
+    subprocess.Popen(
+        [sys.executable, str(Path(__file__).resolve()), "server", "run", str(page_dir)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        time.sleep(0.1)
+        if running_server(page_dir):
+            return True
+    return False
+
+
+def cmd_wait(page_dir: Path) -> int:
+    """Hold until the user speaks or a worker reports, and deliver what was said.
+
+    A wait ends on them, or on the page's server being down with no restart to
+    make. It puts no clock on how long a user takes, because there is no such
+    measurement to take from this side of the wire: a page whose address their
+    browser can't route to and a page they simply haven't opened yet look
+    identical at every length, so a deadline over it announces the first while
+    describing the second — and the second is the ordinary case. Only their
+    browser can tell them apart, and the user holds the URL from the turn
+    that handed it over, so the report comes from them; SKILL.md's "Where the
+    page is served" carries the recourse."""
+    claim_page(page_dir)
+    cursor = read_cursor(page_dir)
+    server_check_at = 0.0
+    revived = False
+    try:
+        while True:
+            write_json(page_dir / "heartbeat.json", {"t": time.time()})
+            events = read_events(page_dir)
+            batch = unacknowledged(events, cursor)
+            if batch:
+                for event in batch:
+                    print(json.dumps(event, ensure_ascii=False), flush=True)
+                status = read_json(page_dir / "status.json") or {"state": "idle"}
+                if status["state"] != "working":
+                    # Flip before the agent handles the batch: the handoff gap between this
+                    # exit and pickup must not show "waiting". handoff=True dates
+                    # that claim; the agent's own `leaf status` clears it.
+                    # Mid-work output has no pickup gap, so leave the existing claim
+                    # byte-for-byte untouched instead of shortening its freshness window.
+                    # "update", not "comment": a batch may mix comments, actions, and reports.
+                    n = len(batch)
+                    cmd_status(
+                        page_dir,
+                        "working",
+                        f"picking up {n} update{'s' if n != 1 else ''}",
+                        handoff=True,
+                    )
+                return 0
+            if time.time() > server_check_at:
+                server_check_at = time.time() + 5
+                if not running_server(page_dir):
+                    # An idle page has no user to keep online, and the
+                    # SessionEnd hook idles then stops: without this the watcher
+                    # it raced would put the server straight back up.
+                    if (read_json(page_dir / "status.json") or {"state": "idle"})[
+                        "state"
+                    ] == "idle":
+                        print(
+                            "the leaf ended; not restarting the server",
+                            file=sys.stderr,
+                        )
+                        return 2
+                    # One revival per wait: a server that dies the moment it comes
+                    # up would otherwise respawn every five seconds forever.
+                    if revived or not revive_server(page_dir):
+                        print(
+                            "server is not running; restart it with `leaf server run`",
+                            file=sys.stderr,
+                        )
+                        return 2
+                    revived = True
+                    print(
+                        f"server had died; restarted at {running_server(page_dir)['url']}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+            time.sleep(1)
+    finally:
+        (page_dir / "heartbeat.json").unlink(missing_ok=True)
+
+
+def cmd_ack(page_dir: Path, seq: int) -> None:
+    """Acknowledge through one event of a complete wait batch that reached context.
+
+    The target must be something `leaf wait` prints — a user event or a
+    worker's report. This catches a mistyped sequence and prevents an agent from
+    advancing the cursor to a trailing log entry it never saw. Writing only when
+    the cursor advances makes retries harmless.
+    """
+    events = read_events(page_dir)
+    if seq > len(events):
+        sys.exit(f"event {seq} does not exist; the log ends at {len(events)}")
+    target = events[seq - 1]
+    if target["author"] != "user" and target["kind"] != "report":
+        sys.exit(f"event {seq} is neither a user event nor a report")
+    if seq > read_cursor(page_dir):
+        write_json(page_dir / "cursor.json", {"seq": seq})
+
+
+def read_text_arg(text) -> str:
+    body = text if text is not None else sys.stdin.read()
+    if not body.strip():
+        sys.exit("empty text (pass --text or pipe via stdin)")
+    return body.strip()
+
+
+def thread_widget_ids(events: list) -> set:
+    """Ids claimed by widget markup in the logged messages. Thread markup is frozen
+    in the log and rendered into the panel, so its ids share one universe with page ids —
+    the runtime resolves actions document-wide by id, and a collision would silently
+    redirect a thread widget's replay to the page.
+
+    The `markup` field is the whole question: text renders with every tag escaped, so a
+    lf- tag there is words about a widget, and the field's one door is the CLI gate."""
+    ids = set()
+    for e in events:
+        if markup := e.get("markup"):
+            ids |= parse_structure(markup).ids
+    return ids
+
+
+def action_widget_tags(page_dir: Path, version: int, events: list) -> dict:
+    """Widget id → tag in the document that sent an action.
+
+    Page widgets come from the action's own published version, not whichever
+    version is newest now. Thread widgets are the other live document the runtime
+    renders, so each message's `markup` joins this map — text never carries a
+    widget, in the panel or here. Both readings use _StructParser, the same
+    structure reading `version check` and markup validation already trust.
+    """
+    sources = [version_path(page_dir, version).read_text(encoding="utf-8")]
+    sources.extend(e["markup"] for e in events if e.get("markup"))
+    widgets = {}
+    for source in sources:
+        widgets.update(
+            (wid, rec["tag"]) for wid, rec in parse_structure(source).by_id.items()
+        )
+    return widgets
+
+
+def detail_error(schema: dict, detail: dict):
+    """The first schema complaint about an event's detail payload, or None —
+    sorted so which one speaks doesn't depend on validator iteration order."""
+    errors = sorted(Draft202012Validator(schema).iter_errors(detail), key=str)
+    return errors[0].message if errors else None
+
+
+def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
+    """Why a structurally complete action violates its sending widget's contract."""
+    tag = action_widget_tags(page_dir, event["version"], events).get(event["widget"])
+    if tag is None:
+        return (
+            f"unknown action widget {event['widget']!r} in v{event['version']} "
+            "or agent-authored thread markup"
+        )
+    entry = registry.get(tag)
+    if entry is None:
+        return (
+            f"registry no longer declares <{tag}> for action widget {event['widget']!r}"
+        )
+    state = entry.get("x-state", {})
+    if event["action"] not in state:
+        return f"<{tag}> does not declare action verb {event['action']!r}"
+    if message := detail_error(state[event["action"]]["detail"], event["detail"]):
+        return f"<{tag}> action {event['action']!r} detail is invalid: {message}"
+    return None
+
+
+def report_contract_error(page_dir: Path, event: dict, registry: dict):
+    """Why a structurally complete report violates its widget's declaration —
+    the CLI door's mirror of the POST door's action_contract_error. Page markup
+    only, never a reply's: a report has to be answerable, and thread markup is
+    frozen in the log, so no version could ever absorb or overrule one made
+    there."""
+    rec = parse_version(page_dir, event["version"]).by_id.get(event["widget"])
+    tag = rec["tag"] if rec else None
+    if tag is None:
+        return (
+            f"unknown report widget {event['widget']!r} in v{event['version']} — "
+            "reports name page widgets only; thread markup is frozen, so no "
+            "version could ever answer a report made there"
+        )
+    entry = registry.get(tag)
+    if entry is None:
+        return (
+            f"registry no longer declares <{tag}> for report widget {event['widget']!r}"
+        )
+    declared = entry.get("x-report", {})
+    if event["action"] not in declared:
+        return f"<{tag}> does not declare report verb {event['action']!r}" + (
+            f"; it declares {sorted(declared)}" if declared else ""
+        )
+    if message := detail_error(declared[event["action"]]["detail"], event["detail"]):
+        return f"<{tag}> report {event['action']!r} detail is invalid: {message}"
+    return None
+
+
+def version_ids(page_dir: Path) -> set:
+    ids = set()
+    for version in list_versions(page_dir):
+        ids |= parse_version(page_dir, version).ids
+    return ids
+
+
+def reserved_ids_error(ids: list) -> str:
+    """The one sentence for an authored id in the runtime's own namespace, shared by the
+    version lint and the thread-markup one — page ids and a reply's are one universe, so
+    what keeps both clear of the runtime's is one rule. leaf.js coins document ids
+    under `lf-` (`lf-composer-quote`) and points ARIA at them, so an authored id there
+    redirects the reference to the page."""
+    return (
+        "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
+        f"and points ARIA at them): {ids}"
+    )
+
+
+def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
+    """A message's widget markup, validated against the vendored registry at post
+    time — the discussion-side `version check`, and the field's one gate: the browser
+    door refuses `markup` outright, so nothing reaches the log under that name
+    unvalidated. Text needs no gate at all — the runtime renders it with every tag
+    escaped, so it cannot claim a widget. Exits with what's wrong."""
+    registry = require_registry(page_dir)
+    frag = parse_structure(markup)
+    errs = fragment_errors(frag, registry, registry["$languages"]["names"])
+    if errs:
+        sys.exit(
+            f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
+        )
+    if not frag.lf_elements:
+        sys.exit("--markup carries no widget; put prose in --text")
+    if frag.suggestions:
+        sys.exit(
+            f"a {kind} can't carry <lf-suggestion>: thread markup is frozen in the "
+            "log, so no version could ever settle it — put the change in the next "
+            "version instead"
+        )
+    if frag.duplicate_ids:
+        sys.exit(
+            f"{kind} widget markup reuses an id within itself: {frag.duplicate_ids}"
+        )
+    if frag.reserved_ids:
+        sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
+    clash = sorted(frag.ids & (version_ids(page_dir) | thread_widget_ids(events)))
+    if clash:
+        sys.exit(
+            f"{kind} widget ids already taken by the page or an earlier message: {clash}"
+        )
+
+
+def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> None:
+    """Open a thread, as the user's own gestures do: on a passage where --quote or
+    --section points at one, and on the page as a whole where neither does — the same
+    anchorless shape the browser's general box posts, which is where a question about
+    the work rather than a passage belongs. An anchor is captured against the version
+    they are looking at — the newest published one, since a version no `note` has
+    released is a passage nobody can be pointed at — and read as they see it: a slot
+    their decision retired is off the page, and a draft they edited holds their words,
+    so a quote is met here the way it would land there."""
+    events = read_events(page_dir)
+    published = published_versions(page_dir, events)
+    if not published:
+        sys.exit("no published version; run `leaf version publish` first")
+    version = published[-1]
+    anchor = None
+    if quote or section:
+        html = version_path(page_dir, version).read_text(encoding="utf-8")
+        registry = require_registry(page_dir)
+        fold, _, _ = page_fold(html, events, registry, version)
+        decided = decisions(fold, registry)
+        edited = rewritten_bodies(fold)
+        try:
+            anchor = capture_anchor(html, registry, quote, section, decided, edited)
+        except ValueError as err:
+            sys.exit(f"can't anchor in v{version}: {err}")
+    body = read_text_arg(text)
+    if markup:
+        check_markup(page_dir, "comment", markup, events)
+    event = {
+        "kind": "comment",
+        "author": "claude",
+        **message_identity(),
+        "version": version,
+        "text": body,
+    }
+    if anchor:
+        event["anchor"] = anchor
+    if markup:
+        event["markup"] = markup
+    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+
+
+def cmd_reply(page_dir: Path, to: str, text, markup: str) -> None:
+    events = read_events(page_dir)
+    known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+    if to not in known:
+        sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+    body = read_text_arg(text)
+    if markup:
+        check_markup(page_dir, "reply", markup, events)
+    event = {
+        "kind": "reply",
+        "author": "claude",
+        **message_identity(),
+        "parent": to,
+        "text": body,
+    }
+    if markup:
+        event["markup"] = markup
+    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+
+
+def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
+    """A worker's provisional news: a declared state change folded onto a page
+    widget, validated at this door the way the POST door validates an action,
+    stamped with the posting session's voice, and made against the newest
+    published version — the page the reader is looking at. The runtime paints it
+    live; it stands until a version absorbs or overrules it by id (see
+    `version publish`), and the page's watcher wakes to fold it in. Field values
+    are strings — the declared detail schemas for reports speak in attribute
+    values, which is all a report may move."""
+    events = read_events(page_dir)
+    published = published_versions(page_dir, events)
+    if not published:
+        sys.exit("no published version; run `leaf version publish` first")
+    registry = require_registry(page_dir)
+    detail = {}
+    for field in fields:
+        name, eq, value = field.partition("=")
+        if not eq or not name:
+            sys.exit(f"detail fields are name=value, got {field!r}")
+        detail[name] = value
+    event = {
+        "kind": "report",
+        "author": "claude",
+        **message_identity(),
+        "widget": widget,
+        "action": verb,
+        "detail": detail,
+        "version": published[-1],
+    }
+    if error := report_contract_error(page_dir, event, registry):
+        sys.exit(error)
+    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+
+
+def cmd_publish(page_dir: Path, version: int, text) -> None:
+    name = version_name(version)
+    path = version_path(page_dir, version)
+    if not path.is_file():
+        sys.exit(
+            f"no v{version}.html in {page_dir / 'versions'}; write the version file first"
+        )
+    # Publishing makes the note the server's visibility gate, so a version that
+    # fails the check cannot go live.
+    if cmd_check(page_dir, version) != 0:
+        sys.exit(
+            f"refusing to publish {name}: `leaf version check` failed (issues above)"
+        )
+    # Publishing is also where a `restated` declaration becomes a fact. The
+    # attribute is how the author says it while writing the version — beside the
+    # words they rewrote, where it can't be forgotten — and the log is where it
+    # has to live, because the retraction outlives the version declaring it and
+    # no later version should have to repeat it (see retractions). It rides the
+    # note itself rather than a second event: `note` is one act, and two appends
+    # can be torn by a crash into a retraction for a version that never published.
+    html = path.read_text(encoding="utf-8")
+    parser = parse_structure(html)
+    retracts = sorted(parser.restated)
+    # Publishing is also where a standing report is answered, and the answer is
+    # explicit, by id: the note names every report this version carried into its
+    # markup (wrote the reported state — absorption) or marked `overruled` on
+    # (overruling), and replay stops those reports at this version. Silence names
+    # nothing, and the report keeps painting. All of a unit's standing reports go
+    # together, or a superseded older one would keep replaying under the answer.
+    # The check above already required the vendored registry, so read it plainly.
+    registry = load_registry(page_dir)
+    events = read_events(page_dir)
+    byid = parser.by_id
+    spk = spoken(html, registry)
+    answered = []
+    for unit, reports in standing_reports(events, byid, registry, None).items():
+        last, spec = reports[-1]
+        if unit in parser.overruled or markup_facet(
+            unit, spec, byid, spk
+        ) == folded_facet(last, spec):
+            answered.extend(r["id"] for r, _ in reports)
+    event = {
+        "kind": "note",
+        "author": "claude",
+        **message_identity(),
+        "version": version,
+        "text": read_text_arg(text),
+    }
+    if retracts:
+        event["restated"] = retracts
+    if answered:
+        event["reports"] = sorted(answered)
+    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+
+
+def cmd_events(page_dir: Path, after: int) -> None:
+    for event in read_events(page_dir):
+        if event["seq"] > after:
+            print(json.dumps(event, ensure_ascii=False))
+
+
+# A quote as a transcript names it. The anchor stores the passage whole, because that
+# is the extent the page marks; a transcript is prose someone pastes into an MR, where
+# a paragraph of quoted page inside every thread head buries the exchange it is there
+# to carry. Both ends rather than the opening alone: a passage is identified by where
+# it starts and where it stops, and an elision that keeps only the head reads as a
+# short quote rather than as a long one shown briefly.
+QUOTE_SHOWN = 240
+
+
+def shown(quote: str) -> str:
+    if len(quote) <= QUOTE_SHOWN:
+        return quote
+    half = QUOTE_SHOWN // 2
+    return f"{quote[:half].rstrip()} … {quote[-half:].lstrip()}"
+
+
+def cmd_transcript(page_dir: Path) -> None:
+    """The page's exchange as Markdown, for reuse in a PR description."""
+    events = read_events(page_dir)
+    versions = list_versions(page_dir)
+    title = ""
+    if versions:
+        title = parse_version(page_dir, versions[-1]).title.strip()
+    print(f"## Leaf: {title or page_dir.name}")
+
+    notes = [e for e in events if e["kind"] == "note"]
+    if notes:
+        print("\n### Versions\n")
+        for e in notes:
+            print(f"- v{e['version']}: {e['text']}")
+
+    # The user's direct edits are outcomes of the exchange; without them the transcript
+    # understates it whenever a changelog note doesn't restate them. So
+    # is a version taking one back, which is the same understatement the other
+    # way round — an edit shown as final that a later version overruled.
+    # Widget-agnostic rendering: verb + detail pairs, against the version edited.
+    edits = [
+        e
+        for e in events
+        if e["kind"] in {"action", "report"}
+        or (e["kind"] == "note" and e.get("restated"))
+    ]
+    if edits:
+        print("\n### Edits\n")
+        for e in edits:
+            if e["kind"] == "note":
+                for wid in e["restated"]:
+                    print(
+                        f"- `{wid}`: rewritten by v{e['version']}, retracting what was decided on it"
+                    )
+                continue
+            detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
+            verb = f"{e['action']} {detail}".strip()  # a bare reject carries no detail
+            if e["kind"] == "report":
+                # A worker's provisional news is an outcome too, under its own name.
+                print(
+                    f"- `{e['widget']}`: {e.get('agent', 'a worker')} reported "
+                    f"{verb} (on v{e['version']})"
+                )
+            else:
+                print(f"- `{e['widget']}`: {verb} (on v{e['version']})")
+
+    threads = build_threads(events)
+    if threads:
+        print("\n### Threads\n")
+    for t in threads.values():
+        anchor = t["root"].get("anchor") or {}
+        if anchor.get("quote"):
+            head = f"> “{shown(anchor['quote'])}”"
+        elif anchor.get("section"):
+            head = f"> § {anchor['section']}"
+        else:
+            head = "> (page-level)"
+        print(head + ("  — resolved" if t["resolved"] else ""))
+        for m in t["msgs"]:
+            who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
+            body = m["text"] + (f"\n{m['markup']}" if m.get("markup") else "")
+            print(f"- **{who}**: " + body.replace("\n", "\n  "))
+        print()
+    for e in events:
+        if e["kind"] == "done":
+            print(f"Approved at {e['ts']}.")
+            break
+        if e["kind"] == "close":
+            print(f"Leaf ended at {e['ts']}.")
+            break
+
+    # To stderr — stdout is the artifact. A transcript is a page's closing act,
+    # and the record debt it reports here is about to stop being fixable.
+    published = published_versions(page_dir, events)
+    registry = load_registry(page_dir)
+    if published and registry:
+        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+        for line in record_lag(html, events, registry):
+            print(f"record behind the log — {line}", file=sys.stderr)
+
+
+CATALOG_PREAMBLE = """\
+# Widget vocabulary, vendored for this page — `version check` validates against it.
+#
+# Widgets are lf-* elements in the authored HTML; attributes carry scalars
+# (enums, flags), children carry prose, and an item's title is a leading
+# <strong> child. Every lf-* element takes an explicit end tag — never
+# <lf-foo/>. Ids are authored (lowercase kebab), unique, stable across
+# versions. Each entry is JSON Schema over the attributes; x-parent names the
+# required parent, x-content the content model (prose | items | data | none).
+# A "data" body is one <pre> holding text in the notation the description
+# names, < > escaped — <pre> because that is the only thing in HTML that says
+# whitespace is load-bearing without a stylesheet to read.
+# x-upgrade marks tags a JS module enhances in the browser — the interactive
+# widgets and the data-body renderers; x-says names the attributes whose values
+# the reader sees as words, and the edge each renders at, so the user can
+# select and comment on them like any other text on the page. x-verbatim marks
+# an upgraded element whose body reaches the reader as its own words, which is
+# what makes it quotable — a body without it is source the widget renders.
+# x-language names the attribute carrying a code language, which is checked
+# against the one list this page colors from (printed below). x-awaits marks a
+# tag whose instances stand as requests to the reader — what the banner counts
+# and the `a` key steps through, so a page's open questions are findable
+# without the reader hunting for them. x-report is the agent channel: verbs a
+# worker folds onto the page with `leaf report`, standing as provisional
+# state until a version absorbs or overrules them (printed below as $report).
+"""
+
+
+def cmd_catalog(page_dir: Path) -> None:
+    reg = require_registry(page_dir)
+    print(CATALOG_PREAMBLE)
+    print(
+        json.dumps(
+            {k: v for k, v in reg.items() if not k.startswith("$")},
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+    restated = reg.get("$restated")
+    if restated:
+        print(
+            "\n# `restated` — the one attribute that spans widgets; read it before revising one.\n"
+        )
+        print(json.dumps(restated, indent=2, ensure_ascii=False))
+    state = reg.get("$state")
+    if state:
+        print(
+            "\n# x-state — how a widget's action verbs and their record forms are declared.\n"
+        )
+        print(json.dumps(state, indent=2, ensure_ascii=False))
+    report = reg.get("$report")
+    if report:
+        print(
+            "\n# x-report — the agent channel: worker reports, and how a version answers one.\n"
+        )
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    awaits = reg.get("$awaits")
+    if awaits:
+        print("\n# x-awaits — what makes an element one of the page's standing asks.\n")
+        print(json.dumps(awaits, indent=2, ensure_ascii=False))
+    languages = reg.get("$languages")
+    if languages:
+        print(
+            "\n# The languages this page colors, in a code block's class or an x-language attribute.\n"
+        )
+        print(json.dumps(languages, indent=2, ensure_ascii=False))
+    idioms = reg.get("$idioms")
+    if idioms:
+        print(
+            "\n# Theme idioms — shapes the theme styles directly; no registry entry, no JS.\n"
+        )
+        print(json.dumps(idioms, indent=2, ensure_ascii=False))
+
+
+def cmd_stop(page_dir: Path) -> str:
+    info = running_server(page_dir)
+    if info:
+        os.kill(info["pid"], signal.SIGTERM)
+        outcome = f"stopped server pid {info['pid']}"
+    else:
+        outcome = "no server running"
+    (page_dir / "server.json").unlink(missing_ok=True)
+    return outcome
+
+
+# ---------- hook: the loop, enforced rather than remembered ----------
+
+
+def unattended_pages(session_id: str) -> list:
+    """This session's pages the user is looking at with nobody on the other
+    end, each with what to do about it. The invariant is that a page is either
+    watched or idle: between turns there is no third state, so anything else is
+    a page that has quietly stopped listening."""
+    reasons = []
+    for page_dir in owned_pages(session_id):
+        events = read_events(page_dir)
+        state = full_state(page_dir, events, published_versions(page_dir, events))
+        codex = state["host"] == "codex"
+        if state["listening"] and not codex:
+            # A live `leaf wait` is the watch, and it prints what's pending on its
+            # own. Reporting the page here would have Claude start a second one, and two
+            # waiters would print the same unacknowledged events twice.
+            continue
+        # The watcher's whole batch — user events and workers' reports — not the
+        # reader-facing count, which deliberately leaves reports out.
+        n = len(unacknowledged(events, state["cursor"]))
+        if n:
+            if codex and state["listening"]:
+                remedy = (
+                    "Poll the existing `leaf wait` unified-exec session with "
+                    "`write_stdin`."
+                )
+            elif codex:
+                remedy = (
+                    "Start `leaf wait` in unified exec, retain its session id, "
+                    "and poll it with `write_stdin`."
+                )
+            else:
+                remedy = "`leaf wait` prints them."
+            remedy += f" {ACK_BATCH_INSTRUCTION} Then address every one."
+            reasons.append(
+                f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
+                + remedy
+            )
+        elif state["status"]["state"] != "idle":
+            if codex and state["listening"]:
+                reasons.append(
+                    f"{page_dir}: the Codex page is still live. Keep this turn "
+                    "active and poll the existing `leaf wait` unified-exec "
+                    "session with `write_stdin`."
+                )
+            elif codex:
+                reasons.append(
+                    f"{page_dir}: no watcher. Start `leaf wait` in unified exec, "
+                    "retain its session id, and keep this turn active while polling it with "
+                    "`write_stdin`; or run `leaf status <page> idle` if the page "
+                    "is done."
+                )
+            else:
+                reasons.append(
+                    f"{page_dir}: no watcher. Start `leaf wait` on it as a "
+                    "background task, or run `leaf status <page> idle` if the "
+                    "page is done."
+                )
+    return reasons
+
+
+def cmd_hook(payload: dict) -> None:
+    event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    if event == "SessionEnd":
+        for page_dir in owned_pages(sid):
+            # A standing server is not this session's to end. Picking a page up
+            # earns the watch obligation, never the launch's authority over the
+            # process — and idling would close a leaf that outlives this
+            # session just as the server does, so both stand down together.
+            if standing_server(page_dir):
+                continue
+            cmd_status(page_dir, "idle", "the session that opened this page has ended")
+            cmd_stop(page_dir)
+        (state_home() / "sessions" / f"{sid}.json").unlink(missing_ok=True)
+        return
+    # stop_hook_active means this hook already blocked once and Claude is running
+    # again on the strength of it; blocking a second time is how a hook loops.
+    if event == "Stop" and payload.get("stop_hook_active"):
+        return
+    reasons = unattended_pages(sid)
+    if not reasons:
+        return
+    message = "leaf — a page of this session's is unattended:\n" + "\n".join(
+        f"- {r}" for r in reasons
+    )
+    if event == "Stop":
+        print(json.dumps({"decision": "block", "reason": message}))
+    else:
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "UserPromptSubmit",
+                        "additionalContext": message,
+                    }
+                }
+            )
+        )
+
+
+# ---------- check: deterministic pre-handover lint ----------
+
+VOID_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
+# Elements whose end tag HTML lets you omit — leaving one "unclosed" is valid,
+# so the balance check must not flag them (only genuinely-open structural
+# elements like <div>/<section> point at a real layout bug).
+OPTIONAL_END = {
+    "p",
+    "li",
+    "dd",
+    "dt",
+    "td",
+    "th",
+    "tr",
+    "thead",
+    "tbody",
+    "tfoot",
+    "option",
+    "optgroup",
+    "caption",
+    "colgroup",
+    "rp",
+    "rt",
+    "html",
+    "head",
+    "body",
+}
+# A start tag on the left implicitly closes matching open elements on the right.
+P_CLOSERS = {
+    "address",
+    "article",
+    "aside",
+    "blockquote",
+    "details",
+    "div",
+    "dl",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "hgroup",
+    "hr",
+    "main",
+    "menu",
+    "nav",
+    "ol",
+    "p",
+    "pre",
+    "section",
+    "table",
+    "ul",
+}
+# …and closes its own kind: a start tag ends the open siblings it can't nest inside.
+SIBLING_CLOSERS = {
+    "li": ("li",),
+    "dt": ("dt", "dd"),
+    "dd": ("dt", "dd"),
+    "td": ("td", "th"),
+    "th": ("td", "th"),
+    "tr": ("td", "th", "tr"),
+    "thead": ("td", "th", "tr", "thead", "tbody", "tfoot"),
+    "tbody": ("td", "th", "tr", "thead", "tbody", "tfoot"),
+    "tfoot": ("td", "th", "tr", "thead", "tbody", "tfoot"),
+    "option": ("option",),
+    "optgroup": ("option", "optgroup"),
+}
+
+
+# How a plain code block names its language, matching leaf.js's own pattern. The
+# class is the universal one every Markdown renderer emits, so a block Claude wrote
+# elsewhere lands here unchanged.
+LANGUAGE_CLASS = re.compile(r"(?:^|\s)language-([\w+.#-]+)(?=\s|$)")
+
+# Container selectors whose max-width defines the readable column.
+COLUMN_SELECTORS = (
+    "main",
+    "body",
+    "article",
+    ".container",
+    ".wrap",
+    ".content",
+    ".page",
+)
+COLUMN_FALLBACK = 780
+# Attribute widths only count as pixels on these elements.
+PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
+
+# Blocks a user predictably points at whole rather than quoting: a run of code,
+# a table, a figure — and the sections SKILL.md already holds to "give every section
+# an id". Widgets aren't listed because the registry's schemas already demand ids
+# wherever pointing at one matters.
+POINTABLE_TAGS = {"section", "article", "pre", "table", "figure"}
+# Where an aim that found no tighter id has escaped to: naming one of these is
+# naming most of the page.
+SECTIONING_TAGS = {"section", "article", "main", "body"}
+# The properties that overflow a column when pinned in pixels. max-width defines the
+# column instead, so it is read there and never counted here.
+OVERFLOW_PROPS = ("width", "min-width")
+# Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
+# name → allowed content values (None = free-form). A misspelled name or value
+# would silently declare nothing in the browser, so `version check` owns this
+# vocabulary the way the registry owns lf-* elements.
+LF_META = {"lf-review": frozenset({"sign-off"})}
+
+
+def implicit_closes(open_tags: list, tag: str) -> int:
+    """How many elements at the top of an open-element stack this start tag closes,
+    under HTML's optional-end-tag rules. Two parsers walk the same documents — the
+    structure lint and the passage reader — and `version check` accepts an omitted
+    </p>, so a tree they disagreed about would be a passage one of them puts in the
+    wrong section."""
+    closed = 0
+    top = lambda: open_tags[-1 - closed] if closed < len(open_tags) else None
+    if tag in P_CLOSERS:
+        while top() == "p":
+            closed += 1
+    siblings = SIBLING_CLOSERS.get(tag, ())
+    while top() in siblings:
+        closed += 1
+    return closed
+
+
+class _StructParser(HTMLParser):
+    """Tracks a tag stack to catch unclosed and mismatched tags, and collects what the
+    rest of `version check` reads off a version: element ids, every <script src> tag,
+    stylesheet links, each lf-* element (attributes, direct parent, direct children,
+    direct text) for registry validation, the page's title, and everything it says
+    about width. Foreign markup inside <svg> is skipped (SVG has its own self-closing
+    rules that don't matter here)."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = []  # (tag, lineno, lf_record | None, id | None)
+        self.errors = []
+        self.all_ids = []
+        self.external_scripts = []  # (src, type)
+        self.stylesheets = []  # hrefs of rel=stylesheet links
+        self.lf_metas = []  # {"name", "content", "line"} for <meta name="lf-*">
+        # /media/ paths any attribute points at, so the check that the file is
+        # there reads references and not mentions: a page documenting leaf
+        # writes one of these paths in prose, and a raw scan of the markup
+        # would send its author hunting for a screenshot nothing asks for.
+        self.media_refs = set()
+        # What the version says about width, each where a document says it: CSS is
+        # what a <style> block holds, and a fixed width is what a rule, a style="" or
+        # a width="" states. The column check reads these three and nothing else.
+        self.css = ""
+        self.inline_styles = []  # each style="" declaration list
+        self.attr_widths = []  # (tag, value) per width="" that counts as pixels
+        self.title = ""  # what <title> says, for the transcript's heading
+        # {"tag", "line", "attrs", "parent", "children", "text"}
+        self.lf_elements = []
+        # {"id", "resolves", "line", "slots", "old_ids", "new_ids", "nested"} per
+        # lf-suggestion: which slots it carries and which ids live in each, so a
+        # version's outcome can license retiring exactly the ids it settles.
+        self.suggestions = []
+        # {"tag", "parent", "lang", "line"} per element claiming a language — the
+        # coloring the runtime honors on a plain <pre><code>, checked here because a
+        # class it doesn't honor is a request that silently isn't answered.
+        self.language_blocks = []
+        # {"tag", "line", "under"} per id-less occurrence of a pointable block,
+        # with the nearest open ancestor carrying an id — (tag, id) or None — so
+        # unpointable_blocks can judge where a user's aim would land.
+        self.bare_blocks = []
+        self._svg_depth = 0
+
+    @property
+    def ids(self) -> set:
+        return set(self.all_ids)
+
+    @property
+    def by_id(self) -> dict:
+        """id → its element record, for every id-bearing lf-* element."""
+        return {r["attrs"]["id"]: r for r in self.lf_elements if r["attrs"].get("id")}
+
+    @property
+    def restated(self) -> set:
+        """Ids this version declares it has rewritten, retracting whatever the
+        user had recorded on them."""
+        return {
+            rec["attrs"]["id"]
+            for rec in self.lf_elements
+            if rec["attrs"].get("id") and "restated" in rec["attrs"]
+        }
+
+    @property
+    def overruled(self) -> set:
+        """Ids this version declares it keeps its own state on, over a worker's
+        standing report — the agent channel's mirror of `restated`."""
+        return {
+            rec["attrs"]["id"]
+            for rec in self.lf_elements
+            if rec["attrs"].get("id") and "overruled" in rec["attrs"]
+        }
+
+    @property
+    def duplicate_ids(self) -> list:
+        seen, dupes = set(), set()
+        for i in self.all_ids:
+            (dupes if i in seen else seen).add(i)
+        return sorted(dupes)
+
+    @property
+    def reserved_ids(self) -> list:
+        """Ids that trespass on the runtime's own namespace (see reserved_ids_error)."""
+        return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+    def _implicit_close(self, tag):
+        for _ in range(implicit_closes([t for t, *_ in self.stack], tag)):
+            self.stack.pop()
+
+    def _open_suggestion(self):
+        """The innermost lf-suggestion still open and which of its slots we are
+        in: (record, "lf-old" | "lf-new" | None), or (None, None) outside one."""
+        slot = None
+        for tag, _, record, _ in reversed(self.stack):
+            if tag in ("lf-old", "lf-new"):
+                slot = tag
+            elif tag == "lf-suggestion":
+                return record, slot
+        return None, None
+
+    def _harvest(self, tag, attrs_d):
+        if attrs_d.get("id"):
+            self.all_ids.append(attrs_d["id"])
+            suggestion, slot = self._open_suggestion()
+            if tag in ("lf-old", "lf-new"):
+                slot = tag  # the slot's own id belongs to the slot
+            if suggestion and slot:
+                suggestion["old_ids" if slot == "lf-old" else "new_ids"].add(
+                    attrs_d["id"]
+                )
+        if tag == "script" and attrs_d.get("src"):
+            self.external_scripts.append((attrs_d["src"], attrs_d.get("type")))
+        if tag == "link" and "stylesheet" in (attrs_d.get("rel") or ""):
+            self.stylesheets.append(attrs_d.get("href"))
+        if tag == "meta" and (attrs_d.get("name") or "").startswith("lf-"):
+            self.lf_metas.append(
+                {
+                    "name": attrs_d["name"],
+                    "content": attrs_d.get("content"),
+                    "line": self.getpos()[0],
+                }
+            )
+        if attrs_d.get("style"):
+            self.inline_styles.append(attrs_d["style"])
+        if tag in PIXEL_WIDTH_TAGS and attrs_d.get("width"):
+            self.attr_widths.append((tag, attrs_d["width"]))
+        self.media_refs.update(
+            v for v in attrs_d.values() if v and v.startswith(f"/{MEDIA_DIR}/")
+        )
+
+    def _attributes(self, tag, attrs):
+        """The browser's attribute reading: first value wins, duplicates are invalid."""
+        values = {}
+        duplicates = set()
+        for name, value in attrs:
+            if name in values:
+                duplicates.add(name)
+            else:
+                values[name] = value
+        if duplicates:
+            self.errors.append(
+                f"<{tag}> at line {self.getpos()[0]} has duplicate attribute "
+                f"names {sorted(duplicates)}; HTML keeps the first value"
+            )
+        return values
+
+    def handle_starttag(self, tag, attrs):
+        attrs_d = self._attributes(tag, attrs)
+        # Before _harvest, whose id attribution reads the open suggestion: a
+        # slot's contents belong to the suggestion that encloses them.
+        if tag in ("lf-old", "lf-new"):
+            suggestion, _ = self._open_suggestion()
+            if suggestion:
+                suggestion["slots"].append(tag)
+        self._harvest(tag, attrs_d)
+        if tag == "svg":
+            self._svg_depth += 1
+            self.stack.append((tag, self.getpos()[0], None, attrs_d.get("id")))
+            return
+        if self._svg_depth:  # don't tag-balance inside SVG
+            return
+        # Before the void check: <hr> is void and closes an open <p>, and a void tag
+        # left inside a paragraph it ended puts the rest of the section in it.
+        self._implicit_close(tag)
+        # After it, so the parent recorded here is the one the browser will see.
+        lang = LANGUAGE_CLASS.search(attrs_d.get("class") or "")
+        if lang:
+            self.language_blocks.append(
+                {
+                    "tag": tag,
+                    "parent": self.stack[-1][0] if self.stack else None,
+                    "lang": lang.group(1),
+                    "line": self.getpos()[0],
+                }
+            )
+        if tag in POINTABLE_TAGS and not attrs_d.get("id"):
+            self.bare_blocks.append(
+                {
+                    "tag": tag,
+                    "line": self.getpos()[0],
+                    "under": next(
+                        ((t, i) for t, _, _, i in reversed(self.stack) if i), None
+                    ),
+                }
+            )
+        if tag in VOID_TAGS:
+            if self.stack and self.stack[-1][2] is not None:
+                self.stack[-1][2]["children"].append(tag)
+            return
+        if self.stack and self.stack[-1][2] is not None:
+            self.stack[-1][2]["children"].append(tag)
+        record = None
+        if tag.startswith("lf-"):
+            record = {
+                "tag": tag,
+                "line": self.getpos()[0],
+                "attrs": attrs_d,
+                "parent": self.stack[-1][0] if self.stack else None,
+                "children": [],
+                "text": False,
+            }
+            self.lf_elements.append(record)
+            if tag == "lf-suggestion":
+                enclosing, _ = self._open_suggestion()
+                record.update(
+                    id=attrs_d.get("id"),
+                    resolves=attrs_d.get("resolves"),
+                    slots=[],
+                    old_ids=set(),
+                    new_ids=set(),
+                    nested=enclosing is not None,
+                )
+                self.suggestions.append(record)
+        self.stack.append((tag, self.getpos()[0], record, attrs_d.get("id")))
+
+    def handle_startendtag(self, tag, attrs):
+        # <foo/> — self-closing; still harvest but never pushed. Outside SVG the
+        # slash is a trap on any non-void tag: HTML ignores it, the element stays
+        # open in a browser and swallows the rest of its parent, so from here on
+        # this parser's tree and the browser's would diverge. Reject the form
+        # outright rather than model a tree the user's page won't have.
+        self._harvest(tag, self._attributes(tag, attrs))
+        if self._svg_depth:  # SVG has real self-closing syntax
+            return
+        if tag not in VOID_TAGS:
+            self.errors.append(
+                f"<{tag}/> at line {self.getpos()[0]} is self-closing: HTML ignores "
+                f"the slash and the element would swallow what follows — write "
+                f"<{tag} …></{tag}>"
+            )
+        elif self.stack and self.stack[-1][2] is not None:
+            self.stack[-1][2]["children"].append(tag)
+
+    def handle_data(self, data):
+        if self.stack and self.stack[-1][2] is not None and data.strip():
+            self.stack[-1][2]["text"] = True
+        holder = self.stack[-1][0] if self.stack else None
+        if holder == "style":
+            self.css += data
+        elif holder == "title":
+            self.title += data
+
+    def handle_endtag(self, tag):
+        if tag == "svg":
+            while self.stack and self.stack[-1][0] != "svg":
+                self.stack.pop()
+            if self.stack:
+                self.stack.pop()
+            self._svg_depth = max(0, self._svg_depth - 1)
+            return
+        if self._svg_depth or tag in VOID_TAGS:
+            return
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i][0] == tag:
+                orphaned = [
+                    (t, ln)
+                    for t, ln, *_ in self.stack[i + 1 :]
+                    if t not in OPTIONAL_END
+                ]
+                if orphaned:
+                    unclosed = ", ".join(f"<{t}> (line {ln})" for t, ln in orphaned)
+                    self.errors.append(
+                        f"</{tag}> at line {self.getpos()[0]} closes over unclosed: {unclosed}"
+                    )
+                del self.stack[i:]
+                return
+        if tag not in OPTIONAL_END:
+            self.errors.append(
+                f"stray </{tag}> at line {self.getpos()[0]} with no matching open tag"
+            )
+
+
+def parse_structure(markup: str) -> _StructParser:
+    """One structural reading of a document or fragment — fed and closed, so
+    every reader gets the flushed parse rather than each restating the ritual."""
+    parser = _StructParser()
+    parser.feed(markup)
+    parser.close()
+    return parser
+
+
+def parse_version(page_dir: Path, version: int) -> _StructParser:
+    return parse_structure(version_path(page_dir, version).read_text(encoding="utf-8"))
+
+
+def version_review_mode(page_dir: Path, version: int):
+    """The review ask declared by a published version, or None for comments only."""
+    parser = parse_version(page_dir, version)
+    return next(
+        (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
+        None,
+    )
+
+
+# ---------- passages: the text an anchor points at ----------
+# The runtime resolves an anchor against the DOM; `leaf comment` writes one down
+# against the file. The two have to read the same page or the anchor lands somewhere it
+# was never made, so this mirrors leaf.js's capture rather than approximating it:
+# the same skip list, the same block-boundary space, the same collapse, the same caps.
+#
+# What the file cannot know is what a widget's module will write, and the registry is
+# where that is declared rather than guessed at per widget. Three keywords carry what
+# can be declared, and a fence carries the rest:
+#
+#   x-says      attribute values the reader sees. renderSaid puts them in the DOM, so
+#               they go in here too, at the edge the registry names.
+#   x-verbatim  an upgraded element whose body reaches the reader as its own words
+#               (lf-draft renders the authored text into a plain div, deliberately
+#               unmarked so anchoring can see it). Without it, an upgraded element is
+#               opaque: a mermaid body is a picture by the time it is read.
+#   x-retired-when  the outcome under which this element leaves the page: a decided
+#               suggestion's losing slot. The browser builds its anchor pass's skip
+#               list from this key too (`quotable` in leaf.js), so a reading given
+#               the log's outcomes drops here exactly what drops there — and a widget
+#               whose decision leaves nothing showing goes with its slots (settledAway
+#               there, `gone` here). Its values are also the vocabulary's decision
+#               verbs, which is where `decisions` reads them from.
+#   x-state, record kind "body"  the verb whose detail text becomes this element's
+#               body once the user sends one (lf-draft's `edit`): replay writes
+#               the newest surviving one into the DOM verbatim (applyAction is
+#               absolute), so a reading given the fold's word (rewritten_bodies)
+#               holds their words in the authored body's place. It asks nothing of
+#               the browser, whose page already shows the text this substitutes.
+#
+# A module writes between the children of the element it upgrades — a column's heading, a
+# milestone's chips, a diff's gutters — so an opaque element and each of its children is
+# fenced. A quote never spans a fence, which turns "the page has words here that the file
+# doesn't" from an anchor that silently detaches in the user's browser into a refusal
+# at the moment it is written, addressed to the one party who can still fix it.
+#
+# Retirement drops and rewriting substitutes rather than fencing, because that is what
+# each leaves on the screen. A fence says the reading doesn't know what stands there, and
+# in both of these it knows exactly.
+
+# What a text node's "block" resolves to, matching the runtime's TEXT_BLOCK: one space
+# goes wherever two runs of text sit in different blocks, and none where they share one,
+# so `<p>a</p><p>b</p>` reads "a b" and `set<em>up</em>` reads "setup".
+TEXT_BLOCK_TAGS = {
+    "p",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "td",
+    "th",
+    "pre",
+    "blockquote",
+    "dd",
+    "dt",
+    "figcaption",
+    "summary",
+}
+# Text no anchor can reach. script/style are the anchor pass's own skip list; head is
+# outside the tree it searches at all, the runtime rooting a section-less anchor at
+# document.body — without it a page's <title> would be quotable and land nowhere.
+UNQUOTABLE_TAGS = {"script", "style", "head"}
+# How much of the surrounding text an anchor stores to tell two identical passages
+# apart, as leaf.js captures it. The quote itself is stored whole, however long the
+# passage: it is the extent the page marks, and a cap on it was a comment quietly made
+# on less than was quoted (leaf.js, above selectionAnchor).
+CONTEXT = 24
+
+
+class _PassageParser(HTMLParser):
+    """A version's prose as the anchor pass reads it. `text` is the whole page collapsed
+    the way a captured quote is; `owner[i]` is the ids enclosing text[i], outermost
+    first, so a match can name the section it fell in and be re-read within it.
+
+    `decided` is the accept/reject each suggestion stands under (`decisions`).
+    A decision retires a slot — the registry's `x-retired-when` names which outcome —
+    and the browser's anchor pass reads the same key (`quotable` in leaf.js), so
+    this reading drops it the same way. A decision that leaves its
+    widget with nothing — a deletion accepted, an insertion refused — empties the
+    wrapper too (`gone`), because an element showing nothing is one nobody can point
+    at, however present its markup. `rewrites` is the user's
+    standing text per element whose registry entry records a verb as the body
+    (`rewritten_bodies`): their words stand in the authored body's place, because
+    replay writes exactly that into the DOM. Without either, the reading is the
+    version as authored — every slot pending, every body Claude's."""
+
+    def __init__(self, registry=None, decided=None, rewrites=None):
+        super().__init__(convert_charrefs=True)
+        self.registry = registry or {}
+        self.decided = decided or {}
+        self.rewrites = rewrites or {}
+        self.text = ""
+        self.owner = []  # per character: the tuple of enclosing ids
+        self.fences = set()  # indices a quote may not span
+        self.retired = {}  # id under a retired slot → the suggestion whose decision did it
+        self.rewritten = {}  # id whose body the user rewrote → the verb that did it
+        self.gone = {}  # decided id whose decision left it empty → the outcome that did it
+        self.shown = {}  # id whose data body this reading withheld → the words in it
+        self.bearing = (
+            set()
+        )  # ids still showing something: text under them, or a surviving child
+        self.stack = []  # [{"tag", "id", "ids", "skip", "shows", "sub", "opaque", "fenced", "retired_by", "tb", "block", "tail"}]
+        self._uid = 0
+        self._block = None  # the block the last character came from
+        self._space = False  # a separator waiting for a character to follow it
+
+    def _fresh(self) -> int:
+        self._uid += 1
+        return self._uid
+
+    def _write(self, data: str, block: int, ids: tuple) -> None:
+        """Text into the collapsed run, one space per whitespace run and none leading."""
+        if data.strip():
+            self.bearing.update(ids)
+        if self.text and block != self._block:
+            self._space = True
+        self._block = block
+        for ch in data:
+            if ch.isspace():
+                self._space = bool(self.text)
+                continue
+            if self._space:
+                self.text += " "
+                self.owner.append(ids)
+                self._space = False
+            self.text += ch
+            self.owner.append(ids)
+
+    def _fence(self) -> None:
+        """Words may stand here that this reading knows nothing about. Recorded as a
+        position rather than written into the text, so `text` stays the page's own words
+        and no quote can be built out of one."""
+        self.fences.add(len(self.text))
+
+    def _said(self, frame: dict, values: list) -> None:
+        # renderSaid puts each value in its own <span>, so each is its own block wherever
+        # the widget sits outside a text block — the same rule, applied to the span.
+        for value in values:
+            self._write(
+                value, frame["tb"] if frame["tb"] else self._fresh(), frame["ids"]
+            )
+
+    def _close(self, frame: dict) -> None:
+        """Everything an element's end does, whether it was written or inferred — an
+        omitted </p> inside a widget still ends what the element was saying."""
+        if not frame["skip"]:
+            self._said(frame, frame["tail"])
+        if frame["fenced"]:
+            self._fence()
+        # A decided element closing with nothing shown left the page with its decision:
+        # a deletion accepted, an insertion refused. Everything it held is either a
+        # retired slot or silent, so there is nothing on screen for an anchor to reach.
+        if (
+            frame["id"] in self.decided
+            and not frame["skip"]
+            and frame["id"] not in self.bearing
+        ):
+            self.gone[frame["id"]] = self.decided[frame["id"]]
+
+    def handle_starttag(self, tag, attrs):
+        attrs_d = dict(attrs)
+        # Before the void check, unlike the structure lint's: <hr> is both void and a
+        # paragraph closer, and text after it is in a different block.
+        for _ in range(implicit_closes([f["tag"] for f in self.stack], tag)):
+            self._close(self.stack.pop())
+        if tag in VOID_TAGS:
+            return
+        parent = self.stack[-1] if self.stack else None
+        entry = self.registry.get(tag) or {}
+        # The innermost open text block, if any: the runtime's `closest(TEXT_BLOCK)`.
+        tb = (
+            self._fresh()
+            if tag in TEXT_BLOCK_TAGS
+            else (parent["tb"] if parent else None)
+        )
+        # A module may write anywhere inside the element it upgrades, unless the registry
+        # says the body reaches the reader as its own words.
+        opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
+        # A slot a decision retired: its words left the page with the outcome the
+        # registry names, and everything under it goes too. Looked up by the parent's
+        # own id — the same child-of-suggestion shape as the browser's selector.
+        retired_by = (parent["retired_by"] if parent else None) or (
+            parent["id"]
+            if parent
+            and entry.get("x-retired-when")
+            and self.decided.get(parent["id"]) == entry["x-retired-when"]
+            else None
+        )
+        # A wall this element raises itself: its words are off the reader's page, whatever
+        # holds it. Named apart from the inherited half below because the two answer
+        # different questions — an element under a withheld data body is still showing
+        # its words, and one under a retired slot is not.
+        own_wall = bool(
+            retired_by
+            or tag in UNQUOTABLE_TAGS
+            or "lf-ui" in (attrs_d.get("class") or "").split()
+        )
+        # Silenced from above: the element shows nothing of its own, so a rewrite of
+        # its body has nothing to stand in for — an edited draft inside a slot the
+        # user accepted away left the page with the slot.
+        silenced = bool((parent and parent["skip"]) or own_wall)
+        # A surviving child keeps its parent on the page even where it holds no text —
+        # a kept slot whose only content is an image. The text case marks every
+        # enclosing id in _write.
+        if parent and not silenced:
+            self.bearing.add(parent["id"])
+        # A body the user rewrote. `rewritten_bodies` already resolved the verb
+        # through this element's x-state, so an id in the dict is the whole test:
+        # the fold decides, this pass only applies.
+        sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
+        # The element whose data body this reading is withholding, carried down to
+        # everything under it. The page shows whatever its module made of that body, so a
+        # quote landing inside one is told where it landed rather than told the page never
+        # said it — a claim wider than this reading can make. Only where the body still
+        # stands: a retired or rewritten one is `retired`/`rewritten`'s to answer for, and
+        # each of those names the act that did it.
+        shows = (
+            None
+            if own_wall or sub is not None
+            else (parent["shows"] if parent else None)
+            or (
+                attrs_d.get("id")
+                if opaque and entry.get("x-content") == "data"
+                else None
+            )
+        )
+        frame = {
+            "tag": tag,
+            "id": attrs_d.get("id"),
+            "ids": (parent["ids"] if parent else ())
+            + ((attrs_d["id"],) if attrs_d.get("id") else ()),
+            "skip": silenced
+            or sub is not None
+            or (opaque and entry.get("x-content") == "data"),
+            "shows": shows,
+            "sub": sub,
+            "retired_by": retired_by,
+            "opaque": opaque,
+            "fenced": opaque or bool(parent and parent["opaque"]),
+            "tb": tb,
+            # …and where there is none, the element is its own text node's parent, which
+            # is what the runtime falls back to. Fresh per element, so `a<em>b</em>c`
+            # under a <div> reads as three blocks and under a <p> as one.
+            "block": tb if tb else self._fresh(),
+            "tail": [],
+        }
+        # Each x-says value at the edge of the element's own words, in registry order,
+        # which is where renderSaid puts it and where a pseudo-element stood before it.
+        head = []
+        for attr, edge in (entry.get("x-says") or {}).items():
+            value = attrs_d.get(attr)
+            if value is None:
+                continue
+            (head if edge == "before" else frame["tail"]).append(value)
+        if frame["fenced"]:
+            self._fence()
+        if retired_by and frame["id"]:
+            self.retired[frame["id"]] = retired_by
+        self.stack.append(frame)
+        if not frame["skip"]:
+            self._said(frame, head)
+        elif sub is not None:
+            # The body's own write path, so a quote across the element's edge sees
+            # the same adjacency the screen shows — no fence, nothing withheld.
+            verb, their_text = sub
+            self._write(their_text, frame["block"], frame["ids"])
+            self.rewritten[frame["id"]] = verb
+
+    def handle_data(self, data):
+        frame = self.stack[-1] if self.stack else None
+        if not frame:
+            return
+        if not frame["skip"]:
+            self._write(data, frame["block"], frame["ids"])
+        elif frame["shows"]:
+            self.shown[frame["shows"]] = self.shown.get(frame["shows"], "") + data
+
+    def handle_endtag(self, tag):
+        if tag in VOID_TAGS:
+            return
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i]["tag"] == tag:
+                # Innermost first, so an element closing over unclosed children ends them
+                # in the order they were opened in.
+                while len(self.stack) > i:
+                    self._close(self.stack.pop())
+                return
+
+
+class Passages(NamedTuple):
+    """A version's words, and what a search over them needs to know."""
+
+    text: str  # collapsed the way a captured quote is
+    owner: list  # per character: the tuple of enclosing ids, outermost first
+    fences: set  # indices a quote may not span: where a module may write
+    retired: dict  # id under a retired slot → the suggestion whose decision did it
+    rewritten: dict  # id whose body the user rewrote → the verb that did it
+    gone: dict  # decided id whose decision left it empty → the outcome that did it
+    shown: dict  # id whose data body this withheld → the words a module shows there
+
+
+def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Passages:
+    parser = _PassageParser(registry, decided, rewrites)
+    parser.feed(html)
+    parser.close()
+    return Passages(
+        parser.text,
+        parser.owner,
+        parser.fences,
+        parser.retired,
+        parser.rewritten,
+        parser.gone,
+        # Collapsed the way `text` is, so one comparison answers for both.
+        {id: " ".join(words.split()) for id, words in parser.shown.items()},
+    )
+
+
+def section_span(owner: list, section: str):
+    """The half-open range of characters inside `section`, or None when the version has
+    no such element with text in it. An element is contiguous in document order, so its
+    characters are too — which is what lets a search be scoped by slicing."""
+    inside = [i for i, ids in enumerate(owner) if section in ids]
+    return (inside[0], inside[-1] + 1) if inside else None
+
+
+class Spoken(NamedTuple):
+    """What one element says, and where it sits."""
+
+    words: str  # the words under it, as the anchor pass reads them
+    within: tuple  # the ids enclosing it, outermost first, itself last
+
+
+# An element the version has no words for — nothing said, nothing enclosing it.
+EMPTY = Spoken("", ())
+
+
+def spoken(html: str, registry: dict) -> dict:
+    """id → Spoken, for every element with words under it.
+
+    This is the version's own reading of itself, so it is `page_passages` sliced by
+    id rather than a second walk: chrome skipped, x-says attributes counted (a
+    picked option's `effort` is a word on the page now, so changing it changes what
+    the user decided about), whitespace collapsed the way a captured quote is.
+    Asking whether two versions still say the same thing has to mean the same text a
+    user could have selected, or the question is about something else.
+
+    `section_span` answers this for one id by scanning the page; every id at once is
+    that same scan, done once."""
+    p = page_passages(html, registry)
+    first, last = {}, {}
+    for i, ids in enumerate(p.owner):
+        for wid in ids:
+            first.setdefault(wid, i)
+            last[wid] = i
+    # Stripped: the separator `_write` puts between blocks lands inside whichever
+    # element the next block opens, so a slice can start or end on one. It marks a
+    # boundary rather than saying anything.
+    return {
+        wid: Spoken(p.text[lo : last[wid] + 1].strip(), p.owner[lo])
+        for wid, lo in first.items()
+    }
+
+
+def enclosing_section(owner: list, lo: int, hi: int):
+    """The innermost id enclosing every character of [lo, hi) — the runtime's
+    `closest("[id]")` on the passage's common ancestor."""
+    first, last = owner[lo], owner[hi - 1]
+    shared = 0
+    while shared < min(len(first), len(last)) and first[shared] == last[shared]:
+        shared += 1
+    return first[shared - 1] if shared else None
+
+
+def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> list:
+    """Where `quote` sits in text[lo:hi], as absolute indices. A match that runs across a
+    fence is not one: the page has words there that this text doesn't."""
+    found = []
+    at = text.find(quote, lo, hi)
+    while at != -1:
+        if not any(at < f < at + len(quote) for f in fences):
+            found.append(at)
+        at = text.find(quote, at + len(quote), hi)
+    return found
+
+
+def capture_anchor(
+    html: str, registry, quote: str, section: str, decided=None, rewrites=None
+) -> dict:
+    """The anchor a quote makes, written the way a selection's is. Raises ValueError with
+    what to do about it — a quote the file doesn't hold, or holds twice, is a question
+    with an answer, and asking now beats posting a comment that lands nowhere.
+
+    `decided` and `rewrites` make this the reading the user is looking at rather
+    than the version as authored: a slot their decision retired is off the page, and a
+    body their edit rewrote holds their words — so an anchor is met here the way it
+    would land there, instead of detaching in front of them."""
+    text, owner, fences, retired, rewritten, gone, shown = page_passages(
+        html, registry, decided, rewrites
+    )
+    if section:
+        # Against the structure, not the text: an element anchor is the one a click makes
+        # on a diagram or an image, and those hold no text to look for.
+        if section not in parse_structure(html).ids:
+            raise ValueError(f"no element id {section!r} in this version")
+        if section in retired:
+            sid = retired[section]
+            raise ValueError(
+                f"§ {section} left the page when the user chose to {decided[sid]} "
+                f"§ {sid} — a decided suggestion's losing slot is retired, and an anchor "
+                "on it would reach nobody. Anchor on the settled text instead."
+            )
+        if section in gone:
+            raise ValueError(
+                f"§ {section} settled to nothing when the user chose to {gone[section]} "
+                "it — the decision removed everything it held from the page, and an anchor "
+                "on it would reach nobody. Anchor on the surrounding text instead."
+            )
+    if not quote:
+        return {"section": section}
+
+    wanted = " ".join(quote.split())
+    lo_bound, hi_bound = 0, len(text)
+    if section:
+        span = section_span(owner, section)
+        if span is None:
+            raise ValueError(
+                f"§ {section} holds no quotable text — a widget's data body is its source, "
+                "not its words. Drop --quote to anchor on the element itself."
+            )
+        lo_bound, hi_bound = span
+    where = "the page" if not section else f"§ {section}"
+    hits = occurrences(text, wanted, lo_bound, hi_bound, fences)
+    if not hits:
+        if occurrences(text, wanted, lo_bound, hi_bound):
+            raise ValueError(
+                f"{wanted!r} runs across a widget's parts, and a widget writes words of "
+                "its own between them — a column's heading, a milestone's chips, a "
+                "diagram in place of its source. Quote within one part, or --section the "
+                "widget to point at the whole of it."
+            )
+        was = _removed_by(html, registry, wanted, section, decided or {}, rewritten)
+        if was:
+            raise ValueError(f"{where} said {wanted!r} until {was}")
+        holder = next((el for el, words in shown.items() if wanted in words), None)
+        if holder:
+            raise ValueError(
+                f"{wanted!r} is in § {holder}'s data body, which is the widget's source "
+                "and not its words — the page shows whatever its module made of that, "
+                "and this reading holds nothing there to anchor on. Point at the element "
+                f"instead: --section {holder}."
+            )
+        raise ValueError(
+            f"{where} doesn't say {wanted!r} — quote it as the version file holds it. A "
+            "widget's data body is the widget's source, not its words (a diagram's body "
+            "is a picture by the time it is read), so --section the element instead."
+        )
+    if len(hits) > 1:
+        around = [
+            f"  - …{text[max(lo_bound, at - 30) : at + len(wanted) + 30]}…"
+            for at in hits[:4]
+        ]
+        if len(hits) > len(around):
+            around.append(f"  - …and {len(hits) - len(around)} more")
+        raise ValueError(
+            f"{where} says {wanted!r} {len(hits)} times, so this quote names no one "
+            "passage. Extend it, or scope it with --section:\n" + "\n".join(around)
+        )
+
+    lo = hits[0]
+    hi = lo + len(wanted)
+    section = section or enclosing_section(owner, lo, hi)
+    # The neighbours come from the whole reading, as the browser's do — the section
+    # filters where the search may land, never what surrounds a passage — so a passage
+    # closing its section still stores a full suffix. Each side reaches only to the
+    # nearest fence, because past one the page holds words this doesn't: context the
+    # runtime can never confirm leaves every copy equally unconfirmed, which is where
+    # an anchor carrying none starts anyway.
+    # Both are trimmed before they are cut, since the runtime reads its side back through
+    # the same collapse, which trims — a stored space no occurrence produces fails at the
+    # first comparison.
+    prefix = text[max([0] + [f for f in fences if f <= lo]) : lo].strip()[-CONTEXT:]
+    suffix = text[hi : min([len(text)] + [f for f in fences if f >= hi])].strip()[
+        :CONTEXT
+    ]
+    return {
+        "section": section,
+        "quote": wanted,
+        **({"prefix": prefix} if prefix else {}),
+        **({"suffix": suffix} if suffix else {}),
+    }
+
+
+def _removed_by(html, registry, wanted: str, section: str, decided, rewritten):
+    """What took `wanted` off the user's page, when the version as authored still
+    holds it: the decision that retired the slot it sat in, or the edit that rewrote
+    the element saying it. Naming that act beats telling the writer the page never
+    said it."""
+    if not (decided or rewritten):
+        return None
+    p = page_passages(html, registry)
+    lo, hi = 0, len(p.text)
+    if section:
+        span = section_span(p.owner, section)
+        if span is None:
+            return None
+        lo, hi = span
+    for at in occurrences(p.text, wanted, lo, hi, p.fences):
+        for ids in p.owner[at : at + len(wanted)]:
+            sid = next((wid for wid in ids if wid in decided), None)
+            if sid:
+                return (
+                    f"the user chose to {decided[sid]} § {sid} — that decision "
+                    "retired these words from the page. Quote it as it now stands."
+                )
+            wid = next((wid for wid in ids if wid in rewritten), None)
+            if wid:
+                return (
+                    f"the user rewrote § {wid} — their {rewritten[wid]} replaced "
+                    "these words. Quote the text as they left it."
+                )
+    return None
+
+
+# ---------- the readable column ----------
+# A rule, a style="" and a width="" are the three places a document states a width.
+# The first two are CSS, so tinycss2 reads them; the third is an attribute, so the
+# markup parser does.
+#
+# Three patterns over the file's text came first, and each answered something adjacent
+# to the question asked: the document read as a stylesheet handed a screenshot's base64
+# to the rule walker, `width` needed a lookbehind to exclude `max-width` because it
+# matched a name instead of reading a property, and the scan for `style=""` never saw
+# one written with the other quote. Hand-rolling the parser is the same mistake a level
+# down, and harder to see, because a hand-rolled parser is right about the grammar it
+# was written against: the brace walk those patterns became knew that a comment's braces
+# are not braces, and still read a `}` inside `content: "}"` as the end of the block,
+# dropping every declaration after it in that rule; still read a rule holding both
+# declarations and a nested rule as declaring nothing of its own; and still told a fixed
+# `900px` from a `calc(100% - 900px)` by asking whether the string ended in `px`, which
+# `900px !important` does not. CSS has no parser in the stdlib, so the dependency is a
+# real cost — one more wheel behind every `version check`, ~6ms to read the theme — and
+# it buys the grammar whole rather than one bug's worth at a time.
+
+
+def css_block(css):
+    """What a block holds: the declarations it states, and the rules nested inside it. A
+    style="" attribute is a block written without the braces around it."""
+    return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
+
+
+def css_rules(css: str):
+    """(selector, block, conditional) per qualified rule, at every depth — a rule that
+    holds both declarations and a nested rule states one of its own. `conditional` is
+    true for a rule inside an at-rule, which applies only when a condition this check
+    never evaluates holds: `@media print`, a viewport query. Nesting alone is not a
+    condition, so a rule nested in a conditional one is conditional and no more."""
+    yield from _rules(
+        tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True)
+    )
+
+
+def _css_unclosed_blocks(css: str) -> int:
+    """How many blocks a stylesheet leaves open at end of file.
+
+    The CSS parser auto-closes these (so tinycss2 reports no error), which is
+    exactly what makes one dangerous here: stylesheets are layer sources that
+    concatenate, so a block left open swallows every rule after it — the rest
+    of the file's and every later layer's — into its own scope. Counted
+    outside comments and strings; an over-closed sheet floors at zero, since
+    the stray brace is a parse error tinycss2 already names."""
+    depth = 0
+    i = 0
+    while i < len(css):
+        ch = css[i]
+        if css.startswith("/*", i):
+            end = css.find("*/", i + 2)
+            i = len(css) if end == -1 else end + 2
+        elif ch in "\"'":
+            quote = ch
+            i += 1
+            while i < len(css) and css[i] not in (quote, "\n"):
+                i += 2 if css[i] == "\\" else 1
+            i += 1
+        else:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth = max(0, depth - 1)
+            i += 1
+    return depth
+
+
+def css_syntax_errors(css: str, source: str, *, block=False) -> list:
+    """Every parse error in a stylesheet or declaration block, including nested rules."""
+    parse = (
+        css_block
+        if block
+        else lambda value: tinycss2.parse_stylesheet(
+            value, skip_comments=True, skip_whitespace=True
+        )
+    )
+    errors = []
+    seen = set()
+    if not block and (depth := _css_unclosed_blocks(css)):
+        errors.append(
+            f"{source}: {depth} block(s) left open at end of file — every rule "
+            "after the unclosed brace, this stylesheet's or a later layer's, "
+            "lands inside its scope"
+        )
+
+    def record(node):
+        key = (node.source_line, node.source_column, node.message)
+        if key in seen:
+            return
+        seen.add(key)
+        errors.append(
+            f"{source} syntax error at "
+            f"{node.source_line}:{node.source_column}: {node.message}"
+        )
+
+    def walk_tokens(tokens):
+        for token in tokens:
+            if token.type == "error":
+                record(token)
+            for attr in ("arguments", "content"):
+                nested = getattr(token, attr, None)
+                if isinstance(nested, list):
+                    walk_tokens(nested)
+
+    def walk_rules(nodes):
+        for node in nodes:
+            if node.type == "error":
+                record(node)
+            for attr in ("prelude", "value"):
+                tokens = getattr(node, attr, None)
+                if isinstance(tokens, list):
+                    walk_tokens(tokens)
+            if node.type in {"qualified-rule", "at-rule"} and node.content is not None:
+                walk_tokens(node.content)
+                walk_rules(css_block(node.content))
+
+    walk_rules(parse(css))
+    return errors
+
+
+def _rules(nodes, conditional=False):
+    """`nodes` and every rule nested inside them, as (selector, block, conditional)."""
+    for node in nodes:
+        if node.type == "qualified-rule":
+            block = css_block(node.content)
+            yield tinycss2.serialize(node.prelude).strip(), block, conditional
+            yield from _rules(block, conditional)
+        elif node.type == "at-rule" and node.content:
+            yield from _rules(css_block(node.content), True)
+
+
+def _number(text: str):
+    """`text` as a number, or None when it is not one. A width="" attribute states a
+    bare count of pixels, so it has no unit for the CSS parser to read."""
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _px(declaration):
+    """The pixel length a declaration states, or None where it states something else: a
+    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
+    hard overflow, and only a lone length is fixed. A value keeps the whitespace around
+    it, which is a token like any other and not part of what the value says."""
+    value = [t for t in declaration.value if t.type != "whitespace"]
+    if len(value) == 1 and value[0].type == "dimension" and value[0].lower_unit == "px":
+        return value[0].value
+    return None
+
+
+def _px_widths(declarations, props: tuple):
+    """(property, pixels) per declaration in `props` pinned to a fixed pixel length."""
+    for declaration in declarations:
+        if declaration.type == "declaration" and declaration.lower_name in props:
+            px = _px(declaration)
+            if px is not None:
+                yield declaration.lower_name, px
+
+
+def _column_width(page_css: str, theme_css: str) -> int:
+    """Best-effort readable-column width from the max-width of a container rule.
+    A page's own <style> wins over the vendored theme, which wins over the fallback.
+
+    Only what a stylesheet states outright counts: a column is the baseline everything
+    else is measured against, so it has to be certain, and a conditional rule states a
+    column for some condition rather than for the page. Reading them too let a page
+    disable this check with one line of print CSS — `@media print { main { max-width:
+    2000px } }` measured every screen element against 2000px."""
+    for css in (page_css, theme_css):
+        widths = [
+            px
+            for selector, block, conditional in css_rules(css)
+            if not conditional and any(sel in selector for sel in COLUMN_SELECTORS)
+            for _, px in _px_widths(block, ("max-width",))
+        ]
+        if widths:
+            return int(max(widths))
+    return COLUMN_FALLBACK
+
+
+def _overwide_elements(parser: _StructParser, column: int) -> list:
+    """Everything a version pins wider than the column: its own rules, its inline
+    styles, and the width="" attributes that count as pixels.
+
+    A conditional rule counts here, where it cannot define the column: a pin is a risk
+    rather than a baseline, and it overflows whenever its condition holds."""
+    hits = []
+    for selector, block, _ in css_rules(parser.css):
+        for prop, px in _px_widths(block, OVERFLOW_PROPS):
+            if px > column:
+                hits.append(
+                    f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
+                )
+    for style in parser.inline_styles:
+        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS):
+            if px > column:
+                hits.append(f"inline style {prop}: {px:g}px (column is {column}px)")
+    for tag, value in parser.attr_widths:
+        px = _number(value)
+        if px is not None and px > column:
+            hits.append(f'<{tag} width="{value}"> exceeds column ({column}px)')
+    return hits
+
+
+class RegistryError(click.ClickException):
+    """A registry that is not a vocabulary, raised rather than exited because two doors
+    read one. The CLI prints the message and stops; the page server owes the browser an
+    answer, and `sys.exit` inside its request handler killed the connection mid-POST
+    while every other rejection beside it returned a 400 — so a page whose vendored
+    stamp had fallen behind the running layer met the reader's click with a dead socket
+    and no words. Click renders an escaped one bare, at whichever command reached it, so
+    a refusal from here reads like every other refusal this CLI writes."""
+
+    def show(self, file=None) -> None:
+        click.echo(self.message, file=file or click.get_text_stream("stderr"))
+
+
+def read_registry_entries(path: Path):
+    """Read the top-level entries one registry layer contributes."""
+    if (path.exists() or path.is_symlink()) and not path.is_file():
+        raise RegistryError(f"{path}: registry.json must be a file")
+    try:
+        registry = read_json(path)
+    except json.JSONDecodeError as error:
+        raise RegistryError(f"{path}: invalid JSON ({error.msg}, line {error.lineno})")
+    except UnicodeDecodeError:
+        raise RegistryError(f"{path} must be UTF-8")
+    if registry is None:
+        if not path.is_file():
+            return None
+        raise RegistryError(f"{path}: registry must be a JSON object")
+    if not isinstance(registry, dict):
+        raise RegistryError(f"{path}: registry must be a JSON object")
+    non_objects = [
+        name for name, entry in registry.items() if not isinstance(entry, dict)
+    ]
+    if non_objects:
+        raise RegistryError(f"{path}: registry entries must be objects: {non_objects}")
+    return registry
+
+
+def declares_string(field_schema) -> bool:
+    """Whether a detail field allows a string and nothing else, however it says so."""
+    declared = field_schema.get("type") if isinstance(field_schema, dict) else None
+    allowed = {declared} if isinstance(declared, str) else set(declared or [])
+    return allowed == {"string"}
+
+
+def validate_registry(registry: dict, source) -> dict:
+    """Validate one complete vocabulary after its top-level overlays are merged."""
+    path = source
+    try:
+        kinds = registry["$events"]["kinds"]
+        names = registry["$languages"]["names"]
+        paths = registry["$languages"]["paths"]
+        tones = registry["$tones"]["names"]
+    except (KeyError, TypeError):
+        raise RegistryError(
+            f"{path}: registry must declare $events.kinds, $languages.names/paths "
+            "and $tones.names"
+        )
+    if not isinstance(kinds, dict) or not all(
+        isinstance(kind, str)
+        and isinstance(fields, list)
+        and all(isinstance(field, str) for field in fields)
+        and len(fields) == len(set(fields))
+        for kind, fields in kinds.items()
+    ):
+        raise RegistryError(
+            f"{path}: $events.kinds must map event names to unique field-name lists"
+        )
+    missing_events = []
+    for kind, required in EVENT_VOCABULARY.items():
+        if kind not in kinds:
+            missing_events.append(f"kind `{kind}`")
+            continue
+        fields = required - set(kinds[kind])
+        if fields:
+            missing_events.append(f"`{kind}` fields {sorted(fields)}")
+    if missing_events:
+        raise RegistryError(
+            f"{path}: $events.kinds omits vocabulary the current layer writes: "
+            + ", ".join(missing_events)
+        )
+    if (
+        not isinstance(names, list)
+        or not all(isinstance(name, str) for name in names)
+        or len(names) != len(set(names))
+    ):
+        raise RegistryError(
+            f"{path}: $languages.names must be a unique list of strings"
+        )
+    if not isinstance(paths, dict) or not all(
+        isinstance(extension, str) and language in names
+        for extension, language in paths.items()
+    ):
+        raise RegistryError(
+            f"{path}: $languages.paths must map extensions to declared languages"
+        )
+    # Shape, not just presence, because `tone_errors` asks a list for membership and a
+    # string answers the same question by substring: a layer declaring `"names": "ok"`
+    # would pass every one-letter tone and paint none of them, which is exactly the
+    # invisible failure the check exists to catch.
+    if (
+        not isinstance(tones, list)
+        or not all(isinstance(tone, str) for tone in tones)
+        or len(tones) != len(set(tones))
+    ):
+        raise RegistryError(f"{path}: $tones.names must be a unique list of strings")
+    invalid_names = [
+        tag
+        for tag in registry
+        if not tag.startswith("$") and re.fullmatch(WIDGET_NAME, tag) is None
+    ]
+    if invalid_names:
+        raise RegistryError(f"{path}: invalid registry entry names: {invalid_names}")
+    widgets = {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
+    # First validate every entry in isolation. Cross-entry checks run only after this
+    # pass, so their result cannot depend on which widget happened to be written first.
+    for tag, entry in widgets.items():
+        try:
+            Draft202012Validator.check_schema(entry)
+        except SchemaError as error:
+            raise RegistryError(
+                f"{path}: <{tag}> is not a valid JSON Schema: {error.message}"
+            )
+        extensions = {
+            key: value for key, value in entry.items() if key.startswith("x-")
+        }
+        errors = sorted(
+            Draft202012Validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
+        )
+        if errors:
+            raise RegistryError(
+                f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
+            )
+        for channel in ("x-state", "x-report"):
+            for verb, spec in entry.get(channel, {}).items():
+                try:
+                    Draft202012Validator.check_schema(spec["detail"])
+                except SchemaError as error:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
+                        f"detail schema: {error.message}"
+                    )
+                if spec["detail"].get("type") != "object":
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                        "must declare an object"
+                    )
+
+    for tag, entry in widgets.items():
+        if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
+            raise RegistryError(
+                f"{path}: <{tag}> x-parent names unknown widgets {unknown}"
+            )
+        properties = entry.get("properties", {})
+        said = set(entry.get("x-says", {}))
+        if unknown := sorted(said - set(properties)):
+            raise RegistryError(
+                f"{path}: <{tag}> x-says names undeclared attributes {unknown}"
+            )
+        if unknown := sorted(set(entry.get("x-refers", [])) - set(properties)):
+            raise RegistryError(
+                f"{path}: <{tag}> x-refers names undeclared attributes {unknown}"
+            )
+        tone = entry.get("x-tone")
+        if tone and tone not in properties:
+            raise RegistryError(
+                f"{path}: <{tag}> x-tone names undeclared attribute `{tone}`"
+            )
+        language = entry.get("x-language")
+        if language and language not in properties:
+            raise RegistryError(
+                f"{path}: <{tag}> x-language names undeclared attribute `{language}`"
+            )
+        # An ask names attributes and values the page can actually carry, or it asks
+        # on nothing: `status: ["reviewing"]` is a widget silently absent from every
+        # count and every step, which is the failure a never-closed vocabulary makes
+        # invisible. The value's kind follows the attribute's own schema — a flag is
+        # there or it isn't, an enum admits what it lists — and a subschema that
+        # states neither contradicts nothing.
+        awaits = entry.get("x-awaits", {})
+        for attr, values in [
+            *awaits.get("when", {}).items(),
+            *awaits.get("until", {}).get("when", {}).items(),
+        ]:
+            if attr not in properties:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-awaits names undeclared attribute `{attr}`"
+                )
+            declared = properties[attr] if isinstance(properties[attr], dict) else {}
+            for value in values:
+                if isinstance(value, bool):
+                    # A subschema saying neither a type nor an enum contradicts nothing;
+                    # one that says either has told us this attribute carries a value.
+                    if declared.get("type") not in (None, "boolean") or declared.get(
+                        "enum"
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-awaits waits on `{attr}` being "
+                            f"{str(value).lower()}, but that attribute is not a flag"
+                        )
+                elif declared.get("type") == "boolean":
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-awaits waits on flag `{attr}` holding "
+                        f"{value!r}; a flag is there or it isn't"
+                    )
+                elif (allowed := declared.get("enum")) is not None and (
+                    value not in allowed
+                ):
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-awaits waits on `{attr}` at {value!r}, "
+                        f"which its own enum does not admit"
+                    )
+        # A blanket answer is one of this widget's own verbs, so the log records it
+        # the way every other decision is recorded.
+        if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits answers every one at once with "
+                f"`{blanket}`, which it does not declare as an x-state verb"
+            )
+        # The until verb closes a thread ask, so it too is one of the widget's own
+        # verbs — same rule as `all`, same reason.
+        if (until := awaits.get("until")) and until["verb"] not in entry.get(
+            "x-state", {}
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits holds asks open until `{until['verb']}`, "
+                "which it does not declare as an x-state verb"
+            )
+        needs_upgrade = [
+            key
+            for key in ("x-state", "x-report", "x-language", "x-verbatim", "x-shadow")
+            if entry.get(key) and not entry["x-upgrade"]
+        ]
+        if needs_upgrade:
+            raise RegistryError(
+                f"{path}: <{tag}> declares {', '.join(needs_upgrade)} "
+                "but has no upgraded handler"
+            )
+        # A version overrules a standing report with `overruled` on the element,
+        # so a widget with an agent channel that doesn't declare the attribute is
+        # one whose every report contradiction is unpublishable.
+        if entry.get("x-report") and not (
+            isinstance(properties.get("overruled"), dict)
+            and properties["overruled"].get("type") == "boolean"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> declares x-report but not the boolean `overruled` "
+                "attribute a version overrules a standing report with"
+            )
+        # One rule set for both channels: x-state and x-report differ in
+        # precedence, not in how a verb, its unit, and its record hang together.
+        for channel in ("x-state", "x-report"):
+            for verb, spec in entry.get(channel, {}).items():
+                detail_properties = spec["detail"].get("properties", {})
+                required = set(spec["detail"].get("required", []))
+                unit = spec.get("unit", "widget")
+                fields = [] if unit == "widget" else [unit]
+                record = spec.get("record")
+                if record:
+                    fields.append(record["value"])
+                    if record["kind"] == "position" and record["within"] not in widgets:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records a position "
+                            f"within unknown widget <{record['within']}>"
+                        )
+                    if record["kind"] == "value":
+                        attr = record["attr"]
+                        if attr not in properties:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"undeclared attribute `{attr}`"
+                            )
+                        # An x-says value is words the reader sees, and the file's
+                        # reading takes them from the markup — replay writing one
+                        # would change what the page says while that reading held
+                        # still, the desync the fence rules exist to prevent.
+                        if attr in said:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"x-says attribute `{attr}`, whose value is words "
+                                "the reader sees — declared state may not move the "
+                                "page's words"
+                            )
+                undeclared = [
+                    field for field in fields if field not in detail_properties
+                ]
+                optional = [field for field in fields if field not in required]
+                if undeclared or optional:
+                    problem = (
+                        f"does not declare {undeclared}"
+                        if undeclared
+                        else f"does not require {optional}"
+                    )
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
+                        f"its schema {problem}"
+                    )
+                if unit != "widget" and record and record["kind"] != "position":
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
+                        "state; only position records support that"
+                    )
+
+                if unit != "widget" and not declares_string(detail_properties[unit]):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
+                        "must be a string"
+                    )
+                if record:
+                    value = record["value"]
+                    schema = detail_properties[value]
+                    # An attribute record names the set of elements wearing it, so its
+                    # detail field is a list of ids however many the group allows —
+                    # nothing downstream has to ask which kind of group it came from.
+                    if record["kind"] == "attribute":
+                        items = (
+                            schema.get("items") if isinstance(schema, dict) else None
+                        )
+                        if not (
+                            isinstance(schema, dict)
+                            and schema.get("type") == "array"
+                            and isinstance(items, dict)
+                            and items.get("type") == "string"
+                        ):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` record "
+                                f"value `{value}` must be an array of strings"
+                            )
+                    elif record["kind"] == "value":
+                        # The record reads and writes the attribute, so its detail
+                        # field speaks the attribute's own schema — one vocabulary,
+                        # or the log's contract and the markup's drift apart.
+                        if schema != properties[record["attr"]]:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` record "
+                                f"value `{value}` must carry attribute "
+                                f"`{record['attr']}`'s own schema"
+                            )
+                    elif not declares_string(schema):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must be a string"
+                        )
+        retired = entry.get("x-retired-when")
+        if retired is None:
+            continue
+        # Every holder, not the first: a slot that retires on its parent's verb has
+        # to retire whichever parent it was written in, or it would be settled under
+        # one and undecidable under another.
+        for parent in entry["x-parent"]:
+            parent_state = widgets[parent].get("x-state", {})
+            if retired not in parent_state:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-retired-when `{retired}` is invalid: "
+                    f"<{parent}> does not declare that x-state verb"
+                )
+            if parent_state[retired].get("unit", "widget") != "widget":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
+                )
+    return registry
+
+
+def validate_registry_examples(registry: dict, source) -> dict:
+    """Validate each independent catalog example where registry layers become one."""
+    known = registry["$languages"]["names"]
+    for tag, entry in registry.items():
+        if not tag.startswith("lf-") or (example := entry.get("x-example")) is None:
+            continue
+        parser = parse_structure(example)
+        errors = fragment_errors(parser, registry, known)
+        if parser.duplicate_ids:
+            errors.append(
+                f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
+            )
+        if parser.reserved_ids:
+            errors.append(reserved_ids_error(parser.reserved_ids))
+        if errors:
+            raise RegistryError(f"{source}: <{tag}> x-example is invalid: {errors[0]}")
+    return registry
+
+
+def read_registry(path: Path):
+    """Read and validate one complete registry vocabulary."""
+    registry = read_registry_entries(path)
+    return None if registry is None else validate_registry(registry, path)
+
+
+def load_registry(page_dir: Path):
+    """The page's complete vendored vocabulary, or None before `page init`."""
+    return read_registry(page_dir / "registry.json")
+
+
+def require_registry(page_dir: Path) -> dict:
+    """The vendored vocabulary, for a command that has nothing to do without one."""
+    registry = load_registry(page_dir)
+    if registry is None:
+        sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
+    return registry
+
+
+def incoming_registry(layers: list) -> dict:
+    """The merged registry `page init` will vendor.
+
+    Layers are additive at the top level. A later entry replaces the earlier
+    entry whole; schemas never deep-merge, because a half-old, half-new contract
+    is no layer's vocabulary.
+    """
+    merged = {}
+    paths = []
+    for layer in layers:
+        path = layer / "registry.json"
+        if not path.is_file():
+            continue
+        paths.append(path)
+        merged.update(read_registry_entries(path))
+    if not paths:
+        raise RegistryError("the incoming layer has no registry.json")
+    source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"
+    return validate_registry_examples(validate_registry(merged, source), source)
+
+
+# ---------- the vocabulary stamp ----------
+# The registry vendored into a page is also that page's statement of what its
+# runtime speaks: $events names the event kinds and the fields each carries,
+# x-state (per widget) each tag's verbs and detail schemas. Nothing else on disk
+# says so. `page init` refuses a re-vendor that would retire or reshape a contract
+# still present in the log.
+#
+# That refusal is the third door a decision can be lost through, after version-scoping
+# and hand-copying: the log is append-only and its verbs are a forever-contract, so
+# fifteen of one page's own `decide` events fell silent when the verb was retired under
+# them. Only the stamp makes that a refusal rather than a quiet no-op.
+
+
+def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
+    """What the page's log says that the *incoming* layer no longer speaks:
+    event kinds or fields with no $events entry, or actions and reports whose
+    sending tag, verb, or detail the incoming x-state or x-report contract
+    rejects. Empty for a fresh page.
+    Counted, because the number is the cost — each is a recorded event that
+    would never replay again."""
+    if not events:
+        return []
+    kind_fields = incoming["$events"]["kinds"]
+    missing = {}
+    for e in events:
+        kind = e["kind"]
+        if kind not in kind_fields:
+            key = f"kind `{kind}`"
+        elif fields := set(e) - EVENT_BASE_FIELDS - set(kind_fields[kind]):
+            key = f"kind `{kind}` fields {sorted(fields)}"
+        elif kind == "action" and (
+            error := action_contract_error(page_dir, e, events, incoming)
+        ):
+            key = f"action contract: {error}"
+        elif kind == "report" and (
+            error := report_contract_error(page_dir, e, incoming)
+        ):
+            key = f"report contract: {error}"
+        else:
+            continue
+        missing[key] = missing.get(key, 0) + 1
+    return [
+        f"{n} event{'s' if n != 1 else ''} of {key}"
+        for key, n in sorted(missing.items())
+    ]
+
+
+def widget_errors(lf_elements: list, registry: dict) -> list:
+    """Validate parsed lf-* elements against the registry: schema over the
+    attribute instance, x-parent nesting, and the x-content model."""
+    errors = []
+    # Containers ("items") admit exactly the tags that declare them as x-parent.
+    children_of = {}
+    for tag, entry in registry.items():
+        if not tag.startswith("lf-"):
+            continue
+        for parent in entry.get("x-parent", []):
+            children_of.setdefault(parent, set()).add(tag)
+
+    for rec in lf_elements:
+        tag, where = rec["tag"], f"<{rec['tag']}> (line {rec['line']})"
+        entry = registry.get(tag)
+        if entry is None:
+            errors.append(
+                f"{where}: unknown widget — not in the vendored registry.json"
+            )
+            continue
+        # The element validates as the instance built from its attributes:
+        # values as strings, flag attributes as True. HTML's two flag spellings
+        # (bare and ="") both mean true; a literal value on a flag stays a string
+        # so it fails loudly rather than silently meaning true.
+        props = entry.get("properties", {})
+        instance = {}
+        for name, value in rec["attrs"].items():
+            prop = props.get(name)
+            is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
+            instance[name] = True if value in (None, "") and is_flag else (value or "")
+        for err in sorted(Draft202012Validator(entry).iter_errors(instance), key=str):
+            errors.append(f"{where}: {err.message}")
+
+        want_parents = entry.get("x-parent", [])
+        if want_parents and rec["parent"] not in want_parents:
+            actual = f", found <{rec['parent']}>" if rec["parent"] else ""
+            wanted = " or ".join(f"<{p}>" for p in want_parents)
+            errors.append(f"{where}: must be a direct child of {wanted}{actual}")
+        # Tags declaring this one as x-parent are admissible children under any
+        # content model — that is what x-parent means. "data" takes one <pre> and
+        # those, "items" element children only, "none" nothing at all.
+        content = entry["x-content"]
+        allowed = children_of.get(tag, set())
+        stray = sorted({c for c in rec["children"] if c not in allowed})
+        if content == "none" and (rec["children"] or rec["text"]):
+            errors.append(f"{where}: takes no content — write <{tag} …></{tag}>")
+        elif content == "data":
+            others = [c for c in stray if c != "pre"]
+            if rec["children"].count("pre") != 1 or others:
+                found = ", ".join(f"<{c}>" for c in rec["children"]) or "nothing"
+                errors.append(
+                    f"{where}: its body is one <pre> holding the text "
+                    f"(escape < and >), found {found}"
+                )
+            if rec["text"]:
+                errors.append(
+                    f"{where}: text outside its <pre> — the whole body goes inside it"
+                )
+        elif content == "items":
+            if stray:
+                errors.append(
+                    f"{where}: admits only {sorted(allowed)} children, found {stray}"
+                )
+            if rec["text"]:
+                errors.append(f"{where}: loose text between its items isn't allowed")
+    return errors
+
+
+def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
+    """An attribute the registry marks as naming another element (x-refers) that names
+    nothing this version holds. The reader follows it, so a typo is a reference to
+    nowhere and the markup around it is perfectly well-formed — visible to them and to
+    nobody else. Asked of the version rather than of a fragment: a reply's markup
+    carries no page to check against, and one of its widgets pointing at the version
+    beside it is exactly right."""
+    return [
+        f'<{rec["tag"]}> (line {rec["line"]}): {attr}="{target}" names no element '
+        "in this version"
+        for rec in lf_elements
+        for attr in registry.get(rec["tag"], {}).get("x-refers", [])
+        if (target := rec["attrs"].get(attr)) and target not in ids
+    ]
+
+
+def language_errors(
+    blocks: list, lf_elements: list, registry: dict, known: list
+) -> list:
+    """A declared language the runtime won't honor. Nothing here is visible to the
+    user either way — a class in the wrong place and a misspelt language both render
+    as an ordinary uncolored block — so the failure is routed to the one party who can
+    still fix it, which is whoever wrote the word.
+
+    One list answers both spellings, and it is the page's ($languages) rather than any
+    widget's: a plain <pre><code class="language-…"> belongs to no widget at all, and a
+    tag that takes the word says which of its attributes carries it (x-language) instead
+    of being known here by name. The vendored bundle is built from the same list, so a
+    page cannot be told a language its own layer doesn't speak.
+
+    The list is indexed rather than tested: a layer naming none colors none, so a word
+    declared to it is still one it can't honor, and the placement rule never depended on
+    the list at all. A check whose two failures are both invisible on the page is the
+    last one that should be able to pass by finding nothing to check against."""
+    errors = []
+    for block in blocks:
+        where = f'class="language-{block["lang"]}" (line {block["line"]})'
+        if (block["tag"], block["parent"]) != ("code", "pre"):
+            errors.append(
+                f"{where}: only <pre><code> is colored, found <{block['tag']}> in "
+                f"<{block['parent'] or 'nothing'}> — move it, or use <lf-code language=…> "
+                f"for a walkthrough"
+            )
+        elif block["lang"] not in known:
+            errors.append(
+                f"{where}: not a language this page's layer speaks — known: {known}"
+            )
+    for rec in lf_elements:
+        attr = (registry.get(rec["tag"]) or {}).get("x-language")
+        word = rec["attrs"].get(attr) if attr else None
+        if word is not None and word not in known:
+            errors.append(
+                f'<{rec["tag"]} {attr}="{word}"> (line {rec["line"]}): not a language '
+                f"this page's layer speaks — known: {known}"
+            )
+    return errors
+
+
+def tone_errors(lf_elements: list, registry: dict) -> list:
+    """A tone the layer has no tint for, read out of $tones rather than the widget.
+
+    The same failure `language` has and the same reason for catching it here: a
+    misspelt tone paints nothing, and a chip that should have been red renders
+    neutral on a page that otherwise looks perfectly well. Nobody downstream can
+    see it — not the user, who never knew it was meant to be red — so the one
+    party who can still fix it is whoever wrote the word, and this is where they
+    are told. A class would have been the same words with no one checking them.
+    """
+    known = registry["$tones"]["names"]
+    errors = []
+    for rec in lf_elements:
+        attr = (registry.get(rec["tag"]) or {}).get("x-tone")
+        word = rec["attrs"].get(attr) if attr else None
+        if word is not None and word not in known:
+            errors.append(
+                f'<{rec["tag"]} {attr}="{word}"> (line {rec["line"]}): not a tone this '
+                f"page's layer paints — known: {known}"
+            )
+    return errors
+
+
+def suggestion_errors(suggestions: list, comment_ids: set) -> list:
+    """What the registry's schema can't say about a suggestion: it holds at most
+    one of each slot and at least one of them, it doesn't nest, and `resolves`
+    names a comment that exists."""
+    errors = []
+    for s in suggestions:
+        where = f"<lf-suggestion id={s['id']!r}> (line {s['line']})"
+        if s["nested"]:
+            errors.append(f"{where}: suggestions don't nest")
+        if not s["slots"]:
+            errors.append(
+                f"{where}: needs a <lf-old> (what it replaces), a <lf-new> "
+                f"(what it proposes), or both"
+            )
+        for slot in ("lf-old", "lf-new"):
+            if s["slots"].count(slot) > 1:
+                errors.append(
+                    f"{where}: carries {s['slots'].count(slot)} <{slot}> children, one at most"
+                )
+        if s["resolves"] and s["resolves"] not in comment_ids:
+            errors.append(
+                f"{where}: resolves={s['resolves']!r} names no comment in the log"
+            )
+    return errors
+
+
+def retirable_ids(suggestions: list, events: list, dropped: set, outcomes: dict) -> set:
+    """Ids the previous version's suggestions let the next one drop, given what
+    it actually dropped. A logged outcome settles a suggestion: accepting
+    retires the markup it replaced, rejecting retires the proposal, and either
+    retires the wrapper. A proposal no one has answered can still be withdrawn —
+    no decision rested on it — but only whole: the wrapper goes with the
+    proposal inside it, so a version can't quietly keep an unanswered proposal
+    as settled content, and not while an unresolved thread is anchored in it.
+
+    The outcomes are replay's own (`decisions`, folded over the version these
+    suggestions are on), so a decision a later version restated away settles
+    nothing here either — replay hands the suggestion back as pending, and the
+    slots stay needed."""
+    anchored = anchored_ids(events)
+    licensed = set()
+    for s in suggestions:
+        if not s["id"]:
+            continue
+        outcome = outcomes.get(s["id"])
+        retires = {s["id"]} | (s["old_ids"] if outcome == "accept" else s["new_ids"])
+        if outcome is None and (retires & anchored or not s["new_ids"] <= dropped):
+            continue
+        licensed |= retires
+    return licensed
+
+
+def action_subjects(event: dict, byid: dict, now: dict, registry: dict) -> list:
+    """What an action was *about*, at the finest grain the vocabulary allows.
+
+    An action names the widget that sent it, but on a container that is rarely
+    the thing decided: a `move` names the board and carries {card, to, index}, a
+    `choose` names the group and carries {option}. So the subjects are the parts
+    of the widget its detail points at, minus containers (x-content "items") —
+    the column a card landed in is where the decision *put* it, not what it was
+    about, and holding a version to a column's contents would refuse it for
+    adding an unrelated card. Where a detail names no part of the widget (an
+    `edit` carries text, an `accept` carries nothing) the widget is its own
+    subject.
+
+    No verb is interpreted here. A detail value counts when it names an element
+    *inside the widget that sent the action* — not merely an id the page has
+    somewhere, which would let a literal like "approved" collide with an element
+    that happens to be called that."""
+    widget = event["widget"]
+    parts = action_rests_on(event, now)[1:]
+    subjects = [
+        v
+        for v in parts
+        if registry.get(byid.get(v, {}).get("tag"), {}).get("x-content") != "items"
+    ]
+    return subjects or [widget]
+
+
+def retractions(events: list, upto=None) -> dict:
+    """id → the version that last took back what was recorded on it.
+
+    A version declares a rewrite with `restated` in its markup and `note` records
+    it here, on the note event itself, because the declaration belongs to the one
+    version that rewrote the words and a retraction has to outlive it. Left in
+    the markup, the version after would have to repeat the attribute to keep the
+    retraction standing — the hand-copying this whole design exists to remove,
+    and silently resurrecting a decision the moment someone forgot.
+    `upto` windows the reading the way the JS twin's retractionFloors(upto)
+    does — filter, then max — so an id retracted both early and late keeps its
+    early floor inside the window instead of vanishing with the late one."""
+    at = {}
+    for e in events:
+        if e["kind"] == "note" and (upto is None or e["version"] <= upto):
+            for wid in e.get("restated", []):
+                at[wid] = max(at.get(wid, 0), e["version"])
+    return at
+
+
+def report_absorptions(events: list, upto=None) -> dict:
+    """report event id → the version whose note answered it (absorbed or
+    overruled) — the agent channel's mirror of `retractions`, windowed the same
+    way and lasting the same way: the answer rides the note of the one version
+    that gave it, and holds for good without being repeated."""
+    at = {}
+    for e in events:
+        if e["kind"] == "note" and (upto is None or e["version"] <= upto):
+            for rid in e.get("reports", []):
+                at[rid] = max(at.get(rid, 0), e["version"])
+    return at
+
+
+def event_spec(event: dict, byid: dict, registry: dict, channel: str):
+    """The verb spec the current markup declares behind an action or report:
+    None where no element holds the event's widget id, or where its tag no
+    longer declares the verb — a recorded event the vocabulary has moved past
+    folds to nothing rather than standing on trust."""
+    rec = byid.get(event["widget"])
+    if rec is None:
+        return None
+    return (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+
+
+def fold_unit(event: dict, spec: dict):
+    """The unit an event folds to: the widget itself for a verb absolute across
+    the group, else the element its detail names — the declaration state_fold's
+    docstring explains. Non-string means the detail named nothing foldable."""
+    if spec.get("unit", "widget") == "widget":
+        return event["widget"]
+    return event["detail"].get(spec["unit"])
+
+
+def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dict:
+    """unit id → the live report events on it, oldest first, each with its
+    x-report spec. Live means made against a version inside the window and not
+    yet answered by a note inside it. The last entry is the fold — every
+    report states an absolute value, so the newest per unit is the state — and
+    the whole list is what answering retires: publish names every id on the
+    unit, or an older superseded report would keep replaying under the new
+    version. A report whose widget the current markup lacks resolves no spec
+    and stands nowhere; a dropped id is id-survival's business, not this
+    channel's."""
+    absorbed = report_absorptions(events, upto)
+    per_unit = {}
+    for e in events:
+        if e["kind"] != "report":
+            continue
+        if upto is not None and e["version"] > upto:
+            continue
+        if e["id"] in absorbed:
+            continue
+        spec = event_spec(e, byid, registry, "x-report")
+        if not spec:
+            continue
+        unit = fold_unit(e, spec)
+        if isinstance(unit, str):
+            per_unit.setdefault(unit, []).append((e, spec))
+    return per_unit
+
+
+def action_rests_on(event: dict, spk: dict) -> list:
+    """The runtime's restsOn, read the same way here: the sending widget plus
+    every detail id it contains. This is the one key space for liveness — fold
+    survival, retraction floors, and the earning of `restated` all go through
+    it, in both runtimes — while `action_subjects` stays the words gate's finer,
+    subject-keyed view of the same containment. Two views, one containment test;
+    a third keying would fork the JS/Python twin a third way."""
+    widget = event["widget"]
+    parts = [
+        v
+        for field in event["detail"].values()
+        for v in (field if isinstance(field, list) else [field])
+        if isinstance(v, str) and widget in spk.get(v, EMPTY).within
+    ]
+    return [widget, *parts]
+
+
+# A verb with no declared record form (accept/reject — the honoring version
+# retires the wrapper, so there is no state attribute to compare) has no facet.
+NO_RECORD = object()
+
+
+def state_fold(
+    events: list, byid: dict, spk: dict, registry: dict, upto, floors: dict
+) -> dict:
+    """unit id → (action, spec): the last surviving action per declared unit.
+
+    The registry's x-state names each verb's fold unit — the widget itself for
+    a verb absolute across the group (`choose` toggles every sibling, so
+    per-option folding would double-count superseded picks), the detail-named
+    element for one absolute per part (`move` places one card). Absolute
+    placements are what make this a fold at all: the last surviving action per
+    unit *is* the state, one linear scan, no replay simulation. Surviving means
+    not under a retraction floor keyed on what the action rests on. `upto` is
+    the consumer's window — the gate folds to the last published version (an
+    action made later belongs to no comparison of these two files), a lag
+    report to everything recorded (None)."""
+    fold = {}
+    for e in events:
+        if e["kind"] != "action":
+            continue
+        if upto is not None and e["version"] > upto:
+            continue
+        spec = event_spec(e, byid, registry, "x-state")
+        if not spec:
+            continue
+        if any(floors.get(i, 0) > e["version"] for i in action_rests_on(e, spk)):
+            continue
+        unit = fold_unit(e, spec)
+        if isinstance(unit, str):
+            fold[unit] = (e, spec)
+    return fold
+
+
+def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
+    """What one version's markup shows for a unit's declared record form: every
+    element inside it carrying the attribute, the unit's own attribute's value,
+    the declared container enclosing it, or its body's words — the empty list
+    where the markup shows no pick.
+
+    An attribute record is a set, never one element: a group taking several
+    picks marks several options, and one shape for both is what lets the fold
+    compare like with like whatever the group allows."""
+    record = spec.get("record")
+    if not record:
+        return NO_RECORD
+    if record["kind"] == "attribute":
+        return sorted(
+            oid
+            for oid, orec in byid.items()
+            if record["attr"] in orec["attrs"]
+            and unit in spk.get(oid, EMPTY).within[:-1]
+        )
+    if record["kind"] == "value":
+        rec = byid.get(unit)
+        return rec["attrs"].get(record["attr"]) if rec else None
+    if record["kind"] == "position":
+        enclosing = [
+            i
+            for i in spk.get(unit, EMPTY).within[:-1]
+            if byid.get(i, {}).get("tag") == record["within"]
+        ]
+        return enclosing[-1] if enclosing else None
+    return " ".join(spk.get(unit, EMPTY).words.split())  # "body"
+
+
+def folded_facet(e: dict, spec: dict):
+    """The state the folded action left: the detail field the record declares,
+    collapsed the way `spoken` collapses where it compares against words, and
+    sorted where it compares against a set of marked elements."""
+    record = spec.get("record")
+    if not record:
+        return NO_RECORD
+    value = e["detail"].get(record["value"])
+    if record["kind"] == "body":
+        return " ".join(str(value).split())
+    if record["kind"] == "attribute":
+        return sorted(value)
+    return value
+
+
+def page_fold(html: str, events: list, registry: dict, upto):
+    """state_fold asked of one page: its elements, its words, and the log windowed
+    to `upto` — one construction, so its readers (`record_lag`, and the readings
+    `decisions` and `rewritten_bodies` give `leaf comment` and `version check`)
+    cannot drift on floors or window. Returns (fold, byid, spk); the extras are
+    the page readings the fold was built from, for a caller comparing it back
+    against the markup."""
+    byid = parse_structure(html).by_id
+    spk = spoken(html, registry)
+    return (
+        state_fold(events, byid, spk, registry, upto, retractions(events, upto)),
+        byid,
+        spk,
+    )
+
+
+def rewritten_bodies(fold: dict) -> dict:
+    """id → (verb, text): the user's standing rewrite of each element whose
+    registry entry records a verb as the body (x-state record kind "body"), as
+    replay leaves it. The fold is state_fold's — the last surviving action per
+    unit under the retraction floors — read here for the one record kind whose
+    state is words rather than markup, so the passage reading can hold them
+    where the authored body was."""
+    return {
+        unit: (e["action"], e["detail"][spec["record"]["value"]])
+        for unit, (e, spec) in fold.items()
+        if (spec.get("record") or {}).get("kind") == "body"
+    }
+
+
+def decisions(fold: dict, registry: dict) -> dict:
+    """widget id → the accept/reject it stands under, read from the same fold every
+    other consumer of declared state reads. Which verbs decide is the registry's word
+    too: `x-retired-when` names the outcome under which an element leaves the page, so
+    its values are the vocabulary's decision verbs — nothing here knows a widget or a
+    verb by name, and a verb a later layer retires folds to nothing rather than
+    standing on trust."""
+    deciding = {e["x-retired-when"] for e in registry.values() if "x-retired-when" in e}
+    return {
+        unit: e["action"] for unit, (e, _) in fold.items() if e["action"] in deciding
+    }
+
+
+def record_lag(html: str, events: list, registry: dict) -> list:
+    """Units whose markup lags the user's standing state — the record debt a
+    log-less reader would miss. Advice, never errors: a version is free to stay
+    silent (replay resolves it), but SKILL.md's record obligation needs a
+    feedback loop, and a finished page's final version is the page that has
+    to read right without the log."""
+    if not registry:
+        return []
+    fold, byid, spk = page_fold(html, events, registry, None)
+    lag = []
+    for unit in sorted(fold):
+        e, spec = fold[unit]
+        if unit not in byid:
+            continue
+        f_cur = markup_facet(unit, spec, byid, spk)
+        if f_cur is NO_RECORD or f_cur == folded_facet(e, spec):
+            continue
+        lag.append(
+            f"`{unit}`: the log records {e['action']} → {folded_facet(e, spec)!r}; "
+            f"the markup still shows {f_cur!r}"
+        )
+    # The agent channel's half of the same debt: a standing report is state the
+    # markup has not absorbed, and the final version is the page that has to
+    # read right without the log.
+    for unit, reports in sorted(standing_reports(events, byid, registry, None).items()):
+        e, spec = reports[-1]
+        if unit not in byid:
+            continue
+        f_cur = markup_facet(unit, spec, byid, spk)
+        f_rep = folded_facet(e, spec)
+        if f_cur == f_rep:
+            continue
+        lag.append(
+            f"`{unit}`: a report records {e['action']} → {f_rep!r}; "
+            f"the markup still shows {f_cur!r}"
+        )
+    return lag
+
+
+def unpointable_blocks(parser: _StructParser) -> list:
+    """Blocks a user will aim at whole that no anchor can name. Advice, never a
+    gate, in the same register as record_lag: SKILL.md states the id rule, and this
+    is its feedback loop. The page that introduced item anchoring hit this
+    failure itself — its code blocks carried no ids, so a comment aimed at one fell
+    through to the enclosing section and read as the gesture being broken rather
+    than the page being bare, and nothing anywhere said so.
+
+    A section or article is named outright; a block below one only where its aim
+    escapes to a sectioning element. The ancestor's tag stands in for tightness —
+    a figure around a table, a card around a pre — which no static read can
+    measure, so a page-wide <div id> also passes for aim enough and the advice
+    stays quiet. Undercounting is the right error for advice: a miss costs one
+    aim landing wide, noise costs the register its authority."""
+    lines = []
+    for block in parser.bare_blocks:
+        where = f"<{block['tag']}> (line {block['line']})"
+        under = block["under"]
+        if block["tag"] in ("section", "article"):
+            lines.append(
+                f"unpointable — {where} has no id, so no comment or reading "
+                f"position can hold to it"
+            )
+        elif under is None:
+            lines.append(
+                f"unpointable — {where} has no id, nor anything enclosing it, "
+                f"so no comment can name it"
+            )
+        elif under[0] in SECTIONING_TAGS:
+            lines.append(
+                f"unpointable — {where} has no id, so a comment aimed at it "
+                f"lands on the whole of #{under[1]}"
+            )
+    return lines
+
+
+def restatement_errors(
+    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+) -> list:
+    """The other half of the id-survival rule. That one keeps a republish from
+    dropping the anchors a user hung on the page; this one keeps it from
+    dropping the decisions they recorded on it. CLAUDE.md carries why the log
+    outranks the markup and what that cost.
+
+    The runtime replays every action onto every later version, so a version
+    cannot revise what a user acted on: replay would paint their recorded
+    state back over the revision and the new words would reach nobody. A version
+    that means to revise says so — `restated` on what it rewrote — and one that
+    changes those words in silence is refused here. An unearned `restated` is an
+    error too: a decision thrown away for nothing, and, left unchecked, the
+    one-word ritual that would make this gate meaningless.
+
+    The comparison is the words each version says (`spoken`), because words are
+    what a decision is about. Re-indenting a draft, marking the picked option
+    `chosen`, or relocating a card the user already moved is not a revision,
+    and neither is writing their own edit back — a version that says what they
+    said is agreeing with them.
+
+    Words are one divergence kind; declared state is the other. For each verb
+    the registry declares (x-state), the fold gives the user's standing
+    state per unit, and a version whose markup actively changes that unit's
+    record away from both the previous version's and the fold is refused the
+    same way a silent rewrite of words is. Writing the folded state is the
+    state-level echo (honoring); re-emitting the previous version's state is
+    blessed silence, which replay resolves; a unit with no surviving folded
+    action is exempt — never decided, or retracted back to the author. And
+    `restated` is earned by either divergence kind: a words-unchanged
+    relocation earns it at the unit even though no subject's words moved."""
+    errors = []
+    declared = cur.restated
+    # Retractions up to prev — never this version's own, which is what it is
+    # here to declare, so re-checking a published version reaches the same
+    # verdict as checking it did.
+    taken_back = retractions(events, prev_num)
+    byid = cur.by_id
+
+    decided = {}  # subject id → the actions resting on it
+    for e in events:
+        if e["kind"] != "action":
+            continue
+        # One key space for liveness: an action is dead when any id it rests on
+        # was floored — replay skips it by this same containment, so a finer,
+        # subject-keyed floor here would keep alive a decision the browser has
+        # already dropped (a group-level retraction never names the option the
+        # pick rested on, and the pick must die with the group all the same).
+        if any(taken_back.get(i, 0) > e["version"] for i in action_rests_on(e, now)):
+            continue
+        for subject in action_subjects(e, byid, now, registry):
+            # Only what the user had recorded by the time they were looking
+            # at prev.
+            if subject in was and e["version"] <= prev_num:
+                decided.setdefault(subject, []).append(e)
+
+    # The state gate, beside the words gate: one gate, two divergence kinds.
+    prev_byid = prev.by_id
+    fold = state_fold(events, byid, now, registry, prev_num, taken_back)
+    facet_earned = set()
+    for unit in sorted(fold):
+        e, spec = fold[unit]
+        rec = byid.get(unit)
+        # A unit either version lacks is id-survival's business, not this gate's.
+        if rec is None or unit not in prev_byid:
+            continue
+        f_cur = markup_facet(unit, spec, byid, now)
+        f_prev = markup_facet(unit, spec, prev_byid, was)
+        if f_cur is NO_RECORD or f_cur == f_prev:
+            continue  # no record form, or no active change — replay resolves silence
+        f_fold = folded_facet(e, spec)
+        if f_cur == f_fold:
+            continue  # writing the folded state is honoring: the state-level echo
+        if unit in declared:
+            facet_earned.add(unit)
+            continue
+        where = f"<{rec['tag']} id={unit!r}> (line {rec['line']})"
+        errors.append(
+            f"{where}: its state changed under the user's decision — the markup "
+            f"shows {f_cur!r} where their {e['action']} (on v{e.get('version', 0)}) "
+            f"left {f_fold!r}. Their decision is what the page shows, so this state "
+            f"would never reach them — add `restated` to retract it and ask again, "
+            f"or leave it as v{prev_num} had it."
+        )
+
+    for sid, rec in sorted(byid.items()):
+        live, restated = decided.get(sid, []), sid in declared
+        # A version that writes back what the user themselves recorded is
+        # agreeing with them, not overruling them — an honored `edit` is the
+        # commonest and most correct thing an author does with a draft, and the
+        # gate has to stay quiet for it or it fires on nearly every version and
+        # teaches authors to reach for `restated` by reflex. No verb is special-
+        # cased: it is enough that the words on the page are words the user
+        # sent.
+        echoed = {
+            " ".join(str(v).split())
+            for e in live
+            for v in e["detail"].values()
+            if isinstance(v, str)
+        }
+        said = now.get(sid, EMPTY).words
+        changed = sid in was and said != was[sid].words and said not in echoed
+        where = f"<{rec['tag']} id={sid!r}> (line {rec['line']})"
+        # `restated` is earned by either divergence kind — words on the leaf, or
+        # declared state at the unit — else a words-unchanged relocation would
+        # be refused both with the attribute and without it.
+        if restated and not ((live and changed) or sid in facet_earned):
+            # An already-retracted widget is the case an author lands on by being
+            # careful — carrying the attribute forward the way state used to have
+            # to be carried — so it gets its own answer rather than the
+            # never-decided one, which would read as if the user had done
+            # nothing.
+            if sid in taken_back:
+                errors.append(
+                    f"{where}: restated, but v{taken_back[sid]} already took that "
+                    f"back — a retraction is recorded when it is published and holds "
+                    f"without being repeated. Drop the attribute."
+                )
+            else:
+                why = (
+                    f"its words are unchanged since v{prev_num}"
+                    if live
+                    else "the user has recorded nothing on it"
+                )
+                errors.append(
+                    f"{where}: restated, but there is nothing to retract — {why}. "
+                    f"Drop the attribute; `restated` discards their decision."
+                )
+        elif changed and live and not restated:
+            did = ", ".join(f"{e['action']} on v{e.get('version')}" for e in live[-3:])
+            errors.append(
+                f"{where}: its words changed, and the user has already acted "
+                f"on it ({did}). Their decision is what the page shows, so these "
+                f"words would never reach them — add `restated` to retract it and "
+                f"ask again, or leave the text as v{prev_num} had it."
+            )
+    return errors
+
+
+def report_errors(
+    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+) -> list:
+    """The report gate, beside the reviewer one — the same shape with the
+    precedence reversed. A report is a worker's provisional news: the runtime
+    paints it onto every version published before it, and it stands only until
+    a version answers it by id (`reports` on the note, the mirror of
+    `restated`). Three outcomes are legal. Writing the reported state is
+    honoring — publishing records it as absorption. Leaving the markup as the
+    previous version had it is blessed silence — the report keeps painting.
+    Marking the element `overruled` keeps this version's own state and retires
+    the report, with the why in the note's text. What is refused is the fourth
+    thing, markup that contradicts a standing report it never names: the drop
+    must be the publisher's to adjudicate, never silent. And an unearned
+    `overruled` is refused like an unearned `restated` — spent where nothing
+    stands or where the markup agrees with the report, it is the reflex that
+    would make the gate meaningless.
+
+    Standing is read up to prev — never this version's own note, which is what
+    publishing is about to record — so re-checking a published version reaches
+    the same verdict as checking it did."""
+    errors = []
+    declared = cur.overruled
+    byid = cur.by_id
+    prev_byid = prev.by_id
+    standing = standing_reports(events, byid, registry, prev_num)
+    earned = set()
+    for unit in sorted(standing):
+        e, spec = standing[unit][-1]
+        rec = byid.get(unit)
+        # A unit either version lacks is id-survival's business, not this gate's.
+        if rec is None or unit not in prev_byid:
+            continue
+        f_cur = markup_facet(unit, spec, byid, now)
+        f_rep = folded_facet(e, spec)
+        if unit in declared and f_cur != f_rep:
+            earned.add(unit)  # a named disagreement, whatever state it keeps
+            continue
+        if f_cur == f_rep:
+            continue  # honoring: publishing absorbs the report by id
+        if f_cur == markup_facet(unit, spec, prev_byid, was):
+            continue  # blessed silence: the report keeps painting
+        where = f"<{rec['tag']} id={unit!r}> (line {rec['line']})"
+        who = e.get("agent", "a worker")
+        errors.append(
+            f"{where}: its markup contradicts a standing report — it shows "
+            f"{f_cur!r} where {who}'s {e['action']} (report {e['id']}, on "
+            f"v{e['version']}) left {f_rep!r}. Adjudicate it: write the reported "
+            f"state to absorb the report, or add `overruled` to keep this state "
+            f"and retire it (say why in the note)."
+        )
+    unearned = declared - earned
+    # Where an attribute is spent past its version: which version already
+    # answered the unit's reports, for the message that says to drop it.
+    answered_at = {}
+    if unearned:
+        absorbed = report_absorptions(events, prev_num)
+        for e in events:
+            if e["kind"] != "report" or e["id"] not in absorbed:
+                continue
+            spec = event_spec(e, byid, registry, "x-report")
+            if not spec:
+                continue
+            unit = fold_unit(e, spec)
+            if isinstance(unit, str):
+                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[e["id"]])
+    for sid in sorted(unearned):
+        rec = byid.get(sid)
+        if rec is None:
+            continue
+        where = f"<{rec['tag']} id={sid!r}> (line {rec['line']})"
+        if sid in standing:
+            errors.append(
+                f"{where}: overruled, but this version writes the reported state — "
+                f"that is absorption, which publishing records on its own. "
+                f"Drop the attribute."
+            )
+        elif sid in answered_at:
+            errors.append(
+                f"{where}: overruled, but v{answered_at[sid]} already answered the "
+                f"reports on it — an answer is recorded when it is published and "
+                f"holds without being repeated. Drop the attribute."
+            )
+        else:
+            errors.append(
+                f"{where}: overruled, but no report is standing on it — there is "
+                f"nothing to overrule. Drop the attribute."
+            )
+    return errors
+
+
+def structure_errors(parser: _StructParser) -> list:
+    """A fed parser's structural complaints, plus the tags it was left holding
+    open at the end of its input."""
+    errors = list(parser.errors)
+    leftover = [(t, ln) for t, ln, *_ in parser.stack if t not in OPTIONAL_END]
+    if leftover:
+        errors.append(
+            "unclosed tags: " + ", ".join(f"<{t}> (line {ln})" for t, ln in leftover)
+        )
+    return errors
+
+
+def fragment_errors(parser: _StructParser, registry: dict, known: list) -> list:
+    """Structural + registry validation of a markup fragment (an agent reply
+    carrying widgets): the discussion-side analog of `version check`. The language
+    check comes along because the schema stopped carrying the list: a reply's
+    <lf-code language=…> is colored by the same tokenizer a version's is, and nothing
+    else would now refuse it a word that tokenizer doesn't know."""
+    return (
+        structure_errors(parser)
+        + widget_errors(parser.lf_elements, registry)
+        + language_errors(parser.language_blocks, parser.lf_elements, registry, known)
+        + tone_errors(parser.lf_elements, registry)
+    )
+
+
+def cmd_check(page_dir: Path, version, render: bool = False) -> int:
+    versions = list_versions(page_dir)
+    if not versions:
+        sys.exit(
+            f"no versions in {page_dir / 'versions'}; write versions/v1.html first"
+        )
+    selected = version if version is not None else versions[-1]
+    if selected not in versions:
+        sys.exit(f"no v{version}.html in {page_dir / 'versions'}")
+    name = version_name(selected)
+    html = version_path(page_dir, selected).read_text(encoding="utf-8")
+
+    errors = []
+
+    for missing in [f for f in VENDORED_FILES if not (page_dir / f).exists()]:
+        errors.append(
+            f"{missing} missing from the page directory; run `leaf page init` "
+            "to vendor the layer"
+        )
+
+    parser = parse_structure(html)
+    errors.extend(structure_errors(parser))
+
+    scripts = parser.external_scripts
+    if len(scripts) != 1:
+        errors.append(
+            f"expected exactly one external <script src> tag, found {len(scripts)}"
+            + (f": {[s for s, _ in scripts]}" if scripts else "")
+        )
+    elif scripts[0] != ("/leaf.js", "module"):
+        errors.append(
+            'the external script must be <script type="module" src="/leaf.js">, '
+            f"found src={scripts[0][0]!r} type={scripts[0][1]!r}"
+        )
+    if parser.stylesheets != ["/theme.css"]:
+        errors.append(
+            'the page must link exactly one stylesheet, <link rel="stylesheet" '
+            f'href="/theme.css">, found {parser.stylesheets}'
+        )
+
+    for meta in parser.lf_metas:
+        where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
+        if meta["name"] not in LF_META:
+            errors.append(f"{where}: unknown lf- meta — known: {sorted(LF_META)}")
+            continue
+        allowed = LF_META[meta["name"]]
+        if allowed is not None and meta["content"] not in allowed:
+            errors.append(
+                f"{where}: content must be one of {sorted(allowed)}, found {meta['content']!r}"
+            )
+
+    if parser.duplicate_ids:
+        errors.append(
+            f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
+        )
+    if parser.reserved_ids:
+        errors.append(reserved_ids_error(parser.reserved_ids))
+
+    registry = load_registry(page_dir)
+    if registry is not None:
+        errors.extend(widget_errors(parser.lf_elements, registry))
+        errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
+        errors.extend(
+            language_errors(
+                parser.language_blocks,
+                parser.lf_elements,
+                registry,
+                registry["$languages"]["names"],
+            )
+        )
+        errors.extend(tone_errors(parser.lf_elements, registry))
+        for tag, entry in registry.items():
+            if not tag.startswith("lf-"):
+                continue
+            if (
+                entry["x-upgrade"]
+                and not (page_dir / "widgets" / f"{tag}.js").is_file()
+            ):
+                errors.append(
+                    f"registry marks <{tag}> as upgraded but widgets/{tag}.js "
+                    f"isn't vendored; run `leaf page init`"
+                )
+
+    events = read_events(page_dir)
+    errors.extend(
+        suggestion_errors(
+            parser.suggestions, {e["id"] for e in events if e["kind"] == "comment"}
+        )
+    )
+
+    # "Previous" is the last *published* version before this one — the page the
+    # user was actually looking at, which is what `leaf comment` anchors
+    # against and what the browser diffs against. The file before it on disk may be an
+    # abandoned draft no note ever released: ids nobody saw, words nobody could
+    # have decided on. The first published version has no predecessor, so it
+    # stands against an empty one: nothing of its can have been dropped and
+    # nothing decided, which is exactly what makes a `restated` on it an error
+    # like any other unearned one.
+    noted = {e["version"] for e in events if e["kind"] == "note"}
+    earlier = [
+        candidate
+        for candidate in versions
+        if candidate < selected and candidate in noted
+    ]
+    prev, prev_num, was = parse_structure(""), 0, {}
+    if earlier:
+        prev_num = earlier[-1]
+        prev_name = version_name(prev_num)
+        prev_html = version_path(page_dir, prev_num).read_text(encoding="utf-8")
+        prev = parse_structure(prev_html)
+        was = spoken(prev_html, registry or {})
+        # An id may retire when the log has settled what holds it; everything
+        # else must survive, or the anchors on it break.
+        gone = prev.ids - parser.ids
+        fold, _, _ = page_fold(prev_html, events, registry or {}, None)
+        dropped = sorted(
+            gone
+            - retirable_ids(
+                prev.suggestions, events, gone, decisions(fold, registry or {})
+            )
+        )
+        if dropped:
+            errors.append(
+                f"ids present in {prev_name} but dropped in {name} "
+                f"(anchors on them will break): {dropped}"
+            )
+    # And the decisions recorded on the ids that stayed — the reviewer channel's
+    # gate, then its mirror for the agent channel's standing reports.
+    now = spoken(html, registry or {})
+    errors.extend(
+        restatement_errors(parser, prev, was, now, events, prev_num, registry or {})
+    )
+    errors.extend(
+        report_errors(parser, prev, was, now, events, prev_num, registry or {})
+    )
+
+    # Thread markup is frozen in the log and rendered into the panel; a page id
+    # colliding with one would steal its action replays (see thread_widget_ids).
+    taken = sorted(parser.ids & thread_widget_ids(events))
+    if taken:
+        errors.append(f"ids already taken by widget markup in a reply: {taken}")
+
+    # A /media/ reference the directory can't answer renders as a broken image.
+    # The render gate would catch it as a 404, but that runs once a page; this
+    # runs on every version, and a missing file is as deterministic as a missing
+    # id.
+    for ref in sorted(parser.media_refs):
+        if not (page_dir / ref.lstrip("/")).is_file():
+            errors.append(
+                f"{ref} isn't in the page directory; `leaf page media` puts it there"
+            )
+
+    theme_css = (
+        (page_dir / "theme.css").read_text(encoding="utf-8")
+        if (page_dir / "theme.css").exists()
+        else ""
+    )
+    errors.extend(css_syntax_errors(parser.css, "page <style>"))
+    for number, style in enumerate(parser.inline_styles, 1):
+        errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
+    errors.extend(css_syntax_errors(theme_css, "theme.css"))
+    column = _column_width(parser.css, theme_css)
+    errors.extend(_overwide_elements(parser, column))
+
+    if errors:
+        print(f"✗ {name}: {len(errors)} issue(s)", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        return 1
+    print(
+        f"✓ {name}: parses, widgets validate, one module script + theme link, "
+        f"ids and decisions carried over, nothing overflows the {column}px column"
+    )
+    # Advice, never a gate: silence is blessed and replay resolves it, but a
+    # log-less reader (a printout, a transcript's audience) sees only the markup,
+    # so say where it lags the log. Loudest at the end of the exchange — the final
+    # version is the page that must read right without the log.
+    for line in record_lag(html, events, registry or {}):
+        print(f"  · record behind the log — {line}")
+    # Same register, different debt: a block the id rule missed, named while the
+    # author can still cheaply mint one.
+    for line in unpointable_blocks(parser):
+        print(f"  · {line}")
+    # Render only what passed the static half: an unparsable page would drown
+    # the browser's report in consequences of what the lint already named.
+    return render_check(page_dir, selected) if render else 0
+
+
+# ---------- check --render: the browser half of the gate ----------
+
+# A probe here sweeps the document, and an x-shadow widget's words are not in it:
+# querySelectorAll stops at the root boundary, and a climb by parentElement ends at the
+# top of one. A reading written that way goes on working perfectly for every other widget
+# and says nothing about that one, reporting nothing — so a probe whose subject can be in
+# there follows the boundary both ways, as UNREAD_SYNTAX does for the diff's coloured
+# code: 24 of the 41 coloured spans on pr-walkthrough. The rest sweep the document because
+# the one root on the page holds none of what they ask about — no .lf-ui, no declared
+# label, nothing past the column — which is a fact about today's widget, not about them.
+
+RENDER_VIEWPORT = {"width": 1200, "height": 900}
+
+
+# A widget that upgraded into no room to be read in. The floor is two numbers, and
+# which of them a widget is held to is the widget's to declare (x-inline), because
+# the two kinds are laid out by different rules: one reserves a region and the other
+# is set among the words around it, where the box is the words and there is no width
+# it was supposed to reach. Held to the region's floor, an inline widget fails for
+# being short — a chip reading a price is 31px wide and correct, and the gate reported
+# the author's own words as a collapse. The height floor is both kinds': a line of
+# words is a line tall wherever it is laid out, which leaves a flattened chip caught.
+#
+# Declared, not read off the computed display, because a custom element with no rule
+# left standing computes as inline: a theme that lost the chip block would silence the
+# check that exists to catch it.
+#
+# [hidden] needs its own exclusion: hidden="until-found" (what a closed tab wears)
+# resolves to content-visibility, which checkVisibility reports as visible while the
+# box measures zero. That collapse is the point of a closed tab; the collapse being
+# hunted here is the one nothing asked for.
+TINY_BOXES = """() => fetch('/registry.json')
+    .then(r => r.json())
+    .then(registry => {
+        const inline = new Set(Object.entries(registry)
+            .filter(([tag, entry]) => tag.startsWith('lf-') && entry['x-inline'])
+            .map(([tag]) => tag));
+        return [...document.querySelectorAll('*')]
+            .filter(el => el.tagName.toLowerCase().startsWith('lf-')
+                       && el.textContent.trim()
+                       && el.checkVisibility()
+                       && !el.closest('[hidden]'))
+            .map(el => ({ tag: el.tagName.toLowerCase(), id: el.id,
+                          w: Math.round(el.getBoundingClientRect().width),
+                          h: Math.round(el.getBoundingClientRect().height) }))
+            .filter(box => box.h < 10 || (!inline.has(box.tag) && box.w < 40));
+    })"""
+
+
+# Words the page shows that no user can select, and so no comment can be
+# anchored on. A widget has two ways to leave them there, neither of which a
+# static lint can see, and a page-local widget is where both keep happening.
+#
+# It can paint them: `content: attr(label)` puts a heading on screen and in no
+# text node, so a selection can't cover it. The runtime says the attributes the
+# registry marks x-says, and a widget's module says the rest (a chip row, a
+# heading that doubles as a list's accessible name); either way, none of an
+# element's own attribute values should still be reaching the reader as
+# generated content.
+#
+# Or it can leave them under .lf-ui with nothing said about whose words they are.
+# That class is the chrome face, a look — reaching for it as a general "this is
+# chrome" marker is how a user ends up unable to comment on a heading they can
+# see. The declaration is made where the label is written: data-lf-said for the page
+# speaking, which the anchor pass reads over the box around it, data-lf-offer for a
+# thing to work. So inside a widget, every word under .lf-ui has to be declared the
+# page's, be a control's own label, or be the line the paint pass writes to say how
+# many comments a block carries: that one is about the document rather than of it,
+# which is the same reason it wears .lf-ui at all, and it lands inside a widget
+# whenever a comment does. The comment panel is out of scope: a widget in a reply is
+# markup frozen in the event log, not the document.
+#
+# And a declared label inside a form control is out of reach whatever it is marked:
+# Chrome starts no pointer selection inside one, which is why `offer` builds a press
+# as a span wearing role="button". A widget reaching for <button> anyway is the one
+# mistake the marker cannot fix, so it is reported separately and says why.
+UNREACHABLE_WORDS = """() => {
+    const found = [];
+    const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
+    for (const el of document.querySelectorAll('*')) {
+        if (!el.tagName.startsWith('LF-')) continue;
+        const shown = ['::before', '::after']
+            .map(w => getComputedStyle(el, w).content)
+            .filter(c => c && c.startsWith('"'));
+        for (const { name, value } of el.attributes)
+            if (value.length > 1 && shown.some(c => c.includes(value)))
+                found.push(`${at(el)} paints ${name}="${value}" rather than saying it`);
+    }
+    // A widget's chrome is the .lf-ui inside a lf-* element; the runtime's own
+    // layer is appended to body and sits inside none of them.
+    const widget = el => { for (let a = el; a; a = a.parentElement)
+                               if (a.tagName.startsWith('LF-')) return a; };
+    // The anchor pass's own rule: the nearest element that answers wins.
+    const speaks = el => Boolean(el.closest('.lf-ui, [data-lf-said]')?.matches('[data-lf-said]'));
+    const FORM = 'button, textarea, input, select';
+    // Where a control's own words may sit: the control a widget declared (data-lf-offer,
+    // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
+    // role="button" with "tab" and a Δ badge in a tab then read as a heading somebody
+    // hid while the identical badge in a settled row read as chrome), or a native
+    // control. `label` is among those because a radio and a checkbox have nowhere else
+    // to put their words: a button holds its own, an input cannot, and HTML's answer is
+    // an element beside it. lf-shot's flip is radios, so that it keeps working in a page
+    // whose script is gone. The line counting a passage's comments is one of these too —
+    // the runtime builds it through `offer`, as a widget builds its own.
+    const CONTROL = `${FORM}, label, [data-lf-offer]`;
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const el = n.parentElement;
+        if (!n.data.trim() || !el.closest('.lf-ui') || !widget(el)) continue;
+        if (speaks(el) || el.closest(CONTROL)) continue;
+        found.push(`${at(widget(el))} puts ${JSON.stringify(n.data.trim().slice(0, 40))} `
+                   + `under .lf-ui, where no comment can reach it`);
+    }
+    // FORM rather than CONTROL: a <label>'s words select like any others, and a widget
+    // that declared a box a control has said nothing about what element it is.
+    for (const el of document.querySelectorAll('[data-lf-said]')) {
+        if (!el.closest(FORM) || !widget(el)) continue;
+        found.push(`${at(widget(el))} says ${JSON.stringify(el.textContent.trim().slice(0, 40))} `
+                   + `inside a form control, where no selection can reach it`);
+    }
+    return [...new Set(found)];
+}"""
+
+
+# Content set outside the column it belongs to. The sideways-scroll reading is
+# the same question asked of the window, and the window is the wider of the two:
+# the gate renders at 1200px against a 720px column, so 200px of margin on each
+# side absorbs a spill that scrolls nothing. What is out there is the
+# margin, where a suggestion's controls hang, and the user's own window is
+# free to be narrower than this one — so a page that passed here scrolls
+# sideways on the machine it was written for.
+#
+# The static lint asks about the column too (_column_width), and asks it of the
+# stylesheet, because that is all a linter has: a width the author pinned in
+# pixels, against a number parsed out of a max-width. This is the same column
+# with a layout engine behind it, so it is measured rather than parsed, and it
+# catches what no declaration states — a vw width, an unbreakable table, a
+# widget that came out wider than its content.
+#
+# Two kinds of element answer for their own width and not to this, and both say
+# so in their computed style. The margin has legitimate residents — a
+# suggestion's controls, the hidden line the paint pass writes — and every one of
+# them is placed there absolutely. And a scroll container answers for what it
+# holds: a box inside one runs on past the clip and is drawn only as far as its
+# container reaches, so a wide table's own rows would otherwise be reported as
+# spilling out of the table that is containing them. What is left is the flow,
+# which the column is the whole width of. A spill is reported once, at the
+# outermost element that has it, because everything inside one inherits its box
+# and would name the same fault a dozen times over.
+PAST_THE_COLUMN = """() => {
+    const main = document.querySelector('main');
+    if (!main) return [];
+    const style = getComputedStyle(main), box = main.getBoundingClientRect();
+    const left = box.left + parseFloat(style.paddingLeft);
+    const right = box.right - parseFloat(style.paddingRight);
+    const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
+    const answeredFor = (el) => {
+        if (getComputedStyle(el).position === 'absolute') return true;
+        for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
+            const s = getComputedStyle(a);
+            if (s.position === 'absolute') return true;
+            if (s.overflowX !== 'visible' || s.overflowY !== 'visible') return true;
+        }
+        return false;
+    };
+    const over = new Map();
+    for (const el of main.querySelectorAll('*')) {
+        if (!el.checkVisibility() || answeredFor(el)) continue;
+        const b = el.getBoundingClientRect();
+        if (b.width < 1) continue;
+        const past = Math.round(Math.max(b.right - right, left - b.left));
+        if (past > 1) over.set(el, past);
+    }
+    const found = [];
+    for (const [el, past] of over) {
+        if ([...over.keys()].some(other => other !== el && other.contains(el))) continue;
+        found.push(`${at(el)} is set ${past}px past the column, out in the margin`);
+    }
+    return [...new Set(found)];
+}"""
+
+
+# A version whose markup asserts a state the log replays over — `chosen` moved
+# to another option, a card re-authored into a column the user dragged it
+# out of. Replay resolves it in the user's favor, so what needs reporting is
+# the author's intent going down silently. The static half can't say which
+# attribute is a verb's state — that lives in each widget's applyAction, and a
+# table here would be the second copy the registry exists to prevent — so the
+# browser compares: applyActions records the ids replay wrote on the body
+# (data-lf-replay-wrote), and this pass asks which of them the author also
+# changed since the previous version, reading both files with the runtime's own
+# shallowSigs. An authored change replay then overrode is a conflict; an
+# unchanged id is the initial condition the log is supposed to outrank. For the
+# message, each conflicting id is laid at the door of the widget whose replay
+# wrote it — its nearest ancestor with an applyAction.
+REPLAY_OVERRIDES = """async () => {
+    const ids = (document.body.dataset.lfReplayWrote ?? '').split(' ').filter(Boolean);
+    if (!ids.length) return [];
+    const current = Number(location.pathname.match(/\\/versions\\/v([1-9]\\d*)\\.html$/)[1]);
+    const versions = (await (await fetch('/api/state')).json()).versions;
+    const i = versions.indexOf(current);
+    if (i <= 0) return [];
+    const { shallowSigs } = await import('/leaf.js');
+    const sigs = async (v) => shallowSigs(new DOMParser().parseFromString(
+        await (await fetch(`/versions/v${v}.html`)).text(), 'text/html').body);
+    const cur = await sigs(current), prev = await sigs(versions[i - 1]);
+    const groups = new Map();
+    for (const id of ids) {
+        if ((cur.get(id) ?? '') === (prev.get(id) ?? '')) continue;
+        let widget = null;
+        for (let a = document.getElementById(id); a; a = a.parentElement)
+            if (a.applyAction) { widget = a; break; }
+        const key = widget ? `<${widget.tagName.toLowerCase()} id=${widget.id}>` : `id=${id}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(id);
+    }
+    return [...groups].map(([who, asserted]) =>
+        `${who} authors state the log replays over (${asserted.join(', ')}): `
+        + `the user's decision stands — either carry it in the markup, or `
+        + `rewrite the passage and declare restated`);
+}"""
+
+
+# What the page says, and whether each run of it is showing. Read once in each medium
+# and compared by walk order: media change what is displayed, never the DOM, so the nth
+# run on screen is the nth run on paper. What a page says has to survive being printed,
+# and the ways it can fail to are all silent — a widget's control that is a statement as
+# well as a thing to press (the pick mark, which took the only words naming the option a
+# group carried), a rule of the page's own that hides its content in print. The whole
+# page rather than the widgets in it, because a user's printout losing a paragraph is
+# no better than losing a widget's word. Declared offers are excluded because paper has
+# nothing to press; the runtime's own layer is excluded because it was never the
+# document, and a widget rendered inside it (a reply's markup) is the panel's, not the
+# page's.
+PAPER_WORDS = """() => {
+    const out = [];
+    const at = el => { const named = el.closest('[id]');
+                       return named ? `<${named.tagName.toLowerCase()} id=${named.id}>`
+                                    : `<${el.tagName.toLowerCase()}>`; };
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const el = n.parentElement;
+        if (!n.data.trim() || el.closest('.lf-chrome, [data-lf-offer]')) continue;
+        out.push({ at: at(el), text: n.data.trim().slice(0, 40),
+                   shown: el.checkVisibility() });
+    }
+    return out;
+}"""
+
+
+# Words the page draws in the same place as other words. A copy went out with a settled
+# group's cards laid across the heading above them — the cards kept the collapsed
+# padding, which is the room the group is laid out in — and the user saw it in the
+# first second while every assertion passed: the words were all present, all shown, and
+# all of a usable size. They were in the same place, and nothing was asking about place.
+#
+# Boxes rather than a hit test, which is the other way to ask: a press landing on the
+# wrong element is a different fault with its own test, and the medium this has to hold
+# up in is the copy, where there is nothing left to press. Text against text, because
+# text over a background, a border, or a picture is how a page is built.
+#
+# A pair where one element contains the other is skipped: a paragraph and the <em>
+# inside it are one run of words that the flow lays out together, and their boxes
+# overlap by construction. Two pixels of slack, since a line box carries its leading and
+# adjacent blocks can round into each other by a hair. The runtime's layer is skipped
+# too: it floats over the document on purpose, and where that costs the user a press
+# it is the hit test that says so.
+#
+# The layer is in two places, so the skip names both. The line counting a passage's
+# comments lives inside the page's own elements by design — it is what a screen reader
+# hears where a painted mark says nothing — and it is clipped to nothing on screen.
+# checkVisibility answers for display, visibility and opacity and knows nothing of
+# clip-path, so that line read as drawn, and its text lays out past the 1px box holding
+# it: an anchor on a container put "1 comment" across the paragraph below the widget and
+# failed the gate on a page with nothing wrong with it. Asking for `.lf-chrome` alone was
+# the class standing in for the question, the same substitution the anchor pass made with
+# `.lf-ui`. The question is whose words these are, and the runtime marks its own in both
+# of the places it writes them.
+#
+# checkVisibility knows nothing of content-visibility either, which is what a collapse
+# wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
+# that find-in-page still reaches inside, and the text in one reports the boxes it last
+# laid out in — every sibling's at the same place. So a page with a collapsed group on it
+# failed about half the runs and passed the rest, which is the worst way for a gate to be
+# wrong: the page that goes out is whichever one the coin was kind to. A collapse is asked
+# for, and words nobody can see are not drawn over anything, so [hidden] is held out here
+# the way the size check holds it out. The coin comes down the same side every time on a
+# group that has been opened and closed, which is where the test pins it.
+COVERED_WORDS = """() => {
+    const runs = [];
+    const at = el => { const named = el.closest('[id]');
+                       return named ? `<${named.tagName.toLowerCase()} id=${named.id}>`
+                                    : `<${el.tagName.toLowerCase()}>`; };
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const el = n.parentElement;
+        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, [hidden]')) continue;
+        if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const box of range.getClientRects())
+            if (box.width > 1 && box.height > 1)
+                runs.push({ el, box, text: n.data.trim().slice(0, 40) });
+    }
+    const found = [];
+    for (let i = 0; i < runs.length; i++) for (let j = i + 1; j < runs.length; j++) {
+        const a = runs[i], b = runs[j];
+        if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        const across = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+        const down = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+        if (across <= 2 || down <= 2) continue;
+        found.push(`${at(a.el)} draws ${JSON.stringify(a.text)} in the same place as `
+                   + `${at(b.el)}'s ${JSON.stringify(b.text)}`);
+    }
+    return [...new Set(found)];
+}"""
+
+
+# Code that came out the colour of the code around it. Colouring takes two halves that
+# meet nowhere a static lint can reach: the runtime writes data-lf-syn in the browser,
+# and the theme answers it with a var() the browser resolves. Either half can stop
+# working with nothing said — the tokenizer failing throws, and the console error is
+# already a finding here, but a stylesheet that no longer answers a role, or answers it
+# with an ink too near the paper, is silent. What reaches the user is a page of code in
+# one flat colour, which is what they report as the highlighting being gone; it was
+# reported that way, on a comment that was 3.3:1 against the block it sat on.
+#
+# So both halves are asked of the drawn result rather than of the declarations behind it.
+# A palette can be read out of the stylesheet; what a role came out as cannot, because a
+# project overlays its own theme over this one and the browser is the only thing that
+# knows which declaration won.
+#
+# Once per role and surface rather than once per span: the fault belongs to the role, not
+# to the hundredth span wearing it, and a role reads differently on a diff's del tint than
+# on the plain block, so the pair is what a reading answers for. A page of code costs a
+# couple of dozen of them rather than one per token — measured at under 10ms across the
+# examples. The line is per role, since the palette is where the fix goes and a role
+# failing on two tints is one thing to change.
+#
+# What a colour is comes back from the browser painting it, not from a parse of how it
+# wrote it down — getComputedStyle serializes a hex as rgb() in 0–255 and a color-mix as
+# color(srgb …) in 0–1, and a probe reading one as the other reports a ratio against a
+# colour nothing on the page is. Painting the backgrounds in order composites the
+# translucent ones the way the page does, over the white the browser paints under
+# everything, so a tint over a tint is the colour the reader actually has behind the
+# glyphs. A marked passage is not among them: the highlight registry styles glyphs and
+# not boxes, so a mark is no element's background, and it is the user's own paint over a
+# page that had to be legible before they put it there.
+#
+# 4.5:1 is WCAG AA for body text, and body text is the threshold that applies — code is
+# 13px. Axe runs over this corpus too and passes it, which is not the same guarantee:
+# asked for colour-contrast alone on the example carrying the beige comment, it returned
+# 44 passing elements, no violation, and not one of the spans among them.
+#
+# Which shadow roots it crosses into (the section note above says why it crosses at all)
+# are read off the drawn page rather than off the registry's x-shadow list, which is the
+# choice everything else here makes — colour is asked of what the browser painted, so
+# where it painted is too, and a root a widget attached without declaring one still holds
+# code the reader has to read.
+UNREAD_SYNTAX = """() => {
+    const cx = document.createElement('canvas').getContext('2d');
+    const paint = (...layers) => {
+        cx.clearRect(0, 0, 1, 1);
+        for (const c of ['white', ...layers]) { cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); }
+        return [...cx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
+    const chan = (v) => (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    const lum = ([r, g, b]) => 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
+                              return (hi + 0.05) / (lo + 0.05); };
+    const up = (el) => el.parentElement ?? el.getRootNode().host ?? null;
+    const under = (el) => { const layers = [];
+                            for (let a = el; a; a = up(a))
+                                layers.unshift(getComputedStyle(a).backgroundColor);
+                            return layers; };
+    const roots = (root) => [root, ...[...root.querySelectorAll('*')]
+        .filter(el => el.shadowRoot).flatMap(el => roots(el.shadowRoot))];
+    const seen = new Set(), found = new Map();
+    for (const span of roots(document)
+                       .flatMap(r => [...r.querySelectorAll('[data-lf-syn]')])) {
+        const role = span.dataset.lfSyn;
+        if (found.has(role) || !span.textContent.trim()) continue;
+        if (!span.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+            continue;
+        const layers = under(span);
+        const on = paint(...layers);
+        if (seen.has(`${role} on ${on}`)) continue;
+        seen.add(`${role} on ${on}`);
+        const ink = paint(...layers, getComputedStyle(span).color);
+        const plain = paint(...layers, getComputedStyle(up(span)).color);
+        const read = ratio(ink, on);
+        if (String(ink) === String(plain))
+            found.set(role, `code marked ${role} is the ink of the code around it — `
+                          + `nothing answered [data-lf-syn="${role}"]`);
+        else if (read < 4.5)
+            found.set(role, `code marked ${role} reads at ${read.toFixed(1)}:1 `
+                          + `against the block it is set on`);
+    }
+    return [...found.values()];
+}"""
+
+
+def render_version(browser, url: str) -> list:
+    """Everything wrong with a served version that only a browser can see: a
+    console or page error, a request that 404s, a fail-soft error box, an upgrade
+    module that never defines its declared element, a widget upgraded into a box
+    of no usable size, the page scrolling sideways, content set past the column
+    and out into the margin, words the user can read and can't
+    select, words drawn on top of other words, code coloured in an ink the reader
+    cannot tell from the code around it — each
+    in both color schemes, because the dark theme is real CSS nobody otherwise
+    renders — plus, in one scheme, a version that authors widget state the log
+    replays over (replay isn't CSS) and, on paper, words the page drops that it
+    says on screen, or draws over each other (print is scheme-blind).
+    Returns human-readable failures; [] is a pass.
+
+    One implementation with two callers — `version check --render` on the page an agent
+    just wrote, and the render suite on the shipped examples
+    (tests/test_render.py) — so the gate and the suite hold one set of
+    invariants. `browser` is a live Playwright browser; nothing here imports
+    playwright at module level, so the module stays importable without it."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    def in_scheme(scheme):
+        page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
+        errors = []
+        page.on(
+            "console", lambda m: errors.append(m.text) if m.type == "error" else None
+        )
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # The console's own word for a bad response is "Failed to load resource",
+        # which names nothing; carry the status and URL so a failure says what
+        # went missing.
+        page.on(
+            "response",
+            lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
+        )
+        try:
+            page.goto(url, wait_until="networkidle")
+            page.wait_for_function(
+                "() => document.querySelector('.lf-banner') !== null"
+            )
+        except PlaywrightTimeout:
+            page.close()
+            return [
+                f"[{scheme}] the runtime never injected its banner — "
+                + ("; ".join(errors) or "and no console error explains why")
+            ]
+        # Every reading below is of a settled page. The widget layer writes half the
+        # document, so a box measured while it is still drawing belongs to no version of
+        # the page — which is the stamp `version export` waits on for the same reason.
+        try:
+            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        except PlaywrightTimeout:
+            page.close()
+            return [
+                f"[{scheme}] the widget layer never finished upgrading — "
+                + ("; ".join(errors) or "and no console error explains why")
+            ]
+        failsoft = page.evaluate(
+            "[...document.querySelectorAll('.lf-error')].map(e => e.textContent.trim())"
+        )
+        missing_upgrades = page.evaluate("""() => fetch('/registry.json')
+            .then(r => r.json())
+            .then(registry => Object.entries(registry)
+                .filter(([tag, entry]) => tag.startsWith('lf-')
+                    && entry['x-upgrade'] && !customElements.get(tag))
+                .map(([tag]) => tag))""")
+        tiny = page.evaluate(TINY_BOXES)
+        overflow = page.evaluate(
+            "document.body.scrollWidth - document.body.clientWidth"
+        )
+        spills = page.evaluate(PAST_THE_COLUMN)
+        unreachable = page.evaluate(UNREACHABLE_WORDS)
+        covered = page.evaluate(COVERED_WORDS)
+        unread = page.evaluate(UNREAD_SYNTAX)
+        # Replay is scheme-blind, so one scheme's reading covers both. The wait
+        # is for the runtime's own caught-up stamp: reading the replay's record
+        # mid-replay would miss whatever hadn't landed yet.
+        conflicts = []
+        if scheme == "light":
+            # Both replayed kinds: the caught-up stamp counts reports beside
+            # actions, so the wait must too or it never sees the page catch up.
+            n_actions = page.evaluate(
+                "fetch('/api/state').then(r => r.json())"
+                ".then(s => s.events.filter(e => e.kind === 'action' "
+                "|| e.kind === 'report').length)"
+            )
+            if n_actions:
+                try:
+                    page.wait_for_function(
+                        f"() => Number(document.body.dataset.lfApplied ?? -1) >= {n_actions}"
+                    )
+                    conflicts = page.evaluate(REPLAY_OVERRIDES)
+                except PlaywrightTimeout:
+                    conflicts = [
+                        f"the runtime never finished replaying the log ({n_actions} action(s))"
+                    ]
+        # Last, and in one scheme: paper has no color scheme, and the medium has to be
+        # put back before anything else reads a box.
+        on_paper = []
+        if scheme == "light":
+            screen = page.evaluate(PAPER_WORDS)
+            page.emulate_media(media="print")
+            paper = page.evaluate(PAPER_WORDS)
+            # Paper is laid out by rules no other medium runs, and it is the medium
+            # nobody looks at, so the overlap reading is taken here too while it holds.
+            on_paper = [f"[print] {c}" for c in page.evaluate(COVERED_WORDS)]
+            page.emulate_media(media="screen")
+            # Paired on the words as well as the position: the page is live, and a poll
+            # landing between the two readings would otherwise shift one against the
+            # other and report whatever happened to line up. A pair that disagrees says
+            # nothing, which is the right way round — the next run reads it again.
+            on_paper += [
+                f"[print] {s['at']} drops {json.dumps(s['text'])}, which it says on screen"
+                for s, p in zip(screen, paper)
+                if s["text"] == p["text"] and s["shown"] and not p["shown"]
+            ]
+        page.close()
+        found = [f"[{scheme}] console: {e}" for e in errors]
+        found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
+        if missing_upgrades:
+            found.append(
+                f"[{scheme}] upgraded widgets did not define their elements: "
+                + ", ".join(f"<{tag}>" for tag in missing_upgrades)
+            )
+        if tiny:
+            found.append(
+                f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
+            )
+        if overflow > 0:
+            found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
+        found += [f"[{scheme}] {s}" for s in spills]
+        found += [f"[{scheme}] {w}" for w in unreachable]
+        found += [f"[{scheme}] {c}" for c in covered]
+        found += [f"[{scheme}] {u}" for u in unread]
+        found += [f"[{scheme}] {c}" for c in conflicts]
+        found += on_paper
+        return found
+
+    return [*in_scheme("light"), *in_scheme("dark")]
+
+
+@contextlib.contextmanager
+def preview_server(page_dir: Path, version: int):
+    """The page directory on a loopback port, exposing versions up to this one, for
+    the length of a `with`. Two callers need a browser to see a version the user
+    may not have (`version check --render` before its note lands, `version export`
+    on any published one), and the preview window is what lets them: the server's
+    own liveness rule is the user's, and this widens it for exactly one process."""
+    # Its own key, not the machine's: this server is loopback-only and lives for
+    # the length of a `with`, so it neither needs nor should mint the access every
+    # page here is read with. It sets that key under the one cookie name, which
+    # would sign a reader out of every page on 127.0.0.1 — except that both
+    # callers below drive Playwright, whose browser brings its own jar.
+    token = secrets.token_urlsafe(16)
+    httpd = ThreadingHTTPServer(
+        ("127.0.0.1", 0), handler_for(page_dir, token, preview_upto=version)
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{httpd.server_address[1]}/versions/{version_name(version)}?t={token}"
+    finally:
+        httpd.shutdown()
+
+
+def render_check(page_dir: Path, version: int) -> int:
+    """Serve the page directory to the machine's installed Chrome and run the
+    render invariants on this version.
+
+    Playwright is the gate's own extra, not the script's: declaring it in the
+    PEP 723 header would put its wheel in every `server run`, `leaf wait`, and
+    `version publish`, so the import happens here and its absence names the
+    invocation that supplies it. Chrome is part of this gate: if it cannot
+    launch, the gate fails."""
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print(
+            "version check --render needs Playwright; run it as\n"
+            "  leaf version check <page> --render\n"
+            "or, from a checkout,\n"
+            "  plugins/leaf/bin/leaf version check <page> --render",
+            file=sys.stderr,
+        )
+        return 1
+    name = version_name(version)
+    with preview_server(page_dir, version) as url, sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(channel="chrome")
+        except PlaywrightError as error:
+            print(
+                "✗ render check failed — Chrome did not launch: "
+                + str(error).strip().splitlines()[0],
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            failures = render_version(browser, url)
+        finally:
+            browser.close()
+    if failures:
+        print(f"✗ {name}: renders broken — {len(failures)} issue(s)", file=sys.stderr)
+        for f in failures:
+            print(f"  - {f}", file=sys.stderr)
+        return 1
+    print(
+        f"✓ {name}: renders clean in Chrome, light and dark — no console errors, "
+        "every widget takes space, no words on top of other words, code that reads "
+        "against the block it is on, nothing past the column, no sideways scroll"
+    )
+    return 0
+
+
+# ---------- export: the page as one file ----------
+
+# What a standalone copy drops. Scripts go because there is no server behind a file
+# and nothing left for them to reach; the runtime's own layer goes with them, since a
+# comment box that swallows what you type and a banner claiming someone is listening
+# are worse than no chrome at all — a copy that lies about being a live page. What stays
+# is everything the widgets built, the controls they injected among it: a control whose
+# state the browser owns still works with no script running, which is why a `lf-shot`
+# flips on radios.
+#
+# `lf-copy` is the medium, declared the way `@media print` is and read the same way —
+# by the theme, per widget. A widget whose control needed a handler puts the affordance
+# behind a guard this class fails, so a copy gets the page its markup describes; one
+# whose control the browser owns has no guard and keeps working. That is why no widget
+# is named here: this marks the medium, and the widgets answer for themselves.
+BAKE = """() => {
+    document.documentElement.classList.add('lf-copy');
+    document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
+    // The tab icon is the third seat of the banner's status (paintTab), and a file has
+    // no session behind it — a copy keeping the tone it was exported under would claim
+    // one, which is the same lie the chrome above is dropped for. So it drops back to
+    // the mark as authored, which the runtime left here for exactly this.
+    const icon = document.querySelector('link[rel="icon"][data-lf-rest]');
+    if (icon) {
+        icon.href = icon.dataset.lfRest;
+        icon.removeAttribute('data-lf-rest');
+    }
+    // hidden="until-found" is the page saying "collapsed, but the reader can still
+    // get here" — a tab's inactive panel, a settled group's cards. In a copy the
+    // control that would get them there is inert, so the attribute is a promise
+    // nothing can keep, and it takes the collapsed element's layout down with it:
+    // the theme zeroes a hidden card's padding, which is the room its chips are
+    // positioned into. Dropping it opens the element on the terms it was authored
+    // with, which is the layout the theme's live-page guard was withholding anyway.
+    document.querySelectorAll('[hidden="until-found"]')
+        .forEach(el => el.removeAttribute('hidden'));
+    // getHTML and not outerHTML: a widget that renders the page's words into a shadow
+    // root (x-shadow) has them in no element's outerHTML, so a copy taken that way
+    // arrives with an empty element where a diff's lines were — silently, since the
+    // element and its ids are all still there. Asking for serializable roots writes each
+    // one as a declarative <template shadowrootmode>, which the browser rebuilds on open
+    // with no script, the same bargain every other widget's chrome makes here.
+    //
+    // It is innerHTML's counterpart, though, so the root's own tag is not in what it
+    // returns and has to be written back: <html> carries the lang the document is read
+    // in and the lf-copy class the theme reads its medium from, and a copy missing them
+    // opens as a live page whose affordances press nothing. Rebuilt from the attributes
+    // rather than sliced off outerHTML's opening tag, because an attribute value may
+    // hold the very > that slicing would stop at.
+    const root = document.documentElement;
+    const attrs = [...root.attributes]
+        .map(a => ` ${a.name}="${a.value.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"`)
+        .join('');
+    return `<html${attrs}>${root.getHTML({serializableShadowRoots: true})}</html>`;
+}"""
+
+
+def inline_assets(html: str, page_dir: Path) -> str:
+    """Fold the served assets into the markup. The theme's link becomes the stylesheet
+    itself and each image becomes its own bytes, which is everything the document still
+    reaches the server for: the runtime's stylesheet arrived as a `<style>` in the DOM,
+    the widget modules were imports rather than elements, and a `lf-ref`'s link was
+    always somewhere else."""
+    theme = (page_dir / "theme.css").read_text(encoding="utf-8")
+    html, n = re.subn(
+        r'<link[^>]+href="/theme\.css"[^>]*>',
+        lambda _: f"<style>{theme}</style>",
+        html,
+        count=1,
+    )
+    if not n:
+        sys.exit(
+            "the rendered page carried no /theme.css link — it would open unstyled"
+        )
+    for src in sorted(
+        set(re.findall(r"/" + MEDIA_DIR + r"/[a-f0-9]{16}\.[a-z]+", html))
+    ):
+        file = page_dir / src.lstrip("/")
+        data = base64.b64encode(file.read_bytes()).decode()
+        html = html.replace(src, f"data:{MEDIA_TYPES[file.suffix]};base64,{data}")
+    return html
+
+
+def export_page(browser, url: str, page_dir: Path) -> str:
+    """The served version at `url`, copied as one self-contained document.
+
+    One implementation with two callers, as `render_version` is: `version export`
+    supplies a browser of its own, and the suite drives this over the shipped
+    examples with the one it already has, so the copy a user gets and the copy
+    the suite asserts on cannot drift.
+
+    The user's decisions come with it. Replay is what puts them on the page, so
+    this waits for the runtime's caught-up stamp exactly as the gate does, and a page
+    whose board was rearranged copies rearranged."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    page = browser.new_page(viewport=RENDER_VIEWPORT)
+    try:
+        page.goto(url, wait_until="networkidle")
+        try:
+            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+            # Both replayed kinds, as the render gate counts them: the caught-up
+            # stamp counts reports beside actions, and a page whose only recorded
+            # state is a worker's report would otherwise copy before it painted.
+            n_replayed = len(
+                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
+            )
+            if n_replayed:
+                page.wait_for_function(
+                    f"() => Number(document.body.dataset.lfApplied ?? -1) >= {n_replayed}"
+                )
+        except PlaywrightTimeout:
+            sys.exit(
+                f"{url.rsplit('/', 1)[-1]} never finished upgrading in the browser, so a copy "
+                "would be half-drawn. `leaf version check <page> --render` says what "
+                "is wrong with it."
+            )
+        return inline_assets(page.evaluate(BAKE), page_dir)
+    finally:
+        page.close()
+
+
+def cmd_export(page_dir: Path, out: Path, version) -> int:
+    """One published version as a standalone HTML file.
+
+    The copy is the page as the browser finished drawing it, which is the only way to
+    get one: half the document is written by the widget layer at runtime, a mermaid
+    diagram becomes an SVG only once mermaid has drawn it, and a code block is colored
+    by the vendored tokenizer in the page rather than by anything that can read the
+    file. So Chrome is not an optimisation here and no `x-` key exempts a widget from
+    it; without a browser there is nothing to copy at all."""
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        sys.exit(
+            "export needs Playwright; run it as\n"
+            "  leaf version export <page> -o <file>\n"
+            "or, from a checkout,\n"
+            "  plugins/leaf/bin/leaf version export <page> -o <file>"
+        )
+    published = published_versions(page_dir, read_events(page_dir))
+    if not published:
+        sys.exit(
+            f"{page_dir} has no published version to export; "
+            "run `leaf version publish` first"
+        )
+    version = version if version else published[-1]
+    if version not in published:
+        sys.exit(
+            f"v{version} is not published — published: "
+            + ", ".join(f"v{v}" for v in published)
+        )
+    name = version_name(version)
+
+    with preview_server(page_dir, version) as url, sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(channel="chrome")
+        except PlaywrightError as e:
+            sys.exit(
+                f"export needs Chrome, and it didn't launch ({str(e).strip().splitlines()[0]}). "
+                "A copy is the drawn page, so there is nothing to write without one."
+            )
+        try:
+            html = export_page(browser, url, page_dir)
+        finally:
+            browser.close()
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html, encoding="utf-8")
+    print(f"✓ {name} → {out} ({out.stat().st_size // 1024} KB, opens with no server)")
+    return 0
+
+
+def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
+    page_dir = Path(dir_arg).expanduser().resolve()
+    if must_exist and not page_dir.is_dir():
+        sys.exit(f"{page_dir} does not exist; run `leaf page init` first")
+    return page_dir
+
+
+@click.group()
+def cli() -> None:
+    """Build and run interactive pages a session shares with its user."""
+
+
+@cli.group(short_help="Create pages and add media.")
+def page() -> None:
+    """Create pages and add media."""
+
+
+@page.command(short_help="Create or re-vendor a page directory.")
+@click.argument("dir", metavar="PAGE")
+def init(dir: str) -> None:
+    """Create or re-vendor a page directory.
+
+    Creates PAGE/versions/ for authored vN.html files and vendors the widget
+    layer. Re-running replaces that layer, unless the page log uses vocabulary
+    the incoming layer cannot read.
+    """
+    cmd_init(resolve_dir(dir, must_exist=False))
+
+
+@cli.group(short_help="Create theme and widget customizations.")
+def customize() -> None:
+    """Create theme and widget customizations."""
+
+
+@customize.command("theme", short_help="Create the theme override file.")
+@click.option(
+    "--user", is_flag=True, help="Use the user layer instead of this project."
+)
+def customize_theme(user: bool) -> None:
+    """Create the CSS override file without replacing one that exists."""
+    cmd_customize_theme(user)
+
+
+@customize.command("widget", short_help="Add a widget scaffold.")
+@click.argument("tag")
+@click.option(
+    "--user", is_flag=True, help="Use the user layer instead of this project."
+)
+@click.option("--upgrade", is_flag=True, help="Also create an ES-module upgrade.")
+def customize_widget(tag: str, user: bool, upgrade: bool) -> None:
+    """Add a registry entry and CSS scaffold for a lf-* widget."""
+    cmd_customize_widget(tag, user, upgrade)
+
+
+@page.command(short_help="Add images and print their page paths.")
+@click.argument("dir", metavar="PAGE")
+@click.argument(
+    "files",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    metavar="IMAGE...",
+)
+def media(dir: str, files) -> None:
+    """Add images and print their page paths.
+
+    Copies each image into the page under a content-addressed name and prints
+    its page path followed by its source file.
+    """
+    for src, url in cmd_media(resolve_dir(dir), [Path(f) for f in files]):
+        print(f"{url}\t{src}")
+
+
+@page.command(short_help="Print the widget and theme vocabulary.")
+@click.argument("dir", metavar="PAGE")
+def catalog(dir: str) -> None:
+    """Print the page's widget and theme vocabulary."""
+    cmd_catalog(resolve_dir(dir))
+
+
+@cli.group(short_help="Check, publish, and export versions.")
+def version() -> None:
+    """Check, publish, and export versions."""
+
+
+@version.command(short_help="Check a page version.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--version",
+    type=int,
+    default=None,
+    metavar="N",
+    help="version to check (default: latest)",
+)
+@click.option("--render", is_flag=True, help="also check the rendered page in Chrome")
+def check(dir: str, version: int, render: bool) -> None:
+    """Check a page version.
+
+    Runs deterministic markup checks. --render also checks the drawn page in
+    the installed Chrome.
+    """
+    sys.exit(cmd_check(resolve_dir(dir), version, render))
+
+
+@version.command(short_help="Publish a checked version with a changelog.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--version", type=int, required=True, metavar="N", help="version to publish"
+)
+@click.option("--text", help="changelog text (default: stdin)")
+def publish(dir: str, version: int, text: str) -> None:
+    """Publish a checked version with a changelog.
+
+    Checks the version first, then makes it visible to the page server.
+    """
+    cmd_publish(resolve_dir(dir), version, text)
+
+
+@version.command(short_help="Export a published version to one HTML file.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "-o",
+    "--out",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="output HTML file",
+)
+@click.option(
+    "--version",
+    type=int,
+    metavar="N",
+    help="published version to export (default: latest)",
+)
+def export(dir: str, out: Path, version: int) -> None:
+    """Export a published version to one HTML file.
+
+    Renders the version in Chrome, then writes a standalone copy.
+    """
+    sys.exit(cmd_export(resolve_dir(dir), out, version))
+
+
+@cli.group(short_help="Run or stop the local server.")
+def server() -> None:
+    """Run or stop the local server."""
+
+
+@server.command(short_help="Serve a page and print its URL.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--host",
+    metavar="NAME",
+    help="bind every interface and put NAME in the URL, for a user the "
+    "derived address can't reach; recorded in access.json",
+)
+@click.option(
+    "--standing",
+    is_flag=True,
+    help="decline the session claim, so the server outlives this session and "
+    "only `leaf server stop` ends it — for a page kept up across sessions",
+)
+def run(dir: str, host: str | None, standing: bool) -> None:
+    """Serve a page and print its URL.
+
+    Runs until stopped. If the page already has a live server, prints its URL
+    and exits.
+    """
+    cmd_serve(resolve_dir(dir), host, standing)
+
+
+@server.command(short_help="Stop a page's server.")
+@click.argument("dir", metavar="PAGE")
+def stop(dir: str) -> None:
+    """Stop a page's server."""
+    print(cmd_stop(resolve_dir(dir)))
+
+
+@cli.command(short_help="Set the agent's banner state.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
+@click.argument("detail", required=False, default="")
+def status(dir: str, state: str, detail: str) -> None:
+    """Set the agent's banner state.
+
+    DETAIL is what the banner says after the state: what you are doing while
+    `working`, and what you want back from the reader while `waiting` ("pick a
+    storage engine"). A waiting page that declares none falls back to the
+    standing "select text to comment".
+    """
+    page_dir = resolve_dir(dir)
+    # Idling over unacknowledged events ends the leaf on a user still owed an
+    # answer — or on a worker's report left standing as provisional state forever.
+    # The watcher's whole batch, not the reader-facing count. Here rather than in
+    # cmd_status because SessionEnd idles pages whose session is already gone,
+    # where nothing is left to pick them up.
+    pending = 0
+    if state == "idle":
+        events = read_events(page_dir)
+        pending = len(unacknowledged(events, read_cursor(page_dir)))
+    if pending:
+        sys.exit(
+            f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
+            "idling ends the leaf over them. `leaf wait` prints them "
+            "and returns at once when events are already waiting. "
+            + ACK_BATCH_INSTRUCTION
+        )
+    cmd_status(page_dir, state, detail)
+
+
+@cli.command(
+    short_help="Print unacknowledged user events and reports, then exit.",
+    help=(
+        "Wait for user events and worker reports not yet acknowledged from model "
+        "context and print them as JSON lines.\n\n" + ACK_BATCH_INSTRUCTION
+    ),
+)
+@click.argument("dir", metavar="PAGE")
+def wait(dir: str) -> None:
+    """Print unacknowledged user events and reports, then exit."""
+    sys.exit(cmd_wait(resolve_dir(dir)))
+
+
+@cli.command(
+    short_help="Acknowledge one complete, untruncated wait batch.",
+    help=ACK_BATCH_INSTRUCTION,
+)
+@click.argument("dir", metavar="PAGE")
+@click.argument("seq", type=click.IntRange(min=1), metavar="SEQ")
+def ack(dir: str, seq: int) -> None:
+    """Acknowledge one complete, untruncated wait batch."""
+    cmd_ack(resolve_dir(dir), seq)
+
+
+@cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--quote", help="passage text from the published version")
+@click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
+@click.option("--text", help="comment text (default: stdin)")
+@click.option("--markup", help="widget markup to render after the text, validated here")
+def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
+    """Open a thread as the agent (--text or stdin): anchored where --quote or
+    --section points at a passage, general where neither does — a question about
+    the work as a whole.
+
+    The user answers it in the browser and resolves it there. Refuses a quote the
+    published version does not hold, or holds more than once.
+    """
+    cmd_comment(resolve_dir(dir), quote, section, text, markup)
+
+
+@cli.command(short_help="Reply to a thread as the agent.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
+@click.option("--text", help="reply text (default: stdin)")
+@click.option("--markup", help="widget markup to render after the text, validated here")
+def reply(dir: str, to: str, text: str, markup: str) -> None:
+    """Post a threaded reply as the agent (--text or stdin)."""
+    cmd_reply(resolve_dir(dir), to, text, markup)
+
+
+@cli.command(short_help="Report a state change onto a page widget, as a worker.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("widget", metavar="WIDGET")
+@click.argument("verb", metavar="VERB")
+@click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
+def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
+    """Report a state change onto a page widget, as a worker.
+
+    The verb and its fields are the widget's own x-report declaration —
+    `leaf report <page> t-parser status status=review` moves a task. The
+    page paints the report live as provisional news; it stands until a version
+    absorbs or overrules it, and the page's watcher wakes to fold it in.
+    """
+    cmd_report(resolve_dir(dir), widget, verb, fields)
+
+
+@cli.command(short_help="Print the event log as JSON lines.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--after",
+    type=int,
+    default=0,
+    metavar="SEQ",
+    help="print events after this sequence",
+)
+def events(dir: str, after: int) -> None:
+    """Print the event log as JSON lines.
+
+    This is read-only and does not acknowledge user events.
+    """
+    cmd_events(resolve_dir(dir), after)
+
+
+@cli.command(short_help="Print the page's exchange as Markdown.")
+@click.argument("dir", metavar="PAGE")
+def transcript(dir: str) -> None:
+    """Print the page's exchange as Markdown."""
+    cmd_transcript(resolve_dir(dir))
+
+
+@cli.command(hidden=True)
+def hook() -> None:
+    """Answer an agent-host hook on stdin."""
+    cmd_hook(json.load(sys.stdin))
+
+
+if __name__ == "__main__":
+    # `leaf` is the name the skill hands an agent and the name on PATH, so it is
+    # the name the usage lines have to say back, whichever way the script was reached.
+    cli(prog_name="leaf")

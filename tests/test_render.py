@@ -7,7 +7,7 @@ there are invisible to a linter. This suite drives the shipped examples through
 the Chrome already on the machine and asserts the handful of things that were
 each, at some point, wrong:
 
-  - a widget that upgrades into a box of no size (cq-tabs marked itself with a
+  - a widget that upgrades into a box of no size (lf-tabs marked itself with a
     class the runtime's chrome had already claimed for its visually-hidden live
     region, so every tabbed page rendered blank below the lede);
   - the document and the comment panel scrolling in one region, which stacks two
@@ -55,8 +55,8 @@ from playwright.sync_api import expect
 
 EXAMPLES = sorted((Path(__file__).parent.parent / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
-# The bytes an example names but cannot hold: a cq-shot's pair, content-addressed
-# exactly as `colloquy page media` names it in a real page directory. examples/CLAUDE.md
+# The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
+# exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = Path(__file__).parent.parent / "examples" / "media"
 
@@ -67,7 +67,7 @@ LONG_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>long</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -94,17 +94,17 @@ INLINE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>inline</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Inline</h1>
-<cq-options id="opts" choose>
-  <cq-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
-  which costs a replica and buys revocation for free.</cq-option>
-  <cq-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
-  quietly puts one back.</cq-option>
-</cq-options>
+<lf-options id="opts" choose>
+  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+  which costs a replica and buys revocation for free.</lf-option>
+  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  quietly puts one back.</lf-option>
+</lf-options>
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
@@ -137,20 +137,20 @@ SETTLED_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>settled</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
-<cq-options id="transport" choose settled>
-  <cq-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
-  origin, nothing for a script to read.</cq-option>
-  <cq-option id="opt-strict"><strong>Strict cookie</strong> Tighter, but a session
-  started from an emailed link arrives logged out.</cq-option>
-  <cq-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
-  puts the id where every script can read it.</cq-option>
-</cq-options>
+<lf-options id="transport" choose settled>
+  <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+  origin, nothing for a script to read.</lf-option>
+  <lf-option id="opt-strict"><strong>Strict cookie</strong> Tighter, but a session
+  started from an emailed link arrives logged out.</lf-option>
+  <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
+  puts the id where every script can read it.</lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -167,18 +167,18 @@ CARRIED_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>carried</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Session transport</h1>
 <p id="lede">Where the decision stands, for the record.</p>
-<cq-options id="carried">
-  <cq-option id="c-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
-  origin, nothing for a script to read.</cq-option>
-  <cq-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
-  puts the id where every script can read it.</cq-option>
-</cq-options>
+<lf-options id="carried">
+  <lf-option id="c-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+  origin, nothing for a script to read.</lf-option>
+  <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
+  puts the id where every script can read it.</lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -194,22 +194,22 @@ SAID_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>said</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">This week</h1>
-<cq-metrics id="numbers">
-  <cq-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</cq-metric>
-</cq-metrics>
-<cq-board id="board">
-  <cq-column id="col-now" label="In flight">
-    <cq-card id="c-importer"><strong>Wire the importer</strong> Half done.</cq-card>
-  </cq-column>
-  <cq-column id="col-next" label="Queued">
-    <cq-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</cq-card>
-  </cq-column>
-</cq-board>
+<lf-metrics id="numbers">
+  <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
+</lf-metrics>
+<lf-board id="board">
+  <lf-column id="col-now" label="In flight">
+    <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
+  </lf-column>
+  <lf-column id="col-next" label="Queued">
+    <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
+  </lf-column>
+</lf-board>
 </main>
 </body>
 </html>
@@ -225,18 +225,18 @@ BOARD_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>board</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Sprint</h1>
-<cq-board id="sprint">
-  <cq-column id="col-todo" label="Todo">
-    <cq-card id="card-heater"><strong>Heated perch</strong></cq-card>
-    <cq-card id="card-baffle"><strong>Squirrel baffle</strong></cq-card>
-  </cq-column>
-  <cq-column id="col-done" label="Done"></cq-column>
-</cq-board>
+<lf-board id="sprint">
+  <lf-column id="col-todo" label="Todo">
+    <lf-card id="card-heater"><strong>Heated perch</strong></lf-card>
+    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+  </lf-column>
+  <lf-column id="col-done" label="Done"></lf-column>
+</lf-board>
 </main>
 </body>
 </html>
@@ -251,45 +251,45 @@ SPECIMEN_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>specimen</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">What a decision looks like</h1>
-<cq-specimen id="spec" label="a decision">
-  <cq-options id="quoted-group" choose>
-    <cq-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</cq-option>
-    <cq-option id="q-stage" recommended><strong>Migrate in stages</strong> Table by table.</cq-option>
-  </cq-options>
-  <cq-board id="quoted-board">
-    <cq-column id="q-col" label="Doing">
-      <cq-card id="q-card"><strong>Wire the importer</strong></cq-card>
-    </cq-column>
-  </cq-board>
-  <cq-options id="quoted-settled" choose settled>
-    <cq-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</cq-option>
-    <cq-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</cq-option>
-  </cq-options>
+<lf-specimen id="spec" label="a decision">
+  <lf-options id="quoted-group" choose>
+    <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+    <lf-option id="q-stage" recommended><strong>Migrate in stages</strong> Table by table.</lf-option>
+  </lf-options>
+  <lf-board id="quoted-board">
+    <lf-column id="q-col" label="Doing">
+      <lf-card id="q-card"><strong>Wire the importer</strong></lf-card>
+    </lf-column>
+  </lf-board>
+  <lf-options id="quoted-settled" choose settled>
+    <lf-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
+    <lf-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
+  </lf-options>
   <p id="q-prose">Refill rules:
-    <cq-suggestion id="quoted-suggestion">
-      <cq-old>Refill every feeder each morning.</cq-old>
-      <cq-new>Refill when the camera shows it half-empty.</cq-new>
-    </cq-suggestion></p>
-</cq-specimen>
-<cq-options id="live-group" choose>
-  <cq-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</cq-option>
-  <cq-option id="l-stage" recommended><strong>Migrate in stages</strong> Table by table.</cq-option>
-</cq-options>
-<cq-board id="live-board">
-  <cq-column id="l-col" label="Doing">
-    <cq-card id="l-card"><strong>Wire the importer</strong></cq-card>
-  </cq-column>
-</cq-board>
+    <lf-suggestion id="quoted-suggestion">
+      <lf-old>Refill every feeder each morning.</lf-old>
+      <lf-new>Refill when the camera shows it half-empty.</lf-new>
+    </lf-suggestion></p>
+</lf-specimen>
+<lf-options id="live-group" choose>
+  <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="l-stage" recommended><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options>
+<lf-board id="live-board">
+  <lf-column id="l-col" label="Doing">
+    <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
+  </lf-column>
+</lf-board>
 <p id="l-prose">Refill rules:
-  <cq-suggestion id="live-suggestion">
-    <cq-old>Refill every feeder each morning.</cq-old>
-    <cq-new>Refill when the camera shows it half-empty.</cq-new>
-  </cq-suggestion></p>
+  <lf-suggestion id="live-suggestion">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>Refill when the camera shows it half-empty.</lf-new>
+  </lf-suggestion></p>
 </main>
 </body>
 </html>
@@ -304,7 +304,7 @@ REPLY_HOST_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>reply</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -317,27 +317,27 @@ REPLY_HOST_PAGE = """<!doctype html>
 
 # Claude answering with a question to put and, beside it, the framing that question
 # replaced — quoted, so the reply asks one thing rather than two. The words ride
-# `text` and the widgets ride `markup`, as `colloquy reply` writes them.
+# `text` and the widgets ride `markup`, as `leaf reply` writes them.
 SPECIMEN_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SPECIMEN_MARKUP = """<cq-options id="rp-live" choose>
-  <cq-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</cq-option>
-  <cq-option id="rp-stage" recommended><strong>Migrate in stages</strong> Table by table.</cq-option>
-</cq-options>
-<cq-specimen id="rp-spec" label="the April thread">
-  <cq-options id="rp-quoted" choose>
-    <cq-option id="rp-memory"><strong>App memory</strong> Nothing to build.</cq-option>
-    <cq-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</cq-option>
-  </cq-options>
-</cq-specimen>
+SPECIMEN_MARKUP = """<lf-options id="rp-live" choose>
+  <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="rp-stage" recommended><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options>
+<lf-specimen id="rp-spec" label="the April thread">
+  <lf-options id="rp-quoted" choose>
+    <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
+    <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
+  </lf-options>
+</lf-specimen>
 """
 
 # Two decisions for a user to take and a later version to honor, carry, or
 # contradict: a pick and a move.
 IMPORTER_CARD = (
-    '<cq-card id="card-importer"><strong>Wire the importer</strong></cq-card>'
+    '<lf-card id="card-importer"><strong>Wire the importer</strong></lf-card>'
 )
 REPLAYED_PAGE = f"""<!doctype html>
 <html lang="en">
@@ -345,19 +345,19 @@ REPLAYED_PAGE = f"""<!doctype html>
 <meta charset="utf-8">
 <title>replayed</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Rollout</h1>
-<cq-options id="approach" choose>
-  <cq-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</cq-option>
-  <cq-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</cq-option>
-</cq-options>
-<cq-board id="work">
-  <cq-column id="col-doing" label="Doing">{IMPORTER_CARD}</cq-column>
-  <cq-column id="col-done" label="Done"><cq-card id="card-notes"><strong>Draft the notes</strong></cq-card></cq-column>
-</cq-board>
+<lf-options id="approach" choose>
+  <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options>
+<lf-board id="work">
+  <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
+  <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+</lf-board>
 </main>
 </body>
 </html>
@@ -482,7 +482,7 @@ class Traffic:
 
 def _traffic(page):
     """The watcher `open_page` hung on this page when it made it."""
-    return page.cq_traffic
+    return page.lf_traffic
 
 
 def _until(page, fact):
@@ -564,7 +564,7 @@ def open_page(
         )
     )
     # Before the first navigation, so the count is of everything this page ever asked for.
-    page.cq_traffic = Traffic(page)
+    page.lf_traffic = Traffic(page)
     errors = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -580,9 +580,9 @@ def open_page(
         url += ("&" if "?" in url else "?") + "pin"
     page.goto(url, wait_until=wait_until)
     page.wait_for_function(
-        "() => document.body.dataset.cqUpgraded === '1'"
+        "() => document.body.dataset.lfUpgraded === '1'"
         if upgraded
-        else "() => document.querySelector('.cq-banner') !== null"
+        else "() => document.querySelector('.lf-banner') !== null"
     )
     return page, errors
 
@@ -598,7 +598,7 @@ def primed(browser, prepare):
 
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
-    that has earned its keep: the runtime stamps `cq-upgraded` in the same breath as it
+    that has earned its keep: the runtime stamps `lf-upgraded` in the same breath as it
     starts that poll, never awaiting it, so a refusal puts replay on the far side of both
     the stamp and networkidle — where a slow machine would have put it — deterministically
     and in a second."""
@@ -628,7 +628,7 @@ def panel_settled(page, open=True):
     change, and still be a guess on a loaded machine; the frame-sampling this replaced
     is the failure CLAUDE.md's wait norm is named for."""
     page.wait_for_function(
-        "(open) => document.querySelector('.cq-panel').classList.contains('open') === open",
+        "(open) => document.querySelector('.lf-panel').classList.contains('open') === open",
         arg=open,
     )
     page.wait_for_function("() => document.body.getAnimations().length === 0")
@@ -658,14 +658,14 @@ def resized(page, width, height):
     if page.viewport_size == {"width": width, "height": height}:
         return
     page.evaluate("""() => {
-        if (window.cqResizes === undefined) {
-            window.cqResizes = 0;
-            addEventListener("resize", () => window.cqResizes++);
+        if (window.lfResizes === undefined) {
+            window.lfResizes = 0;
+            addEventListener("resize", () => window.lfResizes++);
         }
-        window.cqResizesWas = window.cqResizes;
+        window.lfResizesWas = window.lfResizes;
     }""")
     page.set_viewport_size({"width": width, "height": height})
-    page.wait_for_function("() => window.cqResizes > window.cqResizesWas")
+    page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
 
 
 def compare_with(page, version=None):
@@ -676,11 +676,11 @@ def compare_with(page, version=None):
     version being read — the last Δ in the menu, a row offering one only where it is
     older than this. A press rather than the `=` key, since the press is the control;
     the tests about the key press the key."""
-    page.locator(".cq-version").click()
+    page.locator(".lf-version").click()
     press = (
-        page.locator(".cq-version-diff").last
+        page.locator(".lf-version-diff").last
         if version is None
-        else page.locator(f'.cq-version-diff[data-cq-version="{version}"]')
+        else page.locator(f'.lf-version-diff[data-lf-version="{version}"]')
     )
     press.click()
 
@@ -695,11 +695,11 @@ CUSTOM_WIDGET_PAGE = """<!doctype html>
 <body>
 <main>
 <h1 id="title">Project vocabulary</h1>
-<cq-callout id="custom-note">
+<lf-callout id="custom-note">
   <strong>Heads up</strong> This widget came from the project layer.
-</cq-callout>
+</lf-callout>
 </main>
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """
@@ -710,14 +710,14 @@ def test_a_scaffolded_project_widget_loads_through_the_real_layer(
 ):
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "cq-callout", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
     )
     assert result.exit_code == 0, result.output
 
     url = serve(CUSTOM_WIDGET_PAGE)
     page, errors = open_page(browser, url)
     widget = page.locator("#custom-note")
-    expect(widget).to_have_attribute("data-cq-done", "1")
+    expect(widget).to_have_attribute("data-lf-done", "1")
     assert widget.evaluate(
         "(el) => ({display: getComputedStyle(el).display, "
         "border: getComputedStyle(el).borderTopWidth})"
@@ -731,16 +731,16 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
 ):
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "cq-callout", "--upgrade"]
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
     )
     assert result.exit_code == 0, result.output
-    module = tmp_path / ".colloquy" / "widgets" / "cq-callout.js"
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text("// Valid JavaScript, but no custom-element definition.\n")
 
     failures = interact.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
     assert any(
-        "upgraded widgets did not define their elements: <cq-callout>" in failure
+        "upgraded widgets did not define their elements: <lf-callout>" in failure
         for failure in failures
     )
 
@@ -765,7 +765,7 @@ WIDE_TABLE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>wide</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -796,7 +796,7 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     """The theme's answer for a table with more in it than the column holds. Its
     columns hold what is in them, so it takes the measure only when it needs to
     and wraps its cells past that; when even wrapping can't fit it scrolls inside
-    itself — like pre, like cq-board — rather than out into the margin
+    itself — like pre, like lf-board — rather than out into the margin
     where a suggestion's controls hang. `width: 100%` had no third case: the
     table spilled, and at this viewport the window is wide enough that nothing
     scrolled to say so."""
@@ -856,12 +856,12 @@ def ceiling(limit, approvals):
 # attribute lands either way, and it is the stylesheet answering it that stops working.
 # A rule at document level with the theme's own specificity, so the later one wins.
 UNANSWERED_CODE_PAGE = COLORED_CODE_PAGE.replace(
-    "</head>", "<style>[data-cq-syn] { color: inherit; }</style>\n</head>"
+    "</head>", "<style>[data-lf-syn] { color: inherit; }</style>\n</head>"
 )
 # What --syn-comment carried until this gate was written: 3.3:1 on --pre-bg, and the
 # reading a user reported as the highlighting being gone.
 FAINT_CODE_PAGE = COLORED_CODE_PAGE.replace(
-    "</head>", '<style>[data-cq-syn="cm"] { color: #8b8577; }</style>\n</head>'
+    "</head>", '<style>[data-lf-syn="cm"] { color: #8b8577; }</style>\n</head>'
 )
 
 # A role that reads on the block and not on the tint one of its lines wears. The clean
@@ -872,20 +872,20 @@ TINTED_LINE_PAGE = LONG_PAGE.replace(
     "</head>", "<style>:root { --hi-tint: #6f6a60; }</style>\n</head>"
 ).replace(
     "</main>",
-    """<cq-code id="tinted" language="python" hi="2"><pre>
+    """<lf-code id="tinted" language="python" hi="2"><pre>
 first = "on the block's own colour"
 second = "on the band"
-</pre></cq-code>
+</pre></lf-code>
 </main>""",
 )
 
-# The same reading, in a shadow tree. cq-diff renders the page's words into one, so its
+# The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
 # spans are in no document.querySelectorAll — and the page carries no other code, so a
 # probe that stopped at the boundary would sweep this and find nothing to say. The token
 # is what goes back rather than a rule: a custom property inherits through the boundary
 # where a selector does not, which is both why this reaches the spans and why a project's
 # own palette reaches them too, gate or no gate.
-SHADOWED_DIFF = """<cq-diff id="shadowed"><pre>
+SHADOWED_DIFF = """<lf-diff id="shadowed"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
@@ -894,7 +894,7 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 -    return limit
 +    # the ceiling doubles per approval
 +    return "over" if approvals > 12 else limit
-</pre></cq-diff>
+</pre></lf-diff>
 </main>"""
 SHADOW_CODE_PAGE = LONG_PAGE.replace(
     "</head>", "<style>:root { --syn-comment: #8b8577; }</style>\n</head>"
@@ -932,8 +932,8 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     vacuous half of every reading here."""
     page, errors = open_page(browser, serve(COLORED_CODE_PAGE))
     roles = page.evaluate(
-        "() => [...new Set([...document.querySelectorAll('[data-cq-syn]')]"
-        ".map(s => s.dataset.cqSyn))].sort()"
+        "() => [...new Set([...document.querySelectorAll('[data-lf-syn]')]"
+        ".map(s => s.dataset.lfSyn))].sort()"
     )
     page.close()
     assert errors == []
@@ -968,9 +968,9 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
 
     page, errors = open_page(browser, serve(SHADOW_CODE_PAGE))
     where = page.evaluate(
-        "() => ({ doc: document.querySelectorAll('[data-cq-syn]').length,"
+        "() => ({ doc: document.querySelectorAll('[data-lf-syn]').length,"
         " shadow: [...document.querySelectorAll('*')].filter(e => e.shadowRoot)"
-        ".flatMap(e => [...e.shadowRoot.querySelectorAll('[data-cq-syn=cm]')]).length })"
+        ".flatMap(e => [...e.shadowRoot.querySelectorAll('[data-lf-syn=cm]')]).length })"
     )
     page.close()
     assert errors == []
@@ -999,7 +999,7 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
 # pick mark, a reference. Naming the ways a control is constructed rather than the widgets
 # that construct them is what lets a twelfth widget's join this sweep without editing it.
 NEIGHBOUR = (
-    "[data-cq-offer], [role=tab], [role=button], .cq-btn, .cq-pick, "
+    "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, "
     "button, select, summary, a[href]"
 )
 # What this sweep presses is narrower, and both exclusions are about the press landing
@@ -1008,7 +1008,7 @@ NEIGHBOUR = (
 # pressing nothing at all, the shape of vacuous pass CLAUDE.md is about. A link is a
 # user's control and its press is a scroll, so it belongs to the set above and has
 # nothing here to disturb.
-PRESS = "[data-cq-offer], [role=tab], [role=button], .cq-btn, .cq-pick, button, summary"
+PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
 # The controls a press is aimed *past*: the ones sharing its parent, standing on the same
 # line, and on screen at both ends of the gesture. Held in a JS array rather than looked
@@ -1036,35 +1036,35 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     const r = n.getBoundingClientRect();
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
-  window.__cqOnScreen = {ON_SCREEN};
-  window.__cqNeighbours = [...el.parentElement.children]
+  window.__lfOnScreen = {ON_SCREEN};
+  window.__lfNeighbours = [...el.parentElement.children]
       .filter((n) => n !== el && !n.contains(el))
       .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]))
-      .filter((n) => window.__cqOnScreen(n) && sameLine(n));
-  return {{ names: window.__cqNeighbours.map({NAMED}), boxes: window.__cqBoxes() }};
+      .filter((n) => window.__lfOnScreen(n) && sameLine(n));
+  return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # The same capture, of the banner rather than of one control's line: every control the
 # chrome is showing, held by identity so the news can rewrite their words without
 # changing who they are.
 BANNER_WATCH = f"""(sel) => {{
-  window.__cqOnScreen = {ON_SCREEN};
-  window.__cqNeighbours = [...document.querySelector(".cq-banner").querySelectorAll(sel)]
-      .filter(window.__cqOnScreen);
-  return {{ names: window.__cqNeighbours.map({NAMED}), boxes: window.__cqBoxes() }};
+  window.__lfOnScreen = {ON_SCREEN};
+  window.__lfNeighbours = [...document.querySelector(".lf-banner").querySelectorAll(sel)]
+      .filter(window.__lfOnScreen);
+  return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # One reading, named once, so the settle loop and the assertion cannot measure differently.
-DEFINE_BOXES = """() => { window.__cqBoxes = () => window.__cqNeighbours.map(
-    (n) => window.__cqOnScreen(n)
+DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
+    (n) => window.__lfOnScreen(n)
       ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
 SETTLE_MS = 50  # a few frames: enough for a transition to finish
 SETTLED = """(hold) => {
-  const now = JSON.stringify(window.__cqBoxes());
-  if (now !== window.__cqSettle) {
-    window.__cqSettle = now;
-    window.__cqSince = performance.now();
+  const now = JSON.stringify(window.__lfBoxes());
+  if (now !== window.__lfSettle) {
+    window.__lfSettle = now;
+    window.__lfSince = performance.now();
     return false;
   }
-  return performance.now() - window.__cqSince > hold;
+  return performance.now() - window.__lfSince > hold;
 }"""
 
 
@@ -1073,16 +1073,16 @@ SETTLED = """(hold) => {
     [
         pytest.param(
             "",
-            ".cq-end-colloquy",
-            ".cq-signoff",
+            ".lf-end-leaf",
+            ".lf-signoff",
             "close",
-            "End this comments-only colloquy",
+            "End this comments-only leaf",
             id="comments-only",
         ),
         pytest.param(
-            '<meta name="cq-review" content="sign-off">',
-            ".cq-signoff",
-            ".cq-end-colloquy",
+            '<meta name="lf-review" content="sign-off">',
+            ".lf-signoff",
+            ".lf-end-leaf",
             "done",
             "Approve this work; the page stays open for follow-up",
             id="sign-off",
@@ -1182,7 +1182,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # list — and a short list skips by index rather than failing, which is how this
             # sweep quietly stopped pressing the sign-off button between one run and the
             # next.
-            page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
             dirty = False
             assert page.locator(PRESS).count() == total, (
                 f"{example.name} has a different set of controls after a reload, so the "
@@ -1210,9 +1210,9 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
         # pressing as the frame before it. A press that sent nothing is already round
         # tripped, so both kinds take the same short hold.
         round_trip(page)
-        page.evaluate("() => { window.__cqSettle = null; window.__cqSince = null; }")
+        page.evaluate("() => { window.__lfSettle = null; window.__lfSince = null; }")
         page.wait_for_function(SETTLED, arg=SETTLE_MS)
-        moved = displaced(before, page.evaluate("() => window.__cqBoxes()"))
+        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, (
             f"pressing {label} in {example.name} moved the controls beside it:\n  "
             + "\n  ".join(moved)
@@ -1233,7 +1233,7 @@ def aim_targets(page_dir):
     tags = ", ".join(
         t for t in interact.load_registry(page_dir) if not t.startswith("$")
     )
-    return f":is({PRESS}, {tags}):not(.cq-chrome *)"
+    return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 
 # Where in a target to aim, asked of the rendered page rather than assumed: near its
@@ -1253,7 +1253,7 @@ AIM_POINT = """(el) => {
 # The promise itself, read where the user reads it. The item a click would take wears
 # the outline the composer's own passage wears, so the same query answers before the press
 # and after it, and the two answers agreeing is the promise being kept.
-OUTLINED = """() => document.querySelector(".cq-mark-el.cq-pending")?.id ?? null"""
+OUTLINED = """() => document.querySelector(".lf-mark-el.lf-pending")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
 # the outline is read. Asked of body, where the aim declares it and from where it is
 # inherited by everything on the page that doesn't state a cursor of its own.
@@ -1261,13 +1261,13 @@ AIM_CURSOR = """() => getComputedStyle(document.body).cursor"""
 # All of them, for the one state that outlines two elements at once: a draft standing on
 # its anchor while the ⌥ aim says where a press would move it.
 OUTLINED_ALL = """() =>
-  [...document.querySelectorAll(".cq-mark-el.cq-pending")].map((el) => el.id).sort()"""
+  [...document.querySelectorAll(".lf-mark-el.lf-pending")].map((el) => el.id).sort()"""
 # Where focus ended up, which is the effect a press has that leaves no mark in the markup:
 # `offer` gives every press it builds a tabindex, so a press the page received lands on
 # the control, where the aim's own leaves focus to the composer it opened.
 FOCUS_IN_PAGE = """() => {
   const at = document.activeElement;
-  return !!at && at !== document.body && !at.closest(".cq-chrome");
+  return !!at && at !== document.body && !at.closest(".lf-chrome");
 }"""
 # The page as against the layer over it, which is where an effect nobody asked for shows.
 # Read as markup because a widget acting states itself there however it renders — an
@@ -1278,7 +1278,7 @@ FOCUS_IN_PAGE = """() => {
 # had no class of its own: DOMTokenList leaves `class=""` behind, and that is a residue of
 # the runtime's paint rather than anything the page says.
 PAGE_MARKUP = """() => [...document.body.children]
-    .filter((n) => !n.classList.contains("cq-chrome"))
+    .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => n.outerHTML).join("").replaceAll(' class=""', "")"""
 
 
@@ -1329,7 +1329,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         )
         page.mouse.click(*point)
         page.keyboard.up("Alt")
-        composer = page.locator(".cq-composer")
+        composer = page.locator(".lf-composer")
         if promised is None:
             # Nothing outlined is nothing to aim at — no item encloses this point — and an
             # armed press then acts on nothing rather than falling back to the page. A
@@ -1387,14 +1387,14 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    composer = page.locator(".cq-composer")
+    composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()  # the press was the aim's, so its claim now stands
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
-    page.locator("#opt-shim .cq-pick").focus()
+    page.locator("#opt-shim .lf-pick").focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#approach > cq-option[chosen]")).to_have_count(1)
+    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
     round_trip(page)
     assert [
         e["action"] for e in interact.read_events(serve.page_dir) if "action" in e
@@ -1418,7 +1418,7 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    composer = page.locator(".cq-composer")
+    composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     composer.locator("textarea").fill("carried words")
 
@@ -1457,12 +1457,12 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_id("t")
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
     page.reload()
-    page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_count(0)  # the latch is gone
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_id("t")
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
     page.keyboard.up("Alt")
     assert errors == []
     page.close()
@@ -1492,8 +1492,8 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.wait_for_function(
         """(first) => {
-      const el = document.querySelector(".cq-mark-el.cq-pending");
-      const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.cq-ui)");
+      const el = document.querySelector(".lf-mark-el.lf-pending");
+      const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
       return Boolean(el) && el === at && el.id !== first;
     }""",
         arg=first,
@@ -1520,7 +1520,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_id("card-importer")
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("card-importer")
     interact.append_event(
         serve.page_dir,
         {
@@ -1536,8 +1536,8 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     expect(page.locator("#col-done #card-importer")).to_have_count(1)
     page.wait_for_function(
         """([x, y]) => {
-      const el = document.querySelector(".cq-mark-el.cq-pending");
-      const at = document.elementFromPoint(x, y)?.closest("[id]:not(.cq-ui)") ?? null;
+      const el = document.querySelector(".lf-mark-el.lf-pending");
+      const at = document.elementFromPoint(x, y)?.closest("[id]:not(.lf-ui)") ?? null;
       return el === at && el?.id !== "card-importer";
     }""",
         arg=spot,
@@ -1554,14 +1554,14 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".cq-comments")
+    comments = page.locator(".lf-comments")
     comments.hover()
     page.keyboard.down("Alt")
     comments.click()
     page.keyboard.up("Alt")
     panel_settled(page)
-    expect(page.locator(".cq-panel")).to_be_visible()
-    expect(page.locator(".cq-composer")).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1600,22 +1600,22 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     page.mouse.move(*on_item)
     page.keyboard.down("Alt")
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_id("p2")
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("p2")
     assert page.evaluate(at_pointer, on_item) == "pointer", (
         "the aim outlined the paragraph and the cursor declined to promise the press"
     )
 
     page.mouse.move(*in_gap)
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_count(0)
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)
     assert page.evaluate(at_pointer, in_gap) == "default", (
         "the aim had nothing to take and the hand promised a press anyway"
     )
 
     # Back on the item, so the arm coming off is read from the state that promises most.
     page.mouse.move(*on_item)
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_id("p2")
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("p2")
     page.keyboard.up("Alt")
-    expect(page.locator(".cq-mark-el.cq-pending")).to_have_count(0)
+    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
     )
@@ -1649,13 +1649,13 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     # offers the chip rather than following it.
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="cq-review" content="sign-off">',
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html, comments=9)
     d = serve.page_dir
     page, errors = open_page(browser, url, pin=True)
-    comments = ".cq-banner .cq-comments"
-    accept_all = '.cq-banner [title^="Accept every"]'
+    comments = ".lf-banner .lf-comments"
+    accept_all = '.lf-banner [title^="Accept every"]'
     page.wait_for_function(
         f"() => document.querySelector('{comments}').textContent === 'Comments (9)'"
     )
@@ -1695,7 +1695,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
             "a new version is published",
             publish_v2,
             (
-                "() => document.querySelector('.cq-latest-chip')"
+                "() => document.querySelector('.lf-latest-chip')"
                 ".checkVisibility({visibilityProperty: true})"
             ),
         ),
@@ -1726,13 +1726,13 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         )
         drive()
         page.wait_for_function(arrived)
-        page.evaluate("() => { window.__cqSettle = null; window.__cqSince = null; }")
+        page.evaluate("() => { window.__lfSettle = null; window.__lfSince = null; }")
         page.wait_for_function(SETTLED, arg=SETTLE_MS)
-        moved = displaced(before, page.evaluate("() => window.__cqBoxes()"))
+        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
     # A reservation is a promise the row can keep only while it has the room, and a row
-    # out of room takes it from whatever will give. Every control up there is a .cq-btn,
+    # out of room takes it from whatever will give. Every control up there is a .lf-btn,
     # floored at its own words by nowrap, so none of them is what gives: what does is the
     # status text and the chip, which is where the spacer's slack was — both left of
     # everything else on the row, so what they give up moves nothing. The chooser was the
@@ -1741,16 +1741,16 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     # putting every arrival above back in play on any window narrow enough. It says the
     # version alone now, so it is floored like the rest and this list covers the whole row.
     holds_its_width = (
-        "() => ['.cq-version', '.cq-comments', '.cq-signoff', '.cq-answer-all', '.cq-asks']"
-        ".map((s) => document.querySelector('.cq-banner ' + s).offsetWidth)"
+        "() => ['.lf-version', '.lf-comments', '.lf-signoff', '.lf-answer-all', '.lf-asks']"
+        ".map((s) => document.querySelector('.lf-banner ' + s).offsetWidth)"
     )
     wide = page.evaluate(holds_its_width)
     resized(page, 900, 900)
     # Out of room, and something has visibly given: no spacer left, and the chip showing
     # less than it holds. Without both, a window that still had slack would assert nothing.
     page.wait_for_function(
-        "() => { const chip = document.querySelector('.cq-latest-chip');"
-        "        return document.querySelector('.cq-spacer').offsetWidth === 0"
+        "() => { const chip = document.querySelector('.lf-latest-chip');"
+        "        return document.querySelector('.lf-spacer').offsetWidth === 0"
         "               && chip.offsetWidth < chip.scrollWidth; }"
     )
     assert page.evaluate(holds_its_width) == wide, (
@@ -1762,8 +1762,8 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
 
 
 @pytest.fixture
-def live_colloquy(tmp_path, monkeypatch):
-    """Stands up a live colloquy for the banner's panel to find: published, served by
+def live_leaf(tmp_path, monkeypatch):
+    """Stands up a live leaf for the banner's panel to find: published, served by
     a real handler, and written down under the state home the way `server run` writes
     it — which is the whole of how one page learns another exists. Each claims to be
     working, freshly, so its row has a judged state to show. A factory rather than one
@@ -1810,38 +1810,36 @@ def live_colloquy(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def other_colloquy(live_colloquy):
-    return live_colloquy("other", "The other colloquy")
+def other_leaf(live_leaf):
+    return live_leaf("other", "The other leaf")
 
 
-def test_the_banner_opens_a_panel_of_the_machines_colloquys(
-    browser, serve, other_colloquy
-):
-    """The colloquys panel, end to end: the banner counts the machine's live pages,
+def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_leaf):
+    """The leaves panel, end to end: the banner counts the machine's live pages,
     this one included, a press slides out a left board headed by this page's own
     marked, unlinked row, each neighbour is a link named by its title and saying what
     that page is doing — the same judgment its own banner would show, from the same facts — and a
     link opens that page in a tab of its own, leaving this one where it was, panel
     standing. Esc is the panel's rung on the ladder. On a machine serving nothing
     else the button never appears, which every other test here shows for free."""
-    other_url, _ = other_colloquy
+    other_url, _ = other_leaf
     page, errors = open_page(browser, serve(LONG_PAGE))
-    btn = page.locator(".cq-others")
-    expect(btn).to_have_text("All colloquys (2)")
+    btn = page.locator(".lf-others")
+    expect(btn).to_have_text("All leaves (2)")
     btn.click()
-    others_panel = page.locator(".cq-others-panel")
+    others_panel = page.locator(".lf-others-panel")
     expect(others_panel).to_be_visible()
     # This page heads the list, marked and never a link: the panel reads as the
     # whole machine, and this page is where the reader already is.
-    self_row = others_panel.locator(".cq-others-self")
-    expect(self_row.locator(".cq-pill")).to_have_text("this page")
-    expect(self_row.locator(".cq-others-title")).to_have_text("long")
-    link = others_panel.locator("a.cq-others-row")
-    expect(link.locator(".cq-others-title")).to_have_text("The other colloquy")
+    self_row = others_panel.locator(".lf-others-self")
+    expect(self_row.locator(".lf-pill")).to_have_text("this page")
+    expect(self_row.locator(".lf-others-title")).to_have_text("long")
+    link = others_panel.locator("a.lf-others-row")
+    expect(link.locator(".lf-others-title")).to_have_text("The other leaf")
     # The fixture's page claims working with a fresh ts and nothing contradicts it,
     # so the row says so — dot and words both the banner's own vocabulary.
-    expect(link.locator(".cq-others-line")).to_have_text("Working — running the suite")
-    expect(link.locator(".cq-dot")).to_have_class(re.compile(r"\bworking\b"))
+    expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
+    expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
     with page.context.expect_page() as opened:
         link.click()
     # The other server's own redirect lands the new tab on its newest published
@@ -1852,19 +1850,19 @@ def test_the_banner_opens_a_panel_of_the_machines_colloquys(
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
     expect(btn).to_be_visible()  # closing the panel keeps the standing button
-    expect(btn).to_have_text("All colloquys (2)")  # and the count
+    expect(btn).to_have_text("All leaves (2)")  # and the count
     # The count's reservation, swept here because this is the one test that ever
     # renders the button — every other page here runs under an isolated state home, so
     # neither the press sweep nor the poll test can reach it. The widest label
     # below a thousand must not move the control.
     before, widest = page.evaluate(
-        """() => { const b = document.querySelector('.cq-others');
+        """() => { const b = document.querySelector('.lf-others');
                    const before = b.offsetWidth;
-                   b.textContent = 'All colloquys (999)';
+                   b.textContent = 'All leaves (999)';
                    return [before, b.offsetWidth]; }"""
     )
     assert widest == before, (
-        f"'All colloquys (999)' grew the button {before}px -> {widest}px: its "
+        f"'All leaves (999)' grew the button {before}px -> {widest}px: its "
         "reserve list no longer names the widest label renderOthers writes"
     )
     assert errors == []
@@ -1872,25 +1870,25 @@ def test_the_banner_opens_a_panel_of_the_machines_colloquys(
 
 
 def test_a_panel_row_follows_its_pages_status_live(
-    browser, serve, other_colloquy, dead_pid
+    browser, serve, other_leaf, dead_pid
 ):
     """The panel is a status board, not a snapshot: a neighbour's state changing on
     disk repaints its row at the next poll, in place — and a neighbour whose claimant
     has exited reads as unheld, the computed fact its own banner would state, not the
     claim its status file still makes."""
-    _, other_dir = other_colloquy
+    _, other_dir = other_leaf
     page, errors = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
-    expect(page.locator(".cq-others")).to_have_text("All colloquys (2)")
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     page.keyboard.press("o")  # the key opens the panel like the button does
-    row = page.locator("a.cq-others-row")
-    expect(row.locator(".cq-others-line")).to_have_text("Working — running the suite")
+    row = page.locator("a.lf-others-row")
+    expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
     interact.write_json(
         other_dir / "status.json",
         {"state": "working", "detail": "recording the demo", "ts": interact.now_iso()},
     )
     told(page)
-    expect(row.locator(".cq-others-line")).to_have_text("Working — recording the demo")
+    expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
     # A neighbour waiting on its own reader says so in this seat's shorter words, and
     # in the same term its banner uses: one word per state across the product, or a
     # user reading both surfaces has to work out whether they mean the same thing.
@@ -1901,7 +1899,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         {"state": "waiting", "detail": "", "ts": interact.now_iso()},
     )
     with live_watcher(other_dir, page):
-        expect(row.locator(".cq-others-line")).to_have_text("Awaits")
+        expect(row.locator(".lf-others-line")).to_have_text("Awaits")
         # And what it is waiting for, because the panel is where a reader picks which
         # page to go to: the row that says a page needs them carries the ask, the way
         # the working row above carries what its agent is doing. Its own tooltip too —
@@ -1916,7 +1914,7 @@ def test_a_panel_row_follows_its_pages_status_live(
             },
         )
         told(page)
-        line = row.locator(".cq-others-line")
+        line = row.locator(".lf-others-line")
         expect(line).to_have_text("Awaits — pick a storage engine")
         expect(line).to_have_attribute("title", "Awaits — pick a storage engine")
     # The claim still says waiting; its claimant is gone. The row reports what the
@@ -1926,25 +1924,25 @@ def test_a_panel_row_follows_its_pages_status_live(
         {"id": "s", "host": "claude-code", "pid": dead_pid, "agent": "Claude"},
     )
     told(page)
-    expect(row.locator(".cq-others-line")).to_have_text("Unheld")
-    expect(row.locator(".cq-dot")).not_to_have_class(re.compile(r"\bworking\b"))
+    expect(row.locator(".lf-others-line")).to_have_text("Unheld")
+    expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
     assert errors == []
     page.close()
 
 
-def test_a_closed_colloquy_clears_itself_off_the_board(browser, serve, other_colloquy):
-    """A closed colloquy leaves the board on the poll that says so. Its server stays
+def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
+    """A closed leaf leaves the board on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
     count a reader glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a reader
     looking at a closed page is still looking at it — so a board with nothing live
     left on it still says where the reader is, and the count says (1) for it."""
-    _, other_dir = other_colloquy
+    _, other_dir = other_leaf
     page, errors = open_page(browser, serve(LONG_PAGE))
-    btn = page.locator(".cq-others")
-    expect(btn).to_have_text("All colloquys (2)")
+    btn = page.locator(".lf-others")
+    expect(btn).to_have_text("All leaves (2)")
     page.keyboard.press("o")
-    rows = page.locator("a.cq-others-row")
+    rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     interact.write_json(
         other_dir / "status.json",
@@ -1952,8 +1950,8 @@ def test_a_closed_colloquy_clears_itself_off_the_board(browser, serve, other_col
     )
     told(page)
     expect(rows).to_have_count(0)
-    expect(btn).to_have_text("All colloquys (1)")
-    expect(page.locator(".cq-others-self .cq-others-title")).to_have_text("long")
+    expect(btn).to_have_text("All leaves (1)")
+    expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
     # Nothing live left to open: the button stands while the panel does and stands
     # down with it, which is the count's other half.
     page.keyboard.press("Escape")
@@ -1963,28 +1961,28 @@ def test_a_closed_colloquy_clears_itself_off_the_board(browser, serve, other_col
     page.close()
 
 
-def test_the_colloquys_board_takes_the_keyboard(browser, serve, live_colloquy):
+def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     """The board is a list, and a reader walks it without reaching for the mouse: o
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
     to the button that opened it. The key line names o before it is pressed and the
     board's own keys while focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
-    live_colloquy("second", "A second colloquy")
-    other_url, _ = live_colloquy("other", "The other colloquy")
+    live_leaf("second", "A second leaf")
+    other_url, _ = live_leaf("other", "The other leaf")
     page, errors = open_page(browser, serve(LONG_PAGE))
-    btn = page.locator(".cq-others")
-    expect(btn).to_have_text("All colloquys (3)")
-    keyline = page.locator(".cq-keyline")
+    btn = page.locator(".lf-others")
+    expect(btn).to_have_text("All leaves (3)")
+    keyline = page.locator(".lf-keyline")
     # A shortcut no surface names is a shortcut nobody finds: the line carries o for
     # exactly as long as there is a board to open.
-    expect(keyline).to_contain_text("colloquys")
+    expect(keyline).to_contain_text("leaves")
     page.keyboard.press("o")
-    rows = page.locator("a.cq-others-row")
+    rows = page.locator("a.lf-others-row")
     # Titles order the board, so the walk has a stated first row to start from.
-    expect(rows.first.locator(".cq-others-title")).to_have_text("A second colloquy")
+    expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
     expect(rows.first).to_be_focused()
-    expect(keyline).to_contain_text("walk the colloquys")
+    expect(keyline).to_contain_text("walk the leaves")
     expect(keyline).to_contain_text("open it in a tab")
     page.keyboard.press("ArrowDown")
     expect(rows.nth(1)).to_be_focused()
@@ -1998,22 +1996,22 @@ def test_the_colloquys_board_takes_the_keyboard(browser, serve, live_colloquy):
         page.keyboard.press("Enter")
     expect(opened.value).to_have_url(f"{other_url}/versions/v1.html")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-others-panel")).not_to_be_visible()
+    expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # Closing while focus is inside would drop the reader on the body; it lands on
     # the one control that reopens what just closed.
     expect(btn).to_be_focused()
     page.keyboard.press("?")
-    help_el = page.locator(".cq-help")
-    expect(help_el).to_contain_text("In the colloquys panel")
-    expect(help_el).to_contain_text("walk the colloquys")
+    help_el = page.locator(".lf-help")
+    expect(help_el).to_contain_text("In the leaves panel")
+    expect(help_el).to_contain_text("walk the leaves")
     assert errors == []
     page.close()
 
 
 def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
-    browser, serve, other_colloquy
+    browser, serve, other_leaf
 ):
-    """With both panels standing, Esc takes the colloquys board first — but only
+    """With both panels standing, Esc takes the leaves board first — but only
     while focus stands outside the comment panel. A reader backing out of the
     general box is standing on the panel's list, and their next Esc used to close
     the board on the far side of the screen instead: the key left the work it was
@@ -2021,57 +2019,55 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
     asks where focus is, not which things are open, and there is one definition of
     it for the thread, the list and the page scenes alike."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
-    expect(page.locator(".cq-others")).to_have_text("All colloquys (2)")
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     page.keyboard.press("o")  # the board first, then the panel over it
     page.keyboard.press("c")
-    expect(page.locator(".cq-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general textarea")).to_be_focused()
     page.keyboard.press("Escape")  # back out of the box, onto the panel's list
-    expect(page.locator(".cq-threads")).to_be_focused()
-    expect(page.locator(".cq-keyline")).to_contain_text("close comments")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("close comments")
     page.keyboard.press("Escape")  # the panel the reader stands in, not the board
-    expect(page.locator(".cq-panel")).to_be_hidden()
-    expect(page.locator(".cq-others-panel")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-others-panel")).to_be_visible()
     # Focus lands on the panel's reopening control, outside both panels, so the
     # ladder's next rung is the board's — the glance closes last.
-    expect(page.locator(".cq-comments")).to_be_focused()
-    expect(page.locator(".cq-keyline")).to_contain_text("close colloquys")
+    expect(page.locator(".lf-comments")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("close leaves")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-others-panel")).not_to_be_visible()
+    expect(page.locator(".lf-others-panel")).not_to_be_visible()
     assert errors == []
     page.close()
 
 
-def test_a_walk_down_the_board_stops_clear_of_the_key_line(
-    browser, serve, live_colloquy
-):
+def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_leaf):
     """The board is the page's other scroll region and the key line stands over its
     bottom-left corner, so the board reserves the line's room — for the walk, which
     scrolls no further than it must, and for the wheel, which runs to the end. Both
     are asserted because they take their room from different places, and the walk's
     clearance without one is only however far the browser happens to overshoot: a
     fact about row height rather than about the line standing there."""
-    names = [f"Colloquy {i}" for i in range(6)]
+    names = [f"Leaf {i}" for i in range(6)]
     for i, title in enumerate(names):
-        live_colloquy(f"n{i}", title)
+        live_leaf(f"n{i}", title)
     page, errors = open_page(browser, serve(LONG_PAGE))
-    expect(page.locator(".cq-others")).to_have_text(f"All colloquys ({len(names) + 1})")
+    expect(page.locator(".lf-others")).to_have_text(f"All leaves ({len(names) + 1})")
     # Short enough that the rows overflow the board, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
     page.keyboard.press("o")
-    rows = page.locator("a.cq-others-row")
+    rows = page.locator("a.lf-others-row")
     for _ in names:
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    board = page.locator(".cq-others-panel")
+    board = page.locator(".lf-others-panel")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.cq-others-panel');"
+        "() => { const b = document.querySelector('.lf-others-panel');"
         "        return b.scrollHeight > b.clientHeight; }"
     ), (
         "the board never overflowed, so the walk had nothing to scroll and proves nothing"
     )
     last = rows.last.bounding_box()
-    line = page.locator(".cq-keyline").bounding_box()
+    line = page.locator(".lf-keyline").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the key line at {line}"
     )
@@ -2097,22 +2093,22 @@ UNBREAKABLE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>unbreakable</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Nothing to break on</h1>
-<cq-metrics id="numbers">
-  <cq-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</cq-metric>
-</cq-metrics>
+<lf-metrics id="numbers">
+  <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
+</lf-metrics>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
-<cq-tree id="tree"><pre>
+<lf-tree id="tree"><pre>
 gateway/
   middleware/
     authentication/
       token_bucket_refill_strategy.py    +6 -2
-</pre></cq-tree>
+</pre></lf-tree>
 </main>
 </body>
 </html>
@@ -2135,7 +2131,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     resized(page, 420, 900)
     inside = """(id) => {
                   const el = document.getElementById(id);
-                  const inner = el.querySelector("[data-cq-said='value']") ?? el;
+                  const inner = el.querySelector("[data-lf-said='value']") ?? el;
                   const range = document.createRange();
                   range.selectNodeContents(inner);
                   const style = getComputedStyle(el);
@@ -2148,7 +2144,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     assert page.evaluate(inside, "p-token") <= 0, (
         "a path in prose paints outside the column"
     )
-    torn = """() => [...document.querySelectorAll('.cq-tree-badge')]
+    torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
                       .map((b) => b.getClientRects().length)"""
     assert page.evaluate(torn) == [1, 1], "a badge is one pill, and it was drawn as two"
     assert errors == []
@@ -2210,7 +2206,7 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """The gate refuses words under `.cq-ui` inside a widget, because a widget reaching for
+    """The gate refuses words under `.lf-ui` inside a widget, because a widget reaching for
     that marker is how a user ends up unable to comment on a heading they can see. The
     line saying how many comments are on a passage wears the same marker and sits wherever
     the passage does — inside the widget, when that is where the comment was made. Unless
@@ -2234,12 +2230,12 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page, errors = open_page(browser, url)
     # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
     page.wait_for_function(
-        "() => document.querySelectorAll('.cq-mark-note').length === 1"
+        "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
     # The same reading with the line no longer held out, taken while the page is up.
     # Named out of the selector rather than cut from it, so the reading stays this
     # reading however the classes it holds out are ordered or added to.
-    unheld = interact.COVERED_WORDS.replace(".cq-mark-note", ".cq-holds-nothing")
+    unheld = interact.COVERED_WORDS.replace(".lf-mark-note", ".lf-holds-nothing")
     reported = page.evaluate(unheld)
     assert errors == []
     page.close()
@@ -2265,7 +2261,7 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
     boxes they keep afterwards are that layout."""
     url = serve(SETTLED_PAGE)
     page, errors = open_page(browser, url)
-    row = page.locator("#transport .cq-settled")
+    row = page.locator("#transport .lf-settled")
     card = page.locator("#transport #opt-lax")
 
     row.click()
@@ -2278,7 +2274,7 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
     # cards kept. Then the same reading with the collapse no longer held out — named out
     # of the selector rather than cut from it, so this stays the gate's reading however
     # the things it holds out are ordered or added to.
-    unheld = interact.COVERED_WORDS.replace("[hidden]", "[cq-holds-nothing]")
+    unheld = interact.COVERED_WORDS.replace("[hidden]", "[lf-holds-nothing]")
     held, reported = page.evaluate(interact.COVERED_WORDS), page.evaluate(unheld)
     assert errors == []
     assert held == []
@@ -2301,20 +2297,20 @@ SHORT_CHIP_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>chips</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Feeder extras</h1>
 <p id="p">The bracket order goes in on Friday and there is room in it.</p>
-<cq-options id="extras" choose multiple>
-<cq-option id="x-tray"><cq-chip>£9</cq-chip>
+<lf-options id="extras" choose multiple>
+<lf-option id="x-tray"><lf-chip>£9</lf-chip>
 <strong>Seed tray</strong> Catches the spill under the south pair.
-</cq-option>
-<cq-option id="x-dome"><cq-chip tone="ok">£15</cq-chip>
+</lf-option>
+<lf-option id="x-dome"><lf-chip tone="ok">£15</lf-chip>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
-</cq-option>
-</cq-options>
+</lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -2333,7 +2329,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     first on its own."""
     url = serve(SHORT_CHIP_PAGE)
     page, errors = open_page(browser, url)
-    widths = page.locator("cq-chip").evaluate_all(
+    widths = page.locator("lf-chip").evaluate_all(
         "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
     )
     assert errors == []
@@ -2344,11 +2340,11 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     # Flattened, the same chips are a collapse and the gate says so — the reading the
     # declaration narrows rather than switches off.
     page.add_style_tag(
-        content="cq-chip { display: block; height: 2px; overflow: hidden; }"
+        content="lf-chip { display: block; height: 2px; overflow: hidden; }"
     )
     flattened = page.evaluate(interact.TINY_BOXES)
     page.close()
-    assert [box for box in flattened if box["tag"] == "cq-chip"], (
+    assert [box for box in flattened if box["tag"] == "lf-chip"], (
         "a chip with no height left reports nothing, so the floor is gone rather than declared"
     )
     assert interact.render_version(browser, url) == []
@@ -2396,9 +2392,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
     """Exercise the copied artifact a host installs, never an import from this checkout."""
     root = Path(__file__).parent.parent
-    installed = tmp_path / "host" / "plugins" / "colloquy"
-    shutil.copytree(root / "plugins" / "colloquy", installed)
-    launcher = installed / "bin" / "colloquy"
+    installed = tmp_path / "host" / "plugins" / "leaf"
+    shutil.copytree(root / "plugins" / "leaf", installed)
+    launcher = installed / "bin" / "leaf"
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
     page_dir = tmp_path / "state" / "page"
@@ -2472,9 +2468,9 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
             "which it says on screen"
         ),
-        '[print] <cq-option id=c-bearer> drops "Bearer header", which it says on screen',
+        '[print] <lf-option id=c-bearer> drops "Bearer header", which it says on screen',
         (
-            '[print] <cq-option id=c-bearer> drops "Suits the mobile client;\\n  '
+            '[print] <lf-option id=c-bearer> drops "Suits the mobile client;\\n  '
             'puts the id w", which it says on screen'
         ),
     ], lost
@@ -2507,20 +2503,20 @@ SHOT_SRC = {
 SHOT_PAGE = LONG_PAGE.replace(
     "</main>",
     f"""<p id="lede">What moved, in words, because the picture cannot say it.</p>
-<cq-shot id="shot-nav" alt="the navigation rail"
-         before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></cq-shot>
+<lf-shot id="shot-nav" alt="the navigation rail"
+         before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 </main>""",
 )
 
 
 def shown_frames(page):
-    return page.evaluate("""() => [...document.querySelectorAll('.cq-shotframe')]
+    return page.evaluate("""() => [...document.querySelectorAll('.lf-shotframe')]
         .filter(f => getComputedStyle(f).visibility === 'visible')
-        .map(f => f.dataset.cqState)""")
+        .map(f => f.dataset.lfState)""")
 
 
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """The comparison cq-shot makes is a flip: two registered frames in one grid cell,
+    """The comparison lf-shot makes is a flip: two registered frames in one grid cell,
     one of them showing. What the gate covers on the way past is the rest of the
     widget's bargain — the captions naming each frame are the page's words and stay
     selectable, the radios are chrome and take no space in the user's reading, and
@@ -2534,7 +2530,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page, errors = open_page(browser, url)
     assert shown_frames(page) == ["before"]
     page.get_by_role("radio", name="after").check()
-    expect(page.locator('.cq-shotframe[data-cq-state="after"]')).to_be_visible()
+    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
     assert errors == []
     page.close()
@@ -2542,7 +2538,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
 
 def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     """Which is the whole reason the control is a radio group. A standalone copy of a
-    colloquy page is its rendered DOM with the script tags dropped — the upgrade has
+    leaf page is its rendered DOM with the script tags dropped — the upgrade has
     already run, so the frames are there, but nothing the runtime bound is. A slider
     would have frozen at whatever the reader left it on; `:has(:checked)` is CSS, and
     the browser owns a radio's state.
@@ -2607,9 +2603,9 @@ def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
 # nothing said about whose words it is. Second: the words declared the page's, and put
 # inside a form control, where no pointer can select them however they are marked.
 OUT_OF_REACH_PAGE = CARRIED_PAGE.replace(
-    '<cq-option id="c-lax" chosen>',
-    '<cq-option id="c-lax" chosen><div class="cq-ui"><strong>Session cookies</strong>'
-    "</div><button data-cq-said>Lax, host-only</button>",
+    '<lf-option id="c-lax" chosen>',
+    '<lf-option id="c-lax" chosen><div class="lf-ui"><strong>Session cookies</strong>'
+    "</div><button data-lf-said>Lax, host-only</button>",
 )
 
 
@@ -2617,7 +2613,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     """The user's half of the gate. A user selected a draft's heading, tried to
     comment on it, and got nothing back — twice, months apart, on the same page. The
     heading was the page's word in a row its author had marked as the runtime's, and
-    `.cq-ui` is a look rather than a permission, so the class alone can't be the answer:
+    `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
     the declaration goes on the label (relabel), and an undeclared word under chrome is
     reported here.
 
@@ -2631,11 +2627,11 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     found = interact.render_version(browser, serve(OUT_OF_REACH_PAGE))
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
-            '<cq-option id=c-lax> puts "Session cookies" under .cq-ui, where no comment '
+            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
             "can reach it"
         ),
         (
-            '<cq-option id=c-lax> says "Lax, host-only" inside a form control, where no '
+            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where no '
             "selection can reach it"
         ),
     ], found
@@ -2643,12 +2639,12 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
 
 UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
-    "<cq-diagram id='d-broken'><pre>\nflowchart LR\n  A[Start --&gt; B{{{ ]]] broken\n</pre></cq-diagram>\n</main>",
+    "<lf-diagram id='d-broken'><pre>\nflowchart LR\n  A[Start --&gt; B{{{ ]]] broken\n</pre></lf-diagram>\n</main>",
 )
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
-    """`colloquy` is what the skill hands an agent, so the shim's own resolution
+    """`leaf` is what the skill hands an agent, so the shim's own resolution
     is load-bearing: it finds the script from its location rather than the cwd,
     and on `--render` it supplies the Playwright the PEP 723 header deliberately
     omits. Running it from an unrelated directory exercises both.
@@ -2661,7 +2657,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
     d = serve.page_dir
     assert CliRunner().invoke(interact.cli, ["version", "check", str(d)]).exit_code == 0
 
-    shim = Path(__file__).parent.parent / "plugins" / "colloquy" / "bin" / "colloquy"
+    shim = Path(__file__).parent.parent / "plugins" / "leaf" / "bin" / "leaf"
     run = subprocess.run(
         [str(shim), "version", "check", str(d), "--render"],
         cwd=tmp_path,
@@ -2685,7 +2681,7 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
 
     geom = page.evaluate("""() => {
         const box = el => el.getBoundingClientRect();
-        const body = document.body, threads = document.querySelector('.cq-threads');
+        const body = document.body, threads = document.querySelector('.lf-threads');
         return { viewportScrolls: document.documentElement.scrollHeight > document.documentElement.clientHeight,
                  bodyScrolls: body.scrollHeight > body.clientHeight,
                  threadsScroll: threads.scrollHeight > threads.clientHeight,
@@ -2724,7 +2720,7 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.wait_for_function("() => document.body.scrollTop > 0")
     before = page.evaluate("() => document.body.scrollTop")
 
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
 
     # One wheel over the page's visible sliver, one over the sheet. Waiting on the
@@ -2734,14 +2730,14 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.mouse.wheel(0, 400)
     page.mouse.move(400, 300)
     page.mouse.wheel(0, 400)
-    page.wait_for_function("() => document.querySelector('.cq-threads').scrollTop > 0")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
     assert page.evaluate("() => document.body.scrollTop") == before, (
         "the page scrolled behind the covering sheet"
     )
 
     # Navigation still positions the page: a quote click scrolls its passage into
     # view under the lock, so the sheet closes onto the passage it talked about.
-    page.locator(".cq-quote", has_text="Paragraph 40").click()
+    page.locator(".lf-quote", has_text="Paragraph 40").click()
     # Arrived where it was aimed, which is the only thing about this the page states. The
     # click scrolls twice — instantly, to bring the passage's own box into view, then
     # smoothly to centre the painted range — and the browser fires a scrollend for each,
@@ -2752,7 +2748,7 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     # runtime aimed for, so the mark reaching the middle is arrival, and a glide that
     # approaches it passes through no earlier position that could be taken for one.
     page.wait_for_function(
-        """() => { const m = [...CSS.highlights.get('cq-mark')][0].getClientRects()[0];
+        """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                    return Math.abs(m.top + m.height / 2 - innerHeight / 2) < 1; }"""
     )
     at_mark = page.evaluate("() => document.body.scrollTop")
@@ -2777,7 +2773,7 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.wait_for_function(f"() => document.body.scrollTop > {at_mark}")
 
     # The resize path: narrowing onto an open panel locks, widening unlocks.
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     resized(page, 1000, 600)
     page.wait_for_function(
@@ -2798,8 +2794,8 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
     then returns beside it at the first width where the panel stops covering."""
     page, _ = open_page(browser, serve(LONG_PAGE))
     resized(page, 320, 600)
-    page.locator(".cq-comments").click()
-    page.locator(".cq-general textarea").fill("The unsent comment stays here.")
+    page.locator(".lf-comments").click()
+    page.locator(".lf-general textarea").fill("The unsent comment stays here.")
 
     message = (
         "Couldn't send this detailed comment to Claude — the complete draft "
@@ -2807,12 +2803,12 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
     )
     page.evaluate(
         """async message => {
-            const {toast} = await import("/colloquy.js");
+            const {toast} = await import("/leaf.js");
             toast(message);
         }""",
         message,
     )
-    expect(page.locator(".cq-toast")).to_have_text(message)
+    expect(page.locator(".lf-toast")).to_have_text(message)
 
     def geometry():
         return page.evaluate("""() => {
@@ -2823,9 +2819,9 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
             return {
                 width: innerWidth,
                 height: innerHeight,
-                panel: rect(".cq-panel"),
-                footer: rect(".cq-general"),
-                toast: rect(".cq-toast"),
+                panel: rect(".lf-panel"),
+                footer: rect(".lf-general"),
+                toast: rect(".lf-toast"),
             };
         }""")
 
@@ -2840,8 +2836,8 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
 
     resized(page, 841, 600)
     page.wait_for_function("""() => {
-        const toast = document.querySelector(".cq-toast").getBoundingClientRect();
-        const panel = document.querySelector(".cq-panel").getBoundingClientRect();
+        const toast = document.querySelector(".lf-toast").getBoundingClientRect();
+        const panel = document.querySelector(".lf-panel").getBoundingClientRect();
         return Math.abs(toast.right - (panel.left - 18)) < 1
             && Math.abs(toast.bottom - (innerHeight - 18)) < 1;
     }""")
@@ -2859,19 +2855,19 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
 
     resized(page, 320, 600)
     page.wait_for_function("""() => {
-        const toast = document.querySelector(".cq-toast").getBoundingClientRect();
-        const footer = document.querySelector(".cq-general").getBoundingClientRect();
+        const toast = document.querySelector(".lf-toast").getBoundingClientRect();
+        const footer = document.querySelector(".lf-general").getBoundingClientRect();
         return toast.left >= 17 && toast.right <= innerWidth - 17
             && toast.bottom <= footer.top - 17;
     }""")
     before_growth = geometry()
-    page.locator(".cq-general textarea").fill(
+    page.locator(".lf-general textarea").fill(
         "The whole unsent comment stays here.\n" * 4
     )
     page.wait_for_function(
         """beforeTop => {
-            const toast = document.querySelector(".cq-toast").getBoundingClientRect();
-            const footer = document.querySelector(".cq-general").getBoundingClientRect();
+            const toast = document.querySelector(".lf-toast").getBoundingClientRect();
+            const footer = document.querySelector(".lf-general").getBoundingClientRect();
             return footer.top < beforeTop - 1
                 && toast.bottom <= footer.top - 17;
         }""",
@@ -2902,7 +2898,7 @@ def in_threads_scrollport(page, selector):
     because the reveal scrolls smoothly and only the arrival is the fact."""
     page.wait_for_function(
         """(sel) => {
-            const box = document.querySelector('.cq-threads');
+            const box = document.querySelector('.lf-threads');
             const node = document.querySelector(sel);
             if (!node) return false;
             const b = box.getBoundingClientRect(), n = node.getBoundingClientRect();
@@ -2920,21 +2916,21 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     sight, silently. Both send routes then end in the composer the words left, where
     the rebuild sent a button click's focus somewhere else than ⌘⏎'s."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     assert page.evaluate(
-        "() => { const t = document.querySelector('.cq-threads');"
+        "() => { const t = document.querySelector('.lf-threads');"
         "        return t.scrollTop === 0 && t.scrollHeight > t.clientHeight; }"
     ), "this list starts revealed or doesn't scroll, so it proves nothing"
 
-    box = page.locator(".cq-general textarea")
+    box = page.locator(".lf-general textarea")
     box.fill("Where did my words go?")
-    page.locator(".cq-general button").click()  # the route that used to drop focus
+    page.locator(".lf-general button").click()  # the route that used to drop focus
     round_trip(page)
     sent = interact.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
-    in_threads_scrollport(page, f'.cq-thread[data-id="{sent["id"]}"]')
-    assert page.evaluate("() => document.querySelector('.cq-threads').scrollTop") > 0, (
+    in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
+    assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
     expect(box).to_be_focused()
@@ -2944,7 +2940,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
     round_trip(page)
     second = interact.read_events(serve.page_dir)[-1]
-    in_threads_scrollport(page, f'.cq-thread[data-id="{second["id"]}"]')
+    in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
     expect(box).to_be_focused()
     assert errors == []
     page.close()
@@ -2958,13 +2954,13 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
     free to adjust. The old rebuild restored the offset and let the content slide under
     it."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     held = page.evaluate("""() => {
-        const box = document.querySelector('.cq-threads');
+        const box = document.querySelector('.lf-threads');
         box.scrollTop = 400;
         const b = box.getBoundingClientRect();
-        window.__held = [...box.querySelectorAll(':scope > .cq-thread')]
+        window.__held = [...box.querySelectorAll(':scope > .lf-thread')]
             .find(n => n.getBoundingClientRect().top >= b.top);
         return { top: window.__held.getBoundingClientRect().top,
                  scrolled: box.scrollTop > 0 };
@@ -2986,7 +2982,7 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
         },
     )
     told(page)
-    expect(page.locator(f'.cq-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     after = page.evaluate(
         "() => ({ connected: window.__held.isConnected,"
         "          top: window.__held.getBoundingClientRect().top })"
@@ -3006,14 +3002,14 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     could only approximate this by saving and restoring focus and caret by hand, and
     the two send routes proved the restore had holes."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
-    ta = page.locator(".cq-threads > .cq-thread").first.locator("textarea")
+    ta = page.locator(".lf-threads > .lf-thread").first.locator("textarea")
     ta.click()
     ta.type("half a thought")
     page.evaluate("""() => {
         document.activeElement.setSelectionRange(4, 4);
-        window.__probe = document.activeElement.closest('.cq-thread');
+        window.__probe = document.activeElement.closest('.lf-thread');
     }""")
 
     first = next(
@@ -3031,12 +3027,12 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
         },
     )
     told(page)
-    expect(page.locator(f'.cq-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     assert page.evaluate("""() => {
         const ta = document.activeElement;
         return ta.tagName === 'TEXTAREA'
-            && ta.closest('.cq-thread') === window.__probe
-            && window.__probe === document.querySelector('.cq-threads > .cq-thread')
+            && ta.closest('.lf-thread') === window.__probe
+            && window.__probe === document.querySelector('.lf-threads > .lf-thread')
             && ta.value === 'half a thought'
             && ta.selectionStart === 4 && ta.selectionEnd === 4;
     }"""), "the poll replaced or disturbed the node the user was typing into"
@@ -3053,48 +3049,48 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     resolution instead of snapping shut on every arrival, which is what the rebuild
     did."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     c1, c2, c3 = [
         e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
     ]
     expect(
-        page.locator(f'.cq-thread[data-id="{c2}"] .cq-compose > .cq-address')
+        page.locator(f'.lf-thread[data-id="{c2}"] .lf-compose > .lf-address')
     ).to_have_text("2")
     page.evaluate(
-        """(id) => { window.__second = document.querySelector(`.cq-thread[data-id="${id}"]`); }""",
+        """(id) => { window.__second = document.querySelector(`.lf-thread[data-id="${id}"]`); }""",
         c2,
     )
 
-    page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     round_trip(page)
     # The resolved node took the pressed button with it; focus lands on the thread
     # that now holds its place rather than falling to body.
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
-    expect(page.locator(f'.cq-details .cq-thread[data-id="{c1}"]')).to_have_count(1)
-    expect(page.locator(f'.cq-thread[data-id="{c1}"] textarea')).to_have_count(0)
-    expect(page.locator(".cq-comments")).to_have_text("Comments (2)")
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
+    expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
     # The survivors renumber without being remade: same node, new address, and the
     # address its placeholder speaks moved with the badge.
     expect(
-        page.locator(f'.cq-thread[data-id="{c2}"] .cq-compose > .cq-address')
+        page.locator(f'.lf-thread[data-id="{c2}"] .lf-compose > .lf-address')
     ).to_have_text("1")
-    expect(page.locator(f'.cq-thread[data-id="{c2}"] textarea')).to_have_attribute(
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
         "placeholder", "Reply · g 1"
     )
     assert page.evaluate(
-        """(id) => window.__second === document.querySelector(`.cq-thread[data-id="${id}"]`)""",
+        """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
         c2,
     ), "renumbering rebuilt the surviving thread"
 
-    page.locator(".cq-details summary").click()
-    expect(page.locator(".cq-details[open]")).to_have_count(1)
+    page.locator(".lf-details summary").click()
+    expect(page.locator(".lf-details[open]")).to_have_count(1)
     # A thread leaving mid-list puts every survivor one place forward. Standing still
     # there is the reconcile's own duty, not the browser's: a survivor reinserted at
     # its new place is the same element and passes any identity probe, but reinsertion
     # drops the caret typing in it.
-    ta3 = page.locator(f'.cq-thread[data-id="{c3}"] textarea')
+    ta3 = page.locator(f'.lf-thread[data-id="{c3}"] textarea')
     ta3.click()
     ta3.type("held mid-sentence")
     page.evaluate("() => document.activeElement.setSelectionRange(4, 4)")
@@ -3102,8 +3098,8 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": c2}
     )
     told(page)
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (2)")
-    expect(page.locator(".cq-details[open]")).to_have_count(1)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (2)")
+    expect(page.locator(".lf-details[open]")).to_have_count(1)
     expect(ta3).to_be_focused()
     assert page.evaluate(
         "() => document.activeElement.value === 'held mid-sentence'"
@@ -3117,10 +3113,10 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
 # question a departing thread raises: what stands where, and what the keys can still
 # reach. The two lists differ by exactly the thread on its way out.
 LIST_STATE = """() => {
-  const list = document.querySelector(".cq-threads");
+  const list = document.querySelector(".lf-threads");
   return {
     standing: [...list.children].map((n) => n.dataset.id).filter(Boolean),
-    walkable: [...list.querySelectorAll(":scope > .cq-thread")].map(
+    walkable: [...list.querySelectorAll(":scope > .lf-thread")].map(
       (n) => n.dataset.id,
     ),
   };
@@ -3152,20 +3148,20 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
     )
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     c1, c2, c3 = [
         e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
     ]
-    first = page.locator(f'.cq-thread[data-id="{c1}"]').bounding_box()
-    stood = page.locator(f'.cq-thread[data-id="{c2}"]').bounding_box()
+    first = page.locator(f'.lf-thread[data-id="{c1}"]').bounding_box()
+    stood = page.locator(f'.lf-thread[data-id="{c2}"]').bounding_box()
     # The room the first thread holds, the gap under it included, which is what its
     # neighbour rises by once the fold has given it back.
     room = stood["y"] - first["y"]
 
-    page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(f'[data-id="{c1}"] .cq-resolve')).to_have_text("✓ Resolved")
+    expect(page.locator(f'[data-id="{c1}"] .lf-resolve')).to_have_text("✓ Resolved")
     held = page.evaluate(LIST_STATE)
     assert held["standing"] == [c1, c2, c3], (
         "the resolved thread gave up its place in the frame it was resolved in, so "
@@ -3175,22 +3171,22 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "a thread on its way out is still walkable by j/k and addressable by g, so a "
         f"key can land on room that is about to go: the list offered {held['walkable']}"
     )
-    assert page.evaluate("() => window.__cqHeld.length") == 1, (
+    assert page.evaluate("() => window.__lfHeld.length") == 1, (
         "the room went back without motion carrying it"
     )
-    now = page.locator(f'.cq-thread[data-id="{c2}"]').bounding_box()
+    now = page.locator(f'.lf-thread[data-id="{c2}"]').bounding_box()
     assert now == stood, (
         f"the thread below stood at {stood} and reads {now} in the frame the outcome "
         "was stated, so the fold started from somewhere other than the box the reader "
         "was looking at"
     )
-    expect(page.locator(".cq-comments")).to_have_text("Comments (2)")
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     # The address the fold gave up, read where a reader reads it.
     expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
     )
-    expect(page.locator(f'.cq-thread[data-id="{c2}"] textarea')).to_have_attribute(
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
         "placeholder", "Reply · g 1"
     )
 
@@ -3199,11 +3195,11 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     # flow is legible for the frame before the box swallows it and no longer — which
     # is a flash, not a statement. It rides the closing edge instead, and what says so
     # is its box being inside the box the fold has left.
-    page.evaluate("() => window.__cqHeld.forEach((m) => (m.currentTime = 110))")
+    page.evaluate("() => window.__lfHeld.forEach((m) => (m.currentTime = 110))")
     clip, says = page.evaluate(
         """(id) => {
           const going = document.querySelector(`[data-id="${id}"]`);
-          const row = going.querySelector(".cq-thread-actions");
+          const row = going.querySelector(".lf-thread-actions");
           return [going.getBoundingClientRect(), row.getBoundingClientRect()];
         }""",
         c1,
@@ -3216,10 +3212,10 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
 
     # And the far end: the thread lands in the disclosure, once, and the room it held
     # has gone back to the threads under it.
-    page.evaluate("() => window.__cqHeld.forEach((m) => m.finish())")
-    expect(page.locator(f'.cq-details .cq-thread[data-id="{c1}"]')).to_have_count(1)
+    page.evaluate("() => window.__lfHeld.forEach((m) => m.finish())")
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     expect(page.locator(f'[data-id="{c1}"]')).to_have_count(1)
-    risen = page.locator(f'.cq-thread[data-id="{c2}"]').bounding_box()
+    risen = page.locator(f'.lf-thread[data-id="{c2}"]').bounding_box()
     assert stood["y"] - risen["y"] == pytest.approx(room, abs=1), (
         f"the thread below rose {stood['y'] - risen['y']:.1f}px where the resolved "
         f"thread held {room:.1f}px"
@@ -3261,20 +3257,20 @@ def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
     direction: sampled at exactly the duration, an animation is already past its
     own interval and reads as the element it never was."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".cq-comments").click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     c1 = next(
         e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
     )
     # Watching from before the press, so the frames it holds still are in the record
     # alongside the ones that move.
-    page.evaluate(FRAME_BY_FRAME, f'.cq-threads > [data-id="{c1}"]')
-    page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
+    page.evaluate(FRAME_BY_FRAME, f'.lf-threads > [data-id="{c1}"]')
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     # The node leaving the list is the fold's end and the browser's own statement, so
     # the wait is that rather than the sampler's flag: what runs in the page is the
     # record, which nothing out here can take, and not the wait, which is already
     # answered from outside.
-    page.wait_for_selector(f'.cq-threads > [data-id="{c1}"]', state="detached")
+    page.wait_for_selector(f'.lf-threads > [data-id="{c1}"]', state="detached")
     seen = page.evaluate("() => window.__seen")
 
     grew = [
@@ -3315,16 +3311,16 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
             context=context,
             init_script=HOLD_MOTION,
         )
-        page.locator(".cq-comments").click()
+        page.locator(".lf-comments").click()
         panel_settled(page)
         c1, c2 = [
             e["id"]
             for e in interact.read_events(serve.page_dir)
             if e["kind"] == "comment"
         ]
-        page.locator(f'.cq-thread[data-id="{c1}"] .cq-resolve').click()
-        expect(page.locator(f'.cq-details .cq-thread[data-id="{c1}"]')).to_have_count(1)
-        assert page.evaluate("() => window.__cqHeld.length") == 0, (
+        page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+        expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
+        assert page.evaluate("() => window.__lfHeld.length") == 0, (
             "a reader who asked for less motion was given a fold to sit through"
         )
         assert page.evaluate(LIST_STATE) == {"standing": [c2], "walkable": [c2]}, (
@@ -3338,7 +3334,7 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
-    them: cq-tabs once marked itself cq-live — the chrome's name for its
+    them: lf-tabs once marked itself lf-live — the chrome's name for its
     visually-hidden live region — and every tabbed page clipped to a pixel. An
     element in the page wearing every scoped class at once must render exactly as
     its unclassed twin, and the classes styled at document level must be exactly
@@ -3348,7 +3344,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         serve(
             '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
             '<link rel="stylesheet" href="/theme.css">'
-            '<script type="module" src="/colloquy.js"></script></head>'
+            '<script type="module" src="/leaf.js"></script></head>'
             "<body><main><h1>t</h1><section id=s><p>words</p></section></main></body></html>"
         ),
     )
@@ -3365,7 +3361,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         collect(sheet.cssRules, global_);
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
-        // (cq-address, worn on a reply box and on an option's corner alike) is named
+        // (lf-address, worn on a reply box and on an option's corner alike) is named
         // by the scoped rule that says when to paint it, and it would answer this
         // question with the reach it was given rather than with a leak.
         probe.className = [...scoped].filter(c => !global_.has(c)).join(" ");
@@ -3377,7 +3373,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         return { scoped: [...scoped], global: [...global_],
                  moved: Object.keys(a).filter(p => a[p] !== b[p]) };
     }""")
-    assert "cq-live" in surface["scoped"] and len(surface["scoped"]) > 20, (
+    assert "lf-live" in surface["scoped"] and len(surface["scoped"]) > 20, (
         "the @scope block is missing or nearly empty — the chrome has lost its rules"
     )
     assert surface["moved"] == [], (
@@ -3385,18 +3381,18 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     )
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container, which is exactly why a scoped rule could not reach it.
-    assert {c for c in surface["global"] if c.startswith("cq-")} == {
-        "cq-ui",
-        "cq-btn",
-        "cq-pill",
-        "cq-address",
-        "cq-over-mark",
-        "cq-mark-el",
-        "cq-pending",
-        "cq-ins-block",
-        "cq-mark-note",
-        "cq-aiming",
-        "cq-over-item",
+    assert {c for c in surface["global"] if c.startswith("lf-")} == {
+        "lf-ui",
+        "lf-btn",
+        "lf-pill",
+        "lf-address",
+        "lf-over-mark",
+        "lf-mark-el",
+        "lf-pending",
+        "lf-ins-block",
+        "lf-mark-note",
+        "lf-aiming",
+        "lf-over-item",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
@@ -3413,10 +3409,10 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         serve(
             '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
             '<link rel="stylesheet" href="/theme.css"><style>'
-            "@keyframes cq-pulse { from { transform: translateX(0px); } "
+            "@keyframes lf-pulse { from { transform: translateX(0px); } "
             "to { transform: translateX(40px); } }"
-            "#page-pulse { animation: cq-pulse 10s linear infinite; }"
-            '</style><script type="module" src="/colloquy.js"></script></head>'
+            "#page-pulse { animation: lf-pulse 10s linear infinite; }"
+            '</style><script type="module" src="/leaf.js"></script></head>'
             '<body><main><h1>t</h1><p id="page-pulse">Page-owned motion.</p></main></body></html>'
         ),
     )
@@ -3426,7 +3422,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const dot = document.querySelector(".cq-dot");
+        const dot = document.querySelector(".lf-dot");
         dot.classList.add("working");
         const runtimeAnimation = dot.getAnimations()[0];
         return {
@@ -3435,9 +3431,9 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         };
     }""")
     assert sampled["pageDistance"] == pytest.approx(20), (
-        f"the runtime replaced the page's cq-pulse keyframes: {sampled}"
+        f"the runtime replaced the page's lf-pulse keyframes: {sampled}"
     )
-    assert sampled["runtimeName"] and sampled["runtimeName"] != "cq-pulse", (
+    assert sampled["runtimeName"] and sampled["runtimeName"] != "lf-pulse", (
         f"the chrome lost its own private pulse animation: {sampled}"
     )
     assert errors == []
@@ -3450,41 +3446,41 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>stacked options</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Clip storage</h1>
-<cq-options id="stacked" choose>
-  <cq-option id="st-sd"><cq-chip>effort: low</cq-chip><cq-chip tone="danger">risk: high</cq-chip>
+<lf-options id="stacked" choose>
+  <lf-option id="st-sd"><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
     <strong>SD card only</strong>
     <dl class="facts"><dt>Keeps</dt><dd>nine days</dd><dt>Retrieval</dt><dd>a ladder</dd></dl>
     <p>Clips stay on the camera's card and overwrite oldest-first.</p>
-  </cq-option>
-  <cq-option id="st-pi" recommended><cq-chip>effort: med</cq-chip><cq-chip>risk: low</cq-chip>
+  </lf-option>
+  <lf-option id="st-pi" recommended><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
     <strong>Pi in the shed</strong>
     <dl class="facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
     <p>A nightly pull over the garden wifi; the link is the weak span.</p>
-  </cq-option>
-</cq-options>
-<cq-options id="terse">
-  <cq-option id="t-paper"><cq-chip>effort: low</cq-chip><cq-chip>risk: high</cq-chip><strong>Paper maps</strong> Nothing
-  to charge.</cq-option>
-  <cq-option id="t-gps"><cq-chip>£240</cq-chip><cq-chip>a week of battery</cq-chip><cq-chip>resellable if the season ends early</cq-chip><strong>GPS</strong> A week of
-  battery.</cq-option>
-</cq-options>
-<cq-compare id="pair">
-  <cq-variant id="cv-cedar"><strong>Cedar</strong>
+  </lf-option>
+</lf-options>
+<lf-options id="terse">
+  <lf-option id="t-paper"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip><strong>Paper maps</strong> Nothing
+  to charge.</lf-option>
+  <lf-option id="t-gps"><lf-chip>£240</lf-chip><lf-chip>a week of battery</lf-chip><lf-chip>resellable if the season ends early</lf-chip><strong>GPS</strong> A week of
+  battery.</lf-option>
+</lf-options>
+<lf-compare id="pair">
+  <lf-variant id="cv-cedar"><strong>Cedar</strong>
     <dl class="facts"><dt>Seal</dt><dd>never</dd></dl>
-    <p>Weathers silver; no sealant, no schedule.</p></cq-variant>
-  <cq-variant id="cv-pine"><strong>Pine</strong>
+    <p>Weathers silver; no sealant, no schedule.</p></lf-variant>
+  <lf-variant id="cv-pine"><strong>Pine</strong>
     <dl class="facts"><dt>Seal</dt><dd>yearly</dd></dl>
-    <p>Cheaper up front; seal it every autumn.</p></cq-variant>
-</cq-compare>
-<cq-compare id="terse-pair">
-  <cq-variant id="cv-oiled"><strong>Oiled</strong> Darker, and a spring job.</cq-variant>
-  <cq-variant id="cv-bare"><strong>Bare</strong> Silver by June.</cq-variant>
-</cq-compare>
+    <p>Cheaper up front; seal it every autumn.</p></lf-variant>
+</lf-compare>
+<lf-compare id="terse-pair">
+  <lf-variant id="cv-oiled"><strong>Oiled</strong> Darker, and a spring job.</lf-variant>
+  <lf-variant id="cv-bare"><strong>Bare</strong> Silver by June.</lf-variant>
+</lf-compare>
 </main>
 </body>
 </html>
@@ -3525,7 +3521,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 
     title = page.locator("#st-sd > strong").bounding_box()
-    chips = page.locator("#st-sd > cq-chip")
+    chips = page.locator("#st-sd > lf-chip")
     expect(chips).to_have_text(["effort: low", "risk: high"])
     # `tone` is the author's judgement about one answer, so it lands on the chip that
     # declares it and nowhere else — the arrangement this replaced tinted whichever chip
@@ -3563,7 +3559,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     assert paper["y"] + paper["height"] <= gps["y"], "terse options stack too"
     assert gps["width"] > terse["width"] * 0.95, "a terse card takes the whole column"
 
-    # cq-compare is the same shape without the decision, and follows it for block
+    # lf-compare is the same shape without the decision, and follows it for block
     # content; an exhibition is looked across, so its terse form keeps the grid —
     # the one side-by-side layout left, asserted here or nowhere.
     cedar = page.locator("#cv-cedar").bounding_box()
@@ -3583,7 +3579,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     # is still reachable. Last, because the width moves every box read above.
     page.set_viewport_size({"width": 400, "height": 900})
     gps = page.locator("#t-gps").bounding_box()
-    long_chips = page.locator("#t-gps > cq-chip")
+    long_chips = page.locator("#t-gps > lf-chip")
     expect(long_chips).to_have_count(3)
     wrapped = [long_chips.nth(i).bounding_box() for i in range(3)]
     assert wrapped[-1]["y"] > wrapped[0]["y"], (
@@ -3638,14 +3634,14 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
 
     assert errors == []
     collapsed = group.evaluate(height)
-    assert page.locator("#transport cq-option:visible").count() == 0
-    row = page.locator("#transport .cq-settled")
+    assert page.locator("#transport lf-option:visible").count() == 0
+    row = page.locator("#transport .lf-settled")
     assert row.inner_text().startswith("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
 
     row.click()
     opened = group.evaluate(height)
-    assert page.locator("#transport cq-option:visible").count() == 3
+    assert page.locator("#transport lf-option:visible").count() == 3
     assert opened > collapsed * 3, (
         f"collapsing saved {opened - collapsed}px of {opened}px — a settled group "
         f"that still costs most of its open height isn't a sweep"
@@ -3656,7 +3652,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # While it is closed the row is the decision's only visible statement, so the part of
     # it naming the card has to be quotable — and a drag across it must not toggle the
     # disclosure it lives in, which is the mouseup of that drag.
-    title = page.locator("#transport .cq-settled [data-cq-said]")
+    title = page.locator("#transport .lf-settled [data-lf-said]")
     box = title.bounding_box()
     y = box["y"] + box["height"] / 2
     page.mouse.move(box["x"] + 2, y)
@@ -3668,8 +3664,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
         == "Settled: Lax cookie"
     )
     expect(page.locator("#opt-strict")).to_be_hidden()
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
     page.keyboard.press("Escape")
 
@@ -3692,17 +3688,17 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 2, y, steps=8)
     page.mouse.up()
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
-    page.locator(".cq-composer textarea").fill("which copy is this on?")
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("which copy is this on?")
     page.get_by_role("button", name="Comment", exact=True).click()
     # Two, not one: this page arrived carrying a mark, so waiting for any at all is a
     # wait that was over before the gesture started.
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) >= 2")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     # Both marks on the page: the one this fixture arrived carrying, and the new one.
     assert sorted(
         page.evaluate(
-            "() => [...CSS.highlights.get('cq-mark')].map(r => "
+            "() => [...CSS.highlights.get('lf-mark')].map(r => "
             "r.startContainer.parentElement.closest('[id]').id)"
         )
     ) == ["opt-lax", "opt-strict"], (
@@ -3712,7 +3708,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
 
     # Sending opened the panel, so the thread is already listed. Its quote is on a card
     # the collapse is hiding, and following it has to bring the card back.
-    page.locator(".cq-panel .cq-quote", has_text="arrives logged out").click()
+    page.locator(".lf-panel .lf-quote", has_text="arrives logged out").click()
     assert page.locator("#opt-strict").is_visible(), (
         "clicking a thread's quote must open the group holding it"
     )
@@ -3733,25 +3729,25 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     (relabel), so paper needs no rule naming this widget — the same reason a tab
     strip goes while each panel's label comes back."""
     page, errors = open_page(browser, serve(SETTLED_PAGE))
-    row = page.locator("#transport .cq-settled")
+    row = page.locator("#transport .lf-settled")
     expect(row).to_contain_text("Settled: Lax cookie")
-    expect(page.locator(".cq-banner")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_visible()
 
     # The strip the mark sits in: what the card's bottom padding holds over its own
     # base, so the measure follows the theme's spacing instead of pinning a number.
     strip = """el => parseFloat(getComputedStyle(el).paddingBottom) -
                      parseFloat(getComputedStyle(el).paddingLeft)"""
-    pick = page.locator("#opt-lax .cq-pick")
+    pick = page.locator("#opt-lax .lf-pick")
     page.emulate_media(media="print")
     expect(
-        page.locator(".cq-banner")
+        page.locator(".lf-banner")
     ).to_be_hidden()  # the whole layer, by its own root
     expect(
         row
     ).to_be_hidden()  # the disclosure is a screen affordance; paper has the cards
     expect(pick).to_be_visible()
     expect(pick).to_have_text("chosen")
-    expect(page.locator("#opt-strict .cq-pick")).to_be_hidden()
+    expect(page.locator("#opt-strict .lf-pick")).to_be_hidden()
     assert page.locator("#opt-strict").evaluate(strip) == 0, (
         "a card whose mark can't print is holding room for it — an empty strip "
         "under a card the printed page says nothing about"
@@ -3776,7 +3772,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
 
     It shipped the other way round. The mark is one element in two shapes — a
     press where there is a pick to make, an inert span where there isn't — and the
-    inert one wore the press's `.cq-ui`, which anchoring skipped, so a user
+    inert one wore the press's `.lf-ui`, which anchoring skipped, so a user
     could read "chosen" and not point at it. Every shipped example declares
     `choose`, so the render suite never rendered the inert shape and nothing said
     so. The press was out of reach for longer and for a different reason, which
@@ -3789,7 +3785,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     assert interact.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
-    mark = page.locator("#c-lax .cq-pick")
+    mark = page.locator("#c-lax .lf-pick")
     assert mark.get_attribute("role") is None, "nothing to press means no button role"
     box = mark.bounding_box()
     page.mouse.move(box["x"] + 2, box["y"] + box["height"] / 2)
@@ -3800,15 +3796,15 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
         "a drag across the mark selected nothing — the state is painted, not said"
     )
 
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
     assert composer_quote(page)["text"].strip("“”") == "chosen"
-    page.locator(".cq-composer textarea").fill("say which version chose it")
+    page.locator(".lf-composer textarea").fill("say which version chose it")
     page.get_by_role("button", name="Comment", exact=True).click()
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    assert painted(page, "cq-mark") == "chosen"
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert painted(page, "lf-mark") == "chosen"
 
     # A second version rewording the option nobody picked. The mark is written by
     # the runtime and stands in no version file, so the anchor on it has to be
@@ -3822,15 +3818,15 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    expect(page.locator(".cq-thread .cq-quote.detached")).to_have_count(0)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
 
     compare_with(page)
     page.wait_for_function(
-        "() => document.querySelectorAll('.cq-ins-block').length > 0"
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
     )
     assert page.evaluate(
-        "() => [...document.querySelectorAll('.cq-ins-block')].map(e => e.id)"
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
     assert errors == []
     page.close()
@@ -3848,9 +3844,9 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     or the fix has traded a word nobody can quote for a decision nobody can make."""
     page, errors = open_page(browser, serve(SETTLED_PAGE))
     page.locator(
-        "#transport .cq-settled"
+        "#transport .lf-settled"
     ).click()  # open the group; the cards are hidden
-    mark = page.locator("#opt-lax .cq-pick")
+    mark = page.locator("#opt-lax .lf-pick")
     expect(mark).to_have_text("chosen")
 
     # Where the theme puts it: one line along the card's own bottom edge, in the same
@@ -3864,10 +3860,10 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     # matching box used to stand for — that a pick shifts nothing — is asked of the card
     # itself further down, which is the fact rather than a proxy that happened to imply it.
     seat = """el => { const r = el.getBoundingClientRect();
-                      const card = el.closest('cq-option').getBoundingClientRect();
+                      const card = el.closest('lf-option').getBoundingClientRect();
                       return [Math.round(card.bottom - r.bottom),
                               Math.round(r.left - card.left)]; }"""
-    assert mark.evaluate(seat) == page.locator("#opt-strict .cq-pick").evaluate(seat)
+    assert mark.evaluate(seat) == page.locator("#opt-strict .lf-pick").evaluate(seat)
     up, over = mark.evaluate(seat)
     assert mark.bounding_box()["height"] < 24 and up < 16 and over < 20, (
         f"the mark is not a one-line caption on the card's bottom-left: {[up, over]}"
@@ -3882,9 +3878,9 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     page.mouse.move(box["x"] + 2, y, steps=8)
     page.mouse.up()
     assert page.evaluate("() => getSelection().toString()").strip() == "chosen"
-    expect(page.locator("#transport > cq-option[chosen]")).to_have_count(1)
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
+    expect(page.locator("#transport > lf-option[chosen]")).to_have_count(1)
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "chosen"
     page.keyboard.press("Escape")
 
@@ -3909,7 +3905,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     box = """el => { const r = el.getBoundingClientRect();
                      return [Math.round(r.width), Math.round(r.height)]; }"""
     strict.click()  # clicking the pick clears it, so now the group holds no answer
-    expect(page.locator("#transport > cq-option[chosen]")).to_have_count(0)
+    expect(page.locator("#transport > lf-option[chosen]")).to_have_count(0)
     empty = strict.evaluate(box)
     strict.click()
     expect(page.locator("#opt-strict[chosen]")).to_have_count(1)
@@ -3917,7 +3913,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
         f"answering the group resized the card it was answered on: {empty} -> "
         f"{strict.evaluate(box)}"
     )
-    page.locator("#opt-bearer .cq-pick").focus()
+    page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
 
@@ -3943,10 +3939,10 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     )  # replay carried the pick
     compare_with(page)
     page.wait_for_function(
-        "() => document.querySelectorAll('.cq-ins-block').length > 0"
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
     )
     assert page.evaluate(
-        "() => [...document.querySelectorAll('.cq-ins-block')].map(e => e.id)"
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["opt-strict"], "the diff read a pick mark as text the base version lacked"
     assert errors == []
     page.close()
@@ -3977,7 +3973,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         "an option still draws its own border, so the group reads as cards standing apart"
     )
 
-    mark = page.locator("#opt-shim .cq-pick")
+    mark = page.locator("#opt-shim .lf-pick")
     box = """el => [Math.round(el.getBoundingClientRect().width),
                     Math.round(parseFloat(getComputedStyle(el, '::before').width)),
                     getComputedStyle(el, '::before').visibility]"""
@@ -3997,10 +3993,10 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    ring_on = """el => { const on = el.closest('cq-option');
+    ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
-                      return [on.id, on.matches(':has(> .cq-pick:focus-visible)'),
+                      return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
                               drawn(on), drawn(el)]; }"""
     on, held, card_ring, mark_ring = mark.evaluate(ring_on)
     assert (on, held) == ("opt-shim", True), (
@@ -4020,14 +4016,14 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     # The copy medium: scripts are dropped, so the pick cannot be made and the group must
     # not go on saying one is waiting. The cards come apart and their rings come back, which
     # is the same page paper gets, and both get it by never being handed the offer.
-    page.evaluate("() => document.documentElement.classList.add('cq-copy')")
+    page.evaluate("() => document.documentElement.classList.add('lf-copy')")
     assert page.locator("#approach").evaluate(edge) == 0, (
         "a copy still draws the group as a control it has no way to work"
     )
     assert page.locator("#opt-stage").evaluate(edge) > 0, (
         "the cards did not come back apart in a copy"
     )
-    assert page.locator("#opt-stage .cq-pick").evaluate(box)[2] == "visible", (
+    assert page.locator("#opt-stage .lf-pick").evaluate(box)[2] == "visible", (
         "no ring and no container leaves a copy saying nothing about a pick at all"
     )
     assert errors == []
@@ -4046,20 +4042,20 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     settled group collapses like any other."""
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
     assert errors == []
-    assert page.locator(".cq-error").count() == 0
+    assert page.locator(".lf-error").count() == 0
 
     # The exhibit rendered: the gutter's caption, and cards with real size. The label is
     # the page's own word, so the runtime says it as text a user can quote; only the
     # "specimen · " in front of it is the theme's, and only that is still pseudo-content.
-    label = page.locator('#spec > [data-cq-said="label"]')
+    label = page.locator('#spec > [data-lf-said="label"]')
     assert label.text_content() == "a decision"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
         == '"specimen · "'
     )
-    assert page.locator("#quoted-group cq-option").count() == 2
+    assert page.locator("#quoted-group lf-option").count() == 2
     assert (
-        page.locator("#quoted-group cq-option").first.evaluate(
+        page.locator("#quoted-group lf-option").first.evaluate(
             "el => Math.round(el.getBoundingClientRect().height)"
         )
         > 20
@@ -4069,29 +4065,29 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # the button role — an unpicked quoted card carries no mark at all, exactly as
     # a group that never declared `choose`. A click chooses nothing either (the
     # choose path sets `chosen` before it sends, so a pick would show here).
-    assert page.locator('#quoted-group .cq-pick[role="button"]').count() == 0
-    assert page.locator("#quoted-board .cq-grip").count() == 0
+    assert page.locator('#quoted-group .lf-pick[role="button"]').count() == 0
+    assert page.locator("#quoted-board .lf-grip").count() == 0
     # Nor a box for words: an exhibited question takes no answer of either kind, and
     # a box is the one that would have looked answerable.
-    assert page.locator("#quoted-group .cq-say").count() == 0
+    assert page.locator("#quoted-group .lf-say").count() == 0
     page.locator("#q-shim").click()
-    assert page.locator("#quoted-group cq-option[chosen]").count() == 0
+    assert page.locator("#quoted-group lf-option[chosen]").count() == 0
 
     # The document's own state still reads: the settled group's authored pick
     # wears its mark, with nothing to press.
-    assert page.locator("#quoted-settled .cq-pick:not([role])").count() == 1
+    assert page.locator("#quoted-settled .lf-pick:not([role])").count() == 1
 
     # A quoted suggestion shows what a pending change looks like — both slots
     # marked — and grows nothing to settle it with, so it is also not the
     # banner's to count or Accept all's to decide.
-    assert page.locator("#quoted-suggestion cq-old").is_visible()
-    assert page.locator("[data-cq-for='quoted-suggestion']").count() == 0
+    assert page.locator("#quoted-suggestion lf-old").is_visible()
+    assert page.locator("[data-lf-for='quoted-suggestion']").count() == 0
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 
     # The control: the same markup unquoted wires all of it.
-    assert page.locator('#live-group .cq-pick[role="button"]').count() == 2
-    assert page.locator("#live-board .cq-grip").count() == 1
-    assert page.locator("[data-cq-for='live-suggestion']").count() == 1
+    assert page.locator('#live-group .lf-pick[role="button"]').count() == 2
+    assert page.locator("#live-board .lf-grip").count() == 1
+    assert page.locator("[data-lf-for='live-suggestion']").count() == 1
 
     # Nor the room for one. A quoted card stands at the height of a card in a
     # group that never declared `choose`, because that is what it is; reserving
@@ -4103,9 +4099,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
 
     # View state still runs inside a specimen: the settled group collapsed.
-    assert page.locator("#quoted-settled cq-option:visible").count() == 0
-    page.locator("#quoted-settled .cq-settled").click()
-    assert page.locator("#quoted-settled cq-option:visible").count() == 2
+    assert page.locator("#quoted-settled lf-option:visible").count() == 0
+    page.locator("#quoted-settled .lf-settled").click()
+    assert page.locator("#quoted-settled lf-option:visible").count() == 2
 
     # The exception, once that group is open: the card the document marks does
     # carry a mark, so it keeps the strip a live pick would.
@@ -4129,32 +4125,32 @@ ASK_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>ask</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Three jobs</h1>
-<cq-options id="jobs" choose multiple>
-  <cq-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</cq-option>
-  <cq-option id="job-heater" for="sec-heater"><cq-chip tone="ok">reversible</cq-chip>Heat the bird bath</cq-option>
-  <cq-option id="job-camera">Neither — the camera first</cq-option>
-</cq-options>
+<lf-options id="jobs" choose multiple>
+  <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
+  <lf-option id="job-heater" for="sec-heater"><lf-chip tone="ok">reversible</lf-chip>Heat the bird bath</lf-option>
+  <lf-option id="job-camera">Neither — the camera first</lf-option>
+</lf-options>
 <section id="sec-mounts"><h2>The mounts</h2><p id="mounts-p">Plastic, and one came
 down in January.</p></section>
 <section id="sec-heater"><h2>The bird bath</h2><p id="heater-p">Frozen eleven
 mornings last winter.</p></section>
-<cq-options id="bracket" choose>
-  <cq-option id="br-steel"><strong>Steel</strong> Galvanised, drop-in.</cq-option>
-  <cq-option id="br-cedar"><strong>Cedar</strong> Cheap; needs sealing.</cq-option>
-</cq-options>
-<cq-options id="tools" choose multiple>
-  <cq-option id="tl-clamp"><strong>Bar clamp</strong> Holds the rail while it sets.</cq-option>
-  <cq-option id="tl-torque"><strong>Torque wrench</strong> The mounts are rated.</cq-option>
-</cq-options>
-<cq-options id="ordered">
-  <cq-option id="ord-mounts">Mounts, before the frost</cq-option>
-  <cq-option id="ord-heater">Heater, after it</cq-option>
-</cq-options>
+<lf-options id="bracket" choose>
+  <lf-option id="br-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
+  <lf-option id="br-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
+</lf-options>
+<lf-options id="tools" choose multiple>
+  <lf-option id="tl-clamp"><strong>Bar clamp</strong> Holds the rail while it sets.</lf-option>
+  <lf-option id="tl-torque"><strong>Torque wrench</strong> The mounts are rated.</lf-option>
+</lf-options>
+<lf-options id="ordered">
+  <lf-option id="ord-mounts">Mounts, before the frost</lf-option>
+  <lf-option id="ord-heater">Heater, after it</lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -4225,10 +4221,10 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
 
     # The block a row is about, reachable as a link and written as the id it names —
     # the same way the comment panel writes an element anchor.
-    ref = page.locator("#job-mounts .cq-ref")
+    ref = page.locator("#job-mounts .lf-ref")
     expect(ref).to_have_text("§ sec-mounts")
     assert ref.get_attribute("href") == "#sec-mounts"
-    assert page.locator("#job-camera .cq-ref").count() == 0
+    assert page.locator("#job-camera .lf-ref").count() == 0
 
     # No open mark says its word, in either form. The dot is where they part: a row's is
     # drawn and a single-pick card's is not, which is each form answering for the room it
@@ -4236,22 +4232,22 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     # card side is read off `#bracket` rather than off the `multiple` card group beside it.)
     hidden = "el => getComputedStyle(el).fontSize"
     dot = "el => getComputedStyle(el, '::before').visibility"
-    assert page.locator("#job-mounts .cq-pick").evaluate(hidden) == "0px"
-    assert page.locator("#br-steel .cq-pick").evaluate(hidden) == "0px"
-    assert page.locator("#job-mounts .cq-pick").evaluate(dot) == "visible"
-    assert page.locator("#br-steel .cq-pick").evaluate(dot) == "hidden"
+    assert page.locator("#job-mounts .lf-pick").evaluate(hidden) == "0px"
+    assert page.locator("#br-steel .lf-pick").evaluate(hidden) == "0px"
+    assert page.locator("#job-mounts .lf-pick").evaluate(dot) == "visible"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden"
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)
-    expect(page.locator("#job-heater .cq-pick")).to_have_text("your pick")
-    assert page.locator("#job-heater .cq-pick").evaluate(hidden) != "0px"
+    expect(page.locator("#job-heater .lf-pick")).to_have_text("your pick")
+    assert page.locator("#job-heater .lf-pick").evaluate(hidden) != "0px"
     # The row's name, as the mark reports it back: what the author wrote, and not the
     # word the mark itself just added to the line. A chip is in it — authored markup,
     # the page's words about this option — and the mark's own "your pick" is not, which
     # is the whole of the distinction: a question answered must not read its own answer
     # back as part of what was asked, and nothing else the author wrote is the answer.
     assert (
-        page.locator("#job-heater .cq-pick").get_attribute("aria-label")
+        page.locator("#job-heater .lf-pick").get_attribute("aria-label")
         == "your pick: reversible Heat the bird bath"
     )
     page.close()
@@ -4290,8 +4286,8 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
                         const r = s.borderTopLeftRadius;
                         return r.endsWith('%') ? parseFloat(r) / 100
                                                : parseFloat(r) / parseFloat(s.width); }"""
-    one = page.locator("#br-steel .cq-pick").evaluate(corner)
-    many = page.locator("#tl-clamp .cq-pick").evaluate(corner)
+    one = page.locator("#br-steel .lf-pick").evaluate(corner)
+    many = page.locator("#tl-clamp .lf-pick").evaluate(corner)
     assert one == 0.5, "a group taking one option draws something other than a circle"
     assert many < one, (
         "a group taking more than one draws the circle that means 'one of these', so "
@@ -4299,23 +4295,23 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     )
     # Not the list form's rule wearing a card's clothes: the row group agrees with the
     # card group it shares an arity with, against the card group it shares a form with.
-    assert page.locator("#job-mounts .cq-pick").evaluate(corner) == many
+    assert page.locator("#job-mounts .lf-pick").evaluate(corner) == many
 
     # An unticked slot is that option's own state under `multiple`, so the box draws with
     # nothing in it — the reader counts what is left to take. A single-pick card has no
     # such second question and keeps giving its box up.
     dot = "el => getComputedStyle(el, '::before').visibility"
-    assert page.locator("#tl-clamp .cq-pick").evaluate(dot) == "visible", (
+    assert page.locator("#tl-clamp .lf-pick").evaluate(dot) == "visible", (
         "a card group asking 'which of these' draws no empty boxes, so the reader has "
         "nothing to count and no sign a second pick is on offer"
     )
-    assert page.locator("#br-steel .cq-pick").evaluate(dot) == "hidden"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden"
 
     # Paint, not metrics: the mark's box is the same in both arities, which is what lets
     # the row form's reserved column and the card's reserved strip stand unchanged.
     box = "el => { const b = el.getBoundingClientRect(); return [b.width, b.height]; }"
-    assert page.locator("#tl-clamp .cq-pick").evaluate(box) == page.locator(
-        "#br-steel .cq-pick"
+    assert page.locator("#tl-clamp .lf-pick").evaluate(box) == page.locator(
+        "#br-steel .lf-pick"
     ).evaluate(box), "the shape that says arity took room from the option beside it"
 
     # The same statement for a reader who gets no shape. A corner is paint, so all a
@@ -4325,8 +4321,8 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     # the pick: the offer is the state the reader is in while the question is still open,
     # which is when knowing costs them a wasted press.
     named = "el => el.getAttribute('aria-label')"
-    assert page.locator("#br-steel .cq-pick").evaluate(named) == "choose one: Steel"
-    assert page.locator("#tl-clamp .cq-pick").evaluate(named) == "choose any: Bar clamp"
+    assert page.locator("#br-steel .lf-pick").evaluate(named) == "choose one: Steel"
+    assert page.locator("#tl-clamp .lf-pick").evaluate(named) == "choose any: Bar clamp"
     assert errors == []
     page.close()
 
@@ -4337,23 +4333,23 @@ NESTED_ASK_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>nested</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Two jobs</h1>
-<cq-options id="outer" choose multiple>
-  <cq-option id="out-drill"><strong>The revocation drill</strong>
+<lf-options id="outer" choose multiple>
+  <lf-option id="out-drill"><strong>The revocation drill</strong>
     <p id="drill-p">Support wants it run at their own volume.</p>
-    <cq-options id="inner" choose>
-      <cq-option id="in-now">This sprint</cq-option>
-      <cq-option id="in-next">Next sprint</cq-option>
-    </cq-options>
-  </cq-option>
-  <cq-option id="out-keys"><strong>Key rotation</strong>
+    <lf-options id="inner" choose>
+      <lf-option id="in-now">This sprint</lf-option>
+      <lf-option id="in-next">Next sprint</lf-option>
+    </lf-options>
+  </lf-option>
+  <lf-option id="out-keys"><strong>Key rotation</strong>
     <p id="keys-p">Cheap, and overdue since the split.</p>
-  </cq-option>
-</cq-options>
+  </lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -4362,7 +4358,7 @@ NESTED_ASK_PAGE = """<!doctype html>
 
 def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     """An option's content model is prose, so a question nests inside another question's
-    option — the theme's argument-row form lists `cq-options` among the block content it
+    option — the theme's argument-row form lists `lf-options` among the block content it
     lays out. The arity a mark wears has to be its own group's, and the shape that says so
     is one an enclosing group could hand down: written as an inherited value, "which of
     these" on the outside would have made "which one" on the inside draw squares, and the
@@ -4376,14 +4372,14 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
                         const r = s.borderTopLeftRadius;
                         return r.endsWith('%') ? parseFloat(r) / 100
                                                : parseFloat(r) / parseFloat(s.width); }"""
-    assert page.locator("#in-now .cq-pick").evaluate(corner) == 0.5, (
+    assert page.locator("#in-now .lf-pick").evaluate(corner) == 0.5, (
         "a single-pick question took the arity of the question it is nested in, so it "
         "offers a set where only one answer will stand"
     )
     # And the outer group's own marks are unaffected by the group standing inside one of
     # its options: the mark on #out-drill is the outer question's, not the inner one's.
-    assert page.locator("#out-drill > .cq-pick").evaluate(corner) < 0.5
-    assert page.locator("#out-keys > .cq-pick").evaluate(corner) < 0.5
+    assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
+    assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
     assert errors == []
     page.close()
 
@@ -4401,26 +4397,26 @@ INLINE_CASE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>inline case</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">The status column</h1>
-<cq-options id="rollout" choose>
-  <cq-option id="ro-column"><strong>Ship the column</strong>
-    <cq-shot id="ro-shot" alt="the run list, before and after the status column"
-      before="/media/051bee487bfb5d13.png" after="/media/a99a1b63048502d0.png"></cq-shot>
+<lf-options id="rollout" choose>
+  <lf-option id="ro-column"><strong>Ship the column</strong>
+    <lf-shot id="ro-shot" alt="the run list, before and after the status column"
+      before="/media/051bee487bfb5d13.png" after="/media/a99a1b63048502d0.png"></lf-shot>
     <details id="ro-numbers"><summary>What it costs</summary>
       <p id="ro-cost">One join, 40ms at the list's own volume.</p></details>
-    <cq-draft id="ro-note"><pre>
+    <lf-draft id="ro-note"><pre>
 Run status now shows on the run list itself.
-</pre></cq-draft>
+</pre></lf-draft>
     <p id="ro-column-p">A failure reads off the list instead of costing a click.</p>
-  </cq-option>
-  <cq-option id="ro-leave"><strong>Leave it</strong>
+  </lf-option>
+  <lf-option id="ro-leave"><strong>Leave it</strong>
     <p id="ro-leave-p">A failure stays one click away.</p>
-  </cq-option>
-</cq-options>
+  </lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -4444,7 +4440,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
-    page.locator("#ro-shot .cq-shotpick label", has_text="after").click()
+    page.locator("#ro-shot .lf-shotpick label", has_text="after").click()
     expect(page.locator("#ro-shot input[value='after']")).to_be_checked()
     assert not option.evaluate(picked), "flipping the shot answered the question"
 
@@ -4452,7 +4448,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(page.locator("#ro-numbers")).to_have_attribute("open", "")
     assert not option.evaluate(picked), "opening the disclosure answered the question"
 
-    page.locator("#ro-note .cq-draft-body").dblclick()
+    page.locator("#ro-note .lf-draft-body").dblclick()
     expect(page.locator("#ro-note textarea")).to_be_visible()
     assert not option.evaluate(picked), (
         "opening the draft's editor answered the question"
@@ -4464,7 +4460,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
 
     # And the option's own words still answer it, which is what the card is for.
     page.locator("#ro-column-p").click()
-    expect(page.locator("#ro-column > .cq-pick")).to_have_text("your pick")
+    expect(page.locator("#ro-column > .lf-pick")).to_have_text("your pick")
     round_trip(page)
     assert [
         e["detail"]["options"]
@@ -4491,10 +4487,10 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     neighbours', so the column and its place are one reading: the rows are all one
     width, and a mark that is not at its line's end is not in the column either."""
     page, errors = open_page(browser, serve(ASK_PAGE))
-    ends = """() => [...document.querySelectorAll('#jobs > cq-option')].map(o => {
+    ends = """() => [...document.querySelectorAll('#jobs > lf-option')].map(o => {
                 const style = getComputedStyle(o);
                 const inset = parseFloat(style.paddingRight) + parseFloat(style.borderSpacing);
-                const m = o.querySelector('.cq-pick').getBoundingClientRect();
+                const m = o.querySelector('.lf-pick').getBoundingClientRect();
                 return m.right - (o.getBoundingClientRect().right - inset);
               })"""
     assert page.evaluate(ends) == [0, 0, 0], (
@@ -4546,7 +4542,7 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
     out from under the pointer that had just pressed it. Out of flow, over the row's own
     height, the dot stands where it stood."""
     page, errors = open_page(browser, serve(ASK_PAGE))
-    mark = page.locator("#job-heater .cq-pick")
+    mark = page.locator("#job-heater .lf-pick")
     box = "el => JSON.stringify(el.getBoundingClientRect())"
     before = mark.evaluate(box)
     page.locator("#job-heater").click()
@@ -4568,10 +4564,10 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     construction — which is the stronger form of the same guarantee, and this holds the
     outcome rather than the mechanism that used to threaten it."""
     page, errors = open_page(browser, serve(ASK_PAGE))
-    chip = page.locator("#job-heater > cq-chip")
+    chip = page.locator("#job-heater > lf-chip")
     expect(chip).to_have_text("reversible")
-    expect(page.locator("#job-heater > .cq-pick:last-child")).to_have_count(1)
-    ref = page.locator("#job-heater .cq-ref").bounding_box()
+    expect(page.locator("#job-heater > .lf-pick:last-child")).to_have_count(1)
+    ref = page.locator("#job-heater .lf-ref").bounding_box()
     assert chip.bounding_box()["x"] < ref["x"], (
         "the chip stands before the row's apparatus"
     )
@@ -4585,18 +4581,18 @@ CHIP_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>chips</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Short facts</h1>
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
-<cq-options id="picks" choose>
-  <cq-option id="p-keep"><cq-chip>reversible</cq-chip><strong>Keep the store</strong></cq-option>
-</cq-options>
-<cq-tasks id="plan">
-  <cq-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></cq-task>
-</cq-tasks>
+<lf-options id="picks" choose>
+  <lf-option id="p-keep"><lf-chip>reversible</lf-chip><strong>Keep the store</strong></lf-option>
+</lf-options>
+<lf-tasks id="plan">
+  <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
+</lf-tasks>
 </main>
 </body>
 </html>
@@ -4622,8 +4618,8 @@ def test_one_pill_holds_every_short_fact(browser, serve):
         where: (page.locator(sel).evaluate(face), page.locator(sel).bounding_box())
         for where, sel in [
             ("in prose", "#intro > .tag"),
-            ("on a decision", "#p-keep > cq-chip"),
-            ("in a task's row", "#t-camera .cq-chips > span"),
+            ("on a decision", "#p-keep > lf-chip"),
+            ("in a task's row", "#t-camera .lf-chips > span"),
         ]
     }
     ((first, (look, box)), *rest) = worn.items()
@@ -4651,21 +4647,21 @@ def test_a_pick_states_the_whole_set(browser, serve):
     page, errors = open_page(browser, serve(ASK_PAGE))
 
     page.locator("#job-mounts").click()
-    expect(page.locator("#jobs > cq-option[chosen]")).to_have_count(1)
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(1)
     page.locator("#job-camera").click()
-    expect(page.locator("#jobs > cq-option[chosen]")).to_have_count(2)
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
     page.locator("#job-mounts").click()
-    expect(page.locator("#jobs > cq-option[chosen]")).to_have_count(1)
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(1)
 
     # The single-pick group beside it replaces rather than joining, and clicking the
     # pick again empties it.
     page.locator("#br-steel").click()
-    expect(page.locator("#bracket > cq-option[chosen]")).to_have_count(1)
+    expect(page.locator("#bracket > lf-option[chosen]")).to_have_count(1)
     page.locator("#br-cedar").click()
     expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
     expect(page.locator("#br-steel[chosen]")).to_have_count(0)
     page.locator("#br-cedar").click()
-    expect(page.locator("#bracket > cq-option[chosen]")).to_have_count(0)
+    expect(page.locator("#bracket > lf-option[chosen]")).to_have_count(0)
 
     # A pick paints its own click before the post answers, so the DOM leads the log;
     # the trip counter says when everything sent has been read back.
@@ -4755,7 +4751,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     # length they carry the second pick too, and the page converges either way — so the
     # day this route stops matching, the test goes quiet rather than red.
     assert THROUGH_THE_FIRST_PICK in served, f"the log was never held back: {served}"
-    expect(page.locator("#jobs > cq-option[chosen]")).to_have_count(2)
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
 
     # The page is deaf from here, so half of a round trip is never coming back: what
     # says the log holds this pick is the post's own answer, the server having appended
@@ -4788,14 +4784,14 @@ def test_the_box_for_words_reaches_the_log_as_a_comment_on_the_question(browser,
     looked live while the guard behind it refused."""
     page, errors = open_page(browser, serve(ASK_PAGE))
 
-    box = page.locator("#jobs .cq-say textarea")
-    send = page.locator("#jobs .cq-say [role='button']")
+    box = page.locator("#jobs .lf-say textarea")
+    send = page.locator("#jobs .lf-say [role='button']")
     assert send.get_attribute("aria-disabled") == "true"
     box.fill("Neither, really — do the camera and tell me what it costs.")
     assert send.get_attribute("aria-disabled") == "false"
     send.click()
 
-    expect(page.locator("#jobs.cq-mark-el")).to_have_count(1)
+    expect(page.locator("#jobs.lf-mark-el")).to_have_count(1)
     expect(box).to_have_value("")
     assert send.get_attribute("aria-disabled") == "true"
 
@@ -4811,8 +4807,8 @@ def test_the_box_for_words_reaches_the_log_as_a_comment_on_the_question(browser,
 
 
 SETTLED_ASK_PAGE = ASK_PAGE.replace(
-    '<cq-options id="jobs" choose multiple>',
-    '<cq-options id="jobs" choose multiple settled>',
+    '<lf-options id="jobs" choose multiple>',
+    '<lf-options id="jobs" choose multiple settled>',
 )
 
 
@@ -4836,20 +4832,20 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     page, errors = open_page(browser, serve(SETTLED_ASK_PAGE))
     assert errors == []
 
-    box = page.locator("#jobs .cq-say")
-    rows = page.locator("#jobs > cq-option")
+    box = page.locator("#jobs .lf-say")
+    rows = page.locator("#jobs > lf-option")
     expect(box).to_be_hidden()
     assert rows.evaluate_all(
         "els => els.map(e => e.getBoundingClientRect().height)"
     ) == [0, 0, 0]
-    page.locator("#jobs .cq-settled").click()
+    page.locator("#jobs .lf-settled").click()
     expect(box).to_be_visible()
     assert all(
         rows.evaluate_all("els => els.map(e => e.getBoundingClientRect().height > 0)")
     )
 
     # The copy medium: the same DOM with the affordance never handed to it.
-    page.evaluate("() => document.documentElement.classList.add('cq-copy')")
+    page.evaluate("() => document.documentElement.classList.add('lf-copy')")
     expect(box).to_be_hidden()
     page.close()
 
@@ -4906,7 +4902,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
     page.wait_for_selector(
-        '#rp-live .cq-pick[role="button"]'
+        '#rp-live .lf-pick[role="button"]'
     )  # the reply's widgets upgraded
     assert errors == []
 
@@ -4914,7 +4910,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     # document's column, and neither is the label — which reaches the panel only
     # because renderSaid runs over a reply's markup too, where no custom element
     # upgrade would have carried it.
-    label = page.locator('#rp-spec > [data-cq-said="label"]')
+    label = page.locator('#rp-spec > [data-lf-said="label"]')
     assert label.text_content() == "the April thread"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
@@ -4925,12 +4921,12 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         == "2px"
     )
     assert (
-        page.locator("#rp-quoted cq-option").count() == 2
+        page.locator("#rp-quoted lf-option").count() == 2
     )  # and the exhibit is all there
 
     # The exhibit takes the click first, so anything it sends would reach the log
     # ahead of the live group's pick — then the live group takes its own.
-    assert page.locator('#rp-quoted .cq-pick[role="button"]').count() == 0
+    assert page.locator('#rp-quoted .lf-pick[role="button"]').count() == 0
     page.locator("#rp-memory").click()
     page.locator("#rp-stage").click()
 
@@ -4942,7 +4938,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
-    assert page.locator("#rp-quoted cq-option[chosen]").count() == 0
+    assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
     page.close()
 
 
@@ -4988,23 +4984,23 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
-    page.wait_for_selector(".cq-msg-body table")
+    page.wait_for_selector(".lf-msg-body table")
 
     # One client rect is one line: the figure is drawn as a single run, the URL
     # in the same reply as several.
     lines = """(el) => { const r = document.createRange();
                          r.selectNodeContents(el); return r.getClientRects().length; }"""
     assert page.get_by_role("cell", name="12,000").evaluate(lines) == 1
-    assert page.locator(".cq-msg.claude .cq-msg-body a").evaluate(lines) > 1
+    assert page.locator(".lf-msg.claude .lf-msg-body a").evaluate(lines) > 1
     # And the room the cells stopped giving up went where the theme puts it.
     assert (
-        page.locator(".cq-msg.claude .cq-msg-body table").evaluate(
+        page.locator(".lf-msg.claude .lf-msg-body table").evaluate(
             "(t) => t.scrollWidth - t.clientWidth"
         )
         > 0
     )
     assert (
-        page.locator(".cq-msg.claude .cq-msg-body").evaluate(
+        page.locator(".lf-msg.claude .lf-msg-body").evaluate(
             "(b) => b.scrollWidth - b.clientWidth"
         )
         == 0
@@ -5075,10 +5071,10 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     small for its own text flashes a scrollbar."""
     page, _ = open_page(browser, serve(LONG_PAGE))
     page.get_by_role("button", name="Comments", exact=False).click()
-    box = page.locator(".cq-general textarea")
+    box = page.locator(".lf-general textarea")
 
     page.evaluate("""() => {
-        const ta = document.querySelector('.cq-general textarea');
+        const ta = document.querySelector('.lf-general textarea');
         window.__styled = 0;
         new MutationObserver(() => window.__styled++)
             .observe(ta, { attributes: true, attributeFilter: ['style'] });
@@ -5119,30 +5115,30 @@ SUGGESTION_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>suggestions</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Feeder notes</h1>
 <p id="replace">The camera survey found two dead zones.
-  <cq-suggestion id="sug-refill">
-    <cq-old>Refill every feeder each morning.</cq-old>
-    <cq-new>Refill a feeder when its camera shows it half-empty.</cq-new>
-  </cq-suggestion></p>
+  <lf-suggestion id="sug-refill">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
+  </lf-suggestion></p>
 <p id="insert">Seed mix stays through the migration.
-  <cq-suggestion id="sug-thistle">
-    <cq-new>Switch the north feeder to thistle in autumn.</cq-new>
-  </cq-suggestion></p>
-<cq-board id="feeders">
-  <cq-column id="col-todo" label="To do">
-    <cq-card id="card-heater"><strong>Heated perch</strong>
-      <cq-suggestion id="sug-in-card">
-        <cq-old>Wire the south feeder.</cq-old>
-        <cq-new>Wire the south feeder to the porch circuit.</cq-new>
-      </cq-suggestion></cq-card>
-  </cq-column>
-  <cq-column id="col-done" label="Done"></cq-column>
-</cq-board>
+  <lf-suggestion id="sug-thistle">
+    <lf-new>Switch the north feeder to thistle in autumn.</lf-new>
+  </lf-suggestion></p>
+<lf-board id="feeders">
+  <lf-column id="col-todo" label="To do">
+    <lf-card id="card-heater"><strong>Heated perch</strong>
+      <lf-suggestion id="sug-in-card">
+        <lf-old>Wire the south feeder.</lf-old>
+        <lf-new>Wire the south feeder to the porch circuit.</lf-new>
+      </lf-suggestion></lf-card>
+  </lf-column>
+  <lf-column id="col-done" label="Done"></lf-column>
+</lf-board>
 </main>
 </body>
 </html>
@@ -5170,7 +5166,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     box = "el => el.getBoundingClientRect()"
 
     margin_rows = page.locator(
-        "[data-cq-for='sug-refill'], [data-cq-for='sug-thistle']"
+        "[data-lf-for='sug-refill'], [data-lf-for='sug-thistle']"
     )
     assert margin_rows.count() == 2
     for i in range(2):
@@ -5184,12 +5180,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # The card is positioned and the change is three elements down inside it, and
     # the row still hangs in the rail on the line that change starts — which is
     # what the anchor buys, and what a static position never could.
-    in_card = page.locator("[data-cq-for='sug-in-card']").evaluate(box)
+    in_card = page.locator("[data-lf-for='sug-in-card']").evaluate(box)
     assert in_card["left"] > column and in_card["right"] <= room, (
         "a change inside a widget is still a change the user decides in the margin"
     )
     assert (
-        abs(in_card["top"] - page.locator("#sug-in-card cq-old").evaluate(box)["top"])
+        abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
         <= 4
     ), "the row must hang on the change's own line, not on the block it follows"
 
@@ -5201,8 +5197,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
-        "'[data-cq-for=sug-refill], [data-cq-for=sug-thistle]')]"
-        ".every(r => !r.classList.contains('cq-docked'))"
+        "'[data-lf-for=sug-refill], [data-lf-for=sug-thistle]')]"
+        ".every(r => !r.classList.contains('lf-docked'))"
     )
     narrowed = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
     room = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -5218,13 +5214,13 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     page.get_by_role("button", name="Close comments").click()
     resized(page, 820, 900)
     page.wait_for_function(
-        "() => [...document.querySelectorAll('.cq-sug-actions')]"
-        ".every(r => r.classList.contains('cq-docked'))"
+        "() => [...document.querySelectorAll('.lf-sug-actions')]"
+        ".every(r => r.classList.contains('lf-docked'))"
     )
     assert page.evaluate("() => document.body.scrollWidth <= document.body.clientWidth")
     for widget, block in [("sug-refill", "#replace"), ("sug-in-card", "#feeders")]:
         assert (
-            page.locator(f"[data-cq-for='{widget}']").evaluate(box)["top"]
+            page.locator(f"[data-lf-for='{widget}']").evaluate(box)["top"]
             >= page.locator(block).evaluate(box)["bottom"]
         ), "a docked row belongs under the block whose change it decides"
     page.close()
@@ -5252,14 +5248,14 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     page, errors = open_page(browser, url)
     expect(page.locator("#col-done #card-heater")).to_be_visible()
     box = "el => el.getBoundingClientRect()"
-    row = page.locator("[data-cq-for='sug-in-card']")
+    row = page.locator("[data-lf-for='sug-in-card']")
     expect(row).to_be_visible()
-    change = page.locator("#sug-in-card cq-old").evaluate(box)
+    change = page.locator("#sug-in-card lf-old").evaluate(box)
     assert abs(row.evaluate(box)["top"] - change["top"]) <= 4, (
         "the row must find the moved change's line again, not the one it left"
     )
-    row.locator(".cq-sug-accept").click()
-    expect(page.locator("#sug-in-card cq-old")).to_be_hidden()
+    row.locator(".lf-sug-accept").click()
+    expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -5274,20 +5270,20 @@ COLLAPSED_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>collapsed</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Winter</h1>
 <p id="stocked">The feeders are stocked.
-  <cq-suggestion id="sug-now">
-    <cq-new>Thistle goes out in October.</cq-new>
-  </cq-suggestion></p>
+  <lf-suggestion id="sug-now">
+    <lf-new>Thistle goes out in October.</lf-new>
+  </lf-suggestion></p>
 <details id="later"><summary id="sum">Deferred</summary>
 <p id="deferred">Nest boxes wait for spring.
-  <cq-suggestion id="sug-boxes">
-    <cq-new>Order them in February.</cq-new>
-  </cq-suggestion></p>
+  <lf-suggestion id="sug-boxes">
+    <lf-new>Order them in February.</lf-new>
+  </lf-suggestion></p>
 </details>
 </main>
 </body>
@@ -5303,8 +5299,8 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
     own line the moment the container opens — a real click on the summary, because
     opening it is the reader's gesture and the reflow it causes is the point."""
     page, errors = open_page(browser, serve(COLLAPSED_PAGE))
-    waiting = page.locator("[data-cq-for='sug-boxes']")
-    expect(page.locator("[data-cq-for='sug-now']")).to_be_visible()
+    waiting = page.locator("[data-lf-for='sug-boxes']")
+    expect(page.locator("[data-lf-for='sug-now']")).to_be_visible()
     expect(waiting).to_be_hidden()
 
     page.locator("#sum").click()
@@ -5315,14 +5311,14 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
         "the row must arrive in the margin, not over the prose that just opened"
     )
     assert (
-        abs(row["top"] - page.locator("#sug-boxes cq-new").evaluate(box)["top"]) <= 4
+        abs(row["top"] - page.locator("#sug-boxes lf-new").evaluate(box)["top"]) <= 4
     ), "and on the line of the change it decides"
     assert errors == []
     page.close()
 
 
 def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
-    """A standalone copy of a colloquy page is its rendered DOM with the script tags
+    """A standalone copy of a leaf page is its rendered DOM with the script tags
     dropped, and the pass that placed these rows is script. It doesn't have to run
     again: the row is a child of <main> in the serialized markup, and `left: 100%`
     against the column with `top: anchor(top)` against the change re-solve wherever
@@ -5345,10 +5341,10 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
     box = "el => el.getBoundingClientRect()"
     column = loose.locator("main").evaluate(box)["right"]
     for widget in ("sug-refill", "sug-in-card"):
-        row = loose.locator(f"[data-cq-for='{widget}']").evaluate(box)
+        row = loose.locator(f"[data-lf-for='{widget}']").evaluate(box)
         assert row["left"] > column, f"{widget}'s row lost the rail without its script"
         assert (
-            abs(row["top"] - loose.locator(f"#{widget} cq-old").evaluate(box)["top"])
+            abs(row["top"] - loose.locator(f"#{widget} lf-old").evaluate(box)["top"])
             <= 4
         ), f"{widget}'s row lost its change's line without its script"
     loose.close()
@@ -5368,9 +5364,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     outcome where it stood and stops offering; its pair keeps its room and gives up
     only its ink, so nothing on the row is anywhere new."""
     page, _errors = open_page(browser, serve(SUGGESTION_PAGE))
-    row = page.locator("[data-cq-for='sug-refill']")
-    accept = row.locator(".cq-sug-accept")
-    reject = row.locator(".cq-sug-reject")
+    row = page.locator("[data-lf-for='sug-refill']")
+    accept = row.locator(".lf-sug-accept")
+    reject = row.locator(".lf-sug-reject")
     assert accept.get_attribute("aria-label").startswith(
         "Accept the suggested change: Refill a feeder when"
     ), "the button names the proposal, not the text being replaced"
@@ -5385,8 +5381,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(accept).to_have_text("✓ Accept", use_inner_text=True)
 
     accept.click()
-    expect(page.locator("#sug-refill cq-old")).to_be_hidden()
-    expect(page.locator("#sug-refill cq-new")).to_be_visible()
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_text("✓ Accepted", use_inner_text=True)
     assert accept.get_attribute("aria-label").startswith(
         "Accepted the suggested change: Refill a feeder when"
@@ -5398,7 +5394,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert reject.evaluate("el => getComputedStyle(el).visibility") == "hidden", (
         "the decision left both halves of the offer standing"
     )
-    settled = page.locator("#sug-refill cq-new").evaluate(
+    settled = page.locator("#sug-refill lf-new").evaluate(
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
     )
     assert "line-through" not in settled and "rgba(0, 0, 0, 0)" in settled, (
@@ -5424,16 +5420,16 @@ SHORT_SUGGESTION = """<!doctype html>
 <meta charset="utf-8">
 <title>short suggestion</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Short</h1>
 <section id="s">
-<cq-suggestion id="sug">
-  <cq-old><p id="was">Retry twice.</p></cq-old>
-  <cq-new><p id="now">Retry three times.</p></cq-new>
-</cq-suggestion>
+<lf-suggestion id="sug">
+  <lf-old><p id="was">Retry twice.</p></lf-old>
+  <lf-new><p id="now">Retry three times.</p></lf-new>
+</lf-suggestion>
 <p id="after">The backoff is unchanged either way.</p>
 </section>
 </main>
@@ -5458,11 +5454,11 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     on purpose: the label cuts at 48 characters, which hid this on every shipped example."""
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Vacuous otherwise: the line has to be inside the slot the label is read from.
-    assert page.locator("cq-new #now > .cq-mark-note").count() == 1
-    page.locator(f"[data-cq-for='sug'] .cq-sug-{outcome}").click()
-    expect(page.locator(".cq-toast")).to_have_text(
+    assert page.locator("lf-new #now > .lf-mark-note").count() == 1
+    page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}").click()
+    expect(page.locator(".lf-toast")).to_have_text(
         f"{verb} “Retry three times.” — sent to Claude"
     )
     assert errors == []
@@ -5474,13 +5470,13 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
 # catches is a widget's WAAPI motion, started synchronously inside the gesture that
 # causes it. Installed before anything runs, so the first frame is already held.
 HOLD_MOTION = """
-  window.__cqHeld = [];
+  window.__lfHeld = [];
   const inner = Element.prototype.animate;
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
     motion.pause();
     motion.currentTime = 0;
-    window.__cqHeld.push(motion);
+    window.__lfHeld.push(motion);
     return motion;
   };
 """
@@ -5505,35 +5501,35 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     An inline change is the test below: it has nothing to follow, and folding one would
     be the harm rather than the fix."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION), init_script=HOLD_MOTION)
-    old = page.locator("#sug cq-old")
+    old = page.locator("#sug lf-old")
     after = page.locator("#after")
     tall = old.evaluate("el => el.getBoundingClientRect().height")
     assert tall > 0
     below = after.evaluate("el => el.getBoundingClientRect().top")
 
-    page.locator("[data-cq-for='sug'] .cq-sug-accept").click()
+    page.locator("[data-lf-for='sug'] .lf-sug-accept").click()
     # The state is true from the first frame — the log carries it, the banner counts it,
     # a second tab converging reads it — while the pixels are still catching up.
-    assert page.locator("#sug[data-cq-state='accept']").count() == 1
+    assert page.locator("#sug[data-lf-state='accept']").count() == 1
     held = page.evaluate(
-        """() => window.__cqHeld.map((m) => [m.effect.target.tagName.toLowerCase(),
+        """() => window.__lfHeld.map((m) => [m.effect.target.tagName.toLowerCase(),
                                              m.effect.getTiming().duration])"""
     )
-    assert [t for t, _ in held] == ["cq-old"], (
+    assert [t for t, _ in held] == ["lf-old"], (
         f"the retired slot went without motion to follow: {held}"
     )
-    at = "() => document.querySelector('#sug cq-old').getBoundingClientRect().height"
+    at = "() => document.querySelector('#sug lf-old').getBoundingClientRect().height"
     assert page.evaluate(at) == pytest.approx(tall, abs=1), (
         "the fold begins somewhere other than where the paragraph was standing"
     )
     page.evaluate(
-        "() => { const m = window.__cqHeld[0];"
+        "() => { const m = window.__lfHeld[0];"
         "        m.currentTime = m.effect.getTiming().duration / 2; }"
     )
     middle = page.evaluate(at)
     assert 0 < middle < tall, f"the fold's midpoint is not between its ends: {middle}"
 
-    page.evaluate("() => window.__cqHeld[0].play()")
+    page.evaluate("() => window.__lfHeld[0].play()")
     expect(old).to_be_hidden()
     assert after.evaluate("el => el.getBoundingClientRect().top") < below, (
         "the page never gave back the room the retired paragraph was holding"
@@ -5550,9 +5546,9 @@ def test_an_inline_change_is_swapped_rather_than_folded(browser, serve):
     motion answering a change that moved nothing. The shipped inline corpus is the case,
     and what it asserts is that nothing was started at all."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
-    expect(page.locator("#sug-refill cq-old")).to_be_hidden()
-    assert page.evaluate("() => window.__cqHeld.length") == 0, (
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    assert page.evaluate("() => window.__lfHeld.length") == 0, (
         "a few words swapped inside a line were given a fold, and a block box to do it in"
     )
     assert errors == []
@@ -5575,9 +5571,9 @@ def test_a_reader_who_asked_for_less_motion_gets_the_collapse_at_once(browser, s
         page, errors = open_page(
             browser, serve(SHORT_SUGGESTION), context=context, init_script=HOLD_MOTION
         )
-        page.locator("[data-cq-for='sug'] .cq-sug-accept").click()
-        expect(page.locator("#sug cq-old")).to_be_hidden()
-        assert page.evaluate("() => window.__cqHeld.length") == 0, (
+        page.locator("[data-lf-for='sug'] .lf-sug-accept").click()
+        expect(page.locator("#sug lf-old")).to_be_hidden()
+        assert page.evaluate("() => window.__lfHeld.length") == 0, (
             "a reader who asked for less motion was given a fold to sit through"
         )
         assert errors == []
@@ -5595,17 +5591,17 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     page.get_by_role("button", name="Accept all (3)").click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
-        expect(page.locator(f"#{widget} cq-new")).to_be_visible()
+        expect(page.locator(f"#{widget} lf-new")).to_be_visible()
         # Waited for, not read once: each is decided by its own round trip, so the
         # last of them is still in flight when the first has settled.
-        expect(page.locator(f"[data-cq-for='{widget}'] .cq-sug-accept")).to_have_text(
+        expect(page.locator(f"[data-lf-for='{widget}'] .lf-sug-accept")).to_have_text(
             "✓ Accepted", use_inner_text=True
         )
     for widget in (
         "sug-refill",
         "sug-in-card",
     ):  # the two that replace rather than insert
-        expect(page.locator(f"#{widget} cq-old")).to_be_hidden()
+        expect(page.locator(f"#{widget} lf-old")).to_be_hidden()
     # Nothing left to accept, so the button says nothing rather than saying zero.
     expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
 
@@ -5636,7 +5632,7 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
     who wanted the next question would have settled every change on the page — a
     decision being the end of the matter."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    help_el = page.locator(".cq-help")
+    help_el = page.locator(".lf-help")
 
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Accept all 3 waiting on you")
@@ -5644,7 +5640,7 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
 
     # A decision taken on its own control leaves two, and the legend says two: it is
     # read when the reference opens rather than held from when the table was written.
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Accept all 2 waiting on you")
@@ -5669,7 +5665,7 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
 
     page.keyboard.press("Shift+A")
     for widget in ("sug-thistle", "sug-in-card"):
-        expect(page.locator(f"[data-cq-for='{widget}'] .cq-sug-accept")).to_have_text(
+        expect(page.locator(f"[data-lf-for='{widget}'] .lf-sug-accept")).to_have_text(
             "✓ Accepted", use_inner_text=True
         )
     # Nothing left to answer, so the control goes and the key goes with it.
@@ -5696,28 +5692,28 @@ def test_a_decision_the_server_never_took_goes_back_to_pending(browser, serve):
     a change the next version won't carry and the user won't know to repeat."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     page.route("**/api/event", lambda route: route.abort())
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
 
-    expect(page.locator("#sug-refill cq-old")).to_be_visible()
-    assert page.locator("#sug-refill").get_attribute("data-cq-state") is None
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert page.locator("#sug-refill").get_attribute("data-lf-state") is None
     # The row is the record of a decision, so a decision that was never taken must not
     # be standing in it: both controls offering again, neither of them past tense.
-    accept = page.locator("[data-cq-for='sug-refill'] .cq-sug-accept")
-    reject = page.locator("[data-cq-for='sug-refill'] .cq-sug-reject")
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    reject = page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
     expect(accept).to_have_text("✓ Accept", use_inner_text=True)
     expect(reject).to_be_visible()
     assert accept.get_attribute("aria-disabled") == "false"
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
-    expect(page.locator(".cq-toast")).to_contain_text("Couldn't send")
+    expect(page.locator(".lf-toast")).to_contain_text("Couldn't send")
     assert [
         e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
 
     # The retry is a second click, not a reload: the widget is pending again.
     page.unroute("**/api/event")
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
-    expect(page.locator("#sug-refill cq-old")).to_be_hidden()
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     # The refused POST is the one thing the console may carry, and it is this test's
     # own doing — anything else means the page broke on the way back to pending.
     assert errors == ["Failed to load resource: net::ERR_FAILED"]
@@ -5737,16 +5733,16 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     second, second_errors = open_page(browser, url)
 
     # A tab that did not click has only its own poll to learn from.
-    first.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
+    first.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     told(second)
-    expect(second.locator("#sug-refill cq-old")).to_be_hidden()
-    expect(second.locator("#sug-refill cq-new")).to_be_visible()
+    expect(second.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(second.locator("#sug-refill lf-new")).to_be_visible()
     # Nothing left to decide, and the row says which way it went — written by the
     # replay here rather than by a press, which is the only place that path is driven.
-    accepted = second.locator("[data-cq-for='sug-refill'] .cq-sug-accept")
+    accepted = second.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(accepted).to_have_text("✓ Accepted", use_inner_text=True)
     assert accepted.get_attribute("aria-disabled") == "true"
-    expect(second.locator("[data-cq-for='sug-refill'] .cq-sug-reject")).to_be_hidden()
+    expect(second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_be_hidden()
     expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
 
     # Now the race the controls make possible: a window cut off from the log still
@@ -5755,18 +5751,18 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # settles it for both once the cut-off one catches up.
     third, third_errors = open_page(browser, url)
     third.route("**/api/state", lambda route: route.abort())
-    first.locator("[data-cq-for='sug-thistle'] .cq-sug-accept").click()
+    first.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
     expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
-    third.locator("[data-cq-for='sug-thistle'] .cq-sug-reject").click()
+    third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
     third.unroute("**/api/state")
     # The reject went out over a live channel, so every tab has to read it back —
     # the cut-off one included, which is where it stops being its own local click.
     for tab in (first, second, third):
         told(tab)
-        expect(tab.locator("#sug-thistle cq-new")).to_be_hidden()
+        expect(tab.locator("#sug-thistle lf-new")).to_be_hidden()
     assert first_errors == [] and second_errors == []
     assert set(third_errors) <= {"Failed to load resource: net::ERR_FAILED"}, (
         f"the cut-off tab broke on more than the requests this test refused: {third_errors}"
@@ -5784,45 +5780,45 @@ ASKS_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>asks</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">What is still open</h1>
-<cq-options id="live-question" choose>
-  <cq-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</cq-option>
-  <cq-option id="lq-token"><strong>Signed tokens</strong> No store at all.</cq-option>
-</cq-options>
-<cq-suggestion id="sug-refill">
-  <cq-old><p id="refill-was">Refill every feeder each morning.</p></cq-old>
-  <cq-new><p id="refill-now">Refill a feeder when its camera says so.</p></cq-new>
-</cq-suggestion>
-<cq-tasks id="plan">
-  <cq-task id="t-mounts" status="done"><strong>Replace the mounts</strong></cq-task>
-  <cq-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong></cq-task>
-  <cq-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong></cq-task>
-  <cq-task id="t-camera" status="active"><strong>Mount the camera</strong></cq-task>
-</cq-tasks>
-<cq-options id="honored" choose>
-  <cq-option id="hon-tiers" chosen><strong>Two-tier gates</strong></cq-option>
-  <cq-option id="hon-one"><strong>One gate</strong></cq-option>
-</cq-options>
-<cq-options id="retired" choose settled>
-  <cq-option id="ret-lax"><strong>Lax cookie</strong></cq-option>
-</cq-options>
-<cq-options id="exhibited">
-  <cq-option id="exh-paper"><strong>Paper maps</strong></cq-option>
-</cq-options>
-<cq-milestones id="rail">
-  <cq-milestone id="m-survey" status="done"><strong>Survey the sites</strong></cq-milestone>
-  <cq-milestone id="m-build" status="active"><strong>Build the feeders</strong></cq-milestone>
-  <cq-milestone id="m-install" status="blocked"><strong>Install and watch</strong></cq-milestone>
-</cq-milestones>
-<cq-specimen id="spec" label="a decision">
-  <cq-options id="spec-opts" choose>
-    <cq-option id="spec-paper"><strong>Paper maps</strong></cq-option>
-  </cq-options>
-</cq-specimen>
+<lf-options id="live-question" choose>
+  <lf-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
+  <lf-option id="lq-token"><strong>Signed tokens</strong> No store at all.</lf-option>
+</lf-options>
+<lf-suggestion id="sug-refill">
+  <lf-old><p id="refill-was">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p id="refill-now">Refill a feeder when its camera says so.</p></lf-new>
+</lf-suggestion>
+<lf-tasks id="plan">
+  <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
+  <lf-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong></lf-task>
+  <lf-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong></lf-task>
+  <lf-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-task>
+</lf-tasks>
+<lf-options id="honored" choose>
+  <lf-option id="hon-tiers" chosen><strong>Two-tier gates</strong></lf-option>
+  <lf-option id="hon-one"><strong>One gate</strong></lf-option>
+</lf-options>
+<lf-options id="retired" choose settled>
+  <lf-option id="ret-lax"><strong>Lax cookie</strong></lf-option>
+</lf-options>
+<lf-options id="exhibited">
+  <lf-option id="exh-paper"><strong>Paper maps</strong></lf-option>
+</lf-options>
+<lf-milestones id="rail">
+  <lf-milestone id="m-survey" status="done"><strong>Survey the sites</strong></lf-milestone>
+  <lf-milestone id="m-build" status="active"><strong>Build the feeders</strong></lf-milestone>
+  <lf-milestone id="m-install" status="blocked"><strong>Install and watch</strong></lf-milestone>
+</lf-milestones>
+<lf-specimen id="spec" label="a decision">
+  <lf-options id="spec-opts" choose>
+    <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
+  </lf-options>
+</lf-specimen>
 </main>
 </body>
 </html>
@@ -5833,7 +5829,7 @@ ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
 def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     """One list, collected from what the registry declares rather than from any tag.
 
-    The count used to be a query for `cq-suggestion:not([data-cq-state])`: perfect for
+    The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
     suggestions, and silently nothing for every other thing a page waits on. What
     makes an instance an ask is now the entry's own attribute condition, and what
     makes it answered is the state x-state already declares — so this page's four are
@@ -5844,23 +5840,23 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     it wrong: a group whose pick the version already carries (`chosen`, with nothing in
     the log — a fold-only reading counts it as open on every shipped example), one the
     author has settled, one that takes no picks at all, an exhibited decision inside a
-    cq-specimen, and a milestone at `blocked`, which is the same word on a widget whose
+    lf-specimen, and a milestone at `blocked`, which is the same word on a widget whose
     entry does not declare it."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    asks = page.locator(".cq-asks")
+    asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (4)")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
-    expect(page.locator(".cq-answer-all")).to_have_text("✓ Accept all (1)")
+    expect(page.locator(".lf-answer-all")).to_have_text("✓ Accept all (1)")
 
     # Answering one takes it out. A pick is state the page itself carries, so the
     # count follows the click; the suggestion's outcome is in the log alone, so that
     # one follows the round trip.
     page.locator("#lq-token").click()
     expect(asks).to_have_text("Asks (3)")
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(asks).to_have_text("Asks (2)")
-    expect(page.locator(".cq-answer-all")).to_be_hidden()
+    expect(page.locator(".lf-answer-all")).to_be_hidden()
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
@@ -5887,32 +5883,32 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         page.keyboard.press("a")
         # Exactly one, so the mark says where this press put them rather than where an
         # earlier one did — and asserting it is also the wait for this press to land.
-        expect(page.locator("[data-cq-ask]")).to_have_count(1)
+        expect(page.locator("[data-lf-ask]")).to_have_count(1)
         walked.append(
             page.evaluate(
-                "() => [document.querySelector('[data-cq-ask]').id,"
+                "() => [document.querySelector('[data-lf-ask]').id,"
                 "       document.activeElement.tagName.toLowerCase()"
                 "       + ' ' + document.activeElement.className]"
             )
         )
     assert walked == [
-        ["live-question", "span cq-pick cq-ui"],  # the question: its first pick mark
-        ["sug-refill", "span cq-pill cq-sug-accept cq-ui"],  # ✓ Accept, in the margin
-        ["t-baffles", "cq-task "],  # a task holds no control, so it takes focus itself
-        ["t-bath", "cq-task "],
-        ["live-question", "span cq-pick cq-ui"],
+        ["live-question", "span lf-pick lf-ui"],  # the question: its first pick mark
+        ["sug-refill", "span lf-pill lf-sug-accept lf-ui"],  # ✓ Accept, in the margin
+        ["t-baffles", "lf-task "],  # a task holds no control, so it takes focus itself
+        ["t-bath", "lf-task "],
+        ["live-question", "span lf-pick lf-ui"],
     ], f"the walk landed somewhere else: {walked}"
 
     # The overlay and the key line offer it because there is something to reach.
     page.keyboard.press("?")
-    expect(page.locator(".cq-help")).to_contain_text("waiting on you for")
+    expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-keyline")).to_contain_text("asks")
+    expect(page.locator(".lf-keyline")).to_contain_text("asks")
 
     # An answered ask leaves the walk: from the question, the next press used to reach
     # the suggestion and now reaches what follows it.
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
-    expect(page.locator(".cq-asks")).to_have_text("Asks (3)")
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     page.keyboard.press("a")
     expect(page.locator("#t-baffles")).to_be_focused()
     assert errors == []
@@ -5927,16 +5923,16 @@ TRAVEL_PAGE = f"""<!doctype html>
 <meta charset="utf-8">
 <title>travel</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
-<cq-diagram id="flow"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   Cart --&gt; Pay
-</pre></cq-diagram>
+</pre></lf-diagram>
 {"".join(f"<p>More fill, paragraph {i}.</p>" for i in range(10))}
 <section id="long-part">
 <h2>The long tail</h2>
@@ -5980,7 +5976,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
     quote = lambda section: page.locator(
-        f'.cq-thread[data-id="{thread[section]}"] .cq-quote'
+        f'.lf-thread[data-id="{thread[section]}"] .lf-quote'
     )
 
     # Centred: the destination the travel computed, which a glide toward it passes
@@ -6012,19 +6008,19 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
     the runtime, the banner or the key may need teaching about it."""
     url = serve(ASKS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
-    registry["cq-milestone"]["x-awaits"] = {"when": {"status": ["active", "blocked"]}}
-    del registry["cq-suggestion"]["x-awaits"]
+    registry["lf-milestone"]["x-awaits"] = {"when": {"status": ["active", "blocked"]}}
+    del registry["lf-suggestion"]["x-awaits"]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
 
     page, errors = open_page(browser, url)
     # Four, minus the suggestion that stopped declaring, plus the two milestones that
     # started — and no code anywhere knows any of those three tags.
-    expect(page.locator(".cq-asks")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
     # The blanket answer went with the declaration that named its verb.
-    expect(page.locator(".cq-answer-all")).to_have_count(0)
+    expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in ["live-question", "t-baffles", "t-bath", "m-build", "m-install"]:
         page.keyboard.press("a")
-        expect(page.locator(f"#{expected}")).to_have_attribute("data-cq-ask", "1")
+        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
 
@@ -6037,17 +6033,17 @@ REPORT_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>reports</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">The feeders</h1>
-<cq-tasks id="plan">
-  <cq-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
-    <cq-task id="t-mounts" status="done"><strong>Replace the mounts</strong></cq-task>
-    <cq-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></cq-task>
-  </cq-task>
-</cq-tasks>
+<lf-tasks id="plan">
+  <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
+    <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
+    <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
+  </lf-task>
+</lf-tasks>
 </main>
 </body>
 </html>
@@ -6057,10 +6053,10 @@ REPORT_PAGE = """<!doctype html>
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     browser, serve
 ):
-    """The agent channel, end to end in the browser: a `colloquy report` reaches
+    """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, the element wears
-    data-cq-reported rather than the user's pending mark, and a task reported
+    data-lf-reported rather than the user's pending mark, and a task reported
     into `review` joins the asks the banner counts. Then the version that
     answers the report by id takes the page back: replay skips a report the
     note named, so the overruling version's own state is what renders, with no
@@ -6070,9 +6066,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     url = serve(REPORT_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
-    fraction = page.locator("#t-feeders > .cq-chips")
+    fraction = page.locator("#t-feeders > .lf-chips")
     expect(fraction).to_contain_text("1/2 done")
-    expect(page.locator(".cq-asks")).to_be_hidden()  # nothing waits on the reader
+    expect(page.locator(".lf-asks")).to_be_hidden()  # nothing waits on the reader
 
     sent = CliRunner().invoke(
         interact.cli, ["report", str(d), "t-parser", "status", "status=review"]
@@ -6081,10 +6077,10 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     told(page)
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "review")
-    expect(task).to_have_attribute("data-cq-reported", "1")
-    expect(task).not_to_have_attribute("data-cq-pending", "1")
+    expect(task).to_have_attribute("data-lf-reported", "1")
+    expect(task).not_to_have_attribute("data-lf-pending", "1")
     # A task at review is a standing ask however the status got there.
-    expect(page.locator(".cq-asks")).to_have_text("Asks (1)")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
 
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
@@ -6095,15 +6091,15 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     told(page)
     expect(task).to_have_attribute("status", "done")
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".cq-asks")).to_be_hidden()
+    expect(page.locator(".lf-asks")).to_be_hidden()
 
     # The overruling version: its markup keeps `active` and names the reports on
     # the note (publish resolves the ids from `overruled`), so replay stops them
     # and the document speaks again.
     (d / "versions" / "v2.html").write_text(
         REPORT_PAGE.replace(
-            '<cq-task id="t-parser" status="active">',
-            '<cq-task id="t-parser" status="active" overruled>',
+            '<lf-task id="t-parser" status="active">',
+            '<lf-task id="t-parser" status="active" overruled>',
         )
     )
     published = CliRunner().invoke(
@@ -6113,21 +6109,21 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     assert published.exit_code == 0, published.output
     assert len(interact.read_events(d)[-1]["reports"]) == 2
     page.wait_for_url("**/versions/v2.html")
-    page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "active")
-    expect(task).not_to_have_attribute("data-cq-reported", "1")
-    expect(page.locator("#t-feeders > .cq-chips")).to_contain_text("1/2 done")
+    expect(task).not_to_have_attribute("data-lf-reported", "1")
+    expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("1/2 done")
 
     # The diff's state half, mirror-image: v1's markup also said `active`, but
     # the reader last saw v1 wearing the report's `done`, so the overrule is a
     # change since the base — the report-layered base facet is what says so.
     compare_with(page)
     page.wait_for_function(
-        "() => document.querySelectorAll('.cq-ins-block').length > 0"
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
     )
     assert page.evaluate(
-        "() => [...document.querySelectorAll('.cq-ins-block')].map(e => e.id)"
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["t-parser"]
     assert errors == []
     page.close()
@@ -6188,8 +6184,8 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
 
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
     """A widget may use the runtime's namespace for state without making that state
-    runtime paint. Replaying a suggestion changes only data-cq-state on its authored
-    element, so the replay record must name it; data-cq-pending on the same element is
+    runtime paint. Replaying a suggestion changes only data-lf-state on its authored
+    element, so the replay record must name it; data-lf-pending on the same element is
     the runtime's own annotation and must not change the signature."""
     url = serve(SUGGESTION_PAGE)
     interact.append_event(
@@ -6204,19 +6200,19 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         },
     )
     page, errors = open_page(browser, url)
-    expect(page.locator("#sug-refill")).to_have_attribute("data-cq-state", "accept")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     page.wait_for_function(
-        "() => (document.body.dataset.cqReplayWrote ?? '').split(' ').includes('sug-refill')"
+        "() => (document.body.dataset.lfReplayWrote ?? '').split(' ').includes('sug-refill')"
     )
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/colloquy.js");
+        const { shallowSigs } = await import("/leaf.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
-        widget.setAttribute("data-cq-pending", "probe");
+        widget.setAttribute("data-lf-pending", "probe");
         const painted = read();
-        widget.removeAttribute("data-cq-state");
+        widget.removeAttribute("data-lf-state");
         const undecided = read();
         return { decided, painted, undecided };
     }""")
@@ -6224,7 +6220,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         "runtime-owned pending paint became authored state in the replay signature"
     )
     assert signatures["decided"] != signatures["undecided"], (
-        "widget-owned data-cq-state disappeared with the runtime's private attributes"
+        "widget-owned data-lf-state disappeared with the runtime's private attributes"
     )
     assert errors == []
     page.close()
@@ -6247,8 +6243,8 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect(page.locator("#card-importer")).to_have_attribute("data-cq-pending", "1")
-    expect(page.locator("#card-notes")).not_to_have_attribute("data-cq-pending", "1")
+    expect(page.locator("#card-importer")).to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#card-notes")).not_to_have_attribute("data-lf-pending", "1")
     expect(
         page.get_by_role(
             "button",
@@ -6260,7 +6256,7 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     # A fresh tab reads the same fact from replay alone, and paints both its
     # visible outline and its durable spoken state.
     second, second_errors = open_page(browser, url)
-    expect(second.locator("#card-importer")).to_have_attribute("data-cq-pending", "1")
+    expect(second.locator("#card-importer")).to_have_attribute("data-lf-pending", "1")
     expect(
         second.get_by_role(
             "button",
@@ -6288,9 +6284,9 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     third, third_errors = open_page(browser, url.replace("v1.html", "v2.html"))
     expect(third.locator("#col-done #card-importer")).to_be_visible()
     # Absence only counts once replay has decided every action.
-    third.wait_for_function("() => document.body.dataset.cqApplied === '1'")
+    third.wait_for_function("() => document.body.dataset.lfApplied === '1'")
     expect(third.locator("#card-importer")).not_to_have_attribute(
-        "data-cq-pending", "1"
+        "data-lf-pending", "1"
     )
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
@@ -6311,30 +6307,30 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate("""() => {
         const r = document.createRange();
-        r.selectNodeContents(document.querySelector('#sug-refill cq-new'));
+        r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
         getSelection().removeAllRanges();
         getSelection().addRange(r);
         document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }""")
-    page.wait_for_selector(".cq-fab", state="visible")
-    page.locator(".cq-fab").click()
-    page.wait_for_selector(".cq-composer", state="visible")
+    page.wait_for_selector(".lf-fab", state="visible")
+    page.locator(".lf-fab").click()
+    page.wait_for_selector(".lf-composer", state="visible")
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "Refill a feeder when its camera shows it half-empty."
-    page.locator(".cq-composer textarea").fill("Half-empty by whose reading?")
-    page.locator(".cq-composer").get_by_role("button", name="Comment").click()
+    page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
+    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
 
-    thread = page.locator(".cq-thread .cq-quote").first
+    thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).to_be_visible()
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
     assert (
-        painted(page, "cq-mark")
+        painted(page, "lf-mark")
         == "Refill a feeder when its camera shows it half-empty."
     )
 
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-reject").click()
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
-    assert painted(page, "cq-mark") == "", (
+    assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
     assert errors == []
@@ -6348,7 +6344,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     registry names the slot a decision retires (x-retired-when), and the registry
     arrives over the network, after the module that reads it has evaluated. Replay
     settles the suggestion on the first poll, so the pass that runs with it has to be
-    skipping cq-old already — or the page opens with a live mark on words the user
+    skipping lf-old already — or the page opens with a live mark on words the user
     accepted away."""
     url = serve(
         SUGGESTION_PAGE, anchored=[("replace", "Refill every feeder each morning.")]
@@ -6365,18 +6361,18 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    expect(page.locator("#sug-refill cq-old")).to_be_hidden()
-    expect(page.locator(".cq-thread .cq-quote").first).to_have_class(
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
         re.compile(r"\bdetached\b")
     )
-    assert painted(page, "cq-mark") == "", (
+    assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
     assert errors == []
     page.close()
 
 
-# A suggestion whose losing slot holds a widget. cq-old takes prose, and prose takes
+# A suggestion whose losing slot holds a widget. lf-old takes prose, and prose takes
 # widgets, so the mark on a chosen option can sit inside the half a decision removes.
 # `choose`, because that is the shape that bites: a group offering a pick renders the
 # mark as a press, which wears the chrome class *and* declares its word the page's.
@@ -6386,20 +6382,20 @@ RETIRED_WIDGET_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>retired</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Session transport</h1>
 <p id="lede">Replacing the whole decision block below.</p>
-<cq-suggestion id="sug-swap">
-  <cq-old id="was">
-    <cq-options id="old-group" choose>
-      <cq-option id="old-lax" chosen><strong>Lax cookie</strong> The way it stands.</cq-option>
-    </cq-options>
-  </cq-old>
-  <cq-new id="now"><p id="p-now">A bearer header, settled elsewhere.</p></cq-new>
-</cq-suggestion>
+<lf-suggestion id="sug-swap">
+  <lf-old id="was">
+    <lf-options id="old-group" choose>
+      <lf-option id="old-lax" chosen><strong>Lax cookie</strong> The way it stands.</lf-option>
+    </lf-options>
+  </lf-old>
+  <lf-new id="now"><p id="p-now">A bearer header, settled elsewhere.</p></lf-new>
+</lf-suggestion>
 </main>
 </body>
 </html>
@@ -6425,14 +6421,14 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         },
     )
     page, errors = open_page(browser, url)
-    expect(page.locator("#sug-swap cq-old")).to_be_hidden()
+    expect(page.locator("#sug-swap lf-old")).to_be_hidden()
     assert (
-        page.locator("#old-lax .cq-pick").evaluate("el => el.textContent") == "chosen"
+        page.locator("#old-lax .lf-pick").evaluate("el => el.textContent") == "chosen"
     ), "fixture is not exercising the case — the mark the slot hides never rendered"
-    expect(page.locator(".cq-thread .cq-quote").first).to_have_class(
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
         re.compile(r"\bdetached\b")
     )
-    assert painted(page, "cq-mark") == "", (
+    assert painted(page, "lf-mark") == "", (
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"
     )
@@ -6458,14 +6454,14 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
         },
     )
     page, errors = open_page(browser, url)
-    thread = page.locator(".cq-thread .cq-quote").first
+    thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
-    expect(page.locator("#sug-thistle")).to_have_class(re.compile(r"\bcq-mark-el\b"))
+    expect(page.locator("#sug-thistle")).to_have_class(re.compile(r"\blf-mark-el\b"))
 
-    page.locator("[data-cq-for='sug-thistle'] .cq-sug-reject").click()
+    page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle")).not_to_have_class(
-        re.compile(r"\bcq-mark-el\b")
+        re.compile(r"\blf-mark-el\b")
     )
     assert errors == []
     page.close()
@@ -6517,11 +6513,11 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
-    body = page.locator(".cq-msg.claude .cq-msg-body")
+    body = page.locator(".lf-msg.claude .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
-    expect(body.locator('pre code [data-cq-syn="kw"]').first).to_have_text("def")
+    expect(body.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
     expect(body.locator('a[href="https://example.com/notes"]')).to_have_count(1)
     # The paragraph's asterisks are gone from the words, not merely hidden, and the
     # raw tag's characters are still among them: what the user can select is what
@@ -6538,20 +6534,20 @@ REF_PAGE = f"""<!doctype html>
 <meta charset="utf-8">
 <title>refs</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Feeder placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
-<cq-tabs id="projects">
-  <cq-tab id="tab-feeders" label="Winter feeders">
+<lf-tabs id="projects">
+  <lf-tab id="tab-feeders" label="Winter feeders">
     <p id="p-feeders">Two of the four feeders are mounted.</p>
-  </cq-tab>
-  <cq-tab id="tab-bath" label="Heated bird bath">
+  </lf-tab>
+  <lf-tab id="tab-bath" label="Heated bird bath">
     <p id="p-bath">The thermostat arrived cracked and a replacement is on order.</p>
-  </cq-tab>
-</cq-tabs>
+  </lf-tab>
+</lf-tabs>
 <section id="tail">
 {"".join(f"<p>Tail fill, paragraph {i}, long enough to stand as a landmark of its own.</p>" for i in range(16))}
 <p id="tail-end">The last words on the page, where a reader who read to the end is.</p>
@@ -6589,7 +6585,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
 
-    live = page.locator('.cq-msg-body a[href="#p-bath"]')
+    live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
     # Collapsed behind the inactive tab until the jump asks for it, which is the
     # platform half: hidden="until-found" answers a fragment navigation.
@@ -6612,14 +6608,14 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     with page.context.expect_page() as opened:
         live.click(modifiers=["ControlOrMeta"])
     tab = opened.value
-    tab.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+    tab.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();
                    return r.height > 0 && r.top >= 0 && r.bottom <= innerHeight; }"""
     )
     tab.close()
 
-    dead = page.locator('.cq-msg-body a[href="#gone"]')
+    dead = page.locator('.lf-msg-body a[href="#gone"]')
     expect(dead).to_have_class("detached")
     expect(dead).to_have_attribute("aria-disabled", "true")
     expect(dead).to_have_attribute(
@@ -6668,7 +6664,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.evaluate("() => document.body.scrollTo({top: 1e6, behavior: 'instant'})")
     page.goto("about:blank")
     page.goto(f"{url}#p-bath")
-    page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(onscreen, arg="p-bath")
 
     # The reader moves on, so the fragment is stale by the reload that carries it. The
@@ -6676,7 +6672,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     # remembers its own panel, the same way the position is remembered here.
     page.evaluate("() => document.body.scrollTo({top: 1e6, behavior: 'instant'})")
     page.reload()
-    page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(onscreen, arg="tail-end")
     assert errors == []
     page.close()
@@ -6700,7 +6696,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     )
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
-    body = page.locator(".cq-msg-body.cq-suggest-body")
+    body = page.locator(".lf-msg-body.lf-suggest-body")
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
     assert errors == []
@@ -6750,7 +6746,7 @@ def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
     page, errors = open_page(browser, url)
     page.get_by_role("button", name="Comments", exact=False).click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
-    assert page.locator("#rp-live cq-option[chosen]").count() == 1
+    assert page.locator("#rp-live lf-option[chosen]").count() == 1
     assert errors == []
     page.close()
 
@@ -6762,10 +6758,10 @@ THREAD_ASKS = [
         "author": "claude",
         "version": 1,
         "text": "Which store?",
-        "markup": '<cq-options id="tq-one" choose>'
-        '<cq-option id="tq-redis">Redis</cq-option>'
-        '<cq-option id="tq-cookie">Signed cookie</cq-option>'
-        "</cq-options>",
+        "markup": '<lf-options id="tq-one" choose>'
+        '<lf-option id="tq-redis">Redis</lf-option>'
+        '<lf-option id="tq-cookie">Signed cookie</lf-option>'
+        "</lf-options>",
     },
     {
         "kind": "comment",
@@ -6773,10 +6769,10 @@ THREAD_ASKS = [
         "author": "claude",
         "version": 1,
         "text": "Pick any that apply.",
-        "markup": '<cq-options id="tq-set" choose multiple>'
-        '<cq-option id="tq-logs">Logs</cq-option>'
-        '<cq-option id="tq-metrics">Metrics</cq-option>'
-        "</cq-options>",
+        "markup": '<lf-options id="tq-set" choose multiple>'
+        '<lf-option id="tq-logs">Logs</lf-option>'
+        '<lf-option id="tq-metrics">Metrics</lf-option>'
+        "</lf-options>",
     },
 ]
 
@@ -6793,13 +6789,13 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     for event in THREAD_ASKS:
         interact.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
-    asks = page.locator(".cq-asks")
+    asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (2)")
 
     page.keyboard.press("a")
-    expect(page.locator(".cq-panel")).to_be_visible()
-    expect(page.locator("#tq-one .cq-pick").first).to_be_focused()
-    expect(page.locator(".cq-thread .cq-say")).to_have_count(0)
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
+    expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
 
     page.locator("#tq-redis").click()
     expect(asks).to_have_text("Asks (1)")
@@ -6807,7 +6803,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(asks).to_have_text("Asks (1)")
-    page.locator("#tq-set .cq-done").click()
+    page.locator("#tq-set .lf-done").click()
     expect(asks).to_be_hidden()
     expect(page.locator("#tq-set")).to_have_attribute("answered", "")
     round_trip(page)
@@ -6817,10 +6813,10 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
     # The chord's promise holds from a mark: g then 1 reaches the first thread's
     # reply box, and no pick is sent for the digit.
-    page.locator("#tq-one .cq-pick").first.focus()
+    page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
     page.keyboard.press("1")
-    expect(page.locator(".cq-thread textarea").first).to_be_focused()
+    expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert sent[-1]["action"] == "answer", "the leader's digit must not pick"
     assert errors == []
@@ -6832,11 +6828,11 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     digit picks outright, and each option wears its digit only while a mark holds
     keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    nums = page.locator("#live-question .cq-address")
+    nums = page.locator("#live-question .lf-address")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("a")
-    marks = page.locator("#live-question .cq-pick")
+    marks = page.locator("#live-question .lf-pick")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
@@ -6862,21 +6858,21 @@ ADDRESS_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>addresses</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Two questions, two forms</h1>
-<cq-options id="cards" choose>
-  <cq-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</cq-option>
-  <cq-option id="c-cable"><strong>Heated cable</strong> A cord across the base.</cq-option>
-  <cq-option id="c-hand"><strong>Break the ice</strong> Someone goes out each morning.</cq-option>
-</cq-options>
+<lf-options id="cards" choose>
+  <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
+  <lf-option id="c-cable"><strong>Heated cable</strong> A cord across the base.</lf-option>
+  <lf-option id="c-hand"><strong>Break the ice</strong> Someone goes out each morning.</lf-option>
+</lf-options>
 <p id="plan">The camera mount is the part nobody has costed.</p>
-<cq-options id="rows" choose>
-  <cq-option id="r-now" for="plan">Cost it now</cq-option>
-  <cq-option id="r-later" for="plan">Leave it for the spring</cq-option>
-</cq-options>
+<lf-options id="rows" choose>
+  <lf-option id="r-now" for="plan">Cost it now</lf-option>
+  <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -6910,11 +6906,11 @@ CLIPPED_BY = """el => {
 # time (a wrapped run's box spans the whole column and would answer for a line the chip
 # is nowhere near). The runtime's own chrome is not the page's words, so it is skipped.
 OVER_WORDS = """(el, id) => {
-    const group = document.getElementById(id).closest("cq-options");
+    const group = document.getElementById(id).closest("lf-options");
     const r = el.getBoundingClientRect();
     const walk = document.createTreeWalker(group, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-      if (!n.textContent.trim() || n.parentElement.closest(".cq-ui")) continue;
+      if (!n.textContent.trim() || n.parentElement.closest(".lf-ui")) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
       for (const b of range.getClientRects())
@@ -6946,7 +6942,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     for options in [["c-heater", "c-cable", "c-hand"], ["r-now", "r-later"]]:
         page.keyboard.press("a")
         for id_ in options:
-            chip = page.locator(f"#{id_} > .cq-address")
+            chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
@@ -6987,7 +6983,7 @@ def painted(page, name):
 
 
 def pending_text(page):
-    return painted(page, "cq-pending")
+    return painted(page, "lf-pending")
 
 
 def mark_point(page, name, index=0):
@@ -7008,8 +7004,8 @@ def composer_quote(page):
     The node stays in the accessibility tree either way — a painted mark has no exposure,
     so it is the box's aria description — which is why this asks the class, not the text."""
     return page.evaluate("""() => {
-        const q = document.getElementById('cq-composer-quote');
-        return {text: q.textContent, shown: !q.classList.contains('cq-unseen')};
+        const q = document.getElementById('lf-composer-quote');
+        return {text: q.textContent, shown: !q.classList.contains('lf-unseen')};
     }""")
 
 
@@ -7018,10 +7014,10 @@ def mark_shows_beside_composer(page):
     is the only thing naming the passage the box is about, so a box covering all of it is a
     box about nothing — which no state may reach."""
     return page.evaluate("""() => {
-        const box = document.querySelector('.cq-composer').getBoundingClientRect();
-        const rects = [...(CSS.highlights.get('cq-pending') ?? [])]
+        const box = document.querySelector('.lf-composer').getBoundingClientRect();
+        const rects = [...(CSS.highlights.get('lf-pending') ?? [])]
             .flatMap(r => [...r.getClientRects()])
-            .concat([...document.querySelectorAll('.cq-mark-el.cq-pending')]
+            .concat([...document.querySelectorAll('.lf-mark-el.lf-pending')]
                 .map(e => e.getBoundingClientRect()));
         const onScreen = (r) => r.right > 0 && r.left < innerWidth
                              && r.bottom > 48 && r.top < innerHeight;
@@ -7047,9 +7043,9 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.locator("#p").click(
         click_count=3
     )  # a real selection, spanning the inline tags
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
 
     passage = " ".join(page.locator("#p").inner_text().split())
@@ -7067,9 +7063,9 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     )
     assert (
         page.evaluate(
-            "() => document.querySelector('.cq-composer textarea').getAttribute('aria-describedby')"
+            "() => document.querySelector('.lf-composer textarea').getAttribute('aria-describedby')"
         )
-        == "cq-composer-quote"
+        == "lf-composer-quote"
     ), "nothing announces what the box is anchored to"
     # Carrying that description costs the node an id, which is what makes it the one piece
     # of injected chrome that could answer "which section of the document is this in" with
@@ -7077,8 +7073,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # comment box instead of to the page.
     assert (
         page.evaluate(
-            "() => document.getElementById('cq-composer-quote')"
-            ".closest('[id]:not(.cq-ui)')?.id ?? null"
+            "() => document.getElementById('lf-composer-quote')"
+            ".closest('[id]:not(.lf-ui)')?.id ?? null"
         )
         is None
     ), "the composer's own quote offers itself as a landmark in the document"
@@ -7095,7 +7091,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
             "anchor": {"section": "p", "quote": "bold text"},
         },
     )
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert pending_text(page) == passage, (
         "a poll landing while the composer is open disturbed the passage"
     )
@@ -7107,7 +7103,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # the search reads around it — one range per segment, not one spanning the lot.
     # Across both options, so a Choose button falls in the middle of the passage rather
     # than after it — where a single range spanning the whole thing would swallow it.
-    chrome = page.locator("#opts .cq-ui").first.text_content().strip()
+    chrome = page.locator("#opts .lf-ui").first.text_content().strip()
     assert chrome, "this assertion needs the widget to have rendered chrome inside it"
     page.evaluate("""() => {
         const r = document.createRange();
@@ -7115,8 +7111,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
-    page.locator(".cq-fab").click()
-    page.wait_for_function("() => CSS.highlights.get('cq-pending')")
+    page.locator(".lf-fab").click()
+    page.wait_for_function("() => CSS.highlights.get('lf-pending')")
     assert chrome not in pending_text(page), (
         f"the highlight painted the widget's own {chrome!r} control along with the passage"
     )
@@ -7125,8 +7121,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # A diagram has no text to quote, so its anchor is the element and its mark is an
     # outline. That one the anchor pass really does take down, so it has to be redrawn.
     page.locator("#fig svg").click()
-    page.locator(".cq-fab").click()
-    page.locator("#fig.cq-mark-el.cq-pending").wait_for()
+    page.locator(".lf-fab").click()
+    page.locator("#fig.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], (
         "the outline is on the figure and the composer names its section as well"
     )
@@ -7134,18 +7130,18 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "version": 1, "text": "and another"},
     )
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 2")
-    assert page.locator("#fig.cq-mark-el.cq-pending").count() == 1, (
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
+    assert page.locator("#fig.lf-mark-el.lf-pending").count() == 1, (
         "a poll landing while the composer is open dropped the outline"
     )
 
-    # Both classes have to go, asserted apart: leaving .cq-mark-el behind repaints the
+    # Both classes have to go, asserted apart: leaving .lf-mark-el behind repaints the
     # figure in the posted amber, pointer cursor and all, over no thread to open.
     page.get_by_role("button", name="Cancel").click()
-    assert page.locator("#fig.cq-pending").count() == 0, (
+    assert page.locator("#fig.lf-pending").count() == 0, (
         "the outline outlived its composer"
     )
-    assert page.locator("#fig.cq-mark-el").count() == 0, (
+    assert page.locator("#fig.lf-mark-el").count() == 0, (
         "the figure kept a thread's outline over no thread"
     )
 
@@ -7157,12 +7153,12 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.mouse.down()
     page.mouse.move(cap["x"] + cap["width"] - 2, cap["y"] + cap["height"] / 2, steps=8)
     page.mouse.up()
-    page.locator(".cq-fab").click()
-    page.wait_for_function("() => CSS.highlights.get('cq-pending')")
+    page.locator(".lf-fab").click()
+    page.wait_for_function("() => CSS.highlights.get('lf-pending')")
     assert "specimen" in pending_text(page), (
         "the click's visual find outranked the selection the drag made"
     )
-    assert page.locator("#fig.cq-pending").count() == 0, (
+    assert page.locator("#fig.lf-pending").count() == 0, (
         "the figure got the element outline over a live selection"
     )
     page.get_by_role("button", name="Cancel").click()
@@ -7176,7 +7172,7 @@ NOTED_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>noted</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -7220,18 +7216,18 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     c2 = comment({"quote": "two separate remarks"}, "Second thought.")
     comment({"section": "fig"}, "The figure too.")
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Two threads on one block count up, and leave one line rather than two.
     assert "2 comments" in page.locator("#p1").aria_snapshot(), (
         "a screen reader reading the block hears nothing about the comments on it"
     )
-    assert page.locator("#p1 .cq-mark-note").count() == 1, "one block, one line"
+    assert page.locator("#p1 .lf-mark-note").count() == 1, "one block, one line"
     # Hidden means hidden from the eye, not the tree: a line that paints is the runtime
     # writing visible prose into the author's paragraph.
-    assert page.locator("#p1 .cq-mark-note").evaluate(
+    assert page.locator("#p1 .lf-mark-note").evaluate(
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
     ), "the hidden line is painting on screen"
-    note = page.locator("#p1 .cq-mark-note")
+    note = page.locator("#p1 .lf-mark-note")
     expect(note).to_have_role("button")
     note.focus()
     expect(note).to_be_focused()
@@ -7239,16 +7235,16 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
         "the comment path stayed invisible when a keyboard reader reached it"
     )
     note.press("Enter")
-    expect(page.locator(f'.cq-thread[data-id="{c1}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
     page.keyboard.press("j")
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # Once the first thread resolves, the same control enters the next one.
     interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
     told(page)
     expect(note).to_have_text("1 comment")
     note.press("Enter")
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     # An element anchor has no text to paint, and the element it names holds the line.
     assert "1 comment" in page.locator("#fig").aria_snapshot()
 
@@ -7262,7 +7258,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
                      {childList: true, characterData: true, subtree: true});
     }""")
     comment({}, "On the page as a whole.")
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 4")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 4")
     assert page.evaluate("() => window.__churn") == 0, (
         "a poll that changed nothing still rewrote the block, so a screen reader re-reads it"
     )
@@ -7273,7 +7269,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     assert "comment" not in page.evaluate("() => getSelection().toString()"), (
         "the hidden line came along in the user's own selection"
     )
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     assert "comment" not in composer_quote(page)["text"], (
         "the hidden line came along in the quote the comment would store"
     )
@@ -7285,26 +7281,26 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 2, box["y"] + box["height"] / 2, steps=8)
     page.mouse.up()
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
-    page.locator(".cq-composer textarea").fill("Too short.")
+    page.locator(".lf-composer textarea").fill("Too short.")
     page.get_by_role("button", name="Comment", exact=True).click()
-    expect(page.locator("#p2 .cq-mark-note")).to_have_count(1)
+    expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
     c4 = [e for e in interact.read_events(d) if e.get("kind") == "comment"][-1]["id"]
 
     # A resolved thread takes its line with it: the pass owns what it wrote.
     interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c4})
     told(page)
-    expect(page.locator("#p2 .cq-mark-note")).to_have_count(0)
+    expect(page.locator("#p2 .lf-mark-note")).to_have_count(0)
     assert "1 comment" in page.locator("#p1").aria_snapshot()
 
     # A passage crossing two blocks says so in both: a reader landing on either block
     # hears about the comment, the way the paint reaches both.
     comment({"quote": "to land in it. A short second"}, "Crosses the boundary.")
     told(page)
-    expect(page.locator("#p2 .cq-mark-note")).to_have_count(1)
+    expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
     assert "2 comments" in page.locator("#p1").aria_snapshot()
     assert "1 comment" in page.locator("#p2").aria_snapshot()
     assert errors == []
@@ -7336,47 +7332,47 @@ def test_the_leader_key_addresses_reply_boxes(browser, serve):
     c2 = comment({"quote": "two separate remarks"}, "Second thought.")
     c3 = comment({"section": "fig"}, "The figure too.")
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 3")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
 
     # g then a digit lands in that thread's reply box, opening the panel on the way.
     page.keyboard.press("g")
     page.keyboard.press("2")
-    ta2 = page.locator(f'.cq-thread[data-id="{c2}"] textarea')
+    ta2 = page.locator(f'.lf-thread[data-id="{c2}"] textarea')
     expect(ta2).to_be_focused()
     # The focused box claims the send keys; an unfocused one its own address, which
     # the armed window paints on the box as a chip.
     expect(ta2).to_have_attribute("placeholder", re.compile(r"Reply · (⌘⏎|Ctrl\+⏎)$"))
-    ta1 = page.locator(f'.cq-thread[data-id="{c1}"] textarea')
+    ta1 = page.locator(f'.lf-thread[data-id="{c1}"] textarea')
     expect(ta1).to_have_attribute("placeholder", "Reply · g 1")
     expect(
-        page.locator(f'.cq-thread[data-id="{c1}"] .cq-compose > .cq-address')
+        page.locator(f'.lf-thread[data-id="{c1}"] .lf-compose > .lf-address')
     ).to_have_text("1")
 
     # A digit with no leader is nothing: Esc backs out to the thread, and 3 stays put.
     page.keyboard.press("Escape")
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     page.keyboard.press("3")
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # The chip is the armed window's paint, worn on the box the digit lands in:
     # hidden at rest (the placeholder speaks the standing address), visible while
     # armed, gone when Esc takes the window down.
-    chip1 = page.locator(f'.cq-thread[data-id="{c1}"] .cq-compose > .cq-address')
+    chip1 = page.locator(f'.lf-thread[data-id="{c1}"] .lf-compose > .lf-address')
     expect(chip1).to_be_hidden()
     page.keyboard.press("g")
     expect(chip1).to_be_visible()
     page.keyboard.press("Escape")
     expect(chip1).to_be_hidden()
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # A non-digit disarms the leader and keeps its ordinary meaning: g j is a thread step.
     page.keyboard.press("g")
     page.keyboard.press("j")
-    expect(page.locator(f'.cq-thread[data-id="{c3}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c3}"]')).to_be_focused()
 
     # Typing contexts are untouched: in a box, g and 1 are text, and focus stays put.
     page.keyboard.press("Enter")
-    ta3 = page.locator(f'.cq-thread[data-id="{c3}"] textarea')
+    ta3 = page.locator(f'.lf-thread[data-id="{c3}"] textarea')
     expect(ta3).to_be_focused()
     page.keyboard.type("g1")
     expect(ta3).to_have_value("g1")
@@ -7402,8 +7398,8 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 1")
-    line = page.locator(".cq-keyline")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
+    line = page.locator(".lf-keyline")
 
     # Page scope: the standing verbs, thread rows only over threads, and no esc
     # chip — there is nothing to back out of.
@@ -7429,23 +7425,23 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # A send key on an empty box is answered, not swallowed — silence reads as a
     # send that happened.
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".cq-toast")).to_contain_text("Nothing to send")
+    expect(page.locator(".lf-toast")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-threads")).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
     expect(line).to_contain_text("close comments")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-panel")).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_be_hidden()
     expect(line).not_to_contain_text("close comments")
     # Focus doesn't fall to body: it lands on the control that reopens the panel.
-    expect(page.locator(".cq-comments")).to_be_focused()
+    expect(page.locator(".lf-comments")).to_be_focused()
 
     # The fast rung: j reopens onto a thread, and Esc from it is one press out.
     # Every rung earns a press here because Esc is the only keyboard collapse.
     page.keyboard.press("j")
-    expect(page.locator(".cq-thread")).to_be_focused()
+    expect(page.locator(".lf-thread")).to_be_focused()
     expect(line).to_contain_text("close comments")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-panel")).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -7459,12 +7455,12 @@ def test_c_reaches_the_general_box_while_the_panel_stands_open(browser, serve):
     things."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.keyboard.press("c")  # closed: opens the panel into the box
-    expect(page.locator(".cq-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general textarea")).to_be_focused()
     page.keyboard.press("Escape")  # back out to the list, focus outside any box
-    expect(page.locator(".cq-threads")).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("c")  # open: still the box, never the collapse
-    expect(page.locator(".cq-general textarea")).to_be_focused()
-    expect(page.locator(".cq-panel")).to_have_class(re.compile("open"))
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
     assert errors == []
     page.close()
 
@@ -7488,11 +7484,11 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # under test: their letters are the control's own.
     for control in ("#zoom", "#pick"):
         page.get_by_role("button", name=re.compile("^Comments")).click()
-        expect(page.locator(".cq-panel")).to_be_visible()
+        expect(page.locator(".lf-panel")).to_be_visible()
         page.locator(control).focus()
-        expect(page.locator(".cq-keyline")).to_contain_text("close comments")
+        expect(page.locator(".lf-keyline")).to_contain_text("close comments")
         page.keyboard.press("Escape")
-        expect(page.locator(".cq-panel")).to_be_hidden()
+        expect(page.locator(".lf-panel")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -7505,7 +7501,7 @@ TARGETS_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>targets</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -7521,9 +7517,7 @@ stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
 """
 
 
-def test_the_key_line_names_what_this_press_will_comment_on(
-    browser, serve, other_colloquy
-):
+def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
     """A key's word is the meaning it has now, not one wide enough to cover every
     meaning it could have. c opens a box on the selection, on the item a click raised
     the 💬 on, or on the page, and all three read "comment" — true of the key and
@@ -7532,8 +7526,8 @@ def test_the_key_line_names_what_this_press_will_comment_on(
     row where they paint it, so both say which box this press opens; o is the same
     defect and says show or hide rather than both."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
-    line = page.locator(".cq-keyline")
-    help_el = page.locator(".cq-help")
+    line = page.locator(".lf-keyline")
+    help_el = page.locator(".lf-help")
 
     # Nothing in hand: the box c opens is the page's.
     expect(line).to_contain_text("comment on the page")
@@ -7551,7 +7545,7 @@ def test_the_key_line_names_what_this_press_will_comment_on(
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 1, box["y"] + box["height"] - 4, steps=12)
     page.mouse.up()
-    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(page.locator(".lf-fab")).to_be_visible()
     expect(line).to_contain_text("comment on the selection")
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Comment on the selection")
@@ -7559,8 +7553,8 @@ def test_the_key_line_names_what_this_press_will_comment_on(
     # And the press does what the word said: a composer carrying that passage, which
     # is what makes the suggestion row (a replacement for quoted words) offered at all.
     page.keyboard.press("c")
-    expect(page.locator(".cq-composer")).to_be_visible()
-    expect(page.locator(".cq-composer .cq-suggest-row")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer .lf-suggest-row")).to_be_visible()
     page.keyboard.press("Escape")
 
     # A visual has no words to quote, so the press lands on the element — and the word
@@ -7568,20 +7562,20 @@ def test_the_key_line_names_what_this_press_will_comment_on(
     page.locator("#fig svg").click()
     expect(line).to_contain_text("comment on the figure")
     page.keyboard.press("c")
-    expect(page.locator(".cq-composer")).to_be_visible()
-    expect(page.locator(".cq-composer .cq-suggest-row")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
     page.keyboard.press("Escape")
 
     # o names the direction of its own toggle. Opened from the banner, because opening
     # it by key lands focus inside the board, and the line is then the board's own scope
     # rather than the page's — the o row is only on screen while the page's is.
-    expect(line).to_contain_text("show colloquys")
-    page.get_by_role("button", name=re.compile("^All colloquys")).click()
-    expect(page.locator(".cq-others-panel")).to_have_class(re.compile("open"))
-    expect(line).to_contain_text("hide colloquys")
+    expect(line).to_contain_text("show leaves")
+    page.get_by_role("button", name=re.compile("^All leaves")).click()
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
+    expect(line).to_contain_text("hide leaves")
     page.keyboard.press("o")
-    expect(page.locator(".cq-others-panel")).not_to_have_class(re.compile("open"))
-    expect(line).to_contain_text("show colloquys")
+    expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
+    expect(line).to_contain_text("show leaves")
     assert errors == []
     page.close()
 
@@ -7597,7 +7591,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
-    help_el = page.locator(".cq-help")
+    help_el = page.locator(".lf-help")
 
     # No open threads, one version: the reference names only what a press would do.
     page.keyboard.press("?")
@@ -7623,8 +7617,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # while j, when-gated, did nothing.
     page.keyboard.press("j")
     page.keyboard.press("k")
-    expect(page.locator(".cq-panel")).to_be_hidden()
-    line = page.locator(".cq-keyline")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    line = page.locator(".lf-keyline")
     expect(line).not_to_contain_text("threads")
 
     # Threads arrive, and the next open holds the rows they make live — the g
@@ -7634,7 +7628,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
         )
     told(page)
-    expect(page.locator(".cq-thread")).to_have_count(2)
+    expect(page.locator(".lf-thread")).to_have_count(2)
     # The key line repaints on the same render that made them live — no focus
     # change to lean on, so the repaint is the thread render's own.
     expect(line).to_contain_text("threads")
@@ -7652,7 +7646,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/versions/v2.html*")
-    expect(page.locator('.cq-version-diff[data-cq-version="1"]')).to_have_count(1)
+    expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Older / newer version")
     expect(help_el).to_contain_text("Highlight changes since the previous version")
@@ -7663,24 +7657,24 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # precisely so the press can end one — so over a marked-up page the reference has to
     # say the half of the run this press would take, not the half that already happened.
     page.keyboard.press("=")
-    expect(page.locator(".cq-version")).to_have_class(re.compile(r"\bon\b"))
+    expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Stop highlighting changes")
     expect(help_el).not_to_contain_text("Highlight changes since the previous version")
     page.keyboard.press("Escape")
     page.keyboard.press("=")
-    expect(page.locator(".cq-version")).not_to_have_class(re.compile(r"\bon\b"))
+    expect(page.locator(".lf-version")).not_to_have_class(re.compile(r"\bon\b"))
 
     # A resolved thread stays focusable after the last open one is gone, and the
     # scene branch that restates the j/k row over it asks the same liveness.
     page.keyboard.press("c")
     for n in [1, 2]:
-        page.locator(".cq-threads > .cq-thread").first.get_by_role(
+        page.locator(".lf-threads > .lf-thread").first.get_by_role(
             "button", name="Resolve"
         ).click()
-        expect(page.locator(".cq-details summary")).to_have_text(f"Resolved ({n})")
-    page.locator(".cq-details summary").click()
-    resolved = page.locator(".cq-details .cq-thread").first
+        expect(page.locator(".lf-details summary")).to_have_text(f"Resolved ({n})")
+    page.locator(".lf-details summary").click()
+    resolved = page.locator(".lf-details .lf-thread").first
     resolved.click()
     expect(resolved).to_be_focused()
     expect(line).to_contain_text("close comments")
@@ -7708,30 +7702,30 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     c1 = comment("First thought.")
     c2 = comment("Second thought.")
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 2")
-    line = page.locator(".cq-keyline")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
+    line = page.locator(".lf-keyline")
 
     # At page scope nothing promises r — its target is the focused thread, and
     # none is — while the overlay teaches the capability, scope in its words.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
-    expect(page.locator(".cq-help")).to_contain_text("On a focused thread: resolve it")
+    expect(page.locator(".lf-help")).to_contain_text("On a focused thread: resolve it")
     page.keyboard.press("Escape")
 
     # j lands on the first thread and the line offers resolve; r takes it, and
     # focus lands on the thread now holding the resolved one's place, so j/k
     # and a second r walk on from there.
     page.keyboard.press("j")
-    expect(page.locator(f'.cq-thread[data-id="{c1}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
     page.keyboard.press("r")
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
-    expect(page.locator(f'.cq-thread[data-id="{c2}"]')).to_be_focused()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
 
     # A focused resolved thread promises nothing, and the press acts on nothing.
-    page.locator(".cq-details summary").click()
-    resolved = page.locator(f'.cq-details .cq-thread[data-id="{c1}"]')
+    page.locator(".lf-details summary").click()
+    resolved = page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')
     resolved.click()
     expect(resolved).to_be_focused()
     expect(line).not_to_contain_text("resolve")
@@ -7740,8 +7734,8 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     # had wrongly posted would have landed by now.
     comment("Third thought.")
     told(page)
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
-    expect(page.locator(f'.cq-threads > .cq-thread[data-id="{c2}"]')).to_have_count(1)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{c2}"]')).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -7754,7 +7748,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     editor closes keeping the edit, the panel stands, and a grabbed card's Esc
     cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
-        "</main>", '<cq-draft id="plan"><pre>Ship it.</pre></cq-draft></main>'
+        "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
     url = serve(html)
     interact.append_event(
@@ -7762,41 +7756,41 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
         {"kind": "comment", "author": "user", "version": 1, "text": "A thread."},
     )
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 1")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     page.keyboard.press("c")  # panel open, so the old second action would show
-    expect(page.locator(".cq-panel")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_visible()
 
-    page.locator("cq-draft .cq-draft-pencil").click()
-    ta = page.locator("cq-draft textarea")
+    page.locator("lf-draft .lf-draft-pencil").click()
+    ta = page.locator("lf-draft textarea")
     expect(ta).to_be_focused()
     ta.fill("Ship it — but louder.")
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
-    expect(page.locator(".cq-panel")).to_be_visible()  # …and only the editor
+    expect(page.locator(".lf-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
-    page.locator("cq-draft .cq-draft-pencil").click()
-    expect(page.locator("cq-draft textarea")).to_have_value("Ship it — but louder.")
+    page.locator("lf-draft .lf-draft-pencil").click()
+    expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
     page.keyboard.press("Escape")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.
-    grip = page.locator("#card-heater .cq-grip")
+    grip = page.locator("#card-heater .lf-grip")
     grip.focus()
     page.keyboard.press("Enter")
-    expect(page.locator(".cq-keyline")).to_contain_text("cancel the move")
+    expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
     # The contract's flip side: the leader refuses to arm over a control that has
     # claimed Escape, or one press would have two owners — the grip consuming it,
     # the chord promising its cancel.
     page.keyboard.press("g")
-    expect(page.locator(".cq-keyline")).not_to_contain_text("reply to thread")
-    expect(page.locator(".cq-keyline")).to_contain_text("cancel the move")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("reply to thread")
+    expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
     page.keyboard.press("Escape")
     # The grab is over (an uncancelled one would also leave the card in Todo),
     # the line is back to the resting grip, and the panel the ladder would have
     # closed stands.
-    expect(page.locator(".cq-lift")).to_have_count(0)
-    expect(page.locator(".cq-keyline")).to_contain_text("grab the card")
+    expect(page.locator(".lf-lift")).to_have_count(0)
+    expect(page.locator(".lf-keyline")).to_contain_text("grab the card")
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator(".cq-panel")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -7816,7 +7810,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     url = serve(SETTLED_PAGE.replace("</main>", filler + "\n</main>"))
     page, errors = open_page(browser, url)
 
-    page.locator(".cq-settled").click()  # open the settled group, as a reader would
+    page.locator(".lf-settled").click()  # open the settled group, as a reader would
     page.wait_for_selector("#opt-strict:visible")
     # A card in the middle column, scrolled just under the banner: narrower than the 320px
     # box and centred on it, which is the geometry the box can swallow whole.
@@ -7825,17 +7819,17 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
         document.body.scrollBy({top: r.top - 60, behavior: 'instant'});
     }""")
     page.locator("#opt-strict").click(click_count=3)
-    page.locator(".cq-fab").click()
-    page.locator(".cq-composer textarea").fill("what did the trial actually show?")
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("what did the trial actually show?")
     assert mark_shows_beside_composer(page), (
         "the box covered the passage it just opened on"
     )
 
     page.reload()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
-    page.wait_for_function("() => (CSS.highlights.get('cq-pending')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0")
     assert mark_shows_beside_composer(page), (
         "the restored box came back on top of its own mark, and with the mark hidden "
         "nothing on screen says what the draft is about"
@@ -7859,12 +7853,12 @@ def test_the_composer_scrolls_with_the_passage_it_is_about(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
-    page.wait_for_selector(".cq-fab", state="visible")
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
+    page.wait_for_selector(".lf-fab", state="visible")
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     moved = page.evaluate("""() => {
         const top = (el) => el.getBoundingClientRect().top;
-        const composer = document.querySelector('.cq-composer');
+        const composer = document.querySelector('.lf-composer');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
         document.body.scrollTop += 240;
@@ -7897,11 +7891,11 @@ def test_the_composer_stands_in_the_margin_beside_the_passage(browser, serve):
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
-    page.wait_for_selector(".cq-fab", state="visible")
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
+    page.wait_for_selector(".lf-fab", state="visible")
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     standing = page.evaluate("""() => {
-        const box = document.querySelector('.cq-composer').getBoundingClientRect();
+        const box = document.querySelector('.lf-composer').getBoundingClientRect();
         const column = document.querySelector('main').getBoundingClientRect();
         const touching = [...document.querySelectorAll('main p, main h1')]
             .filter(el => el.checkVisibility())
@@ -7937,23 +7931,23 @@ def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, 
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
-    page.wait_for_selector(".cq-fab", state="visible")
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
-    page.locator(".cq-composer textarea").fill("held open across the panel opening")
+    page.wait_for_selector(".lf-fab", state="visible")
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("held open across the panel opening")
     assert page.evaluate(
-        "() => document.querySelector('.cq-composer').getBoundingClientRect().left"
+        "() => document.querySelector('.lf-composer').getBoundingClientRect().left"
         "   >= document.querySelector('main').getBoundingClientRect().right"
     ), "the margin placement is the precondition — nothing strands a column-placed box"
     # A press on the banner's own button: standDown keeps a composer holding text.
     page.get_by_role("button", name="Comments", exact=False).click()
     panel_settled(page)
     page.wait_for_function("""() => {
-        const box = document.querySelector('.cq-composer').getBoundingClientRect();
+        const box = document.querySelector('.lf-composer').getBoundingClientRect();
         return document.body.scrollWidth - document.body.clientWidth === 0
             && box.right <= document.body.clientWidth;
     }""")
-    expect(page.locator(".cq-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -7968,8 +7962,8 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     page, errors = open_page(browser, url)
 
     page.locator("#p").click(click_count=3)
-    page.locator(".cq-fab").click()
-    page.locator(".cq-composer textarea").fill(
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill(
         "half-written when the version turned over"
     )
     passage = " ".join(page.locator("#p").inner_text().split())
@@ -7990,14 +7984,14 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     told(page)
-    expect(page.locator(".cq-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
     page.get_by_role("button", name="New version available", exact=False).click()
     page.wait_for_url("**/v2.html")
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
 
-    assert page.locator(".cq-composer textarea").input_value() == (
+    assert page.locator(".lf-composer textarea").input_value() == (
         "half-written when the version turned over"
     ), "the draft didn't survive the version it was written against"
     assert pending_text(page) == "", (
@@ -8008,7 +8002,7 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
         "nothing on screen says what the draft is about — no mark, and no quote either"
     )
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
-    assert page.locator(".cq-composer .cq-quote.detached").count() == 1, (
+    assert page.locator(".lf-composer .lf-quote.detached").count() == 1, (
         "the stranded quote reads as one that still points somewhere"
     )
 
@@ -8016,7 +8010,7 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     # a user selects to keep. The anchor pass reruns on every arriving comment, and a
     # rewritten node takes the selection with it.
     page.evaluate("""() => {
-        const q = document.getElementById('cq-composer-quote');
+        const q = document.getElementById('lf-composer-quote');
         const r = document.createRange();
         r.setStart(q.firstChild, 1);
         r.setEnd(q.firstChild, 20);
@@ -8030,7 +8024,7 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "version": 2, "text": "arriving from another tab"},
     )
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 1")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     assert page.evaluate("() => getSelection().toString()") == held, (
         "the anchor pass rewrote the stranded quote and took the reader's selection with it"
     )
@@ -8055,21 +8049,21 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     page, errors = open_page(browser, serve(example.read_text()))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
-        const composer = document.querySelector('.cq-composer');
-        const fab = document.querySelector('.cq-fab');
+        const composer = document.querySelector('.lf-composer');
+        const fab = document.querySelector('.lf-fab');
         // A reader reaches everything eventually — opens the details, clicks through to
         // the other tab — so everything is in scope, not just what the page opens on.
         document.querySelectorAll('details').forEach(d => (d.open = true));
         document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
         // Declared labels are in scope, and the filter is the runtime's own rule rather
         // than the class: a tab's name and a settled row's title are words the page says
-        // from inside chrome, which is exactly the shape a filter on .cq-ui cannot see.
+        // from inside chrome, which is exactly the shape a filter on .lf-ui cannot see.
         const speaks = el => {
-            const near = el.closest('.cq-ui, [data-cq-said]');
-            return !near || near.matches('[data-cq-said]');
+            const near = el.closest('.lf-ui, [data-lf-said]');
+            return !near || near.matches('[data-lf-said]');
         };
         const blocks = [...document.querySelectorAll('p,li,h1,h2,h3,td,th,blockquote,'
-            + 'figcaption,summary,cq-option,cq-variant,cq-milestone,cq-metric,[data-cq-said]')]
+            + 'figcaption,summary,lf-option,lf-variant,lf-milestone,lf-metric,[data-lf-said]')]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
         const missed = [], skipped = [], astray = [];
@@ -8093,11 +8087,11 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
                 }
                 fab.click();
                 await tick();
-                const painted = CSS.highlights.get('cq-pending');
+                const painted = CSS.highlights.get('lf-pending');
                 // The captured quote, read off the node whether or not the reader can
                 // see it: the composer shows it only where the page has no mark to give,
                 // which is the very case this loop is counting.
-                const quoted = document.getElementById('cq-composer-quote').textContent;
+                const quoted = document.getElementById('lf-composer-quote').textContent;
                 if (!painted || ![...painted].map(r => r.toString()).join('').trim())
                     missed.push(quoted.slice(0, 70));
                 // Inside what was selected, not merely somewhere: a matcher that finds
@@ -8184,12 +8178,12 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
 
     Then the other half of the pair, which the same spans decide: the version diff reads
     a block's *authored* text, and the base version it compares against is parsed
-    unupgraded, where these spans don't exist. Drop their data-cq-gen and every widget
+    unupgraded, where these spans don't exist. Drop their data-lf-gen and every widget
     holding a said attribute lights up as changed on every revision — a failure that
     looks like a busy page rather than like a bug."""
     page, errors = open_page(browser, serve(SAID_PAGE))
 
-    heading = page.locator('cq-column#col-now > [data-cq-said="label"]')
+    heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
     box = heading.bounding_box()
     page.mouse.move(box["x"] + 2, box["y"] + box["height"] / 2)
     page.mouse.down()
@@ -8202,17 +8196,17 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     assert page.evaluate("() => getSelection().toString()").strip() == "IN FLIGHT", (
         "a drag across the heading selected nothing — it is painted, not said"
     )
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
-    page.locator(".cq-composer textarea").fill("this column's name is wrong")
+    page.locator(".lf-composer textarea").fill("this column's name is wrong")
     page.get_by_role("button", name="Comment", exact=True).click()
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    thread = page.locator(".cq-thread .cq-quote").first
+    thread = page.locator(".lf-thread .lf-quote").first
     assert thread.text_content().strip().strip("“”") == "In flight"
 
     # A second version reworking one card's prose and nothing else. The page follows it,
@@ -8226,17 +8220,17 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    assert page.locator(".cq-thread .cq-quote.detached").count() == 0, (
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
         "the comment came loose from the heading when the version turned over"
     )
 
     compare_with(page)
     page.wait_for_function(
-        "() => document.querySelectorAll('.cq-ins-block').length > 0"
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
     )
     assert page.evaluate(
-        "() => [...document.querySelectorAll('.cq-ins-block')].map(e => e.id)"
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
     assert errors == []
     page.close()
@@ -8248,22 +8242,22 @@ FENCED_CAPTURE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>fenced capture</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Roadmap</h1>
-<cq-milestones>
-  <cq-milestone id="gate-milestone" status="active" when="week-1" tags="wood,solar">
+<lf-milestones>
+  <lf-milestone id="gate-milestone" status="active" when="week-1" tags="wood,solar">
     <strong>Build feeders</strong> Two classic models.
-  </cq-milestone>
-</cq-milestones>
+  </lf-milestone>
+</lf-milestones>
 <p id="after-milestone">Ready next.</p>
-<cq-options id="fence-options">
-  <cq-option id="fence-option"><cq-chip>effort: low</cq-chip><cq-chip>risk: high</cq-chip>
+<lf-options id="fence-options">
+  <lf-option id="fence-option"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip>
     <strong>Classic feeder</strong> Easy to clean.
-  </cq-option>
-</cq-options>
+  </lf-option>
+</lf-options>
 </main>
 </body>
 </html>
@@ -8274,7 +8268,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
     """Module-only words may sit between authored parts, but they cannot give the
     browser more context than the version file can confirm."""
     page, errors = open_page(browser, serve(FENCED_CAPTURE_PAGE))
-    expect(page.locator("#gate-milestone .cq-chips")).to_have_count(1)
+    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
@@ -8282,7 +8276,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
-        ("#fence-option > cq-chip", "effort: low", "fence-option"),
+        ("#fence-option > lf-chip", "effort: low", "fence-option"),
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
@@ -8311,11 +8305,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
         )
         assert selected == quote
         page.dispatch_event("body", "mouseup")
-        expect(page.locator(".cq-fab")).to_be_visible()
-        page.locator(".cq-fab").click()
-        page.locator(".cq-composer textarea").fill(f"fence {index}")
+        expect(page.locator(".lf-fab")).to_be_visible()
+        page.locator(".lf-fab").click()
+        page.locator(".lf-composer textarea").fill(f"fence {index}")
         page.get_by_role("button", name="Comment", exact=True).click()
-        expect(page.locator(".cq-thread")).to_have_count(index)
+        expect(page.locator(".lf-thread")).to_have_count(index)
         actual_anchor = [
             event["anchor"]
             for event in interact.read_events(serve.page_dir)
@@ -8340,20 +8334,20 @@ CONTROL_LABEL_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>labels</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Aviary projects</h1>
 <p id="lede">Two workstreams, one page.</p>
-<cq-tabs id="projects">
-  <cq-tab id="tab-feeders" label="Winter feeders">
+<lf-tabs id="projects">
+  <lf-tab id="tab-feeders" label="Winter feeders">
     <p id="p-feeders">Two of the four feeders are mounted; the south pair waits on brackets.</p>
-  </cq-tab>
-  <cq-tab id="tab-bath" label="Heated bird bath">
+  </lf-tab>
+  <lf-tab id="tab-bath" label="Heated bird bath">
     <p id="p-bath">The thermostat arrived cracked and a replacement is on order.</p>
-  </cq-tab>
-</cq-tabs>
+  </lf-tab>
+</lf-tabs>
 </main>
 </body>
 </html>
@@ -8367,7 +8361,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     can't be quoted, the user can read the tab's name and never point at it.
 
     That is what a user hit, twice, on a draft's heading: the words were the page's
-    and the row holding them was marked as the runtime's. `.cq-ui` is a look, and
+    and the row holding them was marked as the runtime's. `.lf-ui` is a look, and
     anchoring's question is whose words these are — so the label answers it where it is
     written (relabel), and the nearest answer wins over the box around it.
 
@@ -8392,14 +8386,14 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     # reading when they reached for the name.
     expect(page.locator("#p-feeders")).to_be_visible()
 
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
-    page.locator(".cq-composer textarea").fill("call it the bath, not the bird bath")
+    page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
     page.get_by_role("button", name="Comment", exact=True).click()
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    thread = page.locator(".cq-thread .cq-quote").first
+    thread = page.locator(".lf-thread .lf-quote").first
     assert thread.text_content().strip().strip("“”") == "Heated bird bath"
 
     # A second version reworking the other panel's prose and nothing else: the name the
@@ -8414,8 +8408,8 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    assert page.locator(".cq-thread .cq-quote.detached").count() == 0, (
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
         "the comment came loose from the tab's name when the version turned over"
     )
     assert errors == []
@@ -8446,17 +8440,17 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
     page.mouse.up()
     assert page.evaluate(
         "() => getSelection().containsNode(document.querySelector("
-        "'[data-cq-for=sug-refill] .cq-sug-reject'), true)"
+        "'[data-lf-for=sug-refill] .lf-sug-reject'), true)"
     ), "the selection doesn't reach the control, so this run tests nothing"
 
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-reject").click()
-    expect(page.locator("#sug-refill")).to_have_attribute("data-cq-state", "reject")
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     assert page.evaluate("() => !getSelection().isCollapsed"), (
         "the press cleared the selection, so the keyboard half below is untested"
     )
-    page.locator("[data-cq-for='sug-in-card'] .cq-sug-accept").focus()
+    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#sug-in-card")).to_have_attribute("data-cq-state", "accept")
+    expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
     assert errors == []
     page.close()
 
@@ -8479,21 +8473,21 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 8, box["y"] + box["height"] - 6, steps=16)
     page.mouse.up()
-    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(page.locator(".lf-fab")).to_be_visible()
 
-    under = page.evaluate("""() => [...document.querySelectorAll("[data-cq-offer]")]
-        .filter(c => !c.closest(".cq-chrome"))
+    under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
+        .filter(c => !c.closest(".lf-chrome"))
         .filter(c => { const b = c.getBoundingClientRect();
                        const top = document.elementFromPoint((b.left + b.right) / 2,
                                                             (b.top + b.bottom) / 2);
-                       return top && !c.contains(top) && top.closest(".cq-chrome"); })
+                       return top && !c.contains(top) && top.closest(".lf-chrome"); })
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 
-    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
-    expect(page.locator("#sug-refill")).to_have_attribute("data-cq-state", "accept")
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(
-        page.locator(".cq-composer")
+        page.locator(".lf-composer")
     ).to_be_hidden()  # the press decided, it didn't compose
     assert errors == []
     page.close()
@@ -8508,10 +8502,10 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     three points larger than every other control in the layer) beside two hairline
     pills, which put two idioms four centimetres apart in the one place a reader
     compares them. Where a control stands decides which it wears: in the runtime's
-    furniture a press is a .cq-btn and looks like one, and out in the margin it is a
+    furniture a press is a .lf-btn and looks like one, and out in the margin it is a
     marginal mark.
 
-    Pinned by reading both off one page. The pill is one statement now (.cq-pill, in
+    Pinned by reading both off one page. The pill is one statement now (.lf-pill, in
     the runtime's document-level vocabulary), but either wearer can still restate a
     property in its own rules — the fab's scoped block and the suggestion's state
     rules both layer over it — and this is what says such a restatement kept the
@@ -8524,7 +8518,7 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 8, box["y"] + box["height"] - 6, steps=16)
     page.mouse.up()
-    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(page.locator(".lf-fab")).to_be_visible()
     # The drag ends where the button is raised, so the pointer is on it: both are read
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
@@ -8533,8 +8527,8 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
         return Object.fromEntries(["font-family", "font-size", "line-height",
             "border-radius", "border-top-width", "border-top-style", "padding",
             "background-color", "color"].map(p => [p, s.getPropertyValue(p)])); }"""
-    raised = page.locator(".cq-fab").evaluate(family)
-    resident = page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").evaluate(
+    raised = page.locator(".lf-fab").evaluate(family)
+    resident = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").evaluate(
         family
     )
     assert raised == resident, (
@@ -8549,7 +8543,7 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
         f"the margin's presses speak in the document's voice: {raised['font-family']}"
     )
     assert (
-        page.locator(".cq-fab").evaluate("el => getComputedStyle(el).boxShadow")
+        page.locator(".lf-fab").evaluate("el => getComputedStyle(el).boxShadow")
         != "none"
     ), "the one press that floats over the page says nothing about it"
     assert errors == []
@@ -8563,7 +8557,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     one a pick answers, and this page shows them at once — a question asked inside a
     thread, so the two chips stand a couple of centimetres apart in the same panel. They
     were two hand-matched copies of a dozen declarations, one in the chrome's stylesheet
-    and one in the theme, with nothing to say if either moved; the look is .cq-address in
+    and one in the theme, with nothing to say if either moved; the look is .lf-address in
     the runtime's document-level vocabulary now, and each wearer states only where its
     chip sits and when it shows.
 
@@ -8579,10 +8573,10 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     # `a` opens the panel on the first ask and lands on its mark, which is what paints
     # that group's digits; g then arms the leader, which paints the reply boxes'.
     page.keyboard.press("a")
-    picked = page.locator("#tq-one .cq-address").first
+    picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
-    addressed = page.locator(".cq-thread .cq-compose > .cq-address").first
+    addressed = page.locator(".lf-thread .lf-compose > .lf-address").first
     expect(addressed).to_be_visible()
 
     face = """el => { const s = getComputedStyle(el);
@@ -8615,16 +8609,16 @@ def test_the_composer_opens_where_the_button_stood(browser, serve):
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 8, box["y"] + box["height"] - 6, steps=16)
     page.mouse.up()
-    expect(page.locator(".cq-fab")).to_be_visible()
-    stood = page.locator(".cq-fab").evaluate("el => el.getBoundingClientRect().top")
+    expect(page.locator(".lf-fab")).to_be_visible()
+    stood = page.locator(".lf-fab").evaluate("el => el.getBoundingClientRect().top")
     # It moved, or this run would hold whether or not the position were carried along.
-    assert stood > page.locator("[data-cq-for='sug-refill']").evaluate(
+    assert stood > page.locator("[data-lf-for='sug-refill']").evaluate(
         "el => el.getBoundingClientRect().bottom"
     ), "the button never stepped aside, so where it stood proves nothing"
 
-    page.locator(".cq-fab").click()
-    expect(page.locator(".cq-composer")).to_be_visible()
-    opened = page.locator(".cq-composer").evaluate(
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    opened = page.locator(".lf-composer").evaluate(
         "el => el.getBoundingClientRect().top"
     )
     assert abs(opened - stood) <= 1, (
@@ -8663,8 +8657,8 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
         serve(
             INLINE_PAGE.replace(
                 '<p id="p">',
-                '<ul><li><cq-specimen id="spec" label="mono">glyphs set close'
-                '</cq-specimen></li></ul>\n<p id="p">',
+                '<ul><li><lf-specimen id="spec" label="mono">glyphs set close'
+                '</lf-specimen></li></ul>\n<p id="p">',
             )
         ),
     )
@@ -8700,7 +8694,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
 
     drag(spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
     assert page.evaluate(settled) == "paragraph carrying"
-    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(page.locator(".lf-fab")).to_be_visible()
 
     drag(spot("#p", "inside", 2), spot("#p", "it,", 1))
     assert page.evaluate(settled) == "inside it"
@@ -8755,7 +8749,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
         const p2 = document.querySelector('#p2');
         const rest = p2.firstChild.splitText(p2.firstChild.data.indexOf(' between'));
         const span = document.createElement('span');
-        span.setAttribute('data-cq-gen', '');
+        span.setAttribute('data-lf-gen', '');
         span.textContent = 'flagged';
         p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
     }""")
@@ -8765,7 +8759,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     # The declared label: rendered by the real pass, flush before the specimen's own
     # words, unfenced because the registry models it — so the reading holds
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
-    drag(spot("cq-specimen", "glyphs", 3), spot("cq-specimen", "close", 3))
+    drag(spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
     assert page.evaluate(settled) == "glyphs set close"
     assert errors == []
     page.close()
@@ -8801,9 +8795,9 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         )
     page.get_by_role("button", name="Comments", exact=False).click()
     page.wait_for_function(
-        f"() => document.querySelectorAll('.cq-thread').length === {len(forms)}"
+        f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
-    stranded = page.locator(".cq-panel .cq-quote.detached").all_text_contents()
+    stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"quotes naming a passage that is right there: {stranded}"
 
     # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
@@ -8819,9 +8813,9 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         },
     )
     page.wait_for_function(
-        f"() => document.querySelectorAll('.cq-thread').length === {len(forms) + 1}"
+        f"() => document.querySelectorAll('.lf-thread').length === {len(forms) + 1}"
     )
-    assert page.locator(".cq-panel .cq-quote.detached").count() == 1, (
+    assert page.locator(".lf-panel .lf-quote.detached").count() == 1, (
         "a quote gluing two of the page's words together still found a passage"
     )
 
@@ -8836,9 +8830,9 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(x => setTimeout(x, 30));
-        document.querySelector('.cq-fab').click();
+        document.querySelector('.lf-fab').click();
         await new Promise(x => setTimeout(x, 30));
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])][0];
+        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         return painted && painted.compareBoundaryPoints(Range.START_TO_START, r) === 0;
     }""")
     assert landed, "'set up' anchored onto 'setup', an earlier and different word"
@@ -8848,7 +8842,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `colloquy transcript` — and written to a
+    panel, emitted into a Markdown blockquote by `leaf transcript` — and written to a
     UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
     which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
@@ -8858,9 +8852,9 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
 
     def compose_on(block):
         page.locator(block).click(click_count=3)
-        page.locator(".cq-fab").click()
+        page.locator(".lf-fab").click()
         page.wait_for_function(
-            "() => document.querySelector('.cq-composer').style.display === 'block'"
+            "() => document.querySelector('.lf-composer').style.display === 'block'"
         )
 
     # Read off the composer's description of its own anchor, which is the captured quote
@@ -8875,7 +8869,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # Iterating by code point, a character cut in half is left as a single unit in the
     # surrogate range; an intact one comes through as the pair it is.
     compose_on("#cap")
-    assert not page.evaluate("""() => [...document.getElementById('cq-composer-quote').textContent]
+    assert not page.evaluate("""() => [...document.getElementById('lf-composer-quote').textContent]
         .some(c => c.length === 1 && c.charCodeAt(0) >= 0xd800 && c.charCodeAt(0) <= 0xdfff)"""), (
         "the 400-character cap split a character in half"
     )
@@ -8883,12 +8877,12 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # And the round trip that proves it: the server has to accept the quote and write it
     # to a UTF-8 file. A half character fails there, reported to the reader as an offline
     # server, and no retry can ever succeed.
-    page.locator(".cq-composer textarea").fill("a comment on the capped passage")
-    page.locator(".cq-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_function("""() => document.querySelectorAll('.cq-thread').length === 1
-        || document.querySelector('.cq-toast').classList.contains('show')""")
-    assert page.locator(".cq-thread").count() == 1, (
-        f"the comment never posted — the page says {page.locator('.cq-toast').text_content()!r}"
+    page.locator(".lf-composer textarea").fill("a comment on the capped passage")
+    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.wait_for_function("""() => document.querySelectorAll('.lf-thread').length === 1
+        || document.querySelector('.lf-toast').classList.contains('show')""")
+    assert page.locator(".lf-thread").count() == 1, (
+        f"the comment never posted — the page says {page.locator('.lf-toast').text_content()!r}"
     )
     assert errors == []
     page.close()
@@ -8912,29 +8906,29 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
             "anchor": {"section": "p", "quote": "bold text"},
         },
     )
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     # Open a composer on other text and type nothing, so the next mousedown outside it
     # is the one that takes it down.
     page.locator("#q").click(click_count=3)
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
 
-    page.mouse.click(*mark_point(page, "cq-mark"))
+    page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
     page.get_by_role("button", name="Close comments").click()
     page.locator("#p").click(click_count=3)
-    page.locator(".cq-fab").click()
+    page.locator(".lf-fab").click()
     page.wait_for_function(
-        "() => document.querySelector('.cq-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
-    page.mouse.click(*mark_point(page, "cq-pending"))
-    assert not page.locator(".cq-panel").evaluate(
+    page.mouse.click(*mark_point(page, "lf-pending"))
+    assert not page.locator(".lf-panel").evaluate(
         "el => el.classList.contains('open')"
     ), (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
@@ -8964,17 +8958,17 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
             "anchor": {"section": "fig", "quote": "A specimen, for element anchors."},
         },
     )
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    if page.locator(".cq-panel.open").count():
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    if page.locator(".lf-panel.open").count():
         page.get_by_role("button", name="Close comments").click()
         panel_settled(page, open=False)
 
     page.locator("#fig").scroll_into_view_if_needed()
-    spot = page.evaluate("""() => { const r = [...CSS.highlights.get('cq-mark')][0].getClientRects()[0];
+    spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     panel_settled(page)
-    assert not page.locator(".cq-fab").is_visible(), (
+    assert not page.locator(".lf-fab").is_visible(), (
         "the click opened the thread and then offered to comment on it as well"
     )
 
@@ -8997,27 +8991,27 @@ CODE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>code</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Code</h1>
 <section id="walk">
 <p id="lede">The key changes shape:</p>
-<cq-code id="walk-code" language="python" hi="2"><pre>
+<lf-code id="walk-code" language="python" hi="2"><pre>
 def bucket_key(request):
     if request.token:
         return f"tok:{request.token.id}"
     return "anon"
 </pre>
-<cq-note at="2">A token id shaped like an address would collide.</cq-note>
-</cq-code>
+<lf-note at="2">A token id shaped like an address would collide.</lf-note>
+</lf-code>
 <pre><code class="language-bash"># apply the migration, then run the marked suite
 cd gateway &amp;&amp; alembic upgrade head</code></pre>
-<cq-code id="plain-code"><pre>
-$ colloquy version check ./page --render
+<lf-code id="plain-code"><pre>
+$ leaf version check ./page --render
 v1.html: renders clean
-</pre></cq-code>
+</pre></lf-code>
 </section>
 </main>
 </body>
@@ -9029,22 +9023,22 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the version file holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `colloquy comment` able to quote
+    block the file knows nothing about, and what keeps `leaf comment` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, cq-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a cq-code with no `language` stays
-    the color of its own ink. The quote below is written the way `colloquy comment`
+    One pass serves both shapes a page has for code, lf-code's `language` and a plain
+    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
+    the color of its own ink. The quote below is written the way `leaf comment`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page, errors = open_page(browser, url)
     page.wait_for_function(
-        "() => document.querySelector('cq-code.cq-rendered') !== null"
+        "() => document.querySelector('lf-code.lf-rendered') !== null"
     )
 
     roles = page.evaluate("""() => {
-      const at = sel => [...document.querySelectorAll(sel + ' [data-cq-syn]')]
-        .map(e => [e.dataset.cqSyn, e.textContent]);
+      const at = sel => [...document.querySelectorAll(sel + ' [data-lf-syn]')]
+        .map(e => [e.dataset.lfSyn, e.textContent]);
       return { widget: at('#walk-code'), plain: at('#walk pre > code'),
                undeclared: at('#plain-code') };
     }""")
@@ -9052,7 +9046,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert {r for r, _ in roles["widget"]} >= {"kw", "st", "fn"}, roles["widget"]
     assert ["cm", "# apply the migration, then run the marked suite"] in roles["plain"]
     assert roles["undeclared"] == [], (
-        f"a cq-code with no language was colored anyway: {roles['undeclared']}"
+        f"a lf-code with no language was colored anyway: {roles['undeclared']}"
     )
 
     # The words each block holds, unchanged by the spans: what the file says is what the
@@ -9065,7 +9059,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "# apply the migration, then run the marked suite\ncd gateway && alembic upgrade head"
     )
     assert page.evaluate(
-        "() => [...document.querySelectorAll('#walk-code .cq-code-line')]"
+        "() => [...document.querySelectorAll('#walk-code .lf-code-line')]"
         ".map(l => l.textContent).join('')"
     ) == (
         "def bucket_key(request):\n    if request.token:\n"
@@ -9091,12 +9085,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     # Posted to the server rather than through the page, so the page hears about it
     # when its next poll asks.
     told(page)
-    expect(page.locator(".cq-thread")).to_have_count(1)
-    expect(page.locator(".cq-panel .cq-quote.detached")).to_have_count(0)
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-panel .lf-quote.detached")).to_have_count(0)
     # The mark is a painted range, so what it covers is read back off CSS.highlights
     # rather than off the DOM.
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    marked = page.evaluate("""() => [...CSS.highlights.get('cq-mark').values()]
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    marked = page.evaluate("""() => [...CSS.highlights.get('lf-mark').values()]
                                      .map(r => r.toString()).join("")""")
     assert marked == "alembic upgrade head", f"the mark landed on {marked!r}"
     assert errors == []
@@ -9104,7 +9098,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
 
 
 def test_every_language_returns_the_source_it_was_given(browser, serve):
-    """`syntax` promises the tokens partition the source exactly, and cq-code's line
+    """`syntax` promises the tokens partition the source exactly, and lf-code's line
     numbers, `hi`, and every note's `at` are counted off that partition — so a tokenizer
     that dropped a character would slide all three with nothing on screen saying so. The
     promise is checked at the boundary and the check throws; this drives every language
@@ -9125,7 +9119,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await import('/colloquy.js');
+          const { syntax } = await import('/leaf.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -9155,12 +9149,12 @@ DIFF_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>diff</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Diff</h1>
-<cq-diff id="patch"><pre>
+<lf-diff id="patch"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
@@ -9192,7 +9186,7 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 @@ -9,2 +9,2 @@ COPY gateway /srv/gateway
 -RUN pip install -r requirements.txt
 +RUN pip install --no-cache-dir -r requirements.txt
-</pre></cq-diff>
+</pre></lf-diff>
 </main>
 </body>
 </html>
@@ -9200,7 +9194,7 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 
 
 def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
-    """A diff is the page's most code-dense shape and it sits beside cq-code on the pages
+    """A diff is the page's most code-dense shape and it sits beside lf-code on the pages
     that carry both, so leaving it plain said the evidence was not code. It has no `language`
     to read — a unified diff spans files — so each file's path is what says what it holds,
     and a path naming nothing leaves that file the colour of its own ink.
@@ -9214,10 +9208,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     one comes back as code."""
     page, errors = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
-        "() => document.querySelector('cq-diff.cq-rendered') !== null"
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
 
-    # Through the shadow root, because that is where cq-diff renders (x-shadow): its
+    # Through the shadow root, because that is where lf-diff renders (x-shadow): its
     # lines are in the composed tree the reader sees and in no querySelectorAll over the
     # document. Reaching for them by hand here is the test paying the same crossing the
     # runtime pays in textNodesUnder.
@@ -9230,7 +9224,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         // Whether the line opens inside a syntax span — which is where the +/− column
         // would have gone if it had been handed to the tokenizer along with the source.
         signInSpan: l.firstChild?.nodeType === Node.ELEMENT_NODE,
-        roles: [...l.querySelectorAll('[data-cq-syn]')].map(s => [s.dataset.cqSyn, s.textContent]),
+        roles: [...l.querySelectorAll('[data-lf-syn]')].map(s => [s.dataset.lfSyn, s.textContent]),
       })),
     }))""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -9267,7 +9261,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert [l["text"] for l in note] == ["\\ No newline at end of file\n"], py
     assert note[0]["roles"] == [], note
 
-    # No extension the table names: plain, the way a cq-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code with no `language` is.
     assert all(l["roles"] == [] for l in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
@@ -9303,8 +9297,8 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
             },
         )
     page.get_by_role("button", name="Comments", exact=False).click()
-    page.wait_for_function("() => document.querySelectorAll('.cq-thread').length === 2")
-    stranded = page.locator(".cq-panel .cq-quote.detached").all_text_contents()
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
+    stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     assert errors == []
     page.close()
@@ -9325,15 +9319,15 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
             "anchor": {"section": "p0", "quote": "Paragraph 0."},
         },
     )
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    spot = page.evaluate("""() => { const r = [...CSS.highlights.get('cq-mark')][0].getClientRects()[0];
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.move(spot["x"], spot["y"])
-    page.wait_for_function("() => document.body.classList.contains('cq-over-mark')")
+    page.wait_for_function("() => document.body.classList.contains('lf-over-mark')")
     page.evaluate("() => document.body.scrollBy({top: 900, behavior: 'instant'})")
     page.wait_for_function(
-        "() => !document.body.classList.contains('cq-over-mark')"
-        " && (CSS.highlights.get('cq-mark-hover')?.size ?? 0) === 0"
+        "() => !document.body.classList.contains('lf-over-mark')"
+        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"
     )
     assert errors == []
     page.close()
@@ -9350,7 +9344,7 @@ TWICE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>twice</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9361,7 +9355,7 @@ TWICE_PAGE = """<!doctype html>
 <p>Something else entirely, so the two copies do not touch each other.</p>
 <p>A second copy follows. The version stamp never lands. And a second tail after it.</p>
 </section>
-<cq-diff id="patch"><pre>
+<lf-diff id="patch"><pre>
 diff --git a/gateway/cache.py b/gateway/cache.py
 --- a/gateway/cache.py
 +++ b/gateway/cache.py
@@ -9370,7 +9364,7 @@ diff --git a/gateway/cache.py b/gateway/cache.py
 -    return request.path
 +    return request.path, request.headers.get("Accept")
  def store(self, request):
-</pre></cq-diff>
+</pre></lf-diff>
 </main>
 </body>
 </html>
@@ -9394,11 +9388,11 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.cq-fab');
+        const fab = document.querySelector('.lf-fab');
         if (fab.style.display !== 'block') return 'no button';
         fab.click();
         await new Promise(r => setTimeout(r, 40));
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])][0];
+        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
         return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
     }""")
@@ -9415,7 +9409,7 @@ DRIFT_V1 = """<!doctype html>
 <meta charset="utf-8">
 <title>drift</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9452,18 +9446,18 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.cq-fab');
+        const fab = document.querySelector('.lf-fab');
         if (fab.style.display !== 'block') return 'no button';
         fab.click();
         await new Promise(r => setTimeout(r, 40));
-        document.querySelector('.cq-composer textarea').value = 'is this idempotent?';
-        document.querySelector('.cq-composer textarea')
+        document.querySelector('.lf-composer textarea').value = 'is this idempotent?';
+        document.querySelector('.lf-composer textarea')
             .dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.cq-composer button.primary').click();
+        document.querySelector('.lf-composer button.primary').click();
         return true;
     }""")
     assert landed is True, f"couldn't post the comment ({landed})"
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(DRIFT_V2)
@@ -9471,9 +9465,9 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
         d, {"kind": "note", "author": "claude", "version": 2, "text": "revised"}
     )
     page.wait_for_url("**/v2.html")
-    expect(page.locator(".cq-thread .cq-quote.detached")).to_have_count(1)
-    assert page.evaluate("() => CSS.highlights.get('cq-mark')?.size ?? 0") == 0
-    expect(page.locator(".cq-thread .cq-quote")).to_have_attribute(
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
+    expect(page.locator(".lf-thread .lf-quote")).to_have_attribute(
         "title", re.compile("can't be identified")
     )
     assert errors == []
@@ -9501,7 +9495,7 @@ ASTRAL_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>astral</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9528,7 +9522,7 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
     an astral character, so only a fixture can hold this."""
     page, errors = open_page(browser, serve(ASTRAL_PAGE))
     landed = page.evaluate("""async () => {
-        const skip = '.cq-ui, script, style';
+        const skip = '.lf-ui, script, style';
         const w = document.createTreeWalker(document.getElementById('astral'),
             NodeFilter.SHOW_TEXT,
             {acceptNode: n => n.parentElement?.closest(skip)
@@ -9546,11 +9540,11 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.cq-fab');
+        const fab = document.querySelector('.lf-fab');
         if (fab.style.display !== 'block') return 'no button';
         fab.click();
         await new Promise(r => setTimeout(r, 60));
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])][0];
+        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
         return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
     }""")
@@ -9570,7 +9564,7 @@ EDGE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>edge</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9632,11 +9626,11 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.cq-fab');
+        const fab = document.querySelector('.lf-fab');
         if (fab.style.display !== 'block') return 'no button';
         fab.click();
         await new Promise(r => setTimeout(r, 60));
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])][0];
+        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
         if (painted.compareBoundaryPoints(Range.START_TO_START, want) === 0) return true;
         return painted.startContainer.parentElement.textContent.slice(0, 40);
@@ -9672,9 +9666,9 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
         },
     )
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     where = page.evaluate("""() => {
-        const r = [...CSS.highlights.get('cq-mark')][0];
+        const r = [...CSS.highlights.get('lf-mark')][0];
         return r.startContainer.parentElement.textContent.slice(0, 11);
     }""")
     assert where == "First pass:", (
@@ -9707,8 +9701,8 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
         },
     )
     page, errors = open_page(browser, url)
-    expect(page.locator(".cq-thread .cq-quote.detached")).to_have_count(1)
-    assert page.evaluate("() => CSS.highlights.get('cq-mark')?.size ?? 0") == 0
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     assert errors == []
     page.close()
 
@@ -9723,7 +9717,7 @@ TWO_COPIES_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>long passages</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9744,7 +9738,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     """A quote is the passage, so what is stored is what the page marks and what the
     comment is on. It used to be cut at four hundred characters: a reader who selected
     a paragraph got a comment on its opening and a highlight that shrank to match, on
-    most of the paragraphs a colloquy page holds, and nothing said so. Storing the
+    most of the paragraphs a leaf page holds, and nothing said so. Storing the
     whole of it is only affordable because the bound moved to the search's pattern,
     which is what could not take a long passage — so this drags one past that bound and
     asks the mark, the log and the panel the same question, on the second of two
@@ -9761,9 +9755,9 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - 1, box["y"] + box["height"] - 4, steps=12)
     page.mouse.up()
-    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(page.locator(".lf-fab")).to_be_visible()
     page.keyboard.press("c")
-    expect(page.locator(".cq-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_visible()
 
     # The mark under the open composer is the selection, both ends of it — and on the
     # copy the reader dragged, which only the stored neighbours can decide.
@@ -9772,7 +9766,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
         const want = document.createRange();
         want.setStart(words, 0);
         want.setEnd(words, words.data.length);
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])];
+        const painted = [...(CSS.highlights.get('lf-pending') ?? [])];
         if (!painted.length) return 'no mark';
         return [
           painted[0].compareBoundaryPoints(Range.START_TO_START, want) === 0,
@@ -9786,11 +9780,11 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     )
 
     # And the anchor that posts says the same thing, since the mark is drawn from it.
-    page.locator(".cq-composer textarea").fill("The whole of it.")
-    page.locator(".cq-composer button.primary").click()
+    page.locator(".lf-composer textarea").fill("The whole of it.")
+    page.locator(".lf-composer button.primary").click()
     round_trip(page)
-    expect(page.locator(".cq-thread")).to_have_count(1)
-    expect(page.locator(".cq-thread .cq-quote")).not_to_have_class(
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile("detached")
     )
     anchor = [
@@ -9818,7 +9812,7 @@ CEILING_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>everything</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9850,23 +9844,23 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     assert prose > 12000, f"the fixture holds {prose} characters, under the ceiling"
 
     page.keyboard.press("ControlOrMeta+a")
-    expect(page.locator(".cq-fab")).to_be_visible()
+    expect(page.locator(".lf-fab")).to_be_visible()
     page.keyboard.press("c")
-    expect(page.locator(".cq-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_visible()
     painted = page.evaluate(
-        "() => [...(CSS.highlights.get('cq-pending') ?? [])]"
+        "() => [...(CSS.highlights.get('lf-pending') ?? [])]"
         ".map((r) => r.toString()).join('').length"
     )
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
-    page.locator(".cq-composer textarea").fill("All of it.")
-    page.locator(".cq-composer button.primary").click()
+    page.locator(".lf-composer textarea").fill("All of it.")
+    page.locator(".lf-composer button.primary").click()
     round_trip(page)
-    expect(page.locator(".cq-thread")).to_have_count(1)
+    expect(page.locator(".lf-thread")).to_have_count(1)
     # The posted anchor resolves on the ordinary pass too, which is the one that would
     # have thrown: a detached quote here is the search having failed to find the page
     # inside the page.
-    expect(page.locator(".cq-thread .cq-quote")).not_to_have_class(
+    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile("detached")
     )
     assert errors == []
@@ -9883,7 +9877,7 @@ THIN_V1 = """<!doctype html>
 <meta charset="utf-8">
 <title>thin</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -9922,18 +9916,18 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.cq-fab');
+        const fab = document.querySelector('.lf-fab');
         if (fab.style.display !== 'block') return 'no button';
         fab.click();
         await new Promise(r => setTimeout(r, 40));
-        const box = document.querySelector('.cq-composer textarea');
+        const box = document.querySelector('.lf-composer textarea');
         box.value = 'does this hold?';
         box.dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.cq-composer button.primary').click();
+        document.querySelector('.lf-composer button.primary').click();
         return true;
     }""")
     assert posted is True, f"couldn't post the comment ({posted})"
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(THIN_V2)
@@ -9941,8 +9935,8 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         d, {"kind": "note", "author": "claude", "version": 2, "text": "revised"}
     )
     page.wait_for_url("**/v2.html")
-    expect(page.locator(".cq-thread .cq-quote.detached")).to_have_count(1)
-    assert page.evaluate("() => CSS.highlights.get('cq-mark')?.size ?? 0") == 0
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     assert errors == []
     page.close()
 
@@ -9960,7 +9954,7 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
 
     # The menu is built whether or not it is open, so the order is readable without
     # a press — and the press is not what this test is about.
-    rows = page.locator(".cq-version-menu .cq-version-row .cq-version-num")
+    rows = page.locator(".lf-version-menu .lf-version-row .lf-version-num")
     expect(rows).to_have_count(10)
     assert [t.split(" ")[0] for t in rows.all_text_contents()] == [
         f"v{n}" for n in range(1, 11)
@@ -9969,22 +9963,22 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     # The bases a diff can run against are every version older than this one, so the
     # last press in the menu is v9 — and it is the one the page's own = reaches for,
     # which is the reading of "the version before this" that the ordering decides.
-    presses = page.locator(".cq-version-diff")
+    presses = page.locator(".lf-version-diff")
     expect(presses).to_have_count(9)
-    expect(presses.last).to_have_attribute("data-cq-version", "9")
+    expect(presses.last).to_have_attribute("data-lf-version", "9")
     page.keyboard.press("=")
-    expect(page.locator(".cq-version")).to_have_attribute(
+    expect(page.locator(".lf-version")).to_have_attribute(
         "title", re.compile(r"changed since v9 ")
     )
     # Nothing is newer than v10, so no chip offers one.
-    expect(page.locator(".cq-latest-chip")).to_be_hidden()
+    expect(page.locator(".lf-latest-chip")).to_be_hidden()
     assert errors == []
     page.close()
 
     # Pinned to the oldest, the chip naming the newest is the runtime's one place
     # that spells a version out in a sentence.
     page, errors = open_page(browser, url, pin=True)
-    expect(page.locator(".cq-latest-chip")).to_have_text(
+    expect(page.locator(".lf-latest-chip")).to_have_text(
         "New version available → open v10"
     )
     assert errors == []
@@ -10013,8 +10007,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # Pinned to v2, so there is a version either side of the one being read.
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
 
-    btn = page.locator(".cq-version")
-    menu = page.locator(".cq-version-menu")
+    btn = page.locator(".lf-version")
+    menu = page.locator(".lf-version-menu")
     expect(btn).to_have_text("v2 ▾")
     expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
@@ -10023,14 +10017,14 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
     # The walk starts on the version being read, not at the top of the list.
-    expect(page.locator('.cq-version-row[data-cq-version="2"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     # The note is the whole note, on its own lines under the version it belongs to.
     expect(
-        page.locator('.cq-version-row[data-cq-version="2"] .cq-version-note')
+        page.locator('.lf-version-row[data-lf-version="2"] .lf-version-note')
     ).to_have_text(long_note)
     assert page.evaluate(
         "() => { const n = document.querySelector("
-        "'.cq-version-row[data-cq-version=\"2\"] .cq-version-note');"
+        "'.lf-version-row[data-lf-version=\"2\"] .lf-version-note');"
         "  return n.getBoundingClientRect().height > "
         "         parseFloat(getComputedStyle(n).fontSize) * 1.6; }"
     ), "the note that a select could not hold is on one line here too"
@@ -10054,22 +10048,22 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # The keys are one declaration, so the "?" reference names them too — a page with
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
-    expect(page.locator(".cq-help")).to_contain_text("In the versions menu")
-    expect(page.locator(".cq-help")).to_contain_text("walk the versions")
+    expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
+    expect(page.locator(".lf-help")).to_contain_text("walk the versions")
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-help")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
 
-    page.locator('.cq-version-row[data-cq-version="2"]').focus()
+    page.locator('.lf-version-row[data-lf-version="2"]').focus()
     page.keyboard.press("ArrowDown")
-    expect(page.locator('.cq-version-row[data-cq-version="3"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
     page.keyboard.press("ArrowDown")  # clamped: the last row keeps the focus
-    expect(page.locator('.cq-version-row[data-cq-version="3"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
     page.keyboard.press("ArrowUp")
     page.keyboard.press("ArrowUp")
-    expect(page.locator('.cq-version-row[data-cq-version="1"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     page.keyboard.press("ArrowUp")  # clamped at the other end too
-    expect(page.locator('.cq-version-row[data-cq-version="1"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
     # from the banner rather than from the top of the document.
@@ -10077,13 +10071,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way o opens the colloquys board, and
+    # v opens it from anywhere on the page, the way o opens the leaves board, and
     # lands on the version being read so the walk above is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what
     # each version changed is reachable by keyboard through this key or not at all.
     page.keyboard.press("v")
     expect(menu).to_be_visible()
-    expect(page.locator('.cq-version-row[data-cq-version="2"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     # Inside the menu the letter is the menu's own — the newest version, tested where
     # it navigates — so Escape is what closes this.
     page.keyboard.press("Escape")
@@ -10108,7 +10102,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 
     # Choosing a row is the navigation, and the newest is the one that unpins.
     btn.click()
-    page.locator('.cq-version-row[data-cq-version="3"]').click()
+    page.locator('.lf-version-row[data-lf-version="3"]').click()
     page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
     assert errors == []
     page.close()
@@ -10125,21 +10119,21 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page, errors = open_page(browser, url, pin=True)
-    menu = page.locator(".cq-version-menu")
-    expect(page.locator(".cq-version-row")).to_have_count(2)
+    menu = page.locator(".lf-version-menu")
+    expect(page.locator(".lf-version-row")).to_have_count(2)
 
-    page.locator(".cq-version").click()
+    page.locator(".lf-version").click()
     expect(menu).to_be_visible()
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     told(page)  # the poll that carries it has been and gone
     # Deferred, so the walk the reader is in the middle of is undisturbed.
-    expect(page.locator(".cq-version-row")).to_have_count(2)
+    expect(page.locator(".lf-version-row")).to_have_count(2)
 
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     # And it arrives on the next poll rather than waiting on a fourth version.
-    expect(page.locator(".cq-version-row")).to_have_count(3)
-    expect(page.locator(".cq-version-row").last).to_contain_text("v3 (latest)")
+    expect(page.locator(".lf-version-row")).to_have_count(3)
+    expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest)")
     assert errors == []
     page.close()
 
@@ -10161,9 +10155,9 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     page, errors = open_page(browser, url, pin=True)
-    menu = page.locator(".cq-version-menu")
-    help_el = page.locator(".cq-help")
-    expect(page.locator(".cq-latest-chip")).to_be_visible()
+    menu = page.locator(".lf-version-menu")
+    help_el = page.locator(".lf-help")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
 
     # The menu's keys are one declaration, so the reference names this one beside the
     # walk it saves.
@@ -10181,7 +10175,7 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     # Walk off the version being read, so the row under the focus is not the newest and
     # not the one this press takes.
     page.keyboard.press("ArrowDown")
-    expect(page.locator('.cq-version-row[data-cq-version="2"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("v")
     # No query: the newest version is the one that unpins, whichever route reaches it.
     page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
@@ -10189,8 +10183,8 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     # A hidden chip does not: that is also how the banner stands before the first poll,
     # so an assertion on it alone would read the same on a page that had heard nothing —
     # and the reference below is written by that same poll.
-    expect(page.locator(".cq-version-row")).to_have_count(3)
-    expect(page.locator(".cq-latest-chip")).to_be_hidden()
+    expect(page.locator(".lf-version-row")).to_have_count(3)
+    expect(page.locator(".lf-latest-chip")).to_be_hidden()
 
     # And it is still offered here, with the chip gone: opening the newest version is
     # what the press does on the page already reading it, so no surface stands it down.
@@ -10220,55 +10214,55 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # The previous version: the one change this version made.
     compare_with(page, 2)
-    expect(page.locator(".cq-ins-block")).to_have_count(1)
-    expect(page.locator("#compound")).to_have_class(re.compile(r"\bcq-ins-block\b"))
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
 
     # Two versions back, which no single-label control could have offered: both.
     compare_with(page, 1)
-    expect(page.locator(".cq-ins-block")).to_have_count(2)
-    expect(page.locator("#p2")).to_have_class(re.compile(r"\bcq-ins-block\b"))
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
 
     # What the closed chooser says about it — a word, not the accent alone, since a
     # reader in a stretch that changed nothing has only this to read it back off.
-    expect(page.locator(".cq-version")).to_have_text("Δ v3 ▾")
-    page.locator(".cq-version").click()
-    expect(page.locator('.cq-version-diff[data-cq-version="1"]')).to_have_attribute(
+    expect(page.locator(".lf-version")).to_have_text("Δ v3 ▾")
+    page.locator(".lf-version").click()
+    expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
         "aria-checked", "true"
     )
-    expect(page.locator('.cq-version-diff[data-cq-version="2"]')).to_have_attribute(
+    expect(page.locator('.lf-version-diff[data-lf-version="2"]')).to_have_attribute(
         "aria-checked", "false"
     )
     # And the span it covers, which is what a base three versions back makes worth
     # saying: the rail runs from it to the version being read.
     assert page.evaluate(
-        "() => [...document.querySelectorAll('.cq-version-row.cq-compared')]"
-        ".map(r => r.dataset.cqVersion)"
+        "() => [...document.querySelectorAll('.lf-version-row.lf-compared')]"
+        ".map(r => r.dataset.lfVersion)"
     ) == ["1", "2", "3"]
 
     # Pressing the standing base again is the way off, and it takes the marks and the
     # word with it.
-    page.locator('.cq-version-diff[data-cq-version="1"]').click()
-    expect(page.locator(".cq-ins-block")).to_have_count(0)
-    expect(page.locator(".cq-version")).to_have_text("v3 ▾")
+    page.locator('.lf-version-diff[data-lf-version="1"]').click()
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    expect(page.locator(".lf-version")).to_have_text("v3 ▾")
 
     # From the keyboard the press is a Tab off the row it belongs to, which is what
     # puts the walk's own landing spot next to it: the menu takes no key for this,
     # since the row it opens on is the version being read and that is the one row with
     # nothing to compare against.
-    page.locator(".cq-version").click()
-    page.locator('.cq-version-row[data-cq-version="1"]').focus()
+    page.locator(".lf-version").click()
+    page.locator('.lf-version-row[data-lf-version="1"]').focus()
     page.keyboard.press("Tab")
-    expect(page.locator('.cq-version-diff[data-cq-version="1"]')).to_be_focused()
+    expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
     page.keyboard.press("Enter")
-    expect(page.locator(".cq-ins-block")).to_have_count(2)
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
 
     # The page's own = is the way off a comparison whatever it is against, which is why
     # the key stays live under one; with nothing standing it takes the previous
     # version, as it always did.
     page.keyboard.press("=")
-    expect(page.locator(".cq-ins-block")).to_have_count(0)
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
     page.keyboard.press("=")
-    expect(page.locator(".cq-ins-block")).to_have_count(1)
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -10286,11 +10280,11 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     block, so both readings still collapse to the same run of characters."""
     page, errors = open_page(browser, serve(TWICE_PAGE))
     page.wait_for_function(
-        "() => document.querySelector('cq-diff.cq-rendered') !== null"
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
     landed = page.evaluate("""async () => {
-        const skip = '.cq-ui, script, style';
-        // Rooted at the shadow root: cq-diff renders in one (x-shadow), so the lines
+        const skip = '.lf-ui, script, style';
+        // Rooted at the shadow root: lf-diff renders in one (x-shadow), so the lines
         // this drags across are in the composed tree and not under the host element.
         const w = document.createTreeWalker(document.getElementById('patch').shadowRoot,
             NodeFilter.SHOW_TEXT,
@@ -10319,11 +10313,11 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.cq-fab');
+        const fab = document.querySelector('.lf-fab');
         if (fab.style.display !== 'block') return 'no button';
         fab.click();
         await new Promise(r => setTimeout(r, 40));
-        const painted = [...(CSS.highlights.get('cq-pending') ?? [])][0];
+        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
         return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
     }""")
@@ -10347,7 +10341,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     rather than stand beside it."""
     page, errors = open_page(browser, serve(TWICE_PAGE))
     page.wait_for_function(
-        "() => document.querySelector('cq-diff.cq-rendered') !== null"
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
     page.evaluate(
         "() => document.getElementById('patch').shadowRoot"
@@ -10357,7 +10351,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     # with it, so a read taken straight after passes on a quiet machine and fails on a
     # busy one. `#row` reaches into the open tree the way the runtime now has to.
     row = page.locator("#row")
-    marked = re.compile(r"\bcq-mark-el\b")
+    marked = re.compile(r"\blf-mark-el\b")
     d = serve.page_dir
     interact.append_event(
         d,
@@ -10400,22 +10394,22 @@ JOURNEY_SCAFFOLD = """<!doctype html>
 <meta charset="utf-8">
 <title>journey</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Journey</h1>
 {before}
-<cq-board id="board">
-  <cq-column id="col-todo" label="Todo">
-    <cq-card id="card-x"><strong>Guard the session delete</strong> One line.</cq-card>
-  </cq-column>
-  <cq-column id="col-done" label="Done"></cq-column>
-</cq-board>
-<cq-draft id="draft-ops"><pre>
+<lf-board id="board">
+  <lf-column id="col-todo" label="Todo">
+    <lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>
+  </lf-column>
+  <lf-column id="col-done" label="Done"></lf-column>
+</lf-board>
+<lf-draft id="draft-ops"><pre>
     Run the migration before deploying.
     It is online.
-</pre></cq-draft>
+</pre></lf-draft>
 <h2 id="notes">Notes</h2>
 {after}
 </main>
@@ -10435,9 +10429,9 @@ def _draft_says(html, text, attrs=""):
     """The journey page with its draft rewritten — the source's indentation and
     all, since that is what the widget dedents back out."""
     return html.replace(
-        '<cq-draft id="draft-ops"><pre>\n'
+        '<lf-draft id="draft-ops"><pre>\n'
         + "\n".join(f"    {l}" for l in DRAFT_TEXT.split("\n")),
-        f'<cq-draft id="draft-ops"{attrs}><pre>\n    {text}',
+        f'<lf-draft id="draft-ops"{attrs}><pre>\n    {text}',
     )
 
 
@@ -10481,16 +10475,16 @@ def test_page_round_trip(browser, serve):
         document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }""")
     page.wait_for_selector(
-        ".cq-fab", state="visible"
+        ".lf-fab", state="visible"
     )  # the selection raised the button
     page.keyboard.press("c")
-    page.wait_for_selector(".cq-composer", state="visible")
-    page.locator(".cq-composer textarea").fill("Is 0041 idempotent?")
-    page.locator(".cq-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_selector(".cq-thread")
+    page.wait_for_selector(".lf-composer", state="visible")
+    page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
+    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.wait_for_selector(".lf-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Posting opened the panel, and the page is sliding into the width that leaves for
     # it. Measuring a column mid-slide aims the drag below at where it was, not where
     # it is going, and the drop lands outside the column it was meant for.
@@ -10498,7 +10492,7 @@ def test_page_round_trip(browser, serve):
 
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
-    grip = page.locator("#card-x .cq-grip").bounding_box()
+    grip = page.locator("#card-x .lf-grip").bounding_box()
     dest = page.locator("#col-done").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
@@ -10513,12 +10507,12 @@ def test_page_round_trip(browser, serve):
     # button contests it), Save sends the whole new body. The text must have
     # arrived without the source's indentation.
     draft = page.locator("#draft-ops")
-    assert draft.locator(".cq-draft-body").inner_text() == DRAFT_TEXT
-    draft.locator(".cq-draft-body").dblclick()
+    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
+    draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
     draft.get_by_role("button", name="Save").click()
     page.wait_for_function(
-        "t => document.querySelector('#draft-ops .cq-draft-body').textContent === t",
+        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
         arg=DRAFT_EDITED,
     )
 
@@ -10537,14 +10531,14 @@ def test_page_round_trip(browser, serve):
     page.wait_for_url("**/v2.html")
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert not page.evaluate(
-        "document.querySelector('.cq-thread .cq-quote').classList.contains('detached')"
+        "document.querySelector('.lf-thread .lf-quote').classList.contains('detached')"
     ), "the passage moved and the comment lost it"
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
     page.wait_for_function(
-        "t => document.querySelector('#draft-ops .cq-draft-body').textContent === t",
+        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
         arg=DRAFT_EDITED,
     )
 
@@ -10584,7 +10578,7 @@ def test_page_round_trip(browser, serve):
 
 def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(browser, serve):
     """The line that tells a screen reader a block carries a comment is chrome, and chrome
-    inside a widget's own content is chrome in the user's text: cq-draft seeds the
+    inside a widget's own content is chrome in the user's text: lf-draft seeds the
     editor they type into from its body div, so a line left in there arrives in the
     textarea and posts with the edit. It goes on the block the passage sits in, or on the
     element the anchor names — never on the inline run or body div in between."""
@@ -10592,11 +10586,11 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(browser, s
         JOURNEY_V1, anchored=[("draft-ops", "Run the migration before deploying.")]
     )
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    assert page.locator("#draft-ops > .cq-mark-note").count() == 1, (
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert page.locator("#draft-ops > .lf-mark-note").count() == 1, (
         "the line landed inside the draft's body rather than beside it"
     )
-    page.locator("#draft-ops .cq-draft-body").dblclick()
+    page.locator("#draft-ops .lf-draft-body").dblclick()
     assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT, (
         "the user's editor opened on text the runtime had written into"
     )
@@ -10639,7 +10633,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
       return [b.x + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
               b.y + parseFloat(s.paddingTop) + parseFloat(s.borderTopWidth), b.width, b.height];
     }"""
-    read = page.evaluate(metrics, ".cq-draft-body")
+    read = page.evaluate(metrics, ".lf-draft-body")
     host = page.locator("#draft-ops").bounding_box()
     # A 4px band above the box, and the box's own top-left corner. The band is where
     # the answer to "did the frame move" lives and no measurement of geometry can
@@ -10664,7 +10658,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # on the wrong word" when nothing about the gesture had changed.
     spot = page.evaluate(
         """(word) => {
-            const body = document.querySelector('#draft-ops .cq-draft-body');
+            const body = document.querySelector('#draft-ops .lf-draft-body');
             const node = document.createTreeWalker(body, NodeFilter.SHOW_TEXT).nextNode();
             const at = node.data.indexOf(word);
             const r = document.createRange();
@@ -10692,7 +10686,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     assert (
         page.evaluate(
             "() => getSelection().rangeCount > 0 && "
-            "getSelection().containsNode(document.querySelector('#draft-ops .cq-draft-body'), true)"
+            "getSelection().containsNode(document.querySelector('#draft-ops .lf-draft-body'), true)"
         )
         is False
     ), "the gesture left the page's own words selected under the open editor"
@@ -10709,7 +10703,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # reaches for it the instant the editor goes, so a style that hadn't caught up
     # would drop a keyboard user back at the top of the page.
     page.keyboard.press("Escape")
-    expect(page.locator("#draft-ops .cq-draft-pencil")).to_be_focused()
+    expect(page.locator("#draft-ops .lf-draft-pencil")).to_be_focused()
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft came back from an edit a different shape than it went in"
     )
@@ -10717,7 +10711,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # Reopened through the other door, because print is where the box has to be
     # gone and its words still there — and print emulation blurs the textarea it
     # hides, so an editor opened before this point is no longer one Escape closes.
-    page.locator("#draft-ops .cq-draft-pencil").click()
+    page.locator("#draft-ops .lf-draft-pencil").click()
     expect(page.locator("#draft-ops textarea")).to_be_visible()
     page.emulate_media(media="print")
     assert page.locator("#draft-ops").inner_text() == DRAFT_TEXT, (
@@ -10738,7 +10732,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     """
     page, errors = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
-    draft.locator(".cq-draft-body").dblclick()
+    draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("textarea")
     editor.fill("Local unsent words.")
 
@@ -10770,15 +10764,15 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     told(page)
     expect(page.locator("#col-done #card-x")).to_have_count(1)
     expect(editor).to_have_value("Local unsent words.")
-    expect(draft.locator(".cq-draft-history")).to_have_count(0)
+    expect(draft.locator(".lf-draft-history")).to_have_count(0)
 
     page.keyboard.press("Escape")
     told(page)
-    expect(draft.locator(".cq-draft-body")).to_have_text("Foreign committed words.")
-    expect(draft.locator(".cq-draft-history > summary")).to_have_text(
+    expect(draft.locator(".lf-draft-body")).to_have_text("Foreign committed words.")
+    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
         "Changes · 2 edits"
     )
-    expect(page.locator("body")).to_have_attribute("data-cq-applied", "3")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     assert errors == []
     page.close()
 
@@ -10790,12 +10784,12 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     url = serve(JOURNEY_V1)
     page, errors = open_page(browser, url)
     draft = page.locator("#draft-ops")
-    draft.locator(".cq-draft-body").dblclick()
+    draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill("")
     assert (
         page.evaluate(
             """() => JSON.parse(
-          sessionStorage.getItem('cq-draft:edit:draft-ops')
+          sessionStorage.getItem('lf-draft:edit:draft-ops')
         ).text"""
         )
         == ""
@@ -10807,25 +10801,25 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
         d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
     )
     told(page)
-    expect(page.locator(".cq-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
     assert "/v1.html" in page.url, "an empty live edit was mistaken for no composition"
 
     page.reload(wait_until="networkidle")
-    page.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     expect(draft.locator("textarea")).to_be_visible()
     expect(draft.locator("textarea")).to_have_value("")
 
     page.evaluate(
         """() => {
-          window.cqActualFetch = window.fetch.bind(window);
-          window.cqFailDraft = true;
+          window.lfActualFetch = window.fetch.bind(window);
+          window.lfFailDraft = true;
           window.fetch = (input, init) => {
             const event = String(input).endsWith('/api/event') && init?.body
               ? JSON.parse(init.body) : null;
-            if (window.cqFailDraft &&
+            if (window.lfFailDraft &&
                 event?.kind === 'action' && event.action === 'edit')
               return Promise.resolve(new Response('offline', {status: 503}));
-            return window.cqActualFetch(input, init);
+            return window.lfActualFetch(input, init);
           };
         }"""
     )
@@ -10835,18 +10829,18 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert (
         page.evaluate(
             """() => JSON.parse(
-          sessionStorage.getItem('cq-draft:edit:draft-ops')
+          sessionStorage.getItem('lf-draft:edit:draft-ops')
         ).text"""
         )
         == ""
     )
 
-    page.evaluate("window.cqFailDraft = false")
+    page.evaluate("window.lfFailDraft = false")
     draft.get_by_role("button", name="Save").click()
     page.wait_for_url("**/v2.html")
-    expect(page.locator("#draft-ops .cq-draft-body")).to_have_text("")
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text("")
     page.wait_for_function(
-        "() => sessionStorage.getItem('cq-draft:edit:draft-ops') === null"
+        "() => sessionStorage.getItem('lf-draft:edit:draft-ops') === null"
     )
     events = [
         json.loads(line)
@@ -10885,27 +10879,27 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     )
     draft = page.locator("#draft-ops")
     sent = "The first save still owns this body."
-    draft.locator(".cq-draft-body").dblclick()
+    draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(sent)
     draft.get_by_role("button", name="Save").click()
     expect(draft).to_have_attribute("aria-busy", "true")
     assert (
         page.evaluate(
             """() => JSON.parse(
-          sessionStorage.getItem('cq-draft:edit:draft-ops')
+          sessionStorage.getItem('lf-draft:edit:draft-ops')
         ).text"""
         )
         == sent
     )
 
-    draft.locator(".cq-draft-pencil").click()
+    draft.locator(".lf-draft-pencil").click()
     expect(draft.locator("textarea")).to_have_count(0)
-    expect(page.locator(".cq-toast")).to_contain_text("Wait for the current edit")
+    expect(page.locator(".lf-toast")).to_contain_text("Wait for the current edit")
 
     page.evaluate("window.releaseDraftSend()")
     page.wait_for_function(
         """() => !document.getElementById('draft-ops').hasAttribute('aria-busy')
-          && sessionStorage.getItem('cq-draft:edit:draft-ops') === null"""
+          && sessionStorage.getItem('lf-draft:edit:draft-ops') === null"""
     )
     events = [
         json.loads(line)
@@ -10914,7 +10908,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
 
-    draft.locator(".cq-draft-pencil").click()
+    draft.locator(".lf-draft-pencil").click()
     expect(draft.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     assert errors == []
@@ -10937,9 +10931,9 @@ def test_unsent_draft_recovery_belongs_to_its_tab(browser, serve):
         second_draft = second.locator("#draft-ops")
 
         sent = "The first tab submits this body."
-        first_draft.locator(".cq-draft-body").dblclick()
+        first_draft.locator(".lf-draft-body").dblclick()
         first_draft.locator("textarea").fill(sent)
-        second_draft.locator(".cq-draft-body").dblclick()
+        second_draft.locator(".lf-draft-body").dblclick()
         second_draft.locator("textarea").fill("")
 
         first_draft.get_by_role("button", name="Save").click()
@@ -10948,33 +10942,33 @@ def test_unsent_draft_recovery_belongs_to_its_tab(browser, serve):
         # trip — which is a pass on a fast machine and a red on a loaded one, saying
         # nothing either way about the page.
         round_trip(first)
-        expect(first_draft.locator(".cq-draft-history > summary")).to_have_text(
+        expect(first_draft.locator(".lf-draft-history > summary")).to_have_text(
             "Changes · 1 edit"
         )
         expect(second_draft.locator("textarea")).to_have_value("")
         assert (
             second.evaluate(
                 """() => JSON.parse(
-              sessionStorage.getItem('cq-draft:edit:draft-ops')
+              sessionStorage.getItem('lf-draft:edit:draft-ops')
             ).text"""
             )
             == ""
         )
 
-        first_draft.locator(".cq-draft-body").dblclick()
+        first_draft.locator(".lf-draft-body").dblclick()
         first_draft.locator("textarea").fill("This tab discards these words.")
         first.keyboard.press("Escape")
         assert (
             second.evaluate(
                 """() => JSON.parse(
-              sessionStorage.getItem('cq-draft:edit:draft-ops')
+              sessionStorage.getItem('lf-draft:edit:draft-ops')
             ).text"""
             )
             == ""
         )
 
         second.reload(wait_until="networkidle")
-        second.wait_for_function("() => document.body.dataset.cqUpgraded === '1'")
+        second.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(second_draft.locator("textarea")).to_be_visible()
         expect(second_draft.locator("textarea")).to_have_value("")
         events = [
@@ -11009,7 +11003,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     ]
     aligned = page.evaluate(
         """async (pairs) => {
-          const {alignText} = await import('/colloquy.js');
+          const {alignText} = await import('/leaf.js');
           return pairs.map(([before, after]) => alignText(before, after));
         }""",
         cases,
@@ -11041,44 +11035,44 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Run the migration after the backup. It takes two minutes.",
     ]
     for index, text in enumerate(edits, 1):
-        draft.locator(".cq-draft-body").dblclick()
+        draft.locator(".lf-draft-body").dblclick()
         draft.locator("textarea").fill(text)
         draft.get_by_role("button", name="Save").click()
         round_trip(page)  # the history is drawn from the log, not the box
-        expect(draft.locator(".cq-draft-history > summary")).to_have_text(
+        expect(draft.locator(".lf-draft-history > summary")).to_have_text(
             f"Changes · {index} {'edit' if index == 1 else 'edits'}"
         )
 
-    draft.locator(".cq-draft-history > summary").click()
-    current_deleted = "".join(draft.locator(".cq-draft-current del").all_inner_texts())
-    current_inserted = "".join(draft.locator(".cq-draft-current ins").all_inner_texts())
+    draft.locator(".lf-draft-history > summary").click()
+    current_deleted = "".join(draft.locator(".lf-draft-current del").all_inner_texts())
+    current_inserted = "".join(draft.locator(".lf-draft-current ins").all_inner_texts())
     assert "before" in current_deleted and "deploying" in current_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", current_inserted)
-    labels = draft.locator(".cq-draft-revision-head strong").all_inner_texts()
+    labels = draft.locator(".lf-draft-revision-head strong").all_inner_texts()
     assert labels == ["Version text", "Edit 1 · v1", "Edit 2 · v1"]
     # Adjacent recorded edits are aligned too, rather than rendered as two unrelated
     # snapshots. The first has no knowable predecessor on a later pinned version.
-    second_delta = draft.locator(".cq-draft-revisions > li").nth(2)
+    second_delta = draft.locator(".lf-draft-revisions > li").nth(2)
     second_deleted = "".join(second_delta.locator("del").all_inner_texts())
     second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
     assert "before" in second_deleted and "deploying" in second_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
 
-    page.evaluate("document.documentElement.classList.add('cq-copy')")
-    expect(draft.locator(".cq-draft-history")).not_to_be_visible()
-    expect(draft.locator(".cq-draft-controls")).not_to_be_visible()
-    expect(draft.locator(".cq-draft-body")).to_be_visible()
-    page.evaluate("document.documentElement.classList.remove('cq-copy')")
+    page.evaluate("document.documentElement.classList.add('lf-copy')")
+    expect(draft.locator(".lf-draft-history")).not_to_be_visible()
+    expect(draft.locator(".lf-draft-controls")).not_to_be_visible()
+    expect(draft.locator(".lf-draft-body")).to_be_visible()
+    page.evaluate("document.documentElement.classList.remove('lf-copy')")
 
     draft.get_by_role("button", name="Restore edit 1 · v1").focus()
     page.keyboard.press("Enter")
     round_trip(page)
-    expect(draft.locator(".cq-draft-body")).to_have_text(edits[0])
-    expect(draft.locator(".cq-draft-history > summary")).to_have_text(
+    expect(draft.locator(".lf-draft-body")).to_have_text(edits[0])
+    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"
     )
-    expect(draft.locator(".cq-draft-history > summary")).to_be_focused()
-    expect(draft).to_have_attribute("data-cq-pending", "1")
+    expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
+    expect(draft).to_have_attribute("data-lf-pending", "1")
 
     events = [
         json.loads(line)
@@ -11094,7 +11088,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     sequence = page.evaluate(
         """async () => {
-          const {actionSequence} = await import('/colloquy.js');
+          const {actionSequence} = await import('/leaf.js');
           const widget = document.getElementById('draft-ops');
           const first = actionSequence(widget, 'edit');
           first[0].detail.text = 'A widget must not mutate the runtime log.';
@@ -11106,8 +11100,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
 
     other, other_errors = open_page(browser, page.url)
-    expect(other.locator("#draft-ops .cq-draft-body")).to_have_text(edits[0])
-    expect(other.locator("#draft-ops .cq-draft-history > summary")).to_have_text(
+    expect(other.locator("#draft-ops .lf-draft-body")).to_have_text(edits[0])
+    expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"
     )
     assert errors == []
@@ -11141,11 +11135,11 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         )
 
     old, old_errors = open_page(browser, url, pin=True)
-    expect(old.locator("#draft-ops .cq-draft-history > summary")).to_have_text(
+    expect(old.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )
     old_sequence = old.evaluate(
-        """async () => (await import('/colloquy.js'))
+        """async () => (await import('/leaf.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.version)"""
     )
@@ -11154,11 +11148,11 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     latest, latest_errors = open_page(
         browser, url.replace("v1.html", "v2.html"), pin=True
     )
-    expect(latest.locator("#draft-ops .cq-draft-history > summary")).to_have_text(
+    expect(latest.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 2 edits"
     )
     latest_sequence = latest.evaluate(
-        """async () => (await import('/colloquy.js'))
+        """async () => (await import('/leaf.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.version)"""
     )
@@ -11217,7 +11211,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     page.wait_for_function(
-        "t => document.querySelector('#draft-ops .cq-draft-body').textContent === t",
+        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
         arg=DRAFT_EDITED,
     )
     expect(page.locator("#col-done #card-x")).to_have_count(1)
@@ -11226,7 +11220,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 
 
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
-    """`colloquy comment` reads the version file plus the log; the user's tab reads
+    """`leaf comment` reads the version file plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
@@ -11265,10 +11259,10 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     assert written.exit_code == 0, written.output
 
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    thread = page.locator(".cq-thread .cq-quote").first
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
-    assert painted(page, "cq-mark") == "It takes about a minute."
+    assert painted(page, "lf-mark") == "It takes about a minute."
     assert errors == []
     page.close()
 
@@ -11281,18 +11275,18 @@ KEYS_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>keys</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="h">Session store</h1>
-<cq-options id="opts" choose>
-  <cq-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</cq-option>
-  <cq-option id="opt-token"><strong>Signed tokens</strong> No store at all.</cq-option>
-</cq-options>
-<cq-draft id="draft-ops"><pre>
+<lf-options id="opts" choose>
+  <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
+  <lf-option id="opt-token"><strong>Signed tokens</strong> No store at all.</lf-option>
+</lf-options>
+<lf-draft id="draft-ops"><pre>
     Run the migration before deploying.
-</pre></cq-draft>
+</pre></lf-draft>
 </main>
 </body>
 </html>
@@ -11315,16 +11309,16 @@ def test_a_press_takes_the_keys_a_button_came_with(browser, serve):
     down; what the browser delivers is exactly this event with `repeat` set."""
     page, errors = open_page(browser, serve(KEYS_PAGE))
 
-    page.locator("#draft-ops .cq-draft-pencil").focus()
+    page.locator("#draft-ops .lf-draft-pencil").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#draft-ops textarea")).to_be_focused()
     page.keyboard.press("Escape")
 
-    mark = page.locator("#opts .cq-pick").first
+    mark = page.locator("#opts .lf-pick").first
     mark.focus()
     page.keyboard.press(" ")
-    expect(page.locator("#opts > cq-option[chosen]")).to_have_count(1)
-    chosen = page.locator("#opts > cq-option[chosen]").get_attribute("id")
+    expect(page.locator("#opts > lf-option[chosen]")).to_have_count(1)
+    chosen = page.locator("#opts > lf-option[chosen]").get_attribute("id")
     mark.evaluate("""el => {
         for (let i = 0; i < 5; i++)
             el.dispatchEvent(new KeyboardEvent('keydown',
@@ -11378,10 +11372,10 @@ def test_global_shortcuts_leave_browser_navigation_keys_alone(browser, serve):
           const pageContent = document.querySelector("main");
           pageContent.tabIndex = -1;
           pageContent.focus();
-          window.cqObservedKeys = {};
+          window.lfObservedKeys = {};
           document.addEventListener("keydown", event => {
             if (keys.includes(event.key))
-              window.cqObservedKeys[event.key] = event.defaultPrevented;
+              window.lfObservedKeys[event.key] = event.defaultPrevented;
           });
         }""",
         keys,
@@ -11389,7 +11383,7 @@ def test_global_shortcuts_leave_browser_navigation_keys_alone(browser, serve):
     for key in keys:
         page.keyboard.press(key)
 
-    observed = page.evaluate("() => window.cqObservedKeys")
+    observed = page.evaluate("() => window.lfObservedKeys")
     assert observed.pop("?") is True, (
         "the positive-control shortcut was not consumed, so the probe did not "
         "observe the runtime dispatcher"
@@ -11417,8 +11411,8 @@ def test_repeated_half_page_keys_add_up(browser, serve):
         "() => document.body.scrollHeight > document.body.clientHeight * 3"
     ), "the page is too short for these steps to be told apart"
     page.evaluate("""() => {
-        window.cqScrollEnds = 0;
-        document.body.addEventListener('scrollend', () => window.cqScrollEnds++);
+        window.lfScrollEnds = 0;
+        document.body.addEventListener('scrollend', () => window.lfScrollEnds++);
     }""")
 
     def landed(act):
@@ -11431,11 +11425,11 @@ def test_repeated_half_page_keys_add_up(browser, serve):
         no end, so the wait is bounded and hands the position to the assertion instead.
         A press that moves nothing then reads as the wrong number, which says what
         happened; thirty seconds of silence and a timeout do not."""
-        ends = page.evaluate("() => window.cqScrollEnds")
+        ends = page.evaluate("() => window.lfScrollEnds")
         act()
         try:
             page.wait_for_function(
-                "n => window.cqScrollEnds > n", arg=ends, timeout=5000
+                "n => window.lfScrollEnds > n", arg=ends, timeout=5000
             )
         except PlaywrightTimeout:
             pass
@@ -11482,20 +11476,20 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     page.get_by_role("button", name="Comments", exact=False).click()
     panel_settled(page)
     assert page.evaluate(
-        "() => { const t = document.querySelector('.cq-threads');"
+        "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"
     ), "the thread list does not overflow, so it could not be seen to scroll below"
 
     page.evaluate("""() => {
-        window.cqScrollEnds = 0;
-        for (const box of [document.body, document.querySelector('.cq-threads')])
-            box.addEventListener('scrollend', () => window.cqScrollEnds++);
+        window.lfScrollEnds = 0;
+        for (const box of [document.body, document.querySelector('.lf-threads')])
+            box.addEventListener('scrollend', () => window.lfScrollEnds++);
     }""")
 
     def offsets():
         return page.evaluate(
             "() => [document.body.scrollTop,"
-            " document.querySelector('.cq-threads').scrollTop]"
+            " document.querySelector('.lf-threads').scrollTop]"
         )
 
     def press_d():
@@ -11505,9 +11499,9 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
         rather than its first frame, since a document still moving when the sheet
         arrives would carry the rest of that move into the phase below."""
         was = offsets()
-        page.evaluate("() => window.cqScrollEnds = 0")
+        page.evaluate("() => window.lfScrollEnds = 0")
         page.keyboard.press("d")
-        page.wait_for_function("() => window.cqScrollEnds > 0")
+        page.wait_for_function("() => window.lfScrollEnds > 0")
         return was, offsets()
 
     (page_was, threads_was), (page_now, threads_now) = press_d()
@@ -11540,10 +11534,10 @@ def test_the_version_diff_answers_a_key_beside_the_version_pair(browser, serve):
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     page.keyboard.press("=")
-    expect(page.locator("#p3")).to_have_class(re.compile(r"cq-ins-block"))
+    expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
     # And the key it left does the chooser's job now rather than both.
     page.keyboard.press("v")
-    expect(page.locator(".cq-version-menu")).to_be_visible()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -11581,11 +11575,11 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     )
 
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    body = page.locator("#draft-ops .cq-draft-body")
+    body = page.locator("#draft-ops .lf-draft-body")
     expect(body).to_have_text(corrected)
     # And the user is told, rather than left to notice: their edit is gone,
     # which without a mark reads exactly like a draft they never touched.
-    expect(page.locator("#draft-ops[data-cq-restated]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -11619,7 +11613,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     _publish(d, 3, _draft_says(JOURNEY_V2, corrected), "unrelated copy edits")
 
     page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
-    expect(page.locator("#draft-ops .cq-draft-body")).to_have_text(corrected)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(corrected)
     assert errors == []
     page.close()
 
@@ -11637,7 +11631,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
 
 
 _CARD = (
-    '<cq-card id="card-x"><strong>Guard the session delete</strong> One line.</cq-card>'
+    '<lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>'
 )
 
 
@@ -11645,14 +11639,14 @@ def _card_done(html):
     """The journey page with its card written in Done — the honoring of a
     recorded drag, or the author's own relocation."""
     return html.replace(
-        f'    {_CARD}\n  </cq-column>\n  <cq-column id="col-done" label="Done"></cq-column>',
-        f'  </cq-column>\n  <cq-column id="col-done" label="Done">{_CARD}</cq-column>',
+        f'    {_CARD}\n  </lf-column>\n  <lf-column id="col-done" label="Done"></lf-column>',
+        f'  </lf-column>\n  <lf-column id="col-done" label="Done">{_CARD}</lf-column>',
     )
 
 
 def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     """One pass, every widget alike: a decided-and-unhonored state wears
-    data-cq-pending, driven by the registry's x-state rather than remembered per
+    data-lf-pending, driven by the registry's x-state rather than remembered per
     widget — choose had its mark, edit its tint, and move had nothing, which is
     how a dragged card's fate stayed invisible once the toast faded. The mark
     clears the moment a version carries the decision, and the diff stays quiet
@@ -11660,7 +11654,7 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     page, errors = open_page(browser, serve(JOURNEY_V1))
 
     # A real drag — the pointer path, where the gesture gate and the poll meet.
-    grip = page.locator("#card-x .cq-grip").bounding_box()
+    grip = page.locator("#card-x .lf-grip").bounding_box()
     dest = page.locator("#col-done").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
@@ -11668,13 +11662,13 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
         dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
     )
     page.mouse.up()
-    expect(page.locator("#card-x[data-cq-pending]")).to_have_count(1)
+    expect(page.locator("#card-x[data-lf-pending]")).to_have_count(1)
 
     draft = page.locator("#draft-ops")
-    draft.locator(".cq-draft-body").dblclick()
+    draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
     draft.get_by_role("button", name="Save").click()
-    expect(page.locator("#draft-ops[data-cq-pending]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-pending]")).to_have_count(1)
 
     # Both actions must be in the log before the honoring version publishes, and the
     # page is what says so: it sent them, and counts what has come back.
@@ -11688,21 +11682,21 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
         "honors the move and the edit",
     )
     page.wait_for_url("**/v2.html")
-    page.wait_for_function("() => document.querySelector('.cq-banner') !== null")
+    page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
     # A poll has run once the status text resolves, so the pending pass has too.
     page.wait_for_function(
-        "() => !document.querySelector('.cq-status-text').textContent.startsWith('Connecting')"
+        "() => !document.querySelector('.lf-status-text').textContent.startsWith('Connecting')"
     )
-    expect(page.locator("[data-cq-pending]")).to_have_count(0)
+    expect(page.locator("[data-lf-pending]")).to_have_count(0)
 
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
     compare_with(page)
     page.wait_for_function(
-        "() => document.querySelector('.cq-banner .cq-btn.on') !== null"
+        "() => document.querySelector('.lf-banner .lf-btn.on') !== null"
     )
     assert not page.evaluate(
-        "document.getElementById('card-x').classList.contains('cq-ins-block')"
+        "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
     assert errors == []
     page.close()
@@ -11716,7 +11710,7 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     an id'd element nested inside it rode along rather than changing columns,
     and marking it too would double-tint one move."""
     noted = _CARD.replace(
-        "</cq-card>", '<p id="card-x-note">A nested aside.</p></cq-card>'
+        "</lf-card>", '<p id="card-x-note">A nested aside.</p></lf-card>'
     )
     v1 = JOURNEY_V1.replace(_CARD, noted)
     url = serve(v1)
@@ -11727,20 +11721,20 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     compare_with(page)
     page.wait_for_function(
-        "() => document.getElementById('card-x').classList.contains('cq-ins-block')"
+        "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
     )
     assert not page.evaluate(
-        "document.getElementById('card-x-note').classList.contains('cq-ins-block')"
+        "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
     assert errors == []
     page.close()
 
 
 SUGGEST_BLOCK = (
-    '<cq-suggestion id="sug-fix" resolves="c1">'
-    '<cq-old><p id="old-claim">It is not online.</p></cq-old>'
-    "<cq-new><p>It takes a minute of downtime.</p></cq-new>"
-    "</cq-suggestion>"
+    '<lf-suggestion id="sug-fix" resolves="c1">'
+    '<lf-old><p id="old-claim">It is not online.</p></lf-old>'
+    "<lf-new><p>It takes a minute of downtime.</p></lf-new>"
+    "</lf-suggestion>"
 )
 
 
@@ -11767,7 +11761,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Comments")).click()
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     events = [
         json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
     ]
@@ -11786,13 +11780,13 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
     the intended side of the fetch rather than racing a timer."""
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
-      window.cqRegistryGate = new Promise(resolve => window.cqReleaseRegistry = resolve);
+      window.lfRegistryGate = new Promise(resolve => window.lfReleaseRegistry = resolve);
       window.fetch = (...args) => {
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         if (new URL(url, location.href).pathname === '/registry.json') {
-          window.cqRegistryBlocked = true;
-          return window.cqRegistryGate.then(() => nativeFetch(...args));
+          window.lfRegistryBlocked = true;
+          return window.lfRegistryGate.then(() => nativeFetch(...args));
         }
         return nativeFetch(...args);
       };
@@ -11800,11 +11794,11 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
     html = JOURNEY_V1.replace(
         '<h2 id="notes">',
         """
-<cq-milestones>
-  <cq-milestone id="gate-milestone" status="active" tags="wood,solar">
+<lf-milestones>
+  <lf-milestone id="gate-milestone" status="active" tags="wood,solar">
     <strong>Build feeders</strong> Two classic models.
-  </cq-milestone>
-</cq-milestones>
+  </lf-milestone>
+</lf-milestones>
 <h2 id="notes">""",
     )
     page, errors = open_page(
@@ -11816,31 +11810,31 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
         # waiting for it would hang out a whole timeout.
         upgraded=False,
     )
-    page.wait_for_function("() => window.cqRegistryBlocked === true")
-    expect(page.locator("#gate-milestone .cq-chips")).to_have_count(0)
-    expect(page.locator("#draft-ops .cq-draft-body")).to_have_count(0)
+    page.wait_for_function("() => window.lfRegistryBlocked === true")
+    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
     page.get_by_role("button", name=re.compile("^Comments")).click()
-    expect(page.locator(".cq-panel")).to_have_class(re.compile("open"))
-    page.locator(".cq-general textarea").fill("General comment during startup")
-    page.locator(".cq-general").get_by_role("button", name="Send").click()
-    expect(page.locator(".cq-thread")).to_have_count(2)
-    assert page.evaluate("() => CSS.highlights.get('cq-mark')?.size ?? 0") == 0
+    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
+    page.locator(".lf-general textarea").fill("General comment during startup")
+    page.locator(".lf-general").get_by_role("button", name="Send").click()
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
     page.locator("#gate-milestone").select_text()
     page.keyboard.press("c")
-    expect(page.locator(".cq-composer")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_hidden()
 
-    page.evaluate("window.cqReleaseRegistry()")
-    expect(page.locator("#gate-milestone .cq-chips")).to_have_count(1)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    expect(page.locator(".cq-fab")).to_be_visible()
-    page.locator(".cq-fab").click()
-    page.locator(".cq-composer textarea").fill("Still anchored?")
-    page.locator(".cq-composer").get_by_role("button", name="Comment").click()
+    page.evaluate("window.lfReleaseRegistry()")
+    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Still anchored?")
+    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
 
-    expect(page.locator(".cq-thread")).to_have_count(3)
-    expect(page.locator(".cq-thread .cq-quote.detached")).to_have_count(0)
+    expect(page.locator(".lf-thread")).to_have_count(3)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -11859,9 +11853,9 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
         stateCalls += 1;
         if (stateCalls !== 2) return response;
         const body = await response.text();
-        window.cqDelayedPollCaptured = true;
+        window.lfDelayedPollCaptured = true;
         await new Promise(resolve => setTimeout(resolve, 3000));
-        window.cqDelayedPollReleased = true;
+        window.lfDelayedPollReleased = true;
         return new Response(body, {
           status: response.status,
           statusText: response.statusText,
@@ -11873,9 +11867,9 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     # what the page was handed — the held poll included, which is the whole subject here.
     page, errors = open_page(browser, serve(JOURNEY_V1), init_script=delay_second_state)
     page.get_by_role("button", name=re.compile("^Comments")).click()
-    page.locator(".cq-general textarea").fill("Starts the slow poll")
-    page.locator(".cq-general button").click()
-    page.wait_for_function("() => window.cqDelayedPollCaptured === true")
+    page.locator(".lf-general textarea").fill("Starts the slow poll")
+    page.locator(".lf-general button").click()
+    page.wait_for_function("() => window.lfDelayedPollCaptured === true")
 
     interact.append_event(
         serve.page_dir,
@@ -11890,14 +11884,14 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     # A later poll overtakes the held one and renders the newest log.
     told(page)
     expect(
-        page.locator(".cq-thread", has_text="Newest snapshot stays rendered")
+        page.locator(".lf-thread", has_text="Newest snapshot stays rendered")
     ).to_have_count(1)
     # Then the stale answer arrives. One more poll after it is what proves the page
     # handled it and kept the thread, rather than being asked before it ever landed.
-    page.wait_for_function("() => window.cqDelayedPollReleased === true")
+    page.wait_for_function("() => window.lfDelayedPollReleased === true")
     told(page)
     expect(
-        page.locator(".cq-thread", has_text="Newest snapshot stays rendered")
+        page.locator(".lf-thread", has_text="Newest snapshot stays rendered")
     ).to_have_count(1)
     assert errors == []
     page.close()
@@ -11909,32 +11903,32 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     registrations deduplicate without making display text a lossy identity."""
     html = JOURNEY_V1.replace(
         "</main>",
-        '<cq-draft id="draft-second"><pre>A second editable draft.</pre></cq-draft></main>',
+        '<lf-draft id="draft-second"><pre>A second editable draft.</pre></lf-draft></main>',
     )
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keyHelp } = await import('/colloquy.js');
+          const { keyHelp } = await import('/leaf.js');
           keyHelp('On a draft', [['F2', 'a project widget using the same heading']]);
         }"""
     )
     page.keyboard.press("?")
-    expect(page.locator(".cq-help")).to_be_visible()
-    expect(page.locator(".cq-help h3", has_text="On a draft")).to_have_count(2)
+    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(2)
     expect(
-        page.locator(".cq-help", has_text="a project widget using the same heading")
+        page.locator(".lf-help", has_text="a project widget using the same heading")
     ).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")
-    expect(page.locator(".cq-panel")).to_be_hidden()
-    expect(page.locator(".cq-help")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-help")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".cq-help")).to_be_hidden()
+    expect(page.locator(".lf-help")).to_be_hidden()
     page.keyboard.press("?")
-    expect(page.locator(".cq-help")).to_be_visible()
+    expect(page.locator(".lf-help")).to_be_visible()
     page.mouse.click(300, 600)
-    expect(page.locator(".cq-help")).to_be_hidden()
+    expect(page.locator(".lf-help")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -11949,7 +11943,7 @@ def dead_pid():
 
 @contextmanager
 def live_watcher(page_dir, page):
-    """Bump heartbeat.json for the duration of the block, as `colloquy wait` does.
+    """Bump heartbeat.json for the duration of the block, as `leaf wait` does.
 
     Both ends wait for the poll that carries them, so the assertions on either side
     read a page that has already been told a watcher arrived or left. The first beat
@@ -11983,9 +11977,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     computed fact and the dot is not the amber it wears for a session falling behind."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=1))
     d = tmp_path / "page"
-    # The banner's own dot: the colloquys panel mirrors this page as a row, so a
-    # bare .cq-dot resolves to that row's copy too.
-    text, dot = page.locator(".cq-status-text"), page.locator(".cq-banner .cq-dot")
+    # The banner's own dot: the leaves panel mirrors this page as a row, so a
+    # bare .lf-dot resolves to that row's copy too.
+    text, dot = page.locator(".lf-status-text"), page.locator(".lf-banner .lf-dot")
     UNHELD = (
         "No session holds this page. 1 update waiting."
         " It picks up again when a session does."
@@ -12054,7 +12048,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         "Claude isn't watching right now. 1 update waiting. It picks them up next turn."
     )
 
-    # The failure the whole mechanism exists for: `colloquy wait` printed, set this
+    # The failure the whole mechanism exists for: `leaf wait` printed, set this
     # status, and Claude never came back. The handoff mark is what dates it.
     declare("working", "picking up 1 update", handoff=True, quiet_for=20 * 60)
     expect(text).to_have_text(
@@ -12072,7 +12066,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(UNHELD)
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's arrangement rather than something for the user to chase.
-    expect(dot).to_have_class(re.compile(r"^cq-dot\s*$"))
+    expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
 
     # Nothing ever claimed the page — a server started outside an agent host. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
@@ -12088,7 +12082,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
 
     declare("idle")
-    expect(text).to_have_text("Colloquy closed")
+    expect(text).to_have_text("Leaf closed")
     page.close()
 
 
@@ -12107,8 +12101,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 # paints it the shade it already was, and a reading that took the first rule it found
 # agreed with the banner on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
-    const el = document.querySelector('.cq-banner .cq-dot');
-    const judged = el.className.replace('cq-dot', '').trim();
+    const el = document.querySelector('.lf-banner .lf-dot');
+    const judged = el.className.replace('lf-dot', '').trim();
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');
     const svg = href.startsWith(prefix)
@@ -12128,7 +12122,7 @@ TAB_TONE = TAB_TONE.replace("VERDICT", "judged === want && tone === dot ? tone :
 
 
 def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
-    """The judgment's third seat, and the only one a reader with six colloquys open in a
+    """The judgment's third seat, and the only one a reader with six leaves open in a
     row of tabs can see without opening any. The mark is the vendored icon.svg and the
     runtime paints the element it declares in whatever colour the dot is wearing, so the
     tab and the banner are one fact read twice: a palette written out again for the tab
@@ -12196,7 +12190,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
 
 # ---------- anchors written without a browser ----------
-# `colloquy comment` writes an anchor by reading the version file; the runtime
+# `leaf comment` writes an anchor by reading the version file; the runtime
 # resolves it against the DOM that file becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
@@ -12204,7 +12198,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `colloquy comment` would write for windows over a page's own prose. A
+    """Anchors `leaf comment` would write for windows over a page's own prose. A
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
@@ -12229,7 +12223,7 @@ def written_anchors(page_dir, html, limit=40):
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, example):
-    """The claim `colloquy comment` makes is that a quote read out of the version file
+    """The claim `leaf comment` makes is that a quote read out of the version file
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
@@ -12254,11 +12248,11 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
             },
         )
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     # The runtime's own record of which threads it found a home for.
     detached = page.eval_on_selector_all(
-        ".cq-thread .cq-quote.detached", "els => els.map(e => e.textContent)"
+        ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
     )
     assert detached == [], (
         f"{len(detached)} anchors resolved to nothing in {example.stem}: {detached}"
@@ -12271,7 +12265,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
         r"\s",
         "",
         page.evaluate(
-            "() => [...CSS.highlights.get('cq-mark')].map(r => r.toString()).join('')"
+            "() => [...CSS.highlights.get('lf-mark')].map(r => r.toString()).join('')"
         ),
     )
     wanted = re.sub(r"\s", "", "".join(quote for quote, _ in anchors))
@@ -12286,7 +12280,7 @@ TWIN_V1 = """<!doctype html>
 <meta charset="utf-8">
 <title>twin</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -12331,15 +12325,15 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
     )
 
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     (d / "versions" / "v2.html").write_text(TWIN_V2)
     interact.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "a twin"}
     )
     page.wait_for_url("**/v2.html")
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     where = page.evaluate(
-        "() => [...CSS.highlights.get('cq-mark')][0].startContainer.parentElement.id"
+        "() => [...CSS.highlights.get('lf-mark')][0].startContainer.parentElement.id"
     )
     assert where == "p-original", f"the new copy took the comment ({where})"
     assert errors == []
@@ -12353,8 +12347,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     rewrite who said it."""
     url = serve(TWIN_V1)
     d = serve.page_dir
-    monkeypatch.setenv("COLLOQUY_SESSION_ID", "codex")
-    monkeypatch.setenv("COLLOQUY_AGENT", "Codex")
+    monkeypatch.setenv("LEAF_SESSION_ID", "codex")
+    monkeypatch.setenv("LEAF_AGENT", "Codex")
     assert (
         CliRunner()
         .invoke(
@@ -12376,21 +12370,21 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
     )
     page, errors = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('cq-mark')?.size ?? 0) > 0")
-    toggle = page.locator(".cq-comments")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    toggle = page.locator(".lf-comments")
     expect(toggle).to_have_text(
         "Comments (1)"
     )  # counted as open, like any other thread
     toggle.click()
-    thread = page.locator(".cq-thread").first
-    expect(thread.locator(".cq-msg.claude .cq-msg-head b")).to_have_text("Codex")
-    expect(thread.locator(".cq-quote")).to_have_text("“Retries are capped at three”")
+    thread = page.locator(".lf-thread").first
+    expect(thread.locator(".lf-msg.claude .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     thread.locator("textarea").fill("three is the retry budget, not a guess")
     thread.get_by_role("button", name="Reply").click()
-    expect(page.locator(".cq-msg.user")).to_have_count(1)
-    page.locator(".cq-thread").first.get_by_role("button", name="Resolve").click()
-    expect(page.locator(".cq-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator(".lf-msg.user")).to_have_count(1)
+    page.locator(".lf-thread").first.get_by_role("button", name="Resolve").click()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
 
     kinds = [(e["kind"], e.get("author")) for e in interact.read_events(d)]
     assert ("comment", "claude") in kinds
@@ -12416,7 +12410,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
         {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
     )
     page, errors = open_page(browser, url)
-    expect(page.locator(".cq-comments")).to_have_text("Comments (1)")
+    expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 
     interact.append_event(
         d,
@@ -12429,7 +12423,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
         },
     )
     told(page)
-    expect(page.locator(".cq-toast")).to_have_text("Codex replied — open Comments")
+    expect(page.locator(".lf-toast")).to_have_text("Codex replied — open Comments")
     assert errors == []
     page.close()
 
@@ -12440,20 +12434,20 @@ PICTURE_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>pictures</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Pictures</h1>
 <p id="p">Two renderings, neither of them the page's own words.</p>
-<cq-diagram id="flow"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   A --> B
-</pre></cq-diagram>
-<cq-tree id="tree"><pre>
+</pre></lf-diagram>
+<lf-tree id="tree"><pre>
 feeders/
   mount.py  +2 -2
-</pre></cq-tree>
+</pre></lf-tree>
 </main>
 </body>
 </html>
@@ -12468,27 +12462,27 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     one widget by name keeps working on that widget and does nothing for the next."""
     url = serve(PICTURE_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
-    assert registry["cq-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["cq-tree"]["x-visual"] = True  # a widget the runtime has never heard of
+    assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
+    registry["lf-tree"]["x-visual"] = True  # a widget the runtime has never heard of
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     page, errors = open_page(browser, url)
 
     # The inner svg is mermaid's, carrying a generated id; the anchor belongs to the
     # widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click()
-    page.locator(".cq-fab").click()
-    page.locator("#flow.cq-mark-el.cq-pending").wait_for()
+    page.locator(".lf-fab").click()
+    page.locator("#flow.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.get_by_role("button", name="Cancel").click()
 
     page.locator("#tree").click()
-    page.locator(".cq-fab").click()
-    page.locator("#tree.cq-mark-el.cq-pending").wait_for()
+    page.locator(".lf-fab").click()
+    page.locator("#tree.lf-mark-el.lf-pending").wait_for()
     page.get_by_role("button", name="Cancel").click()
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
     page.locator("#p").click()
-    assert not page.locator(".cq-fab").is_visible(), (
+    assert not page.locator(".lf-fab").is_visible(), (
         "a click on prose was read as a click on a picture"
     )
     assert errors == []
@@ -12502,12 +12496,12 @@ WIDE_DIAGRAM_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>wide diagram</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <h1 id="t">Flow</h1>
-<cq-diagram id="flow"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   R[request] --> C{cookie valid?}
   C -->|yes| S[read session from Redis]
@@ -12515,7 +12509,7 @@ graph LR
   S -->|miss/outage| F[verify signed fallback]
   F --> H
   C -->|no| L[login]
-</pre></cq-diagram>
+</pre></lf-diagram>
 </main>
 </body>
 </html>
@@ -12565,7 +12559,7 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     page, errors = open_page(browser, root)
 
     expect(page).to_have_url(url.rsplit("?", 1)[0])
-    expect(page.locator(".cq-banner")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_visible()
     # The poll is the page's own fetch, relative and query-less: it answers only if the
     # cookie rode along.
     assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
@@ -12575,7 +12569,7 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     # the browser withheld from it would land the user on a refusal.
     page.evaluate("() => { location.href = '/' }")
     page.wait_for_url(url.rsplit("?", 1)[0])
-    expect(page.locator(".cq-banner")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_visible()
 
     assert errors == []
     page.close()
@@ -12613,7 +12607,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({
         scripts: document.querySelectorAll('script').length,
-        chrome: document.querySelectorAll('.cq-chrome').length,
+        chrome: document.querySelectorAll('.lf-chrome').length,
         toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
@@ -12623,7 +12617,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
                           // A disclosure the reader can still work, a control's own
                           // label, and an element with no box by design are all fine;
                           // what is not is the page's words with nothing to reveal them.
-                          && !el.closest('details, [data-cq-offer], .cq-ui, style, script')
+                          && !el.closest('details, [data-lf-offer], .lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
     })""")
@@ -12652,7 +12646,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     """The copy is the page as replay left it, and a report is replay's other channel —
     none of the corpus can say so, because an example is one version with an empty log.
 
-    The gap the wait covers is real and narrow: the runtime stamps `cq-upgraded` in the
+    The gap the wait covers is real and narrow: the runtime stamps `lf-upgraded` in the
     same breath as it *starts* the first poll, never awaiting it, so the stamp export
     opens on is no promise that anything in the log has been painted. Ordinarily the
     poll goes out during load and export's own `networkidle` waits it out, which is why
@@ -12688,7 +12682,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     expect(page.locator("#t-parser")).to_have_attribute("status", "done")
-    expect(page.locator("#t-feeders > .cq-chips")).to_contain_text("2/2 done")
+    expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("2/2 done")
     page.close()
 
 
@@ -12718,9 +12712,9 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
             .documentElement;
         return {
             inlined: true,
-            rest: el.getAttribute('data-cq-rest'),
+            rest: el.getAttribute('data-lf-rest'),
             toned: svg.querySelectorAll('style').length,
-            mark: Boolean(svg.querySelector('.cq-tone')),
+            mark: Boolean(svg.querySelector('.lf-tone')),
         };
     }""")
     page.close()

@@ -107,7 +107,7 @@ the same way, through `primed`. Nothing is injected to make a wait possible, so 
 tests exercise is the runtime a user gets rather than one wearing the suite's hooks.
 
 That was not always so, and what went is worth knowing when a wait looks unnecessary. An
-init script wrapped `window.fetch` on every page to count trips, and `COLLOQUY_TEST_LOAD=1`
+init script wrapped `window.fetch` on every page to count trips, and `LEAF_TEST_LOAD=1`
 added a second wrapper holding each `/api/state` answer back three and a half seconds,
 alongside a CPU throttle slowing the page's own JS twentyfold — a machine slow in the two
 ways a busy one is, run on purpose. Two tests had gone red on an ordinary busy run and that

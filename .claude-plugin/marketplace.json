@@ -1,15 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "name": "colloquy",
+  "name": "leaf",
   "owner": {
     "name": "max-sixty",
     "url": "https://github.com/max-sixty"
   },
-  "description": "colloquy, installable as a Claude Code plugin: collaborate through a commentable HTML page for plans, findings, and work in progress.",
+  "description": "leaf, installable as a Claude Code plugin: collaborate through a commentable HTML page for plans, findings, and work in progress.",
   "plugins": [
     {
-      "name": "colloquy",
-      "source": "./plugins/colloquy",
+      "name": "leaf",
+      "source": "./plugins/leaf",
       "description": "Collaborate with Claude in HTML: plans, findings, and work in progress arrive as a commentable page in your browser, you mark it up there, and each revision ships with a changelog as the work moves.",
       "license": "MIT",
       "keywords": ["plan-review", "review", "html", "annotation", "collaboration"]

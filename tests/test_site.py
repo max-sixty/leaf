@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).parent.parent
-ASSETS = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets"
+ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -57,9 +57,7 @@ def test_only_the_stylesheet_link_becomes_the_served_copy(site):
     alone sends a reader after the token block to the CSS the site serves, which is a
     resolving link the dead-link check has nothing to say about and the wrong file."""
     published = (site / "customizing.html").read_text()
-    source = (
-        f"{site_build.REPO}/blob/main/plugins/colloquy/skills/colloquy/assets/theme.css"
-    )
+    source = f"{site_build.REPO}/blob/main/plugins/leaf/skills/leaf/assets/theme.css"
     assert f'href="{source}"' in published
     assert published.count('href="theme.css"') == 1
 
@@ -71,7 +69,7 @@ def test_every_example_is_published_standalone(site):
         assert 'href="/theme.css"' not in copy, (
             f"{source.name} still asks for the theme"
         )
-        assert 'class="cq-copy"' in copy
+        assert 'class="lf-copy"' in copy
         # The theme inlined and the widgets' own output: an example that only
         # copied its source would be a fraction of this.
         assert len(copy) > 40_000

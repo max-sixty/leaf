@@ -1,4 +1,4 @@
-# colloquy
+# leaf
 
 A page Claude hands the user, and the loop that carries their comments back. The
 README covers what it does; this covers how it is built, and the rules that keep it
@@ -11,7 +11,7 @@ working with. That is why the handover is a page. A terminal has one channel and
 width; a page has as many as the subject needs — a diagram, a board the user drags,
 two screenshots that flip in place — and it carries the reply back on the words that
 prompted it. The vocabulary is something to build with rather than a form to fill in: a
-shape colloquy hasn't got is one a project can add, since theme, registry and widget
+shape leaf hasn't got is one a project can add, since theme, registry and widget
 modules all overlay from the user's own config.
 
 Bandwidth is one axis; the other is time. A page that keeps up with the work — a list of
@@ -40,17 +40,17 @@ field rather than asking a second time whether it arrived.
 
 ## Shape
 
-Claude Code and Codex both resolve `plugins/colloquy/` as the plugin payload:
+Claude Code and Codex both resolve `plugins/leaf/` as the plugin payload:
 `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` are the two
 repo-root pointers, and the payload carries one manifest for each host. Seven things make
 the product, and nothing sits between them. Six are the skill's, under
-`plugins/colloquy/skills/colloquy/`:
+`plugins/leaf/skills/leaf/`:
 
 - `scripts/interact.py` — a `uv` script: the server, the event log, the lint
   (`version check`), vendoring, export. No daemon, no
-  database. Reached as `colloquy`, through the payload's `bin/` shim: Claude Code puts
+  database. Reached as `leaf`, through the payload's `bin/` shim: Claude Code puts
   it on PATH and Codex resolves it from the active skill directory.
-- `assets/colloquy.js` — the runtime the page loads. One ES module owning the widget
+- `assets/leaf.js` — the runtime the page loads. One ES module owning the widget
   layer and the comment layer, with its stylesheet in a `<style>` block inside it. No
   build step.
 - `assets/registry.json` — the machine's own vocabulary: the suggestion family and
@@ -60,12 +60,12 @@ the product, and nothing sits between them. Six are the skill's, under
   suggestion family's rules, and what the runtime styles its own chrome from, so a
   page themes as one thing.
 - `assets/icon.svg` — the mark, worn by the tab of every served page and by the
-  published site alike, so there is one of it. Its `cq-tone` element is what the runtime
+  published site alike, so there is one of it. Its `lf-tone` element is what the runtime
   paints the page's status onto.
 - `bundled/` — the content widget families, an overlay layer in the integrated
   layer's own layout: their registry entries, one module per upgraded widget, their
   theme rules, mermaid and sortable beside them. `page init` merges it exactly as it
-  merges a user's `~/.config/colloquy/` or a project's `.colloquy/`, so the shipped
+  merges a user's `~/.config/leaf/` or a project's `.leaf/`, so the shipped
   widgets reach a page through the same door a customization's do — every vendoring
   is the proof the door works.
 
@@ -73,7 +73,7 @@ The seventh is `examples/` at the repo root — complete pages that are also the
 suite's corpus, plus `gallery.html`, all on one page (generated; edit the examples, not
 it).
 
-`plugins/colloquy/hooks/hooks.json` is shared too: both hosts speak its three events,
+`plugins/leaf/hooks/hooks.json` is shared too: both hosts speak its three events,
 and Codex supplies `CLAUDE_PLUGIN_ROOT` as a compatibility alias. The launcher maps
 Codex's thread identity into the session record that Claude Code supplies directly.
 
@@ -88,7 +88,7 @@ because the rule alone is just a preference. They live next to the code they bin
 opening that code is how you meet them:
 
 - the page in the browser — the runtime, the widget modules, the theme, in the
-  integrated and bundled layers both: `plugins/colloquy/skills/colloquy/CLAUDE.md`
+  integrated and bundled layers both: `plugins/leaf/skills/leaf/CLAUDE.md`
 - the server, the log, and the lint: `interact.py`, in its
   module docstring and beside the code each one binds
 - the tests: `tests/CLAUDE.md`
@@ -142,7 +142,7 @@ scarce. A quote was capped at four hundred characters, which read as an economy 
 log line and was a claim about the page: the stored quote is the passage, so the mark
 paints it and the comment is on it, and a reader who selected a paragraph past the cap
 got a comment on its opening with a highlight that shrank to match — silently, on most
-of the paragraphs a colloquy page holds. What could not afford the passage was never the
+of the paragraphs a leaf page holds. What could not afford the passage was never the
 log; it was the search's pattern, one regular expression with a term per character, which
 V8 refuses to compile at all past some length between five and twelve thousand of them.
 So the bound sits on the pattern (`LEAD_CAP`), which finds the candidates, and the rest
@@ -162,7 +162,7 @@ two answers with nothing saying which is which.
 ### The file's reading never claims more than the page's
 
 An anchor is captured in two places and resolved in one. `selectionAnchor` captures from
-the DOM, `colloquy comment` captures from the version file, and `resolveAnchor` is still
+the DOM, `leaf comment` captures from the version file, and `resolveAnchor` is still
 the only thing that searches. Two captures are not two answers to "what does the page say
 here": both write the same collapsed text under the same rules, so what the file's reading
 holds the page holds too — where a module replaces what the file holds, the reading skips
@@ -202,7 +202,7 @@ rather than loudly: it keeps working perfectly on those while silently doing not
 the next one, so the bug surfaces as a feature that was never wired up rather than as an
 error. So a consumer works from what an entry declares — where a behaviour is wanted by
 some widgets and not others, it becomes an `x-` key they declare and the consumer
-dispatches on, and no branch anywhere reads `cq-diagram` and does something particular.
+dispatches on, and no branch anywhere reads `lf-diagram` and does something particular.
 That binds the runtime, the lint, `version check --render`, `version export`, and the
 skill's own prose alike; the test is whether a twelfth widget touches anything but its
 module and its entry, and where it would, the thing missing is a declaration.
@@ -212,12 +212,12 @@ module. A few are part of the machine the list is defined against, and core name
 outright. The suggestion is the one today: the log settles it, `retirable_ids` is written
 in terms of its slots, and thread markup refuses one. That name is a mechanism's, not a
 member's, so it isn't a special case waiting for a declaration to replace it. Which kind a
-widget is has one question behind it — is this one of the ways colloquy works, or one of
+widget is has one question behind it — is this one of the ways leaf works, or one of
 the things a page can hold? Convenience is not an answer to it; a widget joins the first
 set by having the loop written in terms of it.
 
 The banner's `✓ Accept all` used to be a fourth item in that list and was never one. It
-counted `cq-suggestion:not([data-cq-state])`, which is the shape of a mechanism and the
+counted `lf-suggestion:not([data-lf-state])`, which is the shape of a mechanism and the
 substance of a member: what the page is waiting on the reader for is not a suggestion's
 question but the whole page's, so the count that named one tag was perfect for that tag
 and silently zero for every question, pick and blocked task beside it. `x-awaits` is what
@@ -236,8 +236,8 @@ general shape, not for reaching past the registry.
 
 A fact the whole layer shares belongs to the layer, under a `$` key, rather than to
 whichever widget first needed it. The vendored tokenizer's language list lived in
-`cq-code`'s `language` enum, and from there the only way for the lint to read it was to name
-`cq-code`: the wrong home was the cause and the reach by name only the symptom, which is
+`lf-code`'s `language` enum, and from there the only way for the lint to read it was to name
+`lf-code`: the wrong home was the cause and the reach by name only the symptom, which is
 why moving the list (`$languages`) is what let the widgets declare instead (`x-language`
 names the attribute carrying one). The tell is a consumer indexing past the entry it was
 handed — and the second tell is what such a consumer does when the reach comes up empty,
@@ -265,12 +265,12 @@ of it without teaching any of them a widget by name.
   the strength of it. A finished branch waits for the user's go-ahead unless the task
   said to land.
 - **A session loads each host's cached copy, not the checkout.** Both repo-root
-  marketplaces point at `plugins/colloquy/`, and both hosts install from GitHub main, so a
+  marketplaces point at `plugins/leaf/`, and both hosts install from GitHub main, so a
   payload change reaches a session only once pushed, and reaches the next session rather
   than the one that pushed it. Neither manifest declares a version, because that string is
   Claude Code's cache key: an unchanged one leaves the old copy in place and the update
   reports it as the latest. Without one the key is the commit, so Claude Code's periodic
   marketplace sweep installs each pushed commit on its own and nothing needs running.
   Codex installs from a marketplace snapshot it fetches separately and does not sweep, so
-  a change reaches it through `codex plugin marketplace upgrade colloquy` and then
-  `codex plugin add colloquy@colloquy`.
+  a change reaches it through `codex plugin marketplace upgrade leaf` and then
+  `codex plugin add leaf@leaf`.

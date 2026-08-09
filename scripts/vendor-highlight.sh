@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Rebuild plugins/colloquy/skills/colloquy/assets/vendor/highlight.esm.js.
+# Rebuild plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js.
 #
 # Unlike mermaid and Sortable, upstream ships no browser-native ESM build: the
 # `es/` directory re-exports CommonJS and only resolves through a bundler. So the
 # vendored file is one we produce — core plus exactly the languages the registry
 # enumerates, bundled to ESM and minified. Each language registers under
-# colloquy's own name (`html`, not hljs's `xml`), so the page's vocabulary and
+# leaf's own name (`html`, not hljs's `xml`), so the page's vocabulary and
 # the tokenizer's cannot drift: `language="html"` either resolves or the bundle was
 # built from a different list than the registry states.
 #
@@ -18,10 +18,10 @@ set -euo pipefail
 
 HLJS_VERSION=11.11.1
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ASSETS="$ROOT/plugins/colloquy/skills/colloquy/assets"
+ASSETS="$ROOT/plugins/leaf/skills/leaf/assets"
 OUT="$ASSETS/vendor/highlight.esm.js"
 
-# Where colloquy's name for a language differs from highlight.js's module. Every
+# Where leaf's name for a language differs from highlight.js's module. Every
 # other name maps to itself.
 ALIAS_html=xml
 ALIAS_toml=ini
@@ -45,7 +45,7 @@ print(" ".join(json.load(open(sys.argv[1]))["$languages"]["names"]))
     alias_var="ALIAS_$name"
     echo "import $name from \"./package/es/languages/${!alias_var:-$name}.js\";"
   done
-  # Registered under colloquy's name, not highlight.js's, so `language="html"` resolves
+  # Registered under leaf's name, not highlight.js's, so `language="html"` resolves
   # without a translation table living anywhere at runtime.
   for name in $languages; do
     echo "hljs.registerLanguage(\"$name\", $name);"

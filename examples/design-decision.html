@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Decision: where sessions live</title>
     <link rel="stylesheet" href="/theme.css" />
-    <script type="module" src="/colloquy.js"></script>
+    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main>
@@ -42,25 +42,25 @@
           How the session id travels was decided before this page and the client change
           is merged, so it reads as one line — open it if you want the alternatives.
         </p>
-        <cq-options id="cookie-transport" choose settled>
-          <cq-option id="opt-lax-cookie" recommended chosen
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="ok">risk: low</cq-chip>
+        <lf-options id="cookie-transport" choose settled>
+          <lf-option id="opt-lax-cookie" recommended chosen
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
             <strong>Host-only cookie, SameSite=Lax</strong> Set by the auth origin, sent
             on top-level navigations; nothing to store client-side and nothing for a
             script to read.
-          </cq-option>
-          <cq-option id="opt-strict-cookie"
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
+          </lf-option>
+          <lf-option id="opt-strict-cookie"
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
             <strong>SameSite=Strict</strong> Tighter, but a session started by following
             a link from email arrives logged out — support saw this on the last trial.
-          </cq-option>
-          <cq-option id="opt-bearer"
-            ><cq-chip>effort: high</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
+          </lf-option>
+          <lf-option id="opt-bearer"
+            ><lf-chip>effort: high</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
             <strong>Bearer header from local storage</strong> Works for the mobile
             client without a cookie jar; puts the id somewhere every script on the page
             can read.
-          </cq-option>
-        </cq-options>
+          </lf-option>
+        </lf-options>
       </section>
 
       <section id="precedent">
@@ -71,22 +71,22 @@
           copying. Their answer travels less well, since they had a tenth of our write
           volume and nothing that had to survive the store going down.
         </p>
-        <cq-specimen id="payments-ask" label="payments, March">
-          <cq-options id="pay-store" choose>
-            <cq-option id="pay-redis"
-              ><cq-chip tone="ok">already on call for it</cq-chip>
+        <lf-specimen id="payments-ask" label="payments, March">
+          <lf-options id="pay-store" choose>
+            <lf-option id="pay-redis"
+              ><lf-chip tone="ok">already on call for it</lf-chip>
               <strong>Redis</strong> Revocation is a delete, and the idempotency keys
               live there already.
-            </cq-option>
-            <cq-option id="pay-db"
-              ><cq-chip tone="warn">ledger primary</cq-chip>
+            </lf-option>
+            <lf-option id="pay-db"
+              ><lf-chip tone="warn">ledger primary</lf-chip>
               <strong>Postgres table</strong> One table, but every request writes to the
               instance the ledger is on.
-            </cq-option>
-          </cq-options>
-        </cq-specimen>
-        <cq-compare id="service-pair">
-          <cq-variant id="var-payments-regime">
+            </lf-option>
+          </lf-options>
+        </lf-specimen>
+        <lf-compare id="service-pair">
+          <lf-variant id="var-payments-regime">
             <strong>Payments, March</strong>
             <dl class="facts">
               <dt>Writes</dt>
@@ -98,8 +98,8 @@
               A payment is seconds long, so a Redis blip is a spinner and a retry, and
               nothing about their answer had to outlive the store.
             </p>
-          </cq-variant>
-          <cq-variant id="var-sessions-regime">
+          </lf-variant>
+          <lf-variant id="var-sessions-regime">
             <strong>Sessions, today</strong>
             <dl class="facts">
               <dt>Writes</dt>
@@ -111,15 +111,15 @@
               Rolling expiry writes on every request, and an outage must not sign the
               fleet out — the constraint their page never had to argue.
             </p>
-          </cq-variant>
-        </cq-compare>
+          </lf-variant>
+        </lf-compare>
       </section>
 
       <section id="options">
         <h2>Options</h2>
-        <cq-options id="session-options" choose>
-          <cq-option id="opt-jwt"
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="danger">risk: high</cq-chip>
+        <lf-options id="session-options" choose>
+          <lf-option id="opt-jwt"
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
             <strong>Stateless JWT</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -135,9 +135,9 @@
               (replication, expiry) still attached, and the account-takeover response
               waiting on them.
             </p>
-          </cq-option>
-          <cq-option id="opt-redis" recommended
-            ><cq-chip>effort: med</cq-chip><cq-chip tone="ok">risk: low</cq-chip>
+          </lf-option>
+          <lf-option id="opt-redis" recommended
+            ><lf-chip>effort: med</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
             <strong>Redis, cookie fallback</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -153,17 +153,17 @@
               everyone out. Revocation is a delete — which is the shape support's "log
               out all devices" needs.
             </p>
-            <cq-diagram id="session-flow">
+            <lf-diagram id="session-flow">
               <pre>
 graph LR
   S[Redis] -->|hit| H[handle]
   S -->|miss| F[cookie]
   F --> H
 </pre>
-            </cq-diagram>
-          </cq-option>
-          <cq-option id="opt-db"
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
+            </lf-diagram>
+          </lf-option>
+          <lf-option id="opt-db"
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
             <strong>Postgres table</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -178,8 +178,8 @@ graph LR
               expiry), so at our volume that's the primary's headroom spent on expiry
               bookkeeping — and a session outage becomes a database outage.
             </p>
-          </cq-option>
-        </cq-options>
+          </lf-option>
+        </lf-options>
       </section>
 
       <section id="flow">
@@ -187,40 +187,40 @@ graph LR
         <p id="cookie-pair-note">
           The recommendation rides two cookies with different jobs:
         </p>
-        <cq-compare id="cookie-pair">
-          <cq-variant id="var-session-cookie"
-            ><cq-chip>revocable</cq-chip
-            ><cq-chip tone="ok">nothing readable in it</cq-chip
+        <lf-compare id="cookie-pair">
+          <lf-variant id="var-session-cookie"
+            ><lf-chip>revocable</lf-chip
+            ><lf-chip tone="ok">nothing readable in it</lf-chip
             ><strong>Session cookie</strong> An opaque id; the store says everything
-            else.</cq-variant
+            else.</lf-variant
           >
-          <cq-variant id="var-fallback-cookie"
-            ><cq-chip tone="warn">outlives a revocation</cq-chip
-            ><cq-chip>survives a Redis blip</cq-chip><strong>Fallback cookie</strong> A
-            signed snapshot; outlives a blip, never a revocation.</cq-variant
+          <lf-variant id="var-fallback-cookie"
+            ><lf-chip tone="warn">outlives a revocation</lf-chip
+            ><lf-chip>survives a Redis blip</lf-chip><strong>Fallback cookie</strong> A
+            signed snapshot; outlives a blip, never a revocation.</lf-variant
           >
-        </cq-compare>
+        </lf-compare>
         <p id="fallback-intro">
           One revision is waiting on you below: accept or reject it with the controls in
           the margin, and the next version carries whichever you chose.
         </p>
-        <cq-suggestion id="sug-fallback-window">
-          <cq-old
+        <lf-suggestion id="sug-fallback-window">
+          <lf-old
             ><aside class="callout" id="fallback-note">
               The fallback cookie is read-only: it can keep a session alive through a
               Redis blip, but revocation, rolling expiry, and new logins all require the
               store. A revoked session survives at most the cookie's 5-minute lifetime.
-            </aside></cq-old
+            </aside></lf-old
           >
-          <cq-new
+          <lf-new
             ><aside class="callout">
               The fallback cookie is read-only: it can keep a session alive through a
               Redis blip, but revocation, rolling expiry, and new logins all require the
               store. A revoked session survives at most the cookie's 90-second lifetime
               — short enough that support's "log out all devices" reads as immediate.
-            </aside></cq-new
+            </aside></lf-new
           >
-        </cq-suggestion>
+        </lf-suggestion>
       </section>
 
       <section id="next-up">
@@ -231,17 +231,17 @@ graph LR
           row, or Tab to its mark and press Enter — and the box takes anything the rows
           don't cover, including "none of these".
         </p>
-        <cq-options id="next-jobs" choose multiple>
-          <cq-option id="nx-revoke" for="constraints"
-            >A revocation drill at support's volume</cq-option
+        <lf-options id="next-jobs" choose multiple>
+          <lf-option id="nx-revoke" for="constraints"
+            >A revocation drill at support's volume</lf-option
           >
-          <cq-option id="nx-fallback" for="flow"
-            >Key rotation for the fallback cookie</cq-option
+          <lf-option id="nx-fallback" for="flow"
+            >Key rotation for the fallback cookie</lf-option
           >
-          <cq-option id="nx-load" for="options"
-            >A write load test at request rate</cq-option
+          <lf-option id="nx-load" for="options"
+            >A write load test at request rate</lf-option
           >
-        </cq-options>
+        </lf-options>
       </section>
     </main>
   </body>

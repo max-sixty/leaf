@@ -4,22 +4,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Colloquy examples gallery</title>
+<title>Leaf examples gallery</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <p class="eyebrow">examples gallery</p>
-<h1>The colloquy gallery, on one page</h1>
+<h1>The leaf gallery, on one page</h1>
 <p class="lede" id="gal-lede">The shipped examples, one per tab, every widget
 live: boards drag, options take a pick, diagrams render. Every project, name,
 and number here is invented. Switch tabs freely (that's your view alone); select
 any text to comment on the example it belongs to.</p>
 
-<cq-tabs id="gallery">
+<lf-tabs id="gallery">
 
-<cq-tab id="gal-design-decision" label="Design decision">
+<lf-tab id="gal-design-decision" label="Design decision">
 <h1>Where sessions live</h1>
       <p class="lede" id="decision-lede">
         The monolith split leaves session state homeless: today it rides the app
@@ -52,25 +52,25 @@ any text to comment on the example it belongs to.</p>
           How the session id travels was decided before this page and the client change
           is merged, so it reads as one line — open it if you want the alternatives.
         </p>
-        <cq-options id="cookie-transport" choose settled>
-          <cq-option id="opt-lax-cookie" recommended chosen
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="ok">risk: low</cq-chip>
+        <lf-options id="cookie-transport" choose settled>
+          <lf-option id="opt-lax-cookie" recommended chosen
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
             <strong>Host-only cookie, SameSite=Lax</strong> Set by the auth origin, sent
             on top-level navigations; nothing to store client-side and nothing for a
             script to read.
-          </cq-option>
-          <cq-option id="opt-strict-cookie"
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
+          </lf-option>
+          <lf-option id="opt-strict-cookie"
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
             <strong>SameSite=Strict</strong> Tighter, but a session started by following
             a link from email arrives logged out — support saw this on the last trial.
-          </cq-option>
-          <cq-option id="opt-bearer"
-            ><cq-chip>effort: high</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
+          </lf-option>
+          <lf-option id="opt-bearer"
+            ><lf-chip>effort: high</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
             <strong>Bearer header from local storage</strong> Works for the mobile
             client without a cookie jar; puts the id somewhere every script on the page
             can read.
-          </cq-option>
-        </cq-options>
+          </lf-option>
+        </lf-options>
       </section>
 
       <section id="precedent">
@@ -81,22 +81,22 @@ any text to comment on the example it belongs to.</p>
           copying. Their answer travels less well, since they had a tenth of our write
           volume and nothing that had to survive the store going down.
         </p>
-        <cq-specimen id="payments-ask" label="payments, March">
-          <cq-options id="pay-store" choose>
-            <cq-option id="pay-redis"
-              ><cq-chip tone="ok">already on call for it</cq-chip>
+        <lf-specimen id="payments-ask" label="payments, March">
+          <lf-options id="pay-store" choose>
+            <lf-option id="pay-redis"
+              ><lf-chip tone="ok">already on call for it</lf-chip>
               <strong>Redis</strong> Revocation is a delete, and the idempotency keys
               live there already.
-            </cq-option>
-            <cq-option id="pay-db"
-              ><cq-chip tone="warn">ledger primary</cq-chip>
+            </lf-option>
+            <lf-option id="pay-db"
+              ><lf-chip tone="warn">ledger primary</lf-chip>
               <strong>Postgres table</strong> One table, but every request writes to the
               instance the ledger is on.
-            </cq-option>
-          </cq-options>
-        </cq-specimen>
-        <cq-compare id="service-pair">
-          <cq-variant id="var-payments-regime">
+            </lf-option>
+          </lf-options>
+        </lf-specimen>
+        <lf-compare id="service-pair">
+          <lf-variant id="var-payments-regime">
             <strong>Payments, March</strong>
             <dl class="facts">
               <dt>Writes</dt>
@@ -108,8 +108,8 @@ any text to comment on the example it belongs to.</p>
               A payment is seconds long, so a Redis blip is a spinner and a retry, and
               nothing about their answer had to outlive the store.
             </p>
-          </cq-variant>
-          <cq-variant id="var-sessions-regime">
+          </lf-variant>
+          <lf-variant id="var-sessions-regime">
             <strong>Sessions, today</strong>
             <dl class="facts">
               <dt>Writes</dt>
@@ -121,15 +121,15 @@ any text to comment on the example it belongs to.</p>
               Rolling expiry writes on every request, and an outage must not sign the
               fleet out — the constraint their page never had to argue.
             </p>
-          </cq-variant>
-        </cq-compare>
+          </lf-variant>
+        </lf-compare>
       </section>
 
       <section id="options">
         <h2>Options</h2>
-        <cq-options id="session-options" choose>
-          <cq-option id="opt-jwt"
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="danger">risk: high</cq-chip>
+        <lf-options id="session-options" choose>
+          <lf-option id="opt-jwt"
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
             <strong>Stateless JWT</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -145,9 +145,9 @@ any text to comment on the example it belongs to.</p>
               (replication, expiry) still attached, and the account-takeover response
               waiting on them.
             </p>
-          </cq-option>
-          <cq-option id="opt-redis" recommended
-            ><cq-chip>effort: med</cq-chip><cq-chip tone="ok">risk: low</cq-chip>
+          </lf-option>
+          <lf-option id="opt-redis" recommended
+            ><lf-chip>effort: med</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
             <strong>Redis, cookie fallback</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -163,17 +163,17 @@ any text to comment on the example it belongs to.</p>
               everyone out. Revocation is a delete — which is the shape support's "log
               out all devices" needs.
             </p>
-            <cq-diagram id="session-flow">
+            <lf-diagram id="session-flow">
               <pre>
 graph LR
   S[Redis] -->|hit| H[handle]
   S -->|miss| F[cookie]
   F --> H
 </pre>
-            </cq-diagram>
-          </cq-option>
-          <cq-option id="opt-db"
-            ><cq-chip>effort: low</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
+            </lf-diagram>
+          </lf-option>
+          <lf-option id="opt-db"
+            ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
             <strong>Postgres table</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -188,8 +188,8 @@ graph LR
               expiry), so at our volume that's the primary's headroom spent on expiry
               bookkeeping — and a session outage becomes a database outage.
             </p>
-          </cq-option>
-        </cq-options>
+          </lf-option>
+        </lf-options>
       </section>
 
       <section id="flow">
@@ -197,40 +197,40 @@ graph LR
         <p id="cookie-pair-note">
           The recommendation rides two cookies with different jobs:
         </p>
-        <cq-compare id="cookie-pair">
-          <cq-variant id="var-session-cookie"
-            ><cq-chip>revocable</cq-chip
-            ><cq-chip tone="ok">nothing readable in it</cq-chip
+        <lf-compare id="cookie-pair">
+          <lf-variant id="var-session-cookie"
+            ><lf-chip>revocable</lf-chip
+            ><lf-chip tone="ok">nothing readable in it</lf-chip
             ><strong>Session cookie</strong> An opaque id; the store says everything
-            else.</cq-variant
+            else.</lf-variant
           >
-          <cq-variant id="var-fallback-cookie"
-            ><cq-chip tone="warn">outlives a revocation</cq-chip
-            ><cq-chip>survives a Redis blip</cq-chip><strong>Fallback cookie</strong> A
-            signed snapshot; outlives a blip, never a revocation.</cq-variant
+          <lf-variant id="var-fallback-cookie"
+            ><lf-chip tone="warn">outlives a revocation</lf-chip
+            ><lf-chip>survives a Redis blip</lf-chip><strong>Fallback cookie</strong> A
+            signed snapshot; outlives a blip, never a revocation.</lf-variant
           >
-        </cq-compare>
+        </lf-compare>
         <p id="fallback-intro">
           One revision is waiting on you below: accept or reject it with the controls in
           the margin, and the next version carries whichever you chose.
         </p>
-        <cq-suggestion id="sug-fallback-window">
-          <cq-old
+        <lf-suggestion id="sug-fallback-window">
+          <lf-old
             ><aside class="callout" id="fallback-note">
               The fallback cookie is read-only: it can keep a session alive through a
               Redis blip, but revocation, rolling expiry, and new logins all require the
               store. A revoked session survives at most the cookie's 5-minute lifetime.
-            </aside></cq-old
+            </aside></lf-old
           >
-          <cq-new
+          <lf-new
             ><aside class="callout">
               The fallback cookie is read-only: it can keep a session alive through a
               Redis blip, but revocation, rolling expiry, and new logins all require the
               store. A revoked session survives at most the cookie's 90-second lifetime
               — short enough that support's "log out all devices" reads as immediate.
-            </aside></cq-new
+            </aside></lf-new
           >
-        </cq-suggestion>
+        </lf-suggestion>
       </section>
 
       <section id="next-up">
@@ -241,21 +241,21 @@ graph LR
           row, or Tab to its mark and press Enter — and the box takes anything the rows
           don't cover, including "none of these".
         </p>
-        <cq-options id="next-jobs" choose multiple>
-          <cq-option id="nx-revoke" for="constraints"
-            >A revocation drill at support's volume</cq-option
+        <lf-options id="next-jobs" choose multiple>
+          <lf-option id="nx-revoke" for="constraints"
+            >A revocation drill at support's volume</lf-option
           >
-          <cq-option id="nx-fallback" for="flow"
-            >Key rotation for the fallback cookie</cq-option
+          <lf-option id="nx-fallback" for="flow"
+            >Key rotation for the fallback cookie</lf-option
           >
-          <cq-option id="nx-load" for="options"
-            >A write load test at request rate</cq-option
+          <lf-option id="nx-load" for="options"
+            >A write load test at request rate</lf-option
           >
-        </cq-options>
+        </lf-options>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-incident-report" label="Incident report">
+<lf-tab id="gal-incident-report" label="Incident report">
 <h1>Export queue backlog, 12 June</h1>
       <p class="lede" id="incident-lede">
         A retry storm from one malformed workspace held the export queue for 94 minutes.
@@ -271,38 +271,38 @@ graph LR
         <dd>exports only; imports and sync unaffected</dd>
       </dl>
 
-      <cq-metrics id="impact">
-        <cq-metric id="m-delayed" value="1,204" delta="+1,204" direction="up-bad"
-          >exports delayed</cq-metric
+      <lf-metrics id="impact">
+        <lf-metric id="m-delayed" value="1,204" delta="+1,204" direction="up-bad"
+          >exports delayed</lf-metric
         >
-        <cq-metric id="m-oldest" value="81 min">oldest delay</cq-metric>
-        <cq-metric id="m-lost" value="0">exports lost</cq-metric>
-      </cq-metrics>
+        <lf-metric id="m-oldest" value="81 min">oldest delay</lf-metric>
+        <lf-metric id="m-lost" value="0">exports lost</lf-metric>
+      </lf-metrics>
 
       <section id="timeline">
         <h2>Timeline</h2>
-        <cq-timeline id="incident-timeline">
-          <cq-event id="e-alert" at="09:14" kind="warning">
+        <lf-timeline id="incident-timeline">
+          <lf-event id="e-alert" at="09:14" kind="warning">
             <strong>Queue-depth alert fires</strong> Depth crosses 500; normal peak is
             60.
-          </cq-event>
-          <cq-event id="e-triage" at="09:26" kind="action">
+          </lf-event>
+          <lf-event id="e-triage" at="09:26" kind="action">
             <strong>On-call confirms a single hot job</strong> The same export id
             retrying at the head of the queue, every 45 seconds.
-          </cq-event>
-          <cq-event id="e-wrong" at="09:51" kind="failure">
+          </lf-event>
+          <lf-event id="e-wrong" at="09:51" kind="failure">
             <strong>First fix doesn't hold</strong> Raising worker count clears depth
             briefly; the retry storm refills it because the head job still fails first.
-          </cq-event>
-          <cq-event id="e-quarantine" at="10:32" kind="action">
+          </lf-event>
+          <lf-event id="e-quarantine" at="10:32" kind="action">
             <strong>Poison job quarantined</strong> The workspace's export is parked in
             a dead-letter table; the queue drains at normal rate.
-          </cq-event>
-          <cq-event id="e-resolved" at="10:48" kind="info">
+          </lf-event>
+          <lf-event id="e-resolved" at="10:48" kind="info">
             <strong>Backlog cleared</strong> Depth back under 60; delayed exports
             delivered.
-          </cq-event>
-        </cq-timeline>
+          </lf-event>
+        </lf-timeline>
       </section>
 
       <section id="cause">
@@ -313,7 +313,7 @@ graph LR
           with retries capped by attempt count but not by queue position, the job
           returned to the head on each attempt and starved everything behind it.
         </p>
-        <cq-diagram id="failure-path">
+        <lf-diagram id="failure-path">
           <pre>
 graph LR
   Q[queue head] --> W[worker]
@@ -321,7 +321,7 @@ graph LR
   R --> Q
   Q -.->|starved| B[1,204 jobs behind]
 </pre>
-        </cq-diagram>
+        </lf-diagram>
         <aside class="callout" id="fix-note">
           The fix is one classification: serialization errors are permanent, not
           retryable. Retryable failures also now re-enqueue at the tail, so no single
@@ -342,9 +342,9 @@ graph LR
           </li>
         </ol>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-pr-walkthrough" label="PR walkthrough">
+<lf-tab id="gal-pr-walkthrough" label="PR walkthrough">
 <h1>Per-token rate limits</h1>
       <p class="lede" id="pr-lede">
         Moves rate limiting from per-IP to per-token, so one office NAT can't exhaust
@@ -354,7 +354,7 @@ graph LR
 
       <section id="shape">
         <h2>Shape of the change</h2>
-        <cq-tree id="files">
+        <lf-tree id="files">
           <pre>
 gateway/
   limits.py  +38 -9
@@ -362,7 +362,7 @@ gateway/
   migrations/
     0042_token_buckets.sql  +11
 </pre>
-        </cq-tree>
+        </lf-tree>
         <p id="p-shape">
           The interesting part is
           <a href="https://github.com/example/gateway/blob/main/gateway/limits.py#L41"
@@ -422,7 +422,7 @@ gateway/
 
       <section id="core">
         <h2>The core diff</h2>
-        <cq-diff id="limits-diff">
+        <lf-diff id="limits-diff">
           <pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -439,23 +439,23 @@ diff --git a/gateway/limits.py b/gateway/limits.py
          key = self.bucket_key(request)
          return self.buckets[key].take()
 </pre>
-        </cq-diff>
+        </lf-diff>
       </section>
 
       <section id="walkthrough">
         <h2>Why the prefixes matter</h2>
-        <cq-code id="key-walk" language="python" hi="3-4">
+        <lf-code id="key-walk" language="python" hi="3-4">
           <pre>
 def bucket_key(self, request):
     if request.token:
         return f"tok:{request.token.id}"
     return f"ip:{request.remote_addr}"
 </pre>
-          <cq-note at="3"
+          <lf-note at="3"
             >Unprefixed, a token id that happens to look like an IP would share a bucket
-            with that address. The prefixes make the two namespaces disjoint.</cq-note
+            with that address. The prefixes make the two namespaces disjoint.</lf-note
           >
-        </cq-code>
+        </lf-code>
         <aside class="callout" id="migration-note">
           Existing buckets are keyed by bare address, so the migration renames them once
           at deploy; mixed keys never coexist.
@@ -478,9 +478,9 @@ def bucket_key(self, request):
 cd gateway &amp;&amp; alembic upgrade head
 pytest tests/ -m ratelimit --maxfail=1</code></pre>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-status-report" label="Status report">
+<lf-tab id="gal-status-report" label="Status report">
 <h1>Search relaunch, week 6</h1>
       <p class="lede" id="status-lede">
         Indexing is done and dark-launched; relevance is the open question. The shadow
@@ -488,27 +488,27 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         which is the expected trade at this stage.
       </p>
 
-      <cq-metrics id="kpis">
-        <cq-metric id="k-p95" value="118 ms" delta="-64" direction="up-bad"
-          >p95 latency</cq-metric
+      <lf-metrics id="kpis">
+        <lf-metric id="k-p95" value="118 ms" delta="-64" direction="up-bad"
+          >p95 latency</lf-metric
         >
-        <cq-metric id="k-ndcg" value="0.71" delta="+0.05" direction="up-good"
-          >ndcg@10, head</cq-metric
+        <lf-metric id="k-ndcg" value="0.71" delta="+0.05" direction="up-good"
+          >ndcg@10, head</lf-metric
         >
-        <cq-metric id="k-tail" value="0.58" delta="-0.03" direction="up-good"
-          >ndcg@10, tail</cq-metric
+        <lf-metric id="k-tail" value="0.58" delta="-0.03" direction="up-good"
+          >ndcg@10, tail</lf-metric
         >
-        <cq-metric id="k-coverage" value="99.4%">index coverage</cq-metric>
-      </cq-metrics>
+        <lf-metric id="k-coverage" value="99.4%">index coverage</lf-metric>
+      </lf-metrics>
 
       <section id="milestones">
         <h2>Milestones</h2>
-        <cq-milestones id="relaunch-milestones">
-          <cq-milestone id="ms-index" status="done" when="weeks 1-4">
+        <lf-milestones id="relaunch-milestones">
+          <lf-milestone id="ms-index" status="done" when="weeks 1-4">
             <strong>Reindex on the new schema</strong> Full corpus, verified against the
             old index by document count and spot checks.
-          </cq-milestone>
-          <cq-milestone
+          </lf-milestone>
+          <lf-milestone
             id="ms-shadow"
             status="active"
             when="weeks 5-7"
@@ -516,8 +516,8 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           >
             <strong>Shadow traffic comparison</strong> Every production query runs on
             both engines; judgments collected on the diffs.
-          </cq-milestone>
-          <cq-milestone
+          </lf-milestone>
+          <lf-milestone
             id="ms-tail"
             status="blocked"
             when="week 7"
@@ -525,12 +525,12 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           >
             <strong>Long-tail recovery</strong> Blocked on the synonym table export from
             the old engine — owner found, ETA Tuesday.
-          </cq-milestone>
-          <cq-milestone id="ms-cutover" status="planned" when="week 9">
+          </lf-milestone>
+          <lf-milestone id="ms-cutover" status="planned" when="week 9">
             <strong>Cutover behind a flag</strong> 5% of traffic, then doubling daily if
             guardrails hold.
-          </cq-milestone>
-        </cq-milestones>
+          </lf-milestone>
+        </lf-milestones>
       </section>
 
       <section id="detail">
@@ -560,9 +560,9 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           <li>Draft the cutover guardrails (error rate, zero-result rate, p95).</li>
         </ol>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-live-progress" label="Live progress">
+<lf-tab id="gal-live-progress" label="Live progress">
 <h1>Checkout cutover rehearsal</h1>
       <p class="lede" id="lp-lede">
         The agent republishes this page as each check finishes. The browser is following
@@ -570,14 +570,14 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         rollback drill is running now.
       </p>
 
-      <cq-metrics id="lp-metrics">
-        <cq-metric id="lp-k-done" value="14 of 18" delta="+3" direction="up-good"
-          >checks complete</cq-metric
+      <lf-metrics id="lp-metrics">
+        <lf-metric id="lp-k-done" value="14 of 18" delta="+3" direction="up-good"
+          >checks complete</lf-metric
         >
-        <cq-metric id="lp-k-running" value="2">running now</cq-metric>
-        <cq-metric id="lp-k-blocked" value="1">blocked</cq-metric>
-        <cq-metric id="lp-k-elapsed" value="31 min">elapsed</cq-metric>
-      </cq-metrics>
+        <lf-metric id="lp-k-running" value="2">running now</lf-metric>
+        <lf-metric id="lp-k-blocked" value="1">blocked</lf-metric>
+        <lf-metric id="lp-k-elapsed" value="31 min">elapsed</lf-metric>
+      </lf-metrics>
 
       <section id="lp-now">
         <h2>Right now</h2>
@@ -590,20 +590,20 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
 
       <section id="lp-work">
         <h2>Work</h2>
-        <cq-milestones id="lp-milestones">
-          <cq-milestone id="lp-ms-baseline" status="done" when="14:02">
+        <lf-milestones id="lp-milestones">
+          <lf-milestone id="lp-ms-baseline" status="done" when="14:02">
             <strong>Capture the baseline</strong> Error rate, p95, order count, and
             queue depth recorded before the rehearsal.
-          </cq-milestone>
-          <cq-milestone id="lp-ms-shadow" status="done" when="14:08">
+          </lf-milestone>
+          <lf-milestone id="lp-ms-shadow" status="done" when="14:08">
             <strong>Shadow production traffic</strong> New and old services agreed on
             2,000 sampled checkouts.
-          </cq-milestone>
-          <cq-milestone id="lp-ms-cutover" status="done" when="14:19">
+          </lf-milestone>
+          <lf-milestone id="lp-ms-cutover" status="done" when="14:19">
             <strong>Cut traffic to the new service</strong> Guardrails held for ten
             minutes at 100% traffic.
-          </cq-milestone>
-          <cq-milestone
+          </lf-milestone>
+          <lf-milestone
             id="lp-ms-rollback"
             status="active"
             when="running"
@@ -611,12 +611,12 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           >
             <strong>Prove rollback</strong> Old service is live again; order-count
             comparison is still running.
-          </cq-milestone>
-          <cq-milestone id="lp-ms-report" status="planned" when="next">
+          </lf-milestone>
+          <lf-milestone id="lp-ms-report" status="planned" when="next">
             <strong>Publish the rehearsal report</strong> Attach timings and name the
             one blocked follow-up.
-          </cq-milestone>
-        </cq-milestones>
+          </lf-milestone>
+        </lf-milestones>
       </section>
 
       <section id="lp-blocker">
@@ -630,22 +630,22 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
 
       <section id="lp-events">
         <h2>Latest events</h2>
-        <cq-timeline id="lp-timeline">
-          <cq-event id="lp-e-cutover" at="14:19" kind="action">
+        <lf-timeline id="lp-timeline">
+          <lf-event id="lp-e-cutover" at="14:19" kind="action">
             <strong>Cutover complete</strong> New checkout took 100% of traffic.
-          </cq-event>
-          <cq-event id="lp-e-guardrails" at="14:29" kind="info">
+          </lf-event>
+          <lf-event id="lp-e-guardrails" at="14:29" kind="info">
             <strong>Guardrails held</strong> Error rate 0.08%; p95 181 ms.
-          </cq-event>
-          <cq-event id="lp-e-rollback" at="14:31" kind="action">
+          </lf-event>
+          <lf-event id="lp-e-rollback" at="14:31" kind="action">
             <strong>Rollback started</strong> Traffic returned to the old service in 42
             seconds.
-          </cq-event>
-        </cq-timeline>
+          </lf-event>
+        </lf-timeline>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-triage-board" label="Triage board">
+<lf-tab id="gal-triage-board" label="Triage board">
 <h1>Release triage</h1>
       <p class="lede" id="triage-lede">
         Everything open against the v2.4 release. Drag cards to re-triage — or Tab to a
@@ -653,38 +653,38 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         the next version of this page ships with the board as you left it.
       </p>
 
-      <cq-board id="release-board">
-        <cq-column id="col-blocking" label="Blocking release">
-          <cq-card id="card-migration"
+      <lf-board id="release-board">
+        <lf-column id="col-blocking" label="Blocking release">
+          <lf-card id="card-migration"
             ><strong>Migration reruns on every deploy</strong> The version stamp never
-            lands, so 0041 replays; idempotent today, not once 0042 ships.</cq-card
+            lands, so 0041 replays; idempotent today, not once 0042 ships.</lf-card
           >
-          <cq-card id="card-logout"
+          <lf-card id="card-logout"
             ><strong>Logout 500s with an expired session</strong> Double-delete on the
-            session key; needs a guard, one line.</cq-card
+            session key; needs a guard, one line.</lf-card
           >
-        </cq-column>
-        <cq-column id="col-next" label="Fix in 2.4.1">
-          <cq-card id="card-tz"
+        </lf-column>
+        <lf-column id="col-next" label="Fix in 2.4.1">
+          <lf-card id="card-tz"
             ><strong>Digest email uses server timezone</strong> Cosmetic for most,
-            wrong-day for UTC+13.</cq-card
+            wrong-day for UTC+13.</lf-card
           >
-          <cq-card id="card-search"
+          <lf-card id="card-search"
             ><strong>Search ignores archived items toggle</strong> Filter dropped in the
-            query builder rewrite.</cq-card
+            query builder rewrite.</lf-card
           >
-          <cq-card id="card-export"
+          <lf-card id="card-export"
             ><strong>CSV export quotes numerics</strong> Breaks one customer's
-            downstream import.</cq-card
+            downstream import.</lf-card
           >
-        </cq-column>
-        <cq-column id="col-wont" label="Won't fix for 2.4">
-          <cq-card id="card-ie"
+        </lf-column>
+        <lf-column id="col-wont" label="Won't fix for 2.4">
+          <lf-card id="card-ie"
             ><strong>Layout breaks on IE mode</strong> Out of support matrix; documented
-            instead.</cq-card
+            instead.</lf-card
           >
-        </cq-column>
-      </cq-board>
+        </lf-column>
+      </lf-board>
 
       <section id="notes">
         <h2>Triage notes</h2>
@@ -694,9 +694,9 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           path, so it rides the same release train rather than a hotfix.
         </p>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-command-hub" label="Command hub">
+<lf-tab id="gal-command-hub" label="Command hub">
 <h1>Atlas importer rewrite</h1>
       <p class="lede" id="hub-lede">
         The standing view of the rewrite: what each agent holds, where every task
@@ -705,14 +705,14 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         section below the numbers.
       </p>
 
-      <cq-metrics id="hub-metrics">
-        <cq-metric id="hub-k-done" value="4 of 10" delta="+2" direction="up-good"
-          >tasks done</cq-metric
+      <lf-metrics id="hub-metrics">
+        <lf-metric id="hub-k-done" value="4 of 10" delta="+2" direction="up-good"
+          >tasks done</lf-metric
         >
-        <cq-metric id="hub-k-agents" value="3">agents live</cq-metric>
-        <cq-metric id="hub-k-you" value="2">decisions waiting</cq-metric>
-        <cq-metric id="hub-k-reverts" value="0">reverts this week</cq-metric>
-      </cq-metrics>
+        <lf-metric id="hub-k-agents" value="3">agents live</lf-metric>
+        <lf-metric id="hub-k-you" value="2">decisions waiting</lf-metric>
+        <lf-metric id="hub-k-reverts" value="0">reverts this week</lf-metric>
+      </lf-metrics>
 
       <section id="hub-attention">
         <h2>Needs you</h2>
@@ -730,13 +730,13 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           unblocks the variance report; holding it keeps main untouched but idles finch
           after today. Click an option to decide.
         </p>
-        <cq-options id="hub-gate-schema" choose>
-          <cq-option id="hub-gs-land">Land it now</cq-option>
-          <cq-option id="hub-gs-hold">Hold until the backfill is written</cq-option>
-          <cq-option id="hub-gs-look" for="t-schema"
-            >Walk me through it first</cq-option
+        <lf-options id="hub-gate-schema" choose>
+          <lf-option id="hub-gs-land">Land it now</lf-option>
+          <lf-option id="hub-gs-hold">Hold until the backfill is written</lf-option>
+          <lf-option id="hub-gs-look" for="t-schema"
+            >Walk me through it first</lf-option
           >
-        </cq-options>
+        </lf-options>
         <h3 id="hub-att-fixture">The reconciliation fixture is yours</h3>
         <p id="hub-att-fixture-why">
           <strong>Reconcile ledger exports</strong> is blocked on a fixture with a
@@ -751,28 +751,28 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           The plan as it stands, counted by its leaves. Amber means finished by its
           agent and waiting on your review; red is stuck, and says on what.
         </p>
-        <cq-tasks id="hub-plan">
-          <cq-task id="t-ground" status="done" when="weeks 1-2">
+        <lf-tasks id="hub-plan">
+          <lf-task id="t-ground" status="done" when="weeks 1-2">
             <strong>Groundwork</strong>
-            <cq-task id="t-ground-corpus" status="done" owner="wren">
+            <lf-task id="t-ground-corpus" status="done" owner="wren">
               <strong>Snapshot the import corpus</strong>
-            </cq-task>
-            <cq-task id="t-ground-harness" status="done" owner="junco">
+            </lf-task>
+            <lf-task id="t-ground-harness" status="done" owner="junco">
               <strong>Replay harness</strong> Old and new importer over the same corpus,
               diffed.
-            </cq-task>
-            <cq-task id="t-ground-schema" status="done" owner="finch">
+            </lf-task>
+            <lf-task id="t-ground-schema" status="done" owner="finch">
               <strong>Schema draft</strong>
-            </cq-task>
-          </cq-task>
-          <cq-task id="t-parser" status="active" owner="wren" when="week 3">
+            </lf-task>
+          </lf-task>
+          <lf-task id="t-parser" status="active" owner="wren" when="week 3">
             <strong>Replace the XML parser</strong> The streaming parser is in; the two
             format edge cases remain.
-            <cq-task id="t-parser-stream" status="done" owner="wren">
+            <lf-task id="t-parser-stream" status="done" owner="wren">
               <strong>Streaming core</strong> Constant-memory parse of the 4&nbsp;GB
               nightly export.
-            </cq-task>
-            <cq-task
+            </lf-task>
+            <lf-task
               id="t-parser-cdata"
               status="review"
               owner="wren"
@@ -780,29 +780,29 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
             >
               <strong>CDATA edge cases</strong> Diff is small and green; awaiting your
               read.
-            </cq-task>
-            <cq-task id="t-parser-decl" status="planned">
+            </lf-task>
+            <lf-task id="t-parser-decl" status="planned">
               <strong>Encoding declarations</strong> Starts once CDATA lands.
-            </cq-task>
-          </cq-task>
-          <cq-task id="t-schema" status="review" owner="finch" tags="atlas-schema">
+            </lf-task>
+          </lf-task>
+          <lf-task id="t-schema" status="review" owner="finch" tags="atlas-schema">
             <strong>Schema migration</strong> Written and tested; gated above because it
             touches the overlap zone.
-          </cq-task>
-          <cq-task id="t-ledger" status="active" owner="junco" when="week 3-4">
+          </lf-task>
+          <lf-task id="t-ledger" status="active" owner="junco" when="week 3-4">
             <strong>Ledger reconciliation</strong>
-            <cq-task id="t-ledger-export" status="blocked" owner="junco">
+            <lf-task id="t-ledger-export" status="blocked" owner="junco">
               <strong>Reconcile ledger exports</strong> Needs the fixture named above.
-            </cq-task>
-            <cq-task id="t-ledger-report" status="planned">
+            </lf-task>
+            <lf-task id="t-ledger-report" status="planned">
               <strong>Nightly variance report</strong> Needs the schema migration
               landed.
-            </cq-task>
-          </cq-task>
-          <cq-task id="t-cutover" status="planned" when="week 5">
+            </lf-task>
+          </lf-task>
+          <lf-task id="t-cutover" status="planned" when="week 5">
             <strong>Cut over the nightly job</strong> Shadow first, then swap.
-          </cq-task>
-        </cq-tasks>
+          </lf-task>
+        </lf-tasks>
       </section>
 
       <section id="hub-agents">
@@ -845,19 +845,19 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
 
       <section id="hub-feed">
         <h2>Feed</h2>
-        <cq-timeline id="hub-timeline">
-          <cq-event id="hub-e-cdata" at="thu 14:12" kind="info">
+        <lf-timeline id="hub-timeline">
+          <lf-event id="hub-e-cdata" at="thu 14:12" kind="info">
             <strong>CDATA branch went green</strong> wren moved the task to review.
-          </cq-event>
-          <cq-event id="hub-e-schema" at="thu 13:40" kind="warning">
+          </lf-event>
+          <lf-event id="hub-e-schema" at="thu 13:40" kind="warning">
             <strong>Schema migration held at the gate</strong> Overlap-zone file;
             waiting on you above.
-          </cq-event>
-          <cq-event id="hub-e-stream" at="thu 11:03" kind="action">
+          </lf-event>
+          <lf-event id="hub-e-stream" at="thu 11:03" kind="action">
             <strong>Streaming core merged</strong> Serialized onto main after the
             merge-slot test run.
-          </cq-event>
-        </cq-timeline>
+          </lf-event>
+        </lf-timeline>
       </section>
 
       <section id="hub-policy">
@@ -870,14 +870,14 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           yours, recorded below — click to tighten or revoke it any time — and any
           landed change is a revert away for as long as you care to look.
         </p>
-        <cq-options id="hub-policy-grant" choose>
-          <cq-option id="hub-pg-tiers" chosen> Two-tier gates as stated </cq-option>
-          <cq-option id="hub-pg-all">Everything waits for my word</cq-option>
-        </cq-options>
+        <lf-options id="hub-policy-grant" choose>
+          <lf-option id="hub-pg-tiers" chosen> Two-tier gates as stated </lf-option>
+          <lf-option id="hub-pg-all">Everything waits for my word</lf-option>
+        </lf-options>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-release-notes" label="Release notes">
+<lf-tab id="gal-release-notes" label="Release notes">
 <h1>Release notes, drafted</h1>
       <p class="lede" id="rn-lede">
         Four notes cover everything user-visible in 3.2. Each is a draft you own:
@@ -890,12 +890,12 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
 
       <section id="rn-cli-section">
         <h2>CLI</h2>
-        <cq-draft id="rn-cli">
+        <lf-draft id="rn-cli">
           <pre>
 Adds --dry-run to every mutating command. Running without it is unchanged, so
 existing scripts keep working.
 </pre>
-        </cq-draft>
+        </lf-draft>
       </section>
 
       <section id="rn-api-section">
@@ -904,12 +904,12 @@ existing scripts keep working.
           Kept deliberately dry — the Sunset header does the announcing, and the
           migration guide carries the detail.
         </p>
-        <cq-draft id="rn-api">
+        <lf-draft id="rn-api">
           <pre>
 Deprecates the v1 auth header. It keeps working until the next major, and the
 server now sets a Sunset header on every v1 response.
 </pre>
-        </cq-draft>
+        </lf-draft>
       </section>
 
       <section id="rn-console-section">
@@ -918,42 +918,42 @@ server now sets a Sunset header on every v1 response.
           The run list grew a status column, so a failure now reads off the list instead
           of costing a click each. It is the release's only visual change.
         </p>
-        <cq-shot
+        <lf-shot
           id="rn-console-shot"
           alt="the run list, before and after the status column"
           before="/media/051bee487bfb5d13.png"
           after="/media/a99a1b63048502d0.png"
-        ></cq-shot>
-        <cq-draft id="rn-console">
+        ></lf-shot>
+        <lf-draft id="rn-console">
           <pre>
 Run status now shows on the run list itself. Filtering by it lands in 3.3.
 </pre>
-        </cq-draft>
+        </lf-draft>
       </section>
 
       <section id="rn-ops-section">
         <h2>Operations</h2>
-        <cq-suggestion id="rn-sug-ops">
-          <cq-old
+        <lf-suggestion id="rn-sug-ops">
+          <lf-old
             ><p id="rn-ops-why">
               The minute figure is from staging (1.1M rows) — rounded rather than
               promised.
-            </p></cq-old
+            </p></lf-old
           >
-          <cq-new
+          <lf-new
             ><p>
               The minute figure is from staging (1.1M rows) on a warm cache — rounded
               rather than promised. If operators will book a window around it, the note
               should give a range instead.
-            </p></cq-new
+            </p></lf-new
           >
-        </cq-suggestion>
-        <cq-draft id="rn-migration">
+        </lf-suggestion>
+        <lf-draft id="rn-migration">
           <pre>
 Run the schema migration before deploying. It is online and takes about a
 minute on a million rows.
 </pre>
-        </cq-draft>
+        </lf-draft>
       </section>
 
       <section id="rn-omitted">
@@ -964,9 +964,9 @@ minute on a million rows.
           after all, say so in a comment and a draft for it arrives in the next version.
         </p>
       </section>
-</cq-tab>
+</lf-tab>
 
-<cq-tab id="gal-parallel-workstreams" label="Parallel workstreams">
+<lf-tab id="gal-parallel-workstreams" label="Parallel workstreams">
 <h1>Aviary projects, week 3</h1>
       <p class="lede" id="workstreams-lede">
         Three mini-projects run side by side; each tab below is one project's full
@@ -974,113 +974,113 @@ minute on a million rows.
         switching isn't a comment and doesn't reach the agent.
       </p>
 
-      <cq-tabs id="projects">
-        <cq-tab id="tab-feeders" label="Feeders">
-          <cq-metrics id="feeder-kpis">
-            <cq-metric id="k-mounted" value="2 of 4" delta="+1" direction="up-good"
-              >feeders mounted</cq-metric
+      <lf-tabs id="projects">
+        <lf-tab id="tab-feeders" label="Feeders">
+          <lf-metrics id="feeder-kpis">
+            <lf-metric id="k-mounted" value="2 of 4" delta="+1" direction="up-good"
+              >feeders mounted</lf-metric
             >
-            <cq-metric id="k-visits" value="312" delta="+41" direction="up-good"
-              >daily visits</cq-metric
+            <lf-metric id="k-visits" value="312" delta="+41" direction="up-good"
+              >daily visits</lf-metric
             >
-            <cq-metric id="k-refills" value="2.1/wk" delta="+0.4" direction="up-bad"
-              >refills</cq-metric
+            <lf-metric id="k-refills" value="2.1/wk" delta="+0.4" direction="up-bad"
+              >refills</lf-metric
             >
-          </cq-metrics>
+          </lf-metrics>
           <p id="feeder-note">
             The south pair is up and drawing traffic; the north pair waits on brackets.
             Drag cards to reprioritize — your edits reach the agent directly.
           </p>
-          <cq-board id="feeder-board">
-            <cq-column id="col-todo" label="To do">
-              <cq-card id="card-brackets"
-                ><strong>Steel brackets</strong> Order for the north pair.</cq-card
+          <lf-board id="feeder-board">
+            <lf-column id="col-todo" label="To do">
+              <lf-card id="card-brackets"
+                ><strong>Steel brackets</strong> Order for the north pair.</lf-card
               >
-              <cq-card id="card-baffle"><strong>Squirrel baffle</strong></cq-card>
-            </cq-column>
-            <cq-column id="col-doing" label="Doing">
-              <cq-card id="card-heater"
-                ><strong>Heated perch</strong> Wire the south feeder.</cq-card
+              <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+            </lf-column>
+            <lf-column id="col-doing" label="Doing">
+              <lf-card id="card-heater"
+                ><strong>Heated perch</strong> Wire the south feeder.</lf-card
               >
-            </cq-column>
-            <cq-column id="col-done" label="Done">
-              <cq-card id="card-mounts"><strong>South mounts</strong></cq-card>
-            </cq-column>
-          </cq-board>
+            </lf-column>
+            <lf-column id="col-done" label="Done">
+              <lf-card id="card-mounts"><strong>South mounts</strong></lf-card>
+            </lf-column>
+          </lf-board>
           <p id="feeder-order">
             The bracket order goes in on Friday and there is room in it. These are the
             extras the south pair turned out to want.
           </p>
-          <cq-options id="feeder-extras" choose multiple>
-            <cq-option id="fx-tray"
-              ><cq-chip>£9 the pair</cq-chip
-              ><cq-chip tone="warn">more cleaning</cq-chip>
+          <lf-options id="feeder-extras" choose multiple>
+            <lf-option id="fx-tray"
+              ><lf-chip>£9 the pair</lf-chip
+              ><lf-chip tone="warn">more cleaning</lf-chip>
               <strong>Seed tray</strong> Catches the spill under the south pair, where
               the grass has thinned to bare earth.
-            </cq-option>
-            <cq-option id="fx-dome"
-              ><cq-chip>£15 each</cq-chip><cq-chip tone="ok">fits both pairs</cq-chip>
+            </lf-option>
+            <lf-option id="fx-dome"
+              ><lf-chip>£15 each</lf-chip><lf-chip tone="ok">fits both pairs</lf-chip>
               <strong>Weather dome</strong> Keeps the seed dry; the south feeders
               clogged twice in the wet week.
-            </cq-option>
-            <cq-option id="fx-mount"
-              ><cq-chip>£24 fitted</cq-chip><cq-chip>uses the spare camera</cq-chip>
+            </lf-option>
+            <lf-option id="fx-mount"
+              ><lf-chip>£24 fitted</lf-chip><lf-chip>uses the spare camera</lf-chip>
               <strong>Second camera mount</strong> Puts the spare on the north post once
               the feeders are up.
-            </cq-option>
-          </cq-options>
-        </cq-tab>
+            </lf-option>
+          </lf-options>
+        </lf-tab>
 
-        <cq-tab id="tab-bath" label="Bird bath">
+        <lf-tab id="tab-bath" label="Bird bath">
           <p id="bath-status">
             The basin is level and holding water; the open question is how to keep it
             liquid through January. Click an option to decide.
           </p>
-          <cq-options id="bath-heat" choose>
-            <cq-option id="heat-immersion"
-              ><cq-chip>£18</cq-chip><cq-chip>a cord across the lawn</cq-chip
-              ><cq-chip tone="ok">liquid all winter</cq-chip>
+          <lf-options id="bath-heat" choose>
+            <lf-option id="heat-immersion"
+              ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
+              ><lf-chip tone="ok">liquid all winter</lf-chip>
               <strong>Immersion heater</strong> Drops into the basin; needs a cord run
               across the lawn.
-            </cq-option>
-            <cq-option id="heat-solar" recommended
-              ><cq-chip>£70</cq-chip><cq-chip>swap the basin</cq-chip
-              ><cq-chip tone="ok">liquid but the hardest frosts</cq-chip>
+            </lf-option>
+            <lf-option id="heat-solar" recommended
+              ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
+              ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
               <strong>Solar basin</strong> Replace the basin with the heated model; no
               cord, reversible.
-            </cq-option>
-            <cq-option id="heat-none"
-              ><cq-chip>£0</cq-chip><cq-chip>nothing to install</cq-chip
-              ><cq-chip tone="danger">liquid on thaw days</cq-chip>
+            </lf-option>
+            <lf-option id="heat-none"
+              ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip
+              ><lf-chip tone="danger">liquid on thaw days</lf-chip>
               <strong>Let it freeze</strong> Refill on thaw days only.
-            </cq-option>
-          </cq-options>
-        </cq-tab>
+            </lf-option>
+          </lf-options>
+        </lf-tab>
 
-        <cq-tab id="tab-camera" label="Camera">
+        <lf-tab id="tab-camera" label="Camera">
           <p id="camera-note">
             The feed has been stable since the battery swap; one open follow-up on
             storage.
           </p>
-          <cq-timeline id="camera-log">
-            <cq-event id="e-offline" at="Mon 09:14" kind="warning">
+          <lf-timeline id="camera-log">
+            <lf-event id="e-offline" at="Mon 09:14" kind="warning">
               <strong>Camera offline</strong> Battery alert from the north post.
-            </cq-event>
-            <cq-event id="e-swap" at="Mon 09:40" kind="action">
+            </lf-event>
+            <lf-event id="e-swap" at="Mon 09:40" kind="action">
               <strong>Battery swapped</strong>
-            </cq-event>
-            <cq-event id="e-ok" at="Mon 09:41" kind="info">
+            </lf-event>
+            <lf-event id="e-ok" at="Mon 09:41" kind="info">
               <strong>Feed resumed</strong> Stable since.
-            </cq-event>
-          </cq-timeline>
+            </lf-event>
+          </lf-timeline>
           <p id="camera-next">
             Next: rotate clips to the shed NAS before the card fills, likely week 4.
           </p>
-        </cq-tab>
-      </cq-tabs>
-</cq-tab>
+        </lf-tab>
+      </lf-tabs>
+</lf-tab>
 
-</cq-tabs>
+</lf-tabs>
 </main>
 </body>
 </html>

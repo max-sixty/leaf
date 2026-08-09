@@ -3,62 +3,50 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>customize colloquy</title>
+    <title>customize leaf</title>
     <meta
       name="description"
-      content="Customize colloquy's theme and add project or user widgets through the registry, CSS, and optional ES modules."
+      content="Customize leaf's theme and add project or user widgets through the registry, CSS, and optional ES modules."
     />
     <link
       rel="icon"
-      href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
+      href="../plugins/leaf/skills/leaf/assets/icon.svg"
       type="image/svg+xml"
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="customize colloquy" />
+    <meta property="og:title" content="customize leaf" />
     <meta
       property="og:description"
       content="Theme overlays and project widgets: a registry entry, CSS, and an optional ES module, vendored into each page."
     />
-    <meta
-      property="og:url"
-      content="https://max-sixty.github.io/colloquy/customizing.html"
-    />
-    <meta
-      property="og:image"
-      content="https://max-sixty.github.io/colloquy/session-light.png"
-    />
+    <meta property="og:url" content="https://leaf.page/customizing.html" />
+    <meta property="og:image" content="https://leaf.page/session-light.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link
-      rel="stylesheet"
-      href="../plugins/colloquy/skills/colloquy/assets/theme.css"
-    />
-    <link
-      rel="stylesheet"
-      href="../plugins/colloquy/skills/colloquy/bundled/theme.css"
-    />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/assets/theme.css" />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/bundled/theme.css" />
     <link rel="stylesheet" href="site.css" />
   </head>
   <body>
     <main>
       <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="index.html">colloquy</a>
+        <a class="brand" href="index.html">leaf</a>
         <a href="examples.html">Examples</a>
         <a href="how-it-works.html">How it works</a>
         <a href="customizing.html" aria-current="page">Customize</a>
-        <a href="https://github.com/max-sixty/colloquy">GitHub</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
       <header id="top">
         <p class="eyebrow">customize</p>
-        <h1>Customize colloquy</h1>
+        <h1>Customize leaf</h1>
         <p class="lede" id="lede">
-          A customization layer can change the theme, add <code>cq-*</code> elements,
+          A customization layer can change the theme, add <code>lf-*</code> elements,
           and supply browser behavior. <code>page init</code> combines that layer with
           the shipped ones and vendors the result into each page, where the normal
-          catalog and checks cover the additions too. Colloquy's own content widgets
-          ride this same mechanism — the shipped
+          catalog and checks cover the additions too. Leaf's own content widgets ride
+          this same mechanism — the shipped
           <a
-            href="https://github.com/max-sixty/colloquy/tree/main/plugins/colloquy/skills/colloquy/bundled"
+            href="https://github.com/max-sixty/leaf/tree/main/plugins/leaf/skills/leaf/bundled"
             ><code>bundled/</code></a
           >
           layer is a complete worked example of everything this page describes.
@@ -78,16 +66,16 @@
           <tbody>
             <tr>
               <td>Current project</td>
-              <td><code>.colloquy/</code></td>
-              <td><code>colloquy customize theme</code></td>
+              <td><code>.leaf/</code></td>
+              <td><code>leaf customize theme</code></td>
             </tr>
             <tr>
               <td>Every project for this user</td>
               <td>
-                <code>$XDG_CONFIG_HOME/colloquy/</code>, or
-                <code>~/.config/colloquy/</code>
+                <code>$XDG_CONFIG_HOME/leaf/</code>, or
+                <code>~/.config/leaf/</code>
               </td>
-              <td><code>colloquy customize theme --user</code></td>
+              <td><code>leaf customize theme --user</code></td>
             </tr>
           </tbody>
         </table>
@@ -109,7 +97,7 @@
           The scaffold creates a short <code>theme.css</code> that loads after all
           shipped rules:
         </p>
-        <pre><code>colloquy customize theme</code></pre>
+        <pre><code>leaf customize theme</code></pre>
         <p>
           Token overrides change every surface that consumes them. Ordinary selectors
           can tune one element or widget.
@@ -120,7 +108,7 @@
   --serif: "Iowan Old Style", Georgia, serif;
 }
 
-cq-options {
+lf-options {
   gap: var(--sp-2);
 }</code></pre>
         <p>
@@ -135,7 +123,7 @@ cq-options {
         <p>
           The default stylesheet remains intact, so changing one token needs no copied
           theme. Its opening
-          <a href="../plugins/colloquy/skills/colloquy/assets/theme.css">token block</a>
+          <a href="../plugins/leaf/skills/leaf/assets/theme.css">token block</a>
           is the reference. Presentation unique to one page still belongs in that
           version's own <code>&lt;style&gt;</code>; the layer is for a look reused
           across pages.
@@ -143,12 +131,11 @@ cq-options {
         <p>
           The tab carries a mark too. A layer may drop in its own
           <code>icon.svg</code>, replacing
-          <a href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
-            >the shipped mark</a
-          >. It has to keep one promise: an element marked <code>class="cq-tone"</code>,
-          which the page paints in the color the banner's status dot is wearing. A row
-          of tabs then says which colloquy is working, which is waiting on you, and
-          which has nobody behind it, without opening any of them.
+          <a href="../plugins/leaf/skills/leaf/assets/icon.svg">the shipped mark</a>. It
+          has to keep one promise: an element marked <code>class="lf-tone"</code>, which
+          the page paints in the color the banner's status dot is wearing. A row of tabs
+          then says which leaf is working, which is waiting on you, and which has nobody
+          behind it, without opening any of them.
         </p>
       </section>
 
@@ -160,21 +147,21 @@ cq-options {
           enough; if the widget needs browser behavior from the start, use the
           <code>--upgrade</code> form in the next section instead.
         </p>
-        <pre><code>colloquy customize widget cq-callout</code></pre>
+        <pre><code>leaf customize widget lf-callout</code></pre>
         <p>
           The generated registry entry accepts an <code>id</code> and prose. Its example
           appears in <code>catalog</code>, so an agent working in the project can
           discover and use it:
         </p>
-        <pre><code>&lt;cq-callout id="migration-warning"&gt;
+        <pre><code>&lt;lf-callout id="migration-warning"&gt;
   &lt;strong&gt;Migration window&lt;/strong&gt;
   Writes pause for about two minutes.
-&lt;/cq-callout&gt;</code></pre>
+&lt;/lf-callout&gt;</code></pre>
         <p>
-          Edit <code>.colloquy/registry.json</code> to declare attributes, child
+          Edit <code>.leaf/registry.json</code> to declare attributes, child
           relationships, or a different content model. The entry is JSON Schema over the
-          element's attributes. Colloquy's <code>x-*</code> keys connect that schema to
-          the rest of the page:
+          element's attributes. Leaf's <code>x-*</code> keys connect that schema to the
+          rest of the page:
         </p>
         <table>
           <thead>
@@ -264,19 +251,19 @@ cq-options {
         <h2>Add browser behavior</h2>
         <p>
           On the widget's first scaffold command, <code>--upgrade</code> also creates
-          <code>widgets/cq-callout.js</code> and marks the registry entry for dynamic
+          <code>widgets/lf-callout.js</code> and marks the registry entry for dynamic
           import. It is an alternative to the CSS-only command above, not an upgrade of
           an existing scaffold:
         </p>
-        <pre><code>colloquy customize widget cq-callout --upgrade</code></pre>
+        <pre><code>leaf customize widget lf-callout --upgrade</code></pre>
         <p>
           The module starts with the same one-shot upgrade guard used by shipped
           widgets:
         </p>
-        <pre><code>import { once } from "/colloquy.js";
+        <pre><code>import { once } from "/leaf.js";
 
 customElements.define(
-  "cq-callout",
+  "lf-callout",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
@@ -293,13 +280,11 @@ customElements.define(
           <code>watchActions(this, "verb", render)</code> reruns a renderer after
           replay; use them when a widget needs to explain how its folded state was
           reached rather than copying or retaining the event log itself. The shipped
-          <a href="../plugins/colloquy/skills/colloquy/assets/widgets/cq-options.js"
+          <a href="../plugins/leaf/skills/leaf/assets/widgets/lf-options.js"
             >options module</a
           >
           and its
-          <a href="../plugins/colloquy/skills/colloquy/assets/registry.json"
-            >registry entry</a
-          >
+          <a href="../plugins/leaf/skills/leaf/assets/registry.json">registry entry</a>
           form a complete action-backed example: the registry validates each action and
           records its absolute state, while <code>applyAction</code> makes replay
           idempotent.
@@ -313,13 +298,13 @@ customElements.define(
 
       <section id="vendor">
         <h2>Vendor and check the result</h2>
-        <pre><code>colloquy page init &lt;page-dir&gt;
-colloquy page catalog &lt;page-dir&gt;</code></pre>
+        <pre><code>leaf page init &lt;page-dir&gt;
+leaf page catalog &lt;page-dir&gt;</code></pre>
         <p>
           Then use the custom element in the page's next
           <code>versions/vN.html</code> file and run the same gate as any other version:
         </p>
-        <pre><code>colloquy version check --render &lt;page-dir&gt;</code></pre>
+        <pre><code>leaf version check --render &lt;page-dir&gt;</code></pre>
         <p>
           Re-running <code>page init</code> is the explicit update for an existing page.
           It merges the current layers, checks the full registry, requires a module for
@@ -334,10 +319,8 @@ colloquy page catalog &lt;page-dir&gt;</code></pre>
           <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
           <a href="how-it-works.html">How it works</a> ·
           <a href="customizing.html">Customize</a> ·
-          <a href="https://github.com/max-sixty/colloquy">GitHub</a> ·
-          <a href="https://github.com/max-sixty/colloquy/blob/main/LICENSE"
-            >MIT license</a
-          >
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
       </footer>
     </main>

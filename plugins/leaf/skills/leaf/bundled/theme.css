@@ -1,0 +1,963 @@
+/* Leaf's bundled widgets: the content families' rules, shipped as an overlay
+ * layer over the integrated theme and concatenated after it by `page init` — the
+ * same ride a user or project layer gets, which is the point: these widgets reach
+ * a page through the door any layer's do. Tokens, elements, idioms and the
+ * suggestion family are the integrated theme's; this file carries only what its
+ * own widgets wear. */
+
+/* ---------- element-widgets ---------- */
+
+/* Every attribute the registry marks x-says is written twice here. The runtime
+ * renders the value as real text (renderSaid, in a span carrying data-lf-said),
+ * because a pseudo-element paints glyphs that live in no text node — a user
+ * can read them and can never select or comment on them. The pseudo-element
+ * stays as the same words for a page carrying no script at all
+ * (docs/how-it-works.html renders the whole vocabulary that way) and stands down
+ * where the runtime got there, asked by :has() and placed later in the cascade,
+ * so the two are never both on. A word the theme puts in front of a value stays
+ * a pseudo either way ("specimen ·"): that one is the theme's word about the
+ * page's, and only the page's is worth quoting. There is one of those left. The
+ * other went with the attribute it named: the theme wrote "effort" in front of
+ * `effort` because it knew the name, and a decision's facets are the author's to
+ * name, so they are markup (lf-chip) rather than an attribute rendered into text.
+ *
+ * Every rule here names the attribute it styles, because data-lf-said is the wider
+ * claim that these words are the page's — a widget's own label wears it bare
+ * (relabel) — and a rule matching it bare styles whatever a widget says next. The
+ * chosen-option mark is a direct child of lf-option and came out as a chip band
+ * at the head of the card. */
+
+/* The apparatus voice, for this layer's words: the integrated theme states the same
+ * rule for the page's idioms, and every layer restates it for the labels its own
+ * widgets wear — the statement an overlay widget makes for itself. One rule per
+ * layer, because what counts as apparatus is a judgement, and a judgement made per
+ * widget is a dozen chances to answer it differently. */
+.lf-chips span, .lf-tree-badge, .lf-diff-stat, .lf-shotcap, lf-metric,
+lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
+lf-column > [data-lf-said="label"], lf-tab::before,
+lf-chip {
+  font-family: var(--sans); }
+
+/* The pill this layer's chips ride in — the integrated theme's .tag numbers,
+ * restated so a band of chips and an inline label stand the same height. */
+lf-chip, .lf-chips span {
+  display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
+  border-radius: 999px; background: var(--chip); color: var(--ink-2); }
+
+/* lf-options / lf-option: the theme is most of the widget — the module adds the
+ * pick, the reference, and the box for words, and without it these rules still
+ * draw the whole thing.
+ *
+ * Which of two forms a group takes is a fact about its options rather than an
+ * attribute saying so: an option that leads with a <strong> title argues its own
+ * case, so a group holding one stacks into full-width cards read down the page;
+ * and a group whose options are bare labels is a question *about* the page rather
+ * than a set of them, and reads as a list of compact rows, each naming the
+ * block it is about (`for`). Every rule below that only makes sense for one
+ * form says which — a card's `.facts` rail docks right, a question
+ * row's reference rides in its line — and none is an override of another.
+ *
+ * There was a third form: a group whose every option was terse laid them across,
+ * a grid of ~13rem cards. Options are alternatives to weigh against each other,
+ * which is a reading down, and the grid's geometry moved with the count besides —
+ * four options came out three across with the fourth orphaned under them, every
+ * cell stretched as tall as the row's longest argument. A list is the same shape
+ * at three options and at six, so adding one is editing a line rather than
+ * re-laying the group.
+ *
+ * The chip band is the one thing no form has to state, because inline-block in
+ * front of the title is already both answers: a titled option's <strong> is
+ * a block, so the band lands on a line of its own above it, and a bare-label
+ * option has no block to push against, so it rides in the row's own line. What
+ * came before was two attributes pinned to a card's two corners, and every form
+ * paid for that placement — a 40px band reserved above the title, an
+ * anchor-positioned offset so the second chip cleared the first, an 11rem
+ * reservation in the row-form title. Every one of those numbers was room held
+ * for a fixed count of words the theme knew the length of. An author writes as
+ * many lf-chip as the decision has facets, so there is no count to lay out for
+ * and no width to reserve: they wrap along the band like the words they are.
+ * `recommended` is the accent ring, or a row's outline. */
+lf-options { display: block; margin: 14px 0; }
+lf-option { display: block; position: relative; border: 1px solid var(--rule);
+            border-radius: var(--r); padding: var(--sp-3); background: var(--card);
+            font-size: 15px; }
+lf-option > strong { display: block; margin: 0 0 4px; font-size: 16px; }
+/* A chip is an element, so nothing here renders it and nothing declares it words: it is
+ * the author's own markup, quotable and diffable like any other content. The pill is the
+ * shared one — inline-block there, which is what leaves each form free to decide where
+ * the band sits — and what a chip adds is the band: margins that space and wrap a row of
+ * them, and a max-width bounding a long one against the card, since the words are the
+ * author's and there is no length the theme can assume. */
+lf-chip { max-width: 100%; margin: 0 6px 2px 0; }
+/* The tint is the author's, per chip. The theme knows the three semantic pairs and
+ * nothing about which facet earns one — the pair this replaced tinted `risk` and not
+ * `effort`, which was the theme holding an opinion about a word, and the opinion went
+ * wrong the moment the author picked the facet. Same bargain lf-metric makes with
+ * `direction`. Untoned is the default and should stay the common case: a band where
+ * every chip is coloured points at nothing. */
+lf-chip[tone="ok"]     { background: var(--ok-tint);     color: var(--ok-ink); }
+lf-chip[tone="warn"]   { background: var(--warn-tint);   color: var(--warn-ink); }
+lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink); }
+/* The titled form. A titled option is a card arguing its own case, and the cards
+ * stack into full-width rows, read down the page the way a decision record
+ * reads — which is how pages stopped growing a comparison table and an "in
+ * detail" section outside the widget they decide in. Terse or substantial alike:
+ * a case of one sentence reads down the same list a case of three paragraphs
+ * does, and block content asks for nothing, it just fills the row the option
+ * already has. A `.facts` list at the top of an option docks
+ * right at one width wherever the row can spare it, so scalars align down the
+ * group like the column of the comparison table this form folds back in, and
+ * stacks above the prose where it can't.
+ *
+ * lf-compare is the same shape without the decision and follows it — for block
+ * content only, because an exhibition is looked across where a decision is read
+ * down, so terse variants keep their side-by-side grid. Its block list is the
+ * suggestion slots' one, answering the same question asked of a different
+ * holder, and a test pins every copy of it to the registry so a new block
+ * widget can't be silently missing from one. */
+lf-options:has(> lf-option > strong),
+lf-compare:has(> lf-variant > :is(p, h1, h2, h3, h4, h5, h6, ul, ol, dl, table, pre,
+    blockquote, section, article, div, figure, details, aside, lf-diagram, lf-diff,
+    lf-code, lf-tree, lf-board, lf-options, lf-milestones, lf-tasks, lf-timeline,
+    lf-compare, lf-metrics, lf-tabs, lf-draft, lf-shot, lf-specimen)) {
+  display: block;
+  & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
+  & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }
+  /* The rail docks right where the row has the width to spare, and stacks above the prose
+   * where it hasn't — asked of the row itself, because how much room it has is a fact
+   * about the row and not about the window: the page gives 168px up to the margin
+   * the moment a change wants deciding, and a viewport wide enough to dock in was still
+   * one of those. A 10rem rail out of a narrower row leaves the argument three words to
+   * the line, so the rail wins the row and the case it was docked beside loses it. */
+  & > :is(lf-option, lf-variant) { container-type: inline-size; }
+  & > :is(lf-option, lf-variant) > .facts { display: block; font-size: var(--t-5);
+      margin: 0 0 var(--sp-2); }
+  @container (min-width: 30rem) {
+    & > :is(lf-option, lf-variant) > .facts { float: right; clear: right; width: 10rem;
+        margin: 0 0 var(--sp-2) var(--sp-3); }
+  }
+  & > :is(lf-option, lf-variant) > .facts dt { color: var(--muted);
+      font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
+      font-weight: 400; margin-top: 6px; padding: 0; }
+  & > :is(lf-option, lf-variant) > .facts dd { margin: 0; }
+}
+/* With `choose`, the group takes the reader's pick by click. `chosen` reads after
+ * `recommended`, so the reader's pick wins whichever of the two the form paints it in.
+ * What follows is a card standing on its own — which is a card in a settled group, or
+ * any card on paper. A card in a live group is a cell of one control, and the block
+ * further down restates its status, its hover and its mark in those terms. */
+/* The rings: a card states its status as a border it already has, so both live with
+ * the card form. A row has no border to color and says the same two things with a
+ * wash (below), and a card taking a pick has no border either once the group takes it
+ * over, so the joined form restates both as edge stripes (further below). */
+lf-options:has(> lf-option > strong) > lf-option[recommended] { border-color: var(--accent);
+                         box-shadow: 0 0 0 1px var(--accent); }
+lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--ok);
+                         box-shadow: 0 0 0 1px var(--ok); }
+lf-options[choose] > lf-option { cursor: pointer;
+                         transition: box-shadow .12s ease, transform .12s ease; }
+/* Every option lifts on hover, the pick included — clicking it clears it, so it
+ * has to keep looking clickable. A ring a card already wears layers under the lift.
+ * The joined form answers the same requirement without the lift, because a cell that rose
+ * would pull away from the hairlines holding the group together. */
+lf-options[choose]:has(> lf-option > strong) > lf-option:hover { transform: translateY(-1px);
+                         box-shadow: 0 3px 10px rgba(0, 0, 0, .14); }
+lf-options[choose]:has(> lf-option > strong) > lf-option[recommended]:hover {
+                         box-shadow: 0 0 0 1px var(--accent), 0 3px 10px rgba(0, 0, 0, .14); }
+lf-options[choose]:has(> lf-option > strong) > lf-option[chosen]:hover {
+                         box-shadow: 0 0 0 1px var(--ok), 0 3px 10px rgba(0, 0, 0, .14); }
+/* The mark the upgrade injects: the keyboard path and the state in one element. It is
+ * silent until there is a pick to state, so its box is not the same in both states — the
+ * room is what stays the same, held on every card whether or not one is picked, and the
+ * word grows into space already reserved. Where it hangs, and what holds that room, are
+ * each form's own business.
+ *
+ * On a card, a caption on its own left edge rather than a control pinned to a corner,
+ * standing in the strip below the content. On screen every card in a choose group
+ * reserves that strip, because the pick can land on any of them; on paper it can land
+ * nowhere, so the room is reserved where the mark shows. */
+lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
+@media screen {
+  lf-options[choose]:has(> lf-option > strong) > lf-option { padding-bottom: 32px; }
+}
+lf-options:has(> lf-option > strong) > lf-option .lf-pick {
+                     position: absolute; left: var(--sp-3); bottom: 9px; }
+/* The face is stated here, not left to a class: the mark has two shapes — a press
+ * wearing .lf-ui where the group takes picks, a bare span where it doesn't — and only
+ * one of them has the class to answer for it, so the one rule both shapes share names
+ * the family, size and line itself. */
+lf-option .lf-pick { display: inline-flex; align-items: center; gap: 6px;
+                     font-family: var(--sans);
+                     font-size: var(--t-6); line-height: 1.5;
+                     color: var(--muted); }
+lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
+                     border: 1.5px solid var(--border-2);
+                     display: grid; place-items: center; box-sizing: border-box;
+                     font-size: 8px; line-height: 1; color: var(--card); }
+/* The mark's corner is how many the group takes: a circle is one of these, a rounded
+ * square any of these. It is the difference a reader gets by eye, and it is the one they
+ * already have — every platform's radio and checkbox are this pair, and nothing else the
+ * group can do says arity. Paint reaches no screen reader, so the mark's own word carries
+ * the same distinction for a reader listening, and the module holds the pair together.
+ * A `multiple` group was drawing the same circles a single-pick
+ * one draws, so the two were identical on screen and the page had to say in prose which
+ * question it was asking ("pick the ones worth starting"); a reader who took the shape at
+ * its word would pick once and expect the next click to replace it.
+ *
+ * The shape and not a word, because an offer says nothing (the rule below) — and not the
+ * ✓ either, which stays the same glyph in both: the corner answers how many, the tick
+ * answers whether this one, and a state that changed both would be one guarantee written
+ * twice. Paint inside the mark's own box, so neither arity is a pixel wider than the
+ * other and nothing that was reserved has to be re-measured.
+ *
+ * Each group states its own options' marks, down a child combinator, and neither rule is
+ * the other's reset — the two are disjoint, so the base rule above states no corner and
+ * every mark takes one of these. Written as a value inherited from the group instead, it
+ * would have had to be defended: an option's content model is prose, so a question nests
+ * inside another question's option, and the inner group's marks would have taken the
+ * outer group's arity for want of a default. Reach only as far as the options the group
+ * owns and the case cannot arise. */
+lf-options:not([multiple]) > lf-option > .lf-pick::before { border-radius: 50%; }
+lf-options[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
+lf-option .lf-pick[role="button"] { cursor: pointer; }
+/* An offer says nothing on screen, so it is not drawn — in either form. A picked mark's
+ * word is the page's only statement of where the pick sits, which paper keeps and a user
+ * can quote; "choose one" states nothing a reader could disagree with, and a card carrying
+ * it on every member says the same nothing two to five times. The card form used to argue
+ * it needed the word precisely because it had no column of dots to say it, and a choose
+ * group has one — a weak one, spread down a tall card. Strengthen the column; don't
+ * caption it. The silence is the screen's alone: the mark announces that word either way
+ * (lf-options.js), because the corner saying arity is paint and reaches no screen reader.
+ * The room the word will need is held either way (each form's own rules below), so the
+ * mark grows into space already reserved and a pick moves nothing. */
+lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
+/* Warming the ring under the pointer, wherever the ring is drawn — a row, a card under
+ * `multiple`, and a card in a settled group. A live single-pick card group draws none, so
+ * this reaches nothing there and the cell's own hover is the answer instead. */
+lf-options[choose] > lf-option:not([chosen]):hover .lf-pick::before { border-color: var(--muted); }
+lf-option[chosen] .lf-pick { color: var(--ok-ink); }
+lf-option[chosen] .lf-pick::before { content: "✓"; border-color: var(--ok);
+                     background: var(--ok); }
+lf-option .lf-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px;
+                     border-radius: 4px; }
+/* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
+ * (.lf-address) — the g leader's thread chips are that same fact and wear the same chip.
+ * Two things are this rule's: where it sits and when it shows.
+ *
+ * Where: in the column the option reserves for it (the joined control's rules above),
+ * a chip's half-height down, so a row's digit is level with its words and a card's with
+ * its first line. It sat on the option's outer corner once, which is half outside a
+ * group that clips itself — that is how the hairlines its cells draw stop at its edge —
+ * so no address the page ever painted was whole, and a first row's was a sliver.
+ *
+ * When: while one of the group's marks holds keyboard focus, so an address appears
+ * exactly when a key could use it and a pointer pick never summons one. */
+lf-option > .lf-address { position: absolute; top: 8px; left: 6px; }
+lf-options[choose]:has(.lf-pick:focus-visible) > lf-option > .lf-address {
+                     display: block; }
+/* The thread multi-question's submit (the module adds it there alone): one press
+ * stating the set is whole, since every toggle already reached the agent as it
+ * landed. Answered is paint, never a wider word — the pressed control's own line
+ * holds still. */
+lf-options > .lf-done { margin-top: 8px; }
+lf-options[answered] > .lf-done { color: var(--ok-ink); border-color: var(--ok);
+                     background: var(--ok-tint); }
+/* A group under `choose` is one control, not a set of options standing near each other.
+ * Deleting the offer word left the question of what says a decision is waiting, and the
+ * answer is the group rather than another thing drawn on every member: a group offers and
+ * its members are what is offered, so writing the offer onto each of them was the mistake a
+ * dot repeats more quietly than a word did. Cells of one width sharing edges, divided by a
+ * hairline instead of a gap, is what a segmented control is made of and all it is made of —
+ * repetition at one size says "these are alternatives" before a word is read, and it says
+ * it once. The shape appears only where `choose` does, so its presence is the offer.
+ *
+ * Both forms, because the question is the group's rather than the layout's: the titled
+ * form's cards and the question form's list alike become cells of the same control, one
+ * per row, and neither states its own answer to "is this answerable". Hence
+ * `display: grid` over forms the theme otherwise lays out as blocks — one column, no
+ * template stated — so each option is a cell and the 1px gap is where the hairline
+ * lives.
+ *
+ * The list form was left out of this at first, on the reading that a bare-label row is a
+ * quiet thing and a border around it would be shouting. What that actually shipped was a
+ * question with no visible answer to "which of these can I press": the rows carry no
+ * border, no fill and no rule between them (the list rules below), so at rest a `choose`
+ * list is three lines of prose with a faint dot column off to the right, and the only thing
+ * that ever draws a row's own box is the hover wash — which arrives after the reader has
+ * already had to guess where to aim. A reader said so of the shipped page. Whatever the
+ * form, the offer has to be visible before the pointer is committed, and that is the same
+ * fact this rule was written for.
+ *
+ * The live page only, which is the same reason twice. On paper nothing can be picked, and
+ * an exported copy has had its scripts dropped, so a group drawn as a control in either
+ * would be offering what the medium cannot take. Both get the page without the offer by
+ * never being handed it rather than by undoing it — the bargain the box for words already
+ * makes — so the cards come apart again and wear the rings they print. Not `settled` either, for the same reason in a different medium: a retired decision
+ * is a line the user opens, and drawing the group as a control around it would put one
+ * box inside another and offer a question nobody is asking. Opened, its cards come back as
+ * cards — with their rings, since the ring and the container are the same decision made
+ * twice and a group that isn't joined has to say the offer itself. */
+@media screen {
+ html:not(.lf-copy) {
+  lf-options[choose]:not([settled]) {
+    display: grid; gap: 1px; background: var(--card);
+    border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
+    /* The hairline is the cell's own outer shadow rather than the gap showing a colour
+     * behind it. Not every child is a cell — the thread multi-question's Done press sits
+     * here with a margin of its own — and a colour behind would band whatever room a
+     * non-cell keeps around itself. Drawn by the cells, only the cells draw it, and
+     * the group's clip takes the overhang at its edges.
+     *
+     * Both statuses then move inside, since a cell has no border of its own left to colour:
+     * each is a stripe on the leading edge, paint within the box it belongs to, which is
+     * what holding still asks for anyway. Held in `--stripe` and `--fill` so a state names
+     * its colour and the composite is written once — the alternative is every state
+     * restating the hairline beside its own stripe, and the day one of them forgets, a
+     * cell loses the line that made the group one thing. (Not named --rail: that token is
+     * the page's comment margin, and a cell redefining it for a different fact was one
+     * name meaning two things.) */
+    & > lf-option { --stripe: transparent; --fill: var(--card);
+                     margin: 0; border: 0; border-radius: 0; background: var(--fill);
+                     box-shadow: 0 0 0 1px var(--rule), inset 3px 0 0 var(--stripe); }
+    /* Hover deepens whatever the cell is filled with, rather than lifting it: a cell that
+     * rose would pull away from the hairlines that are the whole of what joins the group.
+     * One rule for every state, the pick included — clicking that one clears it, so it has
+     * to keep answering the pointer. Toward the ink rather than toward black, so the same
+     * declaration deepens on paper-white and lightens on the dark palette.
+     *
+     * The fill is not in the group's transition, and that is the choose block above rather
+     * than an omission here: the tokens themselves change when the reader's system flips to
+     * dark, so a transitioned background animates every cell of every group from one palette
+     * to the other — a page repainting itself over a tenth of a second for a change nobody
+     * on it made. It is also how the contrast sweep found this, by reading a cell mid-flip
+     * and getting a grey that belongs to neither palette. */
+    & > lf-option:hover { transform: none;
+                     background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
+    & > lf-option[recommended] { --stripe: var(--accent); }
+    & > lf-option[chosen] { --stripe: var(--ok); --fill: var(--ok-tint); }
+    /* The box for words is the group's own child, so joining the group takes it inside the
+     * border too — and butted against the last cell with the same hairline, it reads as one
+     * more option rather than as the way past them. It is apparatus, so it wears the tint
+     * apparatus wears here and sits as the control's footer, which is what it is: the answer
+     * for a reader whom none of the cells above fits. */
+    & > .lf-say { margin-top: 0; padding: 10px 12px; background: var(--field);
+                     box-shadow: 0 0 0 1px var(--rule); }
+    /* On a single-pick card the mark keeps its box and stops drawing. The room stays
+     * reserved, so a pick still moves nothing; the ring is the weaker of two ways to say
+     * the same thing now that the group's shape says it, and one mechanism per guarantee
+     * means the weaker one goes.
+     *
+     * A card can give it up because the state has the whole cell to live in — the fill and
+     * the rail are the card. A row's cell is one line, and its mark is a column at the
+     * line's end that the form reserves room for by name (the list rules below): stop
+     * drawing there and the reservation is a hole rather than padding, with every row
+     * ending in a wide blank where the ticks were. So the ring stays in the list.
+     *
+     * And it stays under `multiple`, in either form, because there the empty box is not
+     * the offer repeated — it is the slot's own state, and the group's shape cannot stand
+     * in for it. One cell filled says "this one" whichever question was asked; three
+     * unticked boxes beside it are what say the other two are still yours to take, and how
+     * many you may. This rule read the ring's second job as the list form's, which was the
+     * list form having got there first: `multiple` is orthogonal to which form a group
+     * takes, so a card group that asked "which of these" drew no box anywhere and offered
+     * the reader nothing to count. */
+    &:not([multiple]) > lf-option:has(> strong) .lf-pick:not([data-lf-said])::before {
+                     visibility: hidden; }
+    & > lf-option:has(> .lf-pick:focus-visible) { outline: 2px solid var(--accent);
+                     outline-offset: -2px; }
+    & > lf-option > .lf-pick:focus-visible { outline: none; }
+  }
+  /* The column an option's keyboard address stands in: 17px of chip and a margin either
+   * side, held whether or not anyone reaches for the keyboard, because the alternative is
+   * a digit arriving into room the option hasn't got. The first drafts all borrowed room
+   * from somewhere — from the cell's corner, where a corner belongs to the cells around
+   * it and the group's own border ran through it, and from the page margin beside the
+   * group, which in the grid of that day was another cell's words as soon as the group
+   * had two columns. Reserved, the digit has one place in every form and lands on
+   * nothing.
+   *
+   * Live pages only, with the group's own shape: a copy and paper are handed no keys, so
+   * they keep the options the markup describes rather than a rail held for an address
+   * nothing can type. */
+  lf-options[choose] > lf-option { padding-left: 30px; }
+ }
+}
+/* The row form: a list, so it reads like one. Every row opens at the same column with
+ * what the reader is choosing between, and the apparatus — the block it is about, the
+ * mark — runs to the line's end. Leading with the mark cost exactly that alignment: a
+ * picked row's mark is wider than an open one's by the word it says, so the labels came
+ * out ragged and the eye had nothing straight to run down.
+ *
+ * A table, because a row is a run of prose with apparatus after it, and the anonymous cell
+ * a table puts around that run is the only box the words can have while the markup stays
+ * the author's. Laid out as flex items they had none: every stretch of a label was an item
+ * of its own, so an inline <code> mid-label came out with the row's own 8px gap either
+ * side of it and without the space that was written there — a flex item's edge whitespace
+ * is trimmed, and the gap had been standing in for it on every label that was one run.
+ *
+ * An open mark shows its dot and not its word, which is now every form's rule rather than
+ * this one's. The row form got there first and then argued the wrong reason for keeping the
+ * word on a card — that a card has no dots beside it to say it — when a choose group has
+ * two to five cards and every one carries a mark. The column was there; it was weak, spread
+ * down a tall card, and the answer to that is to strengthen it.
+ *
+ * The dot itself is the row's and not the card's, and the reason is this form's own
+ * apparatus rather than anything about offers: a row reserves a column of room for its
+ * mark by name below, so a mark that stopped drawing would leave a blank the width of the
+ * word it isn't saying at the end of every line. A card's mark stands in padding, where
+ * drawing nothing reads as padding. Both are stated where the joined group is (above). */
+lf-options:not(:has(> lf-option > strong)) > lf-option {
+                     display: table; width: 100%; border-spacing: var(--sp-2) 0;
+                     padding: 5px 0; border: 0; border-radius: 6px;
+                     background: none; box-shadow: none; }
+lf-options:not(:has(> lf-option > strong)) > lf-option[recommended] {
+                     background: color-mix(in srgb, var(--accent) 8%, transparent); }
+lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
+                     background: var(--ok-tint); }
+lf-options[choose]:not(:has(> lf-option > strong)) > lf-option:hover {
+                     background: var(--chip); }
+lf-options[choose]:not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
+                     background: var(--ok-tint); }
+/* The apparatus takes a cell each and claims none of the row's free width, so what is
+ * left over goes to the words and the mark ends every row at the same column, whether or
+ * not a reference stands beside it. Which is what a row of flex items could not say: the
+ * free space had to be handed to whichever part came first, so the column rested on an
+ * attribute (`for`) the form does not require, and a row naming no block parked its mark
+ * wherever its label happened to end. */
+lf-options:not(:has(> lf-option > strong)) > lf-option > :is(.lf-ref, .lf-pick) {
+                     display: table-cell; width: 0; white-space: nowrap; }
+/* The mark holds the room its word will need before it needs it: an open mark is a dot, a
+ * picked one is a dot and up to "your pick" beside it, and a mark that took that room at
+ * the moment it was pressed dragged the § reference beside it 54px to the left,
+ * mid-gesture. So the dot hangs at the cell's end, out of flow, over padding that reserves
+ * it (its own 11px and the 6px between it and the word), and the word grows leftward into
+ * room already held. Out of flow rather than last in it, because the word is what decides
+ * a line box's height and an open mark hasn't got one: centred on the row, the dot stands
+ * where it stood whether or not the word is there to say so.
+ *
+ * The dot's room is a fact about a shape, so it is stated here. The word's is a fact about
+ * a font, and no number written here stays true to one: 68px covered "your pick" in the
+ * face macOS sets the chrome in and came 2px short of the DejaVu the CI runner has, so
+ * every row on Linux dragged its § reference two pixels left mid-press. The press test
+ * said so the moment there was a second platform to say it on, which is as early as a
+ * stated number can be caught and later than one needs to be. So the word's room is
+ * measured from the words in a mark's own live face and stated by the group
+ * (lf-options.js), and this form is the one that spends it: a card's mark is out of flow
+ * and moves nothing, so spending it there would buy only a focus ring drawn round room
+ * the card never needed. */
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
+                     position: relative; box-sizing: border-box;
+                     min-width: var(--lf-word-room);
+                     padding-right: 17px; text-align: right; }
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick::before {
+                     position: absolute; right: 0; top: 0; bottom: 0; margin: auto 0; }
+/* The block a row is about (`for`). It points; it never supplies the row's words, so it
+ * reads as what it is — an id, written the way the comment panel writes an element
+ * anchor — and rides at the line's end with the mark, out of the way of what the row
+ * says. */
+.lf-ref { font-size: var(--t-6); color: var(--muted); text-decoration: none;
+          white-space: nowrap; }
+.lf-ref:hover { color: var(--accent); text-decoration: underline; }
+/* The box for words a choose group carries is the runtime's sayBox; its rules live
+ * with the integrated theme. The group's own placement of it is stated above, in
+ * the choose-group block. */
+/* Paper takes no input, so the group prints as one that was never choosable: the
+ * marks offering a pick go with the rest of the UI, and the one on the card that
+ * carries it stays to say which option the page holds. That needs no rule here —
+ * the mark's label declares which kind of word it is (lf-options.js), and the
+ * runtime hides the offers. Left hidden, a printout would state the decision in
+ * the ok ring alone, which greyscale drops. */
+/* `settled`: the decision is made and acted on, so the group reads as one line
+ * — the disclosure the upgrade builds — with the cards behind it. Unupgraded, and
+ * anywhere the disclosure has no handler behind it, every card shows. */
+/* The row wears lf-ui, and the chrome face, size and ink it carries are the look; what
+ * this states is only the row's own box and weight. (The part of the row naming the
+ * chosen card is the page speaking and says so, which anchoring reads over the class —
+ * see lf-options.js.) Laid out by the live-page block below; hidden until then, because
+ * a button is worth showing only where something will answer it. */
+lf-options[settled] > .lf-settled {
+              display: none; width: 100%; align-items: baseline;
+              gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 7px 12px;
+              font-weight: 600; text-align: left;
+              background: var(--field); cursor: pointer;
+              border: 1px solid var(--rule); border-radius: var(--r); }
+lf-options[settled]:not([open]) > .lf-settled { margin-bottom: 0; }
+lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
+lf-options[settled] > .lf-settled:focus-visible { outline: 2px solid var(--accent);
+              outline-offset: 1px; }
+.lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
+lf-options[open] > .lf-settled::before { content: "▾"; }
+.lf-settled-count { margin-left: auto; font-weight: 400; font-size: var(--t-6);
+                    color: var(--muted); white-space: nowrap; }
+.lf-settled-diff { font-weight: 400; font-size: var(--t-6); padding: 0 6px;
+                   border-radius: 999px; background: var(--add-tint); color: var(--ok-ink); }
+/* The collapse is the whole of what the disclosure's handler does, so it is offered
+ * only in the live page and every other medium gets the cards back by never being
+ * handed it, rather than by undoing a hide. A page left holding the row elsewhere
+ * would state a decision and offer no way to the options it was made among. */
+@media screen {
+  html:not(.lf-copy) {
+    lf-options[settled] > .lf-settled { display: flex; }
+    /* until-found keeps the card's own box in flow, and a card is bordered,
+     * padded, and (stacked) margined — zero it all, or the collapse leaves a
+     * stack of empty boxes behind. A block, because the content-visibility that
+     * until-found collapses the box with is containment, and containment passes
+     * over a table box without a word: a question row states its layout as a table
+     * and stayed on screen under a closed disclosure, reading as a group that had
+     * not collapsed at all. */
+    lf-options[settled] > lf-option[hidden] { display: block; padding: 0; border: 0;
+                                              box-shadow: none; margin: 0; }
+    /* The boolean-hidden fallback (no until-found support) hides here, because the
+     * display:block above outranks the UA's [hidden] rule. */
+    lf-options[settled] > lf-option[hidden]:not([hidden="until-found"]) { display: none; }
+  }
+}
+/* Paper cannot edit the document the way `version export` does, so collapsed cards keep
+ * their hidden attribute and the content-visibility it carries is undone here. */
+@media print {
+  lf-options[settled] > lf-option { content-visibility: visible !important; }
+}
+
+/* lf-milestones / lf-milestone: a rail of status dots. The rail and dots are
+ * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. */
+lf-milestones { display: block; margin: 14px 0 14px 8px; }
+lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
+               border-left: 2px solid var(--rule); }
+lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
+lf-milestone::before { content: ""; position: absolute; left: -7px; top: 3px;
+                       width: 10px; height: 10px; border-radius: 50%;
+                       background: var(--paper); border: 2px solid var(--muted); }
+lf-milestone[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
+lf-milestone[status="active"]::before { border-color: var(--accent);
+                                        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+lf-milestone[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
+lf-milestone > strong { display: block; margin: 0 0 2px; }
+lf-milestone[status="done"] > strong { color: var(--muted); }
+.lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
+
+/* lf-tasks / lf-task: a hierarchy of work. The indent guides and status
+ * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's
+ * done-fraction) is built by the lf-task upgrade. The marker vocabulary is
+ * the milestone's, plus `review` in the warn tint: finished by its holder,
+ * awaiting the reader — the amber is the reader's own work showing. */
+lf-tasks { display: block; margin: 14px 0; }
+lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
+lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
+                  width: 10px; height: 10px; border-radius: 50%;
+                  background: var(--paper); border: 2px solid var(--muted); }
+lf-task[status="done"]::before    { background: var(--ok); border-color: var(--ok); }
+lf-task[status="active"]::before  { border-color: var(--accent);
+                                    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+lf-task[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
+lf-task[status="review"]::before  { background: var(--warn); border-color: var(--warn); }
+lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule); }
+lf-task > strong { margin-right: 6px; }
+lf-task[status="done"] > strong { color: var(--muted); }
+
+/* lf-timeline / lf-event: an event log on a rail. The dot is ::after, absolute,
+ * colored by kind; the time label is the `at` attribute, said above the title. */
+lf-timeline { display: block; margin: 14px 0 14px 8px; }
+lf-event { display: block; position: relative; padding: 0 0 16px 26px;
+           border-left: 2px solid var(--rule); }
+lf-event:last-child { border-left-color: transparent; padding-bottom: 2px; }
+lf-event::after { content: ""; position: absolute; left: -7px; top: 4px;
+                  width: 10px; height: 10px; border-radius: 50%;
+                  background: var(--paper); border: 2px solid var(--muted); }
+lf-event[kind="info"]::after    { background: var(--muted); }
+lf-event[kind="action"]::after  { background: var(--accent); border-color: var(--accent); }
+lf-event[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
+lf-event[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
+lf-event[at]::before,
+lf-event > [data-lf-said="at"] { display: block; font-family: var(--mono);
+                       font-size: var(--t-6); color: var(--muted); margin-bottom: 1px; }
+lf-event[at]::before { content: attr(at); }
+lf-event:has(> [data-lf-said="at"])::before { content: none; }
+lf-event > strong { margin-right: 6px; }
+
+/* lf-compare / lf-variant: labeled columns; exhibition, not decision. */
+lf-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+             gap: var(--sp-3); margin: 14px 0; }
+lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(--r);
+             padding: var(--sp-3); background: var(--card); font-size: 15px; }
+lf-variant > strong { display: block; margin: 0 0 4px; font-size: 16px; }
+
+/* lf-metrics / lf-metric: a KPI row. The value leads, said from the attribute;
+ * the delta trails and colors by sign × direction — honest coloring, no JS. */
+lf-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+             gap: var(--sp-3); margin: 14px 0; }
+lf-metric { display: block; border: 1px solid var(--rule); border-radius: var(--r);
+            padding: 10px 14px; background: var(--card); font-size: var(--t-6);
+            text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+lf-metric::before,
+lf-metric > [data-lf-said="value"] { display: block; font-size: var(--t-2);
+                    font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
+                    text-transform: none; color: var(--ink); }
+lf-metric::before { content: attr(value); }
+lf-metric:has(> [data-lf-said="value"])::before { content: none; }
+lf-metric[delta]::after,
+lf-metric > [data-lf-said="delta"] { display: inline-block; margin-left: 6px;
+                          padding: 0 7px; border-radius: 999px; letter-spacing: 0;
+                          text-transform: none; font-size: var(--t-6); line-height: 1.6;
+                          background: var(--chip); color: var(--ink-2); }
+lf-metric[delta]::after { content: attr(delta); }
+lf-metric:has(> [data-lf-said="delta"])::after { content: none; }
+lf-metric[direction="up-good"][delta^="+"]::after,
+lf-metric[direction="up-bad"][delta^="-"]::after,
+lf-metric[direction="up-good"][delta^="+"] > [data-lf-said="delta"],
+lf-metric[direction="up-bad"][delta^="-"] > [data-lf-said="delta"]
+                    { background: var(--ok-tint); color: var(--ok-ink); }
+lf-metric[direction="up-good"][delta^="-"]::after,
+lf-metric[direction="up-bad"][delta^="+"]::after,
+lf-metric[direction="up-good"][delta^="-"] > [data-lf-said="delta"],
+lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
+                    { background: var(--danger-tint); color: var(--danger-ink); }
+
+/* lf-board / lf-column / lf-card: the one widget the user edits directly.
+ * All presentation is CSS; the lf-board upgrade only wires dragging (grips,
+ * dropzones) and reports each drop as a `move` action. Unupgraded it reads as a
+ * static board. */
+lf-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(10rem, 1fr);
+           gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
+lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
+            border-radius: var(--r); padding: 8px; min-height: 64px; }
+/* The heading is written by lf-board.js rather than by the x-says pass, because
+   it is the list's accessible name as well as its visible words and the pass
+   knows nothing about names. Where the upgrade ran, the column carries those
+   words as its name and the span is aria-hidden, so they reach the tree once;
+   where no script runs at all there is no name either, and the generated copy
+   is the whole rendering, audible as well as visible. */
+lf-column::before,
+lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-6);
+            text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+            padding: 2px 4px 8px; }
+lf-column::before { content: attr(label); }
+lf-column:has(> [data-lf-said="label"])::before { content: none; }
+lf-card { display: block; position: relative; background: var(--card);
+          border: 1px solid var(--rule); border-radius: var(--r);
+          padding: 8px 34px 8px 10px; margin: 0 0 var(--sp-2); font-size: 15px; }
+lf-card:last-child { margin-bottom: 0; }
+lf-card > strong { display: block; margin: 0 0 2px; }
+/* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. */
+lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
+          cursor: grab; padding: 8px 10px;
+          border-radius: 4px; user-select: none;
+          -webkit-user-select: none; font-size: 14px; line-height: 1;
+          touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
+lf-card:hover > .lf-grip { color: var(--ink-2); }
+lf-card .lf-grip:hover { background: var(--chip); }
+lf-card .lf-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px;
+          color: var(--ink-2); }
+/* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
+lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
+lf-card.lf-lift { box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
+/* (No transform here: Sortable positions the follower with an inline matrix.) */
+lf-card.lf-inhand { opacity: 1; cursor: grabbing;
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
+/* lf-tabs / lf-tab: parallel workstreams, one panel on screen at a time. The
+ * strip is generated by the upgrade; which tab is open is the reader's view
+ * state, so everything here is presentation. Unupgraded, and anywhere the
+ * strip has no handler behind it, the panels stack as labeled sections. */
+lf-tabs { display: block; margin: 14px 0; }
+lf-tab { display: block; }
+lf-tab::before { content: attr(label); display: block; font-size: var(--t-6);
+                 text-transform: uppercase; letter-spacing: .05em;
+                 color: var(--muted); margin: 18px 0 8px; }
+lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
+/* Laid out by the live-page block below; hidden until then, because a row of
+ * buttons is worth showing only where something will answer one. */
+.lf-tabstrip { display: none; flex-wrap: wrap; gap: 2px;
+               border-bottom: 1px solid var(--rule); }
+.lf-tabstrip .lf-tab-btn { padding: 6px 12px;
+               color: var(--muted); cursor: pointer;
+               border-bottom: 2px solid transparent; margin-bottom: -1px;
+               border-radius: var(--r) var(--r) 0 0; }
+.lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); background: var(--chip); }
+/* Ink and the accent underline, and deliberately not weight: a bolder label is a
+ * wider label, so every tab after the selected one slid a couple of pixels on each
+ * switch and the strip reshuffled under the pointer that had just pressed it. */
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] { color: var(--ink);
+               border-bottom-color: var(--accent); }
+.lf-tabdiff { font-size: var(--t-6); font-weight: 400; margin-left: 6px;
+              padding: 0 6px; border-radius: 999px;
+              background: var(--add-tint); color: var(--ok-ink); }
+/* One panel at a time is the whole of what the strip's handler does, so it is
+ * offered only in the live page and the rest is what the markup already says.
+ * A control whose state the browser owns needs no such block and has none;
+ * that is the whole difference between this widget and lf-shot's radios. */
+@media screen {
+  html:not(.lf-copy) {
+    .lf-tabstrip { display: flex; }
+    lf-tabs.lf-rendered > lf-tab::before { content: none; } /* the strip carries the label */
+    /* until-found keeps the element's own box in flow; zero it so inactive panels
+     * leave no stray gap below the active one. */
+    lf-tabs.lf-rendered > lf-tab[hidden] { margin: 0; }
+    /* The boolean-hidden fallback (no until-found support) hides here, because the
+     * display:block above outranks the UA's [hidden] rule. */
+    lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
+  }
+}
+/* Paper cannot edit the document the way `version export` does, so inactive panels keep
+ * their hidden attribute and the content-visibility it carries is undone here. */
+@media print {
+  lf-tabs.lf-rendered > lf-tab { content-visibility: visible !important; }
+}
+
+/* lf-shot: a before/after pair of screenshots, one on screen at a time. Both
+ * frames occupy the same grid cell, so the box is the taller of the two and
+ * flipping between them moves nothing under it — which is the whole point, the
+ * change being the only thing that shifts. The switch is a radio group and one
+ * :has(:checked) rule, so it runs with no script behind it: in a page whose
+ * handlers are gone, and after a `min-width` media query too narrow for the
+ * radios to be worth showing. Print shows both frames stacked, since paper has
+ * nothing to press — the radios drop with the other offers and the captions,
+ * which are the only words saying which frame is which, stay. */
+lf-shot { display: block; margin: 16px 0; }
+lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
+    border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden;
+    background: var(--card); }
+lf-shot:has(.lf-shotframe) { display: grid; }
+lf-shot .lf-shotframe img { display: block; width: 100%; height: auto; }
+lf-shot:has(input[value="after"]:checked) .lf-shotframe[data-lf-state="before"],
+lf-shot:has(input[value="before"]:checked) .lf-shotframe[data-lf-state="after"] {
+    visibility: hidden; }
+lf-shot .lf-shotcap { position: absolute; top: 6px; left: 6px;
+    font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
+    padding: 2px 7px; border-radius: 999px; background: var(--veil);
+    border: 1px solid var(--rule); color: var(--muted); }
+lf-shot .lf-shotpick { grid-area: 2 / 1; display: flex; gap: var(--sp-3);
+    align-items: center; margin-top: var(--sp-2); font-size: var(--t-5);
+    color: var(--muted); }
+lf-shot .lf-shotpick label { display: inline-flex; gap: 5px; align-items: center;
+    cursor: pointer; }
+lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
+    outline-offset: 1px; }
+@media print {
+  lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
+  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
+}
+
+/* lf-specimen: quoted material — a widget or section the page exhibits rather
+ * than speaks (a sample decision, a demo board). It wears the quotation idiom,
+ * blockquote's muted hairline gutter opened by a small-caps label — not the
+ * callout's tinted field, and not the left-accent bar that rule forbids: a
+ * quote-bar marks provenance, an accent bar demands attention. The content
+ * itself renders at full fidelity (an exhibit must show the real thing), so
+ * the gutter and label alone say "mention, not use". Input never leaves one:
+ * the interactive widgets check quoted() before wiring (lf-options.js,
+ * lf-board.js), so a quoted choose group renders as though it never declared
+ * `choose` and a quoted board stays the static board the theme already
+ * renders. */
+lf-specimen { display: block; margin: 18px 0; padding: 2px 0 2px 16px;
+              border-left: 2px solid var(--border-2); }
+lf-specimen::before,
+lf-specimen > [data-lf-said="label"] { display: block; font-size: var(--t-6);
+              letter-spacing: .08em; text-transform: uppercase;
+              color: var(--muted); }
+lf-specimen::before { content: "specimen"; }
+lf-specimen[label]::before { content: "specimen · " attr(label); }
+lf-specimen:has(> [data-lf-said="label"])::before { content: none; }
+lf-specimen > [data-lf-said="label"]::before { content: "specimen · "; }
+/* A quoted choose group renders as one that never declared `choose`, and these
+ * are that promise in CSS: no pointer cursor, no hover lift, and no room held
+ * for a mark strip nothing will fill — each card at the height it would have
+ * with no pick to make. Two cards sit out: the one the document marks (that
+ * mark is the document's state, quoted or not) and a hidden one, which the
+ * settled collapse has zeroed and which this selector would otherwise outrank.
+ * Not the upgrade's job restated — lf-options is a CSS-only widget and a page
+ * can render the whole vocabulary with no script (docs/how-it-works.html does),
+ * so the pressable look is keyed on `choose` here and can only be unkeyed here;
+ * stripping the attribute in quoted() would leave a script-less specimen with a
+ * pointer cursor over a card nothing can pick. The upgrade holds the half no
+ * stylesheet can: the click handler. */
+lf-specimen lf-options[choose] > lf-option { cursor: auto; }
+lf-specimen lf-options[choose] > lf-option:not([chosen], [hidden]) {
+              padding-bottom: var(--sp-3); }
+lf-specimen lf-options[choose] > lf-option:hover { transform: none; box-shadow: none; }
+lf-specimen lf-options[choose] > lf-option[recommended]:hover {
+              box-shadow: 0 0 0 1px var(--accent); }
+lf-specimen lf-options[choose] > lf-option[chosen]:hover {
+              box-shadow: 0 0 0 1px var(--ok); }
+
+/* Upgraded widgets: pre-upgrade presentation, so a page degrades readably. */
+lf-diagram, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
+             font-family: var(--mono); font-size: 13px;
+             color: var(--muted); overflow-x: auto; }
+lf-diagram.lf-rendered, lf-diff.lf-rendered, lf-tree.lf-rendered,
+lf-code.lf-rendered {
+             font: inherit; color: inherit; overflow: visible; }
+/* The authored body, before its module replaces it. Nothing here says white-space: the
+   body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
+   near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
+   mono face, an inset. This <pre> is not that: it is the widget's own content, about to
+   be rendered or edited, inside an element that has already said how it looks and how
+   far it stands off. The rendered <pre> a module builds is evidence again, and keeps
+   the dressing. */
+lf-diagram:not(.lf-rendered) > pre, lf-diff:not(.lf-rendered) > pre,
+lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
+             background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
+             font: inherit; line-height: inherit; overflow: visible; }
+/* A rendered diagram keeps its natural size — its module strips mermaid's
+ * scale-to-fit, which set a wide flowchart's labels below legibility — so a wide one
+ * scrolls in its own box, the same answer a wide table gets, instead of painting over
+ * the margin. max-width: none escapes the page-wide svg rule near the top, which
+ * would scale it right back down. Paper cannot scroll, so print restores the fit:
+ * width and viewBox stay in the markup, and max-width alone scales the drawing whole. */
+lf-diagram.lf-rendered { overflow-x: auto; }
+lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
+@media print {
+  lf-diagram svg { max-width: 100%; }
+}
+
+/* The rules a shadow-rendering widget (x-shadow) carries into its own tree. A selector
+   written out here reaches the document and stops dead at a shadow boundary, so these
+   are sliced out at load and put back as a <style> the shadow root owns — which is also
+   what makes them survive `version export`, since an adopted stylesheet is in no
+   element's markup and a copy runs no script to adopt one. They stay in this file
+   because the theme owns the look: a project overriding the theme overrides these with
+   it, and a second copy in a widget module would be a second answer to what a diff
+   looks like. Everything inside the markers is written for the shadow tree — :host is
+   the widget element itself — so nothing in here matches anything at document level. */
+/* lf-shadow:start */
+:host(.lf-rendered) details { margin: 8px 0; padding: 0; overflow: hidden;
+                              background: var(--card); border: 1px solid var(--border-2);
+                              border-radius: var(--r); }
+:host(.lf-rendered) summary { padding: 6px 12px; font-size: 13px; font-family: var(--sans); }
+.lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
+                font-size: var(--t-6); }
+:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--rule);
+                          border-radius: 0; padding: 6px 0; overflow-x: auto;
+                          font-family: var(--mono); font-size: var(--t-6);
+                          line-height: 1.55; color: var(--ink); }
+/* A child selector, because a line's own span is not the only one in here any more:
+   syntax colour puts one around each token, and as a descendant rule this laid every
+   token out on a line of its own. */
+pre > span { display: block; padding: 0 12px; }
+pre .add  { background: var(--add-tint); }
+pre .del  { background: var(--del-tint); }
+pre .hunk { color: var(--accent); background: var(--pre-bg); }
+pre .note { color: var(--muted); } /* git's remark on the line above, not a line */
+/* Syntax colour is the same statement the document makes, and the tokens are in here
+   rather than out there, so the rules come too. The custom properties they read inherit
+   through the boundary, which is why only the selectors need repeating. */
+[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
+[data-lf-syn="kw"] { color: var(--syn-keyword); }
+[data-lf-syn="st"] { color: var(--syn-string); }
+[data-lf-syn="nu"] { color: var(--syn-number); }
+[data-lf-syn="fn"] { color: var(--syn-name); }
+[data-lf-syn="ty"] { color: var(--syn-type); }
+/* lf-shadow:end */
+
+/* The unupgraded fallback stays at document level: before the module runs, and on any
+   page carrying no script at all, the authored <pre> is what shows. */
+lf-diff:not(.lf-rendered) .lf-diff-stat { color: var(--muted); }
+
+/* lf-tree rendered form: nested lists with hairline guides and change badges. */
+lf-tree.lf-rendered { font-family: var(--mono); font-size: 13px; }
+lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
+lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
+lf-tree li { margin: 3px 0; }
+lf-tree .lf-tree-dir { font-weight: 600; }
+/* nowrap because the module appends name and badges with no whitespace between them and
+ * spaces them by margin, so a line is one word to the breaker: told it may break inside
+ * one, it split a two-character badge down the middle and drew half the pill on each
+ * line. The name is what breaks now, which is the one of the three that can. */
+lf-tree .lf-tree-badge { font-size: var(--t-6); padding: 0 6px; margin-left: 6px;
+                         border-radius: 999px; white-space: nowrap; }
+lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
+lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
+
+/* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
+lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
+lf-code .lf-code-line { display: block; padding: 0 14px 0 0; }
+lf-code .lf-code-line::before { counter-increment: lf-code-line;
+             content: counter(lf-code-line); display: inline-block; width: 34px;
+             padding-right: 12px; text-align: right; color: var(--muted-2); }
+lf-code .lf-code-line.hi { background: var(--hi-tint); }
+/* A note is the author's sentence about a line, so it leaves the mono the block
+   is set in and comes back to the document's own voice — it is prose, and a
+   user quotes it like any other. Stated here rather than in the apparatus
+   rule for that reason, and because it has a `pre`'s mono to escape either way. */
+lf-code .lf-code-note { margin: 4px 8px 6px 46px; padding: 6px 10px;
+             background: var(--field); border: 1px solid var(--rule);
+             border-radius: var(--r); font-family: var(--serif);
+             font-size: var(--t-5); white-space: normal; }
+lf-code lf-note { display: block; }
+
+/* lf-draft rendered form: a block of text the user owns. The dashed border says
+   "editable"; the ✎ button is the accessible door (double-click is the fast path) and
+   sharpens on hover or focus. Newlines in a draft are content, so the body preserves
+   them. An edited-but-unhonored draft wears the runtime's data-lf-pending mark,
+   the same green every decided-and-unhonored widget wears. Unupgraded, the same
+   box shows raw text.
+
+   Reading and editing are one box, not a box inside a box. The two views state their
+   shared metrics together — same font (both inherit the page's), same wrapping — and
+   the edit box drops everything the runtime's general textarea rule adds around text
+   that would move it: the padding and border shifted the words 9px right and 6px down,
+   the 64px floor stretched a two-line draft, and inline-block layout left a baseline
+   gap under it. So a double-clicked word stays under the pointer, which is what makes
+   the gesture worth aiming. field-sizing (that same rule) does the growing, so the box
+   is as tall as its text and no taller — what read mode showed. The affordance moves to
+   the host, since a border on the textarea is a border read mode hasn't got: the dashed
+   border goes solid and accent for as long as an edit is open.
+
+   The controls are a fixed part of that box rather than something an edit adds to it:
+   one row under the text in both views, holding ✎ while reading and Cancel and Save
+   while editing, all three the same button, so the row's height is the same in either
+   view and nothing under the pointer moves. It cost the ✎ its floating corner. An
+   absolute corner costs no height, but then the row replacing it does, and the box grew
+   36px the instant a double-click landed — a gesture aimed at a word, answered by the
+   whole block changing shape. The text got the corner's 40px gutter back.
+
+   The box being open is a fact about the screen, so the whole swap is scoped to it and
+   the widget's JS writes none of it. Paper drops the box with the other offers, and
+   without this scope it dropped the hidden body too and printed a draft as an empty
+   frame — the words a page states have to survive a medium that has no box to type in,
+   and an unsent edit is not yet among them.
+
+   The ring is inset, which is the metrics above carried out one layer: every word held
+   still and the frame around them did not, because an outset ring paints 2px past the
+   border on every side with the corners rounding wider to match. A shadow costs no
+   layout, so every rect agreed nothing had happened and it took a screenshot diff to
+   find. Inside the border there is padding to paint on and nothing of the page's to
+   disturb. */
+lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
+           padding: 10px 14px; margin: 12px 0; background: var(--card); }
+.lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
+.lf-draft-pencil { opacity: .45; }
+lf-draft:hover .lf-draft-pencil, lf-draft:focus-within .lf-draft-pencil { opacity: 1; }
+/* The one control whose face is deliberately the document's: the box shows the page's
+   words in the page's serif, or the double-clicked word reflows under the pointer the
+   moment the box opens. Stated unlayered, so it outranks the runtime's layered
+   UA-clearing and the chrome face .lf-ui would otherwise put on it. */
+.lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
+           font: inherit; min-height: 0; max-height: none; overflow: hidden; }
+.lf-draft-edit.lf-ui:focus { box-shadow: none; }
+.lf-draft-controls, .lf-draft-history { display: none; }
+@media screen {
+  html:not(.lf-copy) {
+    lf-draft:has(.lf-draft-edit) { border-style: solid;
+               border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+               box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+    lf-draft:has(.lf-draft-edit) > .lf-draft-body,
+    lf-draft:has(.lf-draft-edit) .lf-draft-pencil { display: none; }
+    .lf-draft-controls { display: flex; }
+    .lf-draft-history { display: block; }
+  }
+}
+.lf-draft-controls { justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
+                    font-size: var(--t-5); color: var(--ink-2); }
+.lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
+.lf-draft-history > summary:hover { color: var(--ink-2); }
+.lf-draft-current { margin: 10px 0; }
+.lf-draft-current > strong { display: block; margin-bottom: 4px; }
+.lf-draft-revisions { margin: 0; padding-left: 20px; }
+.lf-draft-revisions > li { margin: 8px 0; padding-left: 3px; }
+.lf-draft-revision-head { display: flex; align-items: center; justify-content: space-between;
+                          gap: 8px; margin-bottom: 3px; }
+.lf-draft-delta, .lf-draft-snapshot { white-space: pre-wrap; color: var(--ink-2); }
+.lf-draft-delta del { background: var(--del-tint); color: var(--danger-ink); }
+.lf-draft-delta ins { background: var(--add-tint); color: var(--ok-ink);
+                      text-decoration: none; }
+.lf-draft-restore { flex: none; font-size: var(--t-6); }

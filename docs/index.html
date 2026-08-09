@@ -3,49 +3,37 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>colloquy · collaborate with your agent in HTML</title>
+    <title>leaf · collaborate with your agent in HTML</title>
     <meta
       name="description"
-      content="colloquy is a Claude Code and Codex plugin: your agent presents plans, findings, and work in progress as a commentable web page, your comments reach the session, and revised versions ship with changelogs."
+      content="leaf is a Claude Code and Codex plugin: your agent presents plans, findings, and work in progress as a commentable web page, your comments reach the session, and revised versions ship with changelogs."
     />
     <link
       rel="icon"
-      href="../plugins/colloquy/skills/colloquy/assets/icon.svg"
+      href="../plugins/leaf/skills/leaf/assets/icon.svg"
       type="image/svg+xml"
     />
     <meta property="og:type" content="website" />
-    <meta
-      property="og:title"
-      content="colloquy · collaborate with your agent in HTML"
-    />
+    <meta property="og:title" content="leaf · collaborate with your agent in HTML" />
     <meta
       property="og:description"
       content="Your agent presents plans, findings, and work in progress as a commentable web page. Your comments reach the session, and revised versions ship with changelogs."
     />
-    <meta property="og:url" content="https://max-sixty.github.io/colloquy/" />
-    <meta
-      property="og:image"
-      content="https://max-sixty.github.io/colloquy/session-light.png"
-    />
+    <meta property="og:url" content="https://leaf.page/" />
+    <meta property="og:image" content="https://leaf.page/session-light.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link
-      rel="stylesheet"
-      href="../plugins/colloquy/skills/colloquy/assets/theme.css"
-    />
-    <link
-      rel="stylesheet"
-      href="../plugins/colloquy/skills/colloquy/bundled/theme.css"
-    />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/assets/theme.css" />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/bundled/theme.css" />
     <link rel="stylesheet" href="site.css" />
   </head>
   <body>
     <main>
       <nav class="sitenav" aria-label="Site">
-        <span class="brand">colloquy</span>
+        <span class="brand">leaf</span>
         <a href="examples.html">Examples</a>
         <a href="how-it-works.html">How it works</a>
         <a href="customizing.html">Customize</a>
-        <a href="https://github.com/max-sixty/colloquy">GitHub</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
       <header class="hero" id="top">
@@ -75,16 +63,16 @@
             src="session-light.png"
             width="1280"
             height="953"
-            alt="A live colloquy in the browser: a migration plan with a comment anchored
+            alt="A live leaf in the browser: a migration plan with a comment anchored
 to a highlighted passage, Claude's reply in the thread, a version picker reading
 v2 (latest), and a banner reading 'Claude awaits'."
           />
         </picture>
         <figcaption>
-          A colloquy in flight. The user asked about a rollback edge case; Claude
-          replied in the thread and shipped v2 covering it. The picker holds each
-          immutable version with its changelog and a Δ that marks what changed since it,
-          and the banner tracks whether Claude is working or waiting on you.
+          A leaf in flight. The user asked about a rollback edge case; Claude replied in
+          the thread and shipped v2 covering it. The picker holds each immutable version
+          with its changelog and a Δ that marks what changed since it, and the banner
+          tracks whether Claude is working or waiting on you.
         </figcaption>
       </figure>
 
@@ -136,9 +124,9 @@ v2 (latest), and a banner reading 'Claude awaits'."
         <ol class="steps">
           <li id="loop-ask">
             <strong>Ask.</strong> "Write up the migration options as a page" triggers
-            it, as does <code>/colloquy</code> in Claude Code or
-            <code>$colloquy</code> in Codex. The agent writes the page, serves it on a
-            loopback port, and prints the URL.
+            it, as does <code>/leaf</code> in Claude Code or <code>$leaf</code> in
+            Codex. The agent writes the page, serves it on a loopback port, and prints
+            the URL.
           </li>
           <li id="loop-comment">
             <strong>Mark it up.</strong> Select any passage and comment; the passage
@@ -151,8 +139,8 @@ v2 (latest), and a banner reading 'Claude awaits'."
           </li>
           <li id="loop-wake">
             <strong>Your comment reaches the session.</strong> On Claude Code, a
-            background <code>colloquy wait</code> wakes or joins the agent. On Codex,
-            the agent keeps the handover turn active and polls the exact wait session.
+            background <code>leaf wait</code> wakes or joins the agent. On Codex, the
+            agent keeps the handover turn active and polls the exact wait session.
             Either way it acknowledges only after a complete, untruncated batch is in
             model context, so "printed" cannot masquerade as "seen".
           </li>
@@ -164,12 +152,12 @@ v2 (latest), and a banner reading 'Claude awaits'."
           </li>
           <li id="loop-signoff">
             <strong>Conclude deliberately.</strong> Pages seeking approval offer "✓
-            Looks good"; comments-only pages offer a neutral "End colloquy" instead.
+            Looks good"; comments-only pages offer a neutral "End leaf" instead.
             Approval records assent and can leave the page live for follow-up; ending
             comments is a separate event. After either complete batch is received, an
             explicit idle state closes the agent loop when its work there is finished.
-            <code>colloquy transcript</code> prints the whole thread as Markdown for a
-            PR description.
+            <code>leaf transcript</code> prints the whole thread as Markdown for a PR
+            description.
           </li>
         </ol>
       </section>
@@ -179,7 +167,7 @@ v2 (latest), and a banner reading 'Claude awaits'."
           src="demo.gif"
           width="1120"
           height="700"
-          alt="A live colloquy page. The user selects Backfill history and writes a
+          alt="A live leaf page. The user selects Backfill history and writes a
 comment while the passage stays highlighted. The agent replies, publishes a new version
 whose rehearsal count advances, and the user drags an on-call task to During."
         />
@@ -198,26 +186,26 @@ whose rehearsal count advances, and the user drags an on-call task to During."
         </p>
         <pre><code>scripts/preview.py triage-board</code></pre>
         <figure>
-          <cq-specimen id="tour-board-specimen" label="release triage">
-            <cq-board id="tour-board">
-              <cq-column id="tour-col-blocking" label="Blocking release">
-                <cq-card id="tour-card-migration"
+          <lf-specimen id="tour-board-specimen" label="release triage">
+            <lf-board id="tour-board">
+              <lf-column id="tour-col-blocking" label="Blocking release">
+                <lf-card id="tour-card-migration"
                   ><strong>Migration reruns on every deploy</strong> The version stamp
-                  never lands.</cq-card
+                  never lands.</lf-card
                 >
-                <cq-card id="tour-card-logout"
+                <lf-card id="tour-card-logout"
                   ><strong>Logout fails with an expired session</strong> The session key
-                  is deleted twice.</cq-card
+                  is deleted twice.</lf-card
                 >
-              </cq-column>
-              <cq-column id="tour-col-next" label="Fix in 2.4.1">
-                <cq-card id="tour-card-export"
+              </lf-column>
+              <lf-column id="tour-col-next" label="Fix in 2.4.1">
+                <lf-card id="tour-card-export"
                   ><strong>CSV export quotes numerics</strong> Breaks one downstream
-                  import.</cq-card
+                  import.</lf-card
                 >
-              </cq-column>
-            </cq-board>
-          </cq-specimen>
+              </lf-column>
+            </lf-board>
+          </lf-specimen>
           <figcaption>
             The browser sends the placement as structured detail:
             <code
@@ -263,20 +251,20 @@ whose rehearsal count advances, and the user drags an on-call task to During."
         <div class="hosts">
           <div>
             <h3>Claude Code</h3>
-            <pre><code>/plugin marketplace add max-sixty/colloquy
-/plugin install colloquy@colloquy</code></pre>
+            <pre><code>/plugin marketplace add max-sixty/leaf
+/plugin install leaf@leaf</code></pre>
           </div>
           <div>
             <h3>Codex</h3>
-            <pre><code>codex plugin marketplace add max-sixty/colloquy
-codex plugin add colloquy@colloquy</code></pre>
+            <pre><code>codex plugin marketplace add max-sixty/leaf
+codex plugin add leaf@leaf</code></pre>
           </div>
         </div>
         <p>
-          Then ask the agent to "write it up as a page", run <code>/colloquy</code> in
-          Claude Code, or run <code>$colloquy</code> in Codex. The agent also reaches
-          for it on its own when a plan or write-up would be easier to review as a page
-          than as terminal text.
+          Then ask the agent to "write it up as a page", run <code>/leaf</code> in
+          Claude Code, or run <code>$leaf</code> in Codex. The agent also reaches for it
+          on its own when a plan or write-up would be easier to review as a page than as
+          terminal text.
         </p>
       </section>
 
@@ -285,14 +273,12 @@ codex plugin add colloquy@colloquy</code></pre>
           <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
           <a href="how-it-works.html">How it works</a> ·
           <a href="customizing.html">Customize</a> ·
-          <a href="https://github.com/max-sixty/colloquy">GitHub</a> ·
-          <a href="https://github.com/max-sixty/colloquy/blob/main/LICENSE"
-            >MIT license</a
-          >
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
-          This page is a static render of colloquy's own theme; the comment layer joins
-          in when a live session serves a page.
+          This page is a static render of leaf's own theme; the comment layer joins in
+          when a live session serves a page.
         </p>
       </footer>
     </main>

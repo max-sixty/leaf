@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Serve an example as a real colloquy page, to review how it renders.
+"""Serve an example as a real leaf page, to review how it renders.
 
 An example is a page body, not a page directory: it links /theme.css and
-/colloquy.js at the server root, which is where `page init` vendors them. Opening one
+/leaf.js at the server root, which is where `page init` vendors them. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
 origin — nothing upgrades, and a tabbed page renders as every tab at once. So
 this builds the directory the runtime expects and hands it to `server run`, the same
 path a session takes.
 
 The result is a page, not a picture of one: it takes comments. Served from an
-agent session, `colloquy wait` on the same directory carries them to the agent and the
+agent session, `leaf wait` on the same directory carries them to the agent and the
 example gets revised like any other page; run from a bare shell, they queue in
 the log until an agent next reads it. Which of those happens follows from the
 host identity the launcher puts in the environment.
@@ -30,12 +30,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-COLLOQUY = ROOT / "plugins" / "colloquy" / "bin" / "colloquy"
+LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
 PAGE = ROOT / ".tmp" / "preview"  # gitignored, and stable so the port persists
 
 
-def colloquy(*args, check=True):
-    return subprocess.run([str(COLLOQUY), *args], check=check)
+def leaf(*args, check=True):
+    return subprocess.run([str(LEAF), *args], check=check)
 
 
 def main() -> None:
@@ -48,14 +48,14 @@ def main() -> None:
         )
 
     if PAGE.exists():  # a previous preview may still hold the port
-        colloquy("server", "stop", str(PAGE), check=False)
+        leaf("server", "stop", str(PAGE), check=False)
         shutil.rmtree(PAGE)
-    colloquy("page", "init", str(PAGE))
+    leaf("page", "init", str(PAGE))
     (PAGE / "versions" / "v1.html").write_text(
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )
     shutil.copytree(ROOT / "examples" / "media", PAGE / "media", dirs_exist_ok=True)
-    colloquy(
+    leaf(
         "version",
         "publish",
         str(PAGE),
@@ -64,7 +64,7 @@ def main() -> None:
         "--text",
         f"{source.name}, as it stands in the tree",
     )
-    colloquy("server", "run", str(PAGE))
+    leaf("server", "run", str(PAGE))
 
 
 if __name__ == "__main__":

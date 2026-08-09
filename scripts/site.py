@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the published site (https://max-sixty.github.io/colloquy/) into .tmp/site.
+"""Assemble the published site (https://leaf.page/) into .tmp/site.
 
 The site is the pages the repo already holds. `docs/` is written to be opened from
 a checkout — the theme and the tab icon arrive by relative paths into the plugin
@@ -8,7 +8,7 @@ substitutions plus the files those paths then name. Nothing here templates or
 generates a page: what is on the web is the file in the tree, which is why the
 pages can double as specimens of the theme.
 
-The examples cannot be copied. An example links /theme.css and /colloquy.js at a
+The examples cannot be copied. An example links /theme.css and /leaf.js at a
 server root, and half of what it says is written by the widget layer in the browser
 — a mermaid diagram becomes an SVG only once mermaid has drawn it. So each one is
 exported through the shipped path (`page init`, `version publish`,
@@ -33,16 +33,16 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
-COLLOQUY = ROOT / "plugins" / "colloquy" / "bin" / "colloquy"
-ASSETS = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "assets"
-BUNDLED = ROOT / "plugins" / "colloquy" / "skills" / "colloquy" / "bundled"
+LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
+ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
+BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the workflow uploads it as the Pages artifact
 
-REPO = "https://github.com/max-sixty/colloquy"
+REPO = "https://github.com/max-sixty/leaf"
 
 # The payload files a page is *wearing* rather than pointing at: the stylesheet it is
 # styled by and the icon its tab shows. Every other path into the payload is source to
@@ -134,10 +134,8 @@ def check_links(out: Path) -> None:
         )
 
 
-def colloquy(env: dict, *args: str) -> None:
-    subprocess.run(
-        [str(COLLOQUY), *args], check=True, env=env, stdout=subprocess.DEVNULL
-    )
+def leaf(env: dict, *args: str) -> None:
+    subprocess.run([str(LEAF), *args], check=True, env=env, stdout=subprocess.DEVNULL)
 
 
 def export_examples(out: Path, env: dict) -> None:
@@ -146,12 +144,12 @@ def export_examples(out: Path, env: dict) -> None:
     for source in sorted(EXAMPLES.glob("*.html")):
         with tempfile.TemporaryDirectory() as tmp:
             page = Path(tmp) / "page"
-            colloquy(env, "page", "init", str(page))
+            leaf(env, "page", "init", str(page))
             (page / "versions" / "v1.html").write_text(
                 source.read_text(encoding="utf-8"), encoding="utf-8"
             )
             shutil.copytree(EXAMPLES / "media", page / "media", dirs_exist_ok=True)
-            colloquy(
+            leaf(
                 env,
                 "version",
                 "publish",
@@ -161,7 +159,7 @@ def export_examples(out: Path, env: dict) -> None:
                 "--text",
                 f"{source.name}, as it stands in the tree",
             )
-            colloquy(
+            leaf(
                 env,
                 "version",
                 "export",
@@ -191,12 +189,12 @@ def build(out: Path) -> None:
         shutil.copy2(source, out / name)
 
     # The layer a visitor gets is the shipped one, plus this project's: a page dir
-    # vendors the user's ~/.config/colloquy overlay too, and that one belongs to
+    # vendors the user's ~/.config/leaf overlay too, and that one belongs to
     # whoever is running the build. An empty config home is what withholds it —
     # HOME stays, because uv keeps its cache there and a moved HOME re-downloads
     # Playwright on every build. Dropping the session leaves these throwaway page
     # directories nobody's, and so out of the watch guard.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("COLLOQUY_")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("LEAF_")}
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home

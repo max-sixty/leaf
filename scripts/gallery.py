@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate examples/gallery.html: every example on one page, one cq-tab each.
+"""Generate examples/gallery.html: every example on one page, one lf-tab each.
 
 The gallery is derived content — edit the sibling examples and rerun this
 script (tests fail on a stale gallery). Each example's <main> body is embedded
@@ -36,24 +36,24 @@ HEAD = """\
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Colloquy examples gallery</title>
+<title>Leaf examples gallery</title>
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/colloquy.js"></script>
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
 <p class="eyebrow">examples gallery</p>
-<h1>The colloquy gallery, on one page</h1>
+<h1>The leaf gallery, on one page</h1>
 <p class="lede" id="gal-lede">The shipped examples, one per tab, every widget
 live: boards drag, options take a pick, diagrams render. Every project, name,
 and number here is invented. Switch tabs freely (that's your view alone); select
 any text to comment on the example it belongs to.</p>
 
-<cq-tabs id="gallery">
+<lf-tabs id="gallery">
 """
 
 FOOT = """\
-</cq-tabs>
+</lf-tabs>
 </main>
 </body>
 </html>
@@ -102,7 +102,7 @@ def build() -> str:
         # there is no strip — unupgraded, in print, in a copy — the theme paints the
         # label back onto the panel. The eyebrow is the copy that has nowhere to be.
         body = re.sub(r'^<p class="eyebrow">[^<]*</p>\s*', "", body)
-        tabs.append(f'<cq-tab id="gal-{stem}" label="{label}">\n{body}\n</cq-tab>\n')
+        tabs.append(f'<lf-tab id="gal-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
     return HEAD + "\n" + "\n".join(tabs) + "\n" + FOOT
 

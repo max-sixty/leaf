@@ -89,12 +89,13 @@
  * global single-key shortcuts (KEYS — also the source of the "?" overlay, so help
  * can't drift from behavior); it skips typing contexts (editable target, ⌘/Ctrl/Alt,
  * IME) and anything a focused control already consumed (defaultPrevented), which is
- * how a widget's own keys shadow the table. Focus-scoped keys belong to the focused
- * control itself — panel threads and the colloquys board here, grips and pick
- * buttons in widget modules —
+ * how a widget's own keys shadow the table. A shifted row takes the Shift as well as
+ * the letter, so caps lock can't turn a key that walks into the one above it that acts
+ * at large. Focus-scoped keys belong to the focused control itself — panel threads and
+ * the colloquys board here, grips and pick buttons in widget modules —
  * with no registration: the keyboard exports widgets need are announce() (the live
  * region), keyHelp() (reference rows for the overlay), and keyHint() (what keys mean
- * on a control right now). One sequence exists: g arms a short leader window in
+ * on a control right now). One timed sequence exists: g arms a short leader window in
  * which a digit addresses the nth open thread's reply box — the address each box
  * wears as a chip while the window is armed and its placeholder speaks always — and
  * any other key disarms the window and keeps its ordinary meaning. Escape alone
@@ -1529,6 +1530,10 @@ const showNews = (control, on) => {
   control.style.visibility = on ? "" : "hidden";
 };
 const latestChip = el("button", "cq-ui cq-btn cq-latest-chip", "");
+// The keyboard reaches this through the chooser rather than past it: v opens the menu,
+// and the letter again takes the newest version. So the chip names the motion, the way
+// the asks and colloquys buttons name a and o.
+latestChip.title = "Open the newest version (v v)";
 // What the page is still waiting on the reader for, and the way to the next one — the
 // same list the a key steps and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
@@ -1772,9 +1777,17 @@ versionMenu.setAttribute("aria-label", "Versions");
 // press in the chrome is, and takes no key of its own: the walk would have had to
 // promise one the row it lands on cannot keep, since the row a press opens the menu on
 // is the version being read and that is the one row with nothing to compare against.
+//
+// v is the second half of the motion that opened the menu, and the one row worth a key
+// of its own: the newest version is where the walk ends, and where a reader who came for
+// the current state is going. The letter is the menu's here for the walk's own kind of
+// reason — outside it, v is already the chooser — and it needs no liveness of its own,
+// since there is always a newest row and taking it from the page already reading it is
+// what ⏎ on that row does anyway.
 const VERSION_KEYS = [
   ["↑ / ↓", "walk the versions"],
   ["⏎", "open that version"],
+  ["v", "open the newest version"],
 ];
 let versionMenuOpen = false;
 // The walk is the versions, not every press in the menu.
@@ -1797,6 +1810,18 @@ function showVersionMenu(open) {
 }
 versionBtn.onclick = () => showVersionMenu(!versionMenuOpen);
 versionMenu.addEventListener("keydown", (ev) => {
+  // The newest version by its own row's press, so the key leaves the menu through the
+  // door the pointer uses — the menu closes and the pin lifts, both goVersion's and
+  // showVersionMenu's to say, neither restated here. There is a row to press: this
+  // listener is only ever reached with focus inside the menu, and an open lands focus
+  // on a row. Consuming the press is the contract the dispatcher reads: without it the
+  // same v would toggle the chooser behind this one, a second action a leaving page
+  // happens to hide rather than one that never ran.
+  if (ev.key === "v") {
+    ev.preventDefault();
+    versionRows().at(-1).click();
+    return;
+  }
   const dir = ev.key === "ArrowDown" ? 1 : ev.key === "ArrowUp" ? -1 : 0;
   if (!dir) return;
   const rows = versionRows();
@@ -4597,6 +4622,23 @@ const KEYS = [
     when: () => openAsks().length > 0,
     run: stepAsk,
   },
+  // The same list answered at large: every blanket answer the page offers, given
+  // through the banner's own presses, so a decision taken by key is a decision taken by
+  // the control and the log records each one separately. Its words are the registry's
+  // rather than a sentence written here — "accept" is one widget's verb, and a key that
+  // said it in core would be the sentence the banner's count used to be.
+  {
+    key: "A",
+    label: "A",
+    does: () =>
+      standingAnswers()
+        .map(({ label, n }) => `${label} all ${n}`)
+        .join(", ") + " waiting on you",
+    when: () => standingAnswers().length > 0,
+    run: () => {
+      for (const { btn } of standingAnswers()) btn.click();
+    },
+  },
   {
     key: "o",
     label: "o",
@@ -4614,18 +4656,31 @@ const KEYS = [
       if (othersOpen) othersLinks()[0].focus();
     },
   },
+  // v names the chooser, the control wearing the version number, and the menu it opens
+  // takes the letter again for the newest version (VERSION_KEYS) — one motion whose
+  // second half is a key of the scope the first half stood up, so it costs the table no
+  // row and holds whether or not this page is behind. The diff held v while the chooser
+  // had no key at all; it moved to =, which sits beside [ and ], the other keys about
+  // which version this is.
   {
     key: "v",
     label: "v",
+    does: "The versions, and what each one changed",
+    when: () => versions.length > 0,
+    run: () => versionBtn.onclick(),
+  },
+  {
+    key: "=",
+    label: "=",
     // The two branches of the run below, said in the reference: the row is live while
-    // a comparison stands precisely so v can end it, and a word naming only the
+    // a comparison stands precisely so the key can end it, and a word naming only the
     // opening would promise the wrong half of the press to the reader who is looking
     // at a page already marked up.
     does: () =>
       diffOn
         ? "Stop highlighting changes"
         : "Highlight changes since the previous version",
-    // The page's v takes the previous version, which is the one a reader who saw the
+    // The page's key takes the previous version, which is the one a reader who saw the
     // last one means; any other base is a press in the menu, where the version is
     // named. Live once there is a previous version — and while a comparison against
     // some further-back base is standing, since this is then the way off it.
@@ -4705,7 +4760,14 @@ document.addEventListener("keydown", (ev) => {
   // everywhere; the overlay holds focus on open, so reaching one takes a deliberate
   // Tab out.
   if (helpOpen && ev.key !== "?") return;
-  const bound = KEYS.find((b) => b.key === ev.key);
+  // A shifted row wants the Shift as well as the letter, because caps lock writes an
+  // uppercase key out of an unshifted press. The shifted keys act on the whole of what
+  // the letter under them walks through, so without this a reader with caps lock on who
+  // reached for a — the next thing waiting on them — got every change on the page
+  // decided instead, and a decision is the end of the matter.
+  const bound = KEYS.find(
+    (b) => b.key === ev.key && (ev.shiftKey || b.key === b.key.toLowerCase()),
+  );
   if (!bound || !live(bound)) return;
   ev.preventDefault();
   bound.run();
@@ -5092,9 +5154,9 @@ function buildBulkAnswers() {
   for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
     const verb = registry[tag]["x-awaits"].all;
     if (bulkButtons.has(verb)) continue;
-    const word = verb[0].toUpperCase() + verb.slice(1);
+    const label = verb[0].toUpperCase() + verb.slice(1);
     const btn = el("button", "cq-btn cq-answer-all", "");
-    btn.title = `${word} every one still waiting on you`;
+    btn.title = `${label} every one still waiting on you`;
     btn.onclick = async () => {
       btn.disabled = true;
       try {
@@ -5105,12 +5167,31 @@ function buildBulkAnswers() {
       }
     };
     showNews(btn, false);
-    bulkButtons.set(verb, { btn, word });
+    bulkButtons.set(verb, { btn, label });
     banner.insertBefore(btn, versionBtn);
     // In the row now, so it holds the widest it reaches below a thousand — the same
     // words syncAsks writes, measured in the face it will render in (see reserve).
-    reserve(btn, [`✓ ${word} all (999)`]);
+    reserve(btn, [`✓ ${label} all (999)`]);
   }
+}
+
+// Each blanket answer with the asks it would take, from the list above. The banner
+// writes its controls from this and the A key reads the same call, so the count on the
+// row, the count the "?" reference promises, and the presses the key makes are one
+// reading rather than three — and neither surface names a verb, since which verbs there
+// are is the registry's answer.
+function blanketAnswers(asks) {
+  return [...bulkButtons].map(([verb, { btn, label }]) => ({
+    btn,
+    label,
+    n: asks.filter((ask) => askEntry(ask).all === verb).length,
+  }));
+}
+// The ones with something to answer right now. Declared rather than assigned, like
+// openAsks above it: the key table is written further up the file, so a const would put
+// this in its own dead zone for anything asked of that table before the module ends.
+function standingAnswers() {
+  return blanketAnswers(openAsks()).filter((a) => a.n);
 }
 
 // The banner's reading of that one list. Refreshed from every signal that can change
@@ -5121,11 +5202,14 @@ function syncAsks() {
   const asks = openAsks();
   showNews(asksBtn, Boolean(asks.length));
   asksBtn.textContent = `Asks (${asks.length})`;
-  for (const [verb, { btn, word }] of bulkButtons) {
-    const n = asks.filter((ask) => askEntry(ask).all === verb).length;
+  for (const { btn, label, n } of blanketAnswers(asks)) {
     showNews(btn, Boolean(n));
-    btn.textContent = `✓ ${word} all (${n})`;
+    btn.textContent = `✓ ${label} all (${n})`;
   }
+  // The a and A rows stand on this list, so the surfaces reading them are repainted
+  // where it changes — the rule showFab and showOthers already keep for the words
+  // they write.
+  paintLine();
 }
 // An answer also changes what text the page has — a retired slot leaves it, a pick
 // mark starts saying "your pick" — so the marks are repainted from the same signal,
@@ -5305,7 +5389,7 @@ async function applyDiff(baseVersion) {
 // Whether a version can be compared with the one being read: anything published
 // before it, which is which rows the menu builds a press onto.
 const comparable = (version) => VNUM !== null && version < VNUM;
-// The version the page's own v compares against: the one before this, which is what
+// The version the page's own key compares against: the one before this, which is what
 // "what changed" means to a reader who was here for the last one.
 const previousVersion = () => {
   const at = versions.indexOf(VNUM);
@@ -5322,7 +5406,7 @@ function paintDiff() {
   versionBtn.classList.toggle("on", diffOn);
   versionBtn.title = diffOn
     ? `Showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
-    : "Versions: read one, or mark what changed since it";
+    : "Versions: read one, or mark what changed since it (v)";
   for (const row of versionMenu.querySelectorAll(".cq-version-row")) {
     const version = +row.dataset.cqVersion;
     row.classList.toggle(
@@ -5349,7 +5433,7 @@ function setDiff(on, base) {
   }
   paintDiff();
 }
-// The one way a comparison starts or stops, from a row's press or from the page's v.
+// The one way a comparison starts or stops, from a row's press or from the page's key.
 // Pressing the standing base again is the way off, so a Δ is a toggle where it is lit
 // and a switch of base where it isn't.
 async function showComparison(base) {

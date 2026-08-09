@@ -595,9 +595,9 @@ each declaring control and asserts exactly the declared effect.
 Every surface that names a key promises the press does something now. One table (`KEYS`)
 keeps the words from drifting, and it did nothing to keep the surfaces from drifting from
 each other: the key line asked `when` and the `?` overlay didn't, so a page with no open
-thread offered `g 1–9` to reply to one, and a first version offered `v` with nothing to
-diff. Two shortcuts had no `when` at all — `v`'s liveness sat inside its own `run` and
-the version pair's inside `stepVersion`, where no surface could ask. So whether a key is
+thread offered `g 1–9` to reply to one, and a first version offered the diff with nothing
+to diff. Two shortcuts had no `when` at all — the diff's liveness sat inside its own `run`
+and the version pair's inside `stepVersion`, where no surface could ask. So whether a key is
 live is declared once (`when`), `live` is the one question the dispatcher, the line, and
 the overlay all put to it — the scene branch that restates the j/k row asks it too, since
 a resolved thread stays focusable after the last open one is gone — and a label that
@@ -611,6 +611,23 @@ that there are threads or versions to walk, not that this edge press lands. What
 `stepVersion` used to hold alone was the other kind, deadness — one version, or a viewed
 version the server no longer lists, so nothing to step between at all — and that is what
 `when` now owns; the clamp stays in the stepper.
+
+A key that acts at large takes the Shift as well as the letter, and the dispatcher asks
+for the modifier rather than reading the uppercase key alone: caps lock writes an
+uppercase key out of an unshifted press, so a reader with it on who reached for `a` — the
+walk through the page's asks, one at a time — would have got `A`, which answers every one
+of them, and a decision is the end of the matter. So the pair is a relation rather than
+two letters that happened to be free: `a` steps the page's asks and `A` gives every
+blanket answer it offers, the shifted half acting on the whole of what the lowercase one
+walks through.
+
+A move that merely sits beside a key, rather than acting on the whole of what it walks,
+is spelled in the scope that key opens, where the letter is free again: `v` opens the
+version chooser, and a second `v` inside it takes the newest version — a row the walk
+already offers, which is why the second press needs no `when` of its own. The shifted
+twin is the tempting shape here and the wrong one, since a `V` that opened the newest
+version would act on one of them rather than on all of them, and Shift would then mean
+two things.
 
 The overlay renders at open and can go stale while it stands, and the two directions cost
 differently, both acceptably. A row going dead under it can't be pressed — help is a

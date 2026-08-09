@@ -674,7 +674,7 @@ def compare_with(page, version=None):
     The chooser opens and the row for that version carries the press, beside the note
     that says in words what it changed. With no version named it is the one before the
     version being read — the last Δ in the menu, a row offering one only where it is
-    older than this. A press rather than the `v` key, since the press is the control;
+    older than this. A press rather than the `=` key, since the press is the control;
     the tests about the key press the key."""
     page.locator(".cq-version").click()
     press = (
@@ -5401,6 +5401,72 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     page.close()
 
 
+def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
+    """A is the banner's blanket answers in a press — the same controls, so the log
+    records each decision one at a time exactly as a click does. Neither the key nor
+    its legend names a verb: which verbs a page offers is the registry's answer
+    (x-awaits.all), so the reference states the words the banner is writing at the
+    moment it is opened. A sentence written into the table would have said "accept" in
+    core, and gone on saying it for the second widget to declare a verb of its own.
+
+    The shift is part of the key rather than decoration: caps lock turns a press of a
+    into an uppercase one, and a is the walk through these one at a time, so the reader
+    who wanted the next question would have settled every change on the page — a
+    decision being the end of the matter."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    help_el = page.locator(".cq-help")
+
+    page.keyboard.press("?")
+    expect(help_el).to_contain_text("Accept all 3 waiting on you")
+    page.keyboard.press("Escape")
+
+    # A decision taken on its own control leaves two, and the legend says two: it is
+    # read when the reference opens rather than held from when the table was written.
+    page.locator("[data-cq-for='sug-refill'] .cq-sug-accept").click()
+    expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
+    page.keyboard.press("?")
+    expect(help_el).to_contain_text("Accept all 2 waiting on you")
+    page.keyboard.press("Escape")
+
+    # An unshifted uppercase press is what caps lock sends, and the dispatcher refuses
+    # it: dispatched at the protocol level, which is the only place that press exists.
+    cdp = page.context.new_cdp_session(page)
+    for kind in ("keyDown", "keyUp"):
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            {
+                "type": kind,
+                "key": "A",
+                "code": "KeyA",
+                "windowsVirtualKeyCode": 65,
+                "text": "A" if kind == "keyDown" else "",
+            },
+        )
+    told(page)
+    expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
+
+    page.keyboard.press("Shift+A")
+    for widget in ("sug-thistle", "sug-in-card"):
+        expect(page.locator(f"[data-cq-for='{widget}'] .cq-sug-accept")).to_have_text(
+            "✓ Accepted", use_inner_text=True
+        )
+    # Nothing left to answer, so the control goes and the key goes with it.
+    expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    expect(help_el).not_to_contain_text("Accept all")
+
+    round_trip(page)
+    logged = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    assert [(e["widget"], e["action"]) for e in logged] == [
+        ("sug-refill", "accept"),
+        ("sug-thistle", "accept"),
+        ("sug-in-card", "accept"),
+    ], "the key's decisions have to reach the log one at a time, like the button's"
+    assert errors == []
+    page.close()
+
+
 def test_a_decision_the_server_never_took_goes_back_to_pending(browser, serve):
     """The page settles a decision before the server has taken it, so the user
     sees their own click land. That optimism is only honest if a send that fails
@@ -7302,10 +7368,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the key line asked `when`,
     the ? overlay didn't, and two shortcuts held their liveness where no surface
-    could ask — v in its own run, the version pair in stepVersion — so the overlay
-    offered g 1–9 with no thread to reply to, and v on a first version with nothing
-    to diff. Liveness is one declaration, and the dispatcher, the line, and the
-    overlay all ask it."""
+    could ask — the diff in its own run, the version pair in stepVersion — so the
+    overlay offered g 1–9 with no thread to reply to, and the diff on a first version
+    with nothing to diff. Liveness is one declaration, and the dispatcher, the line,
+    and the overlay all ask it."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -7323,6 +7389,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Older / newer version")
     expect(help_el).not_to_contain_text("Highlight changes")
     expect(help_el).not_to_contain_text("waiting on you for")
+    # The chooser is the one version key a first version has: its menu holds this
+    # version and what it changed, where the pair that steps between versions has
+    # nowhere to go and the menu's own keys have nothing to walk.
+    expect(help_el).to_contain_text("The versions, and what each one changed")
+    expect(help_el).not_to_contain_text("In the versions menu")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
 
@@ -7366,16 +7437,16 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("g 1–2")
     page.keyboard.press("Escape")
 
-    # v is a toggle, and its row stays live over a standing comparison precisely so the
-    # press can end one — so over a marked-up page the reference has to say the half of
-    # the run this press would take, not the half that already happened.
-    page.keyboard.press("v")
+    # The diff key is a toggle, and its row stays live over a standing comparison
+    # precisely so the press can end one — so over a marked-up page the reference has to
+    # say the half of the run this press would take, not the half that already happened.
+    page.keyboard.press("=")
     expect(page.locator(".cq-version")).to_have_class(re.compile(r"\bon\b"))
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Stop highlighting changes")
     expect(help_el).not_to_contain_text("Highlight changes since the previous version")
     page.keyboard.press("Escape")
-    page.keyboard.press("v")
+    page.keyboard.press("=")
     expect(page.locator(".cq-version")).not_to_have_class(re.compile(r"\bon\b"))
 
     # A resolved thread stays focusable after the last open one is gone, and the
@@ -9674,12 +9745,12 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     ]
     expect(rows.last).to_have_text("v10 (latest)")
     # The bases a diff can run against are every version older than this one, so the
-    # last press in the menu is v9 — and it is the one the page's own v reaches for,
+    # last press in the menu is v9 — and it is the one the page's own = reaches for,
     # which is the reading of "the version before this" that the ordering decides.
     presses = page.locator(".cq-version-diff")
     expect(presses).to_have_count(9)
     expect(presses.last).to_have_attribute("data-cq-version", "9")
-    page.keyboard.press("v")
+    page.keyboard.press("=")
     expect(page.locator(".cq-version")).to_have_attribute(
         "title", re.compile(r"changed since v9 ")
     )
@@ -9784,6 +9855,19 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
+    # v opens it from anywhere on the page, the way o opens the colloquys board, and
+    # lands on the version being read so the walk above is the next press rather than a
+    # Tab-hunt across the banner. This menu is the only place the notes are, so what
+    # each version changed is reachable by keyboard through this key or not at all.
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    expect(page.locator('.cq-version-row[data-cq-version="2"]')).to_be_focused()
+    # Inside the menu the letter is the menu's own — the newest version, tested where
+    # it navigates — so Escape is what closes this.
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    expect(btn).to_be_focused()
+
     # A second press is a close, not a re-open: without that the outside-click
     # handler and the toggle would both run and the menu could never stand.
     btn.click()
@@ -9834,6 +9918,63 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     # And it arrives on the next poll rather than waiting on a fourth version.
     expect(page.locator(".cq-version-row")).to_have_count(3)
     expect(page.locator(".cq-version-row").last).to_contain_text("v3 (latest)")
+    assert errors == []
+    page.close()
+
+
+def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
+    """A pinned page stays where the reader put it and offers the newest as a chip. The
+    keyboard reaches that chip's destination through the chooser rather than past it: v
+    opens the menu and the letter again takes the newest version, by that row's own
+    press, so the key leaves through the door the pointer uses and the pin lifts with it.
+
+    Which is the newest row, not the row the walk stands on — that one is Enter's, and a
+    reader who has walked away from where they started must still be able to say "the
+    current state" in one press. And the second press carries no liveness of its own,
+    which is the point of spelling the move this way: the menu always has a newest row,
+    so the motion holds wherever the reader is — including on the page already reading
+    that row, where a key of the page's own would have had to stand down and every
+    surface say so."""
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+    _publish(serve.page_dir, 3, INLINE_PAGE, "three")
+    page, errors = open_page(browser, url, pin=True)
+    menu = page.locator(".cq-version-menu")
+    help_el = page.locator(".cq-help")
+    expect(page.locator(".cq-latest-chip")).to_be_visible()
+
+    # The menu's keys are one declaration, so the reference names this one beside the
+    # walk it saves.
+    page.keyboard.press("?")
+    expect(help_el).to_contain_text("open the newest version")
+    page.keyboard.press("Escape")
+
+    # The first press opens and goes nowhere. A whole poll passes before the reading,
+    # which is far longer than a navigation would take to start.
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    told(page)
+    assert page.url.endswith("pin"), "the press that opens the menu navigated"
+
+    # Walk off the version being read, so the row under the focus is not the newest and
+    # not the one this press takes.
+    page.keyboard.press("ArrowDown")
+    expect(page.locator('.cq-version-row[data-cq-version="2"]')).to_be_focused()
+    page.keyboard.press("v")
+    # No query: the newest version is the one that unpins, whichever route reaches it.
+    page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    # The rebuilt list is what says the page arriving here has heard from the server.
+    # A hidden chip does not: that is also how the banner stands before the first poll,
+    # so an assertion on it alone would read the same on a page that had heard nothing —
+    # and the reference below is written by that same poll.
+    expect(page.locator(".cq-version-row")).to_have_count(3)
+    expect(page.locator(".cq-latest-chip")).to_be_hidden()
+
+    # And it is still offered here, with the chip gone: opening the newest version is
+    # what the press does on the page already reading it, so no surface stands it down.
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    expect(help_el).to_contain_text("open the newest version")
     assert errors == []
     page.close()
 
@@ -9899,12 +10040,12 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     page.keyboard.press("Enter")
     expect(page.locator(".cq-ins-block")).to_have_count(2)
 
-    # The page's own v is the way off a comparison whatever it is against, which is why
+    # The page's own = is the way off a comparison whatever it is against, which is why
     # the key stays live under one; with nothing standing it takes the previous
     # version, as it always did.
-    page.keyboard.press("v")
+    page.keyboard.press("=")
     expect(page.locator(".cq-ins-block")).to_have_count(0)
-    page.keyboard.press("v")
+    page.keyboard.press("=")
     expect(page.locator(".cq-ins-block")).to_have_count(1)
     assert errors == []
     page.close()
@@ -11162,10 +11303,12 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     page.close()
 
 
-def test_the_version_diff_answers_v(browser, serve):
-    """d went to the half-page step, so the diff took v — beside [ and ], the other two
-    keys about which version this is. Pressed rather than read off the table: a key
-    bound to nothing looks the same in the ? overlay as one that works."""
+def test_the_version_diff_answers_a_key_beside_the_version_pair(browser, serve):
+    """The diff held v while the chooser — the control actually wearing the version
+    number — had no key at all, so v went to the chooser and the diff took =, beside
+    [ and ], the other keys about which version this is. Pressed rather than read off
+    the table: a key bound to nothing looks the same in the ? overlay as one that
+    works, which is how a rebinding would go unnoticed on the side it left."""
     url = serve(LONG_PAGE)
     _publish(
         serve.page_dir,
@@ -11174,8 +11317,11 @@ def test_the_version_diff_answers_v(browser, serve):
         "reworded a paragraph",
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    page.keyboard.press("v")
+    page.keyboard.press("=")
     expect(page.locator("#p3")).to_have_class(re.compile(r"cq-ins-block"))
+    # And the key it left does the chooser's job now rather than both.
+    page.keyboard.press("v")
+    expect(page.locator(".cq-version-menu")).to_be_visible()
     assert errors == []
     page.close()
 

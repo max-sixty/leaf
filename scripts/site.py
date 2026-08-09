@@ -194,6 +194,12 @@ def build(out: Path) -> None:
     # HOME stays, because uv keeps its cache there and a moved HOME re-downloads
     # Playwright on every build. Dropping the session leaves these throwaway page
     # directories nobody's, and so out of the watch guard.
+    #
+    # The state home stays whole, and wants no emptying beside the config one:
+    # what writes there is `server run`'s and `leaf wait`'s — the machine key,
+    # the session's claim — and a build runs neither. The one thing it reads,
+    # the live leaves `/api/state` lists, reaches the chrome and nothing else,
+    # which the copy drops. The suite empties it because the suite serves.
     env = {k: v for k, v in os.environ.items() if not k.startswith("LEAF_")}
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     with tempfile.TemporaryDirectory() as config_home:

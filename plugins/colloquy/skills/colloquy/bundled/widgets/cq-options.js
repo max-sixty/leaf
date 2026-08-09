@@ -26,8 +26,10 @@
  * and clicking toggles each option in or out; without it a click makes that option the
  * only pick and clicking it again empties the set. One shape either way — the action
  * states the whole set, absolutely, so replaying this tab's own pick is a no-op and a
- * second tab converges rather than drifting. Clicks that are really text selections or
- * link follows don't choose.
+ * second tab converges rather than drifting. A click the whole option takes is one
+ * nothing in the option wanted: a drag that ended here is that selection's, and a press
+ * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
+ * to follow — belongs to what it landed on (`worksInside`).
  *
  * A choose group also carries a box for words (the runtime's `sayBox`). A question can
  * always be answered off its own menu — "none of these", or a pick's why — and without
@@ -84,6 +86,7 @@ import {
   sayBox,
   sendAction,
   toast,
+  worksInside,
   wrote,
 } from "/colloquy.js";
 
@@ -158,9 +161,16 @@ customElements.define(
         const card = e.target.closest?.("cq-option");
         if (e.detail !== 0 && sel && !sel.isCollapsed && card?.contains(sel.focusNode))
           return;
-        if (e.target.closest("a")) return; // links keep their job
         const option = e.target.closest("cq-option");
         if (!option || option.parentElement !== this) return;
+        // A click something in the option has a use for is not a pick: the reader was
+        // working the case — flipping a shot, opening a disclosure, following a link —
+        // rather than choosing between the options. `worksInside` is the whole of that
+        // question, and what it cannot answer is which of the controls in here this
+        // module put there: the mark is the pick's own control, and the digit stands in
+        // the column beside it, so a press on either is aimed at this option after all.
+        const inner = worksInside(e.target, option);
+        if (inner && !inner.matches(".cq-pick, .cq-address")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a reader who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle

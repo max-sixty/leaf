@@ -375,6 +375,59 @@ export function quoted(el) {
   return exhibits.length > 0 && el.closest(exhibits.join(",")) !== null;
 }
 
+// What a page's own markup works: a link to follow, a control to set, a disclosure to
+// open, a player to start. HTML's interactive content is where this comes from rather
+// than a list anyone here may add to, and it differs in two places, both about whether a
+// click can arrive. `summary` stands for `details`, because only the summary is the press
+// and the body under it is prose the reader may point at like any other. And nothing
+// embedded (`iframe`, `embed`, `object`): a click inside one never crosses into this
+// document, so listing them would guard a gesture no listener out here can see.
+const WORKS = "a, audio, button, input, label, select, summary, textarea, video";
+
+// A container that takes a gesture on its whole box has to tell one aimed at itself from
+// one aimed at what it holds. This is the second: the nearest thing between `node` and
+// `container` that has a use for the gesture, or null where the container is the aim.
+//
+// It exists because an option's case is now argued inside the option — a screenshot pair
+// to flip, a disclosure to open, tabs to walk — while the whole card is what takes the
+// pick. Reading the evidence then cast a vote: a click on a tab chose that option, and one
+// on a shot's `after` radio chose it and cleared it again, two decisions the reader never
+// made and only the log to show for them. Fail closed, because a pick is sent the moment
+// it is made: a gesture nobody can prove was a choice is not one.
+//
+// Two vocabularies, because a container holds two kinds of thing. A widget it merely
+// contains is its own world, and that is every cq-* tag bar the parts the registry says
+// this container is made of (x-parent) — declared rather than listed, so the twelfth
+// widget is covered by its entry and a widget whose gesture lands on its own words rather
+// than on chrome (cq-draft's double-click) is covered with the rest. Inert ones go in with
+// them: a diagram is evidence the reader studies with the pointer on it, and which
+// evidence happens to carry a control is nothing they can see.
+//
+// `data-cq-offer` then catches the controls that belong to no widget — the runtime's own
+// hidden line saying how many comments a block holds, which a screen reader reaches by
+// Tab and which used to cast a vote on the way into the thread. It catches the container's
+// own apparatus too, which no rule here could tell from the rest; a container excludes
+// its own, being the only thing that can name them.
+export function worksInside(node, container) {
+  const parts = new Set([
+    container.localName,
+    ...tagsDeclaring((entry) =>
+      (entry["x-parent"] ?? []).includes(container.localName),
+    ),
+  ]);
+  const held = Object.keys(registry).filter(
+    (tag) => tag.startsWith("cq-") && !parts.has(tag),
+  );
+  // `closest` walks past the container to the root, so a match has to be read back
+  // against it: an ordinary pick on an option's prose finds the enclosing group, which
+  // is a widget the option does not hold but is above it rather than inside it. And
+  // `contains` counts an element as containing itself, so the container is ruled out by
+  // name — the question is what stands between the two, and a container that is itself
+  // a thing to work would otherwise answer with itself and never take a gesture again.
+  const inner = node.closest([...held, WORKS, "[data-cq-offer]"].join(","));
+  return inner && inner !== container && container.contains(inner) ? inner : null;
+}
+
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `cq-ui` for the runtime's look, which
 // anchoring reads where no label speaks nearer; `data-cq-gen` so the diff looks away; `data-cq-offer`

@@ -4166,6 +4166,93 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     page.close()
 
 
+# An option arguing its case with the evidence inside it, which is the whole reason the
+# card is more than a label. Three things to work stand in one option, one per vocabulary
+# the guard reads: a widget's own control (the shot's radios, injected through `offer`), a
+# widget's own words (the draft's body, which is deliberately not chrome and so is reached
+# only by being inside a widget the option contains), and an element HTML calls
+# interactive that no widget put there (the disclosure). A page holding one of the three
+# would leave the other two to a guard that had never been asked about them.
+INLINE_CASE_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>inline case</title>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/colloquy.js"></script>
+</head>
+<body>
+<main>
+<h1 id="h">The status column</h1>
+<cq-options id="rollout" choose>
+  <cq-option id="ro-column"><strong>Ship the column</strong>
+    <cq-shot id="ro-shot" alt="the run list, before and after the status column"
+      before="/media/051bee487bfb5d13.png" after="/media/a99a1b63048502d0.png"></cq-shot>
+    <details id="ro-numbers"><summary>What it costs</summary>
+      <p id="ro-cost">One join, 40ms at the list's own volume.</p></details>
+    <cq-draft id="ro-note"><pre>
+Run status now shows on the run list itself.
+</pre></cq-draft>
+    <p id="ro-column-p">A failure reads off the list instead of costing a click.</p>
+  </cq-option>
+  <cq-option id="ro-leave"><strong>Leave it</strong>
+    <p id="ro-leave-p">A failure stays one click away.</p>
+  </cq-option>
+</cq-options>
+</main>
+</body>
+</html>
+"""
+
+
+def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
+    """The group takes the pick on the whole option, and the case the reader decides on
+    is argued inside the option. So the two gestures land in the same box, and the
+    evidence has to win the ones aimed at it: flipping the shot chose that option, and
+    the flip being a label press meant it chose the option and cleared it again — two
+    decisions in the log, no state on the page to show for either, and nothing the reader
+    could have seen. The disclosure and the draft chose it outright.
+
+    Each gesture is read against its own effect rather than against the absence of a
+    pick, because a click that never arrived would satisfy the absence: the frame flips,
+    the disclosure opens, the editor takes the draft's place, and only then is the
+    question still open. The log is asked once at the end, since the failure that costs
+    the most puts a decision there while leaving the page looking untouched."""
+    page, errors = open_page(browser, serve(INLINE_CASE_PAGE))
+    option = page.locator("#ro-column")
+    picked = "el => el.hasAttribute('chosen')"
+
+    page.locator("#ro-shot .cq-shotpick label", has_text="after").click()
+    expect(page.locator("#ro-shot input[value='after']")).to_be_checked()
+    assert not option.evaluate(picked), "flipping the shot answered the question"
+
+    page.locator("#ro-numbers summary").click()
+    expect(page.locator("#ro-numbers")).to_have_attribute("open", "")
+    assert not option.evaluate(picked), "opening the disclosure answered the question"
+
+    page.locator("#ro-note .cq-draft-body").dblclick()
+    expect(page.locator("#ro-note textarea")).to_be_visible()
+    assert not option.evaluate(picked), (
+        "opening the draft's editor answered the question"
+    )
+
+    assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
+        "the reader working the evidence sent Claude a decision they never made"
+    )
+
+    # And the option's own words still answer it, which is what the card is for.
+    page.locator("#ro-column-p").click()
+    expect(page.locator("#ro-column > .cq-pick")).to_have_text("your pick")
+    round_trip(page)
+    assert [
+        e["detail"]["options"]
+        for e in sent_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [["ro-column"]]
+    assert errors == []
+    page.close()
+
+
 def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     """A row's dot is both the list's statement that it takes a pick and the target of
     the press that makes one, and it says the first of those by standing in a column

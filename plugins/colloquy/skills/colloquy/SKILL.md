@@ -39,11 +39,12 @@ own state, are read at a glance and commented on one at a time.
 **A page that asks leaves somewhere to answer.** Anything you want a decision on ends in
 a `cq-options … choose`, wherever on the page the question falls. Give each alternative a
 `<strong>` title and its case — a sentence, or paragraphs with a `<dl class="facts">`
-rail — and the options stack as full-width cards, so an argued decision lives inside the
-group rather than in a table beside it. Where an alternative is a section of the page
-itself — a diagram, a diff, something no card should hold — let the group be bare labels
-naming those sections (`for="<section id>"`), which renders as a compact list; `multiple`
-where more than one can win. Every such group carries a box for words, so "none of these" and a pick's
+rail, and the evidence it turns on: a `cq-shot` pair, a diagram, a figure, written into
+the option rather than into a section beside the group. The options stack as full-width
+cards, so the reader reads the case and presses in the same place. Where the alternatives
+are whole sections of the page rather than cards, let the group be bare labels naming
+them (`for="<section id>"`), which renders as a compact list; `multiple` where more than
+one can win. Every such group carries a box for words, so "none of these" and a pick's
 why need no separate gesture. A page presenting five candidates in prose and offering
 nothing to press has handed the reader a document where it meant to ask a question.
 

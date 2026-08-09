@@ -153,6 +153,14 @@
               everyone out. Revocation is a delete — which is the shape support's "log
               out all devices" needs.
             </p>
+            <cq-diagram id="session-flow">
+              <pre>
+graph LR
+  S[Redis] -->|hit| H[handle]
+  S -->|miss| F[cookie]
+  F --> H
+</pre>
+            </cq-diagram>
           </cq-option>
           <cq-option id="opt-db"
             ><cq-chip>effort: low</cq-chip><cq-chip tone="warn">risk: med</cq-chip>
@@ -175,18 +183,7 @@
       </section>
 
       <section id="flow">
-        <h2>Request path with the recommendation</h2>
-        <cq-diagram id="session-flow">
-          <pre>
-graph LR
-  R[request] --> C{cookie valid?}
-  C -->|yes| S[read session from Redis]
-  S -->|hit| H[handle]
-  S -->|miss/outage| F[verify signed fallback]
-  F --> H
-  C -->|no| L[login]
-</pre>
-        </cq-diagram>
+        <h2>The two cookies</h2>
         <p id="cookie-pair-note">
           The recommendation rides two cookies with different jobs:
         </p>

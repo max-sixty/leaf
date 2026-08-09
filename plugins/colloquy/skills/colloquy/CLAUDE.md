@@ -349,6 +349,32 @@ construction; that mistake is now made where the label is written, in front of w
 wrote the word, rather than in a print rule three files away that nobody thought to
 write.
 
+## A gesture a container takes on its whole box stops at what it holds
+
+A `choose` group takes the pick on the whole option, and an option's case is argued
+inside the option — a screenshot pair to flip, a disclosure to open, tabs to walk.
+Reading the evidence then cast a vote. A click on a tab chose that option; one on a
+shot's `after` radio chose it and cleared it again, so the log carried two decisions
+nobody made and the page showed neither of them. What stood there was an exemption for
+`<a>`, which is one item off a list the platform had already closed.
+
+`worksInside` is the question asked once: the nearest thing between the click and the
+container that has a use for it, or nothing, where the container itself is the aim. Two
+vocabularies, because a container holds two kinds of thing — a widget it merely contains
+is the registry's answer (`x-parent` says which widgets a container is *made* of, and
+everything else it holds is its own world), and authored HTML has the interactive
+elements the platform defines. Declared rather than listed, so a widget whose gesture
+lands on its own words rather than on chrome is covered by its entry; inert widgets go in
+with the rest, because a diagram is evidence the reader studies with the pointer on it,
+and which evidence happens to carry a control is nothing they can see.
+
+It fails closed, and that is the trade rather than an accident of the implementation: a
+pick is sent the moment it is made, so a gesture the container declines costs a reader
+one more click on the words, and one it takes wrongly is a decision Claude has already
+read. The container's own apparatus is the one thing no rule out here can tell from the
+rest — `cq-options`' pick mark is a control and the aim at once — so a container excludes
+its own by name, being the only thing that can.
+
 ## A shadow tree carries the page's words, and its ids
 
 `x-shadow` made a widget's rendered text part of the page. The passage walk crosses the

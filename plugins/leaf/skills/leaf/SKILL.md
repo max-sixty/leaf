@@ -418,11 +418,11 @@ For each acknowledged batch:
      pick answers a plain group, while a `multiple` group answers when the user
      presses its Done control, arriving as an `answer` action — act on the set
      then, though every toggle still reaches you live as it lands.
-3. Page changes go in the next version: Write `versions/v2.html` (incrementing; never
-   rewrite a version the user has seen — the picker is the history), then run
-   `version publish <page> --version 2 --text "<changelog>"`. Keep the changelog brief,
-   though a decline's why can take a sentence or two. The browser follows the published
-   version automatically.
+3. Page changes go in the next version: copy the last version to `versions/v2.html`
+   (incrementing; never rewrite a version the user has seen — the picker is the
+   history), edit the copy where the page moved, then run `version publish <page>
+   --version 2 --text "<changelog>"`. Keep the changelog brief, though a decline's why
+   can take a sentence or two. The browser follows the published version automatically.
 4. Re-enter the host's loop above: start a new background wait in Claude Code, or a new
    unified-exec wait in Codex and retain its exact session. Use `leaf status <page>
    waiting "<what you want back>"` and long-poll where the next move is the user's.

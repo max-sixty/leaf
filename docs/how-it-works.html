@@ -442,13 +442,26 @@
         <h2>Each page owns its layer</h2>
         <p>
           <code>page init</code> vendors the whole layer (runtime, theme, registry,
-          widget modules) into the page's directory, overlaying the shipped defaults
-          with <code>~/.config/leaf/</code> and the project's <code>.leaf/</code>. Theme
-          rules cascade over the defaults; registry entries add or replace widgets;
-          modules replace by filename. The
-          <a href="customizing.html">customization guide</a> shows how to scaffold each
-          shape. Because pages are self-contained, a version you approved can't change
-          under you when the defaults do.
+          widget modules) into the page's directory, overlaying four sources in order:
+          leaf's <strong>integrated</strong> layer, its
+          <strong>bundled</strong> widgets, your <code>~/.config/leaf/</code>, and the
+          project's <code>.leaf/</code>. Theme files concatenate in that order; registry
+          entries add or replace by entry; modules and vendored files replace by
+          filename. Because pages are self-contained, a version you approved can't
+          change under you when the defaults do.
+        </p>
+        <p id="what-is-customizable">
+          The first two ride that same mechanism, and the line between them marks what
+          you can change. The integrated layer is the machine: the runtime, the theme's
+          tokens and idioms, and the few registry facts the loop itself is written in
+          terms of — a suggestion's accept and reject among them, so that one widget is
+          not yours to swap. The bundled layer is everything a page merely
+          <em>contains</em>, the boards and diagrams and drafts and diffs, shipped as an
+          overlay rather than built in, so leaf's own widgets reach a page through the
+          door yours use. You can restyle or replace any of them, and add your own
+          beside them; no layer can remove one, since an overlay adds and replaces but
+          never subtracts. The <a href="customizing.html">customization guide</a> shows
+          how to scaffold each shape.
         </p>
       </section>
 

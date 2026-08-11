@@ -2034,7 +2034,7 @@ def cmd_customize_widget(tag: str, user: bool, upgrade: bool) -> None:
             if source_layer.resolve() == layer.resolve()
             else read_registry_entries(source_layer / "registry.json") or {}
         )
-        merged.update(source_entries)
+        merge_layer_entries(merged, source_entries)
     source = f"custom widget <{tag}>"
     validate_registry_examples(validate_registry(merged, source), source)
 
@@ -4561,12 +4561,34 @@ def require_registry(page_dir: Path) -> dict:
     return registry
 
 
+def merge_layer_entries(merged: dict, entries: dict) -> None:
+    """Fold one layer's top-level registry entries into the merge.
+
+    A tag entry replaces the earlier one whole; schemas never deep-merge,
+    because a half-old, half-new contract is no layer's vocabulary. A $ entry
+    merges one level deep: it is not a contract but the layer's namespace of
+    shared facts, and its members are the unit every consumer indexes
+    ($idioms[".lede"], $languages["names"]). Under replace-whole, a project
+    declaring its one idiom vendored a $idioms holding exactly that idiom —
+    its theme rules kept styling, theme.css concatenating where the registry
+    did not, while `page catalog` silently dropped the shipped ten. A member
+    still replaces whole, and the grain here decides nothing the gates don't
+    re-check: validation and the vocabulary stamp read the merged result,
+    whichever layer each piece came from.
+    """
+    for name, entry in entries.items():
+        earlier = merged.get(name)
+        merged[name] = (
+            {**earlier, **entry}
+            if name.startswith("$") and earlier is not None
+            else entry
+        )
+
+
 def incoming_registry(layers: list) -> dict:
     """The merged registry `page init` will vendor.
 
-    Layers are additive at the top level. A later entry replaces the earlier
-    entry whole; schemas never deep-merge, because a half-old, half-new contract
-    is no layer's vocabulary.
+    Layers are additive at the top level; merge_layer_entries holds the grain.
     """
     merged = {}
     paths = []
@@ -4575,7 +4597,7 @@ def incoming_registry(layers: list) -> dict:
         if not path.is_file():
             continue
         paths.append(path)
-        merged.update(read_registry_entries(path))
+        merge_layer_entries(merged, read_registry_entries(path))
     if not paths:
         raise RegistryError("the incoming layer has no registry.json")
     source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"

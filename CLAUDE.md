@@ -244,6 +244,15 @@ handed — and the second tell is what such a consumer does when the reach comes
 because a list read from the wrong place is a list that can move, and a check standing
 down on `if not known` retires itself the day it does.
 
+Layers compose a `$` key member by member, where a tag's entry replaces whole, because
+the two are different kinds: a schema is one contract whose halves cannot mix, and a
+shared fact is a namespace whose members stand alone. Under replace-whole, a project
+declaring its one idiom vendored a `$idioms` holding exactly that idiom — every shipped
+idiom kept styling, theme.css concatenating where the registry did not, while
+`page catalog` silently dropped the other ten — so the natural act of declaring a shape
+cost the agent the catalog it authors from. The stamp is indifferent to the grain: its
+gates read the merged result (`merge_layer_entries`).
+
 An `applyAction` implementation states an absolute placement, never a relative mutation,
 because the poll replays it and the sender's own action must be a no-op. The verb, its
 detail schema, its fold unit, and its record form are declared in the registry

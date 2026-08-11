@@ -531,6 +531,40 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     assert "lf-options" in registry and "$events" in registry
 
 
+def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
+    """A project idiom joins the shipped catalog; a restated one replaces its member.
+
+    $ entries merge one level deep. Under replace-whole, the first project layer
+    to declare an idiom vendored a $idioms holding only its own: the shipped
+    idioms' CSS kept styling (theme files concatenate), while `page catalog`
+    stopped documenting them — a silent wipe of everything the layer didn't
+    restate.
+    """
+    project = tmp_path / "proj"
+    layer = project / ".leaf"
+    layer.mkdir(parents=True)
+    hazard = {
+        "description": "A tinted aside for operational hazards.",
+        "example": '<aside class="hazard">Deploys freeze Friday.</aside>',
+    }
+    lede = {"description": "project lede", "example": '<p class="lede">…</p>'}
+    (layer / "registry.json").write_text(
+        json.dumps({"$idioms": {".hazard": hazard, ".lede": lede}})
+    )
+    monkeypatch.chdir(project)
+
+    page = tmp_path / "page"
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+
+    assert result.exit_code == 0, result.output
+    idioms = json.loads((page / "registry.json").read_text())["$idioms"]
+    shipped = json.loads((interact.ASSETS / "registry.json").read_text())["$idioms"]
+    assert idioms[".hazard"] == hazard
+    assert idioms[".lede"] == lede
+    assert idioms["description"] == shipped["description"]
+    assert set(shipped) <= set(idioms)
+
+
 def test_customize_scaffolds_a_project_widget_that_init_can_vendor(
     tmp_path, monkeypatch
 ):
@@ -3671,16 +3705,22 @@ def test_check_refuses_an_ask_no_page_could_carry(page_dir, tag, awaits, message
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
-def test_init_requires_the_complete_registry_contract(page_dir, tmp_path, section):
+def test_init_inherits_contract_members_a_layer_does_not_state(
+    page_dir, tmp_path, section
+):
+    """$ members merge, so an empty declaration is the same statement as none.
+
+    There is no incomplete $ replacement to refuse: what a layer doesn't state
+    is inherited, and the merged registry carries the complete shipped contract."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    # Omission inherits the lower layer; supplying an entry replaces it whole,
-    # so this incomplete replacement must fail merged-registry validation.
     (overlay / "registry.json").write_text(json.dumps({section: {}}))
 
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
-    assert result.exit_code != 0
-    assert "$events.kinds, $languages.names/paths and $tones.names" in result.output
+    assert result.exit_code == 0, result.output
+    merged = json.loads((page_dir / "registry.json").read_text())[section]
+    shipped = json.loads((interact.ASSETS / "registry.json").read_text())[section]
+    assert merged == shipped
 
 
 @pytest.mark.parametrize("names", ["ok", ["ok", "ok"], ["ok", 1]])

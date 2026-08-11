@@ -539,9 +539,11 @@ mirrors the same layout (`theme.css`, `registry.json`, `icon.svg`, `widgets/`,
 `vendor/`). Theme
 files concatenate in that order, so a short later file can override tokens or rules
 without copying the defaults. Runtime, icon, widget, and vendor files replace by path;
-registry files merge by top-level entry, with a later layer replacing one complete
-entry. A custom widget therefore adds its entry without copying the shipped registry,
-while overriding a tag supplies its whole schema. `leaf customize theme` and
+registry files merge at the unit of the contract: a later layer replaces a tag's
+complete entry, and one member inside a `$` entry. A custom widget therefore adds
+its entry without copying the shipped registry, overriding a tag supplies its whole
+schema, and an idiom declared under `$idioms` joins the shipped catalog beside the
+theme rules that style it. `leaf customize theme` and
 `leaf customize widget lf-name [--upgrade]` scaffold those files in the project
 layer; pass `--user` for the user layer. The merged vocabulary is validated before
 vendoring, and its `x-state.detail` schema validates every action at

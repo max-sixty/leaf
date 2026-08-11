@@ -85,9 +85,11 @@
           <code>page init</code>, the shipped layers load first — integrated, then the
           bundled widgets — the user layer next, and the project layer last. Theme files
           join in that order. A later registry entry or module with the same name
-          replaces the earlier one. Files may be managed through symlinks, but user,
-          project, and page-owned paths must resolve separately so one scope can never
-          overwrite another.
+          replaces the earlier one, and inside a <code>$</code> entry the same holds one
+          member at a time, so an idiom declared under <code>$idioms</code> joins the
+          shipped catalog rather than replacing it. Files may be managed through
+          symlinks, but user, project, and page-owned paths must resolve separately so
+          one scope can never overwrite another.
         </p>
       </section>
 

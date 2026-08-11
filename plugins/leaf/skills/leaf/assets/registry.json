@@ -103,7 +103,7 @@
     "names": ["ok", "warn", "danger"]
   },
   "$idioms": {
-    "description": "Recurring shapes the theme styles directly — no registry entry, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for.",
+    "description": "Recurring shapes the theme styles directly — no registry entry, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for. A layer adds one by declaring it here and styling it in its theme.css; members merge across layers, so the declaration joins this catalog rather than replacing it.",
     ".eyebrow": {
       "description": "A small-caps label above a heading.",
       "example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"

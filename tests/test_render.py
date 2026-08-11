@@ -532,6 +532,19 @@ def told(page):
     _until(page, lambda t: t.heard > asked)
 
 
+# A poll a test stops is cancelled rather than failed. The page cannot tell the two
+# apart — both reject the fetch the runtime awaits and leave it on the same `catch` —
+# and `requestfailed` fires for either, so the trip still counts as over and every wait
+# built on `Traffic` is unchanged. The console can tell them apart, which is what the
+# reason is chosen for: tests/CLAUDE.md, "A test cannot assert over noise it makes
+# itself". A send the network refuses is the other act, and
+# test_a_decision_the_server_never_took_goes_back_to_pending aborts plainly for it —
+# there the failure is the subject, and the entry it leaves is what the test asserts.
+def refuse(route):
+    """Stop this request with nothing for the page's console to report."""
+    route.abort("aborted")
+
+
 def open_page(
     browser,
     url,
@@ -4733,7 +4746,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
         elif THROUGH_THE_FIRST_PICK not in served:
             cap = THROUGH_THE_FIRST_PICK
         else:
-            route.abort()
+            refuse(route)
             return
         served.append(cap)
         state = route.fetch().json()
@@ -5750,7 +5763,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # decisions on one change, and the log's order — not either tab's belief —
     # settles it for both once the cut-off one catches up.
     third, third_errors = open_page(browser, url)
-    third.route("**/api/state", lambda route: route.abort())
+    third.route("**/api/state", refuse)
     first.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
@@ -5763,10 +5776,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     for tab in (first, second, third):
         told(tab)
         expect(tab.locator("#sug-thistle lf-new")).to_be_hidden()
-    assert first_errors == [] and second_errors == []
-    assert set(third_errors) <= {"Failed to load resource: net::ERR_FAILED"}, (
-        f"the cut-off tab broke on more than the requests this test refused: {third_errors}"
-    )
+    assert first_errors == [] and second_errors == [] and third_errors == []
     for tab in (first, second, third):
         tab.close()
 
@@ -12669,7 +12679,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
         polls = itertools.count()
         page.route(
             "**/api/state*",
-            lambda route: route.abort() if next(polls) == 0 else route.continue_(),
+            lambda route: refuse(route) if next(polls) == 0 else route.continue_(),
         )
 
     out = tmp_path / "standalone.html"

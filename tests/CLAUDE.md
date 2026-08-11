@@ -122,6 +122,25 @@ genuinely busy one rather than on demand. That is what a clean runtime cost, and
 for by the waits above being right — a wait consumes a fact the system states, and there is
 no longer anything behind that rule to catch a wait that doesn't.
 
+## A test cannot assert over noise it makes itself
+
+`page.route` stops a request from outside the page, and what the browser then says about
+that request comes back to the test in the same list its own assertions read. A poll
+refused with `route.abort()`'s default reason is a failed load, and Chrome writes
+"Failed to load resource: net::ERR_FAILED" to the console for it — which `open_page`
+collects, where it sits indistinguishable from the page having broken. How many of those
+entries a test reads back is then the machine's answer rather than its own. A run that
+reaches its last assertion inside a 2s poll interval refuses nothing; one that refuses a
+poll on the way can still read an empty list, since the entry reaches the test after the
+browser writes it. A loaded run refuses a poll per tick and hears about each in time to
+fail on it — so the test written to instrument a slow machine was the one that failed on
+a slow machine, naming the runtime for its own instrument.
+
+`refuse` cancels the request instead, which the console has nothing to say about, so
+`errors == []` says what it looks like it says however many polls a run refuses. Where
+the failed request is the subject rather than the instrument — a send the server never
+takes — the abort stays plain and the entry it leaves is asserted.
+
 ## A motion is a sequence, and every other check here reads a state
 
 Both ways of reading an animation from outside read states. A held frame

@@ -980,8 +980,10 @@ const PANEL_W = 420;
 /* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
    through the highlight registry — which styles glyphs, so the underline stands in for
    a border and the pointer's cursor comes from a class the hit-test puts on body. A
-   posted thread's mark wears the marker amber; the open composer's draft wears the
-   accent, and outranks it where they overlap. Not dashed — dashed means detached.
+   posted thread's mark wears the comment layer's own violet (--mark-ink and the wash
+   beside it, which is the same colour a marked element's ring is drawn in); the open
+   composer's draft wears the accent, and outranks it where they overlap. Not dashed —
+   dashed means detached.
 
    Stated once and installed twice, because the registry is the document's and the
    ::highlight() rule is not: a rule in the document styles no glyph inside a shadow
@@ -990,7 +992,7 @@ const PANEL_W = 420;
    to mean one thing in the document and another inside a diff. */
 const MARK_RULES = `
   ::highlight(lf-mark) { background-color: var(--mark);
-    text-decoration: underline 2px solid var(--quote-bar); text-underline-offset: 3px; }
+    text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
   ::highlight(lf-mark-hover) { background-color: var(--mark-strong); }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
@@ -1147,16 +1149,41 @@ ${MARK_RULES}
      widget wears. The chrome holds itself out instead, from inside its own scope. */
   body.lf-aiming { cursor: default; }
   body.lf-aiming.lf-over-item { cursor: pointer; }
-  /* Inside the element's own box, never outside it. An outline drawn outside is at the
-     mercy of whatever encloses it: a board scrolls (overflow-x: auto), its columns sit
-     flush against its padding box on three sides, and the mark on a column was clipped
-     down to the single vertical line that fell in the gutter — for the posted amber as
-     much as for the draft accent, so a comment on a container was a comment with no
-     visible mark at all. Containers are exactly what element anchoring is for, so this
-     is not a corner. Drawn inside, the mark cannot be clipped by an ancestor and cannot
-     stand on a neighbour, and it takes the element's own corner radius rather than
-     restating one, which is what the radius here used to override. */
-  .lf-mark-el { outline: 2px solid var(--quote-bar); outline-offset: -2px; cursor: pointer; }
+  /* One pixel, just inside the border box, because both sides of that edge belong to
+     somebody else. Outside it, the mark belongs to whatever encloses the element: a board
+     scrolls (overflow-x: auto), its columns sit flush against its padding box on three
+     sides, and a mark drawn outside a column was clipped down to the single vertical line
+     that fell in the gutter. Deeper inside, it belongs to what the element paints over
+     itself: an outline is painted before positioned descendants, so a container whose cells
+     carry a background — every choose group, since lf-option is relative — wipes out
+     whatever of the mark reaches past its own border. Containers are exactly what element
+     anchoring is for, so neither is a corner, and the second was what a reader reported: a
+     2px mark two pixels in came out a hairline on three sides of the group they had just
+     commented on and stayed 2px along the bottom, where the last cell stops short, so the
+     box was thicker at the bottom than the top. One pixel in is inside every ancestor's
+     clip and, wherever the element has a border of its own, outside every child's paint,
+     which is 72 of the 73 markable elements measured across the examples — the odd one a
+     mermaid node whose fractional width antialiases a device pixel either way.
+     The 73rd is the shape this does not reach, and it is worth naming because the fix
+     stops there rather than because it arrived with it: an element with no border of its
+     own whose positioned child is flush to the border box has no such band, so lf-shot
+     paints its frame over the mark's left and right and the reader gets a rule above and
+     below the figure and nothing down its sides. That was equally true at 2px two pixels
+     in — nothing here regressed it — and it is not reachable from a stylesheet, since the
+     only band left is outside, where a scrolling ancestor takes it. What would reach it is
+     a widget declaring that it paints to its own edge, and no widget needs to yet.
+     A hairline is not a fainter mark than the 2px was: --mark-ink clears 9.0:1 on the
+     paper where the burnt orange it replaced cleared 3.4, so this reads as an annotation
+     where a saturated 2px rectangle read as a validation error. It takes the element's own
+     corner radius rather than restating one, which is what the radius here used to
+     override. */
+  .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
+  /* The draft's own passage, and the item an armed press would take. Only the colour
+     separates it from a posted mark, and the colour moved: the burnt orange stood 77 ΔE
+     from the accent and --mark-ink stands 24, both now at a hairline. What keeps the two
+     apart is no longer the paint alone — an open composer is on screen whenever this one
+     is, and an element a thread already marks keeps the posted colour rather than taking
+     this (paintAnchors), so the pair never contend on one element. */
   .lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto; }
   /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
      hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -1391,7 +1418,7 @@ ${MARK_RULES}
     .lf-compose { position: relative; }
     .lf-compose > .lf-address { position: absolute; top: -8px; left: -8px; }
     .lf-leader-armed .lf-compose > .lf-address:not(:empty) { display: block; }
-    .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--quote-bar); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
+    .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
        paragraph of it in a 320px column buries the words written about it. So the panel
@@ -3701,7 +3728,7 @@ function paintAnchors() {
       if (holder) noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
   }
 
-  // The composer's own passage, in the accent rather than the marker amber, so a draft
+  // The composer's own passage, in the accent rather than the mark's own ink, so a draft
   // never reads as a posted comment. An element a thread already outlines keeps the posted
   // colour: there is one outline to give, and the thread's is the clickable one.
   //

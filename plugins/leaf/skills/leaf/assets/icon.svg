@@ -12,12 +12,12 @@
 <style>
   .page { fill: #faf9f5; stroke: #6f6a60; }
   .line { stroke: #6f6a60; }
-  .mark { stroke: #f2d38c; }
+  .mark { stroke: #dfd1ed; }
   .lf-tone { fill: #2f5480; }
   @media (prefers-color-scheme: dark) {
     .page { fill: #191815; stroke: #a09889; }
     .line { stroke: #a09889; }
-    .mark { stroke: #a1852a; }
+    .mark { stroke: #6152a0; }
     .lf-tone { fill: #8fb0d8; }
   }
 </style>

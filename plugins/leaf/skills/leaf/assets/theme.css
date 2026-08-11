@@ -59,7 +59,41 @@
   --chip: #eeeade;   /* neutral chip */
   --ink-2: #3c3934;  --muted-2: #9d968a; --border-2: #d5cfc2;
   --veil: #faf9f5ee; /* the banner's translucent backdrop */
-  --mark: #f2d38c66; --mark-strong: #f2d38c; --quote-bar: #c1743f;
+  /* The comment layer's own colour, in three tokens: the wash a marked passage
+     carries, the same wash under the pointer, and the ink every mark is drawn in —
+     a passage's underline, a marked element's ring, the panel's quote bar. One
+     colour, because they are one fact (a comment is anchored here) said in the
+     places it can be said; two would be the reader measuring which is which.
+     Violet, and the reason is the paragraph above about --accent, applied to the
+     one colour that had ignored it: the ink was a burnt orange ten degrees off
+     --warn, so a ring around a commented widget read as a warning box on a page
+     whose own vocabulary spends amber on "waiting on you" and red on "stuck". A
+     comment is not a status, so its colour is drawn from where no status lives —
+     far from all four semantics and from the accent — and it is legible where the
+     orange was thin: 9.0:1 on the paper against 3.4:1.
+     Deep rather than mid violet, because the one thing a mark is ever drawn on top
+     of is code: --syn-name is the purple identifiers are set in, and a mid-violet
+     underline beneath a line of them read as part of the token rather than as a
+     rule under it. The syntax roles are decorative and the mark is a signal, so the
+     separation is the mark's to make, and it is made in lightness — the hue stays
+     where the paragraph above put it. Teal was the alternative and is worse: it
+     sits close enough to --ok that a mark beside a decision would be a distinction
+     the reader has to measure, which is the failure this whole note is about.
+     The two washes are pinned by what code reads through them, which is a
+     measurement rather than a preference and is the reason they are stated to this
+     precision. A mark is the reader's own paint over a page, so UNREAD_SYNTAX
+     deliberately excludes it and nothing in the suite holds these to the 4.5:1 the
+     block below states; the first draft of this colour took that as licence and
+     sank four of the six roles under a hovered mark, against the amber's two. What
+     is here instead ties the colour it replaces on every number a reader could
+     notice — 4.76:1 through the resting wash and 4.06:1 through the hovered one,
+     both exactly the amber's, at the same 1.13:1 lift off the paper. The dark pair
+     does better than the amber rather than tying it (4.56 and 3.56 against 3.62 and
+     2.38), and pays for it in lift: 1.34:1 where the amber had 1.68. That trade is
+     deliberate — the amber's brighter band was bought with a hovered comment at
+     2.38:1, which is the "the highlighting is gone" report the syntax block below
+     was written for. */
+  --mark: #dfd1ed66; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
@@ -93,7 +127,7 @@
     --chip: #2d2922;
     --ink-2: #c9c3b6; --muted-2: #756e62; --border-2: #453f36;
     --veil: #191815ee;
-    --mark: #a1852a59; --mark-strong: #a1852a99; --quote-bar: #b8763f;
+    --mark: #6152a059; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;
     --danger-tint: #35211b; --danger-ink: #e0a091;

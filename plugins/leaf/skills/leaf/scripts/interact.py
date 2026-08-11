@@ -258,7 +258,7 @@ closing one from this side would file it away unread.
 
 Commands:
     status, wait, ack, comment, reply, report, events, transcript
-    page       init catalog media
+    page       init catalog media state
     customize  theme widget
     version    check publish export
     server     run stop
@@ -2787,6 +2787,96 @@ def cmd_catalog(page_dir: Path) -> None:
         print(json.dumps(idioms, indent=2, ensure_ascii=False))
 
 
+def cmd_page_state(page_dir: Path) -> None:
+    """Where the page stands, as one JSON object — the agent-side twin of the
+    browser's /api/state, folded rather than raw. /api/state ships the log and
+    lets the runtime replay it; a session picking a page up owes the same
+    reading, and doing it in-head over `leaf events` is how a standing decision
+    gets missed. So this prints the readings the runtime derives, from the same
+    constructions it derives them with: the published markup's elements, the
+    fold of the user's standing state and the reports standing on the agent
+    channel, where the record lags either (`record_lag_entries`), the open asks
+    on the page and in threads (the banner's own count), the comment threads,
+    and presence beside what answers for it. Computed on demand from the log,
+    the version, and the registry — nothing here is stored, so there is no
+    second copy of the truth to reconcile.
+
+    Every markup-derived reading is of the latest *published* version, because
+    that is the page the user sees and acts on; a written draft shows up in
+    `versions.written` and nowhere else."""
+    events = read_events(page_dir)
+    registry = require_registry(page_dir)
+    published = published_versions(page_dir, events)
+    written = list_versions(page_dir)
+    pres = presence(page_dir, events)
+    state = {
+        "page": str(page_dir),
+        "title": "",
+        "versions": {"published": published, "written": written},
+        **pres,
+        # The watcher's number where `pending` is the reader's: everything a
+        # wait would still print, workers' reports included.
+        "unacked": len(unacknowledged(events, pres["cursor"])),
+        "server": running_server(page_dir),
+        "elements": [],
+        "state": [],
+        "reports": [],
+        "asks": [],
+        "threads": [
+            {
+                "id": t["root"]["id"],
+                "anchor": t["root"].get("anchor"),
+                "text": t["root"]["text"],
+                "resolved": t["resolved"],
+                "messages": len(t["msgs"]),
+            }
+            for t in build_threads(events).values()
+        ],
+        "lag": [],
+    }
+    if published:
+        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+        parser = parse_structure(html)
+        byid = parser.by_id
+        spk = spoken(html, registry)
+        fold = state_fold(events, byid, spk, registry, None, retractions(events, None))
+        reports = standing_reports(events, byid, registry, None)
+        state["title"] = parser.title.strip()
+        state["elements"] = [
+            {"tag": r["tag"], "id": r["attrs"].get("id"), "line": r["line"]}
+            for r in parser.lf_elements
+        ]
+        state["state"] = [
+            {
+                "unit": unit,
+                "action": e["action"],
+                "detail": e["detail"],
+                "version": e["version"],
+                "seq": e["seq"],
+            }
+            for unit, (e, _) in sorted(fold.items())
+        ]
+        state["reports"] = [
+            {
+                "unit": unit,
+                "action": e["action"],
+                "detail": e["detail"],
+                "version": e["version"],
+                "seq": e["seq"],
+                "agent": e.get("agent"),
+                "standing": len(standing),
+            }
+            for unit, standing in sorted(reports.items())
+            for e, _ in [standing[-1]]
+        ]
+        state["asks"] = page_asks(parser, fold, reports, byid, spk, registry)
+        state["lag"] = record_lag_entries(fold, byid, spk, events, registry)
+    elif written:
+        state["title"] = parse_version(page_dir, written[-1]).title.strip()
+    state["asks"] += thread_asks(events, registry)
+    print(json.dumps(state, indent=2, ensure_ascii=False))
+
+
 def cmd_stop(page_dir: Path) -> str:
     info = running_server(page_dir)
     if info:
@@ -4992,16 +5082,15 @@ def decisions(fold: dict, registry: dict) -> dict:
     }
 
 
-def record_lag(html: str, events: list, registry: dict) -> list:
+def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
     """Units whose markup lags the user's standing state — the record debt a
     log-less reader would miss. Advice, never errors: a version is free to stay
     silent (replay resolves it), but SKILL.md's record obligation needs a
     feedback loop, and a finished page's final version is the page that has
-    to read right without the log."""
-    if not registry:
-        return []
-    fold, byid, spk = page_fold(html, events, registry, None)
-    lag = []
+    to read right without the log. One comparison, rendered twice: `record_lag`
+    speaks it, `page state` ships it — the same entries, so the advice a check
+    prints and the debt an agent queries cannot disagree."""
+    entries = []
     for unit in sorted(fold):
         e, spec = fold[unit]
         if unit not in byid:
@@ -5009,9 +5098,14 @@ def record_lag(html: str, events: list, registry: dict) -> list:
         f_cur = markup_facet(unit, spec, byid, spk)
         if f_cur is NO_RECORD or f_cur == folded_facet(e, spec):
             continue
-        lag.append(
-            f"`{unit}`: the log records {e['action']} → {folded_facet(e, spec)!r}; "
-            f"the markup still shows {f_cur!r}"
+        entries.append(
+            {
+                "unit": unit,
+                "channel": "action",
+                "action": e["action"],
+                "log": folded_facet(e, spec),
+                "markup": f_cur,
+            }
         )
     # The agent channel's half of the same debt: a standing report is state the
     # markup has not absorbed, and the final version is the page that has to
@@ -5024,11 +5118,166 @@ def record_lag(html: str, events: list, registry: dict) -> list:
         f_rep = folded_facet(e, spec)
         if f_cur == f_rep:
             continue
+        entries.append(
+            {
+                "unit": unit,
+                "channel": "report",
+                "action": e["action"],
+                "log": f_rep,
+                "markup": f_cur,
+            }
+        )
+    return entries
+
+
+def record_lag(html: str, events: list, registry: dict) -> list:
+    """`record_lag_entries` as advice lines, for check and the transcript."""
+    if not registry:
+        return []
+    fold, byid, spk = page_fold(html, events, registry, None)
+    lag = []
+    for n in record_lag_entries(fold, byid, spk, events, registry):
+        who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
-            f"`{unit}`: a report records {e['action']} → {f_rep!r}; "
-            f"the markup still shows {f_cur!r}"
+            f"`{n['unit']}`: {who} {n['action']} → {n['log']!r}; "
+            f"the markup still shows {n['markup']!r}"
         )
     return lag
+
+
+def asking(attrs: dict, when: dict) -> bool:
+    """The runtime's `asking`: every attribute `when` names holds one of the
+    values that ask, a flag's two values being its presence and its absence."""
+    return all(
+        any(
+            (attr in attrs) == value
+            if isinstance(value, bool)
+            else attrs.get(attr) == value
+            for value in values
+        )
+        for attr, values in (when or {}).items()
+    )
+
+
+def replayed_attrs(rec: dict, fold: dict, reports: dict) -> dict:
+    """An element's attributes as replay leaves them: the authored markup
+    overlaid with the surviving value-kind record — the browser evaluates an
+    ask's `when` against the replayed DOM, so a status a report moved reads
+    here the way it reads there. The user's action holds the unit over a
+    standing report, the channel precedence the registry states."""
+    attrs = rec["attrs"]
+    unit = attrs.get("id")
+    held = fold.get(unit) or (reports.get(unit) or [(None, None)])[-1]
+    e, spec = held if held[0] else (None, None)
+    if e and (spec.get("record") or {}).get("kind") == "value":
+        return {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
+    return attrs
+
+
+def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> bool:
+    """The runtime's `answeredAsk`: a verb that records as an attribute answers
+    on the record the replayed page carries — the fold's where an action
+    survives on the unit, the authored markup's otherwise, so a version that
+    honors a pick reads as answered with no log at all and a pick the reader
+    cleared reads as open again. Any other verb answers only through its own
+    fold entry."""
+    unit = rec["attrs"].get("id")
+    held = fold.get(unit)
+    for verb, spec in (entry.get("x-state") or {}).items():
+        record = spec.get("record")
+        if record and record["kind"] == "attribute":
+            if held and (held[1].get("record") or {}).get("kind") == "attribute":
+                facet = folded_facet(*held)
+            else:
+                facet = markup_facet(unit, spec, byid, spk) if unit else []
+            if facet:
+                return True
+        elif held and held[0]["action"] == verb:
+            return True
+    return False
+
+
+def quoted_in(unit: str, byid: dict, spk: dict, registry: dict) -> bool:
+    """The runtime's `quoted`: inside an element the registry marks x-exhibit,
+    a widget is a mention rather than a use, and asks nothing."""
+    return any(
+        registry.get(byid.get(a, {}).get("tag"), {}).get("x-exhibit")
+        for a in spk.get(unit, EMPTY).within[:-1]
+    )
+
+
+def page_asks(parser, fold, reports, byid, spk, registry: dict) -> list:
+    """The published page's standing asks — the list the banner counts and the
+    `a` key steps, read from the file and the log instead of the DOM. An
+    instance asks when its replayed attributes match its entry's `when`;
+    quoted material asks nothing; answered is what x-state already declares
+    (`answered_ask`)."""
+    asks = []
+    for rec in parser.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        awaits = entry.get("x-awaits")
+        if not awaits:
+            continue
+        unit = rec["attrs"].get("id")
+        if unit and quoted_in(unit, byid, spk, registry):
+            continue
+        if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
+            continue
+        if answered_ask(rec, entry, fold, byid, spk):
+            continue
+        asks.append({"id": unit, "tag": rec["tag"], "thread": None})
+    return asks
+
+
+def thread_asks(events: list, registry: dict) -> list:
+    """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
+    from the log. A fragment is frozen: no version answers it and no `restated`
+    retracts it, so every action on its widgets stands (no floors, no window).
+    Only a widget with an action channel asks in a thread at all, and `until`
+    holds a matching ask open until the reader has posted the verb it names."""
+    asks = []
+    thread_of = {}
+    for e in events:
+        if e["kind"] == "comment":
+            thread_of[e["id"]] = e["id"]
+        elif e["kind"] == "reply":
+            thread_of[e["id"]] = thread_of[e["parent"]]
+        else:
+            continue
+        markup = e.get("markup")
+        if not markup:
+            continue
+        frag = parse_structure(markup)
+        byid = frag.by_id
+        spk = spoken(markup, registry)
+        fold = state_fold(events, byid, spk, registry, None, {})
+        reports = standing_reports(events, byid, registry, None)
+        for rec in frag.lf_elements:
+            entry = registry.get(rec["tag"]) or {}
+            awaits = entry.get("x-awaits")
+            if not awaits or not entry.get("x-state"):
+                continue
+            unit = rec["attrs"].get("id")
+            if unit and quoted_in(unit, byid, spk, registry):
+                continue
+            attrs = replayed_attrs(rec, fold, reports)
+            if not asking(attrs, awaits.get("when")):
+                continue
+            until = awaits.get("until")
+            if until and asking(attrs, until["when"]):
+                answered = any(
+                    a["kind"] == "action"
+                    and a["widget"] == unit
+                    and a["action"] == until["verb"]
+                    for a in events
+                )
+            else:
+                answered = answered_ask(rec, entry, fold, byid, spk)
+            if not answered:
+                asks.append(
+                    {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
+                )
+    return asks
 
 
 def unpointable_blocks(parser: _StructParser) -> list:
@@ -6379,6 +6628,15 @@ def media(dir: str, files) -> None:
 def catalog(dir: str) -> None:
     """Print the page's widget and theme vocabulary."""
     cmd_catalog(resolve_dir(dir))
+
+
+@page.command(short_help="Print where the page stands, as JSON.")
+@click.argument("dir", metavar="PAGE")
+def state(dir: str) -> None:
+    """Fold the log onto the published page and print the result as one JSON
+    object: elements, standing state and reports, record lag, open asks,
+    threads, versions, presence."""
+    cmd_page_state(resolve_dir(dir))
 
 
 @cli.group(short_help="Check, publish, and export versions.")

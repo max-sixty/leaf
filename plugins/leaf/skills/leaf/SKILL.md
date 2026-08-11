@@ -88,6 +88,7 @@ shown as `leaf` below. Claude Code also puts the same launcher on PATH.
 leaf page init <page>                    # create layout, vendor the widget layer
 leaf page catalog <page>                 # widgets and theme idioms
 leaf page media <page> <file>…           # add images; print each page path
+leaf page state <page>                   # where the page stands, as JSON
 leaf version check <page> --render       # browser gate, once per page
 leaf version publish <page> --version 1 --text "<changelog>"
 leaf version export <page> -o <file>     # standalone HTML copy
@@ -602,8 +603,12 @@ the wait — so a standing server that died and came back that way now goes down
 session. Say so when it happens, and re-establish it with `server run --standing` (a
 `server stop` first, if the wait's revival is still up).
 
-Working on a standing page changes nothing you do. Pick it up with `leaf wait` as
-usual, publish versions as usual, and expect the same loop while your session lasts — a
+Working on a standing page changes nothing in the loop, and adds one step before it:
+the page carries weeks of decisions your session never saw, so read
+`leaf page state <page>` first — the standing state the log has folded onto the page,
+the asks still open, and where the markup lags a decision, as one JSON object. Then
+pick it up with `leaf wait` as usual, publish versions as usual, and expect the same
+loop while your session lasts — a
 `server run` of your own finds the standing server already up, prints its URL, and
 leaves it running. What changes is the ending: don't stop the server, and use
 `leaf status <page> idle` only when the *page* is finished, not when your work on it

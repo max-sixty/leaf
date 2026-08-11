@@ -124,6 +124,7 @@ Commands:
   catalog  Print the widget and theme vocabulary.
   init     Create or re-vendor a page directory.
   media    Add images and print their page paths.
+  state    Print where the page stands, as JSON.
 """,
             id="page",
         ),
@@ -2862,6 +2863,202 @@ def test_check_reports_record_lag_without_erroring(page_dir):
 
     result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
     assert "record behind the log" in result.output  # CliRunner folds stderr in
+
+
+def state_json(d):
+    result = CliRunner().invoke(interact.cli, ["page", "state", str(d)])
+    assert result.exit_code == 0, result.output
+    return json.loads(result.output)
+
+
+def test_page_state_folds_the_log_onto_the_published_page(page_dir):
+    """`page state` is /api/state folded for the agent: the banner's ask list,
+    the standing state replay paints, and record_lag's advice, as one queryable
+    object — the position a session picking up a standing page would otherwise
+    re-derive from the raw log."""
+    opts = OPTIONS.format(
+        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    state = state_json(page_dir)
+    assert state["versions"] == {"published": [1], "written": [1]}
+    # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
+    assert state["asks"] == [{"id": "g1", "tag": "lf-options", "thread": None}]
+    assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
+    assert state["state"] == [] and state["lag"] == []
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+    state = state_json(page_dir)
+    assert state["asks"] == []
+    assert state["state"] == [
+        {
+            "unit": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+            "version": 1,
+            "seq": 2,
+        }
+    ]
+    assert state["lag"] == [
+        {
+            "unit": "g1",
+            "channel": "action",
+            "action": "choose",
+            "log": ["o-shim"],
+            "markup": [],
+        }
+    ]
+    assert state["pending"] == 1 and state["unacked"] == 1
+
+
+def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
+    """A version that honors a pick in its markup reads as answered with no log
+    at all — the shipped examples arrive that way."""
+    opts = OPTIONS.format(a=" chosen", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    assert state_json(page_dir)["asks"] == []
+
+
+def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
+    """A widget in thread markup asks like one on the page, `until` holds a
+    `multiple` group open across picks, and only the named verb closes it."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    root = interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "Which mitigations?",
+            "markup": '<lf-options id="gm" choose multiple>'
+            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+    ]
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "gm",
+            "action": "choose",
+            "detail": {"options": ["m-cap"]},
+        },
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+    ]
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "gm",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+
+
+def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
+    """A standing report closes the ask its status change resolves, stands in
+    `reports` with the record lag beside it, and leaves when a note absorbs it."""
+    tasks = (
+        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
+        "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
+    )
+    publish(page_dir)
+    assert state_json(page_dir)["asks"] == [
+        {"id": "t-parser", "tag": "lf-task", "thread": None}
+    ]
+    rep = interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "worker",
+            "version": 1,
+            "widget": "t-parser",
+            "action": "status",
+            "detail": {"status": "done"},
+        },
+    )
+    state = state_json(page_dir)
+    assert state["asks"] == []
+    assert state["reports"] == [
+        {
+            "unit": "t-parser",
+            "action": "status",
+            "detail": {"status": "done"},
+            "version": 1,
+            "seq": 2,
+            "agent": "worker",
+            "standing": 1,
+        }
+    ]
+    assert state["lag"] == [
+        {
+            "unit": "t-parser",
+            "channel": "report",
+            "action": "status",
+            "log": "done",
+            "markup": "review",
+        }
+    ]
+    # The absorbing version writes the status and its note names the report.
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
+        )
+    )
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "text": "absorbed",
+            "reports": [rep["id"]],
+        },
+    )
+    state = state_json(page_dir)
+    assert state["reports"] == [] and state["lag"] == [] and state["asks"] == []
+
+
+def test_page_state_before_first_publish(page_dir):
+    """A page with only a draft has no published reading: versions say so and
+    every markup-derived field is empty rather than an error."""
+    state = state_json(page_dir)
+    assert state["versions"] == {"published": [], "written": [1]}
+    assert state["elements"] == [] and state["asks"] == []
+    assert state["title"] == "t"  # from the written draft
 
 
 def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):

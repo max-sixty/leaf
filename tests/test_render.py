@@ -29,6 +29,7 @@ installed browser: no download, no build step, `uv` still the one prerequisite.
 
 import base64
 import hashlib
+import io
 import itertools
 import json
 import os
@@ -1558,6 +1559,176 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.keyboard.up("Alt")
     assert errors == []
     page.close()
+
+
+MARK_PAD = 6  # CSS px of ground kept around the element in the clip
+MARK_NEAR = 12  # per channel, wide enough for the stroke's antialiased shoulder only
+
+
+def token_colour(page, name):
+    """What a theme token resolves to on this page, as the browser serializes it.
+
+    The mark's own reading is no reading at all: taken off the marked element's
+    `outlineColor`, every measurement below is against whatever that rule happens to
+    say, so pointing `.lf-mark-el` at the accent leaves the gate green. The token is
+    the thing the rule is supposed to name, so the colour comes from there and the
+    rule is checked against it."""
+    return page.evaluate(
+        """(name) => {
+        const probe = document.createElement('span');
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const seen = getComputedStyle(probe).color;
+        probe.remove();
+        return seen;
+    }""",
+        name,
+    )
+
+
+def mark_edges(page, ident, ink):
+    """How wide the mark is painted on each side of an element, in device pixels.
+
+    Geometry can't answer this and neither can the computed style: the mark is an
+    outline, so every rect is identical whether the stroke survived or something
+    painted over it, and `outlineWidth` is what was asked for rather than what
+    landed. Pixels are the only reading — the same recourse the draft's focus ring
+    needed, one screenshot up from a byte comparison because the four sides have to
+    be compared with each other rather than with an earlier frame.
+
+    Each scan starts at the element's own edge and stops at the first pixel that
+    isn't the mark's colour, because the first draft counted the first ink-coloured
+    run *anywhere* along the scanline: an accent status dot sitting in the clip's own
+    padding reported 26 device pixels of "mark" on a side the mark never reached, and
+    a marked code block would have counted its identifiers. What follows from that is
+    the tolerance too — ±12 per channel admits the stroke's antialiased shoulder and
+    nothing else, where ±40 reached both --accent and --syn-name.
+
+    Three samples a side, returned as a set rather than a majority. A majority is a
+    vote for the mark being intact when part of the edge has been painted over, which
+    is the failure this exists to catch; a disagreement is the finding, so the caller
+    sees {1, 0} rather than 1."""
+    from PIL import Image  # a dev dependency already, for the demo recorder
+
+    box = page.locator(f"#{ident}").bounding_box()
+    fits = page.evaluate(
+        """([x, y, w, h, pad]) => x >= pad && y >= pad
+             && x + w + pad <= innerWidth && y + h + pad <= innerHeight""",
+        [box["x"], box["y"], box["width"], box["height"], MARK_PAD],
+    )
+    assert fits, (
+        f"#{ident} is not wholly on screen with {MARK_PAD}px around it, and a "
+        f"screenshot clip is the viewport's: scroll it in and size the viewport to "
+        f"it first, or the scans measure a truncated image"
+    )
+    shot = page.screenshot(
+        clip={
+            "x": box["x"] - MARK_PAD,
+            "y": box["y"] - MARK_PAD,
+            "width": box["width"] + 2 * MARK_PAD,
+            "height": box["height"] + 2 * MARK_PAD,
+        }
+    )
+    image = Image.open(io.BytesIO(shot)).convert("RGB")
+    width, height = image.size
+    scale = page.evaluate("() => devicePixelRatio")
+    edge = round(MARK_PAD * scale)
+
+    def stroke(scan):
+        """Mark-coloured pixels contiguous with the element's edge, and no others."""
+        inked = [
+            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink)) for pixel in scan
+        ]
+        # The border box lands on `edge` only when the rect is whole; a fractional
+        # one puts it a device pixel either side, so the stroke is looked for there
+        # and nowhere else.
+        start = next((i for i in range(edge - 1, edge + 2) if inked[i]), None)
+        if start is None:
+            return 0
+        seen = 0
+        while start + seen < len(inked) and inked[start + seen]:
+            seen += 1
+        return seen
+
+    def quarters(size):
+        return (size // 4, size // 2, 3 * size // 4)
+
+    columns = [[image.getpixel((x, y)) for y in range(height)] for x in quarters(width)]
+    rows = [[image.getpixel((x, y)) for x in range(width)] for y in quarters(height)]
+    return {
+        "top": {stroke(c) for c in columns},
+        "bottom": {stroke(c[::-1]) for c in columns},
+        "left": {stroke(r) for r in rows},
+        "right": {stroke(r[::-1]) for r in rows},
+    }
+
+
+def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
+    """The mark is drawn in the one band of an element nobody else paints in.
+
+    Both sides of an element's edge belong to somebody. Outside it, the mark is at
+    the mercy of whatever encloses the element — a board is a scroller, so a mark
+    drawn outside a column flush against its padding box was clipped down to the one
+    vertical line that fell in the gutter. Inside it, the mark is at the mercy of
+    what the element paints over itself: an outline is painted before positioned
+    descendants, so a choose group's cells, which are relative and carry a
+    background, wipe out whatever of it reaches past the group's own border.
+
+    Neither failure moves anything, so no geometry read finds either — and both
+    reach the reader as an uneven box rather than as a missing one, which is how
+    this arrived: 2px two pixels in came out a hairline on a group's top and sides
+    and stayed 2px along its bottom, where the last cell stops short, and what was
+    reported was that the box was thicker at the bottom than the top.
+
+    One page carries both shapes, because a fix for either alone passes half of
+    this: the group is the element that paints over its own mark, the column the
+    element something else clips.
+
+    The colour is asserted here rather than assumed by the measurement, since the
+    scans have to be told what to look for and taking that off the element makes the
+    test blind to the one thing it is measuring in."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        color_scheme="light",
+        device_scale_factor=2,
+    )
+    url = serve(REPLAYED_PAGE)
+    for ident in ("approach", "col-doing"):
+        interact.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": "Say more about this.",
+                "anchor": {"section": ident},
+            },
+        )
+    page, errors = open_page(browser, url, context=context)
+    expect(page.locator("#approach.lf-mark-el")).to_have_count(1)
+    expect(page.locator("#col-doing.lf-mark-el")).to_have_count(1)
+    ink = token_colour(page, "--mark-ink")
+    for ident in ("approach", "col-doing"):
+        painted = page.evaluate(
+            "(id) => getComputedStyle(document.getElementById(id)).outlineColor", ident
+        )
+        assert painted == ink, (
+            f"the mark on #{ident} is painted {painted}, not the comment layer's own "
+            f"--mark-ink ({ink})"
+        )
+        edges = mark_edges(page, ident, tuple(int(n) for n in re.findall(r"\d+", ink)))
+        widths = {side: sorted(seen) for side, seen in edges.items()}
+        assert all(len(seen) == 1 for seen in edges.values()), (
+            f"the mark on #{ident} changes width along a side: {widths}"
+        )
+        stroke = {next(iter(seen)) for seen in edges.values()}
+        assert 0 not in stroke, f"the mark on #{ident} is missing from a side: {widths}"
+        assert len(stroke) == 1, (
+            f"the mark on #{ident} is not the same stroke on every side: {widths}"
+        )
+    assert errors == []
+    page.close()
+    context.close()
 
 
 def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
@@ -7146,7 +7317,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     )
 
     # Both classes have to go, asserted apart: leaving .lf-mark-el behind repaints the
-    # figure in the posted amber, pointer cursor and all, over no thread to open.
+    # figure in the posted mark's own ink, pointer cursor and all, over no thread to open.
     page.get_by_role("button", name="Cancel").click()
     assert page.locator("#fig.lf-pending").count() == 0, (
         "the outline outlived its composer"

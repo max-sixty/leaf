@@ -740,7 +740,7 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
  * than speaks (a sample decision, a demo board). It wears the quotation idiom,
  * blockquote's muted hairline gutter opened by a small-caps label — not the
  * callout's tinted field, and not the left-accent bar that rule forbids: a
- * quote-bar marks provenance, an accent bar demands attention. The content
+ * quotation's gutter marks provenance, an accent bar demands attention. The content
  * itself renders at full fidelity (an exhibit must show the real thing), so
  * the gutter and label alone say "mention, not use". Input never leaves one:
  * the interactive widgets check quoted() before wiring (lf-options.js,

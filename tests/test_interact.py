@@ -2586,6 +2586,30 @@ def test_an_unearned_overruled_is_refused(page_dir):
     assert "writes the reported state" in result.output
 
 
+def test_overruled_is_earned_even_when_prev_dropped_the_unit(page_dir):
+    """Whether `overruled` is earned is this version's markup against the
+    report, not whether the *previous* version's markup still carried the id.
+    A unit that vanished from prev and comes back writing a disagreeing state
+    is a named disagreement like any other — id-survival is a separate
+    question, and letting it decide earning told an honestly overruling
+    version it was writing the reported state (absorption) instead."""
+    _tasks_version(page_dir, 1, "active")
+    publish(page_dir)
+    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+
+    # v2 drops the task's id outright. `publish` registers it as the baseline
+    # directly, the way test_absorption_is_by_id_never_inferred_from_markup
+    # does — id-survival is its own gate, not what this test is about.
+    (page_dir / "versions" / "v2.html").write_text(PAGE)
+    publish(page_dir, version=2)
+
+    # v3 brings the id back, honoring its own state and overruling the report
+    # still standing from v1 — this must pass, not be told it's absorbing.
+    _tasks_version(page_dir, 3, "done", " overruled")
+    result = check(page_dir, version=3)
+    assert result.exit_code == 0, result.output
+
+
 def _board(todo, done):
     """A two-column board, each column given its cards as (id, attrs, title)."""
     card = lambda c: f'<lf-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></lf-card>'

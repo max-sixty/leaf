@@ -145,6 +145,17 @@ any text to comment on the example it belongs to.</p>
               (replication, expiry) still attached, and the account-takeover response
               waiting on them.
             </p>
+            <lf-shot
+              id="jwt-sessions-shot"
+              alt="the support sessions panel, before and after sessions stop being stored"
+              before="/media/676977f1adde6fa1.png"
+              after="/media/128154edbb078102.png"
+            ></lf-shot>
+            <p>
+              With nothing stored there is nothing to list, so the support console loses
+              its per-device Revoke and "log out all devices" waits on the token's own
+              expiry.
+            </p>
           </lf-option>
           <lf-option id="opt-redis" recommended
             ><lf-chip>effort: med</lf-chip><lf-chip tone="ok">risk: low</lf-chip>

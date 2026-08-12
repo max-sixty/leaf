@@ -123,7 +123,7 @@
       "example": "<aside class=\"callout\">Rollback is one flag flip; the backfill is idempotent.</aside>"
     },
     ".facts": {
-      "description": "A label/value grid for summary facts, as a definition list. Inside a lf-option or lf-variant it docks right as a fixed-width rail instead, aligning each item's scalars down the group.",
+      "description": "A label/value grid for summary facts, as a definition list. Inside a card that stands for one alternative in a group, it docks right as a fixed-width rail instead, aligning each item's scalars down the group.",
       "example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
     },
     "ol.steps": {
@@ -131,7 +131,7 @@
       "example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"
     },
     "table": {
-      "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for lf-metrics when the numbers are a handful of headline figures rather than a grid, and lf-options when the rows are alternatives the reader picks between.",
+      "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for a KPI widget when the numbers are a handful of headline figures rather than a grid, and a decision widget when the rows are alternatives the reader picks between.",
       "example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
     },
     "td.num": {
@@ -143,7 +143,7 @@
       "example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-metric\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
     },
     "pre > code.language-*": {
-      "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to, and `version check` refuses one outside it. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for lf-code instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
+      "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to, and `version check` refuses one outside it. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
       "example": "<pre><code class=\"language-bash\">leaf version check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
     }
   }

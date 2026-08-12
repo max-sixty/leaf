@@ -5198,14 +5198,15 @@ def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
         if unit not in byid:
             continue
         f_cur = markup_facet(unit, spec, byid, spk)
-        if f_cur is NO_RECORD or f_cur == folded_facet(e, spec):
+        f_log = folded_facet(e, spec)
+        if f_cur is NO_RECORD or f_cur == f_log:
             continue
         entries.append(
             {
                 "unit": unit,
                 "channel": "action",
                 "action": e["action"],
-                "log": folded_facet(e, spec),
+                "log": f_log,
                 "markup": f_cur,
             }
         )
@@ -5587,14 +5588,18 @@ def report_errors(
     earned = set()
     for unit in sorted(standing):
         e, spec = standing[unit][-1]
+        f_cur = markup_facet(unit, spec, byid, now)
+        f_rep = folded_facet(e, spec)
+        # Whether an `overruled` is earned is this version's markup against the
+        # report, so it is settled ahead of the skip below: a unit the gate declines
+        # to adjudicate would otherwise land in `unearned` and be told it writes the
+        # reported state it in fact contradicts.
+        if unit in declared and f_cur != f_rep:
+            earned.add(unit)  # a named disagreement, whatever state it keeps
+            continue
         rec = byid.get(unit)
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
-            continue
-        f_cur = markup_facet(unit, spec, byid, now)
-        f_rep = folded_facet(e, spec)
-        if unit in declared and f_cur != f_rep:
-            earned.add(unit)  # a named disagreement, whatever state it keeps
             continue
         if f_cur == f_rep:
             continue  # honoring: publishing absorbs the report by id
@@ -6556,9 +6561,10 @@ def inline_assets(html: str, page_dir: Path) -> str:
         sys.exit(
             "the rendered page carried no /theme.css link — it would open unstyled"
         )
-    for src in sorted(
-        set(re.findall(r"/" + MEDIA_DIR + r"/[a-f0-9]{16}\.[a-z]+", html))
-    ):
+    # The served spelling itself, rather than a second one beside it: a suffix a
+    # looser pattern admits and MEDIA_TYPES lacks reaches the KeyError below, and
+    # two spellings of one rule are how it would get there.
+    for src in sorted(set(re.findall(f"/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]}", html))):
         file = page_dir / src.lstrip("/")
         data = base64.b64encode(file.read_bytes()).decode()
         html = html.replace(src, f"data:{MEDIA_TYPES[file.suffix]};base64,{data}")

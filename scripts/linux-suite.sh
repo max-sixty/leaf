@@ -14,7 +14,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-if [ $# -eq 0 ]; then set -- tests; fi
+# The default is CI's own command, `--run-nightly` and all, because reproducing what CI
+# saw is the whole point of running here.
+if [ $# -eq 0 ]; then set -- tests --run-nightly; fi
 
 docker build --platform linux/amd64 -t leaf-linux-suite \
   -f "$HERE/linux-suite.Dockerfile" "$HERE"

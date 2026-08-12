@@ -25,6 +25,11 @@ _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
 
+# Every test here builds the site, and the build draws each example through
+# `bin/leaf version export`, which is the launcher's browser path — so the whole module
+# reaches the package index. CLAUDE.md, "The everyday run asks nothing of the network".
+pytestmark = pytest.mark.nightly
+
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}

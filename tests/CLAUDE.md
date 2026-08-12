@@ -19,6 +19,28 @@ what `version check --render` runs at handover, and `test_example_renders` drive
 the examples, so the gate a user's page passes and the suite the examples pass are one
 implementation and cannot drift.
 
+## The everyday run asks nothing of the network
+
+The browser is the machine's own and the page it opens is on disk, so the suite needs
+nothing of the network — except where a test drives `bin/leaf` on a subcommand that
+opens Chrome. The launcher supplies Playwright to those from outside the script's lock
+(`uv run --with playwright`), and an unlocked requirement has no recorded resolution to
+install from, so uv asks pypi for one every time its cached answer has gone stale. With
+pypi unreachable the whole of `test_site.py` errors in the fixture that builds the site,
+the two tests that run the shim's own `--render` fail on its exit status, and a suite of
+six hundred passing browser tests reports as broken. Those carry `pytest.mark.nightly`
+and an everyday run skips them; CI and `wt merge` pass `--run-nightly`, both holding a
+network for reasons of their own. A new test that shells out to the launcher's browser
+path wants the mark too.
+
+Prove a run offline by giving uv an index that isn't there —
+`UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The dead URL is also the key uv
+caches under, so nothing already fetched can answer in its place, and `UV_FROZEN` keeps
+that same dead URL from re-resolving `uv.lock` and failing the run on its own account.
+Blocking the route instead — a dead `HTTPS_PROXY` — leaves the key alone, so an entry
+still inside pypi's ten-minute cache header answers without asking and the run passes
+though it was never offline.
+
 ## A round trip is not over when its response lands
 
 The runtime answers a post by polling, so what the page does about a send arrives with

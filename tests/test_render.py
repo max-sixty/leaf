@@ -2573,6 +2573,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert "scrolls sideways" in broken.stderr
 
 
+@pytest.mark.nightly  # the shim's `--render` resolves a Playwright from the index
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
     """Exercise the copied artifact a host installs, never an import from this checkout."""
     root = Path(__file__).parent.parent
@@ -2827,6 +2828,7 @@ UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
 )
 
 
+@pytest.mark.nightly  # the shim's `--render` resolves a Playwright from the index
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
     """`leaf` is what the skill hands an agent, so the shim's own resolution
     is load-bearing: it finds the script from its location rather than the cwd,

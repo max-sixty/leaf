@@ -21,6 +21,23 @@ interact = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(interact)
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-nightly",
+        action="store_true",
+        default=False,
+        help="Also run the tests that reach the package index",
+    )
+
+
+def pytest_runtest_setup(item):
+    """Hold back the tests that reach the package index, so an everyday run needs
+    no network at all. What earns a test the mark, and what still runs it, is in
+    CLAUDE.md beside this file."""
+    if "nightly" in item.keywords and not item.config.getoption("--run-nightly"):
+        pytest.skip(f"--run-nightly not passed — skipping {item}")
+
+
 @pytest.fixture(autouse=True)
 def isolated_session(tmp_path_factory, monkeypatch):
     """Keep the developer's session out of every fixture. Their real

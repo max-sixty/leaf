@@ -10,5 +10,7 @@
 [[pre-merge]]
 checks = "pre-commit run -a"
 
+# `--run-nightly` because landing pushes: this run holds the network an everyday one
+# is written not to need.
 [[pre-merge]]
-tests = "uv run pytest tests"
+tests = "uv run pytest tests --run-nightly"

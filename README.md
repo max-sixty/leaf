@@ -127,13 +127,14 @@ move the two XDG directories leaf reads (`config_home`, `state_home`) and leave 
 rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
 developer already has, and a fresh checkout fills it the way any other run would.
 
-One resolution sits outside `uv.lock`: the Playwright `bin/leaf` supplies to
-`version export` on top of the script's header (it says why), which uv asks the index for
-whenever its cached answer has gone stale — a second or so, once. On a machine with no
-network, hold the whole run to the cache instead:
+That command asks nothing of the network. One resolution sits outside `uv.lock` — the
+Playwright `bin/leaf` supplies to `version export` on top of the script's header (it says
+why) — and uv asks the index for that one whenever its cached answer has gone stale, so
+the tests that shell out to it are marked `nightly` and left out. `--run-nightly` puts
+them back, which is how CI and `wt merge` run the suite, both holding a network already:
 
 ```
-UV_OFFLINE=1 uv run pytest tests
+uv run pytest tests --run-nightly
 ```
 
 Ruff and prettier run from `.pre-commit-config.yaml`, which says what each covers

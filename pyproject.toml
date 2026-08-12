@@ -50,3 +50,4 @@ package = false
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 8"
+markers = ["nightly: reaches the package index; `--run-nightly` runs it"]

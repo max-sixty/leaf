@@ -320,9 +320,17 @@ customElements.define(
           this.classList.remove("lf-dragging");
           const sup = this.#superseded;
           this.#superseded = null;
-          const { item: card, to, newIndex } = evt;
+          // The *draggable* indexes, which count cards; Sortable's plain
+          // oldIndex/newIndex count every element child, and a column's first
+          // child is the heading #structure prepends. Mixing the two units is
+          // silent both ways: a superseded grab compares its own card index
+          // against a child index, so a card dragged one place up from where it
+          // was grabbed reads as unmoved and the move is never sent, and a
+          // failed send restores through #place, which counts cards, one slot
+          // late.
+          const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;
-          const oldIndex = sup ? sup.index : evt.oldIndex;
+          const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
           if (from === to && oldIndex === newIndex) return;
           this.#send(card, from, oldIndex, to);
         },

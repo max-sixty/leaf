@@ -2,9 +2,9 @@
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
 The site is the pages the repo already holds. `docs/` is written to be opened from
-a checkout — the theme and the tab icon arrive by relative paths into the plugin
-payload, and an example link points at the example — so publishing is four
-substitutions plus the files those paths then name. Nothing here templates or
+a checkout — the worn assets (`WORN_ASSETS`) arrive by relative paths into the
+plugin payload, and payload and example links point into the checkout — so
+publishing is those substitutions (`REWRITES`) plus the files the paths then name. Nothing here templates or
 generates a page: what is on the web is the file in the tree, which is why the
 pages can double as specimens of the theme.
 

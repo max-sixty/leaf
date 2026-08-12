@@ -157,11 +157,15 @@ customElements.define(
         // it is (its focus end)? Asking whether the selection contains the option instead
         // answers yes for any selection over the group, and the option stops taking picks
         // until the user clears it.
+        const option = e.target.closest?.("lf-option");
         const sel = getSelection();
-        const card = e.target.closest?.("lf-option");
-        if (e.detail !== 0 && sel && !sel.isCollapsed && card?.contains(sel.focusNode))
+        if (
+          e.detail !== 0 &&
+          sel &&
+          !sel.isCollapsed &&
+          option?.contains(sel.focusNode)
+        )
           return;
-        const option = e.target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
         // A click something in the option has a use for is not a pick: the reader was
         // working the case — flipping a shot, opening a disclosure, following a link —

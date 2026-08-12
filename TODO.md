@@ -1,5 +1,57 @@
 # TODO
 
+- (2026-08-11) What a parallel review sweep confirmed and left on the table, each with
+  its evidence in the sweep's session:
+
+  - Residue of the retraction-floor fix in thread settlement (landed: an accept a
+    later version `restated` no longer resolves its thread forever, via one
+    predicate — `action_retracted` / `retractedIds` — shared by the fold, the
+    rewrite gate, replay and the thread builders on both sides). Three things it
+    deliberately did not settle: a `reject` recorded after an `accept` on the same
+    suggestion still leaves the thread resolved — un-resolving that case means
+    folding by unit, a separate decision; the panel is now not version-scoped while
+    replay still is, so a reader pinned to an older version correctly sees a thread
+    reopened by a later retraction beside a suggestion still painted accepted, and
+    no prose yet says both readings answer different questions; and
+    `build_threads`'s `spk` parameter defaults to no page reading only because one
+    test calls it with one argument (tests/test_interact.py:2949) — make it
+    required and fix the caller.
+  - The two collapse rules are not one rule: JS collapses `/\s+/` and Python
+    `str.isspace()`, and the sets disagree on U+FEFF (whitespace to JS only) and on
+    U+0085 plus U+001C–U+001F (Python only). A page carrying one of those in prose
+    reads differently on the two sides, so a `leaf comment` quote can be written
+    against text the browser never produces. State the collapse class once, as an
+    explicit character class both sides spell identically, beside `TEXT_BLOCK` where
+    the other shared rule lives.
+  - Thread settlement now dispatches on the detail carrying `resolves`, but the field
+    is undeclared: nothing in the registry says `resolves` means "the thread this
+    action answers", so `validate_registry` can't hold it to a string and a widget
+    using the name otherwise would settle a thread silently. Declare it the way
+    `x-language` names the attribute carrying a language.
+  - theme.css's block-slot rule (`lf-old`/`lf-new` around line 357) hardcodes all
+    fifteen bundled widget tags — complete today, checked, and exactly the closed
+    list the norms forbid, with core naming overlay tags besides. Needs a declaration
+    the rule can be driven from.
+  - `_PassageParser` never unwinds its stack at EOF: an element left open loses its
+    `gone` verdict and trailing `x-says` values. `version check` refuses unbalanced
+    markup, but `capture_anchor` and `spoken` also run over `prev_html` and fragments
+    that never passed that gate.
+  - `bin/leaf` records `$PPID` as the long-lived Codex process; if Codex execs the
+    shim through an intermediate shell, that PID dies with the command and
+    `claim_page`'s stale-session sweep deletes a live session's entry. Needs a real
+    Codex invocation to settle.
+  - lf-options writes `answered` and `open` onto page markup undeclared — real widget
+    state `x-state.answer` records nowhere, so it lands in `shallowSigs` and nothing
+    outside the module knows it exists. Either a `record` form or the paint
+    vocabulary. And a settled `multiple` group in a thread collapses its options but
+    not the Done press, leaving an orphaned button under the summary.
+  - Two unmeasured hot paths, flagged where to point the measurement, per the rule
+    that no cost claim ships unmeasured: `openAsks()` rebuilds `stateFold` two to
+    four times per key-line paint and per poll, `itemAt` rebuilds the
+    retired-slot selector once per ancestor per mousemove where `quotable()` already
+    hoists the same shape, and `buildThreads` now walks the log for
+    `retractionFloors(Infinity)` on each of its few calls per poll.
+
 - (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an
   orphaned last row once a group holds more than the columns take. It stayed by

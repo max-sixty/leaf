@@ -2,7 +2,7 @@
      aria-label="leaf">
 <!-- A page with one line marked and a comment in its margin: the gesture the
      whole product is. Transparent, and the two palettes are the values
-     theme.css states for paper, ink, accent and the mark, spelled out because a
+     theme.css states for paper, muted, accent and the mark, spelled out because a
      favicon cannot link a stylesheet.
 
      The margin comment is `lf-tone`, and that is a contract with the runtime:

@@ -35,6 +35,17 @@ PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
 
 
+def pages_under(directory):
+    """The pages a sweep walks, proved to exist before it walks them. Four of the
+    checks below are loops over a glob and nothing else, so a directory that moved or
+    was renamed turns every one of them into a sweep that pressed nothing — green, and
+    for the wrong reason (tests/CLAUDE.md, "A sweep that walks controls by index must
+    prove it pressed them")."""
+    pages = sorted(directory.glob("*.html"))
+    assert pages, f"no pages under {directory}"
+    return pages
+
+
 @pytest.fixture(scope="module")
 def site(tmp_path_factory):
     """One build for the module: it draws nine examples in Chrome."""
@@ -44,7 +55,7 @@ def site(tmp_path_factory):
 
 
 def test_the_pages_link_the_theme_the_site_serves(site):
-    for page in sorted(DOCS.glob("*.html")):
+    for page in pages_under(DOCS):
         published = (site / page.name).read_text()
         assert 'href="theme.css"' in published
         assert 'href="bundled-theme.css"' in published
@@ -68,7 +79,7 @@ def test_only_the_stylesheet_link_becomes_the_served_copy(site):
 
 
 def test_every_example_is_published_standalone(site):
-    for source in sorted(EXAMPLES.glob("*.html")):
+    for source in pages_under(EXAMPLES):
         copy = (site / "examples" / source.name).read_text()
         assert "<script" not in copy, f"{source.name} carries script a host can't serve"
         assert 'href="/theme.css"' not in copy, (
@@ -94,7 +105,7 @@ def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
 def test_the_site_takes_its_palette_from_the_theme(site, browser, scheme):
     page = browser.new_page(color_scheme=scheme)
     try:
-        for name in sorted(p.name for p in DOCS.glob("*.html")):
+        for name in (p.name for p in pages_under(DOCS)):
             page.goto((site / name).as_uri())
             assert (
                 page.evaluate("getComputedStyle(document.body).backgroundColor")
@@ -114,7 +125,7 @@ def test_the_pages_fit_a_phone(site, browser):
     than the site's, and it is not answered here."""
     page = browser.new_page(viewport=PHONE)
     try:
-        for name in sorted(p.name for p in DOCS.glob("*.html")):
+        for name in (p.name for p in pages_under(DOCS)):
             page.goto((site / name).as_uri())
             overflow = page.evaluate(
                 "() => { const b = document.body;"

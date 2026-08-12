@@ -1202,7 +1202,7 @@ ${MARK_RULES}
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-    color: var(--ink); box-shadow: var(--shadow); }
+    color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
   /* Where stepping the page's open asks has put the reader (stepAsk), on the ask
      rather than on whichever of its controls took the focus — the reader was brought
@@ -1666,6 +1666,7 @@ const OTHERS_KEYS = [
 ];
 const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
 othersPanel.addEventListener("keydown", (ev) => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return; // ⌘↓ is the platform's scroll, not the walk
   const dir = ev.key === "ArrowDown" ? 1 : ev.key === "ArrowUp" ? -1 : 0;
   if (!dir) return;
   const rows = othersLinks();
@@ -1860,6 +1861,11 @@ function showVersionMenu(open) {
 }
 versionBtn.onclick = () => showVersionMenu(!versionMenuOpen);
 versionMenu.addEventListener("keydown", (ev) => {
+  // A chord is none of these keys, the same stand-down the dispatcher makes and for the
+  // same reason: ⌘V is a paste, and read as the version key it takes the reader off the
+  // page they are on. ⌘↑ / ⌘↓ are the platform's own scroll, which the walk below would
+  // consume.
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
   // The newest version by its own row's press, so the key leaves the menu through the
   // door the pointer uses — the menu closes and the pin lifts, both goVersion's and
   // showVersionMenu's to say, neither restated here. There is a row to press: this
@@ -2296,6 +2302,11 @@ const ago = (ts) => {
 function buildThreads() {
   const threads = new Map();
   const threadFor = new Map();
+  // The whole log, not this version's window: a conversation is not version-scoped, so
+  // the panel shows the same threads whichever version is pinned and a retraction
+  // settles a thread's state from wherever it was declared. interact.py's callers pass
+  // upto=None for the same reason.
+  const floors = retractionFloors(Infinity);
   for (const e of events) {
     if (e.kind === "comment") {
       const thread = { root: e, msgs: [e], resolved: false };
@@ -2303,12 +2314,27 @@ function buildThreads() {
       threadFor.set(e.id, thread);
       continue;
     }
-    // An accept snapshots the thread its suggestion answered into the action
-    // (the honoring version retires the wrapper that held the mapping, and one
-    // atomic event can't half-arrive the way a second POST could).
-    if (e.kind === "action" && e.action === "accept") {
+    // An action that names a thread settles it. The answer snapshots the thread
+    // it was made in, because the honoring version retires the wrapper that held
+    // the mapping and one atomic event can't half-arrive the way a second POST
+    // could — so the log is the only place that pairing survives.
+    //
+    // Read off the detail rather than the verb, because the naming is the
+    // mechanism's and the verb is a member's: `accept` stood here once, which was
+    // exactly right for the one widget that says that word and silently nothing
+    // for the next widget whose answer closes the question it was asked in. That
+    // is the failure the widget list's norm names — it arrives as a feature
+    // nobody wired up rather than as an error. A verb carries only the detail
+    // keys its entry declares (additionalProperties: false), so a `resolves` is
+    // one on purpose, and an answer that settles no thread carries none.
+    if (e.kind === "action" && e.detail.resolves) {
       const answered = threads.get(e.detail.resolves);
-      if (answered) answered.resolved = true;
+      // Only while the action still stands. A version that rewrote what the decision
+      // rested on retracts it (`restated`), and replay drops it — so a thread left
+      // resolved here would be the one reading the log said nothing about, exactly the
+      // second store this design has none of.
+      if (answered && !retractedIds(e, floors, elementById(e.widget)).length)
+        answered.resolved = true;
       continue;
     }
     if (e.kind === "reply") {
@@ -2858,11 +2884,20 @@ const TEXT_BLOCK =
 //
 // Built per walk rather than per node, because the retired half of the wall is read out
 // of the registry each time it is asked for.
+// A text node's parent is an element, and these two say so the way the other two
+// readings of the same nodes already do (pageText's cell walk, snapOut's seam). Written
+// four ways it was four answers to one question, three of them asserting the parent and
+// one quietly admitting a node without one — which is a claim about the page nothing
+// backs: what a widget stages into a shadow root is the only text these walks reach
+// with no element over it, and a module staging a bare text node would be handing the
+// page words no cell, no fence and no block. It throws here now, out of the pass the
+// render gate reads the console for, which is the loud direction and in front of
+// whoever staged it.
 const quotable = () => {
   const gone = silenced();
-  return (n) => !inUi(n) && !n.parentElement?.closest(gone);
+  return (n) => !inUi(n) && !n.parentElement.closest(gone);
 };
-const authored = () => (n) => !n.parentElement?.closest(GENERATED);
+const authored = () => (n) => !n.parentElement.closest(GENERATED);
 // The composed tree, not the light one: a widget that renders the page's words into an
 // open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
 // own children stop rendering the moment it has one. A TreeWalker sees none of that — it
@@ -3260,14 +3295,21 @@ const holds = ({ origin, fences }, at, want, before) => {
   if (!want) return there === "";
   return before ? there.endsWith(want) : there.startsWith(want);
 };
-// As much collapsed text as the stored context is long, however much raw text that takes.
+// As much collapsed text as the caller asked for, however much raw text that takes.
 // A fixed raw budget reads less than the capture wrote wherever whitespace runs dense — an
 // indented line inside a <pre> — and the right occurrence then confirms none of its own
-// neighbours. `want` is the stored string's own length rather than the cap the capture
-// spent, because the capture counted code points and this counts code units: an emoji in
-// the neighbourhood makes those different numbers, and a window short by even one
-// character can never confirm, so a repeated anchor would detach despite unchanged
-// context.
+// neighbours.
+//
+// Counted in code points, which is the unit both captures write in: `cut` slices the
+// window this returns by code point, and interact.py's reading of the same passage slices
+// a Python string, which has no other unit. Counting code units here stopped the growth
+// early on any neighbourhood holding an emoji — the window reached 24 of them while
+// holding 23 characters — so the browser stored a prefix a character short of the one the
+// file's reading stores for that same passage, and the two captures wrote different
+// anchors for one passage. `holds` asks in the other unit (`want.length`, the stored
+// string's own, which is what its endsWith compares in), and that is an over-ask this can
+// only over-satisfy: reaching N code points takes at least N code units, so its window is
+// never the one short of confirming that a repeated anchor would detach over.
 function neighbourhood(origin, fences, at, want, before) {
   const edge = before
     ? (fences.filter((f) => f <= at).at(-1) ?? 0)
@@ -3276,7 +3318,7 @@ function neighbourhood(origin, fences, at, want, before) {
     const lo = before ? Math.max(edge, at - raw) : at;
     const hi = before ? at : Math.min(edge, at + raw);
     const text = quoteFrom(spanOf(origin, lo, hi));
-    if (text.length >= want || (before ? lo === edge : hi === edge)) return text;
+    if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
 }
 // What the page says, once, as one string with a way back to the nodes it came from. Built
@@ -4107,8 +4149,16 @@ function selectionAnchor(sel) {
 // layer: a reply's widget is markup frozen in the log, and the layer's own buttons are
 // what floating chrome is allowed to sit beside. `data-lf-offer` is what makes a thing
 // pressable (`offer`), so this asks after any widget's controls without naming one.
+//
+// The line saying how many comments a block holds is the one control out here that is
+// still the layer's. It wears the marker because a screen reader reaches it by Tab, and
+// it is clipped to a pixel where it stands (it only takes a box on focus, fixed under
+// the banner) — so a float stepping down past it steps around nothing anyone can see,
+// which is exactly the movement this walk exists to prevent.
 const pageControls = () =>
-  [...document.querySelectorAll("[data-lf-offer]")].filter((c) => !inChrome(c));
+  [...document.querySelectorAll(`[data-lf-offer]:not(.${NOTE})`)].filter(
+    (c) => !inChrome(c),
+  );
 
 // The 💬 button carries the anchor it would open a composer on, so raising it and acting
 // on it can't come to different conclusions about what the reader picked. Visibility is
@@ -4274,7 +4324,7 @@ function snapSelection() {
 function updateFab(visual) {
   if (!anchoringReady) {
     showFab(null);
-    return false;
+    return;
   }
   const sel = pageSelection();
   const anchor = sel ? selectionAnchor(sel) : null;
@@ -4282,7 +4332,6 @@ function updateFab(visual) {
     showFab(anchor, ...beside(pageRange(sel).getBoundingClientRect()));
   else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
   else if (fabAnchor?.quote) showFab(null);
-  return true;
 }
 // Where the pointer stopped is not the question; where the selection is, is. The guard
 // exists so a mouseup inside the runtime's layer — a click in the panel, the composer —
@@ -5384,6 +5433,13 @@ let askAt = null;
 // ask's own controls from there, and it is the only landing available where the
 // element has no box of its own to hold focus (a suggestion renders display: contents).
 const ASK_CONTROL = "[data-lf-offer][tabindex]";
+// The ask this walk lent a tab stop to, so it can take it back. An ask with nothing to
+// work has no box in the tab order and the runtime writes it one — which is paint on the
+// author's element, and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave
+// standing there (a `tabindex` in it would blind the replay signature to an authored
+// one). So the lend lasts exactly as long as the mark it goes with. One at a time,
+// because one element wears the mark at a time.
+let askLent = null;
 function stepAsk() {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
@@ -5392,6 +5448,10 @@ function stepAsk() {
   askAt = next.id;
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+  if (askLent) {
+    askLent.removeAttribute("tabindex");
+    askLent = null;
+  }
   // A thread's ask lives in the panel, which has no geometry while closed — the
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelOpen) setPanel(true);
@@ -5400,7 +5460,10 @@ function stepAsk() {
   const control =
     next.querySelector(ASK_CONTROL) ??
     document.querySelector(`[data-lf-for="${next.id}"] ${ASK_CONTROL}`);
-  if (!control) next.tabIndex = -1; // nothing to work: the ask itself takes the focus
+  if (!control) {
+    next.tabIndex = -1; // nothing to work: the ask itself takes the focus
+    askLent = next;
+  }
   (control ?? next).focus({ preventScroll: true });
   // Each ask centres in the region it stands in. The banner clearance
   // scrollToElement answers for is the document scroller's alone, and a thread's
@@ -5906,7 +5969,11 @@ const midComposition = () =>
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
       document.activeElement.hasAttribute("data-lf-offer")));
-latestChip.onclick = () => (location.href = "/");
+// Through the chooser's own travel, so the chip opens the version it names. `/` reached
+// the same place by asking the server which version is newest — a second route to what
+// goVersion states, and one that could land the reader on a version the chip had not
+// offered, since the answer is re-derived at the press rather than at the render.
+latestChip.onclick = () => goVersion(latestVersion);
 
 // ---------- polling ----------
 // Rendering version V shows V plus every action recorded up to it, replayed in
@@ -5958,9 +6025,23 @@ function restsOn(e, widget) {
   const parts = Object.values(e.detail)
     .flat()
     .map((v) => (typeof v === "string" ? elementById(v) : null))
-    .filter((el) => el && containsAcross(widget, el))
+    .filter((el) => el && widget && containsAcross(widget, el))
     .map((el) => el.id);
   return [e.widget, ...parts];
+}
+// Which of those a later version took back. One spelling of the rule, because three
+// readings ask it — replay, the fold, and the thread list — and a decision standing in
+// one of them and retracted in another is the drift `restated` exists to prevent. The
+// ids rather than a boolean, since replay says so on the page (data-lf-restated) and
+// the other two only count them.
+//
+// A widget the page no longer holds answers for itself alone, which is what a version
+// honoring a decision leaves behind: the wrapper is retired, so there is nothing to ask
+// about containment and nothing that should read as a retraction — retirement is the
+// decision being carried out, not taken back. That is also the answer interact.py gives
+// without trying, reading a version file where the same element is simply absent.
+function retractedIds(e, floors, widget) {
+  return restsOn(e, widget).filter((id) => (floors.get(id) ?? 0) > e.version);
 }
 // Retractions: a version that rewrote the words or state under a decision says
 // so with `restated`, and publishing records it on the note that released it.
@@ -6076,9 +6157,7 @@ function applyActions() {
           appliedActions.add(e.seq);
           continue;
         }
-        const gone = restsOn(e, el).filter(
-          (id) => (takenBack.get(id) ?? 0) > e.version,
-        );
+        const gone = retractedIds(e, takenBack, el);
         if (gone.length) {
           // Say so on the page: a decision undone looks exactly like one never
           // made, and the user is owed the difference.
@@ -6162,10 +6241,18 @@ function stateSpecs() {
 // DOM or of the diff's parsed base document alike. An attribute record is the
 // set of elements wearing it — a group taking several picks marks several — so
 // both readings collapse to the sorted ids, and comparing them stays a !==.
+//
+// The id-bearing ones only, because an id is how a member of that set is named
+// everywhere else: in the action detail the fold reads back (foldedFacet sorts
+// the ids the log carries) and in interact.py's reading of the same page, which
+// can see none but those. One marked element without an id contributed an empty
+// string that sorted to the front of the join, so a set the two sides agreed on
+// came out with a leading space on this one.
 function domFacet(el, record) {
   if (record.kind === "attribute")
     return [...el.querySelectorAll(`[${record.attr}]`)]
       .map((o) => o.id)
+      .filter(Boolean)
       .sort()
       .join(" ");
   if (record.kind === "value") return el.getAttribute(record.attr);
@@ -6220,7 +6307,7 @@ function stateFold(upto) {
     if (!el?.applyAction || inChrome(el)) continue;
     const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
     if (!spec) continue;
-    if (restsOn(e, el).some((id) => (floors.get(id) ?? 0) > e.version)) continue;
+    if (retractedIds(e, floors, el).length) continue;
     const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
     if (typeof unit === "string") fold.set(unit, { e, spec });
   }

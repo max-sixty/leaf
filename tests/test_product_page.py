@@ -5,6 +5,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from conftest import interact
+
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
 BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
@@ -18,13 +20,16 @@ def test_docs_pages_link_the_shipped_theme():
         "../plugins/leaf/skills/leaf/assets/theme.css",
         "../plugins/leaf/skills/leaf/bundled/theme.css",
     )
-    for layer, target in zip((ASSETS, BUNDLED), targets):
+    for layer in (ASSETS, BUNDLED):
         assert (layer / "theme.css").is_file()
     # The <link> around the href, not the whole tag spelled out: customizing.html also
     # links that same file as source to read, so the path alone would pass on a page
     # that had dropped its stylesheet. Attributes in any order and on any number of
     # lines, because a formatter decides that — prettier puts this one on four.
-    for page in DOCS.glob("*.html"):
+    pages = sorted(DOCS.glob("*.html"))
+    # A glob that found nothing walks nothing and passes: this whole check is the loop.
+    assert pages, f"no pages under {DOCS}"
+    for page in pages:
         text = page.read_text()
         for target in targets:
             link = re.compile(rf'<link\b[^>]*?"{re.escape(target)}"')
@@ -41,6 +46,33 @@ def test_docs_pages_use_only_registered_widgets():
         for tag in re.findall(r"<(lf-[a-z-]+)", page.read_text())
     }
     assert used and used <= set(registry)
+
+
+def test_customizing_guide_documents_every_key_a_registry_entry_may_declare():
+    """The guide's table of `x-` keys is written by hand, and the vocabulary it
+    describes is not closed — a widget declaring a behaviour the layer didn't have
+    adds a key, and the table is the only place an author meets it. Nothing held the
+    two together, so the table drifted four keys behind the schema and the guide read
+    as complete the whole time: a key it omits is one nobody writing a widget knows
+    they may write.
+
+    Against `EXTENSION_SCHEMA` rather than the shipped registries, because that is the
+    closed set — `additionalProperties: False` means no entry can declare a key outside
+    it, and a key lands there first, before any widget adopts it. Deriving the list from
+    the registries instead would let a key go undocumented for as long as it went
+    unused, which is exactly the stretch in which someone reads the guide to find out
+    what is available."""
+    documented = " ".join(
+        (DOCS / "customizing.html").read_text().split()
+    )  # collapsed: prettier decides where the lines in a table cell fall
+    keys = sorted(k for k in interact.EXTENSION_SCHEMA["properties"] if k[:2] == "x-")
+    assert keys, "no extension keys read — an empty vocabulary demonstrates itself"
+    undocumented = [
+        k for k in keys if not re.search(rf"\b{re.escape(k)}\b", documented)
+    ]
+    assert not undocumented, (
+        f"docs/customizing.html documents no {', '.join(undocumented)}"
+    )
 
 
 def test_customizing_guide_sits_beside_how_it_works():

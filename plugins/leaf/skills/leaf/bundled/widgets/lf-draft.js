@@ -431,7 +431,11 @@ customElements.define(
     // runtime's, not this widget's: the pending pass compares the fold against
     // the authored text and marks data-lf-pending for every widget alike.
     applyAction(action, detail) {
-      if (action !== "edit" || typeof detail?.text !== "string") return;
+      // The shape of `text` is the registry's claim and the POST door's gate
+      // (action_contract_error), so nothing here re-asks it. What is left to
+      // check is what no schema can say, and for one absolute body that is
+      // nothing at all.
+      if (action !== "edit") return;
       // Defer rather than yank words out from under a live edit. Only the open box
       // is named here: a send in flight held this off too, and holding replay off a
       // widget the page has painted ahead of the log is the layer's now, for every

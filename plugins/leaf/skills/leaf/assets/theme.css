@@ -58,7 +58,11 @@
   --code-bg: #eeeade; --pre-bg: #f5f2e9;
   --chip: #eeeade;   /* neutral chip */
   --ink-2: #3c3934;  --muted-2: #9d968a; --border-2: #d5cfc2;
-  --veil: #faf9f5ee; /* the banner's translucent backdrop */
+  /* The banner's translucent backdrop is the paper it floats over, so it is derived
+     rather than restated: a project that overrides --paper gets a backdrop that
+     follows it, where a second hex kept the default ivory behind a recoloured page,
+     and the dark block has one fewer token to hold in step. */
+  --veil: color-mix(in srgb, var(--paper) 93.3%, transparent);
   /* The comment layer's own colour, in three tokens: the wash a marked passage
      carries, the same wash under the pointer, and the ink every mark is drawn in —
      a passage's underline, a marked element's ring, the panel's quote bar. One
@@ -126,7 +130,6 @@
     --code-bg: #29251e; --pre-bg: #1e1c18;
     --chip: #2d2922;
     --ink-2: #c9c3b6; --muted-2: #756e62; --border-2: #453f36;
-    --veil: #191815ee;
     --mark: #6152a059; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;

@@ -1502,6 +1502,13 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     result = runner.invoke(interact.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
+    # Named, not merely refused. `page init` has a dozen ways to stop, and the layer
+    # staged above is enough to trip several of them, so an exit code alone says only
+    # that something went wrong — delete the destination check and one of the others
+    # fails the command in its place, leaving this green with its subject gone. The tail
+    # of the message rather than the whole path: the CLI resolves the directory, and on
+    # a mac that is the /private prefix the fixture's own path doesn't carry.
+    assert "lf-tabs.js must be a file" in result.output
     assert (page / "theme.css").read_bytes() == theme_before
     assert (page / "registry.json").read_bytes() == registry_before
 
@@ -5625,7 +5632,8 @@ def test_examples_pass_check(tmp_path, monkeypatch):
     assert examples
     for example in examples:
         d = tmp_path / example.stem
-        CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        initialized = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         result = check(d)
@@ -6195,6 +6203,48 @@ def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
     )
     assert scoped.exit_code == 0, scoped.output
     assert json.loads(scoped.output)["anchor"]["section"] == "flag-first"
+
+
+def test_a_section_the_version_has_no_id_for_is_refused(page_dir):
+    """The first gate on a written anchor, and the one a typo meets. An id the version
+    doesn't hold reaches nobody in the browser — the runtime looks the element up and
+    finds nothing — so it is refused here, where the writer can still fix it, rather
+    than posting a comment that arrives pointing at the page's edge."""
+    result = comment(published(page_dir), "--section", "backfil-first", "--text", "x")
+    assert result.exit_code != 0
+    assert "no element id 'backfil-first'" in result.output
+
+
+def test_a_section_scopes_where_a_quote_may_land(page_dir):
+    """--section is the way out the ambiguity message offers, so it has to be a bound
+    and not a label: the words go in the anchor's section field, and the browser then
+    searches inside that element alone. A quote the page holds elsewhere is not a quote
+    this section says, and taking it would write a comment whose two halves disagree —
+    a section that doesn't hold the passage the quote names, which is exactly the claim
+    the file's reading may never make on the page's behalf."""
+    elsewhere = comment(
+        published(page_dir),
+        "--quote",
+        "Verify, then flip",
+        "--section",
+        "flag-first",
+        "--text",
+        "x",
+    )
+    assert elsewhere.exit_code != 0
+    # Named as the section's silence, not the page's: the page does say it, one option over.
+    assert "§ flag-first doesn't say 'Verify, then flip'" in elsewhere.output
+    held = comment(
+        page_dir,
+        "--quote",
+        "Verify, then flip",
+        "--section",
+        "backfill-first",
+        "--text",
+        "x",
+    )
+    assert held.exit_code == 0, held.output
+    assert json.loads(held.output)["anchor"]["section"] == "backfill-first"
 
 
 def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):

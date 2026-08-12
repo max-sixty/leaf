@@ -35,7 +35,7 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
-No config or account is required. Leaf needs
+No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) on `PATH` (`interact.py` declares its dependencies
 in a PEP 723 header) and a browser on the same machine as the session.
 
@@ -79,9 +79,10 @@ plugins/leaf/bin/leaf server run /tmp/demo
 
 `scripts/site.py` assembles <https://leaf.page/> into `.tmp/site`,
 and `.github/workflows/publish-site.yaml` runs it on every push to `main` that touches
-the pages, the examples, or the layer. The docs pages are copied with their three
-checkout-relative paths substituted (the theme, a link into the payload, and a link to
-an example), and each
+the pages, the examples, or the layer. The docs pages are copied with their
+checkout-relative paths substituted: the two stylesheets and the icon a page wears become
+the site's own copies, every other path into the payload becomes a GitHub link, and a
+link to an example names the exported copy beside it. Each
 example is exported through the shipped `version export`, so what a visitor reads is
 Chrome's own drawing of the page with the comment layer removed. The build resolves
 every local link it wrote and refuses a site holding one that reaches nothing.

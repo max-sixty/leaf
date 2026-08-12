@@ -9151,9 +9151,10 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     panel_settled(page)
-    assert not page.locator(".lf-fab").is_visible(), (
-        "the click opened the thread and then offered to comment on it as well"
-    )
+    expect(
+        page.locator(".lf-fab"),
+        "the click opened the thread and then offered to comment on it as well",
+    ).not_to_be_visible()
 
     # The harm that outlives the stray button: a page mid-composition stays put.
     d = serve.page_dir
@@ -12665,9 +12666,9 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
     page.locator("#p").click()
-    assert not page.locator(".lf-fab").is_visible(), (
-        "a click on prose was read as a click on a picture"
-    )
+    expect(
+        page.locator(".lf-fab"), "a click on prose was read as a click on a picture"
+    ).not_to_be_visible()
     assert errors == []
     page.close()
 

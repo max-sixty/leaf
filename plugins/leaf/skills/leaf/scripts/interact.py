@@ -704,8 +704,24 @@ def read_events(page_dir: Path) -> list:
     return events
 
 
-def build_threads(events: list) -> dict:
-    """Fold the chronological log into comment threads by root id."""
+def build_threads(events: list, spk: dict | None = None) -> dict:
+    """Fold the chronological log into comment threads by root id.
+
+    An action settles the thread it names only while the log lets it stand. A
+    version that rewrites what a decision rested on says `restated`, publishing
+    records the floor, and replay drops the action — so the suggestion is pending
+    again and the thread it answered is open again with it. That is
+    `action_retracted`, the same test the fold and the words gate ask, rather than
+    a second reading of liveness beside them.
+
+    `spk` is the page the containment half of that test is read against, and it is
+    the reading of the version the outcomes were folded over, so threads and state
+    cannot be settled against two different pages. Without one the floor is still
+    asked, of the sending widget alone: every verb that carries `resolves` today
+    names a comment there and no part of its own, so the two answers coincide —
+    but a verb naming a part would need the reading to see a floor on it, and this
+    is where that would go quiet."""
+    floors = retractions(events)
     threads = {}
     thread_for = {}
     for e in events:
@@ -714,9 +730,14 @@ def build_threads(events: list) -> dict:
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
-        if e["kind"] == "action" and e["action"] == "accept":
-            answered = threads.get(e["detail"].get("resolves"))
-            if answered:
+        # An action that names a thread settles it, and the detail carrying
+        # `resolves` is the whole of that condition — a second widget that answers
+        # a thread joins by declaring the field, not by being read here by name.
+        # The sender snapshots the mapping into the action because the honoring
+        # version retires the element that held it, so nothing later can look it up.
+        if e["kind"] == "action" and e["detail"].get("resolves"):
+            answered = threads.get(e["detail"]["resolves"])
+            if answered and not action_retracted(e, floors, spk or {}):
                 answered["resolved"] = True
             continue
         if e["kind"] == "reply":
@@ -729,11 +750,11 @@ def build_threads(events: list) -> dict:
     return threads
 
 
-def anchored_ids(events: list) -> set:
+def anchored_ids(events: list, spk: dict) -> set:
     """Element ids an unresolved thread still points at."""
     return {
         (t["root"].get("anchor") or {}).get("section")
-        for t in build_threads(events).values()
+        for t in build_threads(events, spk).values()
         if not t["resolved"]
     } - {None}
 
@@ -2299,9 +2320,14 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
     the cursor advances makes retries harmless.
     """
     events = read_events(page_dir)
-    if seq > len(events):
-        sys.exit(f"event {seq} does not exist; the log ends at {len(events)}")
-    target = events[seq - 1]
+    # By the seq the event carries, never by its position in the list. A seq is a
+    # line number and read_events skips what it can't read, so the two coincide
+    # only on a log nothing tore — and the one command that turns a seq back into
+    # an event is the last place that should have its own answer for what one is.
+    target = next((e for e in events if e["seq"] == seq), None)
+    if target is None:
+        end = events[-1]["seq"] if events else 0
+        sys.exit(f"event {seq} does not exist; the log ends at {end}")
     if target["author"] != "user" and target["kind"] != "report":
         sys.exit(f"event {seq} is neither a user event nor a report")
     if seq > read_cursor(page_dir):
@@ -2678,7 +2704,16 @@ def cmd_transcript(page_dir: Path) -> None:
             else:
                 print(f"- `{e['widget']}`: {verb} (on v{e['version']})")
 
-    threads = build_threads(events)
+    # Against the newest published version — the page as it now stands, which is
+    # what a transcript is an account of. A page with nothing published yet has no
+    # reading to give, and no action can have been made against one either.
+    published = published_versions(page_dir, events)
+    latest = (
+        version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+        if published
+        else ""
+    )
+    threads = build_threads(events, spoken(latest, load_registry(page_dir) or {}))
     if threads:
         print("\n### Threads\n")
     for t in threads.values():
@@ -3529,6 +3564,12 @@ class _PassageParser(HTMLParser):
         self.rewritten = {}  # id whose body the user rewrote → the verb that did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
         self.shown = {}  # id whose data body this reading withheld → the words in it
+        # id → the ids enclosing it, outermost first, itself last. Structure, not
+        # words: an element is somewhere on the page whether or not it says
+        # anything, which is what the containment questions downstream ask (see
+        # `spoken`). Written for every id the markup carries, since a widget's
+        # detail may name one the page holds outside the vocabulary.
+        self.enclosing = {}
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
@@ -3596,9 +3637,17 @@ class _PassageParser(HTMLParser):
         # paragraph closer, and text after it is in a different block.
         for _ in range(implicit_closes([f["tag"] for f in self.stack], tag)):
             self._close(self.stack.pop())
+        parent = self.stack[-1] if self.stack else None
+        # Recorded before the void check, and before anything asks what this element
+        # shows: where an element sits is a fact about the markup, so an image, an
+        # opaque widget and a slot a decision retired each answer it like any other.
+        ids = (parent["ids"] if parent else ()) + (
+            (attrs_d["id"],) if attrs_d.get("id") else ()
+        )
+        if attrs_d.get("id"):
+            self.enclosing[attrs_d["id"]] = ids
         if tag in VOID_TAGS:
             return
-        parent = self.stack[-1] if self.stack else None
         entry = self.registry.get(tag) or {}
         # The innermost open text block, if any: the runtime's `closest(TEXT_BLOCK)`.
         tb = (
@@ -3660,8 +3709,7 @@ class _PassageParser(HTMLParser):
         frame = {
             "tag": tag,
             "id": attrs_d.get("id"),
-            "ids": (parent["ids"] if parent else ())
-            + ((attrs_d["id"],) if attrs_d.get("id") else ()),
+            "ids": ids,
             "skip": silenced
             or sub is not None
             or (opaque and entry.get("x-content") == "data"),
@@ -3730,6 +3778,7 @@ class Passages(NamedTuple):
     rewritten: dict  # id whose body the user rewrote → the verb that did it
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     shown: dict  # id whose data body this withheld → the words a module shows there
+    enclosing: dict  # id → the ids enclosing it, outermost first, itself last
 
 
 def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Passages:
@@ -3745,6 +3794,7 @@ def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Pass
         parser.gone,
         # Collapsed the way `text` is, so one comparison answers for both.
         {id: " ".join(words.split()) for id, words in parser.shown.items()},
+        parser.enclosing,
     )
 
 
@@ -3763,12 +3813,14 @@ class Spoken(NamedTuple):
     within: tuple  # the ids enclosing it, outermost first, itself last
 
 
-# An element the version has no words for — nothing said, nothing enclosing it.
+# An id this version doesn't carry — nothing said, and nowhere it sits. An element
+# that is here and silent is not this: it has a chain, which is what lets a fold
+# reach a card holding one diagram.
 EMPTY = Spoken("", ())
 
 
 def spoken(html: str, registry: dict) -> dict:
-    """id → Spoken, for every element with words under it.
+    """id → Spoken, for every element the version carries.
 
     This is the version's own reading of itself, so it is `page_passages` sliced by
     id rather than a second walk: chrome skipped, x-says attributes counted (a
@@ -3778,7 +3830,18 @@ def spoken(html: str, registry: dict) -> dict:
     user could have selected, or the question is about something else.
 
     `section_span` answers this for one id by scanning the page; every id at once is
-    that same scan, done once."""
+    that same scan, done once.
+
+    The two halves come from different readings because they are different facts,
+    and taking both off the character scan cost the second one. Words are what the
+    scan holds. Where an element *sits* is structure, so it comes from the parser's
+    record of what was open — and an element that says nothing is somewhere all the
+    same. Keyed on words, an image-only option and a card holding one diagram were
+    in no chain at all, so `action_rests_on` dropped them from what an action rests
+    on where the browser's `restsOn` keeps them (a floor stopped replaying on one
+    side only), and `markup_facet` read a version that honoured a pick on such an
+    option as showing no pick, which is the state gate refusing the very version
+    that agreed with the user."""
     p = page_passages(html, registry)
     first, last = {}, {}
     for i, ids in enumerate(p.owner):
@@ -3788,10 +3851,8 @@ def spoken(html: str, registry: dict) -> dict:
     # Stripped: the separator `_write` puts between blocks lands inside whichever
     # element the next block opens, so a slice can start or end on one. It marks a
     # boundary rather than saying anything.
-    return {
-        wid: Spoken(p.text[lo : last[wid] + 1].strip(), p.owner[lo])
-        for wid, lo in first.items()
-    }
+    said = {wid: p.text[lo : last[wid] + 1].strip() for wid, lo in first.items()}
+    return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
@@ -3827,7 +3888,9 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
-    text, owner, fences, retired, rewritten, gone, shown = page_passages(
+    # `enclosing` is the containment half, which a quote search has no use for: this
+    # asks where words are, not where elements sit.
+    text, owner, fences, retired, rewritten, gone, shown, _ = page_passages(
         html, registry, decided, rewrites
     )
     if section:
@@ -4826,7 +4889,9 @@ def suggestion_errors(suggestions: list, comment_ids: set) -> list:
     return errors
 
 
-def retirable_ids(suggestions: list, events: list, dropped: set, outcomes: dict) -> set:
+def retirable_ids(
+    suggestions: list, events: list, dropped: set, outcomes: dict, spk: dict
+) -> set:
     """Ids the previous version's suggestions let the next one drop, given what
     it actually dropped. A logged outcome settles a suggestion: accepting
     retires the markup it replaced, rejecting retires the proposal, and either
@@ -4838,8 +4903,9 @@ def retirable_ids(suggestions: list, events: list, dropped: set, outcomes: dict)
     The outcomes are replay's own (`decisions`, folded over the version these
     suggestions are on), so a decision a later version restated away settles
     nothing here either — replay hands the suggestion back as pending, and the
-    slots stay needed."""
-    anchored = anchored_ids(events)
+    slots stay needed. `spk` is that same version's reading, so the thread half of
+    this answer stands on the page the outcomes were folded against."""
+    anchored = anchored_ids(events, spk)
     licensed = set()
     for s in suggestions:
         if not s["id"]:
@@ -4977,6 +5043,20 @@ def action_rests_on(event: dict, spk: dict) -> list:
     return [widget, *parts]
 
 
+def action_retracted(event: dict, floors: dict, spk: dict) -> bool:
+    """Whether a retraction has taken this action back: true when any id it rests
+    on carries a floor from a version later than the one the action was made on.
+
+    One predicate for every reader of liveness — the fold's survival test, the
+    words gate's, and the thread a decision settles — because a decision the log
+    has taken back has to be absent everywhere at once. It was written out twice
+    and a third reader went without: `build_threads` settled a thread on an accept
+    and never asked, so a suggestion the next version rewrote came back pending
+    with the thread it had answered still filed away, and the user was never asked
+    the question again."""
+    return any(floors.get(i, 0) > event["version"] for i in action_rests_on(event, spk))
+
+
 # A verb with no declared record form (accept/reject — the honoring version
 # retires the wrapper, so there is no state attribute to compare) has no facet.
 NO_RECORD = object()
@@ -5006,7 +5086,7 @@ def state_fold(
         spec = event_spec(e, byid, registry, "x-state")
         if not spec:
             continue
-        if any(floors.get(i, 0) > e["version"] for i in action_rests_on(e, spk)):
+        if action_retracted(e, floors, spk):
             continue
         unit = fold_unit(e, spec)
         if isinstance(unit, str):
@@ -5387,7 +5467,7 @@ def restatement_errors(
         # subject-keyed floor here would keep alive a decision the browser has
         # already dropped (a group-level retraction never names the option the
         # pick rested on, and the pick must die with the group all the same).
-        if any(taken_back.get(i, 0) > e["version"] for i in action_rests_on(e, now)):
+        if action_retracted(e, taken_back, now):
             continue
         for subject in action_subjects(e, byid, now, registry):
             # Only what the user had recorded by the time they were looking
@@ -5709,11 +5789,15 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         # An id may retire when the log has settled what holds it; everything
         # else must survive, or the anchors on it break.
         gone = prev.ids - parser.ids
-        fold, _, _ = page_fold(prev_html, events, registry or {}, None)
+        fold, _, prev_spoken = page_fold(prev_html, events, registry or {}, None)
         dropped = sorted(
             gone
             - retirable_ids(
-                prev.suggestions, events, gone, decisions(fold, registry or {})
+                prev.suggestions,
+                events,
+                gone,
+                decisions(fold, registry or {}),
+                prev_spoken,
             )
         )
         if dropped:

@@ -33,6 +33,7 @@
     "additionalProperties": false,
     "x-parent": ["lf-suggestion"],
     "x-content": "prose",
+    "x-inline": true,
     "x-upgrade": false,
     "x-retired-when": "accept"
   },
@@ -45,6 +46,7 @@
     "additionalProperties": false,
     "x-parent": ["lf-suggestion"],
     "x-content": "prose",
+    "x-inline": true,
     "x-upgrade": false,
     "x-retired-when": "reject"
   },

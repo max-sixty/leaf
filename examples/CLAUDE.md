@@ -41,3 +41,18 @@ every place that builds a page directory out of an example lays them in it: `ser
 `test_examples_pass_check`, `export_examples` in `scripts/site.py`, and
 `scripts/preview.py`. A publisher that forgets fails loudly — `version check` refuses a
 `/media/` reference the directory can't answer.
+
+A pair is drawn rather than captured, since what it shows is a fiction the example needs.
+Both images share one grid cell, so the box is the taller of them and a pair drawn at two
+heights sits the shorter one in blank space. The frame scales an image to its own width,
+so a file is drawn at twice the width the shot gets where it stands — for the JWT pair,
+the ~494px the option card leaves once the `.facts` rail has taken its share, a width to
+measure rather than a number to carry over. `.lf-shotcap` is absolute at the frame's
+top-left, so a mock whose own title starts at the top edge publishes with BEFORE painted
+across it. The palette comes off the pair already here.
+
+The drawing script belongs in scratch, not `scripts/`. `scripts/record-demo.py` earns its
+place because the stills it draws depict leaf, and a theme change once left the landing
+page arguing for a product whose picture showed the previous one. A mock depicts a
+console that doesn't exist, so nothing here can make it false and nothing would ever
+re-run its generator.

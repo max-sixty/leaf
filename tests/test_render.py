@@ -27,7 +27,6 @@ Chrome is driven through Playwright's `channel="chrome"`, which attaches to the
 installed browser: no download, no build step, `uv` still the one prerequisite.
 """
 
-import base64
 import hashlib
 import io
 import itertools
@@ -2756,11 +2755,17 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
 
 
 def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
-    """Which is the whole reason the control is a radio group. A standalone copy of a
-    leaf page is its rendered DOM with the script tags dropped — the upgrade has
-    already run, so the frames are there, but nothing the runtime bound is. A slider
-    would have frozen at whatever the reader left it on; `:has(:checked)` is CSS, and
-    the browser owns a radio's state.
+    """Which is the whole reason the control is a radio group. A copy is the rendered
+    DOM with the scripts dropped and every press a handler answered taken out with
+    them — the upgrade has already run, so the frames are there, and this switch
+    survives that pass because the browser is what works it. A slider would have
+    frozen at whatever the reader left it on; `:has(:checked)` is CSS, and the browser
+    owns a radio's state.
+
+    Through `version export` rather than a copy the test makes itself, which is what
+    puts the widget's bargain in front of the code that could break it: a hand-rolled
+    one dropped the script tags and nothing else, so it went on passing however the
+    real export treated a control.
 
     The bug this pins was real: setting `checked` as a property left no attribute to
     serialize, so the copy opened with neither frame chosen and both of them stacked
@@ -2769,20 +2774,9 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     for name, data in SHOTS.items():
         (serve.page_dir / "media").mkdir(exist_ok=True)
         (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
-    page, _ = open_page(browser, url)
-    page.evaluate("() => document.querySelectorAll('script').forEach(s => s.remove())")
-    baked = page.evaluate("() => document.documentElement.outerHTML").replace(
-        '<link rel="stylesheet" href="/theme.css">',
-        "<style>" + (serve.page_dir / "theme.css").read_text() + "</style>",
-    )
-    for name, data in SHOTS.items():
-        baked = baked.replace(
-            SHOT_SRC[name], "data:image/png;base64," + base64.b64encode(data).decode()
-        )
-    page.close()
 
     standalone = tmp_path / "standalone.html"
-    standalone.write_text(baked)
+    standalone.write_text(interact.export_page(browser, url, serve.page_dir))
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
@@ -12858,7 +12852,17 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     contract: no server answers, so anything still reaching for one is a hole, and the
     console is where a hole says so. Driven over the corpus rather than one page because
     what a copy loses is per-widget — the gallery alone would pass while the widget only
-    it lacks was the broken one."""
+    it lacks was the broken one.
+
+    A copy over-promising is the other half of that, and it went unread for as long as
+    there was nothing here asking. Tab into an exported decision page landed on a pick
+    mark, which summoned the keyboard address for a key that answers nothing, into a row
+    holding no column for it; a board's ten grips each opened a grab cursor; twenty
+    options lit under a pointer that could not pick one. So the copy is asked what it
+    still offers, in the three registers an offer is made in — a widget's chrome still
+    holding a tab stop or a role, a control standing there with nothing left behind it,
+    and a hand or a grab under the pointer — and every question is put to the markers
+    rather than to any widget."""
     url = serve(example.read_text())
     out = tmp_path / "standalone.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))
@@ -12876,6 +12880,15 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
+        // A page carrying a change to decide gives up a rail of its own width for the
+        // controls to hang in, and a copy has no controls to hang there — so the column
+        // centres in all of the page, the way paper's does. Read as the two margins
+        // rather than off body's padding, since what a reader sees is the column
+        // sitting off to one side; and measured against body rather than the window,
+        // whose width counts a scrollbar on the platforms that reserve room for one.
+        margins: ((m, b) => [Math.round(m.left - b.left), Math.round(b.right - m.right)])(
+            document.querySelector('main').getBoundingClientRect(),
+            document.body.getBoundingClientRect()),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
@@ -12884,6 +12897,43 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
                           && !el.closest('details, [data-lf-offer], .lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
+        // A press a widget injected is a tab stop wearing an interactive role, and the
+        // handler that answered both went with the scripts. Asked of the chrome marker
+        // and of any role at all, never of a role by name: offer writes role="button"
+        // and a widget keeping an ARIA pattern writes over it (lf-tabs' presses say
+        // "tab"), so a list of roles here would be a list that stops at the ones it was
+        // taught. The twelfth widget is covered by having used offer.
+        //
+        // The role a control the browser drives wears is the copy telling the truth —
+        // lf-shot's radiogroup names radios that still flip its frames — so the role
+        // half stands down for one of the platform's own controls. The tab stop's half
+        // does not: offer writes that on presses of its own making and on nothing else.
+        pressable: [...document.querySelectorAll('[data-lf-offer][tabindex]'),
+                    ...[...document.querySelectorAll('[data-lf-offer][role]')]
+                        .filter(el => !el.querySelector(
+                            'input, select, textarea, a[href], button'))]
+            .map(el => el.className || el.tagName.toLowerCase()),
+        // The claim a disarmed attribute leaves standing, since a control nothing can
+        // work is still a control on the page. What a copy may show of a widget's
+        // chrome is one the browser works itself and a label the page speaks through
+        // (data-lf-said); the rest belonged to a runtime the file has not got, so a
+        // mark reading "choose one" invites a reader who cannot answer it.
+        inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
+            .filter(el => el.checkVisibility() && el.textContent.trim()
+                          && !el.matches(':has(input, select, textarea, a[href], button)')
+                          && !el.closest('label, summary, a[href]'))
+            .map(el => (el.className || el.tagName.toLowerCase()) + ': '
+                       + el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 24)),
+        // The same claim in paint. A hand or a grab says a gesture lands here, and in a
+        // copy one lands nowhere the browser isn't the thing acting: a label's radio, a
+        // link, a disclosure. The exemptions are the platform's own controls, so no
+        // widget is named here either.
+        offering: [...document.querySelectorAll('main *')]
+            .filter(el => el.checkVisibility()
+                          && ['pointer', 'grab'].includes(getComputedStyle(el).cursor)
+                          && !el.closest('a[href], label, summary, input, select, textarea'))
+            .map(el => el.tagName.toLowerCase() + '.'
+                       + String(el.className?.baseVal ?? el.className ?? '')),
     })""")
     # The gate's own reading, on the medium that most needs it: a copy is laid out by
     # rules no other medium runs, and the last two ways one went out wrong were both a
@@ -12898,9 +12948,25 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
     assert state["column"] != "none", "the theme didn't inline; the copy opens unstyled"
+    assert state["margins"][0] == state["margins"][1], (
+        "the copy's column sits off to one side of a page it has all of: a rail still "
+        f"held open for controls the file hasn't got — {state['margins']}"
+    )
     assert state["unshown"] == [], (
         "the copy says less than the page did: content sitting behind a control that "
         f"needed a handler, and nothing in a file can press one — {state['unshown']}"
+    )
+    assert state["pressable"] == [], (
+        "the copy offers a press nothing can take: Tab reaches it, a screen reader calls "
+        f"it a button, and no handler is left to answer either — {state['pressable']}"
+    )
+    assert state["inert"] == [], (
+        "the copy still shows a control the file has nothing to work with, which asks "
+        f"the reader for something they cannot give: {state['inert']}"
+    )
+    assert state["offering"] == [], (
+        "the copy draws a hand over a gesture it cannot take — the pointer promises "
+        f"something the file has no script to do: {state['offering']}"
     )
     assert covered == [], f"the copy draws its own words over each other: {covered}"
     assert errors == [], f"{example.stem} needs a server to render: {errors}"

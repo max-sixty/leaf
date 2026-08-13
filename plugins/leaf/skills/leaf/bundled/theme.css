@@ -136,19 +136,34 @@ lf-compare:has(> lf-variant > :is(p, h1, h2, h3, h4, h5, h6, ul, ol, dl, table, 
    * where it hasn't — asked of the row itself, because how much room it has is a fact
    * about the row and not about the window: the page gives 168px up to the margin
    * the moment a change wants deciding, and a viewport wide enough to dock in was still
-   * one of those. A 10rem rail out of a narrower row leaves the argument three words to
-   * the line, so the rail wins the row and the case it was docked beside loses it. */
+   * one of those. A rail out of a narrower row leaves the argument three words to the
+   * line, so the rail wins the row and the case it was docked beside loses it.
+   *
+   * What the row must have is therefore the rail, its gutter, and a measure left over for
+   * the case, and the threshold says exactly that rather than the sum of it. Both widths
+   * are the row's own `em`, the rail being a column carved out of the row and the measure
+   * what is left of it. They stood in `rem`, which is the one unit here that answers to
+   * nothing: the option's type went from 15px to 17px and the case behind the threshold
+   * quietly dropped from about forty-seven characters to forty-one, since the room it was
+   * given had never been a fact about the words in it. The measure is around forty-six
+   * characters of Charter, which sets about 7.35 of them to the pixel at 17px, and both
+   * numbers re-derive the next time the ladder moves.
+   *
+   * That leaves the rail's type to its own dt and dd, because a font-size on the list
+   * would make `em` mean one thing in the width and another in the condition, where the
+   * container is the option. The gutter is written out because a custom property is
+   * not allowed in a container condition; it is `--sp-3`, and the rail's own margin below
+   * is where it is really stated. */
   & > :is(lf-option, lf-variant) { container-type: inline-size; }
-  & > :is(lf-option, lf-variant) > .facts { display: block; font-size: var(--t-5);
-      margin: 0 0 var(--sp-2); }
-  @container (min-width: 30rem) {
-    & > :is(lf-option, lf-variant) > .facts { float: right; clear: right; width: 10rem;
+  & > :is(lf-option, lf-variant) > .facts { display: block; margin: 0 0 var(--sp-2); }
+  @container (min-width: calc(9.5em + 16px + 20em)) {
+    & > :is(lf-option, lf-variant) > .facts { float: right; clear: right; width: 9.5em;
         margin: 0 0 var(--sp-2) var(--sp-3); }
   }
   & > :is(lf-option, lf-variant) > .facts dt { color: var(--muted);
       font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
       font-weight: 400; margin-top: 6px; padding: 0; }
-  & > :is(lf-option, lf-variant) > .facts dd { margin: 0; }
+  & > :is(lf-option, lf-variant) > .facts dd { font-size: var(--t-5); margin: 0; }
 }
 /* With `choose`, the group takes the reader's pick by click. `chosen` reads after
  * `recommended`, so the reader's pick wins whichever of the two the form paints it in.
@@ -163,18 +178,39 @@ lf-options:has(> lf-option > strong) > lf-option[recommended] { border-color: va
                          box-shadow: 0 0 0 1px var(--accent); }
 lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--ok);
                          box-shadow: 0 0 0 1px var(--ok); }
-lf-options[choose] > lf-option { cursor: pointer;
+/* The pick is the group's own gesture rather than a press on any one thing — a click
+ * lands anywhere in the option — so nothing here wears the role `version export` strips
+ * from a control, and the medium is what has to say it. `choose` is the author's word and
+ * stands in every copy of the page; what does not stand is a handler to answer it, so a
+ * copy that kept the hand and the lift invited a click on twenty cards and answered none
+ * of them. Live pages only, which is where these are true, and the joined shape below is
+ * withheld in exactly the same breath for exactly the same reason.
+ *
+ * Every option lifts on hover, the pick included — clicking it clears it, so it has to
+ * keep looking clickable. A ring a card already wears layers under the lift. The joined
+ * form answers the same requirement without the lift, because a cell that rose would pull
+ * away from the hairlines holding the group together.
+ *
+ * `:where` around the guard, where the blocks elsewhere in this file spell it plainly, and
+ * the difference is what each guard is for. Those grant a layout over a rule that withholds
+ * it, so they have to outrank something; this one is the only statement its declarations
+ * get, so it needs to outrank nothing — and something here is listening. lf-specimen unkeys
+ * every one of these rules for a quoted group, selector by selector, so a guard carrying a
+ * class and an element of its own outranked the lot and an exhibit came out wearing the
+ * hand it is quoted precisely so as not to offer. Free, the guard leaves each of those
+ * contests exactly where it found it. */
+@media screen {
+ :where(html:not(.lf-copy)) {
+  lf-options[choose] > lf-option { cursor: pointer;
                          transition: box-shadow .12s ease, transform .12s ease; }
-/* Every option lifts on hover, the pick included — clicking it clears it, so it
- * has to keep looking clickable. A ring a card already wears layers under the lift.
- * The joined form answers the same requirement without the lift, because a cell that rose
- * would pull away from the hairlines holding the group together. */
-lf-options[choose]:has(> lf-option > strong) > lf-option:hover { transform: translateY(-1px);
+  lf-options[choose]:has(> lf-option > strong) > lf-option:hover { transform: translateY(-1px);
                          box-shadow: 0 3px 10px rgba(0, 0, 0, .14); }
-lf-options[choose]:has(> lf-option > strong) > lf-option[recommended]:hover {
+  lf-options[choose]:has(> lf-option > strong) > lf-option[recommended]:hover {
                          box-shadow: 0 0 0 1px var(--accent), 0 3px 10px rgba(0, 0, 0, .14); }
-lf-options[choose]:has(> lf-option > strong) > lf-option[chosen]:hover {
+  lf-options[choose]:has(> lf-option > strong) > lf-option[chosen]:hover {
                          box-shadow: 0 0 0 1px var(--ok), 0 3px 10px rgba(0, 0, 0, .14); }
+ }
+}
 /* The mark the upgrade injects: the keyboard path and the state in one element. It is
  * silent until there is a pick to state, so its box is not the same in both states — the
  * room is what stays the same, held on every card whether or not one is picked, and the
@@ -234,6 +270,10 @@ lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
  * owns and the case cannot arise. */
 lf-options:not([multiple]) > lf-option > .lf-pick::before { border-radius: 50%; }
 lf-options[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
+/* Keyed on the press rather than on the class, because only one of the mark's two shapes
+ * is one — and the same attribute answers for the medium, `version export` taking it off
+ * a control whose handler has gone. So this needs no guard of its own: the hand is on the
+ * mark exactly while the mark is a thing to press. */
 lf-option .lf-pick[role="button"] { cursor: pointer; }
 /* An offer says nothing on screen, so it is not drawn — in either form. A picked mark's
  * word is the page's only statement of where the pick sits, which paper keeps and a user
@@ -248,8 +288,14 @@ lf-option .lf-pick[role="button"] { cursor: pointer; }
 lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 /* Warming the ring under the pointer, wherever the ring is drawn — a row, a card under
  * `multiple`, and a card in a settled group. A live single-pick card group draws none, so
- * this reaches nothing there and the cell's own hover is the answer instead. */
-lf-options[choose] > lf-option:not([chosen]):hover .lf-pick::before { border-color: var(--muted); }
+ * this reaches nothing there and the cell's own hover is the answer instead. Guarded with
+ * the group's other answers to the pointer, and free of specificity for the same reason
+ * they are. */
+@media screen {
+ :where(html:not(.lf-copy)) {
+  lf-options[choose] > lf-option:not([chosen]):hover .lf-pick::before { border-color: var(--muted); }
+ }
+}
 lf-option[chosen] .lf-pick { color: var(--ok-ink); }
 lf-option[chosen] .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
@@ -437,10 +483,19 @@ lf-options:not(:has(> lf-option > strong)) > lf-option[recommended] {
                      background: color-mix(in srgb, var(--accent) 8%, transparent); }
 lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
                      background: var(--ok-tint); }
-lf-options[choose]:not(:has(> lf-option > strong)) > lf-option:hover {
+/* The wash is this form's whole answer to the pointer, where a card has a lift — so it
+ * goes where the lift goes, behind the live-page guard and free of specificity for the
+ * reasons stated there. It is also the only thing that ever draws a row's own box, so a
+ * copy of a question was a list of bare labels with nothing to say it took an answer,
+ * every one of which lit under a pointer that could not give one. */
+@media screen {
+ :where(html:not(.lf-copy)) {
+  lf-options[choose]:not(:has(> lf-option > strong)) > lf-option:hover {
                      background: var(--chip); }
-lf-options[choose]:not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
+  lf-options[choose]:not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
                      background: var(--ok-tint); }
+ }
+}
 /* The apparatus takes a cell each and claims none of the row's free width, so what is
  * left over goes to the words and the mark ends every row at the same column, whether or
  * not a reference stands beside it. Which is what a row of flex items could not say: the
@@ -678,7 +733,7 @@ lf-card > strong { display: block; margin: 0 0 2px; }
    of control — so a ladder that moves, or a platform that substitutes differently, leaves
    that 34px to re-measure. */
 lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
-          cursor: grab; padding: 8px 10px;
+          padding: 8px 10px; cursor: grab;
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
@@ -745,11 +800,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * frames occupy the same grid cell, so the box is the taller of the two and
  * flipping between them moves nothing under it — which is the whole point, the
  * change being the only thing that shifts. The switch is a radio group and one
- * :has(:checked) rule, so it runs with no script behind it: in a page whose
- * handlers are gone, and after a `min-width` media query too narrow for the
- * radios to be worth showing. Print shows both frames stacked, since paper has
- * nothing to press — the radios drop with the other offers and the captions,
- * which are the only words saying which frame is which, stay. */
+ * :has(:checked) rule, so it needs no script — which is what keeps it flipping in
+ * an exported copy, where every handler has gone and `version export` leaves a
+ * control the browser drives alone for exactly this. Print shows both frames
+ * stacked, since paper has nothing to press — the radios drop with the other
+ * offers and the captions, which are the only words saying which frame is which,
+ * stay. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
     border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden;

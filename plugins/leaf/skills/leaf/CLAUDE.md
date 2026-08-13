@@ -723,6 +723,50 @@ content-visibility that `version export` removes outright by dropping
 collapsed element's layout with it, since the theme zeroes a hidden card's padding and
 that padding is the room its chips are positioned into.
 
+Withholding the block covers what a widget draws and not what it built, and for a long
+while nothing covered the second: a `choose` group's pick mark is a press with a tab stop
+and a role on it, and both outlived the handler that answered them. The first Tab into an
+exported decision page landed on one, which drew the keyboard address for a key that
+answers nothing — into a row whose 30px column for it is held on the live page alone, so
+the digit came down over the option's own first word. Ten grips in a copied board opened a
+grab cursor each; a suggestion offered ✓ Accept to a file with no way to accept anything.
+
+So `version export` takes the control out, which is the bargain paper had struck first
+(`@media print` on `[data-lf-offer]:not([data-lf-said])`). The word a control says is kept
+where the page speaks through it — a mark reading "chosen" states which option won — and
+the control around that word goes, along with the box it hung in once nothing is left in
+it. A suggestion's row is nothing but its two controls, and standing empty it went on
+claiming the rail the page reserves for it. What survives is disarmed: the mark gives up
+its role and its tab stop.
+
+Read off the marker `offer` writes, so a widget nobody has written yet is answered for,
+and off the tab stop rather than a role by name — `offer` writes `role="button"` and a
+widget with an ARIA pattern to keep writes over it, so every press in `lf-tabs`' strip says
+`role="tab"` and a hunt for buttons walks past all of them. The tab stop is also what tells
+a copy from paper. A control the browser works has no tab stop of the runtime's making, so
+it keeps both the role that names it and its place on the page: `lf-shot`'s radios flip its
+frames in a file with no script behind them, where paper, which can press nothing either
+way, stacks both.
+
+That leaves the theme less to key than it looks. An affordance on a press that goes needs
+no qualifier at all — a grip's grab cursor stands plain, since no medium shows a grip with
+no handler behind it. The role is worth keying on where the copy keeps the control: a pick
+mark reading "chosen" is still on the page and must not go on offering a hand. An
+affordance for a gesture the **widget** takes goes in the guard, there being nothing on
+those elements to strip — a click lands anywhere in an option, and `choose` is the author's
+word and stands in every copy of the page. All of it is checked in one place
+(`test_an_exported_example_stands_on_its_own`), which asks the copy what it still offers
+rather than asking any widget what it drew.
+
+How a guard is spelled follows from what it is doing. A guard that **grants**
+a layout — the strip's `display: flex` over the `display: none` that withholds it — has to
+outrank the rule it overrides, so it is written plainly. A guard that **withholds an
+affordance** is the only statement its declarations get, so it needs to outrank nothing and
+is written `:where(html:not(.lf-copy))`, because the plain form hands every rule inside it a
+class and an element it did not have. `lf-specimen` unkeys the choose group's hand and lift
+selector by selector, and a guard carrying that extra weight outranked the lot — putting
+the hand back on an exhibit quoted precisely so as not to offer one.
+
 ## The chrome's rules stay inside the chrome
 
 Tags, attributes, nesting, and ids are registry-driven, so the renderer, the linter,

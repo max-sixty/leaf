@@ -483,7 +483,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * make any more should be. */
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { visibility: hidden; }
-.lf-sug-actions[data-lf-outcome] [role="button"] { cursor: default; }
+/* Keyed on the pill rather than on the role, so it outranks the hand that rule states
+ * outright instead of tying with it. */
+.lf-sug-actions[data-lf-outcome] .lf-pill { cursor: default; }
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-accept { border-color: var(--ok);
     color: var(--ok-ink); background: var(--ok-tint); }
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-reject { border-color: var(--danger);
@@ -493,8 +495,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * How wide is the row's own business: lf-suggestion.js measures the first row it
  * builds — controls already holding their decided words' room — and states --rail
  * on the root element, so the rail follows the controls' face instead of standing
- * here as a number, and an exported copy carries the value it was rendered with
- * in the root's own style attribute.
+ * here as a number.
  * Leftovers ran out in the posture a user actually reads in: the open comment
  * panel takes the right of the window, the margin thins below the row, and every
  * row docked above the change it decides — which reads as belonging to the
@@ -506,8 +507,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * specimen grows no controls — spends nothing on it, and a page that has settled
  * every change keeps the rail it started with rather than shifting under the
  * user at the last decision. Below the breakpoint no strip is worth the
- * column it costs, and the widget docks as it always has; on paper the controls
- * are gone, so their room would be a blank margin.
+ * column it costs, and the widget docks as it always has; where the controls are
+ * gone their room would be a blank margin, and keying on the row is what releases
+ * it — paper never runs this rule, and a copy has no row left for it to find.
  *
  * Presence is also all the reservation can go on. What the row can't say is
  * whether it will use the rail, and the question feeds back on itself: a row

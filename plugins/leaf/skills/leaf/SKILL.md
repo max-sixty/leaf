@@ -134,8 +134,10 @@ file wherever the project puts things for the user to open.
 
 While a page is live the same command answers "give me a copy": `version export` writes
 any published version, as many times as asked, and the page carries on around it. The
-copy is the page as the browser drew it, with the user's decisions replayed onto it
-and the comment layer left behind.
+copy is the page as the browser drew it, with the user's decisions replayed onto it, the
+comment layer left behind, and every control a handler answered gone with it — an
+exported decision says what was picked and offers no pick, so a lede telling the reader
+to click belongs on a page you are going to serve.
 
 ## Page conventions
 

@@ -6493,9 +6493,9 @@ def render_check(page_dir: Path, version: int) -> int:
 # and nothing left for them to reach; the runtime's own layer goes with them, since a
 # comment box that swallows what you type and a banner claiming someone is listening
 # are worse than no chrome at all — a copy that lies about being a live page. What stays
-# is everything the widgets built, the controls they injected among it: a control whose
-# state the browser owns still works with no script running, which is why a `lf-shot`
-# flips on radios.
+# is everything the widgets built, and the controls they injected where the browser is
+# what works them: a `lf-shot` flips on radios with no script running. A press a handler
+# answered leaves the words it stated and takes the rest of itself with it, below.
 #
 # `lf-copy` is the medium, declared the way `@media print` is and read the same way —
 # by the theme, per widget. A widget whose control needed a handler puts the affordance
@@ -6523,6 +6523,55 @@ BAKE = """() => {
     // with, which is the layout the theme's live-page guard was withholding anyway.
     document.querySelectorAll('[hidden="until-found"]')
         .forEach(el => el.removeAttribute('hidden'));
+    // A press a widget injected is a tab stop wearing an interactive role (offer), and
+    // both are promises a handler kept. The handlers left with the scripts above, so a
+    // copy that carried them offered a press nothing can take — and the first Tab into an
+    // exported decision page landed on one. It was a `choose` group's pick mark, which
+    // drew the keyboard address for a key that answers nothing, into a row holding no
+    // column for it: the 30px an option reserves is live-page-only, so the digit came
+    // down 8px over the option's own first word.
+    //
+    // So the control goes and its word stays, which is the bargain paper struck first
+    // (the runtime's @media print rule, on these same two markers). A mark reading
+    // "chosen" is the page stating which option won, and it stays with the role and the
+    // tab stop taken off it; "choose one" is an invitation, and it leaves with the grips,
+    // the pills and the pencils. Where the words a removal takes with it are the page's —
+    // a settled group's disclosure names its chosen card, a tab's button names its panel —
+    // the copy has those open underneath saying it themselves, which is why paper drops
+    // the same two.
+    //
+    // A copy parts from paper on one thing: it is still a document the browser runs, so a
+    // control the browser drives keeps working, and lf-shot flips its frames on radios in
+    // a file with no script behind it. The tab stop is what tells the two apart, being the
+    // runtime's own reading of a press it made (ASK_CONTROL): a radio, a label and a §
+    // link never had one, and lf-shot's radiogroup keeps the role that says what they are.
+    //
+    // Asked of the marker rather than of the role, because `offer`'s role="button" is not
+    // what a press ends up wearing: a widget with an ARIA pattern to keep writes its own
+    // over it, so every press in lf-tabs' strip says role="tab", and naming that second
+    // role would have left the next widget's. The author's roles are untouched, being on
+    // the author's elements: a board's columns stay a list of cards to a screen reader.
+    //
+    // The box a press hung in goes with it. A suggestion's control row is nothing but its
+    // two controls, and left standing it still claims the rail the page reserves for it
+    // (--rail) — a margin held open for controls that are no longer there. Asked of what
+    // each removal empties rather than of an empty box, since a widget's own empty box is
+    // a real thing: that row hangs off an anchor span which takes no space and says
+    // nothing, and `anchor(top)` is measured from it.
+    for (const control of
+            document.querySelectorAll('[data-lf-offer][tabindex]:not([data-lf-said])')) {
+        let dead = control, box = dead.parentElement?.closest('[data-lf-offer]');
+        dead.remove();
+        while (box && !box.firstChild) {
+            dead = box;
+            box = dead.parentElement?.closest('[data-lf-offer]');
+            dead.remove();
+        }
+    }
+    document.querySelectorAll('[data-lf-offer][tabindex]').forEach(el => {
+        el.removeAttribute('role');
+        el.removeAttribute('tabindex');
+    });
     // getHTML and not outerHTML: a widget that renders the page's words into a shadow
     // root (x-shadow) has them in no element's outerHTML, so a copy taken that way
     // arrives with an empty element where a diff's lines were — silently, since the

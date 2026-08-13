@@ -1092,9 +1092,16 @@ style.textContent = `
      live on both sides of the chrome's scope line — the runtime's 💬 and a suggestion's
      ✓ Accept often share a line, and two hand-matched copies of this look were held
      together only by a test. A decided suggestion re-states background and cursor over
-     these; its rules carry the attribute the decision wrote, so they outrank this. */
-  .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); cursor: pointer; white-space: nowrap; }
-  .lf-pill:hover { background: var(--chip); }
+     these; its rules carry the attribute the decision wrote, so they outrank this.
+
+     The look is the pill's and the hand is the press's, which is one rule apart and was
+     one rule too few. Not every wearer is a control — the composer's head says which
+     page it is writing about in a pill of the same make — so a shape stating the hand
+     itself put one under a label that answers nothing. It reads the two ways a press is
+     spelled here: the platform's element, and the attribute offer() writes on a span. */
+  .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
+  .lf-pill:is(button, [role="button"]) { cursor: pointer; }
+  .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
   /* The keyboard address: the digit that reaches this thing right now, worn as a chip
      off its holder's corner so an address arriving moves nothing. The panel's reply box
      wears the one the g leader answers and an option wears the one a pick answers, which
@@ -1226,8 +1233,10 @@ ${MARK_RULES}
      Asked of the control itself, not of what it holds: a settled group's disclosure
      names the chosen card, and that word is worth keeping on screen where the row is
      the only place it stands and worth dropping on paper, where the cards are open
-     underneath saying it themselves. The runtime's own layer hides as one thing, in
-     the @scope block below. */
+     underneath saying it themselves. An exported copy strikes the same bargain on the
+     same two markers, and takes the control out of the document rather than hiding it,
+     which paper cannot do (BAKE). The runtime's own layer hides as one thing, in the
+     @scope block below. */
   @media print { [data-lf-offer]:not([data-lf-said]) { display: none !important; } }
   /* Keyframe names are document-global even beside an @scope block. The stable salt
      makes this runtime-private in the one CSS namespace scoping cannot protect. */

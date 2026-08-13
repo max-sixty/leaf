@@ -33,6 +33,14 @@ code. A guard earns its place only where the state it defends against is reachab
 there is something to do about it; the rest is complexity paid for a case that never
 arrives, and it reads as if the impossible were expected.
 
+That settles your own hesitation too: an improvement you can see is one to make. A
+change is the user's to call when it turns on what only they know — what the work is
+for, what they meant by it, what they will do with it next. Not because it takes
+judgement, not because it changes what a page says, and not because the present form
+was chosen deliberately once; that is the ordinary substance of the work. The tell is a
+change worked out and then reported rather than made — "your call rather than a defect"
+— which spends a round trip being told to do what you had already decided on.
+
 Where data enters, check it once and completely: browser events at `POST /api/event`,
 authored markup at `version check`, a replayed action's detail in the widget's own
 `applyAction`, since only it knows that shape. Everything downstream then indexes the

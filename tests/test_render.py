@@ -32,6 +32,7 @@ import hashlib
 import io
 import itertools
 import json
+import math
 import os
 import re
 import shutil
@@ -1607,42 +1608,69 @@ def mark_edges(page, ident, ink):
     Three samples a side, returned as a set rather than a majority. A majority is a
     vote for the mark being intact when part of the edge has been painted over, which
     is the failure this exists to catch; a disagreement is the finding, so the caller
-    sees {1, 0} rather than 1."""
+    sees {1, 0} rather than 1.
+
+    The clip is squared off to whole CSS pixels first, and each side is then asked for
+    its own ground, because a leaf page's boxes do not land on whole pixels — 17px of
+    body serif at a line-height of 1.6 is 27.2px a line, so a widget's height is a stack
+    of fractions. A clip is asked for in CSS pixels and answered in device ones, and
+    Chrome truncates the rect to whole CSS pixels before it scales: asked for the board
+    column 101.578px tall on this page, it dropped that 0.578 and took all of it off the
+    bottom, which put the element's own edge two device pixels from where MARK_PAD said
+    it was — outside the window below — and a stroke painted whole on all four sides was
+    read as half of one along the bottom. Squaring the clip is what makes that loss
+    nothing to model rather than something to allow for.
+
+    The edge is then snapped in CSS space and scaled, in that order, because that is the
+    order Blink paints in: the painted edge lands at `floor(ground + 0.5) * scale`, and it
+    was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
+    window below covers, until a scale of 4 makes it two. The window is kept for a device
+    pixel of engine drift either side."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
     box = page.locator(f"#{ident}").bounding_box()
+    clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
+    clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
+    clip["height"] = math.ceil(box["y"] + box["height"] + MARK_PAD) - clip["y"]
     fits = page.evaluate(
-        """([x, y, w, h, pad]) => x >= pad && y >= pad
-             && x + w + pad <= innerWidth && y + h + pad <= innerHeight""",
-        [box["x"], box["y"], box["width"], box["height"], MARK_PAD],
+        """([x, y, w, h]) => x >= 0 && y >= 0
+             && x + w <= innerWidth && y + h <= innerHeight""",
+        [clip["x"], clip["y"], clip["width"], clip["height"]],
     )
     assert fits, (
-        f"#{ident} is not wholly on screen with {MARK_PAD}px around it, and a "
-        f"screenshot clip is the viewport's: scroll it in and size the viewport to "
-        f"it first, or the scans measure a truncated image"
+        f"#{ident} is not wholly on screen with the {MARK_PAD}px around it this squares "
+        f"off, and a screenshot clip is the viewport's: scroll it in and size the "
+        f"viewport to it first, or the scans measure a truncated image"
     )
-    shot = page.screenshot(
-        clip={
-            "x": box["x"] - MARK_PAD,
-            "y": box["y"] - MARK_PAD,
-            "width": box["width"] + 2 * MARK_PAD,
-            "height": box["height"] + 2 * MARK_PAD,
-        }
-    )
-    image = Image.open(io.BytesIO(shot)).convert("RGB")
+    image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     width, height = image.size
     scale = page.evaluate("() => devicePixelRatio")
-    edge = round(MARK_PAD * scale)
+    # The image is the squared clip and nothing else — asserted rather than assumed,
+    # because the trailing scans count in from the far edge, so a single row of slack
+    # there reads as a stroke a pixel thin and names the element rather than the shot.
+    assert (width, height) == (clip["width"] * scale, clip["height"] * scale), (
+        f"the clip asked for {clip['width']}x{clip['height']} CSS px at dpr {scale} and "
+        f"came back {width}x{height} device px: every scan below counts from an edge "
+        f"this arithmetic no longer locates"
+    )
+    # Each side's own ground, since squaring the clip is not symmetric: MARK_PAD plus
+    # whatever that side's rounding added. Snapped in CSS space and then scaled, per the
+    # docstring — and a trailing side counts in from the far end of a clip whose width is
+    # a whole number, which flips the half, so the two directions round opposite ways.
+    lead = {"top": box["y"] - clip["y"], "left": box["x"] - clip["x"]}
+    trail = {
+        "bottom": clip["y"] + clip["height"] - box["y"] - box["height"],
+        "right": clip["x"] + clip["width"] - box["x"] - box["width"],
+    }
+    edge = {s: round(math.floor(g + 0.5) * scale) for s, g in lead.items()}
+    edge |= {s: round(math.ceil(g - 0.5) * scale) for s, g in trail.items()}
 
-    def stroke(scan):
+    def stroke(scan, at):
         """Mark-coloured pixels contiguous with the element's edge, and no others."""
         inked = [
             all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink)) for pixel in scan
         ]
-        # The border box lands on `edge` only when the rect is whole; a fractional
-        # one puts it a device pixel either side, so the stroke is looked for there
-        # and nowhere else.
-        start = next((i for i in range(edge - 1, edge + 2) if inked[i]), None)
+        start = next((i for i in range(at - 1, at + 2) if inked[i]), None)
         if start is None:
             return 0
         seen = 0
@@ -1656,10 +1684,10 @@ def mark_edges(page, ident, ink):
     columns = [[image.getpixel((x, y)) for y in range(height)] for x in quarters(width)]
     rows = [[image.getpixel((x, y)) for x in range(width)] for y in quarters(height)]
     return {
-        "top": {stroke(c) for c in columns},
-        "bottom": {stroke(c[::-1]) for c in columns},
-        "left": {stroke(r) for r in rows},
-        "right": {stroke(r[::-1]) for r in rows},
+        "top": {stroke(c, edge["top"]) for c in columns},
+        "bottom": {stroke(c[::-1], edge["bottom"]) for c in columns},
+        "left": {stroke(r, edge["left"]) for r in rows},
+        "right": {stroke(r[::-1], edge["right"]) for r in rows},
     }
 
 
@@ -1686,9 +1714,15 @@ def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
 
     The colour is asserted here rather than assumed by the measurement, since the
     scans have to be told what to look for and taking that off the element makes the
-    test blind to the one thing it is measuring in."""
+    test blind to the one thing it is measuring in.
+
+    The viewport is an odd number of pixels wide so that the horizontal scans are asked
+    a real question. The page column is centred, so an even window puts every box on a
+    whole x and both side scans then measure from exactly the padding they were handed —
+    which is the one value `mark_edges` used to assume for all four sides, so half of
+    what it now derives would never have run against a number that differed."""
     context = browser.new_context(
-        viewport={"width": 1200, "height": 900},
+        viewport={"width": 1201, "height": 900},
         color_scheme="light",
         device_scale_factor=2,
     )
@@ -7103,6 +7137,36 @@ OVER_WORDS = """(el, id) => {
     return null;
 }"""
 
+# Where the chip sits in the option holding it: from its corner, against the option's own
+# middle, and whether it reaches past the bottom. Every rect in one pass, because these are
+# differences between boxes and a difference is only a fact if both sides were read at one
+# instant.
+#
+# `level` is the middle of the box the row's words fill, not the middle of the first line,
+# which is what the row's rule actually promises: a label long enough to wrap carries its
+# digit down with it, 13.7px below that first line on a two-line row. Asked of the first
+# line this would fail a perfectly good layout the day a shipped label grew a word. It is
+# the content box and not the border box, so that a row whose padding stopped being
+# symmetric — which is the whole of why centring on the box centres on the words — is a
+# failure and not a pass.
+#
+# Two `bounding_box()` calls are two instants, and the page moves between them: a viewport
+# rect is relative to the scroller, so a scroll landing between the two reads is subtracted
+# straight into the answer. `a` scrolls to the ask it steps to, the body is the scroller,
+# and a page whose content sits on fractional pixels settles that scroll across a frame —
+# so the chip's offset came back a pixel out on about half of the runs, on whichever row
+# the frame happened to fall between. Nothing had moved by then except the window, which is
+# the one thing this measurement is not about.
+INSIDE_ITS_OPTION = """el => {
+    const chip = el.getBoundingClientRect();
+    const opt = el.parentElement.getBoundingClientRect();
+    const pad = getComputedStyle(el.parentElement);
+    const above = parseFloat(pad.paddingTop), below = parseFloat(pad.paddingBottom);
+    const words = opt.y + above + (opt.height - above - below) / 2;
+    return {x: chip.x - opt.x, y: chip.y - opt.y, past: chip.bottom - opt.bottom,
+            level: (chip.y + chip.height / 2) - words};
+}"""
+
 
 def test_a_questions_digits_are_drawn_whole(browser, serve):
     """An address arrives into room its option is already holding, and lands on nothing.
@@ -7110,7 +7174,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     Every earlier placement borrowed that room instead, and each borrow showed. On the
     cell's outer corner the chip was half outside a group that clips itself, so no
     address the product drew had ever been whole — seven of its seventeen pixels gone,
-    and in a bare-label group, where a row is 34px tall, the first digit was a sliver.
+    and in a bare-label group the first digit was a sliver.
     Out in the page margin beside the group it was whole and it was in the neighbouring
     card's prose, because a middle column's margin is another cell. Neither showed up
     as a failure: a clipped element still reports its whole box and still answers
@@ -7120,27 +7184,43 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
     stepped through with the key that reaches them, since the room inside a cell is
     exactly what differed: cards padded clear of their corners, rows with none to
-    spare."""
+    spare.
+
+    How far down the column it stands is each form's own answer, so each is asked for the
+    fact it states rather than for one number covering both. A card's digit rides at the
+    head of that column, beside the title rather than over it; a row's is centred on the
+    row. Pinned as one 8px it was level with a 15px row, and the day the row went to the
+    page's own 17px it was two pixels too high with the gate still green — because what
+    the gate read was the number the theme stated, and the claim beside it, that a row's
+    digit is level with its words, was checked by nothing."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
-    for options in [["c-heater", "c-cable", "c-hand"], ["r-now", "r-later"]]:
+    for options, sitting in [
+        (["c-heater", "c-cable", "c-hand"], "in the corner"),
+        (["r-now", "r-later"], "centred"),
+    ]:
         page.keyboard.press("a")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
-            # Inside its own option, a chip's half-height down: level with a row's
-            # words and with a card's first line, never on the hairline the corner
-            # would have shared with the cells around it.
-            box, opt = chip.bounding_box(), page.locator(f"#{id_}").bounding_box()
-            assert (round(box["x"] - opt["x"]), round(box["y"] - opt["y"])) == (
-                6,
-                8,
-            ), (
-                f"{id_}'s digit sits {box['x'] - opt['x']}, {box['y'] - opt['y']} "
-                "from its option's corner"
+            # Never on the hairline the outer corner would have shared with the cells
+            # around it: the column the option reserves starts 6px in, in both forms.
+            sits = chip.evaluate(INSIDE_ITS_OPTION)
+            assert round(sits["x"]) == 6, (
+                f"{id_}'s digit sits {sits['x']} in from its option's left edge"
             )
-            assert box["y"] + box["height"] <= opt["y"] + opt["height"], (
+            if sitting == "in the corner":
+                assert round(sits["y"]) == 8, (
+                    f"{id_}'s digit sits {sits['y']} down from its option's top, not in "
+                    "the corner of the column its card reserves"
+                )
+            else:
+                assert abs(sits["level"]) <= 0.5, (
+                    f"{id_}'s digit is {sits['level']}px off the middle of its row's own "
+                    "words"
+                )
+            assert sits["past"] <= 0, (
                 f"{id_}'s digit hangs past its own option and onto the next"
             )
             # Asked of the words rather than of the numbers, because the numbers are

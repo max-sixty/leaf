@@ -1103,7 +1103,13 @@ style.textContent = `
      each once carried. They had not drifted; nothing was going to say so if they did.
      What a wearer keeps is where its chip sits and when it shows — a reply box's hangs
      off the box's own corner while the leader is armed, an option's stands in a column
-     that option holds for it. This rule dresses; theirs place and paint. */
+     that option holds for it. This rule dresses; theirs place and paint.
+
+     Its two numbers are off the ladder because they are the disc rather than the type:
+     a 17px circle with a 1px ring leaves 15px of interior, which is the line the digit
+     is centred on, and 11px is a digit that sits in that interior with room around it.
+     Set at the apparatus rung the glyph would crowd the ring it is drawn inside, the
+     way the pick mark's ✓ would. */
   .lf-address { display: none; width: 17px; height: 17px; border: 1px solid var(--accent); border-radius: 50%; background: var(--card); color: var(--accent); font-size: 11px; line-height: 15px; text-align: center; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
@@ -1432,10 +1438,13 @@ ${MARK_RULES}
        paintAnchors for the one thing that wears this and why. */
     .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
     .lf-msg { margin: 8px 0; }
-    .lf-msg-head { display: flex; gap: 6px; align-items: baseline; }
-    .lf-msg-head b { font-size: 12.5px; }
+    /* Who and when, on one line above the words: apparatus, so the row states the
+       apparatus rung once and the two differ by weight and ink rather than by size. They
+       carried 12.5px and 11.5px, a pixel apart for no reason either could give, and the
+       11.5 was --t-6 written out. */
+    .lf-msg-head { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-6); }
     .lf-msg.claude .lf-msg-head b { color: var(--accent); }
-    .lf-msg time { color: var(--muted-2); font-size: 11.5px; }
+    .lf-msg time { color: var(--muted-2); }
     /* A message body is rendered Markdown, which is why this dresses a box and not a
        paragraph. The theme's element rules are at document level and reach in here, so a
        reply's lists, code, quotes and tables already read as the page's do; what is left
@@ -1497,7 +1506,7 @@ ${MARK_RULES}
     /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
        on the hidden one this would out-specify .lf-unseen's own overflow. */
     .lf-composer .lf-quote:not(.lf-unseen) { max-height: 4.2em; overflow-y: auto; }
-    .lf-suggest-row { display: none; align-items: center; gap: 6px; margin: 0 0 6px; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+    .lf-suggest-row { display: none; align-items: center; gap: 6px; margin: 0 0 6px; color: var(--muted); font-size: var(--t-6); cursor: pointer; }
     .lf-suggest-row input { margin: 0; accent-color: var(--accent); }
     .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
     /* A suggestion renders verbatim — its characters are what the next version
@@ -1524,12 +1533,16 @@ ${MARK_RULES}
     .lf-help td { padding: 3px 0; vertical-align: baseline; }
     .lf-help td:first-child { width: 84px; white-space: nowrap; }
     /* The glyph states its own ink rather than taking the line's. A key chip is the
-       one word on either surface the reader has to read to press anything, and it
-       is set at 12px on --chip, where the surrounding line's --muted came to 4.46:1
-       — under AA, and quietly, since the line is aria-hidden and the corpus sweep
-       walks pages with it empty. --ink-2 clears it on both schemes. The words beside
-       the chips keep --muted: they sit on --card, which it clears. */
-    .lf-help kbd, .lf-keyline kbd { font-family: ui-monospace, monospace; font-size: 12px; background: var(--chip);
+       one word on either surface the reader has to read to press anything, and on
+       --chip the surrounding line's --muted came to 4.46:1 — under AA, and quietly,
+       since the line is aria-hidden and the corpus sweep walks pages with it empty.
+       --ink-2 clears it on both schemes. The words beside the chips keep --muted:
+       they sit on --card, which it clears.
+
+       One size for both surfaces, because a key chip is one thing wherever the reader
+       meets it — the same reason .lf-address is stated once for the panel and the page.
+       It is the apparatus rung, where the 12px it held was half a pixel off one. */
+    .lf-help kbd, .lf-keyline kbd { font-family: ui-monospace, monospace; font-size: var(--t-6); background: var(--chip);
       color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
     /* The key line: what a key does right now, rendered from the same scene() that
@@ -1540,7 +1553,7 @@ ${MARK_RULES}
        the document's last lines never end under it. */
     .lf-keyline { position: fixed; left: 18px; bottom: 14px; z-index: 8940; pointer-events: none;
       display: flex; gap: 12px; align-items: baseline; max-width: calc(100vw - 36px);
-      overflow: hidden; color: var(--muted); font-size: 12px; white-space: nowrap;
+      overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
       background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
       padding: 5px 10px; }
     .lf-keyline:empty { display: none; }

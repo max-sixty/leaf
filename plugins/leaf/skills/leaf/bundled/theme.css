@@ -44,6 +44,16 @@ lf-chip, .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
   border-radius: 999px; background: var(--chip); color: var(--ink-2); }
 
+/* A card is a marking — a border, a fill — and what stands inside it is the page's own
+ * words at the page's own size, so it states no size. lf-option, lf-variant and lf-card
+ * each stated 15px instead, two of them with a 16px title over it: a pixel of hierarchy no
+ * reader could see, over a body off the ladder entirely, which nothing here was ever
+ * fitted or measured against. The
+ * `.facts` rail is where that showed — apparatus at --t-5 is meant to read as subordinate
+ * to the case beside it, and against a 15px case it was one pixel smaller than the prose
+ * it stood next to. Unlike the voice above, this is not a judgement a layer restates:
+ * there is one ladder and every layer reads the same tokens. */
+
 /* lf-options / lf-option: the theme is most of the widget — the module adds the
  * pick, the reference, and the box for words, and without it these rules still
  * draw the whole thing.
@@ -79,9 +89,8 @@ lf-chip, .lf-chips span {
  * `recommended` is the accent ring, or a row's outline. */
 lf-options { display: block; margin: 14px 0; }
 lf-option { display: block; position: relative; border: 1px solid var(--rule);
-            border-radius: var(--r); padding: var(--sp-3); background: var(--card);
-            font-size: 15px; }
-lf-option > strong { display: block; margin: 0 0 4px; font-size: 16px; }
+            border-radius: var(--r); padding: var(--sp-3); background: var(--card); }
+lf-option > strong { display: block; margin: 0 0 4px; }
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
  * the author's own markup, quotable and diffable like any other content. The pill is the
  * shared one — inline-block there, which is what leaves each form free to decide where
@@ -190,6 +199,12 @@ lf-option .lf-pick { display: inline-flex; align-items: center; gap: 6px;
                      font-family: var(--sans);
                      font-size: var(--t-6); line-height: 1.5;
                      color: var(--muted); }
+/* Off the ladder, and stated here because it is a fit rather than a size: the mark is an
+ * 11px box whose border leaves 9px of interior, and 8px sets a ✓ five pixels across in it,
+ * well clear of the ring. The smallest step on the ladder is 11.5px, which draws it eight
+ * across in an advance box a pixel wider than the interior — a tick filling the mark it is
+ * inside rather than sitting in it. (The border asks for 1.5px and Chrome uses 1; half a
+ * pixel of ring is a paint decision, and the interior is what the glyph gets.) */
 lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
                      border: 1.5px solid var(--border-2);
                      display: grid; place-items: center; box-sizing: border-box;
@@ -244,15 +259,23 @@ lf-option .lf-pick:focus-visible { outline: 2px solid var(--accent); outline-off
  * (.lf-address) — the g leader's thread chips are that same fact and wear the same chip.
  * Two things are this rule's: where it sits and when it shows.
  *
- * Where: in the column the option reserves for it (the joined control's rules above),
- * a chip's half-height down, so a row's digit is level with its words and a card's with
- * its first line. It sat on the option's outer corner once, which is half outside a
- * group that clips itself — that is how the hairlines its cells draw stop at its edge —
- * so no address the page ever painted was whole, and a first row's was a sliver.
+ * Where: in the column the option reserves for it (the joined control's rules above).
+ * It sat on the option's outer corner once, which is half outside a group that clips
+ * itself — that is how the hairlines its cells draw stop at its edge — so no address the
+ * page ever painted was whole, and a first row's was a sliver.
+ *
+ * How far down the column it stands is each form's own answer, and each states it — the
+ * shared rule below holds only the column, the way the pick mark's shared rule holds only
+ * its face. A card's digit rides at the head of that column, its top up in the padding and
+ * the case clear to its right; a row's is centred on the row, which needs no number at
+ * all. Written as one 8px for both it was level with a 15px row and two pixels too high on
+ * a 17px one, and nothing said so: the digit moved with a size it had never been written
+ * against.
  *
  * When: while one of the group's marks holds keyboard focus, so an address appears
  * exactly when a key could use it and a pointer pick never summons one. */
-lf-option > .lf-address { position: absolute; top: 8px; left: 6px; }
+lf-option > .lf-address { position: absolute; left: 6px; }
+lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
 lf-options[choose]:has(.lf-pick:focus-visible) > lf-option > .lf-address {
                      display: block; }
 /* The thread multi-question's submit (the module adds it there alone): one press
@@ -451,6 +474,13 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
                      padding-right: 17px; text-align: right; }
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick::before {
                      position: absolute; right: 0; top: 0; bottom: 0; margin: auto 0; }
+/* And the digit at the other end of the row takes the same answer, for the same reason: a
+ * row is the words in it, so a mark that belongs to the row is centred on the box they
+ * fill, and that stays true whatever size they are set at. It is the row and not the first
+ * line — a label long enough to wrap carries its digit down with its mark, the two staying
+ * level with each other. */
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-address {
+                     top: 0; bottom: 0; margin: auto 0; }
 /* The block a row is about (`for`). It points; it never supplies the row's words, so it
  * reads as what it is — an id, written the way the comment panel writes an element
  * anchor — and rides at the line's end with the mark, out of the way of what the row
@@ -578,8 +608,8 @@ lf-event > strong { margin-right: 6px; }
 lf-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
              gap: var(--sp-3); margin: 14px 0; }
 lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(--r);
-             padding: var(--sp-3); background: var(--card); font-size: 15px; }
-lf-variant > strong { display: block; margin: 0 0 4px; font-size: 16px; }
+             padding: var(--sp-3); background: var(--card); }
+lf-variant > strong { display: block; margin: 0 0 4px; }
 
 /* lf-metrics / lf-metric: a KPI row. The value leads, said from the attribute;
  * the delta trails and colors by sign × direction — honest coloring, no JS. */
@@ -634,14 +664,23 @@ lf-column::before { content: attr(label); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 8px 34px 8px 10px; margin: 0 0 var(--sp-2); font-size: 15px; }
+          padding: 8px 34px 8px 10px; margin: 0 0 var(--sp-2); }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; margin: 0 0 2px; }
-/* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. */
+/* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. It says no
+   size, because `offer` builds it wearing .lf-ui and the runtime's own rule sets that
+   face's size once for every control in the layer — the 14px stated here was --t-5
+   written out a second time, under a selector specific enough to win, so the chrome's
+   size would have moved everywhere but on a card's grip. `line-height: 1` stays: .lf-ui
+   sets a line of its own, and this glyph wants none.
+   The card reserves the column the grip hangs in as 34px of right padding, against a
+   glyph no face in --sans has — macOS substitutes one 9.6px wide at this size, for 29.6px
+   of control — so a ladder that moves, or a platform that substitutes differently, leaves
+   that 34px to re-measure. */
 lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           cursor: grab; padding: 8px 10px;
           border-radius: 4px; user-select: none;
-          -webkit-user-select: none; font-size: 14px; line-height: 1;
+          -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
@@ -778,7 +817,13 @@ lf-specimen lf-options[choose] > lf-option[recommended]:hover {
 lf-specimen lf-options[choose] > lf-option[chosen]:hover {
               box-shadow: 0 0 0 1px var(--ok); }
 
-/* Upgraded widgets: pre-upgrade presentation, so a page degrades readably. */
+/* Upgraded widgets: pre-upgrade presentation, so a page degrades readably.
+ *
+ * 13px is the integrated theme's `pre`, restated rather than laddered; the argument, and
+ * what the two copies moving apart would cost, are with that rule. The authored body
+ * inside these widgets is a <pre> that gives up the document's dressing and inherits from
+ * here (the rule below), so this copy is the size such a page is set in until a module
+ * runs. */
 lf-diagram, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: 13px;
              color: var(--muted); overflow-x: auto; }
@@ -821,7 +866,7 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
 :host(.lf-rendered) details { margin: 8px 0; padding: 0; overflow: hidden;
                               background: var(--card); border: 1px solid var(--border-2);
                               border-radius: var(--r); }
-:host(.lf-rendered) summary { padding: 6px 12px; font-size: 13px; font-family: var(--sans); }
+:host(.lf-rendered) summary { padding: 6px 12px; font-size: var(--t-5); font-family: var(--sans); }
 .lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); }
 :host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--rule);
@@ -851,7 +896,10 @@ pre .note { color: var(--muted); } /* git's remark on the line above, not a line
    page carrying no script at all, the authored <pre> is what shows. */
 lf-diff:not(.lf-rendered) .lf-diff-stat { color: var(--muted); }
 
-/* lf-tree rendered form: nested lists with hairline guides and change badges. */
+/* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
+   the `pre` contract again — the integrated theme's comment names this copy of it — and a
+   tree's own reason for taking it is that its lines are paths, the same words a code block
+   holds, set to the same measure beside them. */
 lf-tree.lf-rendered { font-family: var(--mono); font-size: 13px; }
 lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
@@ -876,7 +924,14 @@ lf-code .lf-code-line.hi { background: var(--hi-tint); }
 /* A note is the author's sentence about a line, so it leaves the mono the block
    is set in and comes back to the document's own voice — it is prose, and a
    user quotes it like any other. Stated here rather than in the apparatus
-   rule for that reason, and because it has a `pre`'s mono to escape either way. */
+   rule for that reason, and because it has a `pre`'s mono to escape either way.
+
+   It is the one box in this file holding the page's prose that states a size, and the
+   step down is the point: a note is about the line above it, so it is set under the page
+   rather than at it. Left to inherit it would take the block's 13px mono; taken to --t-4
+   it would stand a third larger than the code it annotates and read as the subject rather
+   than the remark. --t-5 is the rung between, and the note is why that rung is stated
+   here rather than deleted the way a card's was. */
 lf-code .lf-code-note { margin: 4px 8px 6px 46px; padding: 6px 10px;
              background: var(--field); border: 1px solid var(--rule);
              border-radius: var(--r); font-family: var(--serif);

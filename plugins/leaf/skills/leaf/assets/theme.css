@@ -163,11 +163,23 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * the gate would quietly fall back to its 780px default and start passing pages
  * that overflow by 60px. The column is one number, and this is where it is said.
  *
- * It narrowed from 760 with the type: 17px Charter runs about 7.9px a character,
- * so the 672px of text inside this padding is ~74 characters — a measure. The
- * old column set 16px system-ui across 93 of them, which is a line the eye loses
- * its place returning from, and the single biggest thing wrong with how the
- * page read. Widgets that want width already scroll (lf-board, lf-diff, pre). */
+ * It is the text's own width and not the box's: nothing sets border-box here, so the
+ * padding stands outside the 720px rather than inside it, and `version check` reading
+ * this number is reading the column the words get. Charter sets about 7.35 of them to
+ * the pixel at 17px, so a line here runs around ninety characters.
+ *
+ * That is long by the measure a book is set to, and it is left alone on purpose. What
+ * makes a long line hard is the sweep back to find the next one, and both of the things
+ * that cost are missing: the leading is 1.6, which is what buys a long measure back, and
+ * a page here is prose interleaved with boards, diffs and cards rather than a column of
+ * text, so four consecutive full-width lines is a lot. The reader who works in these
+ * pages was asked and doesn't want them narrower.
+ *
+ * If that ever changes, the floor is not taste. A code block is this column less its
+ * padding, and holding the 80 characters `pre` is written for puts the column at about
+ * 640px — so prose set to a book's measure and evidence set to source's cannot both come
+ * out of one column, and the way to have both would be two of them rather than a smaller
+ * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: relative; }
 /* The headings are the body serif at weight, size and spacing — one voice, four
  * volumes — rather than a display face over a text face. A page whose subject is
@@ -321,13 +333,13 @@ dd { margin: 0 0 8px 0; }
         margin: 0 0 10px; }
 /* Riding in a line of prose is all this adds to the pill above. */
 .tag { vertical-align: middle; }
-/* A tinted field with a hairline border — never a left-accent bar. What sits in it is
-   the page's own prose at the page's own size, so the tint is the whole of the marking:
-   the 16px this held was a pixel under the body around it — a number to keep in step by
-   hand, for a difference no reader could see. */
+/* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
+   page's own prose at the page's own size, so the tint is the whole of the marking and
+   this says nothing about size at all. It held 16px once, a pixel under the body around it
+   for a difference no reader could see; stating --t-4 instead was the same number in a
+   token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
-           border-radius: var(--r); padding: 12px 16px; margin: 18px 0;
-           font-size: var(--t-4); }
+           border-radius: var(--r); padding: 12px 16px; margin: 18px 0; }
 .facts { display: grid; grid-template-columns: max-content 1fr;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5);
@@ -342,6 +354,10 @@ th.num, td.num { text-align: right; }
 ol.steps { list-style: none; counter-reset: step; padding-left: 0; }
 ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
                 margin: 10px 0; }
+/* The step's own number, off the ladder for the reason the ladder states: it is set
+   against a 21px disc rather than against the prose, so it is a fit and says so here. The
+   apparatus rung would fill the disc; the room is what is scarce, as it is for the pick
+   mark's ✓ and the keyboard address's digit. */
 ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         top: 2px; width: 21px; height: 21px; border-radius: 50%;
                         background: var(--accent); color: var(--card); font-size: 12px;

@@ -1,15 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img"
-     aria-label="leaf">
-<!-- A leaf whose midrib is a page's left margin, with the text hanging off it:
-     the name drawn as one shape. A single filled path — the paragraph is cut
-     out of the blade as negative space, so the mark scales without stroke
-     weights drifting. The two palettes are theme.css's accent pair, spelled
-     out because a favicon cannot link a stylesheet.
-
-     The whole mark is `lf-tone`, and that is a contract with the runtime:
-     a served page paints this element in whatever colour the banner's dot is
-     wearing, so the tab says what the leaf is doing (paintTab). A layer
-     overriding this file keeps the class or the tab stops saying anything. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="leaf">
 <style>
   .lf-tone { fill: #2f5480; }
   @media (prefers-color-scheme: dark) {

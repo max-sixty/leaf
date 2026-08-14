@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>leaf · collaborate with your agent in HTML</title>
+    <title>leaf · generative UI for your agent</title>
     <meta
       name="description"
-      content="leaf is a Claude Code and Codex plugin: your agent presents plans, findings, and work in progress as a commentable web page, your comments reach the session, and revised versions ship with changelogs."
+      content="Generative UI for agents, shipped as a Claude Code and Codex plugin: the agent builds the page your task needs, writing new widgets when the project calls for them, and a messaging and collaboration bus carries your feedback back into the session."
     />
     <link
       rel="icon"
@@ -14,10 +14,10 @@
       type="image/svg+xml"
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="leaf · collaborate with your agent in HTML" />
+    <meta property="og:title" content="leaf · generative UI for your agent" />
     <meta
       property="og:description"
-      content="Your agent presents plans, findings, and work in progress as a commentable web page. Your comments reach the session, and revised versions ship with changelogs."
+      content="Generative UI for agents: the agent builds the page your task needs, and a messaging and collaboration bus carries your feedback back into the session."
     />
     <meta property="og:url" content="https://leaf.page/" />
     <meta property="og:image" content="https://leaf.page/session-light.png" />
@@ -38,19 +38,18 @@
 
       <header class="hero" id="top">
         <p class="eyebrow">a Claude Code and Codex plugin</p>
-        <h1>Collaborate with your agent in HTML.</h1>
+        <h1>Generative UI for your agent.</h1>
         <p class="lede" id="lede">
-          Your agent builds you a page rather than a scroll of terminal text: diagrams,
-          boards you drag, a list of work that ticks over as it goes. Select any line
-          and comment on it like a shared doc; the comment reaches the session, and a
-          revised version arrives with the change.
+          A plan review shows up as a page, options as buttons. A bug triage turns into
+          a board. A migration that runs all afternoon gets a dashboard that keeps up.
         </p>
         <p id="scope">
-          It works for anything that would otherwise land as a wall of terminal text: a
-          migration plan, an architecture write-up, an incident diagnosis, a PR
-          walkthrough, a review, or a list of things to work through that ticks over as
-          the agent does them. <a href="#install">Two commands install it</a>. No
-          accounts, no daemon, no config; you need
+          The pages are built from a vocabulary of widgets, and the vocabulary is open:
+          when your project needs a widget that doesn't exist, the agent writes it.
+          Underneath is a messaging and collaboration bus. Comments, drags, picks, and
+          edits reach the session as structured events, and revised versions come back
+          with changelogs. <a href="#install">Two commands install it</a>. No accounts,
+          no daemon, no config; you need
           <a href="https://docs.astral.sh/uv/"><code>uv</code></a> on your PATH and a
           browser on the same machine.
         </p>
@@ -109,13 +108,19 @@ v2 (latest), and a banner reading 'Claude awaits'."
             browser follows on its own, so you watch it happen rather than reading a
             summary afterwards.
           </li>
+          <li id="range-grow">
+            <strong>Grow.</strong> When a task calls for a widget that doesn't exist —
+            say a call graph — the agent writes one: a schema, CSS, and a module if it
+            needs behavior. It passes the same checks as the shipped widgets, and later
+            pages in the project can use it.
+          </li>
         </ul>
         <p id="more">
           The <a href="examples.html">examples</a> are complete pages, one per kind of
-          write-up, published here as the browser draws them.
+          work, published here as the browser draws them.
           <a href="how-it-works.html">How it works</a> shows the widget system rendering
-          live, and <a href="customizing.html">Customize</a> covers theme overlays and
-          project widgets.
+          live, and <a href="customizing.html">Customize</a> covers the layer new
+          widgets land in, whether the agent wrote them or you did.
         </p>
       </section>
 

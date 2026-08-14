@@ -1,6 +1,6 @@
 {
   "name": "leaf",
-  "description": "Collaborate through a commentable HTML page in the browser: present plans, findings, and work in progress, then carry the user's anchored feedback back into the session.",
+  "description": "Generative UI: the agent builds the page the task needs, composing existing widgets or writing new ones, and a messaging and collaboration bus carries the user's comments and edits back into the session.",
   "author": {
     "name": "Maximilian Roos",
     "url": "https://github.com/max-sixty"
@@ -8,11 +8,18 @@
   "homepage": "https://github.com/max-sixty/leaf",
   "repository": "https://github.com/max-sixty/leaf",
   "license": "MIT",
-  "keywords": ["plan-review", "review", "html", "annotation", "collaboration"],
+  "keywords": [
+    "generative-ui",
+    "plan-review",
+    "review",
+    "html",
+    "annotation",
+    "collaboration"
+  ],
   "interface": {
     "displayName": "Leaf",
-    "shortDescription": "Collaborate with your agent in a commentable local page.",
-    "longDescription": "Present plans, findings, and work in progress as a local HTML page with anchored comments, interactive decisions, and live revisions.",
+    "shortDescription": "Generative UI for your agent.",
+    "longDescription": "The agent builds the page the task needs from an open vocabulary of widgets: options to click for a decision, a board to drag for a triage, a live dashboard for a long run. A messaging and collaboration bus carries comments and edits back into the session.",
     "developerName": "Maximilian Roos",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],

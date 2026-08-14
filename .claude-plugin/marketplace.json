@@ -5,14 +5,21 @@
     "name": "max-sixty",
     "url": "https://github.com/max-sixty"
   },
-  "description": "leaf, installable as a Claude Code plugin: collaborate through a commentable HTML page for plans, findings, and work in progress.",
+  "description": "leaf, installable as a Claude Code plugin: generative UI — the agent builds the page your task needs.",
   "plugins": [
     {
       "name": "leaf",
       "source": "./plugins/leaf",
-      "description": "Collaborate with Claude in HTML: plans, findings, and work in progress arrive as a commentable page in your browser, you mark it up there, and each revision ships with a changelog as the work moves.",
+      "description": "Generative UI: the agent builds the page your task needs, composing existing widgets or writing new ones for your project, and a messaging and collaboration bus carries your comments and edits back into the session.",
       "license": "MIT",
-      "keywords": ["plan-review", "review", "html", "annotation", "collaboration"]
+      "keywords": [
+        "generative-ui",
+        "plan-review",
+        "review",
+        "html",
+        "annotation",
+        "collaboration"
+      ]
     }
   ]
 }

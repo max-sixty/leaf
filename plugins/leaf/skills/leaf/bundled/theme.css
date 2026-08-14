@@ -832,20 +832,57 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
 }
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
- * than speaks (a sample decision, a demo board). It wears the quotation idiom,
- * blockquote's muted hairline gutter opened by a small-caps label — not the
- * callout's tinted field, and not the left-accent bar that rule forbids: a
- * quotation's gutter marks provenance, an accent bar demands attention. The content
- * itself renders at full fidelity (an exhibit must show the real thing), so
- * the gutter and label alone say "mention, not use". Input never leaves one:
- * the interactive widgets check quoted() before wiring (lf-options.js,
- * lf-board.js), so a quoted choose group renders as though it never declared
- * `choose` and a quoted board stays the static board the theme already
- * renders. */
-lf-specimen { display: block; margin: 18px 0; padding: 2px 0 2px 16px;
-              border-left: 2px solid var(--border-2); }
+ * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
+ * muted left gutter — not the callout's tinted field, and not the left-accent bar
+ * that rule forbids: a quotation's gutter marks provenance, an accent bar demands
+ * attention. The content itself renders at full fidelity
+ * (an exhibit must show the real thing), so the gutter alone says "mention, not
+ * use". Input never leaves one: the interactive widgets check quoted() before
+ * wiring (lf-options.js, lf-board.js), so a quoted choose group renders as though
+ * it never declared `choose` and a quoted board stays the static board the theme
+ * already renders.
+ *
+ * The gutter runs beside the exhibit and nothing else. The note naming it — this
+ * theme's "specimen ·" over the author's label — is a word *about* the quoted
+ * region rather than a word in it, and it opened the gutter from inside: the marking
+ * took in a line the quoted page never said, and the exhibit read as though it came
+ * with a heading of its own. Every other reading had it right — the quote search, the
+ * diff and the capture all take the note where the file has it, first inside the
+ * element — so the one account that was wrong was the one the reader could see.
+ *
+ * `display: table` is what stands it outside. A caption box is laid out beyond the
+ * table box's border, in flow, so it reserves its own room and wraps like any other
+ * run of words — where lifting the note out with absolute positioning would hang the
+ * room above the gutter on a number read out of a browser once, and land the note on
+ * the paragraph above it the day a label wraps. The exhibit keeps the layout it had:
+ * consecutive non-table children are wrapped in one anonymous cell, so what is
+ * inside is a block flow whose margins collapse exactly as they do out on the page,
+ * which is the fidelity an exhibit is for. Nor does the box become a table to anything
+ * that reads the page: Chrome types it LayoutTable where it typed the block generic,
+ * and stops there — the row and the cell are anonymous boxes and neither reaches the
+ * accessibility tree.
+ *
+ * What the layout costs is a declaration for each thing a block had for free. A table
+ * shrink-wraps, so the width is asked for whole and stated border-box, which is what
+ * keeps the gutter and the inset inside the column rather than 27px past it. And a
+ * table sizes to its content besides, so the board on the how-it-works page came out
+ * 523px wide in a 380px column, with the document scrolling sideways to reach what the
+ * board's own overflow was holding — which is what `table-layout: fixed` settles, and
+ * what test_a_specimen_holds_a_wide_exhibit_inside_the_column holds it to.
+ *
+ * The bar is a pixel heavier than the 2px it was and the exhibit is set deeper: the
+ * bar is the whole of the marking now that the note stands off it, and it is read
+ * against content that draws its own boxes — a specimen full of cards is one more line
+ * on a page of borders, where a quoted paragraph is the only rule in a column of prose.
+ * The note stands 4px off the bar and the theme's own 18px under the paragraph above,
+ * because proximity is what says which block a line belongs to, and this line belongs
+ * to the exhibit. */
+lf-specimen { display: table; table-layout: fixed; width: 100%;
+              box-sizing: border-box; margin: 18px 0; padding: 2px 0 2px var(--sp-4);
+              border-left: 3px solid var(--border-2); }
 lf-specimen::before,
-lf-specimen > [data-lf-said="label"] { display: block; font-size: var(--t-6);
+lf-specimen > [data-lf-said="label"] { display: table-caption;
+              font-size: var(--t-6); margin-bottom: var(--sp-1);
               letter-spacing: .08em; text-transform: uppercase;
               color: var(--muted); }
 lf-specimen::before { content: "specimen"; }

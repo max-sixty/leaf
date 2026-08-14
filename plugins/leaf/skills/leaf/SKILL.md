@@ -265,9 +265,9 @@ to click belongs on a page you are going to serve.
 - **Show real content as evidence; quote invented content in a specimen.** Prefer
   putting the actual file contents, diff, or output behind `<details>` over
   paraphrasing it. An example that merely exhibits syntax or a widget goes in a
-  `<lf-specimen>` — its gutter and label mark the region as quoted rather than
-  spoken, and interactive widgets inside take no input — with visibly fictional
-  content: real project content in an example gets read as a live proposal.
+  `<lf-specimen>` — its gutter marks the region as quoted rather than spoken, and
+  interactive widgets inside take no input — with visibly fictional content: real
+  project content in an example gets read as a live proposal.
 - **Show the destination, not the journey.** Explain the concept as it stands — total
   cut-over. Don't spend content on what was considered before or how you got here.
 

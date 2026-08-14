@@ -266,6 +266,12 @@ SPECIMEN_PAGE = """<!doctype html>
     <lf-column id="q-col" label="Doing">
       <lf-card id="q-card"><strong>Wire the importer</strong></lf-card>
     </lf-column>
+    <lf-column id="q-col-next" label="Next">
+      <lf-card id="q-card-backfill"><strong>Backfill last month</strong></lf-card>
+    </lf-column>
+    <lf-column id="q-col-done" label="Done">
+      <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
+    </lf-column>
   </lf-board>
   <lf-options id="quoted-settled" choose settled>
     <lf-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
@@ -5082,6 +5088,110 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
         page.close()
 
 
+def test_the_specimen_gutter_starts_where_the_exhibit_does(browser, serve):
+    """The gutter marks what is quoted, and the "specimen ·" note over it is the
+    theme's word *about* the quoted region rather than a word in it — so the bar
+    stands beside the exhibit and beside nothing else. It opened at the note
+    instead, which drew the marking around a line the page never said.
+
+    Geometry can't answer this. The element's own rect is the table wrapper's and
+    takes in the caption, while the bar is painted on the table box inside it,
+    which nothing in the DOM is a handle on — so a rect comparison passes exactly
+    as well with the note back inside the marking. The pixels in the bar's own
+    column are the reading: a run of the border's colour from the foot of the
+    specimen up, whose top edge is where the marking begins, and which has to land
+    in the gap between the note and the exhibit."""
+    from PIL import Image  # a dev dependency already, for the demo recorder
+
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    assert errors == []
+    box = page.locator("#spec").bounding_box()
+    note = page.locator('#spec > [data-lf-said="label"]').bounding_box()
+    exhibit = page.locator("#quoted-group").bounding_box()
+    border = page.locator("#spec").evaluate(
+        "el => getComputedStyle(el).borderLeftColor"
+    )
+    ink = tuple(int(n) for n in re.findall(r"\d+", border)[:3])
+
+    # A column one pixel wide inside the 3px bar, from the specimen's top down past
+    # where the exhibit starts. Read from the bottom up and stopped at the first
+    # pixel that isn't the bar's, so a glyph of the note's that happens to
+    # antialias through this colour is not a bar the run can reach.
+    #
+    # The clip's top is floored first and the reading counts from the floored value,
+    # because a clip is asked for in CSS pixels and Chrome truncates the rect before
+    # it scales — a pixel of unmodelled bias, against a gap of four.
+    scale = page.evaluate("() => devicePixelRatio")
+    clip = {
+        "x": box["x"] + 1,
+        "y": math.floor(box["y"]),
+        "width": 1,
+        "height": math.ceil(exhibit["y"] - box["y"]) + 20,
+    }
+    on_screen = page.evaluate(
+        "([y, h]) => y >= 0 && y + h <= innerHeight", [clip["y"], clip["height"]]
+    )
+    assert on_screen, (
+        f"#spec is not wholly on screen ({clip}): a screenshot clip is the "
+        f"viewport's, so the scan below would read a truncated image"
+    )
+    strip = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    assert strip.height == clip["height"] * scale, (
+        f"the clip asked for {clip['height']} CSS px at dpr {scale} and came back "
+        f"{strip.height} device px: the arithmetic below no longer locates its edge"
+    )
+    rows = [strip.getpixel((0, y)) for y in range(strip.height)]
+    painted = 0
+    while painted < len(rows) and all(
+        abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink)
+    ):
+        painted += 1
+    assert painted, f"no gutter painted in the column beside the exhibit: {rows[-1]}"
+
+    # One bracket rather than two assertions: the bar's top edge stands in the gap,
+    # a note inside the marking pushing it up out of the gap and a marking that
+    # starts after what it marks pushing it down out of the other end.
+    top = clip["y"] + (len(rows) - painted) / scale
+    assert note["y"] + note["height"] <= top + 1 <= exhibit["y"] + 1, (
+        f"the gutter starts at {top}, outside the gap between the note "
+        f"(to {note['y'] + note['height']}) and the exhibit (from {exhibit['y']}): "
+        f"the marking takes in the note, or begins after what it marks"
+    )
+    page.close()
+
+
+def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
+    """An exhibit wider than the column scrolls inside its own box, as it does
+    anywhere else on the page. What makes that true here is one declaration —
+    a table sizes to its content, so without `table-layout: fixed` the specimen
+    grows to the board's width and hands the document a sideways scrollbar, taking
+    the comment layer's anchoring off screen with it.
+
+    Read at a viewport narrow enough for the board to want more room than the
+    column has; at the render sweep's own 1200px the board fits and nothing here
+    can fail."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    assert errors == []
+    resized(page, 380, 900)
+    wide = page.evaluate(
+        "() => [document.documentElement.scrollWidth,"
+        " document.documentElement.clientWidth,"
+        " Math.round(document.getElementById('spec').getBoundingClientRect().width),"
+        " document.getElementById('quoted-board').scrollWidth]"
+    )
+    document, column, specimen, board = wide
+    assert board > column, (
+        f"the board is {board}px in a {column}px column: it has to want more room "
+        f"than the column has, or nothing below is being tested"
+    )
+    assert specimen <= column, f"the specimen is {specimen}px in a {column}px column"
+    assert document == column, (
+        f"the document scrolls sideways ({document}px against {column}px): the "
+        f"exhibit widened the specimen instead of scrolling inside it"
+    )
+    page.close()
+
+
 def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     """The panel is where a live question actually gets put — Claude's replies
     carry widget markup — so it is also where a quoted one has to stay quoted.
@@ -5130,10 +5240,14 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         label.evaluate("el => getComputedStyle(el, '::before').content")
         == '"specimen · "'
     )
-    assert (
-        page.locator("#rp-spec").evaluate("el => getComputedStyle(el).borderLeftWidth")
-        == "2px"
+    gutter = page.locator("#rp-spec").evaluate(
+        "el => [getComputedStyle(el).borderLeftWidth,"
+        " getComputedStyle(el).borderLeftColor]"
     )
+    assert gutter[0] != "0px" and gutter[1] not in (
+        "rgba(0, 0, 0, 0)",
+        "transparent",
+    ), f"the panel's specimen carries no gutter: {gutter}"
     assert (
         page.locator("#rp-quoted lf-option").count() == 2
     )  # and the exhibit is all there

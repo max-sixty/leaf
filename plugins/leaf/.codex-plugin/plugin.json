@@ -1,6 +1,6 @@
 {
   "name": "leaf",
-  "description": "Generative UI: the agent builds the page the task needs, composing existing widgets or writing new ones, and a messaging and collaboration bus carries the user's comments and edits back into the session.",
+  "description": "Generative UI: the agent builds the page the task needs, writes new widgets when the project calls for them, and answers the user's comments and edits over a messaging and collaboration bus.",
   "author": {
     "name": "Maximilian Roos",
     "url": "https://github.com/max-sixty"
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "Leaf",
     "shortDescription": "Generative UI for your agent.",
-    "longDescription": "The agent builds the page the task needs from an open vocabulary of widgets: options to click for a decision, a board to drag for a triage, a live dashboard for a long run. A messaging and collaboration bus carries comments and edits back into the session.",
+    "longDescription": "The agent builds the page the task needs from an open vocabulary of widgets, and writes a new widget when the project calls for one. Comments, drags, and edits come back to the session over a messaging and collaboration bus.",
     "developerName": "Maximilian Roos",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],

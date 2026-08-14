@@ -1,6 +1,6 @@
 {
   "name": "leaf",
-  "description": "Generative UI: the agent builds the page your task needs, composing existing widgets or writing new ones for your project, and a messaging and collaboration bus carries your comments and edits back into the session.",
+  "description": "Generative UI: the agent builds the page your task needs, writes new widgets when the project calls for them, and answers your comments and edits over a messaging and collaboration bus.",
   "author": {
     "name": "Maximilian Roos"
   },

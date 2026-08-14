@@ -3,16 +3,16 @@
 > **Not ready for general use.** Watch this space, and hopefully there'll be more to
 > say soon.
 
-Generative UI for agents. Ask your agent to review a migration plan and the plan
-arrives as a page in your browser, options laid out to click. A bug triage comes back
-as a board you drag. A long job gets a dashboard that updates as the agent works. When
-your project needs a widget that doesn't exist, the agent writes one, and the same
-theme and checks cover it. It ships as a plugin for Claude Code and Codex, so far.
+Generative UI for agents: the agent builds you the page rather than a scroll of
+terminal text — a plan whose options you press to decide, a triage board you drag, a
+dashboard that keeps up while a long job runs. When the project needs a widget that
+doesn't exist, the agent writes one, and the same theme and checks cover it.
 
 Underneath is a messaging and collaboration bus. Select any line and comment on it
-like a shared doc, drag a card, click an option, rewrite a draft: each reaches the
-session as a structured event. The agent answers in the margin and ships a revised
-version, and the browser follows it on its own.
+like a shared doc, or drag a card, or rewrite a draft in your own words: it all
+reaches the session as structured events, and the agent answers in the margin and
+ships a revised version. The browser follows along on its own. Leaf is a plugin —
+Claude Code and Codex so far.
 
 ![leaf demo](docs/demo.gif)
 

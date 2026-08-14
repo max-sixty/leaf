@@ -6,7 +6,7 @@
     <title>leaf · generative UI for your agent</title>
     <meta
       name="description"
-      content="Generative UI for agents, shipped as a Claude Code and Codex plugin: the agent builds the page your task needs, writing new widgets when the project calls for them, and a messaging and collaboration bus carries your feedback back into the session."
+      content="Generative UI for agents: the agent builds the page your task needs, writes new widgets when the project calls for them, and answers your comments and edits over a messaging and collaboration bus. A plugin for Claude Code and Codex."
     />
     <link
       rel="icon"
@@ -17,7 +17,7 @@
     <meta property="og:title" content="leaf · generative UI for your agent" />
     <meta
       property="og:description"
-      content="Generative UI for agents: the agent builds the page your task needs, and a messaging and collaboration bus carries your feedback back into the session."
+      content="Generative UI for agents: the agent builds the page your task needs and answers your comments and edits over a messaging and collaboration bus."
     />
     <meta property="og:url" content="https://leaf.page/" />
     <meta property="og:image" content="https://leaf.page/session-light.png" />
@@ -37,21 +37,20 @@
       </nav>
 
       <header class="hero" id="top">
-        <p class="eyebrow">a Claude Code and Codex plugin</p>
         <h1>Generative UI for your agent.</h1>
         <p class="lede" id="lede">
-          A plan review shows up as a page, options as buttons. A bug triage turns into
-          a board. A migration that runs all afternoon gets a dashboard that keeps up.
+          Your agent builds you the page rather than a scroll of terminal text: options
+          you press to decide, a board you drag, a dashboard that keeps up while the
+          agent works. And when a page needs a widget that doesn't exist, it writes that
+          too.
         </p>
         <p id="scope">
-          The pages are built from a vocabulary of widgets, and the vocabulary is open:
-          when your project needs a widget that doesn't exist, the agent writes it.
-          Underneath is a messaging and collaboration bus. Comments, drags, picks, and
-          edits reach the session as structured events, and revised versions come back
-          with changelogs. <a href="#install">Two commands install it</a>. No accounts,
-          no daemon, no config; you need
-          <a href="https://docs.astral.sh/uv/"><code>uv</code></a> on your PATH and a
-          browser on the same machine.
+          The pages are built from a vocabulary of widgets, with a messaging and
+          collaboration bus underneath: comments, drags, picks, and edits reach the
+          session as structured events, and revised versions come back with changelogs.
+          <a href="#install">Two commands install it</a>. No accounts, no daemon, no
+          config; you need <a href="https://docs.astral.sh/uv/"><code>uv</code></a> on
+          your PATH and a browser on the same machine.
         </p>
       </header>
 

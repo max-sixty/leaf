@@ -19,6 +19,16 @@ what `version check --render` runs at handover, and `test_example_renders` drive
 the examples, so the gate a user's page passes and the suite the examples pass are one
 implementation and cannot drift.
 
+## A synthetic drag presses on a whole pixel
+
+`select` is how a test drags a selection, and the floor it takes on the press is what it
+is for: a fractional start point loses the selection outright wherever it and its own
+floor fall either side of a glyph's caret boundary — the drag runs, the mouseup lands,
+`getSelection()` is empty. Coordinates out of `bounding_box()` and range rects are
+fractional, so any drag written by hand can reach it. It reads as the widget under the
+pointer refusing the gesture, and it is neither that nor Playwright's interpolation:
+plain prose in a bare document does it, and ten separate moves do it identically.
+
 ## The everyday run asks nothing of the network
 
 The browser is the machine's own and the page it opens is on disk, so the suite needs

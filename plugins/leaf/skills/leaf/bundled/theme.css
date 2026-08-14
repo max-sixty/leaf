@@ -15,7 +15,7 @@
  * (docs/how-it-works.html renders the whole vocabulary that way) and stands down
  * where the runtime got there, asked by :has() and placed later in the cascade,
  * so the two are never both on. A word the theme puts in front of a value stays
- * a pseudo either way ("specimen ·"): that one is the theme's word about the
+ * a pseudo either way ("quoted ·"): that one is the theme's word about the
  * page's, and only the page's is worth quoting. There is one of those left. The
  * other went with the attribute it named: the theme wrote "effort" in front of
  * `effort` because it knew the name, and a decision's facets are the author's to
@@ -843,12 +843,19 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
  * already renders.
  *
  * The gutter runs beside the exhibit and nothing else. The note naming it — this
- * theme's "specimen ·" over the author's label — is a word *about* the quoted
+ * theme's "quoted ·" over the author's label — is a word *about* the quoted
  * region rather than a word in it, and it opened the gutter from inside: the marking
  * took in a line the quoted page never said, and the exhibit read as though it came
  * with a heading of its own. Every other reading had it right — the quote search, the
  * diff and the capture all take the note where the file has it, first inside the
  * element — so the one account that was wrong was the one the reader could see.
+ *
+ * The word over it is the reader's; `lf-specimen` is the author's. A tag names a member
+ * of a vocabulary its author picks from and can afford a word to learn, where the note's
+ * whole job is telling a reader who has met none of that vocabulary that the page is
+ * showing this rather than saying it. The tag keeps its own name because the plain one is
+ * spoken for on the other side: a quote here is the passage a comment is made on, and an
+ * `lf-quote` would put that mechanism's word on one of the things a page can hold.
  *
  * `display: table` is what stands it outside. A caption box is laid out beyond the
  * table box's border, in flow, so it reserves its own room and wraps like any other
@@ -885,10 +892,10 @@ lf-specimen > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);
               letter-spacing: .08em; text-transform: uppercase;
               color: var(--muted); }
-lf-specimen::before { content: "specimen"; }
-lf-specimen[label]::before { content: "specimen · " attr(label); }
+lf-specimen::before { content: "quoted"; }
+lf-specimen[label]::before { content: "quoted · " attr(label); }
 lf-specimen:has(> [data-lf-said="label"])::before { content: none; }
-lf-specimen > [data-lf-said="label"]::before { content: "specimen · "; }
+lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
 /* A quoted choose group renders as one that never declared `choose`, and these
  * are that promise in CSS: no pointer cursor, no hover lift, and no room held
  * for a mark strip nothing will fill — each card at the height it would have

@@ -370,7 +370,7 @@
     "x-example": "<lf-draft id=\"note-cli\"><pre>\nAdds --dry-run to every mutating command.\n</pre></lf-draft>"
   },
   "lf-specimen": {
-    "description": "Quoted material: a region the page exhibits rather than speaks — a sample decision, a demo board, markup shown as an example. Renders as quotation: a muted left gutter beside the quoted region, with a small-caps \"specimen\" line above it (`label` extends that line — \"specimen · a decision\"). Content is open and renders at full fidelity, but it is a mention, not a use: interactive widgets inside are inert — a choose group takes no clicks, a board no drags, a suggestion no decision. Keep the content visibly fictional, and let the gutter do the marking: a caption explaining that the region is an example is the page narrating a widget it could just use.",
+    "description": "Quoted material: a region the page exhibits rather than speaks — a sample decision, a demo board, markup shown as an example. Renders as quotation: a muted left gutter beside the quoted region, with a small-caps \"quoted\" line above it (`label` extends that line — \"quoted · a decision\"). Content is open and renders at full fidelity, but it is a mention, not a use: interactive widgets inside are inert — a choose group takes no clicks, a board no drags, a suggestion no decision. Keep the content visibly fictional, and let the gutter do the marking: a caption explaining that the region is an example is the page narrating a widget it could just use.",
     "type": "object",
     "properties": {
       "id":    {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},

@@ -688,6 +688,27 @@ def resized(page, width, height):
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
 
 
+def select(page, start, end, steps=8):
+    """Drag a selection from one point to another, pressing on a whole pixel.
+
+    A fractional start point loses the selection outright wherever it and its own
+    floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
+    lands, and `getSelection()` comes back empty. It reads as the widget under the
+    pointer refusing the gesture, and it is neither that nor Playwright's
+    interpolation — plain prose in a bare document does it, and ten separate moves do
+    it identically. Sixty start points along one line came back empty at exactly the
+    points where the two disagree, and correct at every other.
+
+    So the press is floored. Where the two agree, which is everywhere a drag works at
+    all, that changes nothing; where they disagree it is the whole of the fix. The end
+    is passed as given — it is read at the precision it arrives with, and flooring it
+    moves the selection a character."""
+    page.mouse.move(math.floor(start[0]), math.floor(start[1]))
+    page.mouse.down()
+    page.mouse.move(end[0], end[1], steps=steps)
+    page.mouse.up()
+
+
 def compare_with(page, version=None):
     """Mark what changed since a version, the way the page offers it.
 
@@ -3875,10 +3896,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     title = page.locator("#transport .lf-settled [data-lf-said]")
     box = title.bounding_box()
     y = box["y"] + box["height"] / 2
-    page.mouse.move(box["x"] + 2, y)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 2, y, steps=8)
-    page.mouse.up()
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     assert (
         page.evaluate("() => getSelection().toString()").strip()
         == "Settled: Lax cookie"
@@ -3904,10 +3922,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     lede = page.locator("#opt-lax > strong")
     box = lede.bounding_box()
     y = box["y"] + box["height"] / 2
-    page.mouse.move(box["x"] + 2, y)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 2, y, steps=8)
-    page.mouse.up()
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     page.locator(".lf-fab").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("which copy is this on?")
@@ -4008,10 +4023,8 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     mark = page.locator("#c-lax .lf-pick")
     assert mark.get_attribute("role") is None, "nothing to press means no button role"
     box = mark.bounding_box()
-    page.mouse.move(box["x"] + 2, box["y"] + box["height"] / 2)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 2, box["y"] + box["height"] / 2, steps=8)
-    page.mouse.up()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     assert page.evaluate("() => getSelection().toString()").strip() == "chosen", (
         "a drag across the mark selected nothing — the state is painted, not said"
     )
@@ -4091,12 +4104,8 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
 
     box = mark.bounding_box()
     y = box["y"] + box["height"] / 2
-    page.mouse.move(
-        box["x"] + box["width"] - 2, y
-    )  # right to left: the ✓ ring is not text
-    page.mouse.down()
-    page.mouse.move(box["x"] + 2, y, steps=8)
-    page.mouse.up()
+    # Right to left: the ✓ ring is not text.
+    select(page, (box["x"] + box["width"] - 2, y), (box["x"] + 2, y))
     assert page.evaluate("() => getSelection().toString()").strip() == "chosen"
     expect(page.locator("#transport > lf-option[chosen]")).to_have_count(1)
     page.locator(".lf-fab").click()
@@ -4266,12 +4275,12 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 
     # The exhibit rendered: the gutter's caption, and cards with real size. The label is
     # the page's own word, so the runtime says it as text a user can quote; only the
-    # "specimen · " in front of it is the theme's, and only that is still pseudo-content.
+    # "quoted · " in front of it is the theme's, and only that is still pseudo-content.
     label = page.locator('#spec > [data-lf-said="label"]')
     assert label.text_content() == "a decision"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
-        == '"specimen · "'
+        == '"quoted · "'
     )
     assert page.locator("#quoted-group lf-option").count() == 2
     assert (
@@ -5089,7 +5098,7 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
 
 
 def test_the_specimen_gutter_starts_where_the_exhibit_does(browser, serve):
-    """The gutter marks what is quoted, and the "specimen ·" note over it is the
+    """The gutter marks what is quoted, and the "quoted ·" note over it is the
     theme's word *about* the quoted region rather than a word in it — so the bar
     stands beside the exhibit and beside nothing else. It opened at the note
     instead, which drew the marking around a line the page never said.
@@ -5238,7 +5247,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert label.text_content() == "the April thread"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
-        == '"specimen · "'
+        == '"quoted · "'
     )
     gutter = page.locator("#rp-spec").evaluate(
         "el => [getComputedStyle(el).borderLeftWidth,"
@@ -7520,10 +7529,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # selection is what the reader picked: the one decider ranks the quote above the
     # element anchor, so the composer carries the caption's words rather than § fig.
     cap = page.locator("#fig figcaption").bounding_box()
-    page.mouse.move(cap["x"] + 2, cap["y"] + cap["height"] / 2)
-    page.mouse.down()
-    page.mouse.move(cap["x"] + cap["width"] - 2, cap["y"] + cap["height"] / 2, steps=8)
-    page.mouse.up()
+    y = cap["y"] + cap["height"] / 2
+    select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab").click()
     page.wait_for_function("() => CSS.highlights.get('lf-pending')")
     assert "specimen" in pending_text(page), (
@@ -7648,10 +7655,8 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
 
     # The gesture's own comment reaches the line once the send's round trip lands.
     box = page.locator("#p2").bounding_box()
-    page.mouse.move(box["x"] + 2, box["y"] + box["height"] / 2)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 2, box["y"] + box["height"] / 2, steps=8)
-    page.mouse.up()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     page.locator(".lf-fab").click()
     page.wait_for_function(
         "() => document.querySelector('.lf-composer').style.display === 'block'"
@@ -7912,10 +7917,12 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     # and fires neither mouseup nor keyup: the button would never rise, and the press
     # under test would be answered by a state no gesture produced.
     box = page.locator("#prose").bounding_box()
-    page.mouse.move(box["x"] + 1, box["y"] + 4)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 1, box["y"] + box["height"] - 4, steps=12)
-    page.mouse.up()
+    select(
+        page,
+        (box["x"] + 1, box["y"] + 4),
+        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
+        steps=12,
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
     expect(line).to_contain_text("comment on the selection")
     page.keyboard.press("?")
@@ -8556,10 +8563,8 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
 
     heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
     box = heading.bounding_box()
-    page.mouse.move(box["x"] + 2, box["y"] + box["height"] / 2)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 2, box["y"] + box["height"] / 2, steps=8)
-    page.mouse.up()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
     # The theme uppercases a column heading, so the selection reads back as the reader
     # sees it and the quote as the document holds it — the asymmetry that makes
@@ -8744,10 +8749,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     tab = page.get_by_role("tab", name="Heated bird bath")
     box = tab.bounding_box()
     y = box["y"] + box["height"] / 2
-    page.mouse.move(box["x"] + 6, y)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 6, y, steps=8)
-    page.mouse.up()
+    select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
     assert (
         page.evaluate("() => getSelection().toString()").strip() == "Heated bird bath"
@@ -8805,10 +8807,12 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
     end = page.locator("#insert").bounding_box()
-    page.mouse.move(start["x"] + 4, start["y"] + 6)
-    page.mouse.down()
-    page.mouse.move(end["x"] + end["width"] - 6, end["y"] + end["height"] - 6, steps=16)
-    page.mouse.up()
+    select(
+        page,
+        (start["x"] + 4, start["y"] + 6),
+        (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
+        steps=16,
+    )
     assert page.evaluate(
         "() => getSelection().containsNode(document.querySelector("
         "'[data-lf-for=sug-refill] .lf-sug-reject'), true)"
@@ -8840,10 +8844,12 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     claim."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
-    page.mouse.move(box["x"] + 4, box["y"] + 6)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 8, box["y"] + box["height"] - 6, steps=16)
-    page.mouse.up()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
@@ -8885,10 +8891,12 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     than standing in the empty rail."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
-    page.mouse.move(box["x"] + 4, box["y"] + 6)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 8, box["y"] + box["height"] - 6, steps=16)
-    page.mouse.up()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
     # The drag ends where the button is raised, so the pointer is on it: both are read
     # at rest, since a hover state read against a resting one compares nothing.
@@ -8976,10 +8984,12 @@ def test_the_composer_opens_where_the_button_stood(browser, serve):
     back on top of it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
-    page.mouse.move(box["x"] + 4, box["y"] + 6)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 8, box["y"] + box["height"] - 6, steps=16)
-    page.mouse.up()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
     stood = page.locator(".lf-fab").evaluate("el => el.getBoundingClientRect().top")
     # It moved, or this run would hold whether or not the position were carried along.
@@ -9046,7 +9056,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
             r.setStart(n, at + args.into);
             r.setEnd(n, at + args.into + 1);
             const box = r.getBoundingClientRect();
-            return {x: box.left + 1, y: box.top + box.height / 2};
+            return [box.left + 1, box.top + box.height / 2];
         }
     }"""
     settled = (
@@ -9057,17 +9067,11 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     def spot(root, word, into):
         return page.evaluate(mid, {"root": root, "word": word, "into": into})
 
-    def drag(start, end):
-        page.mouse.move(start["x"], start["y"])
-        page.mouse.down()
-        page.mouse.move(end["x"], end["y"], steps=8)
-        page.mouse.up()
-
-    drag(spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
+    select(page, spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
     assert page.evaluate(settled) == "paragraph carrying"
     expect(page.locator(".lf-fab")).to_be_visible()
 
-    drag(spot("#p", "inside", 2), spot("#p", "it,", 1))
+    select(page, spot("#p", "inside", 2), spot("#p", "it,", 1))
     assert page.evaluate(settled) == "inside it"
 
     # The same words dragged right to left: snapped the same, and still facing
@@ -9075,7 +9079,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     # click first is the reader's own move — a press inside the standing selection
     # would drag its text, not start a new one.
     page.locator("#t").click()
-    drag(spot("#p", "it,", 1), spot("#p", "inside", 2))
+    select(page, spot("#p", "it,", 1), spot("#p", "inside", 2))
     assert page.evaluate(settled) == "inside it"
     assert page.evaluate(
         "() => { const s = getSelection();"
@@ -9092,7 +9096,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     page.keyboard.press("Shift")
     assert page.evaluate(settled) == "ragra"
     where = spot("#p", "paragraph", 4)
-    page.mouse.click(where["x"], where["y"], button="right")
+    page.mouse.click(where[0], where[1], button="right")
     assert page.evaluate(settled) == "ragra"
 
     forward_kept = page.evaluate("""async () => {
@@ -9113,7 +9117,7 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
         n.splitText(at);
         n.splitText(at); // at the new node's own end, so the second piece is empty
     }""")
-    drag(spot("#p", "graph", 1), spot("#p", "carrying", 4))
+    select(page, spot("#p", "graph", 1), spot("#p", "carrying", 4))
     assert page.evaluate(settled) == "paragraph carrying"
 
     page.evaluate("""() => {
@@ -9124,13 +9128,13 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
         span.textContent = 'flagged';
         p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
     }""")
-    drag(spot("#p2", "flagged", 3), spot("#p2", "them", 1))
+    select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert page.evaluate(settled) == "flagged between them"
 
     # The declared label: rendered by the real pass, flush before the specimen's own
     # words, unfenced because the registry models it — so the reading holds
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
-    drag(spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
+    select(page, spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
     assert page.evaluate(settled) == "glyphs set close"
     assert errors == []
     page.close()
@@ -10123,10 +10127,12 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
 
     # The whole paragraph, dragged: from its first glyph to its last.
     box = passage.bounding_box()
-    page.mouse.move(box["x"] + 1, box["y"] + 4)
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] - 1, box["y"] + box["height"] - 4, steps=12)
-    page.mouse.up()
+    select(
+        page,
+        (box["x"] + 1, box["y"] + 4),
+        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
+        steps=12,
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()

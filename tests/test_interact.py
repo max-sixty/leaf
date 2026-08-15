@@ -1874,33 +1874,101 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert "not a language this page's layer speaks" in result.output
 
 
-def test_the_block_content_lists_agree_and_cover_the_vocabulary():
-    """Two selectors in the theme enumerate what counts as block content: the
+def test_the_block_content_lists_agree_and_name_no_widget():
+    """Two selectors in the theme decide what counts as block content — the
     suggestion slots' blockization and lf-compare's stacked-variant trigger
-    (lf-options stacks on the title alone, so it asks no block question). A list
-    like that fails quietly — a new block-level widget missing
-    from one keeps rendering, just wrong: a suggestion wrapping it stays inline, a
-    compare holding it keeps the 13rem grid — so the copies are pinned to each other
-    and to the registry: every top-level widget appears in each. lf-suggestion is
-    the one exemption, display: contents, so the wrapper generates no box and its
-    slots answer the block question instead."""
+    (lf-options stacks on the title alone, so it asks no block question) — by the
+    platform's closed set inverted: any child that is not phrasing content is block.
+    The enumeration this replaced named every bundled widget, which is the closed
+    list the norms forbid: the first project-layer widget staged in a slot rendered
+    inline and the fold dropped it in the frame of the press. So the pin is now the
+    other way round — the two phrasing lists must agree with each other, and no
+    lf-* tag may appear in either, because a widget in the list would mean the
+    inversion has been quietly re-enumerated."""
     theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
-    lists = re.findall(r":is\((p, h1[^)]*)\)", theme)
+    lists = re.findall(r":not\((a, abbr[^)]*)\)", theme)
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
     tag_sets = [{t.strip() for t in found.split(",")} for found in lists]
-    assert tag_sets[0] == tag_sets[1], "the block-content lists have drifted"
+    assert tag_sets[0] == tag_sets[1], "the phrasing lists have drifted"
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
-    top_level = {
+    inline = {
         tag
         for tag, entry in registry.items()
-        if tag.startswith("lf-") and "x-parent" not in entry
-    } - {"lf-suggestion"}
-    assert top_level <= tag_sets[0], (
-        f"block-level widgets missing from the theme's block-content lists: "
-        f"{sorted(top_level - tag_sets[0])}"
+        if tag.startswith("lf-") and entry.get("x-inline")
+    }
+    assert {t for t in tag_sets[0] if t.startswith("lf-")} == inline, (
+        "the phrasing lists' widget names must be exactly the tags the registry "
+        "declares x-inline — a block widget in the list re-closes the inversion, "
+        "and an inline widget missing from it stacks the form it stands in"
     )
+
+
+def test_the_collapse_class_is_one_set_on_both_sides():
+    """COLLAPSE_CHARS (the file side) and leaf.js's COLLAPSE regex (the browser
+    side) are two spellings of one set, and everything quote-shaped rests on their
+    agreement: a character one side collapses and the other keeps is a quote
+    captured in the browser that the file's reading can never confirm. The next
+    edit to either spelling meets this test, not a detached comment."""
+    js = (interact.ASSETS / "leaf.js").read_text()
+    found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
+    assert found, "leaf.js lost its COLLAPSE regex"
+    js_class = re.compile(f"[{found.group(1)}]")
+    js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
+    assert js_set == interact.COLLAPSE_CHARS
+
+
+def test_exhibit_exclusions_name_exactly_the_declared_exhibits():
+    """A choose group's affordance rules exclude exhibits in their own selectors
+    (`:not(<tag> *)`), because a stylesheet cannot read the registry the runtime's
+    quoted() dispatches on. So the spelled tags are held to the declaration: the
+    set excluded is exactly the set declaring x-exhibit. A second exhibit widget
+    fails here by being declared — naming the rules to grow — instead of keeping
+    the hand and the joined shape on a group quoted precisely so as not to offer
+    them."""
+    theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
+    spelled = set(re.findall(r":not\((lf-[a-z-]+) \*\)", theme))
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    declared = {
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-exhibit")
+    }
+    assert spelled == declared, (spelled, declared)
+
+
+def test_every_declared_attribute_and_enum_stands_in_an_example():
+    """The corpus floor one level down from tags (examples/CLAUDE.md): where an
+    attribute or an enum value changes what a reader sees, a page shows it. The
+    batch that raised the corpus to this line surfaced five real defects on the
+    day it landed, so the floor ratchets: the next declared attribute joins the
+    corpus by being declared. The exemptions are the log-only names the doc
+    enumerates — restated, overruled and resolves each name something the log
+    holds, which a one-version corpus cannot earn."""
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    used = {}
+    for path in (Path(__file__).parent.parent / "examples").glob("*.html"):
+        for rec in interact.parse_structure(path.read_text()).lf_elements:
+            for attr, value in rec["attrs"].items():
+                used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
+    missing = []
+    for tag, entry in sorted(registry.items()):
+        if not tag.startswith("lf-"):
+            continue
+        for attr, spec in entry.get("properties", {}).items():
+            if attr in {"restated", "overruled", "resolves"}:
+                continue
+            seen = used.get(tag, {}).get(attr)
+            if seen is None:
+                missing.append(f"{tag}[{attr}]")
+            else:
+                missing.extend(
+                    f'{tag}[{attr}="{value}"]'
+                    for value in spec.get("enum", [])
+                    if value not in seen
+                )
+    assert missing == [], missing
 
 
 def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix_it(
@@ -3201,7 +3269,13 @@ def test_an_accept_carries_its_thread_resolution(page_dir):
             "detail": {},
         },
     )
-    threads = interact.build_threads(interact.read_events(page_dir))
+    threads = interact.build_threads(
+        interact.read_events(page_dir),
+        interact.spoken(
+            (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
+            interact.require_registry(page_dir),
+        ),
+    )
     assert threads["c1"]["resolved"] is True
     assert threads["c2"]["resolved"] is False
 

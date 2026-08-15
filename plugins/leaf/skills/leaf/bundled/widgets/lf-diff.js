@@ -26,14 +26,20 @@ import {
 
 // One entry per file: {path, adds, dels, lines: [{kind, text}]} where kind is
 // add | del | ctx | hunk | note. Tolerates both `diff --git` and bare ---/+++
-// file headers; anything before the first header fails the parse. A `--- ` line
-// counts as a header only when `+++ ` follows it — a *deleted* line whose
-// content starts with `-- ` (a SQL comment, say) renders as `--- …` too, and
-// must stay a deletion.
+// file headers; anything before the first header fails the parse. Whether a
+// `--- ` line is a header is the format's own statement, not a guess from what
+// the line looks like: an @@ header declares how many old and new lines the hunk
+// holds, so while either count is outstanding every line is the hunk's — a
+// *deleted* line whose content starts with `-- ` (a SQL comment, say) renders as
+// `--- …` and stays a deletion even when an added `++ …` renders `+++ …` right
+// under it. Only once the hunk is paid off can `--- ` followed by `+++ ` open
+// the next file.
 function parseDiff(text) {
   const files = [];
   let file = null;
   let expectPlus = false;
+  let oldLeft = 0; // hunk lines the last @@ header still promises, per side
+  let newLeft = 0;
   const start = (path) => {
     file = { path, adds: 0, dels: 0, lines: [] };
     files.push(file);
@@ -41,14 +47,28 @@ function parseDiff(text) {
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    // A hunk's own lines start with +, -, space or backslash, so `diff --git` and
+    // `@@` are headers wherever they stand; only a `--- `-shaped line needs the
+    // counts to say which it is.
+    const inHunk = oldLeft > 0 || newLeft > 0;
     if (line.startsWith("diff --git ")) {
       start(line.split(" b/").pop());
       expectPlus = false;
+      oldLeft = newLeft = 0;
       continue;
     }
-    if (line.startsWith("--- ") && lines[i + 1]?.startsWith("+++ ")) {
+    if (
+      line.startsWith("--- ") &&
+      lines[i + 1]?.startsWith("+++ ") &&
+      // A header, not a deleted `-- ` line: outside a hunk by the counts, or the
+      // full ---/+++/@@ header run, which no hunk content can spell — a ctx line
+      // starts with a space, so `@@` third is the format's own signature and
+      // rescues a hand-written hunk whose counts overstate.
+      (!inHunk || lines[i + 2]?.startsWith("@@"))
+    ) {
       // A bare ---/+++ pair opens a file unless `diff --git` already did.
       if (!file || file.lines.some((l) => l.kind === "hunk")) start("");
+      oldLeft = newLeft = 0;
       expectPlus = true;
       continue;
     }
@@ -58,31 +78,39 @@ function parseDiff(text) {
       const path = line.slice(4).replace(/^b\//, "");
       if (!file.path && path !== "/dev/null") file.path = path;
     } else if (line.startsWith("@@")) {
+      const counts = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+      oldLeft = counts ? +(counts[1] ?? 1) : 0;
+      newLeft = counts ? +(counts[2] ?? 1) : 0;
       file.lines.push({ kind: "hunk", text: line });
-    } else if (line.startsWith("+")) {
-      file.adds++;
-      file.lines.push({ kind: "add", text: line });
-    } else if (line.startsWith("-")) {
-      file.dels++;
-      file.lines.push({ kind: "del", text: line });
-    } else if (
-      line.startsWith("index ") ||
-      line.startsWith("new file") ||
-      line.startsWith("deleted file") ||
-      line.startsWith("similarity ") ||
-      line.startsWith("rename ") ||
-      line.startsWith("Binary files ")
-    ) {
-      continue;
     } else if (line.startsWith("\\ ")) {
       // `\ No newline at end of file` — git remarking on the line above rather than
       // showing one of its own. Shown, because it is something the diff says, but its
       // own kind: read as context it would be a line of the file that isn't there, and
-      // the colouring would hand it to the tokenizer as source.
+      // the colouring would hand it to the tokenizer as source. Not one of the hunk's
+      // counted lines either.
       file.lines.push({ kind: "note", text: line });
-    } else {
+    } else if (line.startsWith("+")) {
+      // Anywhere, not only inside a paid hunk, so a hand-written diff carrying no
+      // @@ headers still shows its changes.
+      newLeft--;
+      file.adds++;
+      file.lines.push({ kind: "add", text: line });
+    } else if (line.startsWith("-")) {
+      oldLeft--;
+      file.dels++;
+      file.lines.push({ kind: "del", text: line });
+    } else if (inHunk || line.startsWith(" ") || line === "") {
+      // Context by shape wherever the counts don't claim it: a space-led line can
+      // only be context — in a hand-written hunk whose numbers are approximate,
+      // and in a body carrying no @@ headers at all. The counts decide only the
+      // `--- ` question above, where the shapes genuinely collide.
+      oldLeft--;
+      newLeft--;
       file.lines.push({ kind: "ctx", text: line });
     }
+    // Outside a hunk everything else is git's metadata about the file — index,
+    // mode, rename, copy, similarity, Binary files — not lines of it: skipped,
+    // rather than shown as content the file never had.
   }
   return files;
 }
@@ -166,6 +194,13 @@ function fileNode(file, colored) {
     }),
   );
   const pre = document.createElement("pre");
+  // A line longer than the measure scrolls inside this box, and a region only a
+  // wheel can move is off-limits to a keyboard: the box takes a tab stop and a
+  // name, and the browser scrolls it with the arrows — in a dead copy too, since
+  // scrolling needs no handler (the lf-shot bargain).
+  pre.tabIndex = 0;
+  pre.setAttribute("role", "region");
+  pre.setAttribute("aria-label", file.path || "diff");
   file.lines.forEach(({ kind, text }, i) => {
     const line = Object.assign(document.createElement("span"), { className: kind });
     const tokens = colored.get(i);

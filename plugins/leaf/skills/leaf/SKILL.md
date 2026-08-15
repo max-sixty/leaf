@@ -171,7 +171,8 @@ to click belongs on a page you are going to serve.
   carry scalars (enums, flags), children carry prose, an item's title is a leading
   `<strong>` child. Every `lf-*` element takes an explicit end tag — `<lf-diagram id="flow"/>` is
   rejected because HTML ignores the slash. A `data`-bodied widget (`lf-diagram`) holds
-  its notation in a `<pre>`, with `<` and `>` escaped — the whitespace is load-bearing,
+  its notation in a `<pre>`, HTML-escaped — `&` as `&amp;` first, then `<` and `>`,
+  or a body carrying entity text is silently decoded — the whitespace is load-bearing,
   and `<pre>` is the only thing in HTML that says so to a tool with no stylesheet to
   read. The catalog is the authority; don't invent tags or attributes.
 - Give every section, major block, and widget item a stable, meaningful `id`: comments

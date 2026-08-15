@@ -44,6 +44,10 @@
             <strong>On-call confirms a single hot job</strong> The same export id
             retrying at the head of the queue, every 45 seconds.
           </lf-event>
+          <lf-event id="e-deploy" at="09:40">
+            <strong>Adjacent deploy ruled out</strong> The 09:00 deploy touched imports
+            only; the queue code last shipped in May.
+          </lf-event>
           <lf-event id="e-wrong" at="09:51" kind="failure">
             <strong>First fix doesn't hold</strong> Raising worker count clears depth
             briefly; the retry storm refills it because the head job still fails first.

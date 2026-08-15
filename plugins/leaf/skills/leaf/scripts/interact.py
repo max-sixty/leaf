@@ -180,6 +180,11 @@ vocabulary for rides in the custom keywords below:
                 attribute carries it and `version check` validates every such
                 attribute against that list — the same list a plain <pre><code
                 class="language-*"> is held to.
+    x-lines     attributes holding 1-based line references into the nearest data
+                body — the element's own <pre>, or its holder's (lf-note's `at`
+                names a line of its lf-code). `version check` refuses a reference
+                outside the body or a range running backwards (line_ref_errors);
+                the modules render the miss silently, which is why the door owns it.
     x-upgrade   true when the runtime imports /widgets/<tag>.js for it
     x-verbatim  true when an upgraded element's body reaches the reader as its own
                 words. Otherwise a module may render anything in place of them, so
@@ -504,6 +509,14 @@ EXTENSION_SCHEMA = {
         "x-exhibit": {"type": "boolean"},
         "x-inline": {"type": "boolean"},
         "x-language": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        # Attributes holding 1-based line references into the nearest data body —
+        # the element's own <pre>, or its holder's (lf-note's `at` names a line of
+        # its lf-code). `version check` refuses one outside the body (line_ref_errors).
+        "x-lines": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
+        },
         "x-parent": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -704,7 +717,7 @@ def read_events(page_dir: Path) -> list:
     return events
 
 
-def build_threads(events: list, spk: dict | None = None) -> dict:
+def build_threads(events: list, spk: dict) -> dict:
     """Fold the chronological log into comment threads by root id.
 
     An action settles the thread it names only while the log lets it stand. A
@@ -716,11 +729,10 @@ def build_threads(events: list, spk: dict | None = None) -> dict:
 
     `spk` is the page the containment half of that test is read against, and it is
     the reading of the version the outcomes were folded over, so threads and state
-    cannot be settled against two different pages. Without one the floor is still
-    asked, of the sending widget alone: every verb that carries `resolves` today
-    names a comment there and no part of its own, so the two answers coincide —
-    but a verb naming a part would need the reading to see a floor on it, and this
-    is where that would go quiet."""
+    cannot be settled against two different pages. Required, not defaulted: a
+    caller with no published page passes `{}` and says so, because a default that
+    stood down quietly is exactly where a verb naming a part of its own widget
+    would have gone unfloored."""
     floors = retractions(events)
     threads = {}
     thread_for = {}
@@ -737,7 +749,7 @@ def build_threads(events: list, spk: dict | None = None) -> dict:
         # version retires the element that held it, so nothing later can look it up.
         if e["kind"] == "action" and e["detail"].get("resolves"):
             answered = threads.get(e["detail"]["resolves"])
-            if answered and not action_retracted(e, floors, spk or {}):
+            if answered and not action_retracted(e, floors, spk):
                 answered["resolved"] = True
             continue
         if e["kind"] == "reply":
@@ -2814,6 +2826,10 @@ def cmd_catalog(page_dir: Path) -> None:
             "\n# The languages this page colors, in a code block's class or an x-language attribute.\n"
         )
         print(json.dumps(languages, indent=2, ensure_ascii=False))
+    tones = reg.get("$tones")
+    if tones:
+        print("\n# The tones this page's layer paints, on any x-tone attribute.\n")
+        print(json.dumps(tones, indent=2, ensure_ascii=False))
     idioms = reg.get("$idioms")
     if idioms:
         print(
@@ -2844,6 +2860,13 @@ def cmd_page_state(page_dir: Path) -> None:
     published = published_versions(page_dir, events)
     written = list_versions(page_dir)
     pres = presence(page_dir, events)
+    # The published page's readings, up front and through the one construction
+    # (page_fold) every consumer of declared state reads, so the threads below
+    # settle against the same page the fold was built over rather than no page.
+    parser, fold, spk = None, {}, {}
+    if published:
+        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+        fold, parser, spk = page_fold(html, events, registry, None)
     state = {
         "page": str(page_dir),
         "title": "",
@@ -2865,16 +2888,12 @@ def cmd_page_state(page_dir: Path) -> None:
                 "resolved": t["resolved"],
                 "messages": len(t["msgs"]),
             }
-            for t in build_threads(events).values()
+            for t in build_threads(events, spk).values()
         ],
         "lag": [],
     }
     if published:
-        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        parser = parse_structure(html)
         byid = parser.by_id
-        spk = spoken(html, registry)
-        fold = state_fold(events, byid, spk, registry, None, retractions(events, None))
         reports = standing_reports(events, byid, registry, None)
         state["title"] = parser.title.strip()
         state["elements"] = [
@@ -2904,7 +2923,19 @@ def cmd_page_state(page_dir: Path) -> None:
             for unit, standing in sorted(reports.items())
             for e, _ in [standing[-1]]
         ]
-        state["asks"] = page_asks(parser, fold, reports, byid, spk, registry)
+        # An ask standing in a slot the log has retired — a group inside the lf-new
+        # of a rejected suggestion — left the page with the slot, so it is nobody's
+        # to answer; the passage reading already knows which ids a decision dropped.
+        passages = page_passages(html, registry, decisions(fold, registry))
+        state["asks"] = page_asks(
+            parser,
+            fold,
+            reports,
+            byid,
+            spk,
+            registry,
+            set(passages.retired) | set(passages.gone),
+        )
         state["lag"] = record_lag_entries(fold, byid, spk, events, registry)
     elif written:
         state["title"] = parse_version(page_dir, written[-1]).title.strip()
@@ -3130,6 +3161,24 @@ COLUMN_SELECTORS = (
     ".content",
     ".page",
 )
+
+
+def _names_column(selector: str) -> bool:
+    """Whether a rule's selector names one of the column containers — as a selector
+    component, not a substring. Matched as text, `.domain-list` contained "main" and
+    one unrelated rule redefined the column every element was measured against; a
+    component is the word standing as the compound's type selector or as a whole
+    class, with nothing of an identifier continuing it."""
+    for part in re.split(r"[,\s>+~]+", selector):
+        for sel in COLUMN_SELECTORS:
+            if sel.startswith("."):
+                if re.search(rf"{re.escape(sel)}(?![\w-])", part):
+                    return True
+            elif re.match(rf"{sel}(?![\w-])", part):
+                return True
+    return False
+
+
 COLUMN_FALLBACK = 780
 # Attribute widths only count as pixels on these elements.
 PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
@@ -3369,6 +3418,10 @@ class _StructParser(HTMLParser):
                 "parent": self.stack[-1][0] if self.stack else None,
                 "children": [],
                 "text": False,
+                "body": "",  # a <pre> data body's text, for the x-lines gate
+                # The nearest enclosing lf element's record, so a child's line
+                # reference (x-lines) can find the data body it points into.
+                "holder": next((r for _, _, r, _ in reversed(self.stack) if r), None),
             }
             self.lf_elements.append(record)
             if tag == "lf-suggestion":
@@ -3410,6 +3463,10 @@ class _StructParser(HTMLParser):
             self.css += data
         elif holder == "title":
             self.title += data
+        elif holder == "pre" and len(self.stack) > 1 and self.stack[-2][2] is not None:
+            # A data body: the <pre> directly under an lf element, collected for
+            # the x-lines gate to count lines against.
+            self.stack[-2][2]["body"] += data
 
     def handle_endtag(self, tag):
         if tag == "svg":
@@ -3503,6 +3560,27 @@ def version_review_mode(page_dir: Path, version: int):
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
 # in both of these it knows exactly.
 
+# The collapse class, stated outright: the characters a whitespace run is made of, one
+# spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
+# JS's \s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS
+# alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in
+# prose read differently on the two sides, so a `leaf comment` quote could be written
+# against text the browser never produces. The browser is the producer of every captured
+# quote, so its set is the one both sides speak.
+COLLAPSE_CHARS = frozenset(
+    "\t\n\x0b\x0c\r \u00a0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+COLLAPSE = re.compile("[" + re.escape("".join(sorted(COLLAPSE_CHARS))) + "]+")
+
+
+def collapse(text: str) -> str:
+    """One space per whitespace run, none at the edges — the reading every quote and
+    facet comparison uses, the browser's quoteFrom in Python."""
+    return COLLAPSE.sub(" ", text).strip(" ")
+
+
 # What a text node's "block" resolves to, matching the runtime's TEXT_BLOCK: one space
 # goes wherever two runs of text sit in different blocks, and none where they share one,
 # so `<p>a</p><p>b</p>` reads "a b" and `set<em>up</em>` reads "setup".
@@ -3590,7 +3668,7 @@ class _PassageParser(HTMLParser):
             self._space = True
         self._block = block
         for ch in data:
-            if ch.isspace():
+            if ch in COLLAPSE_CHARS:
                 self._space = bool(self.text)
                 continue
             if self._space:
@@ -3767,6 +3845,15 @@ class _PassageParser(HTMLParser):
                     self._close(self.stack.pop())
                 return
 
+    def close(self):
+        super().close()
+        # An element still open at EOF owes its close all the same: a frame never
+        # closed loses its `gone` verdict and its trailing x-says values. `version
+        # check` refuses unbalanced markup, but this parser also reads `prev_html`
+        # and fragments that never passed that gate.
+        while self.stack:
+            self._close(self.stack.pop())
+
 
 class Passages(NamedTuple):
     """A version's words, and what a search over them needs to know."""
@@ -3793,7 +3880,7 @@ def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Pass
         parser.rewritten,
         parser.gone,
         # Collapsed the way `text` is, so one comparison answers for both.
-        {id: " ".join(words.split()) for id, words in parser.shown.items()},
+        {id: collapse(words) for id, words in parser.shown.items()},
         parser.enclosing,
     )
 
@@ -3914,7 +4001,7 @@ def capture_anchor(
     if not quote:
         return {"section": section}
 
-    wanted = " ".join(quote.split())
+    wanted = collapse(quote)
     lo_bound, hi_bound = 0, len(text)
     if section:
         span = section_span(owner, section)
@@ -4192,7 +4279,7 @@ def _column_width(page_css: str, theme_css: str) -> int:
         widths = [
             px
             for selector, block, conditional in css_rules(css)
-            if not conditional and any(sel in selector for sel in COLUMN_SELECTORS)
+            if not conditional and _names_column(selector)
             for _, px in _px_widths(block, ("max-width",))
         ]
         if widths:
@@ -4396,6 +4483,11 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> x-language names undeclared attribute `{language}`"
             )
+        for lined in entry.get("x-lines", ()):
+            if lined not in properties:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-lines names undeclared attribute `{lined}`"
+                )
         # An ask names attributes and values the page can actually carry, or it asks
         # on nothing: `status: ["reviewing"]` is a widget silently absent from every
         # count and every step, which is the failure a never-closed vocabulary makes
@@ -4506,6 +4598,20 @@ def validate_registry(registry: dict, source) -> dict:
                                 "the reader sees — declared state may not move the "
                                 "page's words"
                             )
+                # `resolves` is a reserved detail field: thread settlement reads it
+                # off every action as "the comment thread this action answers"
+                # (build_threads, in both runtimes), so a verb spelling the name
+                # means that or is refused here — a widget using it otherwise
+                # would settle a thread silently.
+                if "resolves" in detail_properties and detail_properties[
+                    "resolves"
+                ] != {"type": "string"}:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        'this action answers) — declare it {"type": "string"} or '
+                        "rename the field"
+                    )
                 undeclared = [
                     field for field in fields if field not in detail_properties
                 ]
@@ -4840,6 +4946,44 @@ def language_errors(
     return errors
 
 
+def line_ref_errors(lf_elements: list, registry: dict) -> list:
+    """A declared line reference outside the body it points into. x-lines names the
+    attributes holding 1-based line numbers or ranges of the nearest data body — the
+    element's own, or its holder's (lf-note's `at` anchors in its lf-code). The
+    modules miss silently in both directions — a reversed range paints nothing, a
+    note past the end docks at the block's foot — and version-to-version drift is
+    exactly how one goes stale, so the door refuses what no reader would ever see."""
+    errors = []
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        for attr in entry.get("x-lines", ()):
+            value = rec["attrs"].get(attr)
+            if value is None:
+                continue
+            # Shape is the schema's question and already answered (widget_errors
+            # reports a malformed value); this gate owns only the bounds, so a
+            # value it cannot read is one it stands aside from rather than a
+            # traceback that eats every other error.
+            if not re.fullmatch(r"[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*", value):
+                continue
+            holder = rec if rec["body"].strip() else rec.get("holder") or {}
+            # The modules' own trim: leading blank lines and trailing whitespace
+            # are the source's furniture, not lines.
+            body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", holder.get("body", "")))
+            count = len(body.split("\n"))
+            where = f'<{rec["tag"]} {attr}="{value}"> (line {rec["line"]})'
+            for part in value.split(","):
+                lo, _, hi = part.partition("-")
+                lo, hi = int(lo), int(hi) if hi else int(lo)
+                if hi < lo:
+                    errors.append(f"{where}: range {part} runs backwards")
+                elif not 1 <= lo <= count or hi > count:
+                    errors.append(
+                        f"{where}: line {part} is outside the {count}-line body"
+                    )
+    return errors
+
+
 def tone_errors(lf_elements: list, registry: dict) -> list:
     """A tone the layer has no tint for, read out of $tones rather than the widget.
 
@@ -5123,7 +5267,7 @@ def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
             if byid.get(i, {}).get("tag") == record["within"]
         ]
         return enclosing[-1] if enclosing else None
-    return " ".join(spk.get(unit, EMPTY).words.split())  # "body"
+    return collapse(spk.get(unit, EMPTY).words)  # "body"
 
 
 def folded_facet(e: dict, spec: dict):
@@ -5135,7 +5279,7 @@ def folded_facet(e: dict, spec: dict):
         return NO_RECORD
     value = e["detail"].get(record["value"])
     if record["kind"] == "body":
-        return " ".join(str(value).split())
+        return collapse(str(value))
     if record["kind"] == "attribute":
         return sorted(value)
     return value
@@ -5143,16 +5287,18 @@ def folded_facet(e: dict, spec: dict):
 
 def page_fold(html: str, events: list, registry: dict, upto):
     """state_fold asked of one page: its elements, its words, and the log windowed
-    to `upto` — one construction, so its readers (`record_lag`, and the readings
-    `decisions` and `rewritten_bodies` give `leaf comment` and `version check`)
-    cannot drift on floors or window. Returns (fold, byid, spk); the extras are
-    the page readings the fold was built from, for a caller comparing it back
-    against the markup."""
-    byid = parse_structure(html).by_id
+    to `upto` — one construction, so its readers (`record_lag`, `page state`, and
+    the readings `decisions` and `rewritten_bodies` give `leaf comment` and
+    `version check`) cannot drift on floors or window. Returns (fold, parser, spk);
+    the extras are the page readings the fold was built from, for a caller
+    comparing it back against the markup."""
+    parser = parse_structure(html)
     spk = spoken(html, registry)
     return (
-        state_fold(events, byid, spk, registry, upto, retractions(events, upto)),
-        byid,
+        state_fold(
+            events, parser.by_id, spk, registry, upto, retractions(events, upto)
+        ),
+        parser,
         spk,
     )
 
@@ -5237,9 +5383,9 @@ def record_lag(html: str, events: list, registry: dict) -> list:
     """`record_lag_entries` as advice lines, for check and the transcript."""
     if not registry:
         return []
-    fold, byid, spk = page_fold(html, events, registry, None)
+    fold, parser, spk = page_fold(html, events, registry, None)
     lag = []
-    for n in record_lag_entries(fold, byid, spk, events, registry):
+    for n in record_lag_entries(fold, parser.by_id, spk, events, registry):
         who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
             f"`{n['unit']}`: {who} {n['action']} → {n['log']!r}; "
@@ -5309,11 +5455,14 @@ def quoted_in(unit: str, byid: dict, spk: dict, registry: dict) -> bool:
     )
 
 
-def page_asks(parser, fold, reports, byid, spk, registry: dict) -> list:
+def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) -> list:
     """The published page's standing asks — the list the banner counts and the
     `a` key steps, read from the file and the log instead of the DOM. An
     instance asks when its replayed attributes match its entry's `when`;
-    quoted material asks nothing; answered is what x-state already declares
+    quoted material asks nothing; an instance a decision dropped from the page
+    (`dropped`: ids under retired slots, and decided-empty ids, from the passage
+    reading) asks nothing either, the way the runtime's own list skips what
+    `settledAway` hides; answered is what x-state already declares
     (`answered_ask`)."""
     asks = []
     for rec in parser.lf_elements:
@@ -5322,6 +5471,8 @@ def page_asks(parser, fold, reports, byid, spk, registry: dict) -> list:
         if not awaits:
             continue
         unit = rec["attrs"].get("id")
+        if unit and unit in dropped:
+            continue
         if unit and quoted_in(unit, byid, spk, registry):
             continue
         if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
@@ -5515,7 +5666,7 @@ def restatement_errors(
         # cased: it is enough that the words on the page are words the user
         # sent.
         echoed = {
-            " ".join(str(v).split())
+            collapse(str(v))
             for e in live
             for v in e["detail"].values()
             if isinstance(v, str)
@@ -5677,6 +5828,7 @@ def fragment_errors(parser: _StructParser, registry: dict, known: list) -> list:
         + widget_errors(parser.lf_elements, registry)
         + language_errors(parser.language_blocks, parser.lf_elements, registry, known)
         + tone_errors(parser.lf_elements, registry)
+        + line_ref_errors(parser.lf_elements, registry)
     )
 
 
@@ -5751,6 +5903,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
             )
         )
         errors.extend(tone_errors(parser.lf_elements, registry))
+        errors.extend(line_ref_errors(parser.lf_elements, registry))
         for tag, entry in registry.items():
             if not tag.startswith("lf-"):
                 continue
@@ -5982,6 +6135,10 @@ UNREACHABLE_WORDS = """() => {
         const el = n.parentElement;
         if (!n.data.trim() || !el.closest('.lf-ui') || !widget(el)) continue;
         if (speaks(el) || el.closest(CONTROL)) continue;
+        // .lf-quiet is words for a reader listening, clipped to nothing: not on
+        // screen, so there is nothing here the eye can see and the pointer can't
+        // reach — the failure this check exists for.
+        if (el.closest('.lf-quiet')) continue;
         found.push(`${at(widget(el))} puts ${JSON.stringify(n.data.trim().slice(0, 40))} `
                    + `under .lf-ui, where no comment can reach it`);
     }
@@ -6168,7 +6325,7 @@ COVERED_WORDS = """() => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, [hidden]')) continue;
+        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
         if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
@@ -6571,7 +6728,47 @@ BAKE = """() => {
     document.querySelectorAll('[data-lf-offer][tabindex]').forEach(el => {
         el.removeAttribute('role');
         el.removeAttribute('tabindex');
+        // The states and relations rode the role: pressed="true" on a plain span is
+        // ARIA nothing may interpret (axe calls it critical), where the label is the
+        // word's accessible copy and stands on its own.
+        for (const attr of [...el.attributes])
+            if (attr.name.startsWith('aria-') &&
+                !['aria-label', 'aria-hidden'].includes(attr.name))
+                el.removeAttribute(attr.name);
     });
+    // What the runtime painted, as against what a widget built, goes the same way. An
+    // element-anchored comment's mark is a class the kept stylesheet answers with a
+    // ring and a pointer hand, and the panel that hand promised left with the chrome —
+    // while a text-anchored mark, painted through the highlight registry by script, is
+    // already gone. One fact — a comment is anchored here — leaves the copy whole.
+    document.querySelectorAll('.lf-mark-el')
+        .forEach(el => el.classList.remove('lf-mark-el'));
+    // A tab stop still standing on a widget element is module paint — the registry's
+    // schemas admit no authored tabindex on one — promising focus to chrome whose
+    // handler left with the scripts: a tabs panel's roving stop, an ask-lend. Asked
+    // of the tag's dash, the platform's own mark of a custom element, so no widget
+    // is named and the author's own elements are untouched. Scroll stops go with
+    // the rest and come back below, where every scrollable box is answered at once.
+    document.querySelectorAll('[tabindex]').forEach(el => {
+        if (el.tagName.includes('-')) el.removeAttribute('tabindex');
+    });
+    // Then what the removals uncovered: a box that scrolls whose way in was the
+    // chrome just taken out — a board whose grips were its only focusable content,
+    // a diagram whose stop the sweep above stripped — has no keyboard into it, and
+    // scrolling needs no handler (the lf-shot bargain). The live page's one grantor
+    // is reachScrollers; its predicate is restated here because the runtime's
+    // module scope left with the scripts, and this pass runs where the removals
+    // have already settled what remains.
+    for (const el of document.querySelectorAll('*')) {
+        if (el.tabIndex >= 0) continue;
+        const style = getComputedStyle(el);
+        if (!/^(auto|scroll)$/.test(style.overflowX) &&
+            !/^(auto|scroll)$/.test(style.overflowY))
+            continue;
+        if (!el.querySelector('a[href], button, input, select, textarea, ' +
+                              '[tabindex]:not([tabindex="-1"])'))
+            el.tabIndex = 0;
+    }
     // getHTML and not outerHTML: a widget that renders the page's words into a shadow
     // root (x-shadow) has them in no element's outerHTML, so a copy taken that way
     // arrives with an empty element where a diff's lines were — silently, since the
@@ -6610,13 +6807,25 @@ def inline_assets(html: str, page_dir: Path) -> str:
         sys.exit(
             "the rendered page carried no /theme.css link — it would open unstyled"
         )
-    # The served spelling itself, rather than a second one beside it: a suffix a
-    # looser pattern admits and MEDIA_TYPES lacks reaches the KeyError below, and
-    # two spellings of one rule are how it would get there.
-    for src in sorted(set(re.findall(f"/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]}", html))):
+    # References from the parsed reading, never a scan of the text: a path standing
+    # in prose is the reader's words — the lesson `media_refs` itself carries — and
+    # a text scan crashed the export on a documented path no file answers. The
+    # attribute harvest is media_refs; a page <style>'s url(/media/…) is the one
+    # reference an attribute harvest can't see, so it is read from the parsed css.
+    # The substitution then rewrites only the two serialized forms a reference
+    # takes (`="…"`, `url(…)`); prose quoting the exact string of a path the page
+    # also really uses is the residual, and it is the author quoting live markup.
+    parsed = parse_structure(html)
+    css_refs = set(
+        re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", parsed.css)
+    )
+    for src in sorted(set(parsed.media_refs) | css_refs):
         file = page_dir / src.lstrip("/")
         data = base64.b64encode(file.read_bytes()).decode()
-        html = html.replace(src, f"data:{MEDIA_TYPES[file.suffix]};base64,{data}")
+        uri = f"data:{MEDIA_TYPES[file.suffix]};base64,{data}"
+        html = html.replace(f'="{src}"', f'="{uri}"').replace(
+            f"url({src})", f"url({uri})"
+        )
     return html
 
 

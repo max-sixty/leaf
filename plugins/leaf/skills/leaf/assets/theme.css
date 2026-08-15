@@ -419,13 +419,32 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * ordinary prose, and a suggestion with nothing left to show disappears. */
 lf-suggestion { display: contents; }
 lf-old, lf-new { border-radius: 3px; padding: 0 3px; }
-lf-old { background: var(--del-tint); color: var(--muted);
+/* --ink-2, not --muted: the strike and the tint already say retired, and muted on
+ * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
+ * every reader-facing word to. The corpus's first inline delete is what surfaced it. */
+lf-old { background: var(--del-tint); color: var(--ink-2);
          text-decoration: line-through; text-decoration-color: var(--danger); }
 lf-new { background: var(--add-tint); }
-:is(lf-old, lf-new):has(> :is(p, h1, h2, h3, h4, h5, h6, ul, ol, dl, table, pre,
-    blockquote, section, article, div, figure, details, aside, lf-diagram, lf-diff,
-    lf-code, lf-tree, lf-board, lf-options, lf-milestones, lf-tasks, lf-timeline,
-    lf-compare, lf-metrics, lf-tabs, lf-draft, lf-shot, lf-specimen)) {
+/* The words that moved, deepened against the slot's own tint: the module's ranges
+ * through the highlight registry (lf-suggestion.js #emphasize), so no node is
+ * wrapped and a dead copy simply keeps the whole-slot tints. Layout-free
+ * properties only, which is all ::highlight() may carry. */
+::highlight(lf-sug-del) { background-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+::highlight(lf-sug-ins) { background-color: color-mix(in srgb, var(--ok) 26%, transparent); }
+/* Which form a slot takes is asked of the platform's own closed set, inverted: any
+ * child that is not phrasing content makes the slot a block. Enumerating the block
+ * side named every bundled widget in the integrated layer — the closed list the norms
+ * forbid, silently inline for the first project-layer widget staged in a slot, whose
+ * fold then dropped it in the frame of the press. Phrasing is the list that cannot
+ * grow: a custom element is never in it, so a block widget from any layer is covered
+ * unnamed. The lf-* names at the end are the other direction's residue — the tags the
+ * registry declares x-inline, which a stylesheet cannot read, so the test pins this
+ * list's widget names to that declaration and an inline widget joins by declaring. */
+:is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
+    cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
+    label, map, mark, math, meter, noscript, object, output, picture, progress, q,
+    ruby, s, samp, script, select, slot, small, span, strong, sub, sup, svg, template,
+    textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
   display: block; padding: 2px 10px; margin: 10px 0; }
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the

@@ -16,17 +16,17 @@
         Four notes cover everything user-visible in 3.2. Each is a draft you own:
         double-click one (or its ✎) and rewrite it until it reads right — the exact
         wording reaches me, and the next version of this page carries it. The framing
-        lines are mine, and one of them is a rewrite I'm proposing: accept or reject it
-        in the margin, or select it and comment if it needs discussing first. When the
-        set reads well, sign off; if a note shouldn't ship at all, say so in a comment.
+        lines are mine, and a few of them carry proposals — a rewrite, a trim, an added
+        line: accept or reject each in the margin, or select one and comment if it needs
+        discussing first. When the set reads well, sign off; if a note shouldn't ship at
+        all, say so in a comment.
       </p>
 
       <section id="rn-cli-section">
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
-Adds --dry-run to every mutating command. Running without it is unchanged, so
-existing scripts keep working.
+Adds --dry-run to every mutating command. Running without it is unchanged, so existing scripts keep working.
 </pre>
         </lf-draft>
       </section>
@@ -35,13 +35,16 @@ existing scripts keep working.
         <h2>API</h2>
         <p id="rn-api-why">
           The v1 header is <span class="tag">deprecated</span>, not gone. The note is
-          kept deliberately dry — the Sunset header does the announcing, and the
-          migration guide carries the detail.
+          kept deliberately dry<lf-suggestion id="rn-sug-dry"
+            ><lf-old>
+              — the Sunset header does the announcing, and the migration guide carries
+              the detail</lf-old
+            ></lf-suggestion
+          >.
         </p>
         <lf-draft id="rn-api">
           <pre>
-Deprecates the v1 auth header. It keeps working until the next major, and the
-server now sets a Sunset header on every v1 response.
+Deprecates the v1 auth header. It keeps working until the next major, and the server now sets a Sunset header on every v1 response.
 </pre>
         </lf-draft>
       </section>
@@ -50,7 +53,11 @@ server now sets a Sunset header on every v1 response.
         <h2>Console</h2>
         <p id="rn-console-why">
           The run list grew a status column, so a failure now reads off the list instead
-          of costing a click each. It is the release's only visual change.
+          of costing a click each. It is the release's
+          <lf-suggestion id="rn-sug-only"
+            ><lf-old>only visual change</lf-old
+            ><lf-new>one user-visible layout change</lf-new></lf-suggestion
+          >.
         </p>
         <lf-shot
           id="rn-console-shot"
@@ -68,13 +75,13 @@ Run status now shows on the run list itself. Filtering by it lands in 3.3.
       <section id="rn-ops-section">
         <h2>Operations</h2>
         <lf-suggestion id="rn-sug-ops">
-          <lf-old
+          <lf-old id="rn-ops-old"
             ><p id="rn-ops-why">
               The minute figure is from staging (1.1M rows) — rounded rather than
               promised.
             </p></lf-old
           >
-          <lf-new
+          <lf-new id="rn-ops-new"
             ><p>
               The minute figure is from staging (1.1M rows) on a warm cache — rounded
               rather than promised. If operators will book a window around it, the note
@@ -82,10 +89,17 @@ Run status now shows on the run list itself. Filtering by it lands in 3.3.
             </p></lf-new
           >
         </lf-suggestion>
+        <lf-suggestion id="rn-sug-window">
+          <lf-new
+            ><p>
+              Operators asked for a heads-up line last release, so I propose adding one;
+              reject this if the migration note below already covers it.
+            </p></lf-new
+          >
+        </lf-suggestion>
         <lf-draft id="rn-migration">
           <pre>
-Run the schema migration before deploying. It is online and takes about a
-minute on a million rows.
+Run the schema migration before deploying. It is online and takes about a minute on a million rows.
 </pre>
         </lf-draft>
       </section>
@@ -97,11 +111,11 @@ minute on a million rows.
           nothing a user would change behavior over. If one of them deserves a note
           after all, say so in a comment and a draft for it arrives in the next version.
         </p>
-        <lf-specimen id="rn-bump-shape">
+        <lf-specimen id="rn-bump-shape" label="the shape such a note would take">
           <lf-draft id="rn-bump-example">
             <pre>
-Bumps the PDF renderer to 4.1. Output is unchanged on our corpus; the bump is
-for the upstream security fix.
+Bumps the PDF renderer to 4.1.
+Output is unchanged on our corpus; the bump is for the upstream security fix.
 </pre>
           </lf-draft>
         </lf-specimen>

@@ -14,7 +14,7 @@
       <h1>Per-token rate limits</h1>
       <p class="lede" id="pr-lede">
         Moves rate limiting from per-IP to per-token, so one office NAT can't exhaust
-        the budget for every client behind it. Three files, one new bucket table, no
+        the budget for every client behind it. Four files, one new bucket table, no
         behavior change for untokened requests.
       </p>
 
@@ -24,9 +24,10 @@
           <pre>
 gateway/
   limits.py  +38 -9
-  middleware.py  +6 -2
+  middleware.py  +2 -1
+  ratelimit.conf  +1 -1
   migrations/
-    0042_token_buckets.sql  +11
+    0042_token_buckets.sql  +5
 </pre>
         </lf-tree>
         <p id="p-shape">
@@ -104,6 +105,32 @@ diff --git a/gateway/limits.py b/gateway/limits.py
      def allow(self, request):
          key = self.bucket_key(request)
          return self.buckets[key].take()
+diff --git a/gateway/middleware.py b/gateway/middleware.py
+--- a/gateway/middleware.py
++++ b/gateway/middleware.py
+@@ -12,3 +12,4 @@ def attach(app):
+     def wrap(request):
+-        limiter.check(request.remote_addr)
++        limiter.check(request)
++        request.limit_key = limiter.bucket_key(request)
+         return request
+diff --git a/gateway/ratelimit.conf b/gateway/ratelimit.conf
+--- a/gateway/ratelimit.conf
++++ b/gateway/ratelimit.conf
+@@ -1,2 +1,2 @@
+ burst_multiplier = 2
+-bucket_ttl_minutes = 10
++bucket_ttl_minutes = 30
+\ No newline at end of file
+diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042_token_buckets.sql
+--- /dev/null
++++ b/gateway/migrations/0042_token_buckets.sql
+@@ -0,0 +1,5 @@
++create table token_buckets (
++  key text primary key,
++  tokens integer not null,
++  refilled_at timestamptz not null
++);
 </pre>
         </lf-diff>
       </section>
@@ -117,7 +144,7 @@ def bucket_key(self, request):
         return f"tok:{request.token.id}"
     return f"ip:{request.remote_addr}"
 </pre>
-          <lf-note at="3"
+          <lf-note id="note-prefixes" at="3"
             >Unprefixed, a token id that happens to look like an IP would share a bucket
             with that address. The prefixes make the two namespaces disjoint.</lf-note
           >
@@ -143,6 +170,16 @@ def bucket_key(self, request):
         ><code class="language-bash"># the integration half needs the migration applied first
 cd gateway &amp;&amp; alembic upgrade head
 pytest tests/ -m ratelimit --maxfail=1</code></pre>
+        <p id="test-output">
+          The two-token case's transcript, from the branch as pushed:
+        </p>
+        <lf-code id="test-transcript" hi="3">
+          <pre>
+$ pytest tests/ -m ratelimit -k two_tokens -q
+..                                                                 [100%]
+2 passed in 1.84s
+</pre>
+        </lf-code>
       </section>
     </main>
   </body>

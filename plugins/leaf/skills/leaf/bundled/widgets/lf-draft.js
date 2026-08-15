@@ -106,13 +106,7 @@ const saveEdit = (id, text) => saveDraft(ctx(id), JSON.stringify({ text }));
 const clearEdit = (id) => saveDraft(ctx(id), "");
 function loadEdit(id) {
   const stored = loadDraft(ctx(id));
-  if (!stored) return null;
-  try {
-    const value = JSON.parse(stored);
-    if (typeof value?.text === "string") return value.text;
-  } catch {}
-  clearEdit(id);
-  return null;
+  return stored ? JSON.parse(stored).text : null;
 }
 
 // Where the browser's own double-click would have drawn the word's edges. Segmenter
@@ -207,7 +201,10 @@ customElements.define(
       // the guard means is "a thing to work", so it reads the marker that says so and
       // not the chrome face, which is a look and would answer by coincidence.
       this.addEventListener("mousedown", (ev) => {
-        if (ev.detail !== 2 || ev.target.closest("[data-lf-offer]")) return;
+        // The primary button only: detail counts any button's clicks, and a rapid
+        // middle- or right-button double-press is not the gesture this door is for.
+        if (ev.detail !== 2 || ev.button !== 0 || ev.target.closest("[data-lf-offer]"))
+          return;
         ev.preventDefault();
         this.#open(undefined, wordAt(this.#body, ev.clientX, ev.clientY));
       });

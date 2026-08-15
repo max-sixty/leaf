@@ -58,14 +58,17 @@
  * each other, which a translate nudges apart without touching layout. */
 import {
   agentName,
+  alignText,
   FOLD_MS,
   motion,
   offer,
   once,
   quoted,
+  relabel,
   reserve,
   says,
   sendAction,
+  textNodesUnder,
   toast,
 } from "/leaf.js";
 
@@ -91,6 +94,49 @@ const schedule = () => {
 
 // What the row hangs off, and so also what it hangs in.
 const column = () => document.querySelector("main") || document.body;
+
+// ---------- word-level emphasis ----------
+// A block replacement asked the reader to eyeball-diff two paragraphs for the words
+// that moved. The slots' whole tints stay — they are what a dead copy keeps — and on
+// the live page the words that differ deepen, painted through the highlight registry
+// so no node is wrapped (Paint; don't wrap) and cleared when the suggestion settles.
+// alignText is the layer's one text alignment (lf-draft's Changes reads through it),
+// so a second differ here would be a second answer to one question.
+const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
+const emphasized = new Map(); // suggestion element → {del: Range[], ins: Range[]}
+
+function repaintEmphasis() {
+  for (const [kind, name] of Object.entries(EMPHASIS)) {
+    const ranges = [...emphasized.values()].flatMap((e) => e[kind]);
+    // Under the comment marks (priority -1): a passage the reader pointed at
+    // outranks the widget's own emphasis wherever the two overlap.
+    CSS.highlights.set(name, Object.assign(new Highlight(...ranges), { priority: -1 }));
+  }
+}
+
+// [from, to) offsets in a slot's concatenated text → Ranges over its text nodes.
+function toRanges(segments, spans) {
+  const ranges = [];
+  for (const [from, to] of spans) {
+    const range = document.createRange();
+    let pos = 0;
+    let started = false;
+    for (const seg of segments) {
+      const len = seg.end - seg.start;
+      if (!started && from < pos + len) {
+        range.setStart(seg.node, seg.start + (from - pos));
+        started = true;
+      }
+      if (started && to <= pos + len) {
+        range.setEnd(seg.node, seg.start + (to - pos));
+        ranges.push(range);
+        break;
+      }
+      pos += len;
+    }
+  }
+  return ranges;
+}
 
 // Undock every row, bring back the ones that were waiting, clear the nudges, then
 // decide again from a clean layout. A row keeps the margin only if its change is
@@ -145,8 +191,12 @@ customElements.define(
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one —
       // must be harmless, and the row is no longer in the subtree that moves, so
-      // hanging it again is what carries it along.
+      // hanging it again is what carries it along (the emphasis ranges ride the
+      // text nodes and move with them).
       if (!once(this)) return this.#hang();
+      // Presentation, not input, so an exhibited pending change gets it too:
+      // quoting gates the action channel, never what a change looks like.
+      this.#emphasize();
       // Quoted material is exhibited, not offered: a suggestion inside a
       // <lf-specimen> shows what a pending change looks like, so it keeps the
       // marks the theme draws and never grows controls to decide it with.
@@ -157,6 +207,11 @@ customElements.define(
       this.#anchor = offer("span", "lf-sug-line");
       this.#anchor.style.anchorName = `--sug-${this.id}`;
       this.prepend(this.#anchor);
+      // The runtime says it just opened this element's containers (reveal): the row
+      // may be waiting on geometry the anchor only now has, and the caller is about
+      // to focus it, so the layout question is answered now rather than at the
+      // observer's next frame.
+      this.addEventListener("lf-reveal", () => relayout());
       this.#row = offer("span", "lf-sug-actions");
       this.#row.style.positionAnchor = `--sug-${this.id}`;
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
@@ -192,6 +247,8 @@ customElements.define(
     disconnectedCallback() {
       rows.delete(this.#row);
       this.#row?.remove(); // it is no longer in the subtree that took it before
+      emphasized.delete(this);
+      repaintEmphasis();
       schedule();
     }
 
@@ -232,7 +289,14 @@ customElements.define(
     // its hidden box and inside the room both reserved.
     #name(btn, decided, change) {
       const kind = verb(btn);
-      btn.textContent = WORDS[kind][decided ? 1 : 0];
+      // A decided control's word is the page speaking — "✓ Accepted" states which way
+      // the decision went, the way a pick mark's "chosen" states which option won — so
+      // it is quotable, and paper and a copy keep the record where they drop the offer.
+      // Only the control matching the outcome: its pair flips too, unseen inside its
+      // hidden box, and words nobody can see are nobody's to quote.
+      relabel(btn, WORDS[kind][decided ? 1 : 0], {
+        says: decided && this.#row?.dataset.lfOutcome === kind,
+      });
       btn.setAttribute(
         "aria-label",
         `${kind === "accept" ? "Accept" : "Reject"}${decided ? "ed" : ""} the suggested change: ${change}`,
@@ -294,13 +358,16 @@ customElements.define(
       // whenever it happened to land. Cancelling it runs the same cleanup finishing
       // does, so the slot comes back to whatever the state now says.
       this.#motion?.cancel();
-      // Both of these are read before the state moves, because the state is what
-      // retires a slot: its words leave the page's reading with it, and its box stops
-      // being drawn at all.
-      const change = this.#label();
+      // The change's words are read on whichever side of the state move has the slot
+      // in the page's reading: before it for a decision, because deciding retires the
+      // slot and its words leave the reading with it — and after it for a rewind,
+      // because the rewind is what brings them back. Read on the wrong side, a failed
+      // send relabelled the controls with the widget's id.
+      let change = outcome ? this.#label() : null;
       const fold = outcome && this.#fold(outcome);
       if (outcome) this.dataset.lfState = outcome;
       else delete this.dataset.lfState;
+      change ??= this.#label();
       if (this.#row) {
         // The row stays; what changes is which of the two controls is speaking. A
         // quoted one grew none.
@@ -309,6 +376,12 @@ customElements.define(
         for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
           this.#name(btn, Boolean(outcome), change);
       }
+      // The emphasis follows the pending state: a decided suggestion is plain
+      // prose, and a rewind brings the words' difference back.
+      if (outcome) {
+        emphasized.delete(this);
+        repaintEmphasis();
+      } else this.#emphasize();
       fold?.();
       schedule(); // the rows below may no longer need the nudge they had
       // The banner's count of what the page is still asking is derived from the page,
@@ -367,6 +440,49 @@ customElements.define(
         // the frame of the press.
         played ? played.finished.catch(() => {}).then(done) : done();
       };
+    }
+
+    // The words that moved, as ranges over both slots' own text nodes. Skipped
+    // where the alignment shares too little ink — a whole-widget swap is a
+    // replacement, not an edit, and emphasis over everything says nothing (the
+    // similarity gate every mature diff view applies). Whitespace-only runs
+    // advance the cursors and paint nothing: reformatted markup is not a changed
+    // word.
+    #emphasize() {
+      if (this.dataset.lfState) return;
+      const oldSlot = this.querySelector(":scope > lf-old");
+      const newSlot = this.querySelector(":scope > lf-new");
+      if (!oldSlot || !newSlot) return; // insert- or delete-only: the tint is the story
+      const [oldSegs, newSegs] = [oldSlot, newSlot].map((slot) => textNodesUnder(slot));
+      const read = (segs) =>
+        segs.map((s) => s.node.data.slice(s.start, s.end)).join("");
+      const [oldText, newText] = [read(oldSegs), read(newSegs)];
+      const runs = alignText(oldText, newText);
+      const ink = (text) => text.replace(/\s+/g, "").length;
+      const shared = runs
+        .filter((run) => run.kind === "same")
+        .reduce((n, run) => n + ink(run.text), 0);
+      if (shared * 3 < Math.min(ink(oldText), ink(newText))) return;
+      const del = [];
+      const ins = [];
+      let o = 0;
+      let n = 0;
+      for (const run of runs) {
+        const len = run.text.length;
+        if (run.kind !== "insert") {
+          if (run.kind === "delete" && run.text.trim()) del.push([o, o + len]);
+          o += len;
+        }
+        if (run.kind !== "delete") {
+          if (run.kind === "insert" && run.text.trim()) ins.push([n, n + len]);
+          n += len;
+        }
+      }
+      emphasized.set(this, {
+        del: toRanges(oldSegs, del),
+        ins: toRanges(newSegs, ins),
+      });
+      repaintEmphasis();
     }
 
     // accept | reject: the outcome is absolute, so replaying the sender's own

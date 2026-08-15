@@ -64,6 +64,16 @@ customElements.define(
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.querySelectorAll(":scope > lf-column > lf-card"))
         this.#grip(card);
+      // The room a card's text keeps clear of its grip, measured off the grip's own
+      // box rather than stated as a number (the pick column's answer): the theme
+      // spends it (--lf-grip-room), and only a board that grew grips states it, so
+      // paper, copies and quoted boards hold no dead column.
+      const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
+      if (grip)
+        this.style.setProperty(
+          "--lf-grip-room",
+          Math.ceil(grip.getBoundingClientRect().width) + "px",
+        );
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
       this.#names();
@@ -158,7 +168,9 @@ customElements.define(
 
     #grip(card) {
       const grip = offer("button", "lf-grip", "⠿");
-      grip.title = "Drag to move — or Enter, then arrows"; // the name is #names'
+      // The key's name comes from the one table the overlay and key line read, so the
+      // tooltip can't promise a key the handler stopped answering. The name is #names'.
+      grip.title = `Drag to move — or ${GRIP_KEYS[0][0]} to ${GRIP_KEYS[0][1]}`;
       keyHint(grip, GRIP_KEYS);
       grip.addEventListener("keydown", (ev) => this.#key(ev, card, grip));
       // Leaving the grip drops the grab: restore the origin. Arrow moves reparent
@@ -181,13 +193,18 @@ customElements.define(
         if (this.classList.contains("lf-dragging")) return;
         ev.preventDefault();
         const from = card.parentElement;
-        this.#grabbed = { card, grip, from, index: this.#cards(from).indexOf(card) };
+        const cards = this.#cards(from);
+        this.#grabbed = { card, grip, from, index: cards.indexOf(card) };
         this.classList.add("lf-dragging");
         card.classList.add("lf-lift");
         keyHint(grip, GRABBED_KEYS);
-        // Speech gets key names, not chip spellings: a reader renders "Esc" literally.
+        // Where the card starts, in the idiom every arrow step announces — a reader
+        // about to move it needs the position the moves count from. Speech gets key
+        // names, not chip spellings: a reader renders "Esc" literally.
         announce(
-          `${this.#title(card)} grabbed — ${GRABBED_KEYS.map(
+          `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
+            cards.indexOf(card) + 1
+          } of ${cards.length} — ${GRABBED_KEYS.map(
             ([k, w]) => `${{ Esc: "Escape" }[k] ?? k} ${w}`,
           ).join(", ")}`,
         );
@@ -213,19 +230,15 @@ customElements.define(
       const col = card.parentElement;
       if (dRow) {
         const cards = this.#cards(col);
-        const at = cards.indexOf(card);
-        const to = at + dRow;
+        const to = cards.indexOf(card) + dRow;
         if (to < 0 || to >= cards.length) return;
-        col.insertBefore(card, dRow > 0 ? cards[to].nextSibling : cards[to]);
+        this.#place(card, col, to);
       } else {
         const cols = [...this.querySelectorAll(":scope > lf-column")];
         const target = cols[cols.indexOf(col) + dCol];
         if (!target) return;
-        // Same visual index, clamped to the target's end.
-        target.insertBefore(
-          card,
-          this.#cards(target)[this.#cards(col).indexOf(card)] ?? null,
-        );
+        // Same visual index; #place clamps to the target's end.
+        this.#place(card, target, this.#cards(col).indexOf(card));
       }
       grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
       card.scrollIntoView({ behavior: SCROLL, block: "nearest" });
@@ -261,22 +274,43 @@ customElements.define(
       this.classList.remove("lf-dragging");
     }
 
-    // The one writer of "card X sits at index i among column C's cards": a
-    // cancelled grab and a failed send restore the origin through it, and
-    // replay places through it.
+    // The one writer of "card X sits at index i among column C's cards": arrow steps,
+    // a cancelled grab, a failed send's restore, and replay all place through it. Every
+    // placement FLIPs from where the card stood, so a move reads as motion wherever it
+    // came from — a restore arriving at response time has no gesture behind it, which
+    // is the case the norm says needs the motion more. A FLIP already in flight is
+    // cancelled before measuring, or its transform would be read as position.
     #place(card, col, index) {
+      for (const a of card.getAnimations()) a.cancel();
+      const first = card.getBoundingClientRect();
       const rest = this.#cards(col).filter((c) => c !== card);
       col.insertBefore(card, rest[index] ?? null);
+      const last = card.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      if (dx || dy)
+        motion(
+          card,
+          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+          150,
+        );
     }
 
-    // One completed move, drag or keyboard: an absolute placement, sent once.
+    // One completed move, drag or keyboard: an absolute placement, sent once. The
+    // toast's word follows the branch the reader can see — a card kept in its column
+    // was reordered, not moved to where it already was.
     #send(card, from, oldIndex, to) {
       sendAction(this, "move", {
         card: card.id,
         to: to.id,
         index: this.#cards(to).indexOf(card),
       }).then((ok) => {
-        if (ok) toast(`Moved to ${to.getAttribute("label")} — sent to ${agentName()}`);
+        if (ok)
+          toast(
+            `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(
+              "label",
+            )} — sent to ${agentName()}`,
+          );
         else this.#place(card, from, oldIndex);
       });
     }
@@ -337,8 +371,8 @@ customElements.define(
       });
     }
 
-    // {card, to, index}: card X sits at index i among column C's cards. The moved
-    // card FLIPs from its old position so a replay reads as motion, not teleport.
+    // {card, to, index}: card X sits at index i among column C's cards. #place
+    // carries the FLIP, so a replay reads as motion, not teleport.
     applyAction(action, detail) {
       if (action !== "move") return;
       const card = document.getElementById(detail.card);
@@ -351,18 +385,8 @@ customElements.define(
         return;
       const grip = card.querySelector(":scope > .lf-grip");
       const hadFocus = document.activeElement === grip;
-      const first = card.getBoundingClientRect();
       this.#place(card, col, detail.index);
       if (hadFocus) grip.focus({ preventScroll: true }); // reparenting blurred it
-      const last = card.getBoundingClientRect();
-      const dx = first.left - last.left;
-      const dy = first.top - last.top;
-      if (dx || dy)
-        motion(
-          card,
-          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-          150,
-        );
     }
   },
 );

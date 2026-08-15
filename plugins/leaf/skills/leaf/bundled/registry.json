@@ -45,7 +45,7 @@
     "x-upgrade": false
   },
   "lf-chip": {
-    "description": "One label in the band above an option's or a variant's title: what the decision turns on, in the words that fit it. `effort: low` and `risk: high` are worth starting from, since most decisions do turn on those two, but they are a suggestion and nothing more — `blast-radius: high`, `backward compat: no`, `cost: £240`, `migration: two tables` are the same slot, and a chip is as free in its answer as in its name: a scale of your own, a yes or a no, a quantity, a few words. Reach for the ones the options actually differ on, write them before the <strong> title (a lf-variant takes them the same way, being the same shape without the decision), and write the same ones on every option in the group, in the same order, so they read down it. They are the glance and not the comparison — two or three an eye takes in before it reads, where a `<dl class=\"facts\">` rail is the dimensions the options are argued on at whatever length that takes. An option can carry both, and only the rail costs a card its terseness: a `<dl>` is block content, so it stacks the group into rows, and chips never do. `tone` tints one chip — the layer's own vocabulary, `$tones.names`, which is `ok` green, `warn` amber, `danger` red — and is the author's judgement about this answer, not a property of the facet: `risk: high` is red because you say so, and the same word on another page may not be. Leave it off and the chip is neutral, which is what most of them should be; colour that lands on every chip has stopped pointing at anything. It is the same bargain `lf-metric` makes with `direction` — the theme knows the tints, the author knows which way is good.",
+    "description": "One label in the band above an option's or a variant's title: what the decision turns on, in the words that fit it. `effort: low` and `risk: high` are worth starting from, since most decisions do turn on those two, but they are a suggestion and nothing more — `blast-radius: high`, `backward compat: no`, `cost: £240`, `migration: two tables` are the same slot, and a chip is as free in its answer as in its name: a scale of your own, a yes or a no, a quantity, a few words. Reach for the ones the options actually differ on, write them before the <strong> title (a lf-variant takes them the same way, being the same shape without the decision), and write the same ones on every option in the group, in the same order, so they read down it. They are the glance and not the comparison — two or three an eye takes in before it reads, where a `<dl class=\"facts\">` rail is the dimensions the options are argued on at whatever length that takes. An option can carry both, and only the rail costs a card its terseness: a `<dl>` is block content, so it stacks the group into rows, and chips never do. `tone` tints one chip — the layer's own vocabulary, `$tones.names`, which `page catalog` prints — and is the author's judgement about this answer, not a property of the facet: `risk: high` is red because you say so, and the same word on another page may not be. Leave it off and the chip is neutral, which is what most of them should be; colour that lands on every chip has stopped pointing at anything. It is the same bargain `lf-metric` makes with `direction` — the theme knows the tints, the author knows which way is good.",
     "type": "object",
     "properties": {
       "id":   {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -197,7 +197,7 @@
     "x-upgrade": false
   },
   "lf-diff": {
-    "description": "A unified diff rendered with per-file collapse, add/del tints, and per-file +/− counts. The body is data: the diff verbatim inside its <pre>, at column 0 (context lines keep their leading space), with < and > escaped as &lt; and &gt;. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
+    "description": "A unified diff rendered with per-file collapse, add/del tints, and per-file +/− counts. The body is data: the diff verbatim inside its <pre>, at column 0 (context lines keep their leading space), HTML-escaped — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt;, or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -210,7 +210,7 @@
     "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,3 +1,3 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
   },
   "lf-tree": {
-    "description": "A file tree from an indent-notation body: one node per line, children indented deeper, a trailing / marking a directory, trailing +N/-N tokens rendering as change badges. Body is data — text inside its <pre>.",
+    "description": "A file tree from an indent-notation body: one node per line, children indented deeper, a trailing / marking a directory, trailing +N/-N tokens rendering as change badges. Body is data — text inside its <pre>, HTML-escaped (& first, then < and >).",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -222,7 +222,7 @@
     "x-example": "<lf-tree id=\"feeder-tree\"><pre>\nfeeders/\n  mount.py  +2 -2\n  schedule.py  +1\n  sites/\n    north.toml\n</pre></lf-tree>"
   },
   "lf-code": {
-    "description": "An annotated code block — the walkthrough shape. The body is the code verbatim inside its <pre> (data, < and > escaped, column 0); `language` colors it, naming one of $languages; `hi` highlights line ranges (\"3-5,8\"); lf-note children sit beside that <pre> and anchor remarks at lines by number. Leave `language` off where the body isn't source (a transcript, command output) — nothing guesses, so an undeclared block stays plain.",
+    "description": "An annotated code block — the walkthrough shape. The body is the code verbatim inside its <pre> (data, HTML-escaped — & first, then < and > — column 0); `language` colors it, naming one of $languages; `hi` highlights line ranges (\"3-5,8\"); lf-note children sit beside that <pre> and anchor remarks at lines by number. Leave `language` off where the body isn't source (a transcript, command output) — nothing guesses, so an undeclared block stays plain.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -233,6 +233,7 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-language": "language",
+    "x-lines": ["hi"],
     "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
@@ -247,10 +248,11 @@
     "additionalProperties": false,
     "x-parent": ["lf-code"],
     "x-content": "prose",
+    "x-lines": ["at"],
     "x-upgrade": false
   },
   "lf-diagram": {
-    "description": "A diagram rendered from a mermaid-source body (flowchart, sequence, state…). The body is data, not prose: text inside its <pre>, angle brackets escaped as &lt; and &gt;. Comments anchor to the required id, not to text inside the SVG.",
+    "description": "A diagram rendered from a mermaid-source body (flowchart, sequence, state…). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). Comments anchor to the required id, not to text inside the SVG.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -349,7 +351,7 @@
     "x-upgrade": false
   },
   "lf-draft": {
-    "description": "A block of text the user owns: they double-click it (or its ✎ button) to rewrite it in place, and the exact words reach the agent as an `edit` action naming the element. After the first edit, Changes shows a bounded, lossless word-aligned difference from this version, every recorded body in order, and a Restore control for each older body; very large divergent middles appear as one replacement rather than freezing the page. Restoring posts another ordinary `edit`, so it converges across tabs and later versions instead of creating private undo state. The body is the draft text verbatim inside its <pre> (data, < and > escaped; newlines preserved). It carries no decision chrome of its own — put a draft inside a lf-card where the column is the verdict, or let page sign-off approve the page as a whole. Usable anywhere prose flows. The agent rewriting prose of its own goes in a lf-suggestion instead; a draft is the user's own words, so there is nothing for them to accept. Once they have edited one those words are theirs: re-emit the body you wrote and their edit still stands over it — and `leaf comment` reads it their way, quoting the words their edit left and refusing the ones it replaced. To take the pen back — a fact of yours to fix in a sentence they rewrote — write the new text and mark the element `restated` (see $restated in `page catalog`).",
+    "description": "A block of text the user owns: they double-click it (or its ✎ button) to rewrite it in place, and the exact words reach the agent as an `edit` action naming the element. After the first edit, Changes shows a bounded, lossless word-aligned difference from this version, every recorded body in order, and a Restore control for each older body; very large divergent middles appear as one replacement rather than freezing the page. Restoring posts another ordinary `edit`, so it converges across tabs and later versions instead of creating private undo state. The body is the draft text verbatim inside its <pre> (data, HTML-escaped — & first, then < and >; newlines preserved). It carries no decision chrome of its own — put a draft inside a lf-card where the column is the verdict, or let page sign-off approve the page as a whole. Usable anywhere prose flows. The agent rewriting prose of its own goes in a lf-suggestion instead; a draft is the user's own words, so there is nothing for them to accept. Once they have edited one those words are theirs: re-emit the body you wrote and their edit still stands over it — and `leaf comment` reads it their way, quoting the words their edit left and refusing the ones it replaced. To take the pen back — a fact of yours to fix in a sentence they rewrote — write the new text and mark the element `restated` (see $restated in `page catalog`).",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},

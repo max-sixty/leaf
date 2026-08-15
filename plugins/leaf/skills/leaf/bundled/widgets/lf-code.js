@@ -59,7 +59,13 @@ customElements.define(
           const at = Number(note.getAttribute("at"));
           byLine.set(at, [...(byLine.get(at) ?? []), note]);
         }
+        // No tab stop written here: the box scrolls in the light DOM, where the
+        // runtime's reachScrollers pass grants one to every scrollable box alike —
+        // lf-diff writes its own only because that pass cannot see into a shadow
+        // tree.
         const pre = document.createElement("pre");
+        // Every note's line exists: `version check` refuses an `at` outside the
+        // body (x-lines), so there is no leftover to sweep up.
         lines.forEach((tokens, i) => {
           const n = i + 1;
           const line = document.createElement("span");
@@ -67,10 +73,7 @@ customElements.define(
           line.append(...synNodes(tokens), "\n");
           pre.append(line);
           for (const note of byLine.get(n) ?? []) pre.append(noteNode(note));
-          byLine.delete(n);
         });
-        for (const notes of byLine.values())
-          for (const note of notes) pre.append(noteNode(note));
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
       } catch (err) {

@@ -32,7 +32,7 @@
  * widgets wear — the statement an overlay widget makes for itself. One rule per
  * layer, because what counts as apparatus is a judgement, and a judgement made per
  * widget is a dozen chances to answer it differently. */
-.lf-chips span, .lf-tree-badge, .lf-diff-stat, .lf-shotcap, lf-metric,
+.lf-chips span, .lf-tree-badge, .lf-shotcap, lf-metric,
 lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
 lf-column > [data-lf-said="label"], lf-tab::before,
 lf-chip {
@@ -88,7 +88,11 @@ lf-chip, .lf-chips span {
  * and no width to reserve: they wrap along the band like the words they are.
  * `recommended` is the accent ring, or a row's outline. */
 lf-options { display: block; margin: 14px 0; }
-lf-option { display: block; position: relative; border: 1px solid var(--rule);
+lf-option { display: block; position: relative; }
+/* The card dressing is the titled form's, said so rather than painted on every option
+ * and reset by the row form: a reset is a guard reading state another rule wrote, and
+ * the row form carried four of them for dressing no row ever showed. */
+lf-options:has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
             border-radius: var(--r); padding: var(--sp-3); background: var(--card); }
 lf-option > strong { display: block; margin: 0 0 4px; }
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
@@ -120,15 +124,18 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  *
  * lf-compare is the same shape without the decision and follows it — for block
  * content only, because an exhibition is looked across where a decision is read
- * down, so terse variants keep their side-by-side grid. Its block list is the
- * suggestion slots' one, answering the same question asked of a different
- * holder, and a test pins every copy of it to the registry so a new block
- * widget can't be silently missing from one. */
+ * down, so terse variants keep their side-by-side grid. Whether a variant holds
+ * block content is the platform's closed set inverted, exactly as the suggestion
+ * slots ask it: any child that is not phrasing content stacks the group, so a
+ * widget from any layer is covered without being named — the enumeration this
+ * replaces listed fifteen widgets and would have missed the sixteenth. A test
+ * pins the two copies of the phrasing list to each other. */
 lf-options:has(> lf-option > strong),
-lf-compare:has(> lf-variant > :is(p, h1, h2, h3, h4, h5, h6, ul, ol, dl, table, pre,
-    blockquote, section, article, div, figure, details, aside, lf-diagram, lf-diff,
-    lf-code, lf-tree, lf-board, lf-options, lf-milestones, lf-tasks, lf-timeline,
-    lf-compare, lf-metrics, lf-tabs, lf-draft, lf-shot, lf-specimen)) {
+lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
+    cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
+    label, map, mark, math, meter, noscript, object, output, picture, progress, q,
+    ruby, s, samp, script, select, slot, small, span, strong, sub, sup, svg, template,
+    textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
   display: block;
   & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
   & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }
@@ -194,20 +201,25 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--o
  * `:where` around the guard, where the blocks elsewhere in this file spell it plainly, and
  * the difference is what each guard is for. Those grant a layout over a rule that withholds
  * it, so they have to outrank something; this one is the only statement its declarations
- * get, so it needs to outrank nothing — and something here is listening. lf-specimen unkeys
- * every one of these rules for a quoted group, selector by selector, so a guard carrying a
- * class and an element of its own outranked the lot and an exhibit came out wearing the
- * hand it is quoted precisely so as not to offer. Free, the guard leaves each of those
- * contests exactly where it found it. */
+ * get, so it needs to outrank nothing.
+ *
+ * A quoted group is exhibited, not offered, so every rule that says "this takes input" —
+ * the hand, the lift, the joined shape, the reserved strips and columns, the hover wash —
+ * excludes it where the rule is written (`:not(lf-specimen *)`). lf-specimen used to unkey
+ * these selector by selector instead, and that shape lost twice: a plainly-spelled guard
+ * outranked the unkeying (the joined cells kept their hover wash inside an exhibit), and
+ * every affordance added after the unkey block was one nobody remembered to unkey. The
+ * exclusion travels with the affordance, so the next one carries its own. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose] > lf-option { cursor: pointer;
+  lf-options[choose]:not(lf-specimen *) > lf-option { cursor: pointer;
                          transition: box-shadow .12s ease, transform .12s ease; }
-  lf-options[choose]:has(> lf-option > strong) > lf-option:hover { transform: translateY(-1px);
+  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option:hover {
+                         transform: translateY(-1px);
                          box-shadow: 0 3px 10px rgba(0, 0, 0, .14); }
-  lf-options[choose]:has(> lf-option > strong) > lf-option[recommended]:hover {
+  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option[recommended]:hover {
                          box-shadow: 0 0 0 1px var(--accent), 0 3px 10px rgba(0, 0, 0, .14); }
-  lf-options[choose]:has(> lf-option > strong) > lf-option[chosen]:hover {
+  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option[chosen]:hover {
                          box-shadow: 0 0 0 1px var(--ok), 0 3px 10px rgba(0, 0, 0, .14); }
  }
 }
@@ -218,14 +230,19 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--o
  * each form's own business.
  *
  * On a card, a caption on its own left edge rather than a control pinned to a corner,
- * standing in the strip below the content. On screen every card in a choose group
- * reserves that strip, because the pick can land on any of them; on paper it can land
- * nowhere, so the room is reserved where the mark shows. */
+ * standing in the strip below the content. On a live page every card in a choose group
+ * reserves that strip, because the pick can land on any of them; on paper, in a copy
+ * whose scripts are gone, and in an exhibit, it can land nowhere, so the room is
+ * reserved where the mark shows — the chosen card's, whose mark is the document's
+ * state and stands in every medium. */
 lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
 @media screen {
-  lf-options[choose]:has(> lf-option > strong) > lf-option { padding-bottom: 32px; }
+ :where(html:not(.lf-copy)) {
+  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option {
+                     padding-bottom: 32px; }
+ }
 }
-lf-options:has(> lf-option > strong) > lf-option .lf-pick {
+lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      position: absolute; left: var(--sp-3); bottom: 9px; }
 /* The face is stated here, not left to a class: the mark has two shapes — a press
  * wearing .lf-ui where the group takes picks, a bare span where it doesn't — and only
@@ -293,11 +310,15 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  * they are. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose] > lf-option:not([chosen]):hover .lf-pick::before { border-color: var(--muted); }
+  lf-options[choose]:not(lf-specimen *) > lf-option:not([chosen]):hover > .lf-pick::before {
+                     border-color: var(--muted); }
  }
 }
-lf-option[chosen] .lf-pick { color: var(--ok-ink); }
-lf-option[chosen] .lf-pick::before { content: "✓"; border-color: var(--ok);
+/* Child combinators, for the same reason the corner rules reach only the options the
+ * group owns: a question nests inside another question's option, and a descendant rule
+ * painted every inner mark with the outer option's state. */
+lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
+lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
 lf-option .lf-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px;
                      border-radius: 4px; }
@@ -322,7 +343,7 @@ lf-option .lf-pick:focus-visible { outline: 2px solid var(--accent); outline-off
  * exactly when a key could use it and a pointer pick never summons one. */
 lf-option > .lf-address { position: absolute; left: 6px; }
 lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
-lf-options[choose]:has(.lf-pick:focus-visible) > lf-option > .lf-address {
+lf-options[choose]:has(> lf-option > .lf-pick:focus-visible) > lf-option > .lf-address {
                      display: block; }
 /* The thread multi-question's submit (the module adds it there alone): one press
  * stating the set is whole, since every toggle already reached the agent as it
@@ -368,7 +389,7 @@ lf-options[answered] > .lf-done { color: var(--ok-ink); border-color: var(--ok);
  * twice and a group that isn't joined has to say the offer itself. */
 @media screen {
  html:not(.lf-copy) {
-  lf-options[choose]:not([settled]) {
+  lf-options[choose]:not([settled]):not(lf-specimen *) {
     display: grid; gap: 1px; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
     /* The hairline is the cell's own outer shadow rather than the gap showing a colour
@@ -430,7 +451,7 @@ lf-options[answered] > .lf-done { color: var(--ok-ink); border-color: var(--ok);
      * list form having got there first: `multiple` is orthogonal to which form a group
      * takes, so a card group that asked "which of these" drew no box anywhere and offered
      * the reader nothing to count. */
-    &:not([multiple]) > lf-option:has(> strong) .lf-pick:not([data-lf-said])::before {
+    &:not([multiple]) > lf-option:has(> strong) > .lf-pick:not([data-lf-said])::before {
                      visibility: hidden; }
     & > lf-option:has(> .lf-pick:focus-visible) { outline: 2px solid var(--accent);
                      outline-offset: -2px; }
@@ -448,7 +469,7 @@ lf-options[answered] > .lf-done { color: var(--ok-ink); border-color: var(--ok);
    * Live pages only, with the group's own shape: a copy and paper are handed no keys, so
    * they keep the options the markup describes rather than a rail held for an address
    * nothing can type. */
-  lf-options[choose] > lf-option { padding-left: 30px; }
+  lf-options[choose]:not(lf-specimen *) > lf-option { padding-left: 30px; }
  }
 }
 /* The row form: a list, so it reads like one. Every row opens at the same column with
@@ -477,8 +498,7 @@ lf-options[answered] > .lf-done { color: var(--ok-ink); border-color: var(--ok);
  * drawing nothing reads as padding. Both are stated where the joined group is (above). */
 lf-options:not(:has(> lf-option > strong)) > lf-option {
                      display: table; width: 100%; border-spacing: var(--sp-2) 0;
-                     padding: 5px 0; border: 0; border-radius: 6px;
-                     background: none; box-shadow: none; }
+                     padding: 5px 0; border-radius: 6px; }
 lf-options:not(:has(> lf-option > strong)) > lf-option[recommended] {
                      background: color-mix(in srgb, var(--accent) 8%, transparent); }
 lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
@@ -490,9 +510,9 @@ lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
  * every one of which lit under a pointer that could not give one. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(:has(> lf-option > strong)) > lf-option:hover {
+  lf-options[choose]:not(lf-specimen *):not(:has(> lf-option > strong)) > lf-option:hover {
                      background: var(--chip); }
-  lf-options[choose]:not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
+  lf-options[choose]:not(lf-specimen *):not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
                      background: var(--ok-tint); }
  }
 }
@@ -619,6 +639,13 @@ lf-milestone[status="blocked"]::before { background: var(--danger); border-color
 lf-milestone > strong { display: block; margin: 0 0 2px; }
 lf-milestone[status="done"] > strong { color: var(--muted); }
 .lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
+/* The status word lf-task and lf-milestone write for a reader listening wears the
+ * runtime's .lf-ui .lf-quiet — real text, clipped on screen where the dot already
+ * says it. lf-event's kind stays paint alone, deliberately: those two widgets
+ * already carry a module (and the fence an upgrade brings) for their chip rows,
+ * where speaking a kind would cost the timeline its first module and put a fence
+ * between events a reader quotes across — and an event's meaning is in its title's
+ * own words. */
 
 /* lf-tasks / lf-task: a hierarchy of work. The indent guides and status
  * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's
@@ -719,7 +746,20 @@ lf-column::before { content: attr(label); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 8px 34px 8px 10px; margin: 0 0 var(--sp-2); }
+          padding: 8px 10px; margin: 0 0 var(--sp-2); }
+/* The column the grip hangs in, spent only where a grip hangs: the module measures its
+   own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
+   pick column already is, so the ladder moving or a platform substituting a different
+   glyph re-measures itself. The number this replaces was 34px read out of a browser
+   once — and stated unconditionally, so paper, exported copies and quoted boards, none
+   of which ever grow a grip, all carried a dead column beside every card. No module, no
+   var, no room; the copy keeps the var in the serialized style attribute, which is why
+   the rule asks the medium too. */
+@media screen {
+ :where(html:not(.lf-copy)) {
+  lf-card { padding-right: calc(10px + var(--lf-grip-room, 0px)); }
+ }
+}
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; margin: 0 0 2px; }
 /* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. It says no
@@ -727,11 +767,7 @@ lf-card > strong { display: block; margin: 0 0 2px; }
    face's size once for every control in the layer — the 14px stated here was --t-5
    written out a second time, under a selector specific enough to win, so the chrome's
    size would have moved everywhere but on a card's grip. `line-height: 1` stays: .lf-ui
-   sets a line of its own, and this glyph wants none.
-   The card reserves the column the grip hangs in as 34px of right padding, against a
-   glyph no face in --sans has — macOS substitutes one 9.6px wide at this size, for 29.6px
-   of control — so a ladder that moves, or a platform that substitutes differently, leaves
-   that 34px to re-measure. */
+   sets a line of its own, and this glyph wants none. */
 lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           padding: 8px 10px; cursor: grab;
           border-radius: 4px; user-select: none;
@@ -896,26 +932,15 @@ lf-specimen::before { content: "quoted"; }
 lf-specimen[label]::before { content: "quoted · " attr(label); }
 lf-specimen:has(> [data-lf-said="label"])::before { content: none; }
 lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
-/* A quoted choose group renders as one that never declared `choose`, and these
- * are that promise in CSS: no pointer cursor, no hover lift, and no room held
- * for a mark strip nothing will fill — each card at the height it would have
- * with no pick to make. Two cards sit out: the one the document marks (that
- * mark is the document's state, quoted or not) and a hidden one, which the
- * settled collapse has zeroed and which this selector would otherwise outrank.
- * Not the upgrade's job restated — lf-options is a CSS-only widget and a page
- * can render the whole vocabulary with no script (docs/how-it-works.html does),
- * so the pressable look is keyed on `choose` here and can only be unkeyed here;
- * stripping the attribute in quoted() would leave a script-less specimen with a
- * pointer cursor over a card nothing can pick. The upgrade holds the half no
- * stylesheet can: the click handler. */
-lf-specimen lf-options[choose] > lf-option { cursor: auto; }
-lf-specimen lf-options[choose] > lf-option:not([chosen], [hidden]) {
-              padding-bottom: var(--sp-3); }
-lf-specimen lf-options[choose] > lf-option:hover { transform: none; box-shadow: none; }
-lf-specimen lf-options[choose] > lf-option[recommended]:hover {
-              box-shadow: 0 0 0 1px var(--accent); }
-lf-specimen lf-options[choose] > lf-option[chosen]:hover {
-              box-shadow: 0 0 0 1px var(--ok); }
+/* A quoted choose group renders as one that never declared `choose`. That promise is
+ * kept where each pressable look is granted, not undone here: every affordance rule in
+ * the lf-options section — the hand, the lift, the joined shape, the reserved strip and
+ * address column, the row wash — excludes exhibits in its own selector
+ * (`:not(lf-specimen *)`), because an unkeying block here lost every contest against a
+ * plainly-spelled guard and missed every affordance written after it. The upgrade holds
+ * the half no stylesheet can: the click handler (quoted(), lf-options.js). What stays
+ * quoted is the document's state — a chosen card's mark and ring — because a mention
+ * shows the decision without offering it. */
 
 /* Upgraded widgets: pre-upgrade presentation, so a page degrades readably.
  *
@@ -967,16 +992,28 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
                               background: var(--card); border: 1px solid var(--border-2);
                               border-radius: var(--r); }
 :host(.lf-rendered) summary { padding: 6px 12px; font-size: var(--t-5); font-family: var(--sans); }
+/* The path is evidence — a file's name in the file's own voice — and a shadow tree
+   inherits no document rule, so the mono is stated here or it is the UA's. */
+:host(.lf-rendered) summary code { font-family: var(--mono); font-size: var(--t-6); }
 .lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); }
 :host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--rule);
                           border-radius: 0; padding: 6px 0; overflow-x: auto;
                           font-family: var(--mono); font-size: var(--t-6);
                           line-height: 1.55; color: var(--ink); }
+/* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
+   show where it landed, or the stop reads as Tab going nowhere. */
+:host(.lf-rendered) pre:focus-visible { outline: 2px solid var(--accent);
+                          outline-offset: -2px; }
 /* A child selector, because a line's own span is not the only one in here any more:
    syntax colour puts one around each token, and as a descendant rule this laid every
-   token out on a line of its own. */
-pre > span { display: block; padding: 0 12px; }
+   token out on a line of its own.
+   max-content with a 100% floor, because a block child of a scroll container is sized
+   to the scrollport and not to the overflow: a line longer than the measure ran on past
+   the edge of its own box, and the tint — the widget's whole statement about the line —
+   stopped at the fold while the text scrolled on over bare background. */
+pre > span { display: block; padding: 0 12px;
+             width: max-content; min-width: 100%; box-sizing: border-box; }
 pre .add  { background: var(--add-tint); }
 pre .del  { background: var(--del-tint); }
 pre .hunk { color: var(--accent); background: var(--pre-bg); }
@@ -992,9 +1029,6 @@ pre .note { color: var(--muted); } /* git's remark on the line above, not a line
 [data-lf-syn="ty"] { color: var(--syn-type); }
 /* lf-shadow:end */
 
-/* The unupgraded fallback stays at document level: before the module runs, and on any
-   page carrying no script at all, the authored <pre> is what shows. */
-lf-diff:not(.lf-rendered) .lf-diff-stat { color: var(--muted); }
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
    the `pre` contract again — the integrated theme's comment names this copy of it — and a
@@ -1016,7 +1050,12 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 
 /* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
-lf-code .lf-code-line { display: block; padding: 0 14px 0 0; }
+lf-code.lf-rendered pre:focus-visible { outline: 2px solid var(--accent);
+             outline-offset: -2px; }
+/* The same max-content floor as the shadow slice's line spans: an hi range's tint has
+   to run the whole scrolled line, not stop at the fold. */
+lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
+             width: max-content; min-width: 100%; box-sizing: border-box; }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
              content: counter(lf-code-line); display: inline-block; width: 34px;
              padding-right: 12px; text-align: right; color: var(--muted-2); }

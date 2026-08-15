@@ -12,30 +12,20 @@
     folding by unit, a separate decision; the panel is now not version-scoped while
     replay still is, so a reader pinned to an older version correctly sees a thread
     reopened by a later retraction beside a suggestion still painted accepted, and
-    no prose yet says both readings answer different questions; and
-    `build_threads`'s `spk` parameter defaults to no page reading only because one
-    test calls it with one argument (tests/test_interact.py:2949) — make it
-    required and fix the caller.
-  - The two collapse rules are not one rule: JS collapses `/\s+/` and Python
-    `str.isspace()`, and the sets disagree on U+FEFF (whitespace to JS only) and on
-    U+0085 plus U+001C–U+001F (Python only). A page carrying one of those in prose
-    reads differently on the two sides, so a `leaf comment` quote can be written
-    against text the browser never produces. State the collapse class once, as an
-    explicit character class both sides spell identically, beside `TEXT_BLOCK` where
-    the other shared rule lives.
-  - Thread settlement now dispatches on the detail carrying `resolves`, but the field
-    is undeclared: nothing in the registry says `resolves` means "the thread this
-    action answers", so `validate_registry` can't hold it to a string and a widget
-    using the name otherwise would settle a thread silently. Declare it the way
-    `x-language` names the attribute carrying a language.
-  - theme.css's block-slot rule (`lf-old`/`lf-new` around line 357) hardcodes all
-    fifteen bundled widget tags — complete today, checked, and exactly the closed
-    list the norms forbid, with core naming overlay tags besides. Needs a declaration
-    the rule can be driven from.
-  - `_PassageParser` never unwinds its stack at EOF: an element left open loses its
-    `gone` verdict and trailing `x-says` values. `version check` refuses unbalanced
-    markup, but `capture_anchor` and `spoken` also run over `prev_html` and fragments
-    that never passed that gate.
+    no prose yet says both readings answer different questions. (The other two —
+    `build_threads`'s defaulted `spk`, done 2026-08-14: required, `{}` explicit for
+    the no-page callers.)
+  - (done 2026-08-14) The collapse class is one set now: `COLLAPSE_CHARS` /
+    `collapse()` beside `TEXT_BLOCK_TAGS`, leaf.js's `COLLAPSE` its twin, a test
+    pinning the two spellings to each other by expanding the JS class over the BMP.
+  - (done 2026-08-14) `resolves` is a reserved detail field: `$state` says what it
+    means and `validate_registry` holds any verb spelling the name to a plain
+    string.
+  - (done 2026-08-14) The block-slot rule inverts the platform's phrasing set
+    instead of enumerating widgets — any layer's block widget is covered unnamed —
+    with the registry's `x-inline` tags as the one declared residue, pinned by test
+    (lf-compare's stacked-variant trigger shares the list and the pin).
+  - (done 2026-08-14) `_PassageParser.close()` unwinds the stack at EOF.
   - `bin/leaf` records `$PPID` as the long-lived Codex process; if Codex execs the
     shim through an intermediate shell, that PID dies with the command and
     `claim_page`'s stale-session sweep deletes a live session's entry. Needs a real
@@ -43,8 +33,10 @@
   - lf-options writes `answered` and `open` onto page markup undeclared — real widget
     state `x-state.answer` records nowhere, so it lands in `shallowSigs` and nothing
     outside the module knows it exists. Either a `record` form or the paint
-    vocabulary. And a settled `multiple` group in a thread collapses its options but
-    not the Done press, leaving an orphaned button under the summary.
+    vocabulary — note before picking: `shallowSigs`' comment shows widget `data-lf-*`
+    state is deliberately visible to the signature (lf-suggestion's `data-lf-state`
+    rides it), so a paint rename must not blanket the namespace. (The orphaned Done
+    press under a settled collapse: done 2026-08-14 — it hides with the options.)
   - Two unmeasured hot paths, flagged where to point the measurement, per the rule
     that no cost claim ships unmeasured: `openAsks()` rebuilds `stateFold` two to
     four times per key-line paint and per poll, `itemAt` rebuilds the
@@ -102,7 +94,12 @@
   these cannot go: here the server is the agent, and an unsent draft would be words the
   user has not decided to say, sitting where the next `leaf wait` can read them.
 
-- (2026-08-07) A changed line in `lf-diff` says only that the line changed. jsdiff's
+- (2026-08-07) A changed line in `lf-diff` says only that the line changed. (The
+  suggestion half of this landed 2026-08-14: lf-suggestion's slots deepen the words
+  that moved, through `alignText` and the highlight registry — no vendoring, cleared
+  on decide, gated on shared ink so a swap paints nothing. `alignText` may make the
+  jsdiff vendoring below unnecessary for the diff too; ::highlight cannot reach the
+  diff's shadow tree, so its emphasis would be module-built spans instead.) jsdiff's
   `diffWordsWithSpace` narrows it to the words that moved, and bundles to 6 KB on its
   own, vendored beside the tokenizer the way `highlight.esm.js` already is. Pairing is
   what has to be settled first: a word-level mark compares one deletion against one

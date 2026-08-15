@@ -84,6 +84,16 @@
               instance the ledger is on.
             </lf-option>
           </lf-options>
+          <lf-suggestion id="pay-sug-expiry">
+            <lf-old
+              ><p id="pay-expiry-note">
+                Idempotency keys expire with the payment.
+              </p></lf-old
+            >
+            <lf-new
+              ><p>Idempotency keys expire a day after the payment settles.</p></lf-new
+            >
+          </lf-suggestion>
         </lf-specimen>
         <lf-compare id="service-pair">
           <lf-variant id="var-payments-regime">
@@ -119,7 +129,8 @@
         <h2>Options</h2>
         <lf-options id="session-options" choose>
           <lf-option id="opt-jwt"
-            ><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+            ><lf-chip>effort: low</lf-chip
+            ><lf-chip id="chip-jwt-risk" tone="danger">risk: high</lf-chip>
             <strong>Stateless JWT</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -243,7 +254,7 @@ graph LR
           don't cover, including "none of these".
         </p>
         <lf-options id="next-jobs" choose multiple>
-          <lf-option id="nx-revoke" for="constraints"
+          <lf-option id="nx-revoke" for="constraints" recommended
             >A revocation drill at support's volume</lf-option
           >
           <lf-option id="nx-fallback" for="flow"

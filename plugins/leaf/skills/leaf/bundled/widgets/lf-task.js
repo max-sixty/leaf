@@ -24,10 +24,13 @@
  * which ancestors the count reaches. Rebuilding is idempotent, and the rows
  * are generated (data-lf-gen), so the diff and the anchor pass already look
  * away. */
-import { once } from "/leaf.js";
+import { once, quietWord } from "/leaf.js";
 
 function renderChips(task) {
   task.querySelector(":scope > .lf-chips[data-lf-gen]")?.remove();
+  // The status word, for a reader listening: the marker's tint is paint and
+  // reaches no screen reader, so done, blocked and review sounded identical.
+  quietWord(task, task.getAttribute("status"));
   const labels = [
     task.getAttribute("owner"),
     task.getAttribute("when"),

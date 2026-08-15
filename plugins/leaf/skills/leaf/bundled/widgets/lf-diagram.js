@@ -13,19 +13,41 @@ import { dataBody, once, failSoft, settle } from "/leaf.js";
  * what you pass. `darkMode` is the one thing the tokens can't say, because it tells
  * mermaid which way to derive the variables it wasn't given.
  *
- * Read once, at load. A page whose OS flips scheme mid-read keeps the palette it
- * started in until reload — the same as the vendored highlight table, and unlike
- * the rest of the theme, which is tokens and follows live. Re-rendering every
- * diagram on a media-query change would be the alternative, and it buys a case
- * (the OS theme changing while a user reads) that costs a reload to fix. */
+ * The seeds are resolved once, at load — mermaid takes strings — and written back
+ * as var() over the tokens they came from after each render (retheme), so the
+ * drawn surfaces follow the tokens live: a scheme flip mid-read repaints them with
+ * the rest of the page, and a copy exported in a light browser opens honestly for
+ * a dark reader, where it used to stay a light slab inside a dark page. What stays
+ * frozen is only what mermaid derives from the seeds itself (its lighten/darken
+ * variants), which none of the principal surfaces are. */
 const token = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
 
 let mermaidReady;
+let retheme = (svg) => svg;
 const loadMermaid = () =>
   (mermaidReady ??= new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = "/vendor/mermaid.min.js";
     s.onload = () => {
+      const seeds = {
+        background: "--paper",
+        mainBkg: "--card",
+        primaryColor: "--card",
+        primaryTextColor: "--ink",
+        primaryBorderColor: "--border-2",
+        secondaryColor: "--field",
+        tertiaryColor: "--chip",
+        lineColor: "--muted",
+        textColor: "--ink",
+        nodeBorder: "--border-2",
+        clusterBkg: "--field",
+        clusterBorder: "--rule",
+        titleColor: "--ink",
+        edgeLabelBackground: "--paper",
+      };
+      const values = Object.fromEntries(
+        Object.entries(seeds).map(([key, name]) => [key, token(name)]),
+      );
       globalThis.mermaid.initialize({
         startOnLoad: false,
         theme: "base",
@@ -33,22 +55,33 @@ const loadMermaid = () =>
         fontFamily: token("--sans"),
         themeVariables: {
           darkMode: matchMedia("(prefers-color-scheme: dark)").matches,
-          background: token("--paper"),
-          mainBkg: token("--card"),
-          primaryColor: token("--card"),
-          primaryTextColor: token("--ink"),
-          primaryBorderColor: token("--border-2"),
-          secondaryColor: token("--field"),
-          tertiaryColor: token("--chip"),
-          lineColor: token("--muted"),
-          textColor: token("--ink"),
-          nodeBorder: token("--border-2"),
-          clusterBkg: token("--field"),
-          clusterBorder: token("--rule"),
-          titleColor: token("--ink"),
-          edgeLabelBackground: token("--paper"),
+          ...values,
         },
       });
+      // value → its token, first declaration winning where two tokens resolve to
+      // one value; matched in a single alternation pass, longest first, so a
+      // substitution can never re-match inside another's written-back fallback.
+      const byValue = new Map();
+      for (const [key, name] of Object.entries(seeds))
+        if (values[key] && !byValue.has(values[key])) byValue.set(values[key], name);
+      byValue.set(token("--sans"), "--sans");
+      const pattern = new RegExp(
+        [...byValue.keys()]
+          .sort((a, b) => b.length - a.length)
+          .map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          .join("|"),
+        "g",
+      );
+      // Only where the SVG states style — its <style> element and style=""
+      // attributes — never its text: a node label quoting a palette value is the
+      // page's words, and a blind pass rewrote one into `var(--paper, #faf9f5)`
+      // on screen.
+      const restate = (css) =>
+        css.replace(pattern, (hit) => `var(${byValue.get(hit)}, ${hit})`);
+      retheme = (svg) =>
+        svg
+          .replace(/<style[\s\S]*?<\/style>/g, restate)
+          .replace(/style="[^"]*"/g, restate);
       resolve(globalThis.mermaid);
     };
     s.onerror = () => reject(new Error("couldn't load /vendor/mermaid.min.js"));
@@ -72,7 +105,7 @@ customElements.define(
       try {
         const mermaid = await loadMermaid();
         const { svg } = await mermaid.render(renderId, source);
-        this.innerHTML = svg;
+        this.innerHTML = retheme(svg);
         // Mermaid sizes to fit: the svg is width 100%, capped at its natural size, so
         // a diagram wider than the column scales down whole, glyphs first — a
         // five-node flowchart arrived at 63% with its labels below legibility.

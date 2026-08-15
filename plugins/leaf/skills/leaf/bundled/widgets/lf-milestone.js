@@ -10,13 +10,16 @@
  * x-says because that pass renders one run of words at an edge a pseudo-element
  * could have reached, while this row is a list placed after the title — which is
  * the line past which a widget needs a module of its own. */
-import { once } from "/leaf.js";
+import { once, quietWord } from "/leaf.js";
 
 customElements.define(
   "lf-milestone",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
+      // The status word, for a reader listening: the dot's tint is paint and
+      // reaches no screen reader.
+      quietWord(this, this.getAttribute("status"));
       const labels = [
         this.getAttribute("when"),
         ...(this.getAttribute("tags")?.split(",") ?? []),

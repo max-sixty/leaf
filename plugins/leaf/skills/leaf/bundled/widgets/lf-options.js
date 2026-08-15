@@ -116,7 +116,7 @@ const SETTLED_KEY = "lf-settled:";
 keyHelp("In a question's options", [
   ["⇥", "reach an option's mark"],
   ["↑ / ↓", "walk the options"],
-  ["1–9", "pick the nth option"],
+  ["1–9", "toggle the nth option"],
   ["⏎ / space", "toggle the focused option"],
 ]);
 
@@ -267,8 +267,11 @@ customElements.define(
           num.setAttribute("aria-hidden", "true");
           mark.parentElement.prepend(num);
         }
+        // "toggle", the ⏎ row's word, because it is what the press does: the nth
+        // digit on an already-picked option clears it, and a word that said "pick"
+        // was false on the branch the reader could see.
         keyHint(mark, [
-          [marks.length > 1 ? `1–${Math.min(9, marks.length)}` : "1", "pick"],
+          [marks.length > 1 ? `1–${Math.min(9, marks.length)}` : "1", "toggle the nth"],
           ["↑ ↓", "walk the options"],
           ["⏎", "toggle"],
         ]);
@@ -382,7 +385,16 @@ customElements.define(
           : PICKED;
       relabel(mark, word, { says: chosen });
       if (!mark.matches('[role="button"]')) return;
-      mark.setAttribute("aria-label", `${word}: ${label(option) || option.id}`);
+      // "option i of n" the way a native radio group announces position: the arity
+      // word says how many the group takes, this says how many there are to take
+      // from — the fact a listening reader otherwise has to walk the list to learn.
+      const options = [...this.#options()];
+      mark.setAttribute(
+        "aria-label",
+        `${word}: ${label(option) || option.id} — option ${
+          options.indexOf(option) + 1
+        } of ${options.length}`,
+      );
       mark.setAttribute("aria-pressed", String(chosen));
     }
 
@@ -427,9 +439,15 @@ customElements.define(
 
     #open(open, remember) {
       this.toggleAttribute("open", open);
-      // The box for words goes behind the collapse with the options: it belongs to the
-      // question, and a settled group asks nothing until the reader opens it again.
-      for (const el of [...this.#options(), ...(this.#say ? [this.#say] : [])])
+      // The box for words and the Done press go behind the collapse with the options:
+      // both belong to the question, and a settled group asks nothing until the
+      // reader opens it again — a Done left standing was a button under a summary
+      // with nothing above it to be done with.
+      for (const el of [
+        ...this.#options(),
+        ...(this.#say ? [this.#say] : []),
+        ...(this.#done ? [this.#done] : []),
+      ])
         if (open) el.removeAttribute("hidden");
         else el.setAttribute("hidden", HIDDEN);
       this.#row.setAttribute("aria-expanded", open ? "true" : "false");

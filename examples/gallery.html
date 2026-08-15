@@ -94,6 +94,16 @@ any text to comment on the example it belongs to.</p>
               instance the ledger is on.
             </lf-option>
           </lf-options>
+          <lf-suggestion id="pay-sug-expiry">
+            <lf-old
+              ><p id="pay-expiry-note">
+                Idempotency keys expire with the payment.
+              </p></lf-old
+            >
+            <lf-new
+              ><p>Idempotency keys expire a day after the payment settles.</p></lf-new
+            >
+          </lf-suggestion>
         </lf-specimen>
         <lf-compare id="service-pair">
           <lf-variant id="var-payments-regime">
@@ -129,7 +139,8 @@ any text to comment on the example it belongs to.</p>
         <h2>Options</h2>
         <lf-options id="session-options" choose>
           <lf-option id="opt-jwt"
-            ><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+            ><lf-chip>effort: low</lf-chip
+            ><lf-chip id="chip-jwt-risk" tone="danger">risk: high</lf-chip>
             <strong>Stateless JWT</strong>
             <dl class="facts">
               <dt>Revoke</dt>
@@ -253,7 +264,7 @@ graph LR
           don't cover, including "none of these".
         </p>
         <lf-options id="next-jobs" choose multiple>
-          <lf-option id="nx-revoke" for="constraints"
+          <lf-option id="nx-revoke" for="constraints" recommended
             >A revocation drill at support's volume</lf-option
           >
           <lf-option id="nx-fallback" for="flow"
@@ -300,6 +311,10 @@ graph LR
           <lf-event id="e-triage" at="09:26" kind="action">
             <strong>On-call confirms a single hot job</strong> The same export id
             retrying at the head of the queue, every 45 seconds.
+          </lf-event>
+          <lf-event id="e-deploy" at="09:40">
+            <strong>Adjacent deploy ruled out</strong> The 09:00 deploy touched imports
+            only; the queue code last shipped in May.
           </lf-event>
           <lf-event id="e-wrong" at="09:51" kind="failure">
             <strong>First fix doesn't hold</strong> Raising worker count clears depth
@@ -359,7 +374,7 @@ graph LR
 <h1>Per-token rate limits</h1>
       <p class="lede" id="pr-lede">
         Moves rate limiting from per-IP to per-token, so one office NAT can't exhaust
-        the budget for every client behind it. Three files, one new bucket table, no
+        the budget for every client behind it. Four files, one new bucket table, no
         behavior change for untokened requests.
       </p>
 
@@ -369,9 +384,10 @@ graph LR
           <pre>
 gateway/
   limits.py  +38 -9
-  middleware.py  +6 -2
+  middleware.py  +2 -1
+  ratelimit.conf  +1 -1
   migrations/
-    0042_token_buckets.sql  +11
+    0042_token_buckets.sql  +5
 </pre>
         </lf-tree>
         <p id="p-shape">
@@ -449,6 +465,32 @@ diff --git a/gateway/limits.py b/gateway/limits.py
      def allow(self, request):
          key = self.bucket_key(request)
          return self.buckets[key].take()
+diff --git a/gateway/middleware.py b/gateway/middleware.py
+--- a/gateway/middleware.py
++++ b/gateway/middleware.py
+@@ -12,3 +12,4 @@ def attach(app):
+     def wrap(request):
+-        limiter.check(request.remote_addr)
++        limiter.check(request)
++        request.limit_key = limiter.bucket_key(request)
+         return request
+diff --git a/gateway/ratelimit.conf b/gateway/ratelimit.conf
+--- a/gateway/ratelimit.conf
++++ b/gateway/ratelimit.conf
+@@ -1,2 +1,2 @@
+ burst_multiplier = 2
+-bucket_ttl_minutes = 10
++bucket_ttl_minutes = 30
+\ No newline at end of file
+diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042_token_buckets.sql
+--- /dev/null
++++ b/gateway/migrations/0042_token_buckets.sql
+@@ -0,0 +1,5 @@
++create table token_buckets (
++  key text primary key,
++  tokens integer not null,
++  refilled_at timestamptz not null
++);
 </pre>
         </lf-diff>
       </section>
@@ -462,7 +504,7 @@ def bucket_key(self, request):
         return f"tok:{request.token.id}"
     return f"ip:{request.remote_addr}"
 </pre>
-          <lf-note at="3"
+          <lf-note id="note-prefixes" at="3"
             >Unprefixed, a token id that happens to look like an IP would share a bucket
             with that address. The prefixes make the two namespaces disjoint.</lf-note
           >
@@ -488,6 +530,16 @@ def bucket_key(self, request):
         ><code class="language-bash"># the integration half needs the migration applied first
 cd gateway &amp;&amp; alembic upgrade head
 pytest tests/ -m ratelimit --maxfail=1</code></pre>
+        <p id="test-output">
+          The two-token case's transcript, from the branch as pushed:
+        </p>
+        <lf-code id="test-transcript" hi="3">
+          <pre>
+$ pytest tests/ -m ratelimit -k two_tokens -q
+..                                                                 [100%]
+2 passed in 1.84s
+</pre>
+        </lf-code>
       </section>
 </lf-tab>
 
@@ -510,6 +562,7 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
           >ndcg@10, tail</lf-metric
         >
         <lf-metric id="k-coverage" value="99.4%">index coverage</lf-metric>
+        <lf-metric id="k-shadow" value="41k/day" delta="+9k">shadow queries</lf-metric>
       </lf-metrics>
 
       <section id="milestones">
@@ -695,6 +748,7 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
             instead.</lf-card
           >
         </lf-column>
+        <lf-column id="col-fixed" label="Fixed"></lf-column>
       </lf-board>
 
       <section id="notes">
@@ -894,17 +948,17 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         Four notes cover everything user-visible in 3.2. Each is a draft you own:
         double-click one (or its ✎) and rewrite it until it reads right — the exact
         wording reaches me, and the next version of this page carries it. The framing
-        lines are mine, and one of them is a rewrite I'm proposing: accept or reject it
-        in the margin, or select it and comment if it needs discussing first. When the
-        set reads well, sign off; if a note shouldn't ship at all, say so in a comment.
+        lines are mine, and a few of them carry proposals — a rewrite, a trim, an added
+        line: accept or reject each in the margin, or select one and comment if it needs
+        discussing first. When the set reads well, sign off; if a note shouldn't ship at
+        all, say so in a comment.
       </p>
 
       <section id="rn-cli-section">
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
-Adds --dry-run to every mutating command. Running without it is unchanged, so
-existing scripts keep working.
+Adds --dry-run to every mutating command. Running without it is unchanged, so existing scripts keep working.
 </pre>
         </lf-draft>
       </section>
@@ -913,13 +967,16 @@ existing scripts keep working.
         <h2>API</h2>
         <p id="rn-api-why">
           The v1 header is <span class="tag">deprecated</span>, not gone. The note is
-          kept deliberately dry — the Sunset header does the announcing, and the
-          migration guide carries the detail.
+          kept deliberately dry<lf-suggestion id="rn-sug-dry"
+            ><lf-old>
+              — the Sunset header does the announcing, and the migration guide carries
+              the detail</lf-old
+            ></lf-suggestion
+          >.
         </p>
         <lf-draft id="rn-api">
           <pre>
-Deprecates the v1 auth header. It keeps working until the next major, and the
-server now sets a Sunset header on every v1 response.
+Deprecates the v1 auth header. It keeps working until the next major, and the server now sets a Sunset header on every v1 response.
 </pre>
         </lf-draft>
       </section>
@@ -928,7 +985,11 @@ server now sets a Sunset header on every v1 response.
         <h2>Console</h2>
         <p id="rn-console-why">
           The run list grew a status column, so a failure now reads off the list instead
-          of costing a click each. It is the release's only visual change.
+          of costing a click each. It is the release's
+          <lf-suggestion id="rn-sug-only"
+            ><lf-old>only visual change</lf-old
+            ><lf-new>one user-visible layout change</lf-new></lf-suggestion
+          >.
         </p>
         <lf-shot
           id="rn-console-shot"
@@ -946,13 +1007,13 @@ Run status now shows on the run list itself. Filtering by it lands in 3.3.
       <section id="rn-ops-section">
         <h2>Operations</h2>
         <lf-suggestion id="rn-sug-ops">
-          <lf-old
+          <lf-old id="rn-ops-old"
             ><p id="rn-ops-why">
               The minute figure is from staging (1.1M rows) — rounded rather than
               promised.
             </p></lf-old
           >
-          <lf-new
+          <lf-new id="rn-ops-new"
             ><p>
               The minute figure is from staging (1.1M rows) on a warm cache — rounded
               rather than promised. If operators will book a window around it, the note
@@ -960,10 +1021,17 @@ Run status now shows on the run list itself. Filtering by it lands in 3.3.
             </p></lf-new
           >
         </lf-suggestion>
+        <lf-suggestion id="rn-sug-window">
+          <lf-new
+            ><p>
+              Operators asked for a heads-up line last release, so I propose adding one;
+              reject this if the migration note below already covers it.
+            </p></lf-new
+          >
+        </lf-suggestion>
         <lf-draft id="rn-migration">
           <pre>
-Run the schema migration before deploying. It is online and takes about a
-minute on a million rows.
+Run the schema migration before deploying. It is online and takes about a minute on a million rows.
 </pre>
         </lf-draft>
       </section>
@@ -975,11 +1043,11 @@ minute on a million rows.
           nothing a user would change behavior over. If one of them deserves a note
           after all, say so in a comment and a draft for it arrives in the next version.
         </p>
-        <lf-specimen id="rn-bump-shape">
+        <lf-specimen id="rn-bump-shape" label="the shape such a note would take">
           <lf-draft id="rn-bump-example">
             <pre>
-Bumps the PDF renderer to 4.1. Output is unchanged on our corpus; the bump is
-for the upstream security fix.
+Bumps the PDF renderer to 4.1.
+Output is unchanged on our corpus; the bump is for the upstream security fix.
 </pre>
           </lf-draft>
         </lf-specimen>

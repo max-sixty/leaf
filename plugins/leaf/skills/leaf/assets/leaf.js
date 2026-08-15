@@ -548,6 +548,24 @@ export function relabel(node, label, { says } = {}) {
   node.toggleAttribute("data-lf-said", says);
 }
 
+// A word for a reader listening, silent on screen: real text — the one thing every
+// screen reader announces in every mode — placed after the element's leading title,
+// wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
+// .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer:
+// lf-task and lf-milestone each hand-copied this idiom and the copies had already
+// diverged on whether a stale word was removed first.
+export function quietWord(el, word) {
+  el.querySelector(":scope > .lf-quiet")?.remove();
+  const span = Object.assign(document.createElement("span"), {
+    className: "lf-ui lf-quiet",
+    textContent: word,
+  });
+  span.dataset.lfGen = "1";
+  const title = el.querySelector(":scope > strong");
+  if (title) title.after(span);
+  else el.prepend(span);
+}
+
 // Room for a word not yet said, taken from the words themselves. A control that will
 // rewrite its own label ("✓ Accept" to "✓ Accepted", a count gaining a digit) must
 // hold the widest word's room from the start, or the press rewrites the one line a
@@ -732,6 +750,12 @@ function reveal(el) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
     if (a.hidden) a.dispatchEvent(new CustomEvent("lf-reveal"));
   }
+  // The containers are open; now tell the target itself. A widget whose chrome waits
+  // on its container's geometry (a suggestion's hoisted row hides while its anchor
+  // has none) settles synchronously on this, ahead of what the caller does next —
+  // stepAsk focuses that chrome in this same task, and an async settle left the
+  // focus on the previous ask's control while the announce said otherwise.
+  el.dispatchEvent(new CustomEvent("lf-reveal"));
 }
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their
@@ -1117,6 +1141,14 @@ style.textContent = `
      page it is writing about in a pill of the same make — so a shape stating the hand
      itself put one under a label that answers nothing. It reads the two ways a press is
      spelled here: the platform's element, and the attribute offer() writes on a span. */
+  /* Words for a reader listening, silent on screen: real text, the one thing every
+     screen reader announces in every mode, clipped to nothing where paint already says
+     the same fact to the eye. Worn with .lf-ui by a widget's status word (lf-task,
+     lf-milestone), since an invisible word is apparatus the anchor pass must not offer
+     — a quote resolved into a clipped box would paint a mark nobody can see. Out of
+     flow, so it holds no room; the covered-words gate skips this class the way it
+     skips the runtime's own .lf-mark-note, whose clip this is. */
+  .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -2971,7 +3003,7 @@ const authored = () => (n) => !n.parentElement.closest(GENERATED);
 // and indexes every position into it, so shadow text has to arrive at the host's own
 // place in that string — not appended from a second walk, which would put a diff's lines
 // after the page's last paragraph and every neighbour of theirs a lie.
-function textNodesUnder(rootEl, accepts = quotable()) {
+export function textNodesUnder(rootEl, accepts = quotable()) {
   const segments = [];
   const visit = (node) => {
     for (const child of node.childNodes) {
@@ -3144,13 +3176,21 @@ function segmentsIn(range) {
 // which is a different answer from "its parent", and the two callers want different ones.
 const blockAt = (node) => closestAcross(node, TEXT_BLOCK);
 const blockOf = (node) => blockAt(node) ?? upFrom(node);
+// One collapse class, stated outright and spelled to the same set interact.py's
+// COLLAPSE_CHARS enumerates: JS's \s and Python's str.isspace() disagree at the
+// edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python
+// alone — and a page carrying one of those in prose read differently on the two
+// sides, so a `leaf comment` quote could be written against text this runtime
+// never produces. (trim() removes exactly this class, so it needs no twin.)
+const COLLAPSE =
+  /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
 function quoteFrom(segments) {
   let text = "";
   segments.forEach((seg, i) => {
     if (i && blockOf(seg.node) !== blockOf(segments[i - 1].node)) text += " ";
     text += seg.node.data.slice(seg.start, seg.end);
   });
-  return [...text.replace(/\s+/g, " ").trim()].join("");
+  return [...text.replace(COLLAPSE, " ").trim()].join("");
 }
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
@@ -5376,7 +5416,10 @@ function openAsks() {
   if (!tags.length) return [];
   const fold = stateFold(VNUM);
   return [...document.querySelectorAll(tags.join(","))].filter((el) => {
-    if (quoted(el) || !asking(el, askEntry(el).when)) return false;
+    // settledAway: an ask inside a slot the log retired left the page with it —
+    // a group in a rejected suggestion's lf-new counted on, and the a key
+    // stepped the reader to a hidden element.
+    if (quoted(el) || settledAway(el) || !asking(el, askEntry(el).when)) return false;
     return !(inChrome(el) ? answeredThreadAsk(el, fold) : answeredAsk(el, fold));
   });
 }
@@ -5551,6 +5594,13 @@ const diffBlockSel = () =>
     TEXT_BLOCK,
     "aside",
     ...tagsDeclaring((e) => e["x-parent"] && (e["x-content"] ?? "prose") === "prose"),
+    // A verbatim body reaches the reader as its own words, so the widget is a block
+    // of the page's prose the way a paragraph is. The leaf-blocks-only rule below
+    // keeps the two sides symmetric: unupgraded (the base document) the authored
+    // <pre> inside is the leaf and keys the same collapsed text the upgraded
+    // widget's standing body keys live — so a rewritten or new draft marks, where
+    // it used to be the one block of prose the diff was blind to.
+    ...tagsDeclaring((e) => e["x-verbatim"]),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
@@ -5580,7 +5630,18 @@ function diffBlocks(root) {
   for (const b of root.querySelectorAll(blocks)) {
     if (inChrome(b) || b.closest(opaque)) continue;
     if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
-    const key = wrote(b);
+    let key = wrote(b);
+    // An x-says value is the page's words at the element's edge (renderSaid), so it
+    // belongs to what this block says: folded into the key at its declared edge, a
+    // version that moves a metric's number or an event's time marks though no prose
+    // changed. Symmetric for free — the base parses unupgraded, where the same
+    // attribute would have painted the same words through the pseudo-element.
+    for (const [attr, edge] of Object.entries(
+      registry[b.localName]?.["x-says"] ?? {},
+    )) {
+      const said = b.getAttribute(attr);
+      if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
+    }
     if (key) pairs.push([b, key]);
   }
   // Opaque widgets key by identity, not body: an upgrade rewrote the live body,
@@ -6328,7 +6389,7 @@ function foldedFacet(e, record) {
   if (record.kind === "body")
     return [
       ...String(value ?? "")
-        .replace(/\s+/g, " ")
+        .replace(COLLAPSE, " ")
         .trim(),
     ].join("");
   if (record.kind === "attribute") return [...value].sort().join(" ");

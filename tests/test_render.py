@@ -1350,6 +1350,12 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         target = page.locator(targets).nth(i)
         if not target.is_visible():
             continue
+        # A wrapper with no box of its own — a display: contents suggestion — is
+        # nowhere a user can aim (AIM_POINT finds no point in it either), and
+        # scroll_into_view can wait on its stability forever when it stands inside
+        # a table box (a specimen). Its slots are their own targets.
+        if not target.evaluate("el => el.getClientRects().length"):
+            continue
         target.scroll_into_view_if_needed()
         point = target.evaluate(AIM_POINT)
         if not point:
@@ -2395,25 +2401,9 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-@pytest.mark.parametrize("width", [1200, 420])
-def test_examples_have_no_serious_wcag_a_or_aa_violations(
-    browser, serve, example, color_scheme, width
-):
-    """Axe covers semantic failures the render gate cannot see: an unnamed control,
-    an invalid role relationship, or a contrast failure can occupy a perfectly good
-    box and still shut a user out. Keep the scope to WCAG A/AA and actionable
-    serious/critical findings; layout and accessibility-tree snapshots belong to
-    specific regressions, not a corpus baseline that changes with every restyle.
-
-    A phone's width because what a box does there is a different question and not a
-    smaller one: the column is 372px, so a block that had room at a desk starts
-    scrolling, and a scrolling box with no way into it from the keyboard is a user
-    reading half of every line of code. Nothing at 1200 says a word about it."""
-    page, errors = open_page(browser, serve(example.read_text()))
-    resized(page, width, 900)
-    page.emulate_media(color_scheme=color_scheme)
+def serious_axe_violations(page):
+    """WCAG A/AA violations at serious or critical, as (violations, report) — the
+    one reading both the live sweep and the exported copy's gate assert on."""
     result = Axe().run(
         page,
         options={
@@ -2439,11 +2429,42 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(
     report = "\n\n".join(
         f"{violation['id']} ({violation['impact']}): {violation['help']}\n"
         + "\n".join(
-            f"  {', '.join(node['target'])}: {node['failureSummary']}"
+            "  {}: {}".format(
+                ", ".join(
+                    # A target inside a shadow tree arrives as a selector chain
+                    # (a list), one hop per root.
+                    sel if isinstance(sel, str) else " >>> ".join(sel)
+                    for sel in node["target"]
+                ),
+                node["failureSummary"],
+            )
             for node in violation["nodes"]
         )
         for violation in violations
     )
+    return violations, report
+
+
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+@pytest.mark.parametrize("width", [1200, 420])
+def test_examples_have_no_serious_wcag_a_or_aa_violations(
+    browser, serve, example, color_scheme, width
+):
+    """Axe covers semantic failures the render gate cannot see: an unnamed control,
+    an invalid role relationship, or a contrast failure can occupy a perfectly good
+    box and still shut a user out. Keep the scope to WCAG A/AA and actionable
+    serious/critical findings; layout and accessibility-tree snapshots belong to
+    specific regressions, not a corpus baseline that changes with every restyle.
+
+    A phone's width because what a box does there is a different question and not a
+    smaller one: the column is 372px, so a block that had room at a desk starts
+    scrolling, and a scrolling box with no way into it from the keyboard is a user
+    reading half of every line of code. Nothing at 1200 says a word about it."""
+    page, errors = open_page(browser, serve(example.read_text()))
+    resized(page, width, 900)
+    page.emulate_media(color_scheme=color_scheme)
+    violations, report = serious_axe_violations(page)
     assert violations == [], report
     assert errors == []
     page.close()
@@ -3640,6 +3661,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-mark-note",
         "lf-aiming",
         "lf-over-item",
+        "lf-quiet",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
@@ -4483,7 +4505,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     # back as part of what was asked, and nothing else the author wrote is the answer.
     assert (
         page.locator("#job-heater .lf-pick").get_attribute("aria-label")
-        == "your pick: reversible Heat the bird bath"
+        == "your pick: reversible Heat the bird bath — option 2 of 3"
     )
     page.close()
 
@@ -4556,8 +4578,14 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     # the pick: the offer is the state the reader is in while the question is still open,
     # which is when knowing costs them a wasted press.
     named = "el => el.getAttribute('aria-label')"
-    assert page.locator("#br-steel .lf-pick").evaluate(named) == "choose one: Steel"
-    assert page.locator("#tl-clamp .lf-pick").evaluate(named) == "choose any: Bar clamp"
+    assert (
+        page.locator("#br-steel .lf-pick").evaluate(named)
+        == "choose one: Steel — option 1 of 2"
+    )
+    assert (
+        page.locator("#tl-clamp .lf-pick").evaluate(named)
+        == "choose any: Bar clamp — option 1 of 2"
+    )
     assert errors == []
     page.close()
 
@@ -5662,6 +5690,91 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
 # change, and a collapsed container reports its content's last rendered geometry
 # rather than nothing at all — so a row that trusted a measurement would hang in
 # the margin deciding a change nobody can see.
+def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
+    """An exhibition is looked across where a decision is read down: terse variants
+    share a row while block content stacks the group. Which children count as block
+    is the phrasing-set inversion, and its one hazard is an inline widget — a
+    chip-led pair must not stack, which is why the stylesheet's list carries the
+    registry's x-inline tags and this reads the shipped page to prove the grid
+    actually held."""
+    page, errors = open_page(
+        browser,
+        serve(
+            (Path(__file__).parent.parent / "examples/design-decision.html").read_text()
+        ),
+    )
+    top = "el => el.getBoundingClientRect().top"
+    assert page.locator("#var-session-cookie").evaluate(top) == page.locator(
+        "#var-fallback-cookie"
+    ).evaluate(top), "chip-led terse variants must share a row"
+    assert page.locator("#var-payments-regime").evaluate(top) != page.locator(
+        "#var-sessions-regime"
+    ).evaluate(top), "block-content variants must stack"
+    assert errors == []
+    page.close()
+
+
+def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
+    """A replacement's slots paint whole — which is all a dead copy keeps — and on
+    the live page the words that differ deepen through the highlight registry, so
+    the reader isn't left to eyeball-diff two paragraphs. Deciding clears the
+    emphasis with the slot it retires: the survivor is plain prose."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    inside = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
+        [name, [...(CSS.highlights.get(name) ?? [])]
+            .filter(r => document.getElementById(id).contains(r.startContainer))
+            .length]))"""
+    refill = page.evaluate(inside, "sug-refill")
+    assert refill["lf-sug-del"] >= 1 and refill["lf-sug-ins"] >= 1, (
+        "an edited sentence must emphasize the words that moved, on both sides"
+    )
+
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    assert page.evaluate(inside, "sug-refill") == {
+        "lf-sug-del": 0,
+        "lf-sug-ins": 0,
+    }, "deciding must clear the emphasis with the slot it retires"
+    assert errors == []
+    page.close()
+
+
+SWAP_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>swap</title>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="h">Feeder notes</h1>
+<p id="swapped">Plans changed.
+  <lf-suggestion id="sug-swap">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>The cameras watch seed levels overnight instead.</lf-new>
+  </lf-suggestion></p>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_whole_swap_paints_no_emphasis(browser, serve):
+    """An alignment that shares almost nothing is a replacement, not an edit, and
+    emphasis over everything says nothing — the similarity gate every mature diff
+    view applies. The whole-slot tints already say a swap is on offer."""
+    page, errors = open_page(browser, serve(SWAP_PAGE))
+    total = page.evaluate(
+        "() => (CSS.highlights.get('lf-sug-del')?.size ?? 0)"
+        " + (CSS.highlights.get('lf-sug-ins')?.size ?? 0)"
+    )
+    assert total == 0, "unrelated old and new text must not be word-marked"
+    assert errors == []
+    page.close()
+
+
 COLLAPSED_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -5711,6 +5824,23 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
     assert (
         abs(row["top"] - page.locator("#sug-boxes lf-new").evaluate(box)["top"]) <= 4
     ), "and on the line of the change it decides"
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serve):
+    """Stepping the asks opens the closed <details> a change waits inside and
+    focuses that change's control in the same task. The row un-waits on the
+    runtime's reveal signal rather than at the observer's next frame: settled
+    asynchronously, focus() fell on a display:none control and stayed where it
+    was — on the previous ask's Accept — while the announce said otherwise, so
+    Enter was aimed at a decision the reader had already seen."""
+    page, errors = open_page(browser, serve(COLLAPSED_PAGE))
+    page.keyboard.press("a")
+    expect(page.locator("[data-lf-for='sug-now'] .lf-sug-accept")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#later")).to_have_attribute("open", "")
+    expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -12955,6 +13085,26 @@ graph LR
 """
 
 
+def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
+    """The SVG's principal surfaces are written back as var() over the tokens they
+    were seeded from (retheme), so a scheme flip repaints them with the rest of the
+    page and a copy exported in a light browser opens honestly for a dark reader —
+    each used to keep the palette it was rendered under, a light slab in a dark
+    page. Only colors mermaid derives from the seeds itself stay frozen, and no
+    principal surface is one."""
+    page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
+    node = page.locator("#flow svg .node rect").first
+    expect(node).to_be_visible()
+    fill = "el => getComputedStyle(el).fill"
+    light = node.evaluate(fill)
+    page.emulate_media(color_scheme="dark")
+    assert node.evaluate(fill) != light, (
+        "a diagram's node surface must follow the page's scheme"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_wide_diagram_keeps_its_size_and_scrolls_its_own_box(browser, serve):
     """Mermaid fits a diagram to its holder by scaling the whole drawing down, glyphs
     included — this flowchart rendered at 63% in the column, its 16px labels
@@ -13120,6 +13270,14 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     # rules no other medium runs, and the last two ways one went out wrong were both a
     # widget's words landing on the page's.
     covered = page.evaluate(interact.COVERED_WORDS)
+    # The other direction of every question above: not what the copy still offers,
+    # but what it under-delivers. BAKE is a remover, and until this ran the only
+    # gates on it asked whether it removed enough — a wide diagram lost its scroll
+    # stop in every copy, and no sweep read one. 420, because that is the width
+    # where boxes start scrolling, and a scrolling box with no way in from the
+    # keyboard is the exact class that slipped.
+    resized(page, 420, 900)
+    axe_violations, axe_report = serious_axe_violations(page)
     page.close()
 
     assert state["scripts"] == 0, "a copy with no server behind it keeps no script"
@@ -13150,6 +13308,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
         f"something the file has no script to do: {state['offering']}"
     )
     assert covered == [], f"the copy draws its own words over each other: {covered}"
+    assert axe_violations == [], axe_report
     assert errors == [], f"{example.stem} needs a server to render: {errors}"
 
 

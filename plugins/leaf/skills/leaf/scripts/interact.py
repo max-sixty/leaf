@@ -261,9 +261,10 @@ vocabulary for rides in the custom keywords below:
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
 passages apart), reply (parent=id),
-resolve (parent=id), done (user sign-off; the banner offers it only on a page
-declaring <meta name="lf-review" content="sign-off">), close (a neutral end to a
-comments-only leaf), action (user; a widget reporting the
+resolve (parent=id), done (user sign-off; the banner offers it, and this door
+takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
+approval is the page's ask, and a page that asks nothing gets no terminal
+control at all), action (user; a widget reporting the
 user editing the document through it — widget=element id, action=verb, detail
 per widget, version the edit was made against), report (agent; a worker's
 provisional state change on a page widget — same widget/action/detail/version
@@ -400,7 +401,6 @@ BROWSER_EVENT_FIELDS = {
     "reply": {"parent": str, "version": int, "text": str},
     "resolve": {"parent": str},
     "done": {"version": int, "text": str},
-    "close": {"version": int},
     "action": {"widget": str, "action": str, "detail": dict, "version": int},
     # The page's own runtime reporting a failure in front of the user — an
     # uncaught throw, a module that wouldn't load, a contained applyAction
@@ -426,7 +426,6 @@ EVENT_VOCABULARY = {
     "reply": {"parent", "version", "text", "agent", "session", "markup"},
     "resolve": {"parent"},
     "done": {"version", "text"},
-    "close": {"version"},
     "action": {"widget", "action", "detail", "version"},
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
@@ -1668,18 +1667,17 @@ class Handler(BaseHTTPRequestHandler):
                     400,
                 )
                 return
-        if kind in {"done", "close"}:
+        # Approval is the page's ask, so a version that never asked cannot record one:
+        # the banner offers the button only where the meta declares sign-off, and the
+        # door says the same thing to anything posting past it.
+        if kind == "done":
             mode = version_review_mode(self.page_dir, event["version"])
-            terminal = "done" if mode == "sign-off" else "close"
-            if kind != terminal:
-                purpose = (
-                    "sign-off"
-                    if terminal == "done"
-                    else "ending its comments-only leaf"
-                )
+            if mode != "sign-off":
                 self._json(
                     {
-                        "error": f"version {event['version']} uses {terminal!r} for {purpose}"
+                        "error": f"version {event['version']} does not declare "
+                        '<meta name="lf-review" content="sign-off">, so it has no '
+                        "approval to record"
                     },
                     400,
                 )
@@ -3105,9 +3103,6 @@ def cmd_transcript(page_dir: Path) -> None:
     for e in events:
         if e["kind"] == "done":
             print(f"Approved at {e['ts']}.")
-            break
-        if e["kind"] == "close":
-            print(f"Leaf ended at {e['ts']}.")
             break
 
     # To stderr — stdout is the artifact. A transcript is a page's closing act,

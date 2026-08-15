@@ -4555,7 +4555,11 @@ def test_server_round_trip(server, page_dir):
         assert status == 400, bad
 
 
-def test_server_keeps_approval_separate_from_ending_comments(server, page_dir):
+def test_server_takes_an_approval_only_where_the_version_asked_for_one(
+    server, page_dir
+):
+    """The declaration is the ask, and the door holds anything posting past the banner
+    to it: a version that never asked has no approval to record."""
     publish(page_dir, version=1)
 
     status, body = fetch(
@@ -4564,7 +4568,8 @@ def test_server_keeps_approval_separate_from_ending_comments(server, page_dir):
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "version 1 uses 'close' for ending its comments-only leaf"
+        'version 1 does not declare <meta name="lf-review" content="sign-off">, '
+        "so it has no approval to record"
     )
 
     signoff = PAGE.replace(
@@ -4575,10 +4580,10 @@ def test_server_keeps_approval_separate_from_ending_comments(server, page_dir):
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps({"kind": "close", "version": 2}).encode(),
+        data=json.dumps({"kind": "done", "version": 2, "text": "Looks good"}).encode(),
     )
-    assert status == 400
-    assert json.loads(body)["error"] == "version 2 uses 'done' for sign-off"
+    assert status == 200, body
+    assert interact.read_events(page_dir)[-1]["kind"] == "done"
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):

@@ -1330,8 +1330,13 @@ const VNUM = VERSION_MATCH ? parseInt(VERSION_MATCH[1], 10) : null;
 const PINNED = new URLSearchParams(location.search).has("pin");
 // Sign-off is the page's ask, not standing chrome: the approve button exists only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
-// proposed change seeking assent. An informational page takes comments only. The
-// declaration rides the document, so a pinned older version keeps its own ask.
+// proposed change seeking assent. An informational page takes comments only, and
+// nothing stands in the button's place there. A neutral "End leaf" did once, and it
+// ended nothing it named: the server went on serving, the watcher went on waiting,
+// the status was untouched, and the agent side still finished at `leaf status idle`.
+// So the one control a page that asks nothing put in front of its reader offered
+// them an ending it could not deliver. The declaration rides the document, so a
+// pinned older version keeps its own ask.
 const SIGNOFF =
   document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 const POLL_MS = 2000;
@@ -2349,8 +2354,6 @@ toggleBtn.title = "Show or hide the comment panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 const approveBtn = el("button", "lf-btn primary lf-signoff", "✓ Looks good");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
-const endLeafBtn = el("button", "lf-btn lf-end-leaf", "End leaf");
-endLeafBtn.title = "End this comments-only leaf";
 banner.append(
   dot,
   statusText,
@@ -2361,7 +2364,7 @@ banner.append(
   versionBtn,
   toggleBtn,
 );
-banner.append(SIGNOFF ? approveBtn : endLeafBtn);
+if (SIGNOFF) banner.append(approveBtn);
 
 const panel = el("aside", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
@@ -3216,7 +3219,6 @@ function renderThreads() {
   }
   for (const e of events) {
     if (e.kind === "done") wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
-    else if (e.kind === "close") wanted.push(systemNode(e, `Leaf ended ${ago(e.ts)}`));
   }
   if (resolved.length) {
     if (!resolvedBox) {
@@ -5216,7 +5218,6 @@ const syncGeneral = wireInput(generalInput, {
 });
 
 approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good" });
-endLeafBtn.onclick = () => post({ kind: "close", version: VNUM });
 
 // ---------- keyboard ----------
 // The register's scopes, and the one dispatcher that walks them. What a row and a scope
@@ -7203,7 +7204,6 @@ async function poll() {
     const approved = events.some((e) => e.kind === "done");
     approveBtn.disabled = approved;
     approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
-    endLeafBtn.disabled = events.some((e) => e.kind === "close");
     const agentReplies = events.filter(
       (e) => e.author === "claude" && e.kind === "reply",
     );

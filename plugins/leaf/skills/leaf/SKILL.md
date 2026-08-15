@@ -120,8 +120,7 @@ repository checkout it lives at `plugins/leaf/bin/leaf`.
    live in the user's browser. Before the URL first goes out, run the browser gate
    too: `version check <page> --render` (see "Before the URL goes out"). Then hand the
    user the URL with a one-line orientation (select text to comment; on a sign-off
-   page, "✓ Looks good" approves; otherwise "End leaf" ends comments without
-   approval) and enter the loop.
+   page, "✓ Looks good" approves) and enter the loop.
 
 ## When the deliverable is the file
 
@@ -212,10 +211,12 @@ to click belongs on a page you are going to serve.
 - **Sign-off is declared, not assumed.** A page that asks for the user's assent — a
   plan, a design, a proposed change, anything where approval unblocks work — declares
   `<meta name="lf-review" content="sign-off">` in the head, and the
-  banner offers "✓ Looks good". A page that only informs (a status report, an
-  incident chronicle) omits it: it takes comments only, and the banner instead
-  offers a neutral "End leaf" control with no approval meaning.
-  `version check` rejects unknown `lf-*` metas and any other `lf-review` value.
+  banner offers "✓ Looks good" — which approves and leaves the page live, so the
+  work it unblocks goes on in front of the user. A page that only informs (a status
+  report, an incident chronicle) omits it: it takes comments only, and the banner
+  carries no terminal control at all, because there is nothing there for the reader
+  to answer. `version check` rejects unknown `lf-*` metas and any other `lf-review`
+  value.
 - **Announce interactivity in prose.** Someone new to the page won't guess from a grip glyph
   or a hover cursor that a board takes drags or an options group takes clicks — the
   sentence introducing the widget says it ("drag cards to reprioritize; your edits
@@ -446,13 +447,13 @@ into the main task, and where the approved work is yours to do, the page keeps u
 it from here. So the page stays `working` under a live `leaf wait` — "skip that one"
 then reaches you mid-flight rather than at the end.
 
-On a comments-only page, `close` is the neutral terminal event from "End leaf". It
-does not approve anything and does not mutate the page status by itself. If wait output
+Ending a page is yours, and the browser has no control for it: a reader who has stopped
+commenting has said nothing about whether the work is done. If wait output
 is truncated, acknowledge nothing and retrieve the whole batch. After the complete,
 untruncated batch enters context, acknowledge through its highest sequence, handle every
 earlier event in that batch, then run `leaf status <page> idle`. That explicit status
-command remains the act that ends the agent side of a page.
-Use it directly when the work a sign-off page tracks is finished too. A server you
+command is the act that ends the agent side of a page — on a comments-only page and on
+a sign-off page whose approved work is finished alike. A server you
 started needs no stopping; it goes down with the session (a standing one is the
 exception, below, and stays up). A page ending with record debt publishes
 one final honoring version first, because the final version is the page that has to read

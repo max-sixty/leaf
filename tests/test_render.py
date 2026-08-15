@@ -1367,48 +1367,49 @@ SETTLED = """(hold) => {
 }"""
 
 
-@pytest.mark.parametrize(
-    ("review_meta", "shown", "absent", "kind", "tooltip"),
-    [
-        pytest.param(
-            "",
-            ".lf-end-leaf",
-            ".lf-signoff",
-            "close",
-            "End this comments-only leaf",
-            id="comments-only",
-        ),
-        pytest.param(
-            '<meta name="lf-review" content="sign-off">',
-            ".lf-signoff",
-            ".lf-end-leaf",
-            "done",
-            "Approve this work; the page stays open for follow-up",
-            id="sign-off",
-        ),
-    ],
-)
-def test_the_page_ask_chooses_its_terminal_event(
-    browser, serve, review_meta, shown, absent, kind, tooltip
-):
-    """Ending comments is neutral; approving exists only where the page asks for it.
+def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
+    """The declared ask puts the button there, and the press posts `done`.
 
     Drive the shipped browser through the real POST door, since a button that merely
     looks right says nothing about the event the agent's loop receives.
     """
-    html = LONG_PAGE.replace("<title>long</title>", f"<title>long</title>{review_meta}")
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
     page, errors = open_page(browser, serve(html))
-    button = page.locator(shown)
+    button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
-    expect(button).to_have_attribute("title", tooltip)
-    assert page.locator(absent).count() == 0
+    expect(button).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
 
     button.click()
     round_trip(page)
     event = interact.read_events(serve.page_dir)[-1]
-    assert (event["kind"], event["author"], event["version"]) == (kind, "user", 1)
-    assert ("text" in event) is (kind == "done")
+    assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
+    assert event["text"]
     expect(button).to_be_disabled()
+    assert errors == []
+    page.close()
+
+
+def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
+    """A page that only informs ends its banner at Comments.
+
+    The slot the approve button takes on a sign-off page stays empty here rather than
+    picking up a neutral control, which is the fact a reader can see: an informational
+    page asks them for nothing, so it hands them nothing to press.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    # The banner is built in one pass, so a control standing in it is what makes the
+    # absence beside it worth reading rather than a row that never rendered.
+    expect(page.locator(".lf-comments")).to_be_visible()
+    assert page.locator(".lf-signoff").count() == 0
+    # The approve button is the row's last control where a page asks for one, and a
+    # blanket-answer control inserts ahead of the version chooser, so the row ending
+    # at Comments is the slot standing empty rather than merely unnamed.
+    expect(page.locator(".lf-banner > *").last).to_have_class("lf-btn lf-comments")
     assert errors == []
     page.close()
 

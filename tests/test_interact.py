@@ -1920,35 +1920,113 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert "not a language this page's layer speaks" in result.output
 
 
-def test_the_block_content_lists_agree_and_name_no_widget():
+# HTML's phrasing content, quoted whole from the standard's own list. The theme
+# inverts it to decide what makes a slot a block, and this is the only place the set
+# is stated rather than derived: `link` and `meta` are in it because the standard has
+# them there, not because a slot will ever hold one. A set edited down to what looked
+# worth keeping could only be checked against another copy of itself.
+PHRASING_CONTENT = frozenset(
+    [
+        "a",
+        "abbr",
+        "area",
+        "audio",
+        "b",
+        "bdi",
+        "bdo",
+        "br",
+        "button",
+        "canvas",
+        "cite",
+        "code",
+        "data",
+        "datalist",
+        "del",
+        "dfn",
+        "em",
+        "embed",
+        "i",
+        "iframe",
+        "img",
+        "input",
+        "ins",
+        "kbd",
+        "label",
+        "link",
+        "map",
+        "mark",
+        "math",
+        "meta",
+        "meter",
+        "noscript",
+        "object",
+        "output",
+        "picture",
+        "progress",
+        "q",
+        "ruby",
+        "s",
+        "samp",
+        "script",
+        "select",
+        "slot",
+        "small",
+        "span",
+        "strong",
+        "sub",
+        "sup",
+        "svg",
+        "template",
+        "textarea",
+        "time",
+        "u",
+        "var",
+        "video",
+        "wbr",
+    ]
+)
+
+
+def test_the_block_content_lists_are_the_platform_set_and_the_inline_widgets():
     """Two selectors in the theme decide what counts as block content — the
     suggestion slots' blockization and lf-compare's stacked-variant trigger
     (lf-options stacks on the title alone, so it asks no block question) — by the
     platform's closed set inverted: any child that is not phrasing content is block.
     The enumeration this replaced named every bundled widget, which is the closed
     list the norms forbid: the first project-layer widget staged in a slot rendered
-    inline and the fold dropped it in the frame of the press. So the pin is now the
-    other way round — the two phrasing lists must agree with each other, and no
-    lf-* tag may appear in either, because a widget in the list would mean the
-    inversion has been quietly re-enumerated."""
+    inline and the fold dropped it in the frame of the press.
+
+    So each list is held to what it claims to be, in both of its halves. The platform
+    half is HTML's phrasing content entire, stated above, which is the half the two
+    copies could never check: agreeing with each other says nothing about a name
+    dropped from both, and a missing one blockizes a slot holding the element it
+    names. The widget half is exactly the tags the registry declares x-inline, which
+    a stylesheet cannot read — so an inline widget joins the list by declaring, and a
+    block widget in it would mean the inversion has been quietly re-enumerated."""
     theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
     lists = re.findall(r":not\((a, abbr[^)]*)\)", theme)
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
-    tag_sets = [{t.strip() for t in found.split(",")} for found in lists]
-    assert tag_sets[0] == tag_sets[1], "the phrasing lists have drifted"
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
     inline = {
         tag
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-inline")
     }
-    assert {t for t in tag_sets[0] if t.startswith("lf-")} == inline, (
-        "the phrasing lists' widget names must be exactly the tags the registry "
-        "declares x-inline — a block widget in the list re-closes the inversion, "
-        "and an inline widget missing from it stacks the form it stands in"
-    )
+    for found in lists:
+        tags = {t.strip() for t in found.split(",")}
+        assert {t for t in tags if not t.startswith("lf-")} == PHRASING_CONTENT, (
+            "the platform half of a block-content list is not HTML's phrasing "
+            "content: a name dropped from it stacks a slot holding that element, "
+            "and one added to it leaves a block child laid out inline"
+        )
+        assert {t for t in tags if t.startswith("lf-")} == inline, (
+            "the block-content lists' widget names must be exactly the tags the "
+            "registry declares x-inline — a block widget in the list re-closes the "
+            "inversion, and an inline widget missing from it stacks the form it "
+            "stands in"
+        )
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():
@@ -3942,6 +4020,32 @@ def test_check_refuses_an_ask_no_page_could_carry(page_dir, tag, awaits, message
     result = check(page_dir)
     assert result.exit_code != 0
     assert f"<{tag}> x-awaits" in result.output and message in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "key", "value", "missing"),
+    [
+        ("lf-event", "x-says", {"at": "before", "colour": "after"}, "colour"),
+        ("lf-option", "x-refers", ["for", "about"], "about"),
+        ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
+    ],
+)
+def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
+    page_dir, tag, key, value, missing
+):
+    """Three keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, the ones it paints and never words —
+    and each is read by a pass that finds the attribute absent and does nothing. That
+    is the never-closed vocabulary's own failure mode: no error anywhere, the widget
+    simply missing from the pass, and a page that looks authored correctly because it
+    was. The door is the only place the mistake is visible, so it refuses here."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry[tag][key] = value
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert f"<{tag}> {key} names undeclared attributes ['{missing}']" in result.output
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])

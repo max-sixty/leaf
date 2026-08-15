@@ -439,12 +439,19 @@ lf-new { background: var(--add-tint); }
  * grow: a custom element is never in it, so a block widget from any layer is covered
  * unnamed. The lf-* names at the end are the other direction's residue — the tags the
  * registry declares x-inline, which a stylesheet cannot read, so the test pins this
- * list's widget names to that declaration and an inline widget joins by declaring. */
+ * list's widget names to that declaration and an inline widget joins by declaring.
+ *
+ * The platform half is that set quoted whole, `link` and `meta` included, which no
+ * slot will ever hold and which render nothing if one does. Quoting it whole is what
+ * makes it checkable: the test states HTML's phrasing content once and holds both
+ * copies to it, where a set filtered by what seemed worth keeping could only ever be
+ * checked against itself — which is the check the two copies were already giving each
+ * other, and it cannot see a name dropped from both. */
 :is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
-    label, map, mark, math, meter, noscript, object, output, picture, progress, q,
-    ruby, s, samp, script, select, slot, small, span, strong, sub, sup, svg, template,
-    textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
+    label, link, map, mark, math, meta, meter, noscript, object, output, picture,
+    progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
+    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
   display: block; padding: 2px 10px; margin: 10px 0; }
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the

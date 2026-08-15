@@ -63,6 +63,7 @@ import {
   motion,
   offer,
   once,
+  quietWord,
   quoted,
   relabel,
   reserve,
@@ -197,6 +198,7 @@ customElements.define(
       // Presentation, not input, so an exhibited pending change gets it too:
       // quoting gates the action channel, never what a change looks like.
       this.#emphasize();
+      this.#voice();
       // Quoted material is exhibited, not offered: a suggestion inside a
       // <lf-specimen> shows what a pending change looks like, so it keeps the
       // marks the theme draws and never grows controls to decide it with.
@@ -377,11 +379,13 @@ customElements.define(
           this.#name(btn, Boolean(outcome), change);
       }
       // The emphasis follows the pending state: a decided suggestion is plain
-      // prose, and a rewind brings the words' difference back.
+      // prose, and a rewind brings the words' difference back. So does the word
+      // naming each slot, which is the same fact said to whoever is listening.
       if (outcome) {
         emphasized.delete(this);
         repaintEmphasis();
       } else this.#emphasize();
+      this.#voice();
       fold?.();
       schedule(); // the rows below may no longer need the nudge they had
       // The banner's count of what the page is still asking is derived from the page,
@@ -440,6 +444,29 @@ customElements.define(
         // the frame of the press.
         played ? played.finished.catch(() => {}).then(done) : done();
       };
+    }
+
+    // Which slot is which, for a reader listening. A struck red run and a green one
+    // are the whole of what says "these words are going" and "these are the proposal",
+    // and none of it is text: a screen reader reads the sentence twice, the two
+    // readings contradicting each other, with nothing to say that either is a change.
+    // Worst on the case the emphasis below hands back for the same reason — an
+    // insert- or delete-only change, where the tint is the entire story and a listener
+    // hears one perfectly ordinary sentence.
+    //
+    // ARIA's own names for the two, said as text, because text is the one thing every
+    // screen reader announces in every mode — the bargain the mark note struck, and
+    // why role="deletion" is not what stands here. It follows the state exactly as the
+    // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
+    // up this word along with its marks, and a rewind brings both back.
+    #voice() {
+      const decided = Boolean(this.dataset.lfState);
+      for (const [tag, word] of [
+        ["lf-old", "deletion"],
+        ["lf-new", "insertion"],
+      ])
+        for (const slot of this.querySelectorAll(`:scope > ${tag}`))
+          quietWord(slot, decided ? "" : word);
     }
 
     // The words that moved, as ranges over both slots' own text nodes. Skipped

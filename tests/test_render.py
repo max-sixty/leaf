@@ -5171,6 +5171,85 @@ def test_one_pill_holds_every_short_fact(browser, serve):
     page.close()
 
 
+PAINTED_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>painted</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="h">What the paint says</h1>
+<lf-timeline id="tl">
+  <lf-event id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
+  The north camera went dark and the alert never fired.</lf-event>
+</lf-timeline>
+<lf-options id="picks">
+  <lf-option id="p-stage" recommended><strong>Migrate in stages</strong> Table by table.</lf-option>
+  <lf-option id="p-once"><strong>Migrate at once</strong> One window, one cutover.</lf-option>
+</lf-options>
+<lf-tasks id="plan">
+  <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
+  Waiting on the brackets.</lf-task>
+</lf-tasks>
+</main>
+</body>
+</html>
+"""
+
+
+def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
+    """A tint is a fact to whoever can see it and nothing at all to whoever can't. A
+    task's marker, an event's kind band and the ring on the recommended option each
+    carried their whole meaning in colour, so a reader listening was handed every word
+    around the fact and never the fact: done sounded exactly like blocked, and the
+    page's own recommendation — the one thing a decision page is most for — was
+    invisible to the reader with the least other way to find it.
+
+    Declared (x-paints) rather than written into each module, which is what lets it
+    reach the two widgets here that have no module at all, and read as the value or, for
+    a flag carrying none, the attribute's own name. Said in text, because that is the
+    one thing every screen reader announces in every mode — and therefore clipped to
+    nothing, holding no room, and out of the selection, since a word the eye can't see
+    is a word the clipboard has no business carrying."""
+    page, errors = open_page(browser, serve(PAINTED_PAGE))
+    for sel, word in (
+        ("#e-dark", "failure"),
+        ("#p-stage", "recommended"),
+        ("#t-baffles", "blocked"),
+    ):
+        assert word in page.locator(sel).aria_snapshot(), (
+            f"{sel} paints `{word}` and says nothing of it to a reader listening"
+        )
+    # The option that isn't recommended says nothing: the pass speaks a fact the page
+    # holds, never one it merely has an attribute for.
+    assert "recommended" not in page.locator("#p-once").aria_snapshot()
+
+    room = page.locator(".lf-quiet").evaluate_all(
+        """els => els.map(el => { const r = el.getBoundingClientRect();
+             return [el.textContent, r.width, r.height,
+                     getComputedStyle(el).userSelect]; })"""
+    )
+    assert len(room) == 3, f"one quiet word per painted fact, got {room}"
+    for word, width, height, select in room:
+        assert width <= 1 and height <= 1, f"`{word}` is painting {width}x{height}"
+        assert select == "none", f"`{word}` would come away in a copy of the page"
+    # And the browser agrees: a selection drawn across the whole event carries the
+    # words the page shows and not the one it only says.
+    spoken = page.evaluate(
+        """() => { const el = document.getElementById("e-dark");
+             const r = document.createRange(); r.selectNodeContents(el);
+             getSelection().removeAllRanges(); getSelection().addRange(r);
+             return getSelection().toString(); }"""
+    )
+    assert "went dark" in spoken and "failure" not in spoken, spoken
+    assert errors == []
+    page.close()
+
+
 def test_a_pick_states_the_whole_set(browser, serve):
     """`multiple` is the difference between "which of these" and "which one", and the
     action is the same shape either way: every picked option, absolutely, so replay is
@@ -6180,6 +6259,12 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # rendered text where textContent is the markup's.
     expect(accept).to_have_text("✓ Accept", use_inner_text=True)
 
+    # A strike and two tints say which words are going and which are proposed, and say
+    # it in no text at all: a reader listening got the sentence twice, the two readings
+    # contradicting each other, with nothing to say either was a change.
+    assert "deletion" in page.locator("#sug-refill lf-old").aria_snapshot()
+    assert "insertion" in page.locator("#sug-refill lf-new").aria_snapshot()
+
     accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
@@ -6197,6 +6282,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     settled = page.locator("#sug-refill lf-new").evaluate(
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
     )
+    # And the word goes with the marks, the settled slot being ordinary prose now:
+    # a reader listening is told about a change while there is one to decide.
+    assert "insertion" not in page.locator("#sug-refill lf-new").aria_snapshot()
     assert "line-through" not in settled and "rgba(0, 0, 0, 0)" in settled, (
         f"settled text still wears a pending mark: {settled}"
     )
@@ -6881,6 +6969,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
     expect(task).not_to_have_attribute("data-lf-pending", "1")
+    # The marker is paint, so the word beside it (x-paints) has to move with the
+    # attribute or a reader listening is told what the page said a poll ago.
+    assert "review" in task.aria_snapshot()
     # A task at review is a standing ask however the status got there.
     expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
 
@@ -6892,6 +6983,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     assert sent.exit_code == 0, sent.output
     told(page)
     expect(task).to_have_attribute("status", "done")
+    said = task.aria_snapshot()
+    assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
     expect(page.locator(".lf-asks")).to_be_hidden()
 
@@ -9910,12 +10003,27 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     ) == (
         "# apply the migration, then run the marked suite\ncd gateway && alembic upgrade head"
     )
+    # Read the way the runtime reads it: everything generated set aside. The highlighted
+    # line carries a word of the layer's own (below), and a reading that counted it would
+    # be claiming the file holds a word no version of it ever will.
     assert page.evaluate(
         "() => [...document.querySelectorAll('#walk-code .lf-code-line')]"
-        ".map(l => l.textContent).join('')"
+        ".map(l => [...l.childNodes].filter(n => !(n.nodeType === 1 && n.dataset.lfGen))"
+        ".map(n => n.textContent).join('')).join('')"
     ) == (
         "def bucket_key(request):\n    if request.token:\n"
         '        return f"tok:{request.token.id}"\n    return "anon"\n'
+    )
+
+    # `hi` is a background tint and says which line the note beside it is about. Nothing
+    # of that reaches a reader listening, who gets the block entire with no idea which of
+    # it was pointed at — and the numbers can't tell them, being a CSS counter painted
+    # into no text node so that a copy of the block is source and not a listing. So the
+    # highlighted line says so itself, once, where it is true.
+    lines = page.locator("#walk-code .lf-code-line")
+    assert "highlighted" in lines.nth(1).aria_snapshot()
+    assert page.locator("#walk-code .lf-quiet").count() == 1, (
+        "the tinted line is the one that says it, and it says it once"
     )
 
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
@@ -12478,8 +12586,12 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     body = page.locator("#draft-ops .lf-draft-body")
     expect(body).to_have_text(corrected)
     # And the user is told, rather than left to notice: their edit is gone,
-    # which without a mark reads exactly like a draft they never touched.
+    # which without a mark reads exactly like a draft they never touched. Told in
+    # words as well as in ink — the mark is an outline, which is the whole of what a
+    # reader listening was getting, and this is the one paint on the page that says
+    # something was taken away from them.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
+    assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
     assert errors == []
     page.close()
 

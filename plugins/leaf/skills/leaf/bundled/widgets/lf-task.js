@@ -18,19 +18,18 @@
  * `status` is also the widget's agent channel (x-report): a worker's report
  * replays here through applyAction, which states the absolute value — the
  * attribute — so a reload or a second tab converges and re-applying is a
- * no-op. The status marker follows the attribute through theme CSS for free;
- * what has to be recomputed is the done-fraction, a count over the whole
+ * no-op. The status marker follows the attribute through theme CSS for free, and
+ * the word a reader listening gets for it through the runtime's own pass (x-paints,
+ * renderQuiet, which the replay runs after every batch it applies); what this module
+ * has to recompute is the done-fraction, a count over the whole
  * tree, so every task's chip row re-renders rather than this one guessing
  * which ancestors the count reaches. Rebuilding is idempotent, and the rows
  * are generated (data-lf-gen), so the diff and the anchor pass already look
  * away. */
-import { once, quietWord } from "/leaf.js";
+import { once } from "/leaf.js";
 
 function renderChips(task) {
   task.querySelector(":scope > .lf-chips[data-lf-gen]")?.remove();
-  // The status word, for a reader listening: the marker's tint is paint and
-  // reaches no screen reader, so done, blocked and review sounded identical.
-  quietWord(task, task.getAttribute("status"));
   const labels = [
     task.getAttribute("owner"),
     task.getAttribute("when"),

@@ -594,19 +594,40 @@ export function relabel(node, label, { says } = {}) {
 // A word for a reader listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
-// .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer:
-// lf-task and lf-milestone each hand-copied this idiom and the copies had already
-// diverged on whether a stale word was removed first.
+// .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer per
+// element, and the empty word removes what stands: a fact the page has stopped painting
+// must stop being said too, so a caller states the whole of what this element says
+// quietly and never appends to it. lf-task and lf-milestone each hand-copied this idiom
+// before it was one, and the copies had already diverged on whether a stale word was
+// removed first — which is now renderQuiet's to state for every widget that declares it.
+//
+// Which writer an element gets follows from the declaration, and the two sets do not
+// meet: renderQuiet has the elements the registry names (x-paints) and those the runtime
+// paints a retraction on, and a module has only the parts it builds or the ones no
+// declaration can reach — a suggestion's two slots, a code line. Declaring x-paints on a
+// tag whose module also writes one here would leave both removing the other's word on
+// every poll, which the reader would hear as the element re-reading itself.
 export function quietWord(el, word) {
-  el.querySelector(":scope > .lf-quiet")?.remove();
+  const title = el.querySelector(":scope > strong");
+  const seat = title ? title.nextSibling : el.firstChild;
+  const standing = el.querySelector(":scope > .lf-quiet");
+  if (standing) {
+    // Nothing to say that isn't already said, in the place it belongs: a screen
+    // reader rebuilds its buffer from the mutations, so a pass that finds the page
+    // as it left it re-reads the element to whoever is on it for no reason. The seat
+    // is part of that — a module that rebuilds its chip row between two runs of this
+    // leaves the word standing behind it, and the fix is to move it, not to leave it
+    // where the rebuild happened to put it.
+    if (standing === seat && standing.textContent === word) return;
+    standing.remove();
+  }
+  if (!word) return;
   const span = Object.assign(document.createElement("span"), {
     className: "lf-ui lf-quiet",
     textContent: word,
   });
   span.dataset.lfGen = "1";
-  const title = el.querySelector(":scope > strong");
-  if (title) title.after(span);
-  else el.prepend(span);
+  el.insertBefore(span, title ? title.nextSibling : el.firstChild);
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will
@@ -947,6 +968,7 @@ async function upgradeWidgets() {
       ),
   );
   renderSaid(document.body);
+  renderQuiet(document.body);
   // The page's own <pre><code> blocks, alongside the widgets and for the same reason: the
   // tokenizer is vendored, so a page has it exactly when it has a widget layer at all.
   settle(highlightBlocks(document.body));
@@ -1013,6 +1035,50 @@ function renderSaid(root) {
         );
       }
   }
+}
+
+// What a widget paints and never words. A task's status marker, a milestone's dot, an
+// event's kind band, the accent ring on the recommended option: each is a fact the eye
+// reads off paint alone, so a reader listening is handed every word around it and nothing
+// of the fact itself — done sounded like blocked, and the page's own recommendation was
+// invisible to the reader most in need of it. Same reasoning as renderSaid, one rung
+// quieter: the registry names the attributes (x-paints) and one pass speaks them, because
+// left to each module it is a thing to remember, and lf-event and lf-option, which have no
+// module at all, could never have remembered it.
+//
+// The value is the word, or the attribute's own name where the value is empty: an enum
+// means what it says (`blocked`), and a flag attribute means what it is called
+// (`recommended`), which is the whole of what its ring says to the eye.
+//
+// The runtime's own restatement paint is said here too — the same failure under a
+// different owner, and the one the code that paints it already calls a debt: a decision
+// undone looks exactly like one never made, and the outline stating the difference states
+// it in ink alone. It composes into the element's one quiet span rather than taking a
+// second, so the two cannot fight over the place, and every quiet word on the page is
+// written by one call whichever facts it is carrying.
+//
+// Its two neighbours in that vocabulary stay silent, and the line between them is what
+// the paint is the only copy of. A retraction is one: nothing else on the page says the
+// decision was undone. data-lf-pending and data-lf-reported are not — each marks a state
+// whose substance is already in words, the control's own ("✓ Accepted", "your pick") or
+// the status this pass speaks, and adds only that no version carries it yet. Saying that
+// on every decided element for the rest of the session would be a second sentence about
+// every one of them, for a fact no reader is owed the way they are owed a retraction.
+function quietFacts(el) {
+  const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
+    ? ["rewritten since your decision"]
+    : [];
+  for (const attr of registry[el.localName]?.["x-paints"] ?? [])
+    if (el.hasAttribute(attr)) words.push(el.getAttribute(attr) || attr);
+  return words.join(", ");
+}
+
+function renderQuiet(root) {
+  const painting = [
+    ...tagsDeclaring((entry) => entry["x-paints"]),
+    `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
+  ].join(", ");
+  for (const el of root.querySelectorAll(painting)) quietWord(el, quietFacts(el));
 }
 
 // Anything a mouse can scroll, a keyboard can reach. A `pre` too wide for the column
@@ -1214,12 +1280,19 @@ style.textContent = `
      spelled here: the platform's element, and the attribute offer() writes on a span. */
   /* Words for a reader listening, silent on screen: real text, the one thing every
      screen reader announces in every mode, clipped to nothing where paint already says
-     the same fact to the eye. Worn with .lf-ui by a widget's status word (lf-task,
-     lf-milestone), since an invisible word is apparatus the anchor pass must not offer
-     — a quote resolved into a clipped box would paint a mark nobody can see. Out of
-     flow, so it holds no room; the covered-words gate skips this class the way it
-     skips the runtime's own .lf-mark-note, whose clip this is. */
-  .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+     the same fact to the eye (renderQuiet, and lf-code's highlighted lines). Worn with
+     .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
+     quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
+     so it holds no room; the covered-words gate skips this class the way it skips the
+     runtime's own .lf-mark-note, whose clip this is.
+
+     And out of the selection, which the clip does not do on its own: a word standing
+     among the page's own words is inside any selection drawn across them, so the
+     runtime's reading skipped it and the user's clipboard did not — a copied task line
+     came away carrying the word "done", and a copied code block would carry
+     "highlighted" into whatever editor it was bound for. .lf-mark-note answered this
+     the day it was written; the clip it shares had not. */
+  .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; user-select: none; -webkit-user-select: none; }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -2580,11 +2653,13 @@ function msgNode(m) {
     } else {
       body.innerHTML = renderMarkdown(m.text);
       // The widget markup beside the text, injected as the CLI gate validated it.
-      // Already-defined widgets upgrade on insertion; these two passes don't come
-      // along with them — the said pass writes a widget's declared words, and a
-      // fenced block is a <pre><code class="language-…"> like any the page holds.
+      // Already-defined widgets upgrade on insertion; the passes below don't come
+      // along with them — the said and quiet passes write a widget's declared words,
+      // spoken and silent, and a fenced block is a <pre><code class="language-…">
+      // like any the page holds.
       if (m.markup) body.insertAdjacentHTML("beforeend", m.markup);
       renderSaid(body);
+      renderQuiet(body);
       // Not settle()d: that queue holds the page's geometry still for the first anchor
       // pass, and a message colors in the panel, where no anchor is captured and nothing
       // waits. Each block already fails soft to its own plain source.
@@ -6498,6 +6573,13 @@ function applyActions() {
     // them lands, ask again.
     Promise.allSettled(started.map((a) => a.finished)).then(refreshAim);
   }
+  // Beside paintPending, and outside the `applied` gate above, because the two facts
+  // this speaks arrive by different doors: a status a report moved is a widget the pass
+  // applied, and a retraction is painted by the pass that *declines* to apply one, which
+  // never marks itself as having written. Free to run every poll because the writer is
+  // idempotent — it re-reads nothing to whoever is listening unless the word or its seat
+  // has actually moved.
+  renderQuiet(document.body);
   paintPending();
   // Every action and report in the log is now decided (applied, skipped, or
   // retired), and the stamp says so — it is what version check --render awaits

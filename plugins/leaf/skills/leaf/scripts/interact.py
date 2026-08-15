@@ -180,6 +180,22 @@ vocabulary for rides in the custom keywords below:
                 The runtime renders them as real text there, because a user
                 can only quote what a text node holds — the theme's matching
                 `content: attr()` is the same words for a page with no script.
+    x-paints    attributes whose value the theme renders as paint and no words — a
+                task's status marker, an event's kind, the ring on a recommended
+                option. The runtime speaks each as a word clipped to nothing
+                (renderQuiet), the value itself or, for a flag attribute carrying
+                none, the attribute's own name. Declared per attribute rather than
+                taken for every painted one, because paint that merely emphasises
+                the words beside it — a chip's tone — would be the same fact said
+                twice to whoever is listening.
+                What it cannot reach is a painted fact whose meaning is computed
+                rather than stated: lf-metric's `direction` means better or worse
+                only crossed with the sign of `delta`, and "up-good" said aloud is
+                nothing. Declaring that would be a rule in the registry rather than
+                a name, and buying it with a module would cost lf-metric more than
+                it bought — an upgraded element with no x-verbatim is opaque to
+                quoting, so the caption would stop being something the reader can
+                point at to gain a word they can already infer from the number.
     x-refers    attributes whose values name another element on the page. The
                 reader follows one, so `version check` holds each to an id the
                 version actually carries; a reply's fragment is exempt, having no
@@ -549,6 +565,15 @@ EXTENSION_SCHEMA = {
         # the element's own <pre>, or its holder's (lf-note's `at` names a line of
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
+        },
+        # Attributes the theme renders as paint alone — a status marker's tint, an
+        # event's kind, the ring on the recommended option. The runtime speaks each as
+        # a clipped word (renderQuiet), the value or, where a flag carries no value,
+        # the attribute's own name.
+        "x-paints": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "minItems": 1,
@@ -3946,6 +3971,12 @@ def version_review_mode(page_dir: Path, version: int):
 # Retirement drops and rewriting substitutes rather than fencing, because that is what
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
 # in both of these it knows exactly.
+#
+# x-paints is the key that writes into an upgraded element and belongs in none of this.
+# Its word is clipped to nothing and marked as the runtime's (.lf-quiet, .lf-ui), so the
+# browser's own reading of the page skips it exactly as this one never sees it: the two
+# readings agree by both being silent, and a fence would be room reserved for words no
+# reader on either side can reach.
 
 # The collapse class, stated outright: the characters a whitespace run is made of, one
 # spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
@@ -4889,6 +4920,10 @@ def validate_registry(registry: dict, source) -> dict:
         if unknown := sorted(set(entry.get("x-refers", [])) - set(properties)):
             raise RegistryError(
                 f"{path}: <{tag}> x-refers names undeclared attributes {unknown}"
+            )
+        if unknown := sorted(set(entry.get("x-paints", [])) - set(properties)):
+            raise RegistryError(
+                f"{path}: <{tag}> x-paints names undeclared attributes {unknown}"
             )
         tone = entry.get("x-tone")
         if tone and tone not in properties:

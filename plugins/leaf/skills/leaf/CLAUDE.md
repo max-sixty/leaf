@@ -363,6 +363,40 @@ away; no chrome marker, so the anchor pass doesn't — and `data-lf-said` beyond
 where something else reads it: the theme keys the column heading's look on it, the chip
 row has a class of its own.
 
+The rule has a third edge, where the page states a fact in no words at all. A task's
+status marker, a milestone's dot, an event's kind band, the ring around the recommended
+option: each is a sentence to the eye and silence to whoever is listening, who gets every
+word around the fact and never the fact — `done` sounded exactly like `blocked`, and the
+page's own recommendation, which is most of what a decision page is for, reached the
+reader with the least other way to find it not at all. Two widgets had answered it
+privately and identically, lf-task and lf-milestone each hand-copying a clipped status
+word, which is the shape that says the decision belongs in the registry rather than in a
+module: `x-paints` names the attributes a widget renders in paint alone and one pass
+speaks them (`renderQuiet`), so the two widgets here that have no module at all are
+covered, and so is whichever the twelfth turns out to be. The word is the value, or a
+flag attribute's own name, which is the whole of what its ring says. The runtime's own
+restatement outline goes through the same door, being the same failure under a different
+owner: a decision undone looks exactly like one never made, and the mark that exists to
+state the difference stated it in ink only.
+
+Where the fact is the element rather than one of its attributes, the declaration has
+nothing to name and the module says it, the way a module writes the words a pseudo-element
+could not have reached. A suggestion's two slots are told apart by a strike and two tints
+and by nothing else, so a screen reader read the sentence twice and contradicted itself
+— worst on an insert- or delete-only change, where the emphasis stands down and the tint
+is the whole story, and a listener hears one perfectly ordinary sentence. `lf-suggestion`
+writes `deletion` and `insertion`, and retires them with the marks when a decision
+settles, because a settled slot is prose and there is no longer a change to announce.
+
+Said, and therefore clipped to nothing, out of the flow, and out of the selection. This
+is not the page's words but a reading of the page's paint, so the anchor pass must not
+offer it — a quote resolved into a clipped box paints a mark nobody can see — and the
+clipboard must not carry it, which the clip does not do on its own: a word standing among
+the page's words is inside any selection drawn across them, so a copied task line came
+away carrying `done` long after the runtime's own reading had learned to skip it. Both
+readings being silent is what keeps the file's reading and the page's in agreement
+without a fence.
+
 A control that says one of those words is never a `<button>`. Chrome starts no pointer
 selection inside a form control — not with `user-select: text`, and not on a span nested
 inside one, which is what the plan this replaced assumed would work — so the words are on

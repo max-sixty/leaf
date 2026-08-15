@@ -129,13 +129,14 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * slots ask it: any child that is not phrasing content stacks the group, so a
  * widget from any layer is covered without being named — the enumeration this
  * replaces listed fifteen widgets and would have missed the sixteenth. A test
- * pins the two copies of the phrasing list to each other. */
+ * states HTML's phrasing content once and holds both copies of the list to it,
+ * so neither can drift from the platform or from the other. */
 lf-options:has(> lf-option > strong),
 lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
-    label, map, mark, math, meter, noscript, object, output, picture, progress, q,
-    ruby, s, samp, script, select, slot, small, span, strong, sub, sup, svg, template,
-    textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
+    label, link, map, mark, math, meta, meter, noscript, object, output, picture,
+    progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
+    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
   display: block;
   & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
   & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }
@@ -639,13 +640,13 @@ lf-milestone[status="blocked"]::before { background: var(--danger); border-color
 lf-milestone > strong { display: block; margin: 0 0 2px; }
 lf-milestone[status="done"] > strong { color: var(--muted); }
 .lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
-/* The status word lf-task and lf-milestone write for a reader listening wears the
- * runtime's .lf-ui .lf-quiet — real text, clipped on screen where the dot already
- * says it. lf-event's kind stays paint alone, deliberately: those two widgets
- * already carry a module (and the fence an upgrade brings) for their chip rows,
- * where speaking a kind would cost the timeline its first module and put a fence
- * between events a reader quotes across — and an event's meaning is in its title's
- * own words. */
+/* The status word a reader listening gets wears the runtime's .lf-ui .lf-quiet —
+ * real text, clipped on screen where the dot already says it. Which attributes get
+ * one is declared (x-paints) and the writing is the runtime's own pass, so
+ * lf-event's kind is spoken here too. It was left silent while these two spoke, on
+ * the reading that saying it meant giving the timeline its first module and the
+ * quoting fence an upgrade brings with it — which was true of the answer being
+ * copied and not of the question. A declaration costs neither. */
 
 /* lf-tasks / lf-task: a hierarchy of work. The indent guides and status
  * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's

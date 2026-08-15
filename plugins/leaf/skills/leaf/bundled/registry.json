@@ -42,6 +42,7 @@
     "x-parent": ["lf-options"],
     "x-content": "prose",
     "x-refers": ["for"],
+    "x-paints": ["recommended"],
     "x-upgrade": false
   },
   "lf-chip": {
@@ -82,6 +83,7 @@
     "additionalProperties": false,
     "x-parent": ["lf-milestones"],
     "x-content": "prose",
+    "x-paints": ["status"],
     "x-upgrade": true
   },
   "lf-tasks": {
@@ -110,6 +112,7 @@
     "additionalProperties": false,
     "x-parent": ["lf-tasks", "lf-task"],
     "x-content": "prose",
+    "x-paints": ["status"],
     "x-upgrade": true,
     "x-awaits": {"when": {"status": ["review", "blocked"]}},
     "x-report": {
@@ -144,6 +147,7 @@
     "x-parent": ["lf-timeline"],
     "x-content": "prose",
     "x-says": {"at": "before"},
+    "x-paints": ["kind"],
     "x-upgrade": false
   },
   "lf-compare": {

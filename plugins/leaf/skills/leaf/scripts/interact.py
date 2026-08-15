@@ -984,7 +984,7 @@ def lifetime_note(page_dir: Path, lifetime: str) -> str:
     )
 
 
-def stop_when_session_ends(httpd: ThreadingHTTPServer, page_dir: Path) -> None:
+def stop_when_session_ends(httpd: "LeafHTTPServer", page_dir: Path) -> None:
     """Stop a session-managed server once the page's current claimant is gone.
 
     Read the claim afresh on every pass: another live session may take over the
@@ -2346,7 +2346,25 @@ def cmd_media(page_dir: Path, files: list) -> list:
     return out
 
 
-class DualStackHTTPServer(ThreadingHTTPServer):
+class LeafHTTPServer(ThreadingHTTPServer):
+    """Every page leaf serves — a session server, a preview, a test's fixture —
+    is served from here, so the suite drives the server the product answers on.
+
+    The one thing it states is how deep the kernel may queue connections the
+    accept loop has not reached yet. `socketserver` says five, and a queue that
+    overflows does not hold the sixth caller back. Linux drops the handshake's
+    last packet, the client posts into a connection this side has already
+    forgotten, and the reset that comes back reaches the reader as a send that
+    went nowhere. Five is reachable: test_concurrent_posts_never_tear_the_log
+    sends twenty at once to ask about the append itself, and on an emulated
+    Linux box a quarter of them were reset before the log was ever the
+    question. Nothing here wants a shallower queue than the kernel will hold,
+    so the number is the kernel's own."""
+
+    request_queue_size = socket.SOMAXCONN
+
+
+class DualStackHTTPServer(LeafHTTPServer):
     """For a bind with ":" in it. The stated-host wildcard is "::" with V6ONLY
     off, which answers IPv4 too (as ::ffff:...), so the URL is reachable
     whichever family the stated name resolves to; a derived IPv6 address just
@@ -2403,7 +2421,7 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
     )
     token = host_key()
     base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
-    server_cls = DualStackHTTPServer if ":" in access["bind"] else ThreadingHTTPServer
+    server_cls = DualStackHTTPServer if ":" in access["bind"] else LeafHTTPServer
     httpd = None
     # A recorded port is bound exactly: the contract of access.json is that a
     # restart reproduces the URL an open browser is already polling, and a port
@@ -7086,7 +7104,7 @@ def preview_server(page_dir: Path, version: int):
     # would sign a reader out of every page on 127.0.0.1 — except that both
     # callers below drive Playwright, whose browser brings its own jar.
     token = secrets.token_urlsafe(16)
-    httpd = ThreadingHTTPServer(
+    httpd = LeafHTTPServer(
         ("127.0.0.1", 0), handler_for(page_dir, token, preview_upto=version)
     )
     threading.Thread(target=httpd.serve_forever, daemon=True).start()

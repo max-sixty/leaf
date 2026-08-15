@@ -50,6 +50,25 @@ the level of the widget in front of it rather than the level the problem is gene
 What a module still owes is the state the layer cannot see — an open editor is a live
 gesture no send accounts for, so `applyAction` returns `false` for that.
 
+## The page finishes twice, and the second time is the log's
+
+`lf-upgraded` is the document's word for being done: widgets upgraded, the async ones
+settled, the geometry and the drawn SVG final. The runtime writes it in the same breath
+as it *starts* the first poll and never awaits that poll, so the stamp is no statement
+about the log at all. `lf-applied` is the other half, written at the end of every replay
+pass, and its presence is the page saying it has heard the log and rendered what the log
+holds — which version is newest, what the reader has decided, what has been asked.
+
+Anything meaning "the page is ready" wants both, and the gap between them is one fetch
+wide, which is why it keeps being missed. `version export` missed it on a log holding a
+single report and copied the page blank; the suite missed it at its own front door until a
+loaded Linux runner dropped three keypresses into pages that had nothing yet to answer
+them.
+
+Nothing collapses the two, because they answer to different things. The document's stamp
+owes nothing to the network — a page whose server never answers has still finished
+becoming itself, and says so.
+
 ## Derive rendering from state; never read it back
 
 `composerOpen`, `fabAnchor`, `diffBase` are the state. `style.display` is a rendering of

@@ -9,6 +9,12 @@
 #
 # Needs a Docker daemon that can run linux/amd64 (linux-suite.Dockerfile says why). On
 # Apple silicon that is `colima start --vm-type vz --vz-rosetta`.
+#
+# Size that VM for the suite rather than for a shell. Eight workers each drive a Chrome,
+# and on four emulated CPUs with 8GiB they crash tabs outright (`Target crashed`) and
+# push the heaviest examples past the thirty seconds a wait gives an upgrade — both of
+# which read as the product failing and neither of which is. `--cpu 8 --memory 16` on
+# that same `colima start` is what leaves a red here worth chasing.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

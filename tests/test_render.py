@@ -44,7 +44,6 @@ import time
 import zlib
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -421,7 +420,9 @@ def serve(tmp_path, monkeypatch):
                     "anchor": {"section": section, "quote": quote},
                 },
             )
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), interact.handler_for(d, TOKEN))
+        httpd = interact.LeafHTTPServer(
+            ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
+        )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         go.page_dir = d  # for tests that publish a v2 or read the event log
@@ -578,14 +579,26 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` is the page's own stamp for having finished: widgets upgraded, the anchor
-    pass run, and with it the Comment button able to answer a selection at all. Waiting on
-    the banner instead says only that the runtime's module evaluated, which happens long
-    before — so a test that reads without an auto-retrying wait is racing the upgrade, and
-    on a loaded machine loses. The passage sweep lost it on the gallery, the heaviest page
-    here: its first selection raised no button, and what it reported was a passage it had
-    not tested rather than one that failed. False is for the one test whose subject is that
-    interval, which holds the registry fetch open and so never earns the stamp."""
+    `upgraded` is the page's own two stamps for having finished, and it takes both
+    because the page is two halves. `lf-upgraded` is the document's: widgets upgraded,
+    the anchor pass run, and with it the Comment button able to answer a selection at
+    all. Waiting on the banner instead says only that the runtime's module evaluated,
+    which happens long before — so a test that reads without an auto-retrying wait is
+    racing the upgrade, and on a loaded machine loses. The passage sweep lost it on the
+    gallery, the heaviest page here: its first selection raised no button, and what it
+    reported was a passage it had not tested rather than one that failed.
+
+    `lf-applied` is the log's half, written at the end of every replay pass, so its
+    presence is the page saying a poll has landed and been rendered in full. The runtime
+    starts that first poll in the same breath as it stamps the document and never awaits
+    it, so a page can be done becoming itself while still knowing nothing of what the
+    reader has decided or which version is newest. This machine closes that gap during
+    `networkidle` and a dockerised Linux runner did not, which is how it surfaced — as
+    three tests losing a keypress, out of the twenty-two that were standing on it. So the
+    wait is here, where every page is opened, and not in the three that noticed.
+
+    False is for the one test whose subject is that interval, which holds the registry
+    fetch open and so never earns the stamp."""
     page = (
         context.new_page()
         if context
@@ -611,6 +624,7 @@ def open_page(
     page.goto(url, wait_until=wait_until)
     page.wait_for_function(
         "() => document.body.dataset.lfUpgraded === '1'"
+        " && document.body.dataset.lfApplied !== undefined"
         if upgraded
         else "() => document.querySelector('.lf-banner') !== null"
     )
@@ -2090,7 +2104,9 @@ def live_leaf(tmp_path, monkeypatch):
                 "ts": interact.now_iso(),
             },
         )
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), interact.handler_for(d, TOKEN))
+        httpd = interact.LeafHTTPServer(
+            ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
+        )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         port = httpd.server_address[1]
@@ -12205,6 +12221,42 @@ def test_the_version_diff_answers_a_key_beside_the_version_pair(browser, serve):
     expect(page.locator(".lf-version-menu")).to_be_visible()
     assert errors == []
     page.close()
+
+
+def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
+    """`open_page` promises a page that has finished becoming itself, and the log is half
+    of what that means. The instrument is a refusal of the first `/api/state`. Replay then
+    lands on the 2s retry, past both the document's stamp and networkidle, which is where
+    a loaded Linux runner put it — so this press meets the same page those runs handed the
+    test above, on any machine and in a second.
+
+    Only a press can state it. A read lives through the interval, since `expect` re-asks
+    for five seconds and the retry lands in two; a keystroke into a page that has no
+    versions yet is gone, and the diff never opens."""
+    url = serve(LONG_PAGE)
+    _publish(
+        serve.page_dir,
+        2,
+        LONG_PAGE.replace("Paragraph 3.", "Paragraph three."),
+        "reworded a paragraph",
+    )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light"
+    )
+    polls = itertools.count()
+    context.route(
+        "**/api/state*",
+        lambda route: refuse(route) if next(polls) == 0 else route.continue_(),
+    )
+    try:
+        page, errors = open_page(
+            browser, url.replace("v1.html", "v2.html"), context=context
+        )
+        page.keyboard.press("=")
+        expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
+        assert errors == []
+    finally:
+        context.close()
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):

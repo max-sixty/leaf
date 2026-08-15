@@ -154,6 +154,14 @@ genuinely busy one rather than on demand. That is what a clean runtime cost, and
 for by the waits above being right — a wait consumes a fact the system states, and there is
 no longer anything behind that rule to catch a wait that doesn't.
 
+The luck came, and it found the front door. `open_page` waited for the document's stamp
+and not the log's, so the page it handed over had heard nothing the log says. This machine
+closes that gap inside `networkidle`; a dockerised Linux runner did not, and three tests
+lost a keypress into a page with nothing yet to answer it. All three were presses, since a
+press is the read with no second chance — `expect` re-asks for five seconds, a keystroke is
+gone. So `open_page` waits for `lf-applied` as well, and the section below is how the rest
+of that fault was found without waiting for another busy machine.
+
 ## A race this machine won't lose is stated rather than run for
 
 Two picks a moment apart reached the log reversed on a CI runner, twice, and neither this
@@ -174,6 +182,20 @@ flight is the mechanism and the order is what it is for — but that order is th
 runner tossed, coming out right on any run where the second send hadn't been appended yet.
 The deterministic half is what catches the regression; the other half is what says the
 first half was worth having.
+
+A refusal states the other timing a busy machine supplies. Where the send race needs one
+request held in the wire, a page that has not heard the log needs the first `/api/state`
+stopped: replay then lands on the 2s retry, past both the upgrade stamp and networkidle,
+which is where a loaded machine puts it (`test_a_page_the_suite_opens_has_read_the_log`).
+
+Refusals are cheap enough to run over everything, which is worth doing when the fix is at
+the front door rather than in one test. Refuse the first poll of every page `open_page`
+makes — five lines, thrown away afterwards, since a permanent one would be a second path
+through the harness and this has one — and the suite says how far the fault reached.
+Twenty-two tests failed without the log's stamp waited for and passed with it, ten of them
+the press sweep and the rest panels, scroll regions, the version menu and the diff. The
+runner had named three of the twenty-two, which is all a red on a busy machine ever buys —
+it samples what stands on a missing wait rather than bounding it.
 
 ## A test cannot assert over noise it makes itself
 

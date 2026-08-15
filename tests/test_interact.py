@@ -21,7 +21,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from http.server import HTTPServer, ThreadingHTTPServer
+from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
@@ -4250,7 +4250,9 @@ TOKEN = "test-page-key"
 @pytest.fixture
 def server(page_dir):
     """A real HTTP server over the page directory, on an ephemeral port."""
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), interact.handler_for(page_dir, TOKEN))
+    httpd = interact.LeafHTTPServer(
+        ("127.0.0.1", 0), interact.handler_for(page_dir, TOKEN)
+    )
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -4966,7 +4968,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
     key = interact.host_key()
 
     servers = [
-        ThreadingHTTPServer(("127.0.0.1", 0), interact.handler_for(directory, key))
+        interact.LeafHTTPServer(("127.0.0.1", 0), interact.handler_for(directory, key))
         for directory in (page_dir, second)
     ]
     for httpd in servers:

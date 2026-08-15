@@ -3621,8 +3621,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         f"scoped chrome rules reached an element in the page: {surface['moved']}"
     )
     # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container, which is exactly why a scoped rule could not reach it.
+    # inside its own container, which is exactly why a scoped rule could not reach it —
+    # except the last, which is worn by nothing and is here for the other half of the
+    # sentence. lf-copy is the medium `version export` marks on the root, and the runtime
+    # names it under a negation to withhold the live page's scroller from a file that has
+    # no panel to scroll beside; a rule that dresses no element can leak onto none, and
+    # what the pin is for is the day one of these stops being either kind.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
+        "lf-copy",
         "lf-ui",
         "lf-btn",
         "lf-pill",
@@ -4908,6 +4914,61 @@ def test_a_pick_states_the_whole_set(browser, serve):
         ("bracket", {"options": ["br-cedar"]}),
         ("bracket", {"options": []}),
     ]
+    assert errors == []
+    page.close()
+
+
+def test_a_send_waits_for_the_send_before_it(browser, serve):
+    """The log's order is the order the user acted in, and two requests in flight are
+    not: the server answers each on a thread of its own, so a pick made a moment after
+    another can be appended before it. That is the drift the test below is about,
+    arriving through the log this time rather than through a poll — and arriving where
+    nothing heals it, since replay states a widget whole and every later reading of the
+    page is of the log it left.
+
+    It reached CI before it was ever seen here, on the test above: two clicks three
+    lines apart landed reversed on a loaded runner, twice, while two dozen runs of that
+    same sequence in the dockerised Linux suite never once managed it. So the race is
+    stated rather than run for. The first send is stopped in the wire and the second
+    click made while it is still there, which is the whole of a loaded machine's
+    contribution; what the page does about that click is the instrument, since it paints
+    a pick before it sends and so has already done whatever it was going to do about
+    sending by the time the paint is readable.
+
+    Both halves are asserted and only one of them is the gate. One request in the wire
+    is a fact about this page on every run, so it is what goes red the moment the queue
+    does; the log's order after the release is the outcome the queue is for, and on its
+    own it would be the same coin the runner tossed — a second send already appended
+    beats the release, and one still in flight doesn't."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    held = []
+
+    def hold(route):
+        # The first send is stopped where the server cannot take it, and everything
+        # after it goes through — so with the queue gone the second pick reaches the log
+        # first, and releasing the first pick appends it on top of the newer one.
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/event", hold)
+    page.locator("#br-steel").click()
+    _until(page, lambda t: t.sends >= 1)
+    page.locator("#br-cedar").click()
+    expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
+    assert _traffic(page).sends == 1, (
+        "a second send went out over the first, so which of the two the server appends "
+        "first is the machine's answer rather than the reader's"
+    )
+
+    held[0].continue_()
+    round_trip(page)
+    assert [
+        e["detail"]["options"]
+        for e in sent_events(serve.page_dir)
+        if e.get("action") == "choose"
+    ] == [["br-steel"], ["br-cedar"]]
     assert errors == []
     page.close()
 

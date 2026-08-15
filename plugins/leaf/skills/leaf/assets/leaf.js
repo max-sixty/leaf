@@ -1014,9 +1014,29 @@ style.textContent = `
      --disable-features=OverlayScrollbar brings a room-taking one back). It is kept
      on the platforms where scrollbars do take room, which is most of them, and on
      the reasoning that reserving a gutter never costs more than the shift not
-     reserving it produces. Nothing in the suite pins it; there is nothing here to
-     pin it with. */
-  html { height: 100%; overflow: hidden; }
+     reserving it produces.
+
+     All of it is the live page's, and it is withheld from the other two media the way
+     every other affordance is. A copy has no panel to sit beside and no session to
+     grow in, and it carried the whole arrangement anyway: body scrolled it, reserving
+     a gutter against a change that can no longer happen and holding 54px of scroll
+     padding under a banner the file hasn't got — so wherever a scrollbar takes room
+     the copy's column sat 7.5px left of the centre of a page it had all of. Nothing
+     on this machine could say so, the declarations being no-ops here; the runner said
+     it, on all ten examples at once. That is what pins this now
+     (test_an_exported_example_stands_on_its_own, and scripts/linux-suite.sh is where
+     to watch it fail), and paper needs no rule of its own, never having been handed
+     the arrangement to undo. Spelled :where(), because these declarations are the only
+     statement their properties get and the plain form would hand every one of them a
+     class the body rule below never had. */
+  @media screen {
+    :where(html:not(.lf-copy)) {
+      height: 100%;
+      overflow: hidden;
+      body { height: 100%; overflow-y: auto; scrollbar-gutter: stable;
+             scroll-padding-top: calc(var(--lf-banner-h) + 12px); }
+    }
+  }
   /* position: relative makes body — the scroll container — the containing block for
      the two floats that point into the document (the 💬 button and the composer), so
      the browser scrolls them with the passage they stand beside. */
@@ -1035,8 +1055,7 @@ style.textContent = `
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
   body { --lf-banner-h: 42px; --lf-ui-lh: 1.45; }
-  body { position: relative; box-sizing: border-box; height: 100%; overflow-y: auto;
-         scroll-padding-top: calc(var(--lf-banner-h) + 12px); scrollbar-gutter: stable; }
+  body { position: relative; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
      can follow the sentence it was reading to where it went. Keyed on the stamp that
      says the document is done becoming itself, because until then every margin the
@@ -1046,7 +1065,6 @@ style.textContent = `
      The stamp lands at the end of the start chain, long after the restore. Reduced
      motion is handled globally by the theme's guard. */
   body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] { transition: margin-right .18s ease; }
-  @media print { html, body { height: auto; overflow: visible; } }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
      runtime marks the page's own elements (lf-mark-el, lf-ins-block). Adding one
@@ -2227,13 +2245,33 @@ function showToast(msg, onClick) {
 // thread or message it just created, which is what revealThread is handed — or null
 // when the send failed. The poll is awaited before returning, so by the time a caller
 // holds the minted event the panel has already rendered it.
+//
+// One send at a time, because the log's order is the order the user acted in and two
+// requests in flight are not: the server answers each on a thread of its own, so a pick
+// made a moment after another can be appended before it. Replay states a widget whole,
+// so the log read back then hands the reader the older decision as their standing state
+// and the gesture after that computes from it — the very drift the poll's own ordering
+// is written around, arriving through the log instead. It cost two CI runs: two clicks
+// three lines apart in a test reached the log reversed on a loaded runner, where two
+// dozen tries under the dockerised Linux suite never once managed it.
+//
+// The page has already painted the gesture (sendAction), so nothing the reader is
+// looking at waits on this — what waits is the next event's request, until this one has
+// been taken. A failed send is not a queue that stops: the turn passes on whatever the
+// fetch did. And only the send is ordered; the poll each one ends with is a read, and no
+// fact about the log turns on when a read lands.
+let taken = Promise.resolve();
 async function post(event) {
-  try {
-    const res = await fetch("/api/event", {
+  const mine = taken.then(() =>
+    fetch("/api/event", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
-    });
+    }),
+  );
+  taken = mine.catch(() => {});
+  try {
+    const res = await mine;
     if (!res.ok) throw new Error(await res.text());
     const { event: minted } = await res.json();
     await poll();

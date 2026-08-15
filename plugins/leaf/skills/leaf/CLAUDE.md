@@ -33,6 +33,16 @@ makes replay converge, and it says nothing about *when* — an action recorded b
 click can still be applied after it, which is what a loaded machine does to a page's own
 polls.
 
+All of that rests on the log holding the gestures in the order they were made, which the
+page owes and the wire does not give: the server answers each request on a thread of its
+own, so two sends in flight are appended in whichever order they arrive, and a pick
+overtaken by the one after it is a decision the reader never made standing as their
+state. So `post` sends one at a time — every event goes through that one door — and the
+page having already painted is what makes the wait free. CI found it twice on the same
+test, and neither this machine nor the dockerised Linux suite reproduced it in two dozen
+tries, so the gate that holds it states the race rather than running for it: the first
+send is stopped in the wire and the second click made while it is still there.
+
 The hold is the layer's, in `sendAction`'s record of what is in flight, and no module
 writes one. `lf-draft` did, privately (`#sending`), and was the only widget that had it:
 right for drafts, and missing from every pick and every drag, because it was written at
@@ -766,6 +776,17 @@ is written `:where(html:not(.lf-copy))`, because the plain form hands every rule
 class and an element it did not have. `lf-specimen` unkeys the choose group's hand and lift
 selector by selector, and a guard carrying that extra weight outranked the lot — putting
 the hand back on an exhibit quoted precisely so as not to offer one.
+
+The guard is the medium's and not the widgets', so the runtime's own furniture goes
+inside it too. The document scrolls body rather than the viewport because the panel needs
+the room beside it, and the copy — which has no panel, and no session to change in —
+carried the whole arrangement out with it: a stable gutter reserved against a growth that
+can no longer happen, and scroll padding held under a banner the file hasn't got. It
+showed as this norm's own subject in a place no widget could be blamed for: the column of
+every exported page sitting 7.5px off the centre of a page it had all of. A Linux runner
+is what said so, macOS drawing overlay scrollbars that reserve nothing — which is the
+second half of it. A live-page rule whose cost is a no-op on this machine goes under the
+guard when it is written, because the platform that can see the cost is CI.
 
 ## The chrome's rules stay inside the chrome
 

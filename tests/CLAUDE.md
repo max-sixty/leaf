@@ -154,6 +154,27 @@ genuinely busy one rather than on demand. That is what a clean runtime cost, and
 for by the waits above being right — a wait consumes a fact the system states, and there is
 no longer anything behind that rule to catch a wait that doesn't.
 
+## A race this machine won't lose is stated rather than run for
+
+Two picks a moment apart reached the log reversed on a CI runner, twice, and neither this
+machine nor `scripts/linux-suite.sh` reproduced it in two dozen runs of the same
+sequence: the window is one request's flight, and a machine quick enough closes it before
+the next click. Running for it again is a rate to hope for, not a gate.
+
+`page.route` holds the window open instead. A handler that keeps its route and returns
+leaves that request in the wire — the server has not taken it and cannot — so the gesture
+after it is made under exactly the condition the runner supplied, and `route.continue_()`
+later releases it. What that buys is a fact the page states on every run rather than on a
+loaded one: with the send queue gone, the second gesture's request goes out over the held
+first, and `Traffic.sends` says so before anything has to be timed.
+
+The outcome is then asserted after the release, and it is not the gate.
+`test_a_send_waits_for_the_send_before_it` reads the log's order too, since one request in
+flight is the mechanism and the order is what it is for — but that order is the coin the
+runner tossed, coming out right on any run where the second send hadn't been appended yet.
+The deterministic half is what catches the regression; the other half is what says the
+first half was worth having.
+
 ## A test cannot assert over noise it makes itself
 
 `page.route` stops a request from outside the page, and what the browser then says about

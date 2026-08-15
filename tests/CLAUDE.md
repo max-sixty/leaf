@@ -197,6 +197,13 @@ the press sweep and the rest panels, scroll regions, the version menu and the di
 runner had named three of the twenty-two, which is all a red on a busy machine ever buys —
 it samples what stands on a missing wait rather than bounding it.
 
+The front door was not the only door. `open_page` grew the log's stamp and the nine other
+places a test navigates for itself did not, each having the predicate spelled out by hand,
+which is what one `BOTH_STAMPS` is now for. Pointed at the press sweep's own reload, the
+same refusal fails every one of the thirteen examples outright: the version chooser and the
+live-pages button are drawn from a poll's answer and Comments has no count until one
+lands, so the list of controls comes back short and the sweep's own count guard says so.
+
 ## A test cannot assert over noise it makes itself
 
 `page.route` stops a request from outside the page, and what the browser then says about

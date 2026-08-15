@@ -609,6 +609,27 @@ def refuse(route):
     route.abort("aborted")
 
 
+# Both stamps a page earns by finishing, which is what anything meaning "this page is
+# ready" wants. `lf-upgraded` is the document's — widgets upgraded, the anchor pass run,
+# the geometry final — and `lf-applied` is the log's, written at the end of every replay
+# pass, so its presence is the page saying a poll has landed and been rendered in full.
+# The runtime stamps the document in the same breath as it starts that first poll and
+# never awaits it, so a page can be done becoming itself while knowing nothing of what
+# the reader has decided or which version is newest.
+#
+# One predicate, because it was spelled out in eleven places and only the one that
+# noticed ever grew the second half. `open_page` took it when a loaded Linux runner
+# dropped three keypresses into pages with nothing yet to answer them; every navigation a
+# test makes for itself kept waiting on the document alone. What that leaves out is not a nicety of
+# the log: the version chooser and the live-pages button are drawn from a poll's answer
+# and Comments has no count until one lands, so a page at the document's stamp is a page
+# whose banner the reader would not recognize.
+BOTH_STAMPS = (
+    "() => document.body.dataset.lfUpgraded === '1'"
+    " && document.body.dataset.lfApplied !== undefined"
+)
+
+
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     """A navigation ends a trip the browser reports for neither kind, and the
     counters must say so or every later wait on this page runs its timeout out.
@@ -624,7 +645,6 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     # The console is not the subject here: a reload mid-post leaves Chrome's own
     # "Failed to load resource" behind, which is the navigation working.
     page, _ = open_page(browser, url)
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     def slow(route):
         if "/api/event" in route.request.url:
@@ -638,7 +658,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     )
     page.unroute("**/api/event")
     page.goto(url, wait_until="networkidle")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(BOTH_STAMPS)
     t = _traffic(page)
     assert t.acked >= t.sends, (
         f"a trip the navigation ended was never counted: sends={t.sends} "
@@ -663,26 +683,17 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` is the page's own two stamps for having finished, and it takes both
-    because the page is two halves. `lf-upgraded` is the document's: widgets upgraded,
-    the anchor pass run, and with it the Comment button able to answer a selection at
-    all. Waiting on the banner instead says only that the runtime's module evaluated,
-    which happens long before — so a test that reads without an auto-retrying wait is
-    racing the upgrade, and on a loaded machine loses. The passage sweep lost it on the
-    gallery, the heaviest page here: its first selection raised no button, and what it
-    reported was a passage it had not tested rather than one that failed.
+    `upgraded` takes the page's own two stamps for having finished, `BOTH_STAMPS` above
+    saying what each of them answers for. Twenty-two tests stood on the pair the day it
+    was written here, and a dockerised Linux runner had named three.
 
-    `lf-applied` is the log's half, written at the end of every replay pass, so its
-    presence is the page saying a poll has landed and been rendered in full. The runtime
-    starts that first poll in the same breath as it stamps the document and never awaits
-    it, so a page can be done becoming itself while still knowing nothing of what the
-    reader has decided or which version is newest. This machine closes that gap during
-    `networkidle` and a dockerised Linux runner did not, which is how it surfaced — as
-    three tests losing a keypress, out of the twenty-two that were standing on it. So the
-    wait is here, where every page is opened, and not in the three that noticed.
-
-    False is for the one test whose subject is that interval, which holds the registry
-    fetch open and so never earns the stamp."""
+    False is for the one test whose subject is the interval between them, which holds the
+    registry fetch open and so never earns either. It waits on the banner instead, which
+    says only that the runtime's module evaluated — long before the anchor pass has run,
+    and so before the Comment button can answer a selection at all. A test that reads
+    there without an auto-retrying wait is racing the upgrade and loses on a loaded
+    machine: the passage sweep lost it on the gallery, the heaviest page here, and what
+    it reported was a passage it had not tested rather than one that failed."""
     page = (
         context.new_page()
         if context
@@ -707,8 +718,7 @@ def open_page(
         url += ("&" if "?" in url else "?") + "pin"
     page.goto(url, wait_until=wait_until)
     page.wait_for_function(
-        "() => document.body.dataset.lfUpgraded === '1'"
-        " && document.body.dataset.lfApplied !== undefined"
+        BOTH_STAMPS
         if upgraded
         else "() => document.querySelector('.lf-banner') !== null"
     )
@@ -1477,12 +1487,14 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # according to how many times the sweep had toggled Comments.
             page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
             page.goto(url, wait_until="networkidle")
-            # The upgrade stamp, which the reload has to earn again: half these controls
-            # are the runtime's own, so a list read before it has injected them is a short
-            # list — and a short list skips by index rather than failing, which is how this
-            # sweep quietly stopped pressing the sign-off button between one run and the
-            # next.
-            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+            # Both stamps, which the reload has to earn again: half these controls are
+            # the runtime's own, and the last of them arrive with the log rather than
+            # with the upgrade. A list read before that is a short list, and a short list
+            # skips by index rather than failing, which is how this sweep quietly stopped
+            # pressing the sign-off button between one run and the next. It is the count
+            # below that says so out loud — refuse the first poll of each navigation here
+            # and every one of the thirteen examples fails on it.
+            page.wait_for_function(BOTH_STAMPS)
             dirty = False
             assert page.locator(PRESS).count() == total, (
                 f"{example.name} has a different set of controls after a reload, so the "
@@ -1765,7 +1777,7 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     page.keyboard.down("Alt")
     expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
     page.reload()
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(BOTH_STAMPS)
     expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
     expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
@@ -7138,7 +7150,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     assert published.exit_code == 0, published.output
     assert len(interact.read_events(d)[-1]["reports"]) == 2
     page.wait_for_url("**/versions/v2.html")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(BOTH_STAMPS)
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "active")
     expect(task).not_to_have_attribute("data-lf-reported", "1")
@@ -7639,7 +7651,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     with page.context.expect_page() as opened:
         live.click(modifiers=["ControlOrMeta"])
     tab = opened.value
-    tab.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    tab.wait_for_function(BOTH_STAMPS)
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();
                    return r.height > 0 && r.top >= 0 && r.bottom <= innerHeight; }"""
@@ -7695,7 +7707,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.evaluate("() => document.body.scrollTo({top: 1e6, behavior: 'instant'})")
     page.goto("about:blank")
     page.goto(f"{url}#p-bath")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(BOTH_STAMPS)
     page.wait_for_function(onscreen, arg="p-bath")
 
     # The reader moves on, so the fragment is stale by the reload that carries it. The
@@ -7703,7 +7715,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     # remembers its own panel, the same way the position is remembered here.
     page.evaluate("() => document.body.scrollTo({top: 1e6, behavior: 'instant'})")
     page.reload()
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(BOTH_STAMPS)
     page.wait_for_function(onscreen, arg="tail-end")
     assert errors == []
     page.close()
@@ -12083,7 +12095,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert "/v1.html" in page.url, "an empty live edit was mistaken for no composition"
 
     page.reload(wait_until="networkidle")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(BOTH_STAMPS)
     expect(draft.locator("textarea")).to_be_visible()
     expect(draft.locator("textarea")).to_have_value("")
 
@@ -12246,7 +12258,7 @@ def test_unsent_draft_recovery_belongs_to_its_tab(browser, serve):
         )
 
         second.reload(wait_until="networkidle")
-        second.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        second.wait_for_function(BOTH_STAMPS)
         expect(second_draft.locator("textarea")).to_be_visible()
         expect(second_draft.locator("textarea")).to_have_value("")
         events = [

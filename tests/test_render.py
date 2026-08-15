@@ -2413,7 +2413,7 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
     expect(help_el).to_contain_text("In the leaves panel")
-    expect(help_el).to_contain_text("walk the leaves")
+    expect(help_el).to_contain_text("Walk the leaves")
     assert errors == []
     page.close()
 
@@ -8410,6 +8410,177 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.close()
 
 
+def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
+    """One declaration per binding, and every surface is a projection of it — so a key
+    cannot be bound and go unnamed. `d` and `u` are the case that named this. They have
+    stepped half a page for as long as the runtime has had them and the reference has
+    always carried them, while the always-visible line never did: the line's word was an
+    optional field, and its absence read exactly like a decision not to show the key.
+
+    It is refused now, where a scope is declared, so the next binding written without a
+    word fails on the page that introduces it rather than going quiet on every page after
+    it. A row that presses nothing needs none — F7 is the browser's caret browsing, real
+    and worth knowing and not what the next press does."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    line = page.locator(".lf-keyline")
+    expect(line).to_contain_text("d / u")
+    expect(line).to_contain_text("half a page")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_contain_text("Half a page down / up")
+    expect(page.locator(".lf-help")).to_contain_text("Caret browsing")
+    page.keyboard.press("Escape")
+    expect(line).not_to_contain_text("F7")
+
+    refused = page.evaluate(
+        """async () => {
+          const { keys } = await import('/leaf.js');
+          try {
+            keys(document.body, 'A project scope', [
+              { keys: ['F2'], does: 'a press with nothing to say for itself',
+                run: () => {} },
+            ]);
+            return 'declared';
+          } catch (e) {
+            return e.message;
+          }
+        }"""
+    )
+    assert "no word for the key line" in refused, refused
+    assert errors == []
+    page.close()
+
+
+def test_the_register_is_the_only_way_a_key_enters_the_runtime():
+    """Every surface that names a key is a projection of the register, which holds only if
+    nothing binds a key behind its back. That is not a property a rendered page can be
+    asked about — a listener nobody declared looks exactly like no listener at all until
+    the press it eats goes missing — so it is pinned in the source, the way the
+    document-level class surface is.
+
+    Two are allowed and both are named here. The dispatcher is the register's own. The aim
+    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
+    what a click would take, and its keyup half has no place in a table of presses. A third
+    is how every drift this register replaced began — a `keydown` beside a display list,
+    the two of them free to disagree about which keys the widget answers."""
+    layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
+    sources = [
+        layer / "assets/leaf.js",
+        *sorted((layer / "bundled/widgets").glob("*.js")),
+    ]
+    listeners = [
+        f"{src.name}:{n}"
+        for src in sources
+        for n, line in enumerate(src.read_text().splitlines(), 1)
+        if 'addEventListener("keydown"' in line
+    ]
+    assert len(listeners) == 2, (
+        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
+        "register (keys(el, title, rows)), which is what lets a surface promise it."
+    )
+
+
+def test_the_reference_names_the_space_that_works_a_control(browser, serve):
+    """`offer` builds every press as a span wearing role="button", so the keys the
+    platform would have given a real button are the runtime's to supply — and it supplied
+    them through a listener no surface could see. Space activated nine classes of control
+    across core and five widgets, and exactly one of them said so anywhere.
+
+    The activation is a scope now, so the reference names it once for all of them, and a
+    widget whose press means more than "work this control" says so in its own words and
+    binds the same two keys. The grip is where that was wrong twice over: its handler
+    answered Space in both its states while both its declarations said Enter."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.keyboard.press("?")
+    help_el = page.locator(".lf-help")
+    expect(help_el).to_contain_text("On a control")
+    expect(help_el.locator("tr", has_text="Work the focused control")).to_contain_text(
+        "space"
+    )
+    expect(help_el.locator("tr", has_text="Grab the card")).to_contain_text("space")
+    page.keyboard.press("Escape")
+
+    # And the key does what the reference says it does.
+    grip = page.locator("lf-board .lf-grip").first
+    grip.focus()
+    page.keyboard.press(" ")
+    expect(page.locator(".lf-lift")).to_have_count(1)
+    expect(page.locator(".lf-keyline")).to_contain_text("drop")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-lift")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
+    browser, serve, live_leaf
+):
+    """A held key repeats keydown where a real button fires once. A walk wants that — j
+    down a list of threads, arrows down the board — and a press that toggles or navigates
+    does not: a held `]` was a page navigation per repeat, and a held pick a `choose` per
+    repeat, each of them one decision the reader made once. So a row says whether it
+    repeats and the default is no, where before only `offer`'s own listener had thought
+    about it and the global table had not.
+
+    No gesture Playwright makes carries the repeat flag, so the press is dispatched with
+    it set. That is the event a held key sends and the handler under test is the one the
+    page installed; the tap below it, dispatched the same way and answered, is what says
+    so rather than leaving the held press to pass for want of reaching anything."""
+    live_leaf("second", "A second leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    press = """([key, repeat]) => document.dispatchEvent(
+        new KeyboardEvent('keydown', {key, repeat, bubbles: true, cancelable: true}))"""
+
+    page.keyboard.press("j")
+    expect(page.locator(".lf-thread").first).to_be_focused()
+    page.evaluate(press, ["j", True])  # a walk repeats
+    expect(page.locator(".lf-thread").nth(1)).to_be_focused()
+
+    board = page.locator(".lf-others-panel")
+    page.keyboard.press("o")
+    expect(board).to_be_visible()
+    page.evaluate(press, ["o", True])  # a toggle does not
+    expect(board).to_be_visible()
+    page.evaluate(press, ["o", False])  # the same event, answered
+    expect(board).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_the_key_line_drops_what_the_window_cannot_hold(browser, serve):
+    """The line is one quiet row and the register is the whole keyboard, so on a narrow
+    window there is more to say than there is room to say it. What goes, goes from the
+    end — the outside of the scope stack — so a reader keeps the keys of the place they
+    are standing in and loses the page's. `?` is drawn whatever happens, being what the
+    line truncates *to*: the reference holds everything the room could not.
+
+    The cut is measured rather than counted, for the reason `reserve` measures the words
+    a control may say — a stated number of chips is a fact about one font at one window
+    size and stops being true silently. What it replaced was `overflow: hidden` doing the
+    cutting on its own, which clips a chip mid-word; that rule is still under this one for
+    a window too narrow to hold even what is kept, and the assertion here is that it never
+    has to do the work."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
+    line = page.locator(".lf-keyline")
+    chips = line.locator(".lf-key")
+    expect(line).to_contain_text("half a page")
+    wide = chips.count()
+
+    page.set_viewport_size({"width": 480, "height": 900})
+    expect(line).to_contain_text("keys")  # the way to everything that did not fit
+    expect(chips).not_to_have_count(wide)
+    assert chips.count() < wide, "a narrower window kept every chip"
+    # Nothing is clipped: the row on screen is whole words, at either width.
+    for width in (480, 1200):
+        page.set_viewport_size({"width": width, "height": 900})
+        expect(line).to_contain_text("keys")
+        assert page.evaluate(
+            "() => { const l = document.querySelector('.lf-keyline');"
+            " return l.scrollWidth <= l.clientWidth; }"
+        ), f"the line overflowed its own box at {width}px"
+    assert errors == []
+    page.close()
+
+
 def test_c_reaches_the_general_box_while_the_panel_stands_open(browser, serve):
     """c goes to the general box from any state. It doubled as the panel's
     collapse once, which left the box with no shortcut exactly while the panel
@@ -8676,7 +8847,8 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     # none is — while the overlay teaches the capability, scope in its words.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("On a focused thread: resolve it")
+    expect(page.locator(".lf-help")).to_contain_text("On a focused thread")
+    expect(page.locator(".lf-help")).to_contain_text("Resolve it")
     page.keyboard.press("Escape")
 
     # j lands on the first thread and the line offers resolve; r takes it, and
@@ -8708,12 +8880,13 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
 
 
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
-    """keyHint's contract: a control that declares its own Esc row consumes the
-    press, so one press is one action. The draft editor's Esc used to be two — the
-    edit cancelled and the runtime's ladder closed the panel behind it — and the
-    cancel discarded the user's words against the never-lose-text norm. Now the
-    editor closes keeping the edit, the panel stands, and a grabbed card's Esc
-    cancels the move and nothing else."""
+    """One press is one action: the rung is the innermost scope in reach that binds
+    Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
+    to be two — the edit cancelled and the runtime's ladder closed the panel behind it
+    — and the cancel discarded the user's words against the never-lose-text norm. Each
+    control kept that by hand once and the stack keeps it now, so this is the test that
+    says the structure holds. The editor closes keeping the edit, the panel stands, and
+    a grabbed card's Esc cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -11042,7 +11215,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
-    expect(page.locator(".lf-help")).to_contain_text("walk the versions")
+    expect(page.locator(".lf-help")).to_contain_text("Walk the versions")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
@@ -11155,7 +11328,7 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     # The menu's keys are one declaration, so the reference names this one beside the
     # walk it saves.
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("open the newest version")
+    expect(help_el).to_contain_text("Open the newest version")
     page.keyboard.press("Escape")
 
     # The first press opens and goes nowhere. A whole poll passes before the reading,
@@ -11183,7 +11356,7 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     # what the press does on the page already reading it, so no surface stands it down.
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(help_el).to_contain_text("open the newest version")
+    expect(help_el).to_contain_text("Open the newest version")
     assert errors == []
     page.close()
 
@@ -12934,8 +13107,15 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
     """Open or closed is state with one writer now — it was three writers and
-    two classList read-backs, the exact shape the first norm forbids. Exact
-    registrations deduplicate without making display text a lossy identity."""
+    two classList read-backs, the exact shape the first norm forbids.
+
+    A section is its title, so two drafts on a page are one heading and a project
+    widget declaring under a heading a bundled one already uses joins it. That is
+    the scope talking rather than the declaration: "On a draft" names where the
+    reader would be standing, and there is one such place however many modules
+    have something to say about it. Sections used to key on their exact rows, so
+    the same heading twice was two headings — and the reader, who has one keyboard
+    and one draft in front of them, got the reference split in half."""
     html = JOURNEY_V1.replace(
         "</main>",
         '<lf-draft id="draft-second"><pre>A second editable draft.</pre></lf-draft></main>',
@@ -12943,16 +13123,18 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keyHelp } = await import('/leaf.js');
-          keyHelp('On a draft', [['F2', 'a project widget using the same heading']]);
+          const { keys } = await import('/leaf.js');
+          keys(document.body, 'On a draft',
+               [{ keys: ['F2'], does: 'a project widget using the same heading' }]);
         }"""
     )
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
-    expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(2)
+    expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(1)
     expect(
         page.locator(".lf-help", has_text="a project widget using the same heading")
     ).to_be_visible()
+    expect(page.locator(".lf-help", has_text="Edit the text in place")).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")

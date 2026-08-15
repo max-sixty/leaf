@@ -46,10 +46,13 @@
  * The keyboard path: every mark is a press, so Tab reaches it and ⏎ toggles. From a
  * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap) and 1–9 pick outright —
  * each option wears its digit in a column of its own, painted only while a mark holds
- * keyboard focus, so nothing appears on a page nobody is answering, and an armed g
- * leader keeps its own digits (leaderArmed). The column is held whether or not a digit
- * is in it, which is the theme's half of this. The rows are declared per mark through
- * keyHint, so the key line and the ? overlay promise what a press does.
+ * keyboard focus, so nothing appears on a page nobody is answering. The column is held
+ * whether or not a digit is in it, which is the theme's half of this. The rows are
+ * declared per mark, on the mark rather than on the group — the group holds the option's
+ * own argument too, and a scope over the whole subtree would promise "toggle the nth" with
+ * focus on a link inside one. An armed `g` leader keeps its own digits without this module
+ * asking: the leader's scope suspends every scope inside it, where each widget used to
+ * have to remember the question.
  *
  * `settled` retires the decision once it has been made and acted on: the group collapses
  * to one line naming the chosen option, with every option — the chosen one included —
@@ -75,9 +78,7 @@ import {
   HIDDEN,
   agentName,
   inChrome,
-  keyHelp,
-  keyHint,
-  leaderArmed,
+  keys,
   offer,
   once,
   quoted,
@@ -111,24 +112,13 @@ const AUTHORED = "chosen"; // the document arrived carrying the pick
 
 const SETTLED_KEY = "lf-settled:";
 
-// Registered at upgrade, not at module load: every x-upgrade module loads on
-// every page, so rows registered at the top level would offer help for a widget
-// the page hasn't got. keyHelp keys on its own rows, so repeat calls are one
-// section.
-const registerHelp = () =>
-  keyHelp("In a question's options", [
-    ["⇥", "reach an option's mark"],
-    ["↑ / ↓", "walk the options"],
-    ["1–9", "toggle the nth option"],
-    ["⏎ / space", "toggle the focused option"],
-  ]);
+const SECTION = "In a question's options";
 
 customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
-      registerHelp();
       // An authored `chosen` (the honoring version carrying an earlier pick) wears the
       // same mark a live pick wears, so honoring doesn't change the look — but worded as
       // the document's state, not attributed to this reader.
@@ -247,15 +237,16 @@ customElements.define(
     }
 
     // The keyboard path past Tab-and-⏎: from a mark, ↑/↓ walk the options and a
-    // digit picks outright. Focus-scoped — the handler acts only on a press that
-    // lands on this group's own mark, so a digit typed in the box for words stays
-    // text and a nested group's marks stay its own — and an armed g leader keeps
-    // its digits: the chord's promise holds wherever focus sits, and this handler
-    // runs ahead of the dispatcher that owns the window. Each option shows its
-    // digit only while a mark holds keyboard focus (the theme's :focus-visible
-    // rule), so the address appears exactly when a key could use it.
+    // digit picks outright. Declared on the mark, so a digit typed in the box for
+    // words stays text and a nested group's marks stay its own, and an armed g
+    // leader keeps its own digits without this module asking — the chord's scope
+    // suspends every scope inside it. Each option shows its digit only while a mark
+    // holds keyboard focus (the theme's :focus-visible rule), so the address
+    // appears exactly when a key could use it.
     #keys() {
       const marks = this.#marks();
+      // The addressable options: at most nine, since the digits are the addresses.
+      const addresses = marks.slice(0, 9).map((_, n) => String(n + 1));
       for (const [i, mark] of marks.entries()) {
         if (i < 9) {
           // Chrome like the § reference: a thing to work rather than a word the
@@ -271,30 +262,54 @@ customElements.define(
           num.setAttribute("aria-hidden", "true");
           mark.parentElement.prepend(num);
         }
-        // "toggle", the ⏎ row's word, because it is what the press does: the nth
-        // digit on an already-picked option clears it, and a word that said "pick"
-        // was false on the branch the reader could see.
-        keyHint(mark, [
-          [marks.length > 1 ? `1–${Math.min(9, marks.length)}` : "1", "toggle the nth"],
-          ["↑ ↓", "walk the options"],
-          ["⏎", "toggle"],
+        // Declared on the mark rather than on the group, because the group holds the
+        // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
+        // over the whole subtree would promise "toggle the nth" with focus on any of them.
+        // Every mark says the same sentences, so the reference gathers them into one
+        // section however many options the page holds.
+        //
+        // "toggle", the ⏎ row's word, because it is what the press does: the nth digit on
+        // an already-picked option clears it, and a word that said "pick" was false on the
+        // branch the reader could see.
+        keys(mark, SECTION, [
+          {
+            // The digits this group has, so the row cannot offer an address no option
+            // wears. Stated rather than counted at each paint, because a group's options
+            // are the markup's and do not change under the reader — where the leader's
+            // digits count open threads, which resolve as they are answered.
+            keys: addresses,
+            label: addresses.length > 1 ? `1–${addresses.length}` : "1",
+            does: "Toggle the nth option",
+            line: "toggle the nth",
+            run: (binding) => {
+              const target = marks[+binding - 1];
+              target.focus();
+              target.click();
+            },
+          },
+          {
+            keys: ["ArrowUp", "ArrowDown"],
+            does: "Walk the options",
+            line: "walk the options",
+            repeat: true,
+            // Clamped at the ends, and the page must not scroll out from under the walk.
+            run: (binding) =>
+              marks[
+                marks.indexOf(document.activeElement) +
+                  (binding === "ArrowDown" ? 1 : -1)
+              ]?.focus(),
+          },
+          {
+            keys: ["Enter", " "],
+            does: "Toggle the focused option",
+            line: "toggle",
+            run: () => mark.click(),
+          },
+          // Tab is the platform's, and reaching the mark is what a reader has to know
+          // before any of the above is any use. No binding, so the line never offers it.
+          { keys: [], label: "⇥", does: "Reach an option's mark" },
         ]);
       }
-      this.addEventListener("keydown", (e) => {
-        const mark = e.target.closest?.('.lf-pick[role="button"]');
-        if (!mark || mark.closest("lf-options") !== this) return;
-        const at = marks.indexOf(mark);
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault(); // a clamp at the ends, and the page must not scroll
-          marks[at + (e.key === "ArrowDown" ? 1 : -1)]?.focus();
-        } else if (/^[1-9]$/.test(e.key) && !leaderArmed()) {
-          const target = marks[+e.key - 1];
-          if (!target) return;
-          e.preventDefault();
-          target.focus();
-          target.click();
-        }
-      });
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it

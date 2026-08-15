@@ -11,14 +11,7 @@
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
-import { once, keyHelp, keyHint, offer, relabel, HIDDEN } from "/leaf.js";
-
-// One declaration for the strip's keys: the "?" overlay's section and the key
-// line's rows while a tab has focus (keyHint on the strip covers every button).
-const TAB_KEYS = [
-  ["←/→", "previous / next tab"],
-  ["Home/End", "first / last tab"],
-];
+import { once, keys, offer, relabel, HIDDEN } from "/leaf.js";
 
 const TAB_KEY = "lf-tabs:";
 
@@ -32,7 +25,6 @@ customElements.define(
       // Own panels only (a nested lf-tabs wires its own).
       const panels = [...this.querySelectorAll(":scope > lf-tab")];
       if (!panels.length) return;
-      keyHelp("On a tab", TAB_KEYS);
       // The strip is a thing to work, and its tabs ride inside it, so paper drops the
       // whole row and puts each panel's label back on the panel. What a tab says is not
       // the strip's word though — it is the panel's name, and once the strip exists it
@@ -46,7 +38,6 @@ customElements.define(
       // is what makes a drag across the name possible at all.
       const strip = offer("div", "lf-tabstrip");
       strip.setAttribute("role", "tablist");
-      keyHint(strip, TAB_KEYS);
       for (const panel of panels) {
         const btn = offer("button", "lf-tab-btn");
         btn.setAttribute("role", "tab");
@@ -65,26 +56,33 @@ customElements.define(
         panel.addEventListener("beforematch", () => this.#activate(panel, true));
         panel.addEventListener("lf-reveal", () => this.#activate(panel, true));
       }
-      // Roving focus per the ARIA tabs pattern: arrows move and activate.
-      strip.addEventListener("keydown", (e) => {
+      // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
+      // is a fact about this walk and so belongs in the words that name it.
+      const walk = (to) => {
         const order = [...this.#buttons.values()];
-        const at = order.indexOf(e.target);
-        if (at === -1) return;
-        const to =
-          e.key === "ArrowRight"
-            ? (at + 1) % order.length
-            : e.key === "ArrowLeft"
-              ? (at - 1 + order.length) % order.length
-              : e.key === "Home"
-                ? 0
-                : e.key === "End"
-                  ? order.length - 1
-                  : -1;
-        if (to === -1) return;
-        e.preventDefault();
-        order[to].focus();
-        order[to].click();
-      });
+        // The strip takes no tab stop of its own, so focus inside it — which is the
+        // whole of when this scope holds — is always one of these buttons.
+        const at = order.indexOf(document.activeElement);
+        const next = order[to(at, order.length)];
+        next.focus();
+        next.click();
+      };
+      keys(strip, "On a tab", [
+        {
+          keys: ["ArrowLeft", "ArrowRight"],
+          does: "Previous / next tab, wrapping at the ends",
+          line: "walk the tabs",
+          repeat: true,
+          run: (binding) =>
+            walk((at, n) => (binding === "ArrowRight" ? at + 1 : at - 1 + n) % n),
+        },
+        {
+          keys: ["Home", "End"],
+          does: "First / last tab",
+          line: "first / last",
+          run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
+        },
+      ]);
       this.prepend(strip);
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
       // Restore this reader's tab; a remembered id always resolves in later

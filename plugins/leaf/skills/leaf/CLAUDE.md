@@ -660,9 +660,22 @@ in a second language is two predicates to keep in step.
 ## A widget module takes the helper surface, and no more
 
 A widget module gets the helper surface `leaf.js` exports, and no more until one
-genuinely needs it. Widgets never register keys with a dispatcher: focus-scoped keys
-belong to the focused control, and the global table (`KEYS`) is also the source of the `?`
-overlay, so help can't drift from behaviour.
+genuinely needs it.
+
+Keys are the one place that surface grew rather than held. A widget used to declare its
+keys three times — `keyHelp` for the reference, `keyHint` for the line, and its own
+`keydown` listener for the behaviour — on the reasoning that focus-scoped keys belong to
+the focused control and only the global table needed to feed a surface. The scoping was
+right and the count was wrong: three objects for one binding is three chances to disagree,
+and every widget took at least one. `lf-board`'s grip answered Space in both its states
+while both its lists said Enter, and re-declared the line's rows by hand at three separate
+state changes; `lf-options` declared one pair of arrows twice and spelled them two ways;
+`lf-tabs`' rows named neither the wrap its handler does nor the four keys it tests.
+
+So a widget calls `keys(el, title, rows)`, one declaration the register reads for all
+three. Focus scoping is still the DOM's — the scope holds while focus is inside `el` — and
+what changed is that the word and the press are one object. The register is now the only
+way a key enters the runtime, which is what lets a press be promised at all.
 
 ## The key line promises exactly one press
 
@@ -670,28 +683,47 @@ The key line renders what a key will do right now, and a promise about the next 
 only worth making if the press does that and nothing else. The failure that named this:
 the draft editor's Escape called its own close without consuming the event, so the
 runtime's ladder ran behind it — the edit closed *and* the panel did, two actions under a
-line that promised one, and under the old regime the second action was merely invisible
-rather than absent. Hence the invariant `keyHint`'s contract states: a control that
-declares its own Esc row consumes Escape (`preventDefault`), and one that doesn't declare
-gets the ladder's chip, which is then the whole truth. What a control declares is also
-what it does because the declaration is the only copy: one rows constant per module feeds
-`keyHelp`, `keyHint`, and any announce() built from it, and the suite presses Escape on
-each declaring control and asserts exactly the declared effect.
+line that promised one.
+
+That was a contract each control kept by hand: declare an Esc row, and remember to
+`preventDefault`. Escape is a binding like any other now, so the rung is whichever scope
+in reach binds it first and one dispatcher runs that one and no other. A control declaring
+its own Escape gets the press because its scope is innermost rather than because it
+consumed the event, and nothing runs behind it because nothing else was reached. The suite
+still presses Escape on each declaring control and asserts exactly the declared effect —
+the check is worth keeping; what went is the rule it was checking.
+
+The same shape covers the rest of the keyboard. The line walks the stack outward and skips
+a row sharing any binding with one already named, so two scopes cannot put two words over
+one press: an armed `g` over an option's pick mark would otherwise have offered "reply to
+thread" and "toggle the nth" side by side, and `lf-options` asked `leaderArmed()` privately
+to stop half of it.
 
 ## A key on screen is a key that works
 
-Every surface that names a key promises the press does something now. One table (`KEYS`)
-keeps the words from drifting, and it did nothing to keep the surfaces from drifting from
-each other: the key line asked `when` and the `?` overlay didn't, so a page with no open
-thread offered `g 1–9` to reply to one, and a first version offered the diff with nothing
-to diff. Two shortcuts had no `when` at all — the diff's liveness sat inside its own `run`
-and the version pair's inside `stepVersion`, where no surface could ask. So whether a key is
-live is declared once (`when`), `live` is the one question the dispatcher, the line, and
-the overlay all put to it — the scene branch that restates the j/k row asks it too, since
-a resolved thread stays focusable after the last open one is gone — and a label that
-names a range is a function (`g ${digits()}`), so it counts the threads that are there
-rather than promising nine. A liveness guard inside `run` is the tell, because it makes
-the key refuse a press some surface is still advertising.
+Every surface that names a key promises the press does something now. One table kept the
+words from drifting and did nothing to keep the surfaces from drifting from each other:
+the key line asked `when` and the `?` overlay didn't, so a page with no open thread offered
+`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. Two
+shortcuts had no `when` at all — the diff's liveness sat inside its own `run` and the
+version pair's inside `stepVersion`, where no surface could ask. So whether a key is live
+is declared once (`when`), `live` is the one question the dispatcher, the line and the
+overlay all put to it, and a label that names a range is a function (`g ${digits()}`) so it
+counts the threads that are there rather than promising nine. A liveness guard inside `run`
+is the tell, because it makes the key refuse a press some surface is still advertising.
+
+One `when` was still one answer to two questions, and `r` is where that showed. Its
+sentence said "On a focused thread" while its liveness said "the page has threads", so a
+reader who had focused nothing was offered a press that silently no-opped — `d / u`'s bug
+from the other side, a word and a binding disagreeing about where the key applies. The two
+readings cannot be reconciled by picking one: the reference wants the capability, since a
+reader learning the keyboard needs to know `r` resolves before they have focused anything,
+and the line wants the press, since offering one that would refuse is the whole of what
+this norm forbids. So the scope carries the capability and the row carries the press. The
+reference lists a scope's rows wherever the page has that scope; the line filters by each
+row's own liveness, which it may do because the reader standing in the scope can see which
+state they are in. `Enter` and `r` moved into the thread's own scope on the strength of it,
+and the page's line stopped naming them at all.
 
 Live means the capability exists, not that every press moves. A stepper at its end — j on
 the last thread, `]` on the newest version — is a clamp on a live key: the promise is
@@ -700,32 +732,35 @@ that there are threads or versions to walk, not that this edge press lands. What
 version the server no longer lists, so nothing to step between at all — and that is what
 `when` now owns; the clamp stays in the stepper.
 
-A key that acts at large takes the Shift as well as the letter, and the dispatcher asks
-for the modifier rather than reading the uppercase key alone: caps lock writes an
-uppercase key out of an unshifted press, so a reader with it on who reached for `a` — the
-walk through the page's asks, one at a time — would have got `A`, which answers every one
-of them, and a decision is the end of the matter. So the pair is a relation rather than
-two letters that happened to be free: `a` steps the page's asks and `A` gives every
-blanket answer it offers, the shifted half acting on the whole of what the lowercase one
-walks through.
+A key that acts at large takes the Shift as well as the letter, and the binding is where
+that is said: `Shift+a`, matched on the letter's lowercase with the modifier asked for
+exactly. Reading the uppercase key instead is wrong twice over, because caps lock writes
+one out of an unshifted press — a reader with it on who reached for `a`, the walk through
+the page's asks one at a time, got `A` under the first rule, which answers every one of
+them and ends the matter, and matched nothing at all under the rule that fixed it, while
+the line went on offering the walk. So the pair is a relation rather than two letters that
+happened to be free: `a` steps the page's asks and `Shift+a` gives every blanket answer it
+offers, the shifted half acting on the whole of what the lowercase one walks through. The
+chip still reads `A`, because that is the key the reader presses; the binding reads
+`Shift+a`, because that is what the dispatcher must ask for.
 
 A move that merely sits beside a key, rather than acting on the whole of what it walks,
 is spelled in the scope that key opens, where the letter is free again: `v` opens the
-version chooser, and a second `v` inside it takes the newest version — a row the walk
-already offers, which is why the second press needs no `when` of its own. The shifted
-twin is the tempting shape here and the wrong one, since a `V` that opened the newest
-version would act on one of them rather than on all of them, and Shift would then mean
-two things.
+version chooser, and a second `v` inside it takes the newest version — the inner scope's,
+so it shadows the page's `v` by standing nearer the reader rather than by consuming the
+press first. The shifted twin is the tempting shape here and the wrong one, since a `V`
+that opened the newest version would act on one of them rather than on all of them, and
+Shift would then mean two things.
 
 The overlay renders at open and can go stale while it stands, and the two directions cost
-differently, both acceptably. A row going dead under it can't be pressed — help is a
-scope, the table stands down beneath it — and a key going live under it is merely
-unlisted until the next open, one press away; neither is a false promise. The widget
-sections (`keyHelp`) hold the rule only if a module registers its rows at *upgrade*
-(`connectedCallback`), never at module load: every x-upgrade module loads on every
-page, presence or not, so a top-level registration is help for a widget the page
-hasn't got. lf-options carried exactly that phantom section until the loader's
-contract was written down here.
+differently, both acceptably. A row going dead under it can't be pressed — the overlay is
+`only`, so the page stands down beneath it — and a key going live under it is merely
+unlisted until the next open, one press away; neither is a false promise. A widget's
+section holds the rule only if the module declares its scope at *upgrade*
+(`connectedCallback`), never at module load: every x-upgrade module loads on every page,
+presence or not, so a top-level declaration is help for a widget the page hasn't got.
+lf-options carried exactly that phantom section until the loader's contract was written
+down here.
 
 ## A key's word says what this press does
 

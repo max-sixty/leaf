@@ -30,29 +30,22 @@ import {
   sendAction,
   toast,
   announce,
-  keyHelp,
-  keyHint,
+  keys,
+  labelOf,
+  saying,
+  paintKeys,
   motion,
   pageScroller,
   REDUCED,
   SCROLL,
 } from "/leaf.js";
 
-// The grip's keys in each of its two states. The one pair of declarations feeds the
-// "?" overlay, the key line (keyHint, re-declared at each state change), and the
-// grab announcement, so none of the three can drift from the handler beside them.
-const GRIP_KEYS = [["Enter", "grab the card"]];
-const GRABBED_KEYS = [
-  ["arrows", "move"],
-  ["Enter", "drop"],
-  ["Esc", "cancel the move"],
-];
-
 customElements.define(
   "lf-board",
   class extends HTMLElement {
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
+    #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
 
     connectedCallback() {
       if (!once(this)) return;
@@ -60,7 +53,6 @@ customElements.define(
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the "?" overlay — it stays the static board the theme renders anyway.
       if (quoted(this)) return;
-      keyHelp("On a card grip", [...GRIP_KEYS, ...GRABBED_KEYS]);
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.querySelectorAll(":scope > lf-column > lf-card"))
         this.#grip(card);
@@ -166,13 +158,66 @@ customElements.define(
       return [...col.querySelectorAll(":scope > lf-card")];
     }
 
+    // The grip's two states, declared once. Each row carries its own liveness, so the
+    // state moves by the board's own field rather than by re-declaring the keys at every
+    // site that changes it — three sites did, and a fourth that forgot would have left the
+    // line promising the wrong press.
+    //
+    // The page's own keys still work mid-grab, and that is not an oversight: any of them
+    // that takes focus off the grip (c into the composer, a to the next ask) blurs it, and
+    // the blur below cancels the grab and puts the card back where it was. A held card
+    // therefore cannot be stranded by a press that moves the reader elsewhere, which is
+    // what suspending the page would have been for.
+    #keys(card, grip) {
+      const held = () => this.#grabbed?.grip === grip;
+      const grab = {
+        keys: ["Enter", " "],
+        does: "Grab the card",
+        line: "grab the card",
+        // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
+        when: () => !held() && !this.classList.contains("lf-dragging"),
+        run: () => this.#grab(card, grip),
+      };
+      // The tooltip names the keys the row binds rather than a letter typed beside it: the
+      // grip answers Space too, and said Enter on every surface for as long as the word and
+      // the press were separate objects.
+      grip.title = `Drag to move — or ${labelOf(grab)} to grab`;
+      return keys(grip, "On a card grip", [
+        grab,
+        {
+          keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"],
+          label: "arrows",
+          does: "Move it",
+          line: "move",
+          when: held,
+          repeat: true,
+          run: (binding) =>
+            this.#step(
+              card,
+              grip,
+              { ArrowLeft: -1, ArrowRight: 1 }[binding] ?? 0,
+              { ArrowUp: -1, ArrowDown: 1 }[binding] ?? 0,
+            ),
+        },
+        {
+          keys: ["Enter", " "],
+          does: "Drop it here",
+          line: "drop",
+          when: held,
+          run: () => this.#drop(),
+        },
+        {
+          keys: ["Escape"],
+          does: "Cancel the move",
+          line: "cancel the move",
+          when: held,
+          run: () => this.#cancel(true),
+        },
+      ]);
+    }
     #grip(card) {
       const grip = offer("button", "lf-grip", "⠿");
-      // The key's name comes from the one table the overlay and key line read, so the
-      // tooltip can't promise a key the handler stopped answering. The name is #names'.
-      grip.title = `Drag to move — or ${GRIP_KEYS[0][0]} to ${GRIP_KEYS[0][1]}`;
-      keyHint(grip, GRIP_KEYS);
-      grip.addEventListener("keydown", (ev) => this.#key(ev, card, grip));
+      this.#rows.set(grip, this.#keys(card, grip));
       // Leaving the grip drops the grab: restore the origin. Arrow moves reparent
       // the grip (which blurs it) and synchronously refocus, so by the time this
       // settles only a real departure still lacks focus.
@@ -186,44 +231,20 @@ customElements.define(
       card.append(grip);
     }
 
-    #key(ev, card, grip) {
-      if (this.#grabbed?.grip !== grip) {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
-        // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
-        if (this.classList.contains("lf-dragging")) return;
-        ev.preventDefault();
-        const from = card.parentElement;
-        const cards = this.#cards(from);
-        this.#grabbed = { card, grip, from, index: cards.indexOf(card) };
-        this.classList.add("lf-dragging");
-        card.classList.add("lf-lift");
-        keyHint(grip, GRABBED_KEYS);
-        // Where the card starts, in the idiom every arrow step announces — a reader
-        // about to move it needs the position the moves count from. Speech gets key
-        // names, not chip spellings: a reader renders "Esc" literally.
-        announce(
-          `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
-            cards.indexOf(card) + 1
-          } of ${cards.length} — ${GRABBED_KEYS.map(
-            ([k, w]) => `${{ Esc: "Escape" }[k] ?? k} ${w}`,
-          ).join(", ")}`,
-        );
-        return;
-      }
-      if (ev.key === "Enter" || ev.key === " ") {
-        ev.preventDefault();
-        this.#drop();
-      } else if (ev.key === "Escape") {
-        ev.preventDefault();
-        this.#cancel(true);
-      } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
-        ev.preventDefault();
-        this.#step(card, grip, 0, ev.key === "ArrowDown" ? 1 : -1);
-      } else if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
-        ev.preventDefault();
-        this.#step(card, grip, ev.key === "ArrowRight" ? 1 : -1, 0);
-      }
-      // Any other key (Tab) proceeds natively; leaving the grip cancels via blur.
+    #grab(card, grip) {
+      const from = card.parentElement;
+      const cards = this.#cards(from);
+      this.#grabbed = { card, grip, from, index: cards.indexOf(card) };
+      this.classList.add("lf-dragging");
+      card.classList.add("lf-lift");
+      paintKeys(); // a grab is a press on an already-focused grip, so no focus event fires
+      // Where the card starts, in the idiom every arrow step announces — a reader about to
+      // move it needs the position the moves count from.
+      announce(
+        `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
+          cards.indexOf(card) + 1
+        } of ${cards.length} — ${saying(this.#rows.get(grip))}`,
+      );
     }
 
     #step(card, grip, dCol, dRow) {
@@ -251,9 +272,8 @@ customElements.define(
     }
 
     #drop() {
-      const { card, grip, from, index } = this.#grabbed;
+      const { card, from, index } = this.#grabbed;
       this.#release();
-      keyHint(grip, GRIP_KEYS);
       const to = card.parentElement;
       if (to === from && this.#cards(to).indexOf(card) === index) return;
       this.#send(card, from, index, to);
@@ -262,16 +282,19 @@ customElements.define(
     #cancel(refocus = false) {
       const { card, grip, from, index } = this.#grabbed;
       this.#release();
-      keyHint(grip, GRIP_KEYS);
       this.#place(card, from, index);
       if (refocus) grip.focus({ preventScroll: true }); // Esc keeps focus; blur means it left
       announce(`${this.#title(card)} — move cancelled`);
     }
 
+    // The one writer of "no card is held", so the grip's rows change back here and nowhere
+    // else — a drop and a cancel each used to restate it, and a third way out would have
+    // had to remember.
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;
       this.classList.remove("lf-dragging");
+      paintKeys();
     }
 
     // The one writer of "card X sits at index i among column C's cards": arrow steps,

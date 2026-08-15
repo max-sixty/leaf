@@ -2261,8 +2261,11 @@ def custom_widget_module(tag: str) -> str:
 // - The registry entry declares x-verbatim because this stub leaves the body
 //   in place. Drop it the moment the module renders anything in the body's
 //   stead, or quotes anchor on words the screen no longer shows.
-// - A control that handles its own Escape consumes it (preventDefault), and
-//   declares its keys through keyHelp/keyHint at upgrade — not module load.
+// - Keys go through keys(el, title, rows) at upgrade, never at module load: one
+//   declaration is the dispatch, the key line and the "?" reference, so a row
+//   cannot say one key and answer another. Rows carry their own liveness (when),
+//   so a control whose keys change with its state declares every state once and
+//   calls paintKeys(); a row that presses must say a word for the line.
 // - Before wiring any input that would carry an edit back, consult quoted():
 //   an exhibited copy of this widget takes no input.
 import {{ once }} from "/leaf.js";

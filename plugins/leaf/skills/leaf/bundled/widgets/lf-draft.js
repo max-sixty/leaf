@@ -79,23 +79,12 @@ import {
   quoted,
   sendAction,
   toast,
-  keyHelp,
-  keyHint,
-  SEND_KEYS,
+  keys,
   saveDraft,
   loadDraft,
   alignText,
   watchActions,
 } from "/leaf.js";
-
-// The edit box's keys — one declaration for the "?" overlay and the key line. Esc
-// sets the edit aside rather than discarding it (never lose user text: Cancel is
-// the only discard), and the handler consumes the press, because a declared Esc
-// row promises one action and the runtime's ladder must not add a second.
-const EDIT_KEYS = [
-  [SEND_KEYS, "save"],
-  ["Esc", "close — edit kept"],
-];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
 // the id alone is unambiguous — the same scoping every composer draft relies on.
@@ -180,9 +169,12 @@ customElements.define(
       // gates the action channel, not presentation.
       if (quoted(this)) return;
 
-      keyHelp("On a draft", [
-        ["dblclick or ✎", "edit the text in place"],
-        ...EDIT_KEYS,
+      // The way in is a gesture rather than a key, so its row binds nothing and the line
+      // never offers it as the next press — the rule that keeps ⌥ click and F7 off it.
+      // Declared on the element the reader stands on before the box exists, so opening a
+      // draft is in the reference from the moment the page has one.
+      keys(this, "On a draft", [
+        { keys: [], label: "dblclick or ✎", does: "Edit the text in place" },
       ]);
 
       this.#pencil = this.#button("✎", () => this.#open());
@@ -358,17 +350,25 @@ customElements.define(
       ta.value = seed ?? loadEdit(this.id) ?? this.#body.textContent;
       ta.setAttribute("aria-label", `Edit ${this.id}`);
       ta.addEventListener("input", () => saveEdit(this.id, ta.value));
-      // Cmd/Ctrl+Enter saves; Escape sets the edit aside — the composer's bindings,
-      // and consumed, or the runtime's ladder would add a second action (closing
-      // the panel) to the one EDIT_KEYS promises.
-      ta.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) this.#commit();
-        else if (e.key === "Escape") {
-          e.preventDefault();
-          this.#close(false);
-        }
-      });
-      keyHint(ta, EDIT_KEYS);
+      // The composer's bindings on the box that replaces the page's own words. Escape sets
+      // the edit aside rather than discarding it (never lose user text: Cancel is the only
+      // discard) — and being the innermost scope's is what keeps the runtime's own rung
+      // from running behind it and closing the panel too, which the widget used to have to
+      // prevent by consuming the press.
+      keys(ta, "On a draft", [
+        {
+          keys: ["Mod+Enter"],
+          does: "Save the edit",
+          line: "save",
+          run: () => this.#commit(),
+        },
+        {
+          keys: ["Escape"],
+          does: "Close the editor, keeping the edit",
+          line: "close — edit kept",
+          run: () => this.#close(false),
+        },
+      ]);
       this.#row.append(
         this.#button("Cancel", () => this.#close(true)),
         this.#button("Save", () => this.#commit(), "primary"),

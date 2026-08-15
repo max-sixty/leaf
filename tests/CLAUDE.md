@@ -305,6 +305,16 @@ yourself with both streams in the message. A script the test drives owes the sam
 process it starts, or the test reports a silence the script was told the reason for. The
 browser end of this is `open_page`, whose console says only "Failed to load resource".
 
+A wait that runs out is the same silence, and it is the expensive one. `round_trip` used to
+report the event Playwright had blocked on — `Timeout 30000ms exceeded while waiting for
+event "response"` — and nothing about the page, three times on CI, about a fault its own
+counters named exactly: a post a reload kills mid-flight ends in neither a response nor a
+`requestfailed`, so `acked` sat one under `sends` for the rest of that page's life and every
+wait after it ran its timeout out. `_until` carries the counters from both ends of the wait
+into the failure now, which is what tells a fact stuck while polls keep arriving from a page
+that has stopped talking at all — the two diagnoses that timeout was equally consistent
+with.
+
 ## Reloading is not resetting
 
 The panel's open state is in `localStorage` and the reading position and drafts are in

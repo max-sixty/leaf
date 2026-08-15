@@ -520,13 +520,19 @@ class Traffic:
             self._flying.pop()
             self.acked += 1
 
+    def __str__(self):
+        return (
+            f"sends={self.sends} acked={self.acked} read={self.read} "
+            f"asked={self.asked} heard={self.heard}"
+        )
+
 
 def _traffic(page):
     """The watcher `open_page` hung on this page when it made it."""
     return page.lf_traffic
 
 
-def _until(page, fact):
+def _until(page, fact, wanted):
     """Block until `fact` holds of the page's traffic.
 
     The events the counters are built from arrive while the client is blocked inside a
@@ -536,9 +542,26 @@ def _until(page, fact):
     It wakes on responses alone, where the counters answer to failures too, so a fact that
     came true through a failed request waits for the next poll that is answered to be
     noticed. A page with every poll routed to `abort` has no such next, and a wait on one
-    runs its timeout out and says so rather than passing."""
-    if not fact(_traffic(page)):
+    runs its timeout out and says so rather than passing.
+
+    A wait that runs out says what it was watching, `wanted` naming the fact in the words
+    of the caller that wanted it — required rather than defaulted, so the next wait written
+    here cannot quietly go back to saying nothing. Playwright's own message names the event
+    it blocked on ("response") and nothing about the page, while the counters that answer
+    it are already in hand, so the failure carries them from both ends of the wait: a fact
+    stuck while polls keep arriving reads differently from a page that has stopped talking
+    at all. Raised from the timeout rather than in place of it, the budget it ran out of
+    being the one fact this message hasn't got."""
+    if fact(_traffic(page)):
+        return
+    began = str(_traffic(page))
+    try:
         page.wait_for_event("response", predicate=lambda _: fact(_traffic(page)))
+    except PlaywrightTimeout as ran_out:
+        raise AssertionError(
+            f"the page never {wanted}: the wait began on {began} and gave up on "
+            f"{_traffic(page)}"
+        ) from ran_out
 
 
 # A gesture that sends is not over when its response lands. The runtime answers a post by
@@ -554,7 +577,7 @@ def _until(page, fact):
 # that takes ten milliseconds.
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
-    _until(page, lambda t: t.read >= t.sends)
+    _until(page, lambda t: t.read >= t.sends, "heard back what it sent")
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory
@@ -570,7 +593,7 @@ def round_trip(page):
 def told(page):
     """Wait for a poll that goes out from here on to come back."""
     asked = _traffic(page).asked
-    _until(page, lambda t: t.heard > asked)
+    _until(page, lambda t: t.heard > asked, "finished a poll that went out from here")
 
 
 # A poll a test stops is cancelled rather than failed. The page cannot tell the two
@@ -5331,7 +5354,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
 
     page.route("**/api/event", hold)
     page.locator("#br-steel").click()
-    _until(page, lambda t: t.sends >= 1)
+    _until(page, lambda t: t.sends >= 1, "sent the pick it was clicked for")
     page.locator("#br-cedar").click()
     expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
     assert _traffic(page).sends == 1, (
@@ -5426,7 +5449,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     # satisfy it.
     answered = _traffic(page).acked
     page.locator("#job-heater").click()
-    _until(page, lambda t: t.acked > answered)
+    _until(page, lambda t: t.acked > answered, "had this click's send answered")
     assert [
         e["detail"]["options"] for e in sent_events(d) if e.get("widget") == "jobs"
     ] == [

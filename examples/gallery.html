@@ -648,6 +648,10 @@ and we have reported it; the workaround ships either way.
 
       <section id="constraints">
         <h2>Constraints</h2>
+        <aside class="sidenote" id="sn-revoke-volume">
+          Support ran "log out all devices" 41 times last quarter, all but two of them
+          inside an active takeover.
+        </aside>
         <ul id="constraint-list">
           <li>
             Logout must revoke immediately — support runs "log out all devices" during
@@ -693,6 +697,13 @@ and we have reported it; the workaround ships either way.
 
       <section id="precedent">
         <h2>How payments were asked</h2>
+        <aside class="sidenote" id="sn-payments-page">
+          Their page is still served, at payments/2024-03-session-store.
+        </aside>
+        <aside class="sidenote" id="sn-payments-volume">
+          3,400 writes a second at our peak against their 340, both measured at p99 over
+          a quarter.
+        </aside>
         <p id="precedent-intro">
           Payments settled the same question in March. Their page put it in two cards
           with the operating cost on the front of each, which is a framing worth
@@ -1293,6 +1304,10 @@ and an engineer will work through yours with you.
 
       <section id="cause">
         <h2>Root cause</h2>
+        <aside class="sidenote" id="sn-negative-size">
+          The −1 came from a client upload predating the size check added in March. Two
+          other workspaces carry one.
+        </aside>
         <p id="p-cause">
           The export worker treats any failure as retryable. One workspace carried an
           attachment with a declared size of −1, which fails serialization every time;

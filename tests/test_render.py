@@ -1030,6 +1030,116 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     )
 
 
+# The shapes a float takes at the column's edge. The first three are laid out from the
+# same left content edge, so the only difference is how far each one's own negative
+# margin carries it: far enough and the whole box is out in the margin, which is what a
+# sidenote is; not far enough and the box straddles the edge, which is a spill. The
+# fourth says the same side in the logical spelling, and the fifth is the run of prose a
+# resident holds — every one of which inherits the box its parent put out there.
+FLOATING_PAGE = LONG_PAGE.replace(
+    "</main>",
+    "<div id='in-the-margin' style='float: left; clear: left; width: 180px;"
+    " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
+    "<div id='half-out' style='float: left; clear: left; width: 180px;"
+    " margin-left: -90px'>Across.</div>"
+    "<div id='logical' style='float: inline-start; clear: left; width: 180px;"
+    " margin-left: -204px'>Beside.</div>"
+    "<div id='off-window' style='float: left; clear: left; width: 180px;"
+    " margin-left: -900px'>Gone.</div>\n</main>",
+)
+
+
+def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it(
+    browser, serve
+):
+    """What tells a margin resident from a spill is where its box sits: clear of the
+    column on the side it floats to, or across the edge it started inside. Both halves
+    are load-bearing, and the second is the one a shortcut drops — exempting floats
+    outright would retire this check for every element that happens to carry one, and
+    the gate reads `position` alone no longer, a sidenote being a float.
+
+    Both readings run up the ancestors, because a resident answers for what it holds. A
+    sidenote is prose and carries the code, links and emphasis prose carries; asking
+    only the element itself named every one of them as spilling out of a column it was
+    never in, which is a handover refused over the words the idiom exists to hold.
+
+    And the side is resolved rather than string-matched: `float` computes to whichever
+    of its four values was written, so `inline-start` — the same left edge — read as
+    neither 'left' nor 'right' and failed the page for it."""
+    failures = interact.render_version(browser, serve(FLOATING_PAGE))
+
+    assert [
+        f
+        for f in failures
+        if "<div id=half-out> is set" in f and "past the column" in f
+    ]
+    assert not [f for f in failures if "in-the-margin" in f or "logical" in f], (
+        "a float whose own margin carried it clear of the column is where it meant to be"
+    )
+    assert not [f for f in failures if "inner-word" in f], (
+        "a resident's own words were named for standing where their parent put them"
+    )
+    # Clear of the column and clear of the window with it. Leftward overflow scrolls
+    # nothing in a LTR page, so the sideways reading is blind to this one and the
+    # margin exemption would carry it straight through.
+    assert [f for f in failures if "<div id=off-window> is drawn outside" in f], (
+        "a float carried off the edge of the window went out with the handover"
+    )
+
+
+SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
+    "</main>",
+    """<lf-options id="where" choose>
+  <lf-option id="opt-a"><strong>First</strong>
+    <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
+    <p>An option carrying a note written inside it.</p>
+  </lf-option>
+  <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
+</lf-options>
+</main>""",
+)
+
+
+def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
+    """A choose group clips its own box, so a note pulled into the page's margin from
+    inside one is painted nowhere. Every other reading calls that well — the column
+    check excuses a margin resident, checkVisibility() is true of a clipped box so
+    screen and print agree, and the copy, which withholds the clip, shows the words the
+    live page dropped — so the reader is the only party who loses them, and a reviewer
+    proofing the export sees a note that never reached anybody.
+
+    The float is left unscoped rather than restricted to what it may float out of,
+    because the boxes that clip are the minority: a section, a tab panel and a
+    disclosure all pass a note through to the margin. So the gate names the one that
+    doesn't, at handover, to the one party who can still move it."""
+    url = serve(SIDENOTE_IN_A_WIDGET)
+    page, errors = open_page(browser, url)
+    # elementFromPoint answers about the viewport, so the question can only be put to a
+    # note that is in it — LONG_PAGE puts this one four thousand pixels down.
+    page.locator("#boxed-note").scroll_into_view_if_needed()
+    seen = page.evaluate("""() => {
+        const n = document.getElementById('boxed-note');
+        const b = n.getBoundingClientRect();
+        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        // The note or something of its own, never an ancestor: a clipped note leaves
+        // the point to <body>, which contains it and paints none of it.
+        return {painted: !!mid && (n === mid || n.contains(mid)),
+                at: mid && mid.tagName};
+    }""")
+    failures = interact.render_version(browser, url)
+    page.close()
+
+    assert not seen["painted"], (
+        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
+    )
+    assert [
+        f
+        for f in failures
+        if "<aside id=boxed-note> is drawn outside" in f and "clips it" in f
+    ], f"a note the reader never sees went out with the handover: {failures}"
+    assert errors == []
+
+
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 COLORED_CODE_PAGE = LONG_PAGE.replace(
@@ -13862,15 +13972,25 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
-        // A page carrying a change to decide gives up a rail of its own width for the
-        // controls to hang in, and a copy has no controls to hang there — so the column
-        // centres in all of the page, the way paper's does. Read as the two margins
-        // rather than off body's padding, since what a reader sees is the column
-        // sitting off to one side; and measured against body rather than the window,
-        // whose width counts a scrollbar on the platforms that reserve room for one.
-        margins: ((m, b) => [Math.round(m.left - b.left), Math.round(b.right - m.right)])(
-            document.querySelector('main').getBoundingClientRect(),
-            document.body.getBoundingClientRect()),
+        // A page gives up a strip of its own width for what it hangs in the margin, and
+        // a copy keeps only the strips whose residents came with it: a suggestion's
+        // controls are gone from a file that can decide nothing, and its rail with them,
+        // while sidenotes are the page's own words and stand in a copy exactly as they
+        // stand on screen. So the reading is not that the column is centred — a page
+        // carrying notes is deliberately not — but that no strip is held open for
+        // nothing. Asked of body's padding, which is where every strip is taken from,
+        // and of whatever is standing in it, whichever layer reserved it.
+        empty: ((b, s) => {
+            const box = b.getBoundingClientRect();
+            const held = (lo, hi) => hi - lo > 1 && ![...document.querySelectorAll('main *')]
+                .some(el => { const r = el.getBoundingClientRect();
+                              return el.checkVisibility() && r.width > 1
+                                     && r.left < hi - 1 && r.right > lo + 1; });
+            return [
+                held(box.left, box.left + parseFloat(s.paddingLeft)) && 'left',
+                held(box.right - parseFloat(s.paddingRight), box.right) && 'right',
+            ].filter(Boolean);
+        })(document.body, getComputedStyle(document.body)),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
@@ -13938,9 +14058,10 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
     assert state["column"] != "none", "the theme didn't inline; the copy opens unstyled"
-    assert state["margins"][0] == state["margins"][1], (
-        "the copy's column sits off to one side of a page it has all of: a rail still "
-        f"held open for controls the file hasn't got — {state['margins']}"
+    assert state["empty"] == [], (
+        "the copy holds a strip of its own width open with nothing standing in it, so "
+        "the column sits off to one side of a page it has all of — a rail reserved for "
+        f"something the file hasn't got: {state['empty']}"
     )
     assert state["unshown"] == [], (
         "the copy says less than the page did: content sitting behind a control that "

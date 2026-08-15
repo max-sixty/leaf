@@ -6675,8 +6675,20 @@ UNREACHABLE_WORDS = """() => {
 #
 # Two kinds of element answer for their own width and not to this, and both say
 # so in their computed style. The margin has legitimate residents — a
-# suggestion's controls, the hidden line the paint pass writes — and every one of
-# them is placed there absolutely. And a scroll container answers for what it
+# suggestion's controls, a sidenote, the hidden line the paint pass writes — and
+# each is out there by its own declaration: placed absolutely, or floated clear
+# of the column. Where the box sits is what separates a resident from a spill,
+# which crosses the column's edge rather than clearing it, having started inside
+# and run out. So a float that merely overflows is still reported, and a widget's
+# own float inside the column (an option's .facts rail) is never in question.
+#
+# A resident answers for what it holds, which is why both readings are made up the
+# ancestors and not of the element alone. A sidenote is prose, so it carries the
+# <code>, links and emphasis any other prose does, and each of those inherits a box
+# its parent put in the margin on purpose — named, one by one, as spilling out of a
+# column none of them was ever in.
+#
+# And a scroll container answers for what it
 # holds: a box inside one runs on past the clip and is drawn only as far as its
 # container reaches, so a wide table's own rows would otherwise be reported as
 # spilling out of the table that is containing them. What is left is the flow,
@@ -6690,11 +6702,25 @@ PAST_THE_COLUMN = """() => {
     const left = box.left + parseFloat(style.paddingLeft);
     const right = box.right - parseFloat(style.paddingRight);
     const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
+    // `float` computes to whichever of the four values was written, so the two
+    // logical ones are resolved against the element's own direction rather than
+    // compared as strings: `inline-start` is the left edge in a LTR page and the
+    // right edge in a RTL one, and a side read wrong reports a note that is exactly
+    // where it belongs.
+    const floatSide = (s) =>
+        s.float === 'left' || s.float === 'right' ? s.float
+        : (s.float === 'inline-start') === (s.direction !== 'rtl') ? 'left' : 'right';
+    const inTheMargin = (el, s) => {
+        if (s.float === 'none') return false;
+        const b = el.getBoundingClientRect();
+        return floatSide(s) === 'left' ? b.right <= left + 1 : b.left >= right - 1;
+    };
     const answeredFor = (el) => {
-        if (getComputedStyle(el).position === 'absolute') return true;
+        const own = getComputedStyle(el);
+        if (own.position === 'absolute' || inTheMargin(el, own)) return true;
         for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
             const s = getComputedStyle(a);
-            if (s.position === 'absolute') return true;
+            if (s.position === 'absolute' || inTheMargin(a, s)) return true;
             if (s.overflowX !== 'visible' || s.overflowY !== 'visible') return true;
         }
         return false;
@@ -6711,6 +6737,34 @@ PAST_THE_COLUMN = """() => {
     for (const [el, past] of over) {
         if ([...over.keys()].some(other => other !== el && other.contains(el))) continue;
         found.push(`${at(el)} is set ${past}px past the column, out in the margin`);
+    }
+    // The other half of excusing a resident: the excuse is only good if the reader can
+    // see it out there. A float pulled into the page's margin from inside a box that
+    // clips — a choose group's own, a board's, a table's — is drawn nowhere at all, and
+    // every other reading calls it well. This pass excused it, checkVisibility() is true
+    // of a clipped box so the paper reading finds screen and print agreeing, and the
+    // copy withholds the clip and shows the words the live page dropped. The reader is
+    // the only party that loses them, which is why the question is asked here, where the
+    // excuse was granted. Wholly inside, because a resident half in the clip is half
+    // unreadable — the group above leaves 7px of a 192px note showing, which is nothing
+    // an "overlaps at all" reading would have objected to. The walk runs past main to
+    // the root, so the window is the last box asked and a float carried off the left
+    // edge of it is named too: leftward overflow scrolls nothing in a LTR page, so the
+    // sideways reading cannot see one.
+    const clips = (s) => ['hidden', 'clip'].includes(s.overflowX)
+                      || ['hidden', 'clip'].includes(s.overflowY);
+    for (const el of main.querySelectorAll('*')) {
+        if (!el.checkVisibility() || getComputedStyle(el).float === 'none') continue;
+        const b = el.getBoundingClientRect();
+        if (b.width < 1) continue;
+        for (let a = el.parentElement; a; a = a.parentElement) {
+            const s = getComputedStyle(a);
+            if (!clips(s)) continue;
+            const c = a.getBoundingClientRect();
+            if (b.left >= c.left - 1 && b.right <= c.right + 1) continue;
+            found.push(`${at(el)} is drawn outside ${at(a)}, which clips it`);
+            break;
+        }
     }
     return [...new Set(found)];
 }"""

@@ -69,6 +69,10 @@
 
       <section id="cause">
         <h2>Root cause</h2>
+        <aside class="sidenote" id="sn-negative-size">
+          The −1 came from a client upload predating the size check added in March. Two
+          other workspaces carry one.
+        </aside>
         <p id="p-cause">
           The export worker treats any failure as retryable. One workspace carried an
           attachment with a declared size of −1, which fails serialization every time;

@@ -24,6 +24,10 @@
 
       <section id="constraints">
         <h2>Constraints</h2>
+        <aside class="sidenote" id="sn-revoke-volume">
+          Support ran "log out all devices" 41 times last quarter, all but two of them
+          inside an active takeover.
+        </aside>
         <ul id="constraint-list">
           <li>
             Logout must revoke immediately — support runs "log out all devices" during
@@ -69,6 +73,13 @@
 
       <section id="precedent">
         <h2>How payments were asked</h2>
+        <aside class="sidenote" id="sn-payments-page">
+          Their page is still served, at payments/2024-03-session-store.
+        </aside>
+        <aside class="sidenote" id="sn-payments-volume">
+          3,400 writes a second at our peak against their 340, both measured at p99 over
+          a quarter.
+        </aside>
         <p id="precedent-intro">
           Payments settled the same question in March. Their page put it in two cards
           with the operating cost on the front of each, which is a framing worth

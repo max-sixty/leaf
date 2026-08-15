@@ -46,6 +46,10 @@
      its gap, which is a fact about the controls' own words and face, so lf-suggestion.js
      measures the first row it builds and states it on the root element. The rule that
      spends it is beside .lf-sug-actions below. */
+  /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
+     off anything the way --rail is. The 192px it leaves the note sets about thirty
+     characters of --t-5 serif. The rule that spends it is beside aside.sidenote below. */
+  --note: 216px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. These are the prose's hierarchy; a size
      that has to fit something states its own number where it is set — a code block
@@ -340,6 +344,56 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; }
+/* What the margin is for is in the catalog beside the class; this is why it is the left
+   margin and what the strip costs.
+
+   The right one is the loop's: a suggestion's controls hang there, the composer's first
+   choice of a place is there, and the panel takes that side of the window whole. A note
+   out there would have to give way to all three, and giving way to the panel is the
+   marginalia moving under a reader who pressed Comments. Nothing the page lays out
+   claims the left. Fixed chrome still crosses it — the key line stands at that corner —
+   and covers a note at the foot of the window as it already covers the column's own
+   last visible line.
+
+   The strip comes out of body's padding, as --rail does on the other side, so the column
+   centres in what is left rather than hanging the note in whatever the centring happened
+   to leave over. It is held whether or not the panel is open, which is what it costs: a
+   page carrying notes gives the column another 216px when the panel takes its 420. A
+   strip handed back at that moment would move every note on the page instead.
+
+   The breakpoint is the 768px of main's box plus the strip; below it the strip would
+   come out of the column's own width. Under it, and on paper, the note is a small
+   indented block where it was written. Paper has no margin to hang one in — 768px is 8
+   inches at 96 to the inch, against 8.5 for Letter and 8.27 for A4 before either takes a
+   page margin — and cannot drop the note either, the words being the page's own, which
+   the render gate holds it to by reading both media. */
+aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
+                 margin: 12px 0 12px var(--sp-4); }
+@media screen and (min-width: 984px) {
+  body:has(aside.sidenote) { padding-left: var(--note); }
+  /* The pull reaches the page's margin through any box between that doesn't clip, which
+     is a section, a tab panel, a disclosure. Through one that does — a choose group, a
+     board, a table — the note is drawn nowhere at all, and the reader is the only party
+     who loses it: checkVisibility() is true of a clipped box, so screen and paper agree,
+     and the copy withholds the clip and shows the words the live page dropped. Scoping
+     the float to what it may float out of would answer that and cost the cases that
+     work, a tab panel clipping nothing, so PAST_THE_COLUMN carries a reading for it and
+     the version is refused at handover instead.
+
+     No margin-top. The float lands at the foot of the preceding block's bottom margin,
+     so it comes out level with the block it precedes wherever that block's own top
+     margin is the smaller of the two — every text block here, within three pixels — and
+     sits above one that carries more room over it than the block before it left, which
+     is what a heading does. A margin-top matched per neighbour would be this file's own
+     margins restated in a second table free to disagree with the first. Aligning the
+     two first baselines would want about 4px besides, and that is an ascent difference
+     between two faces at two sizes — a fact about Charter that DejaVu answers
+     differently, for a shift nobody can see across a 24px gutter. `clear` is what
+     stacks a second note under the first rather than over it. */
+  aside.sidenote {
+    float: left; clear: left; width: calc(var(--note) - var(--sp-4));
+    margin: 0 0 12px calc(-1 * var(--note)); }
+}
 .facts { display: grid; grid-template-columns: max-content 1fr;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5);

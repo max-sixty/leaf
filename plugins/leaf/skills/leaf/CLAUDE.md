@@ -668,8 +668,11 @@ The overlay renders at open and can go stale while it stands, and the two direct
 differently, both acceptably. A row going dead under it can't be pressed — help is a
 scope, the table stands down beneath it — and a key going live under it is merely
 unlisted until the next open, one press away; neither is a false promise. The widget
-sections (`keyHelp`) hold the rule for free — a module registers rows only when its
-widget is on the page, because only then does it load.
+sections (`keyHelp`) hold the rule only if a module registers its rows at *upgrade*
+(`connectedCallback`), never at module load: every x-upgrade module loads on every
+page, presence or not, so a top-level registration is help for a widget the page
+hasn't got. lf-options carried exactly that phantom section until the loader's
+contract was written down here.
 
 ## A key's word says what this press does
 

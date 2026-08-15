@@ -52,17 +52,31 @@ A page directory holds:
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
     heartbeat.json       watcher liveness, bumped by `leaf wait` while it runs
+    viewed.json          when a browser last polled the page, bumped (throttled)
+                         by the server on /api/state; absent for a page nobody
+                         has ever opened, which would otherwise be
+                         indistinguishable from one the user studied and left
     cursor.json          seq of the last user event acknowledged from the agent's
                          model context, written by `leaf ack`
-    server.json          {"port", "pid", "url", "lifetime"} for the running server.
-                         lifetime is "session" when the launching `server run` claimed
-                         the page and "standing" when nothing did — see below, since
-                         it decides what is allowed to take the server down
-    access.json          {"host", "bind"}: the name the page's URL carries and the
-                         interface its server binds. Derived at the first `server run`
-                         and kept, because a restart has to reproduce the URL an open
-                         browser is already polling. The key that URL also carries is
-                         the machine's, not the page's, and lives in the state home
+    server.json          {"port", "pid", "url"} for the running server, held
+                         open under an exclusive lock for that process's life:
+                         the lock is the claim (whoever takes it serves the
+                         page) and the liveness at once, so a record whose
+                         writer is gone — crashed, killed, or lost to a
+                         reboot — is free for the taking and reads as stale
+    access.json          {"host", "bind", "port", "lifetime"}: the name the page's
+                         URL carries, the interface its server binds, the exact
+                         port, and what may take the server down. Derived at the
+                         first `server run` and kept, because a restart has to
+                         reproduce the URL an open browser is already polling —
+                         the port included, since a revive on the next free port
+                         reports success while the open tab polls the old one.
+                         lifetime is "session" when the first serve claimed the
+                         page and "standing" when nothing did (or --standing
+                         declined to); it survives revives, and `server stop`
+                         clears it so the next serve decides afresh. The key the
+                         URL also carries is the machine's, not the page's, and
+                         lives in the state home
     session.json         {"id", "host", "pid", "agent"} of the agent session last
                          working on the page — the watcher the banner names, not
                          necessarily the author of any given message
@@ -190,6 +204,18 @@ vocabulary for rides in the custom keywords below:
                 words. Otherwise a module may render anything in place of them, so
                 `leaf comment` treats the element as opaque and won't quote
                 through it.
+    x-shadow    true when the module renders the page's words into a shadow root.
+                The passage walk, the selection capture and the id lookups cross
+                exactly the declared roots — an undeclared root's words are
+                invisible to every one of them, so a widget that attaches one
+                declares it or its quotes anchor beside the reader's selection.
+    x-exhibit   true when everything inside this element is quoted material — a
+                specimen, not the page speaking. Interactive widgets inside take
+                no input: modules consult `quoted()` before wiring affordances,
+                and the action door refuses a send from one regardless.
+    x-visual    true when the element renders as a picture: a click anchors on
+                the element whole, there being no text in it to select — the
+                same anchor a click on an <svg> or <img> makes.
     x-state     the widget's action verbs: each verb's detail schema, its fold
                 unit, and the record form its state takes in markup. Every
                 applyAction is absolute, so the user's standing state is a
@@ -229,8 +255,10 @@ shape as an action, validated by the widget's x-report declaration at the
 `leaf report` door, and standing only until a version answers it), note
 (agent; per-version changelog, carrying `restated`: the element ids whose
 decisions the publishing version took back, and `reports`: the report event ids
-the version absorbed or overruled). The server stamps every browser-posted event
-author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
+the version absorbed or overruled), error (the page's own runtime reporting a
+failure in front of the user — author=page, heard by the watcher like a report
+and never counted against the reader). The server stamps every other
+browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
 and `version publish` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
 and `session`, its host session id. Several agent sessions can write to one page,
@@ -358,6 +386,13 @@ BROWSER_EVENT_FIELDS = {
     "done": {"version": int, "text": str},
     "close": {"version": int},
     "action": {"widget": str, "action": str, "detail": dict, "version": int},
+    # The page's own runtime reporting a failure in front of the user — an
+    # uncaught throw, a module that wouldn't load, a contained applyAction
+    # fault. Stamped author "page", because it is the machine speaking: the
+    # watcher hears it (a broken page is the agent's to fix, and the reader's
+    # paste-the-console round trip was the only path before), and the reader's
+    # pending count never claims it as their message.
+    "error": {"text": str},
 }
 # Every field the current browser and CLI may write, beyond append_event's
 # id/ts/author/kind and read_events' seq. A registry may grow this vocabulary,
@@ -379,6 +414,7 @@ EVENT_VOCABULARY = {
     "action": {"widget", "action", "detail", "version"},
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
+    "error": {"version", "text"},
 }
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
@@ -605,13 +641,26 @@ CONTENT_TYPES = {
 }
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 
-# On Windows there is no fcntl; the append lock degrades to a no-op. The log is
+# On Windows there is no fcntl; the locks degrade to no-ops. The log is
 # append-only and a torn final line is tolerated by read_events, so this only
 # loses the belt-and-suspenders against simultaneous writers, which are rare.
 try:
     import fcntl
 except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
+
+
+@contextlib.contextmanager
+def flocked(path: Path):
+    """An exclusive lock held while the block runs — the one serialization
+    primitive here. The log file serializes its own appends and the cursor
+    read-modify-write derived from it; a `.lock` beside a registry of JSON
+    files serializes updates to them, since the files themselves are replaced
+    by rename and a lock on a replaced inode holds nothing."""
+    with open(path, "a+b") as f:
+        if fcntl is not None:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        yield f
 
 
 def now_iso() -> str:
@@ -664,8 +713,11 @@ def replace_files(files: list) -> None:
             staged.append((tmp, target))
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
-            if target.exists() and (follow_symlink or not path.is_symlink()):
-                tmp.chmod(target.stat().st_mode & 0o777)
+            if follow_symlink or not path.is_symlink():
+                try:
+                    tmp.chmod(target.stat().st_mode & 0o777)
+                except FileNotFoundError:
+                    pass  # no target to preserve a mode from
         for tmp, target in staged:
             os.replace(tmp, target)
     finally:
@@ -685,13 +737,39 @@ def write_json(path: Path, obj) -> None:
     replace_files([(path, json_bytes(obj), False)])
 
 
+def jsonl_line(event: dict) -> str:
+    """One event as one physical line. U+2028, U+2029 and U+0085 are legal raw in
+    JSON strings and line breaks to any splitlines()-shaped reader, so they are
+    written as escapes — a pasted comment carrying one must not decide where an
+    event ends. The log's own reader splits on the "\\n" the writer puts between
+    events either way; the escape is for what `wait` and `events` print, which
+    stays one event per line for every consumer. json.dumps escapes every other
+    line-breaking character on its own."""
+    line = json.dumps(event, ensure_ascii=False)
+    for ch in "\u2028\u2029\u0085":
+        line = line.replace(ch, f"\\u{ord(ch):04x}")
+    return line
+
+
 def append_event(page_dir: Path, event: dict) -> dict:
     event.setdefault("id", secrets.token_hex(4))
     event.setdefault("ts", now_iso())
-    with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
-        if fcntl is not None:
-            fcntl.flock(f, fcntl.LOCK_EX)
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    with flocked(page_dir / "comments.jsonl") as f:
+        # A crash can tear the previous append mid-line: SIGKILL under a buffered
+        # flush, a full disk. The line discipline is the writer's, so the writer
+        # restores it — without this, the next event glues onto the torn fragment
+        # and one lost event becomes an unreadable line mid-file.
+        f.seek(0, os.SEEK_END)
+        if f.tell():
+            f.seek(-1, os.SEEK_END)
+            if f.read(1) != b"\n":
+                f.write(b"\n")
+        f.write((jsonl_line(event) + "\n").encode())
+        # To the platter before the caller is told it landed: an event is a
+        # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
+        # and events are rare enough that a flush per append costs nothing.
+        f.flush()
+        os.fsync(f.fileno())
     return event
 
 
@@ -700,18 +778,29 @@ def read_events(page_dir: Path) -> list:
     if not path.exists():
         return []
     events = []
-    lines = path.read_text(encoding="utf-8").splitlines()
+    # The log's grammar is events joined by "\n" — the writer's own separator,
+    # not splitlines()'s wider class, which once read a U+2028 inside a comment's
+    # text as a break and left half an event leading a line no parse could take.
+    # Bytes, decoded per line: a crash can tear mid-character as easily as
+    # mid-line (ensure_ascii=False writes multi-byte UTF-8), and one strict
+    # read_text of the file would raise on the tear before any line-level
+    # tolerance could reach it.
+    lines = path.read_bytes().split(b"\n")
+    if lines and lines[-1] == b"":
+        lines.pop()
     for i, line in enumerate(lines):
         if not line.strip():
             continue
         try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            if (
-                i == len(lines) - 1
-            ):  # a concurrent append mid-flush; complete on the next read
-                break
-            raise
+            event = json.loads(line.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # The final line is a concurrent append mid-flush, complete on the
+            # next read. An earlier one is the tear a crash left, standing alone
+            # because append_event repairs the discipline before writing: that
+            # event's sender already saw its send fail, the seqs around it hold,
+            # and there is nothing anyone could do with a fragment — so it is
+            # skipped, not raised over, and the page keeps reading.
+            continue
         event["seq"] = i + 1
         events.append(event)
     return events
@@ -812,33 +901,69 @@ def published_versions(page_dir: Path, events: list) -> list:
 
 
 def pid_alive(pid: int) -> bool:
+    # PermissionError is another user's process, and every pid this module
+    # records — servers, agent sessions — runs as this user. After a reboot the
+    # low pids are mostly root's, so counting EPERM alive read a stale record
+    # as a live server for as long as the machine stayed up.
     try:
         os.kill(pid, 0)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         return False
-    except PermissionError:
-        pass
     return True
 
 
+def held_by_a_live_server(path: Path) -> bool:
+    """Whether some process is still holding the server record open.
+
+    The serving process takes an exclusive lock on server.json and keeps it for
+    its whole life, so this is the one question and the kernel answers it: a
+    lock nobody can take is a server running now, and a lock free for the taking
+    is a record whose writer is gone — crashed, killed, or lost to a reboot.
+
+    That is a fact rather than a guess about one, which is what the record's pid
+    was. A pid is not identity: server.json outlives a power loss and the
+    machine deals the number to whatever starts next, so `server run` printed a
+    dead URL, `leaf wait` never revived, and `server stop` sent SIGTERM to a
+    stranger. Reading a start time out of `ps` to tell those apart cost 18ms a
+    call on a path that runs every couple of seconds per open page; the lock
+    costs an open and is exact.
+    """
+    if fcntl is None:  # pragma: no cover - Windows has no flock
+        return True  # nothing to ask; the record stands as written
+    try:
+        with open(path, "r+b") as probe:
+            try:
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return True  # someone holds it: the server is up
+            fcntl.flock(probe, fcntl.LOCK_UN)
+            return False
+    except OSError:
+        return False
+
+
 def running_server(page_dir: Path):
+    """The recorded server, where its writer is still holding the record."""
     info = read_json(page_dir / "server.json")
-    if info and pid_alive(info["pid"]):
-        return info
-    return None
+    if not info or not held_by_a_live_server(page_dir / "server.json"):
+        return None
+    return info
 
 
 def standing_server(page_dir: Path) -> bool:
     """Whether the page's running server is one no session's end may take down.
 
-    The launch decided this and server.json records it, so the two reapers a
-    session has — this module's watcher thread and the SessionEnd hook — ask one
-    question rather than each guessing from what it can see. Neither could
-    reconstruct the answer anyway: a session may claim a page long after a bare
-    shell started serving it, and from that point the claim says nothing about
-    who launched the process."""
-    info = running_server(page_dir)
-    return bool(info) and info["lifetime"] == "standing"
+    The first serve decided this and access.json records it — the durable file,
+    because the lifetime is a fact about the page's serve and not about whichever
+    launch most recently restarted the process. It lived in server.json once, and
+    a standing server the wait revived came back as the reviving session's own:
+    SessionEnd then stopped and idled the dashboard someone left up for weeks.
+    The two reapers a session has — the watcher thread and the SessionEnd hook —
+    ask this one question rather than each guessing from what it can see."""
+    return (
+        bool(running_server(page_dir))
+        and (read_json(page_dir / "access.json") or {}).get("lifetime") == "standing"
+    )
 
 
 def lifetime_note(page_dir: Path, lifetime: str) -> str:
@@ -923,7 +1048,11 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
                     f"--host {host}: not a hostname or IP address "
                     "(no scheme, no port — leaf picks the port)"
                 )
-        access = {"host": host, "bind": "::"}
+        # Over the record, not in place of it: a --host restates where the page
+        # is reached, and the record's other facts — the exact port an open tab
+        # polls, the standing lifetime — restate nothing and must survive, or
+        # the recovery this flag exists for demotes the dashboard it recovers.
+        access = {**(access or {}), "host": host, "bind": "::"}
     else:
         ssh = os.environ.get("SSH_CONNECTION", "").split()
         addr = ssh[2] if len(ssh) == 4 else "127.0.0.1"
@@ -951,14 +1080,26 @@ def host_key() -> str:
     machine, present and future. Leaf has one reader; giving it a second
     means scoping the key back to the page first.
 
+    The cookie is a second copy of that cost: a browser's jar is port-blind, so
+    any server the reader visits on the same host string — a dev server on
+    localhost:3000 — receives the key with their request. Considered and kept:
+    every cookie-borne credential has this property (a port-scoped name or a
+    derived value is still delivered to every port and replayable against this
+    one), and dropping the cookie for a key-in-URL scheme breaks the thing the
+    cookie exists for — the page's static asset references (/leaf.js, a module's
+    ../leaf.js import) can carry no query, so every asset would need the auth
+    the redirect-following request has. The boundary is the host string; a
+    reader on a shared or hostile-local-service machine narrows it by serving
+    on a name other servers don't share (--host).
+
     Linked into place rather than written over, so two first serves racing on a
     fresh machine agree on whichever won. Each keeping its own would have their
     servers overwrite the one shared cookie in turn, for as long as both ran."""
     path = state_home() / "access.json"
     if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
         staged = path.with_name(f".{secrets.token_hex(8)}.tmp")
         staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
+        staged.chmod(0o600)
         try:
             os.link(staged, path)
         except FileExistsError:
@@ -984,11 +1125,18 @@ def state_home() -> Path:
     directories by convention, sessions/ the live-session registry, access.json
     the one key every page here is served with (`host_key`). State, not config:
     page directories carry pids, ports, and absolute paths, so they are bound to
-    this machine, and so is the key that reaches them."""
-    return (
+    this machine, and so is the key that reaches them.
+
+    Created here, owner-only: the key is what stands between another local user
+    and a log that outranks the document, and a 0644 file under a traversable
+    path hands it to anyone on a shared machine. One writer for the mode, since
+    every path into the state home resolves through this call."""
+    home = (
         Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
         / "leaf"
     )
+    home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return home
 
 
 def host_identity() -> dict | None:
@@ -1057,11 +1205,15 @@ def claim_page(page_dir: Path) -> bool:
         entry = read_json(stale)
         if entry and not pid_alive(entry["pid"]):
             stale.unlink(missing_ok=True)
-    entry = read_json(sessions / f"{sid}.json") or {"pages": []}
-    pages = sorted({*entry["pages"], str(page_dir)})
-    write_json(
-        sessions / f"{sid}.json", {"pid": int(pid), "pages": pages, "ts": now_iso()}
-    )
+    # Under the registry's lock: `server run` for one page and `leaf wait` for
+    # another interleave this read-modify-write, and the loser's write would
+    # silently drop the winner's page from the watch obligation.
+    with flocked(sessions / ".lock"):
+        entry = read_json(sessions / f"{sid}.json") or {"pages": []}
+        pages = sorted({*entry["pages"], str(page_dir)})
+        write_json(
+            sessions / f"{sid}.json", {"pid": int(pid), "pages": pages, "ts": now_iso()}
+        )
     return True
 
 
@@ -1131,7 +1283,7 @@ def other_leaves(page_dir: Path) -> list:
             if not published:
                 continue
             parser = parse_version(candidate, published[-1])
-        except (OSError, ValueError):
+        except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
         others.append(
             {
@@ -1158,7 +1310,10 @@ def unacknowledged(events: list, cursor: int) -> list:
     return [
         e
         for e in events
-        if e["seq"] > cursor and (e["author"] == "user" or e["kind"] == "report")
+        if e["seq"] > cursor
+        # The user's own, a worker's report, and the page reporting itself
+        # broken — the last is the agent's debt exactly as a report is.
+        and (e["author"] == "user" or e["kind"] in ("report", "error"))
     ]
 
 
@@ -1197,6 +1352,10 @@ def presence(page_dir: Path, events: list) -> dict:
         "host": session.get("host") if session else None,
         # None when nothing claimed the page — interact.py run outside an agent host.
         "session_alive": pid_alive(session["pid"]) if session else None,
+        # When a browser last polled the page (the server bumps viewed.json,
+        # throttled), or None for a page nobody has ever opened — which used to
+        # be indistinguishable from one the user studied and left.
+        "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
     }
 
 
@@ -1298,6 +1457,26 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def do_GET(self):
+        self._answer(self._get)
+
+    def do_POST(self):
+        self._answer(self._post)
+
+    def _answer(self, route) -> None:
+        """One boundary for what a route raises. Unanswered, a fault drops the
+        socket, socketserver buries the traceback in stderr nothing reads, and
+        the banner says "Server offline" about a server that is up — so every
+        fault becomes a 500 naming itself, which the banner can show to the one
+        person still looking."""
+        try:
+            route()
+        except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+            try:
+                self._json({"error": f"{type(error).__name__}: {error}"}, 500)
+            except OSError:
+                pass  # the peer left mid-answer; nobody to tell
+
+    def _get(self):
         if not self.authorized():
             self._json({"error": NO_KEY}, 403)
             return
@@ -1314,6 +1493,19 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if path == "/api/state":
+            # A poll is the one proof a browser holds the page open, and before
+            # this nothing recorded it: a page nobody ever opened and one the
+            # user studied and left looked identical from the agent's side.
+            # Throttled — presence needs a recency, not a request log. Never
+            # from a preview: the render gate's own browser is not the reader,
+            # and its polls would leave no page "never opened" again.
+            cls = type(self)
+            if (
+                self.preview_upto is None
+                and time.time() - getattr(cls, "viewed_at", 0) > 30
+            ):
+                cls.viewed_at = time.time()
+                write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
             # versions through the handler's own view, so a preview server's
             # state agrees with what it serves (identical when not previewing).
             events = read_events(self.page_dir)
@@ -1356,9 +1548,16 @@ class Handler(BaseHTTPRequestHandler):
                 return
         self._json({"error": "not found"}, 404)
 
-    def do_POST(self):
+    def _post(self):
         if not self.authorized():
             self._json({"error": NO_KEY}, 403)
+            return
+        # The preview window is the gate's own browser over a maybe-unpublished
+        # version, not the reader: an error event it minted would stand in the
+        # real log as the agent's debt, diagnostics the lint generated about
+        # itself. Nothing it does is the page's to keep.
+        if self.preview_upto is not None:
+            self._json({"error": "the preview server is read-only"}, 403)
             return
         if urlsplit(self.path).path != "/api/event":
             self._json({"error": "not found"}, 404)
@@ -1483,7 +1682,7 @@ class Handler(BaseHTTPRequestHandler):
         }:
             self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
             return
-        event["author"] = "user"
+        event["author"] = "page" if kind == "error" else "user"
         self._json({"ok": True, "event": append_event(self.page_dir, event)})
 
 
@@ -1827,7 +2026,11 @@ def cmd_init(page_dir: Path) -> None:
         if (target.exists() or target.is_symlink()) and not target.is_file():
             sys.exit(f"{target} must be a file")
 
-    (page_dir / "versions").mkdir(parents=True, exist_ok=True)
+    # Owner-only when this call creates it: the directory holds the discussion
+    # and a server.json whose URL carries the machine key. A directory the
+    # caller already made keeps the mode they chose.
+    page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (page_dir / "versions").mkdir(exist_ok=True)
     for sub in VENDORED_DIRS:
         (page_dir / sub).mkdir(exist_ok=True)
 
@@ -2019,6 +2222,24 @@ def custom_widget_css(tag: str) -> str:
 
 def custom_widget_module(tag: str) -> str:
     return f"""\
+// A widget module takes the helper surface /leaf.js exports, and no more.
+// The contracts a module must honor (each is a norm in the shipped layer's
+// skills/leaf/CLAUDE.md, learned by getting it wrong):
+// - applyAction states an absolute placement, never a relative mutation —
+//   replay applies it on every later version, and the sender's own action
+//   must be a no-op.
+// - Read your own slot with says(el), never textContent: the runtime's hidden
+//   comment line lands inside widgets legitimately.
+// - Anything you inject is chrome only if marked: offer() for a control,
+//   relabel() for a label that is the page speaking. Unmarked injected words
+//   read as the page's and break the file-side anchor reading.
+// - The registry entry declares x-verbatim because this stub leaves the body
+//   in place. Drop it the moment the module renders anything in the body's
+//   stead, or quotes anchor on words the screen no longer shows.
+// - A control that handles its own Escape consumes it (preventDefault), and
+//   declares its keys through keyHelp/keyHint at upgrade — not module load.
+// - Before wiring any input that would carry an edit back, consult quoted():
+//   an exhibited copy of this widget takes no input.
 import {{ once }} from "/leaf.js";
 
 customElements.define(
@@ -2144,6 +2365,9 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
     claimed = False if standing else claim_page(page_dir)
     existing = running_server(page_dir)
     if existing:
+        # Read, never derive: a refusal must not rewrite the record it refuses
+        # over, and a running server proves the record exists.
+        access = read_json(page_dir / "access.json") or {}
         # A stated host silently ignored would print a URL that contradicts the
         # flag, so compare against that URL — what the user would be handed.
         if host and urlsplit(existing["url"]).hostname != host.lower():
@@ -2153,7 +2377,7 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
             )
         # A stated lifetime silently ignored would print a note that contradicts
         # the flag, exactly as a stated host would — same refusal, same way out.
-        if standing and existing["lifetime"] != "standing":
+        if standing and access.get("lifetime") != "standing":
             sys.exit(
                 f"already serving as a session server at {existing['url']}; "
                 "`leaf server stop` first, then re-run with --standing"
@@ -2162,15 +2386,31 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
         # The running server's lifetime, not this invocation's: claiming the page
         # does not adopt a server this launch found already up.
         print(
-            lifetime_note(page_dir, existing["lifetime"]), file=sys.stderr, flush=True
+            lifetime_note(page_dir, access.get("lifetime") or "session"),
+            file=sys.stderr,
+            flush=True,
         )
         return
     access = page_access(page_dir, host)
+    # The recorded lifetime outranks this launch's own shape, because a revive is
+    # this same command run bare from the watcher's child: a standing page stays
+    # standing however it comes back, and `server stop` — the arrangement's one
+    # reaper — is what clears the record so the next serve decides afresh.
+    lifetime = (
+        "standing"
+        if standing or access.get("lifetime") == "standing" or not claimed
+        else "session"
+    )
     token = host_key()
     base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
     server_cls = DualStackHTTPServer if ":" in access["bind"] else ThreadingHTTPServer
     httpd = None
-    for port in [*range(base, base + 10), 0]:
+    # A recorded port is bound exactly: the contract of access.json is that a
+    # restart reproduces the URL an open browser is already polling, and a port
+    # re-derived onto the next free number was a revive reporting success while
+    # the user's tab polled the old one forever.
+    ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
+    for port in ports:
         try:
             httpd = server_cls(
                 (access["bind"], port),
@@ -2178,35 +2418,65 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
             )
             break
         except OSError as e:
-            if e.errno == errno.EADDRINUSE:
+            if e.errno == errno.EADDRINUSE and "port" not in access:
                 continue
             # The address outlived the session that derived it — a page created
-            # over SSH and served again from elsewhere, or from a box that has
-            # since moved. Naming where it was recorded is the whole fix.
+            # over SSH and served again from elsewhere, a recorded port another
+            # process now holds. Naming where it was recorded is the whole fix.
             sys.exit(
-                f"can't serve {page_dir} on {access['bind']}: {e}\n"
+                f"can't serve {page_dir} on {access['bind']}"
+                f"{':' + str(access['port']) if 'port' in access else ''}: {e}\n"
                 f"that address came from the session that first served this page and is "
                 f"kept in {page_dir / 'access.json'}; delete that file to derive the "
                 "address again from this one, or re-run with --host NAME to bind every "
                 "interface and put NAME in the URL."
             )
     url = page_url(access["host"], httpd.server_address[1], token)
-    lifetime = "session" if claimed else "standing"
+    # The lock is the claim and the liveness at once, so taking it is the whole
+    # of becoming this page's server: two `server run`s racing past the check
+    # above both bind (the scan hands the loser the next port), and the one that
+    # takes the lock is the one that serves. Held open for this process's life —
+    # `record` stays in scope deliberately — so the kernel releases it on exit,
+    # crash or reboot alike, and the next reader sees the truth with nothing to
+    # clean up.
+    record = open(page_dir / "server.json", "a+b")  # noqa: SIM115 - held for this process's life
+    try:
+        if fcntl is not None:
+            fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        httpd.server_close()
+        record.close()
+        winner = running_server(page_dir)
+        if not winner:
+            sys.exit(f"another `server run` raced this one on {page_dir}; re-run")
+        print(winner["url"], flush=True)
+        print(
+            lifetime_note(page_dir, access.get("lifetime") or "session"),
+            file=sys.stderr,
+            flush=True,
+        )
+        return
+    record.truncate(0)
+    # The pid is what `server stop` signals. It is safe to signal now for the
+    # same reason the record is trustworthy: the lock says this process is the
+    # one that wrote it, so the number cannot have been dealt to a stranger.
+    record.write(
+        json_bytes({"port": httpd.server_address[1], "pid": os.getpid(), "url": url})
+    )
+    record.flush()
+    # The durable record, only from the winner: written before the link decided
+    # the race, a loser's copy could name a port nothing listens on, and the
+    # next revive would bind exactly that.
     write_json(
-        page_dir / "server.json",
-        {
-            "port": httpd.server_address[1],
-            "pid": os.getpid(),
-            "url": url,
-            "lifetime": lifetime,
-        },
+        page_dir / "access.json",
+        {**access, "port": httpd.server_address[1], "lifetime": lifetime},
     )
     # The URL is the payload and goes to stdout alone, as everything downstream
     # reads it there; what ends this process is the account beside it, and stderr
     # is where leaf's other accounts of themselves already go.
     print(url, flush=True)
     print(lifetime_note(page_dir, lifetime), file=sys.stderr, flush=True)
-    if claimed:
+    if lifetime == "session":
         threading.Thread(
             target=stop_when_session_ends,
             args=(httpd, page_dir),
@@ -2215,6 +2485,11 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
     try:
         httpd.serve_forever()
     finally:
+        # The lock this process holds is what said the record was live, so
+        # letting go is the whole of taking the page down — an exit that
+        # skipped this (a crash, a kill) says the same thing by the same
+        # means. Removing the file is tidiness, and only ours to do.
+        record.close()
         (page_dir / "server.json").unlink(missing_ok=True)
 
 
@@ -2236,10 +2511,11 @@ def revive_server(page_dir: Path) -> bool:
     original `server run` does. sys.executable is the resolved uv environment,
     so this skips uv entirely."""
     (page_dir / "server.json").unlink(missing_ok=True)
-    subprocess.Popen(
+    child = subprocess.Popen(
         [sys.executable, str(Path(__file__).resolve()), "server", "run", str(page_dir)],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
         start_new_session=True,
     )
     deadline = time.time() + 5
@@ -2247,6 +2523,11 @@ def revive_server(page_dir: Path) -> bool:
         time.sleep(0.1)
         if running_server(page_dir):
             return True
+    # The child wrote its reason to stderr — a stale bind, a taken port — and
+    # discarding it left the wait reporting a generic sentence about a failure
+    # the child had already named. A child still starting has said nothing yet.
+    if child.poll() is not None and (reason := child.stderr.read().strip()):
+        print(reason, file=sys.stderr)
     return False
 
 
@@ -2273,7 +2554,7 @@ def cmd_wait(page_dir: Path) -> int:
             batch = unacknowledged(events, cursor)
             if batch:
                 for event in batch:
-                    print(json.dumps(event, ensure_ascii=False), flush=True)
+                    print(jsonl_line(event), flush=True)
                 status = read_json(page_dir / "status.json") or {"state": "idle"}
                 if status["state"] != "working":
                     # Flip before the agent handles the batch: the handoff gap between this
@@ -2340,10 +2621,15 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
     if target is None:
         end = events[-1]["seq"] if events else 0
         sys.exit(f"event {seq} does not exist; the log ends at {end}")
-    if target["author"] != "user" and target["kind"] != "report":
-        sys.exit(f"event {seq} is neither a user event nor a report")
-    if seq > read_cursor(page_dir):
-        write_json(page_dir / "cursor.json", {"seq": seq})
+    if target["author"] != "user" and target["kind"] not in ("report", "error"):
+        sys.exit(f"event {seq} is not a user event, a report, or a page error")
+    # Under the log's lock: two concurrent acks each reading 0 would let the
+    # smaller seq land last and regress the cursor its guard exists to keep
+    # monotonic. The log file is the page's one lock, and the cursor is a seq
+    # into it.
+    with flocked(page_dir / "comments.jsonl"):
+        if seq > read_cursor(page_dir):
+            write_json(page_dir / "cursor.json", {"seq": seq})
 
 
 def read_text_arg(text) -> str:
@@ -2412,6 +2698,18 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         return f"<{tag}> does not declare action verb {event['action']!r}"
     if message := detail_error(state[event["action"]]["detail"], event["detail"]):
         return f"<{tag}> action {event['action']!r} detail is invalid: {message}"
+    # The exhibit rule at the door, not only in the shipped runtime's
+    # sendAction: an exhibited widget is a mention, and the log outranks the
+    # document — an action taken here would replay as a decision the reader
+    # made on quoted material. Any sender the key admits reaches this door.
+    html = version_path(page_dir, event["version"]).read_text(encoding="utf-8")
+    if quoted_in(
+        event["widget"], parse_structure(html).by_id, spoken(html, registry), registry
+    ):
+        return (
+            f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
+            "quoted material takes no input"
+        )
     return None
 
 
@@ -2463,6 +2761,20 @@ def reserved_ids_error(ids: list) -> str:
     )
 
 
+def reserved_marker_errors(parser) -> list:
+    """The same trespass as a reserved id, for the runtime's other markers: it
+    writes data-lf-* and the .lf-chrome/.lf-live/.lf-copy classes as its own
+    record and reads them back, so an authored copy makes it misread the page —
+    words inside .lf-chrome leave every reading, data-lf-gen words become cells
+    the file-side reading has no fence for."""
+    return [
+        f"<{tag}> at line {line} wears the runtime's own markers "
+        f"({', '.join(markers)}); the page may not author what the runtime "
+        "reads back as its own record"
+        for tag, line, markers in parser.reserved_markers
+    ]
+
+
 def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
@@ -2490,6 +2802,8 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         )
     if frag.reserved_ids:
         sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
+    if marker_errors := reserved_marker_errors(frag):
+        sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
     clash = sorted(frag.ids & (version_ids(page_dir) | thread_widget_ids(events)))
     if clash:
         sys.exit(
@@ -2651,7 +2965,7 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
 def cmd_events(page_dir: Path, after: int) -> None:
     for event in read_events(page_dir):
         if event["seq"] > after:
-            print(json.dumps(event, ensure_ascii=False))
+            print(jsonl_line(event))
 
 
 # A quote as a transcript names it. The anchor stores the passage whole, because that
@@ -2951,6 +3265,16 @@ def cmd_stop(page_dir: Path) -> str:
     else:
         outcome = "no server running"
     (page_dir / "server.json").unlink(missing_ok=True)
+    # Stopping ends the standing arrangement along with the process — it is the
+    # arrangement's one reaper — so the next serve decides its lifetime afresh.
+    # A revive never comes through here, which is what keeps a standing page
+    # standing across the deaths it doesn't choose.
+    access = read_json(page_dir / "access.json")
+    if access and "lifetime" in access:
+        write_json(
+            page_dir / "access.json",
+            {k: v for k, v in access.items() if k != "lifetime"},
+        )
     return outcome
 
 
@@ -3199,6 +3523,15 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
+# The one CSP every page declares, required by `version check` the way the one
+# script tag is. The vendoring promise — an approved page can't change under its
+# user, and can't phone home — held by convention until the browser enforced it:
+# a vendored module or an inline handler could fetch any origin. 'self' is the
+# page directory whole; data: admits the images `version export` inlines; the
+# theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
+# (scripts stay 'self'-only, which is what matters). Verified over the gallery —
+# every widget, mermaid and the tokenizer included — before it was required.
+PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
 
 
 def implicit_closes(open_tags: list, tag: str) -> int:
@@ -3234,6 +3567,7 @@ class _StructParser(HTMLParser):
         self.external_scripts = []  # (src, type)
         self.stylesheets = []  # hrefs of rel=stylesheet links
         self.lf_metas = []  # {"name", "content", "line"} for <meta name="lf-*">
+        self.http_equivs = []  # {"equiv", "content", "line"} per http-equiv meta
         # /media/ paths any attribute points at, so the check that the file is
         # there reads references and not mentions: a page documenting leaf
         # writes one of these paths in prose, and a raw scan of the markup
@@ -3260,6 +3594,15 @@ class _StructParser(HTMLParser):
         # with the nearest open ancestor carrying an id — (tag, id) or None — so
         # unpointable_blocks can judge where a user's aim would land.
         self.bare_blocks = []
+        # (tag, line, markers) per element wearing the runtime's own record:
+        # a data-lf-* attribute, or one of the classes that answer "which
+        # document is this" (.lf-chrome), "this is the live region" (.lf-live),
+        # "this is a copy" (.lf-copy). The runtime writes these and reads them
+        # back, so an authored copy makes it misread the page it stands on —
+        # authored words inside .lf-chrome leave the reading position and every
+        # quote, and data-lf-gen words become fenced cells the file's reading
+        # has no fence for.
+        self.reserved_markers = []
         self._svg_depth = 0
 
     @property
@@ -3340,10 +3683,25 @@ class _StructParser(HTMLParser):
                     "line": self.getpos()[0],
                 }
             )
+        if tag == "meta" and attrs_d.get("http-equiv"):
+            self.http_equivs.append(
+                {
+                    "equiv": attrs_d["http-equiv"],
+                    "content": attrs_d.get("content"),
+                    "line": self.getpos()[0],
+                }
+            )
         if attrs_d.get("style"):
             self.inline_styles.append(attrs_d["style"])
         if tag in PIXEL_WIDTH_TAGS and attrs_d.get("width"):
             self.attr_widths.append((tag, attrs_d["width"]))
+        markers = sorted(name for name in attrs_d if name.startswith("data-lf-"))
+        markers += sorted(
+            {"lf-chrome", "lf-live", "lf-copy", "lf-ui"}
+            & set((attrs_d.get("class") or "").split())
+        )
+        if markers:
+            self.reserved_markers.append((tag, self.getpos()[0], markers))
         self.media_refs.update(
             v for v in attrs_d.values() if v and v.startswith(f"/{MEDIA_DIR}/")
         )
@@ -3366,6 +3724,17 @@ class _StructParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attrs_d = self._attributes(tag, attrs)
+        # The browser renders neither: template content parses into an inert
+        # fragment and noscript stays text in any scripting browser, while the
+        # file's reading would take both for the page's words — so a comment
+        # could anchor on words no reader ever sees. Nothing in the vocabulary
+        # has a use for markup the page won't render; refuse it at the door
+        # instead of teaching every reading to look away.
+        if tag in ("template", "noscript"):
+            self.errors.append(
+                f"<{tag}> at line {self.getpos()[0]}: the browser renders none of "
+                "its content; write it plainly or leave it out"
+            )
         # Before _harvest, whose id attribution reads the open suggestion: a
         # slot's contents belong to the suggestion that encloses them.
         if tag in ("lf-old", "lf-new"):
@@ -3628,7 +3997,15 @@ class _PassageParser(HTMLParser):
     standing text per element whose registry entry records a verb as the body
     (`rewritten_bodies`): their words stand in the authored body's place, because
     replay writes exactly that into the DOM. Without either, the reading is the
-    version as authored — every slot pending, every body Claude's."""
+    version as authored — every slot pending, every body Claude's.
+
+    close() deliberately does not unwind the stack. An element still open at EOF
+    would lose its `_close` work — the x-says tail, a `gone` verdict — but those
+    attach only to lf-* elements, and every path into this reading is gated on
+    `structure_errors`, which refuses any lf-* left open (versions at check and
+    publish, thread fragments at their own door, prev_html by the published-note
+    filter). The tags legitimately open at EOF (p, li, body, html) lose nothing
+    in `_close`. A guard here would defend a state no gated input reaches."""
 
     def __init__(self, registry=None, decided=None, rewrites=None):
         super().__init__(convert_charrefs=True)
@@ -4457,6 +4834,28 @@ def validate_registry(registry: dict, source) -> dict:
                         f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
                         "must declare an object"
                     )
+                # A verb carries only the detail keys its entry declares — the
+                # premise the layer's own field meanings rest on: both runtimes
+                # dispatch thread settlement on `resolves` being present, which
+                # is safe exactly because a closed schema makes carrying it a
+                # declaration.
+                if spec["detail"].get("additionalProperties") is not False:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                        "must state additionalProperties: false — a verb carries "
+                        "only the detail keys it declares"
+                    )
+                # `resolves` is the layer's word for the thread this action
+                # answers ($state), so a verb declaring the field is held to
+                # the string a thread id is: declared otherwise, settlement
+                # would dispatch on it anyway and crash on the first event.
+                resolves = spec["detail"].get("properties", {}).get("resolves")
+                if resolves is not None and not declares_string(resolves):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves` — the layer's name for the thread an "
+                        "action answers — so it must declare a string"
+                    )
 
     for tag, entry in widgets.items():
         if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
@@ -4563,6 +4962,26 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> declares x-report but not the boolean `overruled` "
                 "attribute a version overrules a standing report with"
+            )
+        # The same rule for the other channel: a version that rewrites what a
+        # decision rested on must say `restated` on the element ($restated),
+        # and a closed schema without the attribute is a widget whose every
+        # rewrite is unpublishable — the words gate demands an attribute the
+        # widget's own schema refuses. Held only where a verb folds on the
+        # widget itself: a verb folding per child (move's "card") rests its
+        # decisions on elements this entry doesn't name.
+        folds_whole = any(
+            spec.get("unit", "widget") == "widget"
+            for spec in entry.get("x-state", {}).values()
+        )
+        if folds_whole and not (
+            isinstance(properties.get("restated"), dict)
+            and properties["restated"].get("type") == "boolean"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> declares x-state verbs that fold on the widget "
+                "but not the boolean `restated` attribute a version retracts a "
+                "decision with"
             )
         # One rule set for both channels: x-state and x-report differ in
         # precedence, not in how a verb, its unit, and its record hang together.
@@ -4689,6 +5108,18 @@ def validate_registry(registry: dict, source) -> dict:
                 raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
                 )
+        # The reading honors any declared slot, but the id-survival licensing
+        # (retirable_ids) still reads the suggestion's own slot bookkeeping —
+        # so a third-party slot would get the whole loop except the honoring
+        # version's right to drop its ids, and fail three versions in with
+        # "ids dropped". Refused loudly here until the licensing is written in
+        # terms of the declaration (TODO.md holds the generalization).
+        if not set(entry["x-parent"]) <= {"lf-suggestion"}:
+            raise RegistryError(
+                f"{path}: <{tag}> declares x-retired-when outside the suggestion "
+                "family; the id-survival licensing doesn't honor a declared slot "
+                "there yet, so the retired slot's ids could never be dropped"
+            )
     return registry
 
 
@@ -4706,6 +5137,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
             )
         if parser.reserved_ids:
             errors.append(reserved_ids_error(parser.reserved_ids))
+        errors.extend(reserved_marker_errors(parser))
         if errors:
             raise RegistryError(f"{source}: <{tag}> x-example is invalid: {errors[0]}")
     return registry
@@ -4735,23 +5167,28 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
 
     A tag entry replaces the earlier one whole; schemas never deep-merge,
     because a half-old, half-new contract is no layer's vocabulary. A $ entry
-    merges one level deep: it is not a contract but the layer's namespace of
-    shared facts, and its members are the unit every consumer indexes
-    ($idioms[".lede"], $languages["names"]). Under replace-whole, a project
-    declaring its one idiom vendored a $idioms holding exactly that idiom —
-    its theme rules kept styling, theme.css concatenating where the registry
-    did not, while `page catalog` silently dropped the shipped ten. A member
-    still replaces whole, and the grain here decides nothing the gates don't
-    re-check: validation and the vocabulary stamp read the merged result,
-    whichever layer each piece came from.
+    merges by member: it is not a contract but the layer's namespace of shared
+    facts. Under replace-whole, a project declaring its one idiom vendored a
+    $idioms holding exactly that idiom — its theme rules kept styling,
+    theme.css concatenating where the registry did not, while `page catalog`
+    silently dropped the shipped ten. A member that is itself a map merges by
+    its own keys for the same reason one level down: $languages.paths is
+    indexed by extension, and a layer adding `.svelte` must not silently drop
+    every shipped extension with it. Scalar and list members replace whole —
+    a names list is one statement — and the grain here decides nothing the
+    gates don't re-check: validation and the vocabulary stamp read the merged
+    result, whichever layer each piece came from.
     """
     for name, entry in entries.items():
         earlier = merged.get(name)
-        merged[name] = (
-            {**earlier, **entry}
-            if name.startswith("$") and earlier is not None
-            else entry
-        )
+        if not (name.startswith("$") and earlier is not None):
+            merged[name] = entry
+            continue
+        combined = {**earlier, **entry}
+        for key, value in entry.items():
+            if isinstance(value, dict) and isinstance(earlier.get(key), dict):
+                combined[key] = {**earlier[key], **value}
+        merged[name] = combined
 
 
 def incoming_registry(layers: list) -> dict:
@@ -5871,6 +6308,17 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
             'the page must link exactly one stylesheet, <link rel="stylesheet" '
             f'href="/theme.css">, found {parser.stylesheets}'
         )
+    declared_csp = [
+        m["content"]
+        for m in parser.http_equivs
+        if m["equiv"].lower() == "content-security-policy"
+    ]
+    if declared_csp != [PAGE_CSP]:
+        errors.append(
+            "the page must declare the layer's one CSP, "
+            f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'
+            + (f" — found {declared_csp}" if declared_csp else "")
+        )
 
     for meta in parser.lf_metas:
         where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
@@ -5889,6 +6337,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         )
     if parser.reserved_ids:
         errors.append(reserved_ids_error(parser.reserved_ids))
+    errors.extend(reserved_marker_errors(parser))
 
     registry = load_registry(page_dir)
     if registry is not None:
@@ -6505,10 +6954,55 @@ def render_version(browser, url: str) -> list:
         unreachable = page.evaluate(UNREACHABLE_WORDS)
         covered = page.evaluate(COVERED_WORDS)
         unread = page.evaluate(UNREAD_SYNTAX)
+        # Shadow roots the registry doesn't declare: the passage walk, the
+        # capture and the id lookups cross exactly the declared ones, so an
+        # undeclared root's words silently anchor quotes astray. UA shadow roots
+        # are closed and invisible here; anything open was attached by a module.
+        undeclared_shadow = page.evaluate("""() => fetch('/registry.json')
+            .then(r => r.json())
+            .then(registry => [...new Set([...document.querySelectorAll('*')]
+                .filter(el => el.shadowRoot && !registry[el.localName]?.['x-shadow'])
+                .map(el => `<${el.localName}>`))])""")
         # Replay is scheme-blind, so one scheme's reading covers both. The wait
         # is for the runtime's own caught-up stamp: reading the replay's record
         # mid-replay would miss whatever hadn't landed yet.
         conflicts = []
+        dishonest_verbatim = []
+        if scheme == "light":
+            # x-verbatim honesty: the entry claims the body reaches the reader
+            # as its own words, and the two readings built on that claim — the
+            # browser's says() and the file's spoken() — are compared here on
+            # every instance the log hasn't moved (a decided or rewritten
+            # widget legitimately shows other words). A module that renders
+            # something in the body's stead while the entry still says
+            # verbatim strands quotes on words the screen no longer shows.
+            shown = page.evaluate("""() => Promise.all([
+                fetch('/registry.json').then(r => r.json()),
+                fetch('/api/state').then(r => r.json()),
+                import('/leaf.js'),
+            ]).then(([registry, state, leaf]) => {
+                const touched = new Set(state.events
+                    .filter(e => e.kind === 'action' || e.kind === 'report')
+                    .map(e => e.widget));
+                return Object.entries(registry)
+                    .filter(([tag, entry]) => entry['x-verbatim'])
+                    .flatMap(([tag]) => [...document.querySelectorAll(tag)]
+                        .filter(el => el.id && !touched.has(el.id))
+                        .map(el => ({tag, id: el.id, says: leaf.says(el)})));
+            })""")
+            if shown:
+                html = page.evaluate("fetch(location.pathname).then(r => r.text())")
+                served_registry = page.evaluate(
+                    "fetch('/registry.json').then(r => r.json())"
+                )
+                spk = spoken(html, served_registry)
+                dishonest_verbatim = [
+                    f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
+                    f"{s['says'][:80]!r} where the file reads "
+                    f"{spk.get(s['id'], EMPTY).words[:80]!r}"
+                    for s in shown
+                    if s["says"] != spk.get(s["id"], EMPTY).words
+                ]
         if scheme == "light":
             # Both replayed kinds: the caught-up stamp counts reports beside
             # actions, so the wait must too or it never sees the page catch up.
@@ -6565,6 +7059,13 @@ def render_version(browser, url: str) -> list:
         found += [f"[{scheme}] {w}" for w in unreachable]
         found += [f"[{scheme}] {c}" for c in covered]
         found += [f"[{scheme}] {u}" for u in unread]
+        if undeclared_shadow:
+            found.append(
+                f"[{scheme}] shadow roots the registry doesn't declare "
+                f"(an undeclared root's words anchor quotes astray; declare "
+                f"x-shadow): {', '.join(undeclared_shadow)}"
+            )
+        found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += on_paper
         return found

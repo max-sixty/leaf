@@ -27,6 +27,7 @@ Chrome is driven through Playwright's `channel="chrome"`, which attaches to the
 installed browser: no download, no build step, `uv` still the one prerequisite.
 """
 
+import fcntl
 import hashlib
 import io
 import itertools
@@ -67,6 +68,7 @@ LONG_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>long</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -94,6 +96,7 @@ INLINE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>inline</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -137,6 +140,7 @@ SETTLED_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>settled</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -167,6 +171,7 @@ CARRIED_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>carried</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -194,6 +199,7 @@ SAID_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>said</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -225,6 +231,7 @@ BOARD_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>board</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -251,6 +258,7 @@ SPECIMEN_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>specimen</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -310,6 +318,7 @@ REPLY_HOST_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>reply</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -351,6 +360,7 @@ REPLAYED_PAGE = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>replayed</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -731,6 +741,7 @@ CUSTOM_WIDGET_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>custom widget</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
@@ -786,6 +797,44 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     )
 
 
+def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for two module contracts the gate enforces: an entry that says
+    x-verbatim while the module renders other words in the body's stead (quotes
+    would strand on words the screen no longer shows), and a module attaching a
+    shadow root its entry doesn't declare (the passage walk crosses only the
+    declared ones, so an undeclared root's words anchor astray)."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once } from "/leaf.js";\n'
+        "customElements.define(\n"
+        '  "lf-callout",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        '      this.textContent = "Entirely different words.";\n'
+        '      const stage = document.createElement("div");\n'
+        "      this.append(stage);\n"
+        '      stage.attachShadow({ mode: "open" }).textContent = "shadow words";\n'
+        "    }\n"
+        "  },\n"
+        ");\n"
+    )
+
+    failures = interact.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+
+    assert any("x-verbatim" in f for f in failures), failures
+    assert any("shadow roots the registry doesn't declare" in f for f in failures), (
+        failures
+    )
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_example_renders(browser, serve, example):
     """Every shipped example loads clean and lays out, in both color schemes: no
@@ -805,6 +854,7 @@ WIDE_TABLE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>wide</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -2020,6 +2070,7 @@ def live_leaf(tmp_path, monkeypatch):
     fixture, because a board is a list and a walk down it needs somewhere to walk to."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     servers = []
+    held = []
 
     def go(name, title):
         d = interact.state_home() / "pages" / name
@@ -2043,20 +2094,29 @@ def live_leaf(tmp_path, monkeypatch):
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         port = httpd.server_address[1]
-        interact.write_json(
-            d / "server.json",
-            {
-                "port": port,
-                "pid": os.getpid(),
-                "url": f"http://127.0.0.1:{port}/?t={TOKEN}",
-                "lifetime": "standing",
-            },
+        # Held, not merely written: the exclusive lock on the record is what
+        # says a server is up, so a neighbour this fixture stands up holds one
+        # exactly as `server run` does.
+        record = open(d / "server.json", "a+b")  # noqa: SIM115 - held, see above
+        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        record.write(
+            interact.json_bytes(
+                {
+                    "port": port,
+                    "pid": os.getpid(),
+                    "url": f"http://127.0.0.1:{port}/?t={TOKEN}",
+                }
+            )
         )
+        record.flush()
+        held.append(record)
         return f"http://127.0.0.1:{port}", d
 
     yield go
     for httpd in servers:
         httpd.shutdown()
+    for record in held:
+        record.close()
 
 
 @pytest.fixture
@@ -2342,6 +2402,7 @@ UNBREAKABLE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>unbreakable</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -2561,6 +2622,7 @@ SHORT_CHIP_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>chips</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -3605,6 +3667,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         browser,
         serve(
             '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; '
+            "img-src 'self' data:; style-src 'self' 'unsafe-inline'\">"
             '<link rel="stylesheet" href="/theme.css">'
             '<script type="module" src="/leaf.js"></script></head>'
             "<body><main><h1>t</h1><section id=s><p>words</p></section></main></body></html>"
@@ -3677,6 +3741,8 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         browser,
         serve(
             '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; '
+            "img-src 'self' data:; style-src 'self' 'unsafe-inline'\">"
             '<link rel="stylesheet" href="/theme.css"><style>'
             "@keyframes lf-pulse { from { transform: translateX(0px); } "
             "to { transform: translateX(40px); } }"
@@ -3714,6 +3780,7 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>stacked options</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -4381,6 +4448,7 @@ ASK_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>ask</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -4595,6 +4663,7 @@ NESTED_ASK_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>nested</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -4659,6 +4728,7 @@ INLINE_CASE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>inline case</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -4843,6 +4913,7 @@ CHIP_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>chips</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -5540,6 +5611,7 @@ SUGGESTION_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>suggestions</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -5780,6 +5852,7 @@ COLLAPSED_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>collapsed</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -5947,6 +6020,7 @@ SHORT_SUGGESTION = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>short suggestion</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -6242,8 +6316,9 @@ def test_a_decision_the_server_never_took_goes_back_to_pending(browser, serve):
     page.unroute("**/api/event")
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    # The refused POST is the one thing the console may carry, and it is this test's
-    # own doing — anything else means the page broke on the way back to pending.
+    # The refused POST is the one thing the console may carry, and it is this
+    # test's own doing — anything else means the page broke on the way back to
+    # pending.
     assert errors == ["Failed to load resource: net::ERR_FAILED"]
     page.close()
 
@@ -6304,6 +6379,7 @@ ASKS_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>asks</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -6447,6 +6523,7 @@ TRAVEL_PAGE = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>travel</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -6557,6 +6634,7 @@ REPORT_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>reports</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -6906,6 +6984,7 @@ RETIRED_WIDGET_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>retired</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -7058,6 +7137,7 @@ REF_PAGE = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>refs</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -7382,6 +7462,7 @@ ADDRESS_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>addresses</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -7740,6 +7821,7 @@ NOTED_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>noted</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -8067,6 +8149,7 @@ TARGETS_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>targets</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -8808,6 +8891,7 @@ FENCED_CAPTURE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>fenced capture</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -8900,6 +8984,7 @@ CONTROL_LABEL_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>labels</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -9557,6 +9642,7 @@ CODE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>code</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -9715,6 +9801,7 @@ DIFF_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>diff</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -9910,6 +9997,7 @@ TWICE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>twice</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -9975,6 +10063,7 @@ DRIFT_V1 = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>drift</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -10061,6 +10150,7 @@ ASTRAL_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>astral</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -10130,6 +10220,7 @@ EDGE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>edge</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -10283,6 +10374,7 @@ TWO_COPIES_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>long passages</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -10380,6 +10472,7 @@ CEILING_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>everything</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -10445,6 +10538,7 @@ THIN_V1 = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>thin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -10962,6 +11056,7 @@ JOURNEY_SCAFFOLD = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>journey</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -11843,6 +11938,7 @@ KEYS_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>keys</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -12848,6 +12944,7 @@ TWIN_V1 = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>twin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -13002,6 +13099,7 @@ PICTURE_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>pictures</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -13064,6 +13162,7 @@ WIDE_DIAGRAM_PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>wide diagram</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>

@@ -7,6 +7,7 @@ Run from the repo root:
     uv run pytest tests
 """
 
+import fcntl
 import http.cookiejar
 import importlib.util
 import json
@@ -41,6 +42,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>t</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
@@ -549,7 +551,14 @@ def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
     }
     lede = {"description": "project lede", "example": '<p class="lede">…</p>'}
     (layer / "registry.json").write_text(
-        json.dumps({"$idioms": {".hazard": hazard, ".lede": lede}})
+        json.dumps(
+            {
+                "$idioms": {".hazard": hazard, ".lede": lede},
+                # A map member merges by its own keys — the same wipe one level
+                # down: declaring one extension must not drop the shipped map.
+                "$languages": {"paths": {"svelte": "javascript"}},
+            }
+        )
     )
     monkeypatch.chdir(project)
 
@@ -563,6 +572,13 @@ def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
     assert idioms[".lede"] == lede
     assert idioms["description"] == shipped["description"]
     assert set(shipped) <= set(idioms)
+    languages = json.loads((page / "registry.json").read_text())["$languages"]
+    shipped_langs = json.loads((interact.ASSETS / "registry.json").read_text())[
+        "$languages"
+    ]
+    assert languages["paths"]["svelte"] == "javascript"
+    assert set(shipped_langs["paths"]) <= set(languages["paths"])
+    assert languages["names"] == shipped_langs["names"]
 
 
 def test_customize_scaffolds_a_project_widget_that_init_can_vendor(
@@ -1766,6 +1782,36 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
 def test_check_accepts_a_valid_page(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
+
+
+def test_check_requires_the_layers_one_csp(page_dir):
+    """The vendoring promise — an approved page can't change under its user and
+    can't phone home — is enforced by the browser only if the page declares the
+    layer's CSP, so the gate requires it the way it requires the one script."""
+    version = page_dir / "versions" / "v1.html"
+    stripped = re.sub(
+        r'<meta http-equiv="Content-Security-Policy"[^>]*>\n', "", version.read_text()
+    )
+    version.write_text(stripped)
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "the layer's one CSP" in result.output
+
+
+def test_check_refuses_markup_the_browser_never_renders(page_dir):
+    """<template> parses into an inert fragment and <noscript> stays unrendered
+    in any scripting browser, while the file's reading would take both for the
+    page's words — a comment could anchor on text no reader ever sees."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><template><p id="tp">Ghost words.</p></template>'
+            "<noscript>Fallback words.</noscript>",
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert result.output.count("the browser renders none of its content") == 2
 
 
 def test_check_rejects_widget_violations(page_dir):
@@ -3482,6 +3528,95 @@ def test_check_refuses_a_malformed_widget_schema(page_dir, entry, message):
     assert "lf-options" in result.output and message in result.output
 
 
+def test_the_registry_door_refuses_an_open_detail_schema(page_dir):
+    """A verb carries only the detail keys it declares — thread settlement
+    dispatches on `resolves` being present, which is safe exactly because a
+    closed schema makes carrying it a declaration."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["lf-suggestion"]["x-state"]["accept"]["detail"]["additionalProperties"]
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "additionalProperties: false" in result.output
+
+
+def test_the_registry_door_holds_resolves_to_a_string(page_dir):
+    """`resolves` is the layer's name for the thread an action answers; a verb
+    declaring it as anything else would settle threads with an unhashable key —
+    a TypeError in every command that builds threads, on the first event."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    accept = registry["lf-suggestion"]["x-state"]["accept"]
+    accept["detail"]["properties"]["resolves"] = {"type": "array"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "resolves" in result.output and "string" in result.output
+
+
+def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
+    """The words gate instructs "add `restated`" when a version rewrites decided
+    words; a widget whose closed schema lacks the attribute would be told to
+    write markup its own registry entry refuses — every rewrite unpublishable."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["lf-suggestion"]["properties"]["restated"]
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "restated" in result.output
+
+
+def test_x_retired_when_outside_the_suggestion_family_is_refused(page_dir):
+    """The reading honors any declared slot, but the id-survival licensing still
+    reads the suggestion's own bookkeeping — a third-party slot would fail three
+    versions later with "ids dropped", so the door says so at declaration."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    id_schema = {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+    registry["lf-holder"] = {
+        "type": "object",
+        "properties": {"id": id_schema, "restated": {"type": "boolean"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": True,
+        "x-state": {
+            "take": {
+                "detail": {"type": "object", "additionalProperties": False},
+                "unit": "widget",
+            }
+        },
+    }
+    registry["lf-slot"] = {
+        "type": "object",
+        "properties": {"id": id_schema},
+        "additionalProperties": False,
+        "x-parent": ["lf-holder"],
+        "x-content": "prose",
+        "x-upgrade": False,
+        "x-retired-when": "take",
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "suggestion family" in result.output
+
+
+def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
+    """The runtime writes data-lf-* and .lf-chrome/.lf-live/.lf-copy as its own
+    record and reads them back: authored words inside .lf-chrome leave every
+    reading, and an authored data-lf-gen makes cells the file-side reading has
+    no fence for."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><div class="lf-chrome"><p id="w">words</p></div>'
+            '<p id="g" data-lf-gen="1">generated-looking</p>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert result.output.count("the runtime's own markers") == 2
+
+
 @pytest.mark.parametrize(("subschema", "exit_code"), [(True, 0), (False, 1)])
 def test_boolean_attribute_subschemas_validate_without_crashing(
     page_dir, subschema, exit_code
@@ -3845,23 +3980,37 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     assert "$tones.names must be a unique list of strings" in result.output
 
 
-@pytest.mark.parametrize("field", [None, "restated", "session"])
+@pytest.mark.parametrize("field", ["restated", "session"])
 def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path, field):
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
-    if field is None:
-        del registry["$events"]["kinds"]["note"]
-    else:
-        registry["$events"]["kinds"]["note"].remove(field)
+    registry["$events"]["kinds"]["note"].remove(field)
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
     assert "current layer writes" in result.output
     assert "note" in result.output
-    if field:
-        assert field in result.output
+    assert field in result.output
+
+
+def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
+    """Layers are additive: $ members merge by key, so an overlay omitting a
+    kind leaves the shipped one standing rather than deleting it. A whole
+    vocabulary genuinely missing one is still refused at the registry door."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["$events"]["kinds"]["note"]
+    (overlay / "registry.json").write_text(json.dumps(registry))
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    merged = json.loads((page_dir / "registry.json").read_text())
+    assert "note" in merged["$events"]["kinds"]
+
+    with pytest.raises(interact.RegistryError, match="current layer writes"):
+        interact.validate_registry(registry, "incoming")
 
 
 def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
@@ -4572,11 +4721,111 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
         t.start()
     for t in threads:
         t.join()
-    events = [
-        e for e in interact.read_events(page_dir) if e["kind"] == "comment"
-    ]  # read_events raises on any torn non-final line
+    events = [e for e in interact.read_events(page_dir) if e["kind"] == "comment"]
     assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
+
+
+def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
+    """--host is the recovery for an unroutable name, and the record's other
+    facts restate nothing: dropping them re-derived the exact port an open tab
+    polls and demoted the standing lifetime to the recovering session's."""
+    interact.write_json(
+        page_dir / "access.json",
+        {"host": "10.0.0.5", "bind": "10.0.0.5", "port": 41234, "lifetime": "standing"},
+    )
+    access = interact.page_access(page_dir, "box.tailnet.example")
+    assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
+    assert access["port"] == 41234
+    assert access["lifetime"] == "standing"
+
+
+def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
+    """kind "error" through the browser door: the page's runtime reporting a
+    live-session fault. Stamped author "page" (the machine speaking, not the
+    reader), heard by the watcher beside comments and reports, acknowledged
+    through the same cursor — and never counted in the reader's pending, since
+    a broken page is the agent's debt."""
+    CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
+    )
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "error", "version": 1, "text": "widget lf-x failed to load"}
+        ).encode(),
+    )
+    assert status == 200
+    events = interact.read_events(page_dir)
+    error = events[-1]
+    assert error["kind"] == "error" and error["author"] == "page"
+    assert error in interact.unacknowledged(events, 0)
+    assert interact.presence(page_dir, events)["pending"] == 0
+    result = CliRunner().invoke(interact.cli, ["ack", str(page_dir), str(error["seq"])])
+    assert result.exit_code == 0, result.output
+
+
+def test_a_poll_records_that_the_page_is_open(server, page_dir):
+    """A page nobody ever opened and one the user studied and left used to be
+    indistinguishable from the agent's side; the poll is the proof a browser
+    holds the page, so the server writes it down."""
+    events = interact.read_events(page_dir)
+    assert interact.presence(page_dir, events)["viewed"] is None
+    fetch(f"{server}/api/state")
+    assert interact.presence(page_dir, events)["viewed"] is not None
+
+
+def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
+    """U+2028, U+2029 and U+0085 are legal raw in JSON strings and line breaks to
+    splitlines(): unescaped, one pasted separator split an event across "lines",
+    every later read of the log raised, and the page read as offline forever."""
+    CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
+    )
+    text = "one\u2028two\u2029three\u0085four"
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "version": 1, "text": text}).encode(),
+    )
+    assert status == 200
+    events = [e for e in interact.read_events(page_dir) if e["kind"] == "comment"]
+    assert [e["text"] for e in events] == [text]
+    # One physical line per event under any line-splitting reader, so what
+    # `wait` and `events` print stays one event per line for every consumer.
+    raw = (page_dir / "comments.jsonl").read_text()
+    assert raw.splitlines() == raw.rstrip("\n").split("\n")
+
+
+def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
+    """A crash tears an append mid-line. The next append restores the line
+    discipline rather than gluing onto the fragment, the fragment's event is
+    gone (its sender saw the failure), and the seqs around it hold."""
+    interact.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "before"}
+    )
+    with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
+        f.write('{"kind": "comm')  # the tear: no trailing newline
+    interact.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "after"}
+    )
+    events = interact.read_events(page_dir)
+    assert [e["text"] for e in events] == ["before", "after"]
+    assert [e["seq"] for e in events] == [1, 3]  # the torn line keeps its number
+    # A tear lands mid-character as easily as mid-line — ensure_ascii=False
+    # writes multi-byte UTF-8 — and a strict whole-file decode would raise
+    # before any line-level tolerance could reach it.
+    with open(page_dir / "comments.jsonl", "ab") as f:
+        f.write('{"kind": "comment", "text": "café'.encode()[:-1])
+    interact.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "again"}
+    )
+    assert [e["text"] for e in interact.read_events(page_dir)] == [
+        "before",
+        "after",
+        "again",
+    ]
 
 
 def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
@@ -4738,10 +4987,36 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             httpd.shutdown()
 
 
-def neighbour_page(directory, title=None, pid=None, published=True):
+HELD_RECORDS = []
+
+
+def serving(directory, record: dict) -> None:
+    """A server.json the way a live `server run` leaves it: written, and held
+    open under the exclusive lock that is what says a server is up. Writing the
+    file alone says nothing now — which is the point of the lock, and is why a
+    test that wants a live neighbour has to hold one like everything else."""
+    directory.mkdir(parents=True, exist_ok=True)
+    handle = open(directory / "server.json", "a+b")  # noqa: SIM115 - held, see above
+    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    handle.truncate(0)
+    handle.write(interact.json_bytes(record))
+    handle.flush()
+    HELD_RECORDS.append(handle)
+
+
+@pytest.fixture(autouse=True)
+def _release_held_records():
+    """Every lock a test took, dropped with it — a held record outliving its
+    test would make the next one read a page as served."""
+    yield
+    while HELD_RECORDS:
+        HELD_RECORDS.pop().close()
+
+
+def neighbour_page(directory, title=None, dead=False, published=True):
     """A page another server is serving, written down the way `server run` writes
-    it: a version on disk, its note in the log, and a server.json naming a pid.
-    The pid defaults to this test process — a live one."""
+    it: a version on disk, its note in the log, and a held server.json. `dead`
+    writes the record without holding it, which is what a crashed server leaves."""
     (directory / "versions").mkdir(parents=True)
     head = f"<title>{title}</title>" if title else ""
     (directory / "versions" / "v1.html").write_text(
@@ -4753,10 +5028,11 @@ def neighbour_page(directory, title=None, pid=None, published=True):
             directory, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
     url = f"http://127.0.0.1:59999/?t=key-{directory.name}"
-    interact.write_json(
-        directory / "server.json",
-        {"port": 59999, "pid": pid or os.getpid(), "url": url, "lifetime": "standing"},
-    )
+    record = {"port": 59999, "pid": os.getpid(), "url": url}
+    if dead:
+        interact.write_json(directory / "server.json", record)
+    else:
+        serving(directory, record)
     return url
 
 
@@ -4778,9 +5054,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         pages / "live" / "session.json",
         {"id": "s9", "host": "claude-code", "pid": os.getpid(), "agent": "Codex"},
     )
-    gone = subprocess.Popen([sys.executable, "-c", ""])
-    gone.wait()
-    neighbour_page(pages / "dead", title="A dead server's page", pid=gone.pid)
+    # A server that died leaves its record behind and its lock with the kernel:
+    # the file says served and nothing holds it, which is what reads as stale.
+    neighbour_page(pages / "dead", title="A dead server's page", dead=True)
     neighbour_page(pages / "unpublished", title="Nothing to link", published=False)
     # A neighbour something corrupted: its log no longer parses, and the fault
     # stays its own — skipped, rather than 500ing every other page's poll.
@@ -4812,6 +5088,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "agent": "Claude",
         "host": None,
         "session_alive": None,
+        "viewed": None,
     }
     assert state["others"] == [
         {"title": "scratch", "url": claimed_url, **unclaimed},
@@ -4862,10 +5139,8 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
 
 
 def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsys):
-    # A live server.json (our own pid) satisfies wait's liveness probe.
-    interact.write_json(
-        page_dir / "server.json", {"port": 1, "pid": os.getpid(), "url": "x"}
-    )
+    # A held server.json is what wait's liveness probe asks for.
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
     interact.cmd_status(page_dir, "waiting", "")
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
@@ -4957,7 +5232,9 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
 
     agent_event = runner.invoke(interact.cli, ["ack", str(page_dir), "1"])
     assert agent_event.exit_code == 1
-    assert "event 1 is neither a user event nor a report" in agent_event.output
+    assert (
+        "event 1 is not a user event, a report, or a page error" in agent_event.output
+    )
 
     first = runner.invoke(interact.cli, ["ack", str(page_dir), "3"])
     retry = runner.invoke(interact.cli, ["ack", str(page_dir), "3"])
@@ -4983,9 +5260,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
 
 
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
-    interact.write_json(
-        page_dir / "server.json", {"port": 1, "pid": os.getpid(), "url": "x"}
-    )
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
     interact.cmd_status(page_dir, "working", "running the browser suite")
     status_path = page_dir / "status.json"
     before = status_path.read_bytes()
@@ -5045,9 +5320,7 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
     from one they can't reach, so the wait doesn't guess between them: over a page
     no request has ever touched it holds for the user exactly as it would for
     one reading, and reports nothing of its own."""
-    interact.write_json(
-        page_dir / "server.json", {"port": 1, "pid": os.getpid(), "url": "x"}
-    )
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
     interact.cmd_status(page_dir, "waiting", "")
     threading.Timer(
         0.2,
@@ -5490,7 +5763,7 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir):
     try:
         assert process.stdout.readline().startswith("http://127.0.0.1:")
         assert "standing server" in process.stderr.readline()
-        assert interact.read_json(page_dir / "server.json")["lifetime"] == "standing"
+        assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
         assert not (page_dir / "session.json").exists()
     finally:
         if process.poll() is None:
@@ -5501,15 +5774,7 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir):
 def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):
     """A stated lifetime contradicted by the running server is refused with the
     way out named, exactly as a stated `--host` is — not silently ignored."""
-    interact.write_json(
-        page_dir / "server.json",
-        {
-            "port": 1,
-            "pid": os.getpid(),
-            "url": "http://127.0.0.1:1/?t=x",
-            "lifetime": "session",
-        },
-    )
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "http://127.0.0.1:1/?t=x"})
     result = CliRunner().invoke(
         interact.cli, ["server", "run", "--standing", str(page_dir)]
     )
@@ -5527,7 +5792,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     server = start_standing_server(page_dir)
     try:
         launched = interact.read_json(page_dir / "server.json")
-        assert launched["lifetime"] == "standing"
+        assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
 
         # A session picks the page up, the way `leaf wait` does.
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")

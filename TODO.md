@@ -1,8 +1,24 @@
 # TODO
 
-- (2026-08-11) What a parallel review sweep confirmed and left on the table, each with
-  its evidence in the sweep's session:
+- (2026-08-14) Left on the table by the framework-robustness sweep (its session
+  holds the evidence; the landed half is in that branch's history):
 
+  - `x-retired-when` is declared open but the id-survival licensing
+    (`retirable_ids`) still reads the suggestion's own slot bookkeeping, so the
+    registry door now refuses the key outside the suggestion family rather than
+    letting a third-party slot fail three versions in. The generalization is to
+    record holder/slot structure for any tag pair the declaration relates and
+    write the licensing in its terms.
+  - `applyAction` absoluteness — the contract every fold rests on — is never
+    checked; a relative implementation passes every gate. The candidate check:
+    the render gate replays a version twice and asserts the second pass's
+    `shallowSigs` diff is empty.
+  - (done 2026-08-15) The render gate reads two module contracts a static lint
+    can't: an `x-verbatim` widget whose rendered words differ from the file's,
+    and a shadow root on a host whose entry lacks `x-shadow`.
+  - (done 2026-08-15) Every page declares the layer's one CSP and `version
+    check` requires it, so "a vendored page can't phone home" is the browser's
+    to enforce.
   - Residue of the retraction-floor fix in thread settlement (landed: an accept a
     later version `restated` no longer resolves its thread forever, via one
     predicate — `action_retracted` / `retractedIds` — shared by the fold, the
@@ -37,12 +53,12 @@
     state is deliberately visible to the signature (lf-suggestion's `data-lf-state`
     rides it), so a paint rename must not blanket the namespace. (The orphaned Done
     press under a settled collapse: done 2026-08-14 — it hides with the options.)
-  - Two unmeasured hot paths, flagged where to point the measurement, per the rule
-    that no cost claim ships unmeasured: `openAsks()` rebuilds `stateFold` two to
-    four times per key-line paint and per poll, `itemAt` rebuilds the
-    retired-slot selector once per ancestor per mousemove where `quotable()` already
-    hoists the same shape, and `buildThreads` now walks the log for
-    `retractionFloors(Infinity)` on each of its few calls per poll.
+  - One unmeasured hot path left, flagged where to point the measurement, per the
+    rule that no cost claim ships unmeasured: `openAsks()` rebuilds `stateFold`
+    two to four times per key-line paint and per poll. (The other two are done
+    2026-08-15: `retiredSlots` is computed once for the load, and
+    `retractionFloors` memoizes on the log's identity, which is what
+    `buildThreads` walked per call.)
 
 - (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an

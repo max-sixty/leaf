@@ -183,6 +183,41 @@ export function failSoft(el, err, source) {
   el.replaceChildren(box);
 }
 
+// The page reporting itself broken, to the party who can fix it: the agent
+// authored the page and its widgets, and before this the only route for a
+// live-session fault was the reader pasting a console nobody told them to
+// open. The event lands in the log as kind "error", author "page" — the
+// watcher hears it beside comments and reports; the reader's pending count
+// never claims it. Deduped per message per load (a reload may repeat one —
+// bounded noise over silence), capped so a fault in a loop cannot flood the
+// log, and sent bare rather than through post(): a poll fault reporting
+// itself through the poll would recurse, and nothing here needs the answer.
+const reportedErrors = new Set();
+export function reportPageError(text) {
+  console.error(`leaf: ${text}`);
+  if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
+  reportedErrors.add(text);
+  fetch("/api/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kind: "error",
+      text,
+      ...(VNUM != null && { version: VNUM }),
+    }),
+  }).catch(() => {});
+}
+window.addEventListener("error", (e) => {
+  // The one benign error event the platform fires in ordinary operation: the
+  // observer loop notice arrives on window.error without anything being wrong,
+  // and reporting it would fail every clean page at the render gate.
+  if (e.message?.startsWith("ResizeObserver loop")) return;
+  reportPageError(`${e.message} (${e.filename}:${e.lineno})`);
+});
+window.addEventListener("unhandledrejection", (e) =>
+  reportPageError(String(e.reason?.stack ?? e.reason)),
+);
+
 // An upgrade whose work is async (lf-diagram's mermaid render) registers its
 // promise here, so the runtime can hold the view restore and first anchor pass
 // until the page's geometry has settled. Rejections are the widget's own
@@ -419,12 +454,20 @@ const WORKS = "a, audio, button, input, label, select, summary, textarea, video"
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
 export function worksInside(node, container) {
-  const parts = new Set([
-    container.localName,
-    ...tagsDeclaring((entry) =>
-      (entry["x-parent"] ?? []).includes(container.localName),
-    ),
-  ]);
+  // The closure, not one level: "what this container is made of" includes a
+  // part's own parts — a column's cards are the board's, and one level deep a
+  // grandchild part would land in `held` and swallow the gesture.
+  const parts = new Set([container.localName]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const tag of tagsDeclaring((entry) =>
+      (entry["x-parent"] ?? []).some((parent) => parts.has(parent)),
+    ))
+      if (!parts.has(tag)) {
+        parts.add(tag);
+        grew = true;
+      }
+  }
   const held = Object.keys(registry).filter(
     (tag) => tag.startsWith("lf-") && !parts.has(tag),
   );
@@ -624,6 +667,17 @@ export const pageScroller = document.body;
 // because every widget's action passes through this door.
 const sending = new Map(); // widget id -> sends in flight for it
 export async function sendAction(el, action, detail) {
+  // The exhibit rule enforced at the layer's own door, not left to each module
+  // remembering quoted(): an exhibited widget is a mention, and a gesture on a
+  // mention must not become a decision Claude reads. Failing closed costs a
+  // press that does nothing; the console error makes a module that wired one
+  // a finding of the render gate.
+  if (quoted(el)) {
+    console.error(
+      `leaf: <${el.localName}> is exhibited (x-exhibit); action ${action} refused`,
+    );
+    return null;
+  }
   sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
   try {
     return await post({ kind: "action", version: VNUM, widget: el.id, action, detail });
@@ -882,7 +936,7 @@ async function upgradeWidgets() {
       .filter(([tag, entry]) => tag.startsWith("lf-") && entry["x-upgrade"])
       .map(([tag]) =>
         import(`/widgets/${tag}.js`).catch((err) =>
-          console.error(`leaf: widget ${tag} failed to load`, err),
+          reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
         ),
       ),
   );
@@ -2142,16 +2196,12 @@ export const loadDraft = (ctx) => {
     return "";
   }
 };
-const pruneReplyDrafts = (liveIds) => {
-  const rp = DRAFT + "reply:";
-  try {
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const k = sessionStorage.key(i);
-      if (k && k.startsWith(rp) && !liveIds.has(k.slice(rp.length)))
-        sessionStorage.removeItem(k);
-    }
-  } catch {}
-};
+// Reply drafts are never pruned. A thread resolving is not a discard: another
+// tab's Resolve, or this tab accepting a suggestion whose action `resolves`,
+// used to sweep an unsent reply out of sessionStorage — words going missing,
+// where the norm is that Cancel is the only discard. The store is tab-local and
+// dies with the tab, so what pruning saved was bounded by the tab's own life;
+// a thread a retraction reopens finds the draft where it was left.
 
 // Panel open/closed is remembered too: a version switch reloads the document, and
 // reopening the panel by hand after every revision gets old fast.
@@ -2294,6 +2344,13 @@ function showToast(msg, onClick) {
 // fact about the log turns on when a read lands.
 let taken = Promise.resolve();
 async function post(event) {
+  // One attempt. A send the server never took changes nothing — the page
+  // rewinds the gesture it had painted and says so — and a send it took whose
+  // response was lost is put back by the next poll, the log being what the page
+  // renders from. Retrying instead would need the sender to mint the id (a
+  // second send is only safe if the door can tell it from a second decision),
+  // and it would hold the queue below through its own backoff, delaying every
+  // later gesture to soften a case the log already reconciles.
   const mine = taken.then(() =>
     fetch("/api/event", {
       method: "POST",
@@ -2301,17 +2358,26 @@ async function post(event) {
       body: JSON.stringify(event),
     }),
   );
+  // The turn passes on whatever the send did, failures included — and the
+  // catch is what makes that true: a rejection left in `taken` is a promise
+  // every later send would chain onto and none would ever run from.
   taken = mine.catch(() => {});
+  let minted;
   try {
     const res = await mine;
     if (!res.ok) throw new Error(await res.text());
-    const { event: minted } = await res.json();
-    await poll();
-    return minted;
+    ({ event: minted } = await res.json());
   } catch {
     showToast("Couldn't send — server offline?");
     return null;
   }
+  // The send succeeded the moment the server minted the event. The poll only
+  // brings the panel up to date, so a fault in its render pipeline is its own
+  // news and must not claim the send failed — a caller told null rewinds a pick
+  // the log already holds, and the next timer poll paints it back two seconds
+  // later.
+  await poll().catch((error) => console.error("leaf: poll after send", error));
+  return minted;
 }
 
 // ---------- text inputs ----------
@@ -2452,16 +2518,26 @@ const escapeHtml = (s) =>
 // only through its gate-validated `markup` field, never through text. breaks: a single
 // newline is a line break, because a message is typed prose and nobody types two
 // spaces to mean the line they just ended.
-let renderMarkdown;
+// Plain escaped text until the renderer arrives, so a failed vendor import
+// degrades a body's Markdown to its own words instead of refusing the poll
+// that carries it.
+let renderMarkdown = (text) => escapeHtml(text);
 let markedReady;
 const loadMarked = () =>
-  (markedReady ??= import("/vendor/marked.esm.js").then((m) => {
-    const md = new m.Marked({
-      breaks: true,
-      renderer: { html: (t) => escapeHtml(t.text) },
-    });
-    renderMarkdown = (text) => md.parse(text);
-  }));
+  (markedReady ??= import("/vendor/marked.esm.js")
+    .then((m) => {
+      const md = new m.Marked({
+        breaks: true,
+        renderer: { html: (t) => escapeHtml(t.text) },
+      });
+      renderMarkdown = (text) => md.parse(text);
+    })
+    .catch((error) => {
+      // Retry on a later poll rather than caching the rejection for the life
+      // of the load — one transient failure otherwise left every body plain.
+      markedReady = undefined;
+      reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`);
+    }));
 
 // Bodies are cached per event id and re-adopted when a thread node is rebuilt — which
 // the reconcile leaves one occasion for, a thread resolving: the log is append-only so
@@ -2899,22 +2975,37 @@ function revealThread(id) {
 // Which slots retire is the registry's to say, so this and interact.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
 // element, x-parent the wrapper the decision is recorded on.
-const retiredSlots = () =>
-  Object.entries(registry)
+// Computed once — but only once the registry has loaded: the aim listeners are
+// live from module evaluation, and a mousemove in the upgrade window would
+// otherwise seed the cache from the empty pre-fetch registry and disable the
+// retired-slot skip for the life of the page. It used to be rebuilt per
+// candidate ancestor per mousemove (itemAt's aim walk).
+let retiredSlotsMemo;
+function retiredSlots() {
+  if (retiredSlotsMemo != null) return retiredSlotsMemo;
+  const value = Object.entries(registry)
     .filter(([, entry]) => entry["x-retired-when"])
     .map(
       ([tag, entry]) =>
         `${entry["x-parent"]}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
     )
     .join(", ");
+  if (Object.keys(registry).length) retiredSlotsMemo = value;
+  return value;
+}
 // What no label can speak through, however it is marked: an inline script, the
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
 // decision took off the page. Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
 // runtime's.
+let silencedMemo;
 function silenced() {
+  if (silencedMemo) return silencedMemo;
   const retired = retiredSlots();
-  return ["script", "style", ...(retired ? [retired] : [])].join(", ");
+  const value = ["script", "style", ...(retired ? [retired] : [])].join(", ");
+  // Same registry-loaded guard as retiredSlots, for the same aim-window reason.
+  if (Object.keys(registry).length) silencedMemo = value;
+  return value;
 }
 
 // An element the user's decision took off the page, asked of an element rather
@@ -3023,7 +3114,16 @@ export function textNodesUnder(rootEl, accepts = quotable()) {
                 end: assigned.data.length,
               })
             : visit(assigned);
-      else visit(child.shadowRoot ?? child);
+      else {
+        // Only a root the registry declares (x-shadow): the capture asks
+        // getComposedRanges for exactly the declared ones, and every climb
+        // crosses exactly those — so a walk that entered any open root read
+        // words the anchor side could never place, and a widget's undeclared
+        // root anchored quotes astray instead of staying opaque. The render gate
+        // names an undeclared root; this leaves its words alone.
+        const declared = child.shadowRoot && registry[child.localName]?.["x-shadow"];
+        visit(declared ? child.shadowRoot : child);
+      }
     }
   };
   visit(rootEl);
@@ -3440,7 +3540,9 @@ function pageText() {
   // become fences; x-says spans are already present in the file-side reading.
   const dynamicWords = new WeakSet();
   for (const seg of segments) {
-    const generated = seg.node.parentElement.closest("[data-lf-gen]");
+    // A text node written directly under a declared shadow root has no element
+    // parent in its tree; it is nobody's generated cell.
+    const generated = seg.node.parentElement?.closest("[data-lf-gen]");
     if (!generated) continue;
     const attr = generated.getAttribute("data-lf-said");
     const hostEntry = registry[generated.parentElement?.localName];
@@ -6169,12 +6271,21 @@ function retractedIds(e, floors, widget) {
 // Reading it from the log rather than from the markup is what makes it last —
 // the version *after* the rewrite declares nothing, and its silence would
 // otherwise hand the user's retracted state straight back.
+// Memoized on the log's identity: `events` has one writer, which replaces the
+// array wholesale (poll), and the floors read nothing else — so a cached answer
+// can never be stale, and the full-log walk stops running two to four times per
+// poll (stateFold, buildThreads, replay each asked it fresh).
+const floorsMemo = new WeakMap();
 function retractionFloors(upto) {
+  let byUpto = floorsMemo.get(events);
+  if (!byUpto) floorsMemo.set(events, (byUpto = new Map()));
+  if (byUpto.has(upto)) return byUpto.get(upto);
   const floors = new Map();
   for (const e of events)
     if (e.kind === "note" && e.version <= upto)
       for (const id of e.restated || [])
         floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
+  byUpto.set(upto, floors);
   return floors;
 }
 // A report's end: the ids the notes in the window answered, absorbed or
@@ -6256,8 +6367,20 @@ function applyActions() {
       // Every terminal action is decided here and never looked at again. This pass runs
       // after the panel has rendered the log, so a widget that isn't here is one no
       // version can carry — an honored suggestion, whose wrapper the version replaced.
-      if (!el?.applyAction) {
+      if (!el) {
         appliedActions.add(e.seq);
+        continue;
+      }
+      // Present but never upgraded is a different fact from absent: the module
+      // failed, its own fail-soft box says so, and retiring the decision here
+      // would silently drop what the user recorded. The events wait while the
+      // upgrade pass may still deliver the module; once it has finished, no
+      // import retries this load, and holding them forever stalls the
+      // caught-up stamp the export and render gates wait on. Retiring is this
+      // load's memory alone (appliedActions), so a later load with the module
+      // healthy replays them.
+      if (!el.applyAction) {
+        if (document.body.dataset.lfUpgraded === "1") appliedActions.add(e.seq);
         continue;
       }
       if (e.kind === "report") {
@@ -6292,7 +6415,24 @@ function applyActions() {
       }
       // A widget may briefly own live local input. `false` asks replay to leave this
       // action and later actions for the same widget in order for the next poll.
-      if (el.applyAction(e.action, e.detail) === false) {
+      // A throw is contained to the event that threw: unretired, it re-throws on
+      // every poll, and everything after it in this pass — paintPending, the
+      // caught-up stamp the render gate awaits — never runs again. The console
+      // error makes it a finding of that gate, the same bargain the import path
+      // strikes with failSoft.
+      let outcome;
+      try {
+        outcome = el.applyAction(e.action, e.detail);
+      } catch (error) {
+        reportPageError(
+          `<${el.tagName.toLowerCase()}> applyAction(${e.action}) threw: ${error?.message ?? error}`,
+        );
+        failSoft(el, error);
+        appliedActions.add(e.seq);
+        wrote = true;
+        continue;
+      }
+      if (outcome === false) {
         deferredWidgets.add(e.widget);
         continue;
       }
@@ -6419,20 +6559,33 @@ function captureAuthoredFacets() {
 // retraction floor keyed on what the action rests on — the same containment
 // set replay skips by, so the two can't disagree about what a `restated` took
 // back.
+// The two folds' shared walk, which is everything about them that is the same:
+// the events of one kind inside the window whose widget is still on the page
+// and whose tag still declares the verb, each with the unit it folds to. What
+// differs is only what each channel counts as ended — a retraction floor for
+// the reviewer's, a note's answer for the agent's — so that is the caller's
+// `live` predicate and nothing else is duplicated. Named for interact.py's
+// `event_spec`/`fold_unit`, the same seam on the file side.
+function* foldable(kind, channel, upto, live) {
+  for (const e of events) {
+    if (e.kind !== kind || e.version > upto) continue;
+    const el = elementById(e.widget);
+    // The element, not its module: the fold reads the registry's declaration,
+    // so a decided widget whose module failed to load still folds — asking for
+    // applyAction here silently dropped its decision from every derived view.
+    if (!el || inChrome(el)) continue;
+    const spec = registry[el.tagName.toLowerCase()]?.[channel]?.[e.action];
+    if (!spec || !live(e, el)) continue;
+    const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
+    if (typeof unit === "string") yield [unit, { e, spec }];
+  }
+}
+
 function stateFold(upto) {
   const floors = retractionFloors(upto);
-  const fold = new Map();
-  for (const e of events) {
-    if (e.kind !== "action" || e.version > upto) continue;
-    const el = elementById(e.widget);
-    if (!el?.applyAction || inChrome(el)) continue;
-    const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
-    if (!spec) continue;
-    if (retractedIds(e, floors, el).length) continue;
-    const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
-    if (typeof unit === "string") fold.set(unit, { e, spec });
-  }
-  return fold;
+  return new Map(
+    foldable("action", "x-state", upto, (e, el) => !retractedIds(e, floors, el).length),
+  );
 }
 
 // The agent channel's fold: the last standing report per declared unit as of
@@ -6441,17 +6594,7 @@ function stateFold(upto) {
 // back; a note naming it is the one way it ends.
 function reportFold(upto) {
   const answered = answeredReports(upto);
-  const fold = new Map();
-  for (const e of events) {
-    if (e.kind !== "report" || e.version > upto || answered.has(e.id)) continue;
-    const el = elementById(e.widget);
-    if (!el?.applyAction || inChrome(el)) continue;
-    const spec = registry[el.tagName.toLowerCase()]?.["x-report"]?.[e.action];
-    if (!spec) continue;
-    const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
-    if (typeof unit === "string") fold.set(unit, { e, spec });
-  }
-  return fold;
+  return new Map(foldable("report", "x-report", upto, (e) => !answered.has(e.id)));
 }
 
 // data-lf-pending: this element's decided state differs from what the version's
@@ -6485,8 +6628,16 @@ function paintPending() {
 async function poll() {
   let state;
   try {
-    state = await (await fetch("/api/state")).json();
+    const res = await fetch("/api/state");
+    // A refusal is not state: the server answers a missing key with error-shaped
+    // JSON at 403, and indexing that as state threw before the banner could say
+    // anything. A live server refusing the key and a dead one both leave the
+    // page unreachable from here, and the terminal link is the recourse for both.
+    state = res.ok ? await res.json() : null;
   } catch {
+    state = null;
+  }
+  if (!state) {
     renderStatus(null);
     return;
   }
@@ -6507,15 +6658,6 @@ async function poll() {
   renderOthers(state);
   if (eventSeq > lastEventSeq) {
     lastEventSeq = eventSeq;
-    // prune only here, where events is the server's truth — never from renderThreads,
-    // which also runs with an empty events array (pre-first-poll, server offline)
-    pruneReplyDrafts(
-      new Set(
-        buildThreads()
-          .filter((t) => !t.resolved)
-          .map((t) => t.root.id),
-      ),
-    );
     renderPanel();
     // Sign-off is a fact in the log, not a click this tab happens to remember, so a
     // reload (or the other tab) shows it too.

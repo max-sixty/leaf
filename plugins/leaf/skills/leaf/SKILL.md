@@ -152,7 +152,8 @@ to click belongs on a page you are going to serve.
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>…</title>
-  <link rel="stylesheet" href="/theme.css">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
   </head>
   <body>
   <main>
@@ -406,6 +407,12 @@ For each acknowledged batch:
      disagree in silence. It guards the other end too: a version may retire ids only
      where the log settled the suggestion holding them, so an undecided proposal is
      carried, withdrawn whole, or left alone, never quietly kept as settled content.
+   - **A page error** (`"kind": "error"`, author `page`) is the page's own runtime
+     reporting a failure in front of the user — a widget module that wouldn't
+     load, an uncaught throw. It is your debt, not theirs: the reader was never
+     asked to open a console. Fix the page (usually the widget module or the
+     markup), publish the corrected version, and say nothing in-thread unless
+     the reader asked — the event is diagnostics, not conversation.
    - **A worker's report** (`"kind": "report"`) is another session moving declared
      state — provisional until a version answers it, so the next version you publish
      adjudicates: carry the reported state into the markup (publishing then absorbs

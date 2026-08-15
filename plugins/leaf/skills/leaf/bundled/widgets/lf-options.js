@@ -111,20 +111,24 @@ const AUTHORED = "chosen"; // the document arrived carrying the pick
 
 const SETTLED_KEY = "lf-settled:";
 
-// The module loads only where the page holds a group, which is the overlay's rule
-// for free: these rows appear exactly when there is a group to answer.
-keyHelp("In a question's options", [
-  ["⇥", "reach an option's mark"],
-  ["↑ / ↓", "walk the options"],
-  ["1–9", "toggle the nth option"],
-  ["⏎ / space", "toggle the focused option"],
-]);
+// Registered at upgrade, not at module load: every x-upgrade module loads on
+// every page, so rows registered at the top level would offer help for a widget
+// the page hasn't got. keyHelp keys on its own rows, so repeat calls are one
+// section.
+const registerHelp = () =>
+  keyHelp("In a question's options", [
+    ["⇥", "reach an option's mark"],
+    ["↑ / ↓", "walk the options"],
+    ["1–9", "toggle the nth option"],
+    ["⏎ / space", "toggle the focused option"],
+  ]);
 
 customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
+      registerHelp();
       // An authored `chosen` (the honoring version carrying an earlier pick) wears the
       // same mark a live pick wears, so honoring doesn't change the look — but worded as
       // the document's state, not attributed to this reader.

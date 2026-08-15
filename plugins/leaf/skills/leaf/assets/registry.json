@@ -72,7 +72,8 @@
       "close": ["version"],
       "action": ["widget", "action", "detail", "version"],
       "report": ["widget", "action", "detail", "version", "agent", "session"],
-      "note": ["version", "text", "restated", "reports", "agent", "session"]
+      "note": ["version", "text", "restated", "reports", "agent", "session"],
+      "error": ["version", "text"]
     }
   },
   "$state": {

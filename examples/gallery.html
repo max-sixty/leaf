@@ -20,6 +20,623 @@ any text to comment on the example it belongs to.</p>
 
 <lf-tabs id="gallery">
 
+<lf-tab id="gal-ship-review" label="Ship review">
+<h1>Offline editing, after six weeks of beta</h1>
+      <p class="lede" id="off-lede">
+        Six weeks on 96 workspaces, and the question is whether it ships. Two decisions
+        are open — what a full local store does, and how the rollout goes — and the
+        board holds everything still outstanding, sorted by whether I think it should
+        stop the ship; drag anything you read differently. Three changes to the
+        announcement wait in the margin, and the announcement itself is yours to
+        rewrite. Sign off and it goes out over your name.
+      </p>
+
+      <lf-metrics id="off-metrics">
+        <lf-metric id="off-k-conflicts" value="2.3" delta="-4.1" direction="up-bad"
+          >clashes per 1,000 edits</lf-metric
+        >
+        <lf-metric id="off-k-sessions" value="8,412">offline sessions</lf-metric>
+        <lf-metric id="off-k-resync" value="1.4 s">median resync</lf-metric>
+        <lf-metric id="off-k-beta" value="96" delta="+84" direction="up-good"
+          >beta workspaces</lf-metric
+        >
+      </lf-metrics>
+
+      <section id="off-surface">
+        <h2>What a reader sees</h2>
+        <p id="off-surface-intro">
+          Nothing about the editor changes until the connection drops. Then the save
+          state is replaced by a count of what is waiting, and a line under the document
+          says where those changes are being kept. Click between the frames.
+        </p>
+        <lf-shot
+          id="off-editor-shot"
+          alt="the document editor, connected and then offline with three changes queued"
+          before="/media/213d959289603301.png"
+          after="/media/abacae7c345ee176.png"
+        ></lf-shot>
+        <p id="off-surface-note">
+          The number counts queued changes, not keystrokes: a paragraph typed straight
+          through is one. Beta readers asked for a number twice in the first week, which
+          is why it says "3 changes waiting" rather than "unsaved".
+        </p>
+      </section>
+
+      <section id="off-how">
+        <h2>How it works</h2>
+        <p id="off-how-intro">
+          Every edit goes to a queue before it goes anywhere else. Online the queue
+          drains as fast as the server answers and nothing about it is visible. Offline
+          it fills, and the local store carries it through a closed tab.
+        </p>
+        <lf-diagram id="off-flow">
+          <pre>
+graph LR
+  E[editor] --> Q[change queue]
+  Q -->|online| S[server]
+  Q -.->|offline| L[local store]
+  L -->|reconnect| S
+</pre>
+        </lf-diagram>
+        <p id="off-how-store">
+          The store is capped at 40 MB a workspace. The largest workspace in the beta
+          reached 31 MB, over six weeks and without reconnecting once, so nothing in the
+          beta hit the cap. What happens at it is the first decision below.
+        </p>
+      </section>
+
+      <section id="off-merge">
+        <h2>The merge rule</h2>
+        <p id="off-merge-intro">
+          Two people editing one document offline is the case the rest is built around.
+          The rule that shipped in week 3 merges by field where the first two weeks
+          merged by document, and the clash rate fell by two thirds the same week.
+        </p>
+        <lf-compare id="off-policies">
+          <lf-variant id="off-var-doc">
+            <strong>By document</strong>
+            <dl class="facts">
+              <dt>Clashes when</dt>
+              <dd>both edited anything</dd>
+              <dt>Beta rate</dt>
+              <dd>6.4 per 1,000 edits</dd>
+              <dt>Asks the reader</dt>
+              <dd>every clash</dd>
+            </dl>
+            <p>
+              Weeks 1 and 2. Two people working in different sections of one document
+              collided, so the prompt arrived over edits that had nothing to do with
+              each other.
+            </p>
+          </lf-variant>
+          <lf-variant id="off-var-field">
+            <strong>By field</strong>
+            <dl class="facts">
+              <dt>Clashes when</dt>
+              <dd>both edited one paragraph</dd>
+              <dt>Beta rate</dt>
+              <dd>2.3 per 1,000 edits</dd>
+              <dt>Asks the reader</dt>
+              <dd>63 of 494 clashes</dd>
+            </dl>
+            <p>
+              What ships. Edits land beside each other unless they touch the same
+              paragraph. Of the 494 clashes since it went in, 431 resolved with nobody
+              seeing a prompt.
+            </p>
+          </lf-variant>
+        </lf-compare>
+        <p id="off-prompt-intro">
+          The 63 that did ask look like this, and it is the one screen in the feature a
+          reader can get wrong:
+        </p>
+        <lf-specimen id="off-prompt" label="the conflict prompt">
+          <lf-options id="off-prompt-choice" choose>
+            <lf-option id="off-pc-mine">
+              <strong>Keep what I wrote offline</strong> Your paragraph replaces theirs.
+              Theirs stays in history.
+            </lf-option>
+            <lf-option id="off-pc-theirs">
+              <strong>Keep the version from the server</strong> Yours stays in history,
+              and the prompt shows it so it can be pasted back.
+            </lf-option>
+          </lf-options>
+        </lf-specimen>
+      </section>
+
+      <section id="off-change">
+        <h2>The change itself</h2>
+        <lf-tree id="off-files">
+          <pre>
+client/
+  offline/
+    merge.ts  +186 -31
+    queue.ts  +142 -11
+    store.ts  +88 -4
+  editor/
+    OfflineBanner.tsx  +37
+server/
+  sync.py  +54 -19
+</pre>
+        </lf-tree>
+        <p id="off-change-intro">
+          <code>merge.ts</code> is where the rule above lives. Everything else carries
+          edits to it, keeps them on disk, or draws what it decided.
+        </p>
+        <lf-diff id="off-merge-diff">
+          <pre>
+diff --git a/client/offline/merge.ts b/client/offline/merge.ts
+--- a/client/offline/merge.ts
++++ b/client/offline/merge.ts
+@@ -18,6 +18,12 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
+   // both lists arrive ordered by the server's clock
+-  if (mine.length &amp;&amp; theirs.length) {
+-    return ask(base, mine, theirs);
+-  }
+-  return apply(base, [...theirs, ...mine]);
++  let out = apply(base, theirs);
++  for (const edit of mine) {
++    const clash = theirs.find((t) =&gt; t.field === edit.field);
++    if (clash) {
++      ask(out, edit, clash);
++      continue;
++    }
++    out = apply(out, [edit]);
++  }
++  return out;
+ }
+</pre>
+        </lf-diff>
+        <p id="off-walk-intro">
+          The function after the change, with the three lines the rule turns on marked:
+        </p>
+        <lf-code id="off-merge-walk" language="typescript" hi="4-6">
+          <pre>
+export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
+  let out = apply(base, theirs);
+  for (const edit of mine) {
+    const clash = theirs.find((t) =&gt; t.field === edit.field);
+    if (clash) {
+      ask(out, edit, clash);
+      continue;
+    }
+    out = apply(out, [edit]);
+  }
+  return out;
+}
+</pre>
+          <lf-note at="2"
+            >The server's edits land first, always. The reader who was offline is the
+            one being merged in, and that ordering is why every device replaying the
+            same log ends up with the same document.</lf-note
+          >
+          <lf-note at="4"
+            >Same field, not same document. Widening this comparison to the whole
+            document is the old rule, and the old rate.</lf-note
+          >
+          <lf-note at="6"
+            >The only path that reaches a person. Everything else resolves without a
+            prompt.</lf-note
+          >
+        </lf-code>
+      </section>
+
+      <section id="off-clients">
+        <h2>Client by client</h2>
+        <table id="off-client-table">
+          <caption>
+            Offline sessions over the six-week beta, and how each client resynced.
+          </caption>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th class="num">Offline sessions</th>
+              <th class="num">Median resync</th>
+              <th>Standing</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Web</th>
+              <td class="num">5,120</td>
+              <td class="num">0.9 s</td>
+              <td>ready</td>
+            </tr>
+            <tr>
+              <th scope="row">iOS</th>
+              <td class="num">2,140</td>
+              <td class="num">2.6 s</td>
+              <td>the stall, below</td>
+            </tr>
+            <tr>
+              <th scope="row">Android</th>
+              <td class="num">1,152</td>
+              <td class="num">1.7 s</td>
+              <td>ready</td>
+            </tr>
+          </tbody>
+        </table>
+        <details id="off-ios-evidence">
+          <summary>How the iOS stall was traced</summary>
+          <p id="off-ios-evidence-body">
+            Fifty-four stalls across 2,140 sessions, all on iOS 17.3 and 17.4 and none
+            on 17.2. In every one the queue had already handed the batch to the network
+            layer and no response or error came back, so our own retry never fired.
+            Backgrounding the app and returning releases it, and that is the workaround
+            below. A reproducer that skips our code entirely — the vendor's client
+            posting the same batch — stalls at the same rate, and that reproducer is
+            what the filed report carries.
+          </p>
+        </details>
+      </section>
+
+      <section id="off-beta-history">
+        <h2>How the beta went</h2>
+        <lf-timeline id="off-beta">
+          <lf-event id="off-e-open" at="week 1" kind="info">
+            <strong>Beta opens</strong> Twelve workspaces, web only.
+          </lf-event>
+          <lf-event id="off-e-merge" at="week 3" kind="action">
+            <strong>Field merge ships</strong> Conflicts fall from 6.4 to 2.3 per 1,000
+            edits in the same week.
+          </lf-event>
+          <lf-event id="off-e-wide" at="week 4" kind="info">
+            <strong>Opened to 96 workspaces</strong> iOS and Android join.
+          </lf-event>
+          <lf-event id="off-e-ios" at="week 5" kind="warning">
+            <strong>iOS resync stalls</strong> One reconnect in about 40 hangs until the
+            app is backgrounded. Traced to the vendor's network layer rather than the
+            queue.
+          </lf-event>
+          <lf-event id="off-e-quiet" at="week 6" kind="info">
+            <strong>Last clash report closed</strong> Four days to the end of the beta
+            with nothing new reported.
+          </lf-event>
+        </lf-timeline>
+      </section>
+
+      <section id="off-stands">
+        <h2>Where the work stands</h2>
+        <lf-milestones id="off-milestones">
+          <lf-milestone id="off-ms-store" status="done" when="week 1">
+            <strong>Local store</strong> Documents and their pending edits survive a
+            closed tab, a reload, and a killed app.
+          </lf-milestone>
+          <lf-milestone id="off-ms-queue" status="done" when="week 2">
+            <strong>Change queue</strong> Every edit goes through it, online or not, so
+            there is one path rather than two.
+          </lf-milestone>
+          <lf-milestone id="off-ms-merge" status="done" when="week 3" tags="merge">
+            <strong>Field merge</strong> The change above. Everything measured after
+            week 3 is measured against this rule.
+          </lf-milestone>
+          <lf-milestone id="off-ms-prompt" status="done" when="week 4">
+            <strong>Conflict prompt</strong> Raised 63 times in six weeks; the wording
+            is still in review.
+          </lf-milestone>
+          <lf-milestone id="off-ms-resync" status="active" when="now" tags="ios">
+            <strong>Resync on reconnect</strong> Everything queued offline reaches the
+            server on the next connection, on all three clients.
+          </lf-milestone>
+          <lf-milestone id="off-ms-ship" status="planned" when="on your word">
+            <strong>Rollout</strong> Shape is the second decision below.
+          </lf-milestone>
+        </lf-milestones>
+      </section>
+
+      <section id="off-work">
+        <h2>The work, piece by piece</h2>
+        <p id="off-work-note">
+          Amber is finished work waiting on your read; red is stuck, and each red task
+          says on what. The two under the stall are the two ways out of it.
+        </p>
+        <lf-tasks id="off-left">
+          <lf-task id="off-t-resync" status="blocked" owner="mobile">
+            <strong>iOS resync stall</strong> One reconnect in about 40. Nothing is lost
+            — the edits stay queued — but the reader sees a spinner until they
+            background the app.
+            <lf-task
+              id="off-t-resync-vendor"
+              status="blocked"
+              owner="mobile"
+              when="their next release"
+            >
+              <strong>Vendor fix</strong> Filed with the reproducer above. They have
+              acknowledged it and named no date.
+            </lf-task>
+            <lf-task id="off-t-resync-workaround" status="review" owner="mobile">
+              <strong>Backgrounding workaround</strong> Resend the batch on a 20-second
+              timer when the app is foregrounded, which turns the stall into a delay
+              nobody watches. Written and tested; awaiting your read.
+            </lf-task>
+          </lf-task>
+          <lf-task id="off-t-copy" status="review" owner="design">
+            <strong>Conflict prompt copy</strong> The wording quoted above, rewritten
+            after five of those 63 ended with the reader picking the side they hadn't
+            meant to, and saying so.
+          </lf-task>
+          <lf-task id="off-t-evict" status="blocked" owner="client">
+            <strong>Store eviction</strong> Written for the answer I recommend below and
+            stuck on that decision. The other two answers are a different week's work.
+          </lf-task>
+          <lf-task id="off-t-telemetry" status="done" owner="client">
+            <strong>Telemetry</strong> Queue depth, resync time, and clash counts, all
+            without document content.
+          </lf-task>
+          <lf-task id="off-t-docs" status="active" owner="devrel" when="first patch">
+            <strong>Help centre page</strong> One page on what works offline and what
+            does not, linked from the banner.
+          </lf-task>
+        </lf-tasks>
+      </section>
+
+      <section id="off-punch-list">
+        <h2>What should stop the ship</h2>
+        <p id="off-punch-note">
+          Everything still open, including the two things I decided not to build at all.
+          Where each card sits is my read of whether it should hold the ship. Drag
+          anything you see differently — or Tab to a grip and press Enter, then arrows:
+          each move reaches me, and the next version of this page ships with the board
+          as you left it.
+        </p>
+        <lf-board id="off-punch">
+          <lf-column id="off-col-ship" label="Blocks the ship">
+            <lf-card id="off-card-copy"
+              ><strong>Conflict prompt copy</strong> Five readers picked the wrong side.
+              The rewrite is written and needs your read.</lf-card
+            >
+            <lf-card id="off-card-evict"
+              ><strong>What a full store does</strong> The decision below. Nothing hit
+              the cap in the beta, and the first workspace that does will be a support
+              ticket.</lf-card
+            >
+          </lf-column>
+          <lf-column id="off-col-patch" label="First patch">
+            <lf-card id="off-card-ios"
+              ><strong>iOS stall</strong> A delay rather than a loss, with a workaround
+              ready. Holding the whole ship for one vendor's release is the trade I
+              would not make.</lf-card
+            >
+            <lf-card id="off-card-help"
+              ><strong>Help centre page</strong> The banner can link to the release note
+              until it lands.</lf-card
+            >
+          </lf-column>
+          <lf-column id="off-col-later" label="Not for this ship">
+            <lf-card id="off-card-comments"
+              ><strong>Offline comments</strong> A second merge problem with a different
+              shape; worth its own review.</lf-card
+            >
+            <lf-card id="off-card-search"
+              ><strong>Offline search</strong> Wants an index on the device. Nobody in
+              the beta asked.</lf-card
+            >
+          </lf-column>
+        </lf-board>
+      </section>
+
+      <section id="off-settled">
+        <h2>Settled in week 3</h2>
+        <p id="off-settled-note">
+          The rule above was one of three answers and is folded to a line — open it for
+          the one the section above doesn't cover.
+        </p>
+        <lf-options id="off-settled-merge" choose settled>
+          <lf-option id="off-sm-field" recommended chosen
+            ><lf-chip>asks the reader: 63 times</lf-chip
+            ><lf-chip tone="ok">loses nothing</lf-chip>
+            <strong>Merge by field</strong> Edits to different paragraphs both land;
+            only two edits to one paragraph reach a person.
+          </lf-option>
+          <lf-option id="off-sm-last"
+            ><lf-chip>asks the reader: never</lf-chip
+            ><lf-chip tone="danger">loses the slower edit</lf-chip>
+            <strong>Last writer wins</strong> No prompt at all, because the work that
+            arrives second is discarded without anyone being told.
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="off-decide-store">
+        <h2>What a full store does</h2>
+        <p id="off-store-ask">
+          At 40 MB a workspace, something has to give. Nothing in the beta reached the
+          cap, so this decides what happens to the first workspace that does. I
+          recommend the first; click an option to decide, or put what none of them
+          covers in the box under the group.
+        </p>
+        <lf-options id="off-full-store" choose>
+          <lf-option id="off-fs-evict" recommended
+            ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>Drop the oldest documents</strong>
+            <dl class="facts">
+              <dt>At the cap</dt>
+              <dd>the least recently opened document leaves the device</dd>
+              <dt>Reader sees</dt>
+              <dd>a line naming what left, and how to keep it</dd>
+              <dt>Worst case</dt>
+              <dd>a document they meant to have offline isn't there</dd>
+            </dl>
+            <p id="off-fs-evict-why">
+              Editing never stops, and that is the whole point of the feature. A
+              document that leaves is still on the server, so what is lost is having it
+              here, not the work in it — and this is the only one of the three that does
+              not punish a reader for not reading a banner. Pinning a document keeps it,
+              and the line that says what left says so.
+            </p>
+          </lf-option>
+          <lf-option id="off-fs-stop"
+            ><lf-chip>effort: 3 days</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>Stop accepting offline edits</strong>
+            <dl class="facts">
+              <dt>At the cap</dt>
+              <dd>the editor goes read-only until a reconnect</dd>
+              <dt>Reader sees</dt>
+              <dd>a banner saying editing is paused</dd>
+              <dt>Worst case</dt>
+              <dd>they are on a plane with the document they came to write</dd>
+            </dl>
+            <p id="off-fs-stop-why">
+              Nothing is ever dropped, and that is the cleanest sentence any of the
+              three gives a release note. It also fails at exactly the moment offline
+              editing is worth having, and a reader with no connection cannot act on the
+              banner telling them so.
+            </p>
+          </lf-option>
+          <lf-option id="off-fs-ask"
+            ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>Ask which documents to keep</strong>
+            <dl class="facts">
+              <dt>At the cap</dt>
+              <dd>a picker, before anything leaves</dd>
+              <dt>Reader sees</dt>
+              <dd>a list of what is on the device, by size</dd>
+              <dt>Worst case</dt>
+              <dd>a dialog between them and their document</dd>
+            </dl>
+            <p id="off-fs-ask-why">
+              The most respectful of the three on paper. In practice it arrives without
+              warning, mid-sentence, and asks someone who came to write a question about
+              storage — and it still needs the eviction code underneath, for the reader
+              who dismisses it.
+            </p>
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="off-decide-rollout">
+        <h2>How the rollout goes</h2>
+        <p id="off-rollout-ask">
+          The beta workspaces already have it. This is about everyone else, and the
+          three shapes differ mostly in how fast the iOS stall reaches people who never
+          agreed to a beta. I recommend the middle one.
+        </p>
+        <lf-options id="off-rollout" choose>
+          <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
+          <lf-option id="off-ro-ten" recommended
+            >Ten percent for a week, then everyone</lf-option
+          >
+          <lf-option id="off-ro-opt-in"
+            >An opt-in toggle until the iOS fix lands</lf-option
+          >
+        </lf-options>
+        <p id="off-rollout-day">The day itself, whichever shape wins:</p>
+        <ol class="steps" id="off-runbook">
+          <li>
+            Turn it on for internal workspaces first thing, and leave it an hour. Every
+            past regression here showed up inside ten minutes.
+          </li>
+          <li>
+            Point the offline banner at the release note. The help centre page replaces
+            it in the first patch.
+          </li>
+          <li>Send the announcement below.</li>
+          <li>
+            Watch queue depth and resync time for the first day; both are on the
+            existing dashboard, and neither carries document content.
+          </li>
+          <li>
+            Leave the kill switch in for two weeks. It stops new offline sessions and
+            never discards a queue.
+          </li>
+        </ol>
+      </section>
+
+      <section id="off-announce">
+        <h2>The announcement</h2>
+        <p id="off-ann-note">
+          Three changes to this section are proposed rather than made: accept or reject
+          each in the margin, or select the words and say why not. The first comes
+          straight out of the beta's support tickets, where "offline" was read as
+          covering the whole product. The second states the storage limit, so it assumes
+          the recommendation above.
+        </p>
+        <lf-suggestion id="off-sug-scope">
+          <lf-old
+            ><p id="off-ann-scope">
+              Offline editing works throughout the product.
+            </p></lf-old
+          >
+          <lf-new
+            ><p>
+              Offline editing covers documents. Comments, sharing, and search still need
+              a connection, and say so when they don't have one.
+            </p></lf-new
+          >
+        </lf-suggestion>
+        <lf-suggestion id="off-sug-limits">
+          <lf-new
+            ><aside class="callout" id="off-ann-limits">
+              A device holds 40 MB of a workspace. Past that the least recently opened
+              documents leave the device, and a pinned document never does.
+            </aside></lf-new
+          >
+        </lf-suggestion>
+        <p id="off-sug-promise-why">
+          The third is a deletion with nothing in its place. I am proposing it because
+          the sentence is a promise we cannot keep: uninstalling the app takes the local
+          store with it, and anything still queued there goes too. It says otherwise in
+          the one place a reader would quote back at support.
+        </p>
+        <lf-suggestion id="off-sug-promise">
+          <lf-old
+            ><p id="off-ann-promise">
+              Nothing you write offline can ever be lost.
+            </p></lf-old
+          >
+        </lf-suggestion>
+        <p id="off-email-note">
+          This goes to the 96 beta workspaces the day you sign off, under your name, so
+          the words are yours: double-click the block (or its ✎) and rewrite it until it
+          sounds like you. It assumes both recommendations above — the oldest documents
+          leaving, and a week at ten percent — so if either decision goes another way,
+          the next version brings the email with it.
+        </p>
+        <lf-draft id="off-email">
+          <pre>
+Subject: Offline editing is leaving beta
+
+Thank you for six weeks of it. Offline editing reaches everyone over the
+next two weeks, and nothing changes for your workspace.
+
+Two things worth knowing. Documents you have opened recently are kept on
+your device, up to 40 MB a workspace; past that the oldest ones leave,
+and you can pin any document to keep it. And when two of you edit the
+same paragraph offline, the app asks which version to keep rather than
+picking one.
+
+If you hit the spinner on reconnect that some of you reported on iPhone,
+switching away from the app and back still clears it, and nothing you
+wrote is waiting on that. The fault is in networking code we don't own
+and we have reported it; the workaround ships either way.
+</pre>
+        </lf-draft>
+      </section>
+
+      <section id="off-followup">
+        <h2>What I pick up next</h2>
+        <p id="off-followup-intro">
+          Four jobs stand behind the ship, none of them holding it. Pick the ones worth
+          starting — click a row, or Tab to its mark and press Enter — and the box takes
+          anything the rows don't cover.
+        </p>
+        <lf-options id="off-followups" choose multiple>
+          <lf-option id="off-fu-drill" for="off-merge"
+            >A merge drill with three devices offline at once</lf-option
+          >
+          <lf-option id="off-fu-cap" for="off-how"
+            >Telemetry on how close real workspaces get to 40 MB</lf-option
+          >
+          <lf-option id="off-fu-copy" for="off-surface"
+            >A second pass on the offline banner's wording</lf-option
+          >
+          <lf-option id="off-fu-comments" for="off-punch-list"
+            >A review of what offline comments would take</lf-option
+          >
+        </lf-options>
+      </section>
+</lf-tab>
+
 <lf-tab id="gal-design-decision" label="Design decision">
 <h1>Where sessions live</h1>
       <p class="lede" id="decision-lede">
@@ -278,6 +895,348 @@ graph LR
       </section>
 </lf-tab>
 
+<lf-tab id="gal-api-sunset" label="API sunset">
+<h1>Retiring the v1 API</h1>
+      <p class="lede" id="api-lede">
+        Sixty-one of 78 integrations have moved to v2; this page is about the 17 that
+        haven't. One decision below re-cuts the plan around them, two changes to the
+        cutoff section wait in the margin, and the email they'll get is yours to
+        rewrite. Sign off when the plan reads right; nothing reaches a customer before
+        you do.
+      </p>
+
+      <lf-metrics id="api-metrics">
+        <lf-metric id="api-k-traffic" value="4.1%" delta="-2.3" direction="up-bad"
+          >requests on v1</lf-metric
+        >
+        <lf-metric id="api-k-left" value="17" delta="-9" direction="up-bad"
+          >integrations on v1</lf-metric
+        >
+        <lf-metric id="api-k-days" value="46">days to cutoff</lf-metric>
+        <lf-metric id="api-k-tickets" value="12" delta="-29" direction="up-bad"
+          >tickets, last brownout</lf-metric
+        >
+      </lf-metrics>
+
+      <section id="api-settled">
+        <h2>Settled</h2>
+        <p id="api-settled-note">
+          Two decisions carried the plan this far, each folded to one line — open one if
+          you want the options it beat.
+        </p>
+        <lf-options id="api-cutoff" choose settled>
+          <lf-option id="api-cut-date" recommended chosen
+            ><lf-chip>end: 30 june</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>A fixed date, with brownouts on the way</strong> 30 June, announced
+            six months out, with scheduled outages ahead of it so no integration meets
+            the cutoff as a surprise.
+          </lf-option>
+          <lf-option id="api-cut-traffic"
+            ><lf-chip>end: none</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>Wait for traffic to reach zero</strong> Nothing breaks by fiat. It
+            also never ends: the last cron job keeps v1 alive for years.
+          </lf-option>
+          <lf-option id="api-cut-hard"
+            ><lf-chip>end: 30 june</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+            <strong>A date and nothing else</strong> Clean to run, and every integration
+            that ignored the announcement finds out in production on cutoff day.
+          </lf-option>
+        </lf-options>
+        <p id="api-brownouts-note">And the schedule the date rides on:</p>
+        <lf-options id="api-brownouts" choose settled>
+          <lf-option id="api-bo-esc" recommended chosen
+            ><lf-chip>cadence: escalating</lf-chip
+            ><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>Escalating brownouts</strong> Five minutes, then an hour, then a
+            full day, each announced a month ahead in the Sunset header.
+          </lf-option>
+          <lf-option id="api-bo-flat"
+            ><lf-chip>cadence: monthly</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>A monthly hour</strong> Predictable enough that a team can plan
+            around it without ever migrating.
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="api-tail">
+        <h2>The 17 that remain</h2>
+        <p id="api-tail-intro">
+          Thirteen of the 17 are under 100 calls a day, and eleven of those haven't
+          deployed a change since 2024 — their v1 traffic is cron jobs whose output
+          nobody reads. Halden Analytics and Root &amp; Vine are bigger, and no easier
+          to reach. The two that matter, Meridian Freight and Ostrava Systems, are live
+          and high-volume.
+        </p>
+        <table id="api-consumers">
+          <caption>
+            Remaining v1 integrations by daily calls. Endpoint families matter because
+            the shim below can carry one of them and not the other.
+          </caption>
+          <thead>
+            <tr>
+              <th>Integration</th>
+              <th class="num">Calls/day</th>
+              <th>Endpoints</th>
+              <th>Standing</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Meridian Freight</th>
+              <td class="num">41,200</td>
+              <td><code>/v1/records</code></td>
+              <td>exempt to 30 Sep — contract names v1</td>
+            </tr>
+            <tr>
+              <th scope="row">Ostrava Systems</th>
+              <td class="num">18,760</td>
+              <td><code>/v1/records</code>, <code>/v1/search</code></td>
+              <td>migrating, their ETA mid-June</td>
+            </tr>
+            <tr>
+              <th scope="row">Halden Analytics</th>
+              <td class="num">940</td>
+              <td><code>/v1/records</code></td>
+              <td>no reply to three emails</td>
+            </tr>
+            <tr>
+              <th scope="row">Root &amp; Vine</th>
+              <td class="num">310</td>
+              <td><code>/v1/records</code></td>
+              <td>replied once, in February</td>
+            </tr>
+            <tr>
+              <th scope="row">13 more, under 100 each</th>
+              <td class="num">610</td>
+              <td><code>/v1/records</code>, two on <code>/v1/search</code></td>
+              <td>eleven dormant since 2024</td>
+            </tr>
+          </tbody>
+        </table>
+        <details id="api-tail-evidence">
+          <summary>How we know the long tail is unattended</summary>
+          <p id="api-tail-evidence-body">
+            Thirty days of gateway logs. The eleven dormant integrations pin their
+            user-agent to SDK versions from 2023 and 2024, none has fetched the
+            migration guide, and neither brownout produced a ticket from any of them. We
+            read them as cron jobs from the traffic shape: the same requests at the same
+            minute past each hour, straight through the five-minute brownout.
+          </p>
+        </details>
+        <p id="api-tail-ask">
+          Three ways to carry them past 30 June; I recommend the first, and the runbook
+          and the email below assume it. Click an option to decide, or put what none of
+          them covers in the box under the group.
+        </p>
+        <lf-options id="api-tail-plan" choose>
+          <lf-option id="api-tp-shim" recommended
+            ><lf-chip>effort: 2 weeks</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>Shim the record readers, brownout the rest</strong>
+            <dl class="facts">
+              <dt>Covers</dt>
+              <dd>14 of 17, Meridian's exemption included</dd>
+              <dt>Gateway work</dt>
+              <dd>field renames and one date format</dd>
+              <dt>After 30 June</dt>
+              <dd>v1 handlers deleted; the shim stays</dd>
+            </dl>
+            <p id="api-tp-shim-why">
+              The gateway can translate a <code>/v1/records</code> read onto v2 and
+              reshape the response — renames, one date format, nothing stateful. That
+              carries every records-only integration, and it is what makes Meridian's
+              exemption cheap to honor: their September traffic rides the shim, not a v1
+              stack kept alive for one customer. <code>/v1/search</code> can't ride it —
+              v2 search is cursor-paginated, and a gateway inventing page numbers over
+              cursors would be a bug we own forever. Search leaves three integrations
+              exposed: Ostrava, who are migrating anyway, and two from the long tail.
+            </p>
+            <lf-diagram id="api-shim-flow">
+              <pre>
+graph LR
+  C[v1 client] --> G[gateway]
+  G -->|/v1/records, translated| H[v2 API]
+  G -.->|/v1/search| X[retired response]
+</pre>
+            </lf-diagram>
+          </lf-option>
+          <lf-option id="api-tp-all"
+            ><lf-chip>effort: a quarter</lf-chip
+            ><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>Shim everything, search included</strong>
+            <dl class="facts">
+              <dt>Covers</dt>
+              <dd>17 of 17</dd>
+              <dt>Gateway work</dt>
+              <dd>a paging emulator over cursors</dd>
+              <dt>After 30 June</dt>
+              <dd>an emulator to own indefinitely</dd>
+            </dl>
+            <p id="api-tp-all-why">
+              Nobody breaks, which is the whole argument. The cost is the emulator: it
+              has to fake stable page numbers over a cursor API, and its edge cases are
+              the ones that corrupt a customer's pagination silently. Two of the three
+              integrations it would exist for are dormant.
+            </p>
+          </lf-option>
+          <lf-option id="api-tp-none"
+            ><lf-chip>effort: none</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+            <strong>No shim — the brownouts and the date do it</strong>
+            <dl class="facts">
+              <dt>Covers</dt>
+              <dd>whoever moves by 30 June</dd>
+              <dt>Gateway work</dt>
+              <dd>none</dd>
+              <dt>After 30 June</dt>
+              <dd>every v1 call fails; Meridian needs an answer</dd>
+            </dl>
+            <p id="api-tp-none-why">
+              Honest and cheap, but it re-opens the exemption: Meridian's contract runs
+              to September, so without a shim the v1 stack itself stays up three months
+              longer to serve them.
+            </p>
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="api-cutover">
+        <h2>Cutoff day, and after</h2>
+        <ol class="steps" id="api-runbook">
+          <li>
+            Freeze exemptions on 30 May. The list is Meridian, and stays Meridian.
+          </li>
+          <li>
+            Final brownout on 2 June: 24 hours of what 30 June leaves — shimmed reads
+            answered, everything else dark.
+          </li>
+          <li>
+            On 30 June, flip the gateway: unshimmed v1 routes answer with the retired
+            response below; shimmed reads carry on.
+          </li>
+          <li>
+            Handlers stay deployed and dark for two weeks — rollback is a config revert,
+            not a deploy.
+          </li>
+          <li>Delete the v1 handler code on 14 July.</li>
+        </ol>
+        <p id="api-sug-note">
+          Two changes to this section are proposed rather than made: accept or reject
+          each in the margin, or select the words and say why not. The first comes out
+          of the first brownout's tickets — 41 of them, mostly asking whether we were
+          down, and a 404 would keep that conversation going.
+        </p>
+        <lf-suggestion id="api-sug-410">
+          <lf-old
+            ><p id="api-retired-response">
+              The retired response is a plain 404 from the gateway.
+            </p></lf-old
+          >
+          <lf-new
+            ><p>
+              The retired response is a 410 Gone, with a body naming the cutoff date and
+              a <code>Link</code> header to the migration guide.
+            </p></lf-new
+          >
+        </lf-suggestion>
+        <lf-suggestion id="api-sug-logs">
+          <lf-new
+            ><aside class="callout" id="api-log-snapshot">
+              Before the gateway change lands, snapshot 90 days of v1 access logs to
+              cold storage. If an owner surfaces in August saying they were never told,
+              the log holds their own calls, with the Sunset header on every response.
+            </aside></lf-new
+          >
+        </lf-suggestion>
+      </section>
+
+      <section id="api-email">
+        <h2>The email to the 17</h2>
+        <p id="api-email-note">
+          This goes out under your name the day you sign off, so the words are yours:
+          double-click the block (or its ✎) and rewrite it until it sounds like you. It
+          assumes the shim; if the decision above goes another way, the next version
+          brings the email with it.
+        </p>
+        <lf-draft id="api-email-draft">
+          <pre>
+Subject: What happens to your v1 integration on 30 June
+
+We're retiring the v1 API on 30 June. Our records show your integration
+still uses it.
+
+If you only read records through /v1/records, nothing breaks on that
+date: the gateway will keep translating those calls after the cutoff.
+We'd still like you off v1 this year, and the migration guide shows the
+same request in both shapes.
+
+Everything else on v1 stops on 30 June. On 2 June we run the cutoff for
+24 hours as a test, so anything of yours that will stop then stops that
+day too, and comes back.
+
+Most integrations finish the move in under a day. Reply to this email
+and an engineer will work through yours with you.
+</pre>
+        </lf-draft>
+      </section>
+
+      <section id="api-work">
+        <h2>Workstreams</h2>
+        <p id="api-work-note">
+          Amber is finished work waiting on your read; the one red task says what it is
+          stuck on.
+        </p>
+        <lf-tasks id="api-plan">
+          <lf-task id="api-t-shim" status="blocked" owner="gateway">
+            <strong>Records shim</strong> Scoped at two weeks; blocked on the decision
+            above. If it starts this week, it lands a month before the cutoff.
+          </lf-task>
+          <lf-task id="api-t-guide" status="review" owner="devrel">
+            <strong>Migration guide rewrite</strong> Restructured around endpoint
+            families, every v1 request shown beside its v2 shape. Awaiting your read
+            before it replaces the current guide.
+          </lf-task>
+          <lf-task id="api-t-contracts" status="active" owner="legal">
+            <strong>Contract check</strong> Two annual contracts name v1 explicitly.
+            Meridian's is the exemption; the other renews on 22 May with v2 language.
+          </lf-task>
+          <lf-task id="api-t-sdk" status="done" owner="sdk">
+            <strong>Deprecation warnings</strong> Since February, every maintained SDK
+            logs a warning on each v1 call, naming the date.
+          </lf-task>
+          <lf-task id="api-t-sunset" status="done" owner="gateway">
+            <strong>Sunset headers</strong> Every v1 response has carried the date since
+            9 January.
+          </lf-task>
+          <lf-task id="api-t-teardown" status="planned" owner="gateway" when="july">
+            <strong>Teardown</strong> Routes, then handlers, then the v1 docs, two weeks
+            apart in that order.
+          </lf-task>
+        </lf-tasks>
+      </section>
+
+      <section id="api-history">
+        <h2>Already behind us</h2>
+        <lf-timeline id="api-timeline">
+          <lf-event id="api-e-announce" at="9 Jan" kind="info">
+            <strong>Retirement announced</strong> Email to all 78 integration owners;
+            the date went into every Sunset header the same day.
+          </lf-event>
+          <lf-event id="api-e-bo1" at="3 Mar" kind="action">
+            <strong>First brownout, five minutes</strong> 41 tickets; the
+            retired-response change proposed above comes from reading them.
+          </lf-event>
+          <lf-event id="api-e-exempt" at="21 Mar" kind="info">
+            <strong>Meridian exemption granted</strong> Their contract names v1 through
+            30 September, which is why the decision above has to answer for traffic past
+            the date.
+          </lf-event>
+          <lf-event id="api-e-bo2" at="7 Apr" kind="action">
+            <strong>Second brownout, one hour</strong> 12 tickets, none asking whether
+            we were down. Nine integrations migrated in the three weeks after.
+          </lf-event>
+        </lf-timeline>
+      </section>
+</lf-tab>
+
 <lf-tab id="gal-incident-report" label="Incident report">
 <h1>Export queue backlog, 12 June</h1>
       <p class="lede" id="incident-lede">
@@ -368,6 +1327,239 @@ graph LR
             Alert on a single job id exceeding five attempts, not only on queue depth.
           </li>
         </ol>
+      </section>
+</lf-tab>
+
+<lf-tab id="gal-public-postmortem" label="Public postmortem">
+<h1>What we publish about 12 June</h1>
+      <p class="lede" id="pm-lede">
+        The internal report is settled; this is the version customers read. Four edits
+        wait in the margin — a plainer wording, a deleted sentence, two added paragraphs
+        — and ✓ or ✗ decides each. The summary and the status-page notice are yours to
+        write, and two decisions are still open: who this goes to, and whether we put a
+        date on the last fix. Sign off and I publish the writeup — the drafts as you
+        left them, each proposal as you decided it.
+      </p>
+
+      <section id="pm-summary">
+        <h2>Summary</h2>
+        <p id="pm-summary-note">
+          The only paragraph most customers will read, and it goes out in your voice:
+          double-click it (or its ✎) and rewrite it.
+        </p>
+        <lf-draft id="pm-summary-draft">
+          <pre>
+On the morning of 12 June, exports were delayed for 94 minutes. Nothing
+was lost: anything you exported in that window arrived late, but it
+arrived. One stuck job held up the queue, and the fault was in how we
+retry failures. We've changed how that works; the details are below.
+We're sorry for the delay.
+</pre>
+        </lf-draft>
+        <lf-suggestion id="pm-sug-nothing-needed">
+          <lf-new
+            ><p id="pm-nothing-needed">
+              There is nothing you need to do. Every delayed export was delivered by
+              10:48 UTC; if something downstream of you noticed the gap, reply on your
+              support thread and we'll pull the delivery log for your workspace.
+            </p></lf-new
+          >
+        </lf-suggestion>
+      </section>
+
+      <section id="pm-happened">
+        <h2>What happened</h2>
+        <p id="pm-cause">
+          Exports run through a queue. At 09:14 our monitoring flagged it backing up,
+          and by 10:48 everything delayed had been delivered. The fault was in how we
+          retry a failing export.
+        </p>
+        <lf-suggestion id="pm-sug-plain">
+          <lf-old
+            ><p id="pm-jargon">
+              The failing job re-entered the queue at its head position on each retry
+              attempt, serialized ahead of all subsequent export jobs for the duration
+              of the incident window.
+            </p></lf-old
+          >
+          <lf-new
+            ><p>
+              Each retry put the failing export back at the front of the line, and every
+              export behind it waited — the longest for 81 minutes — on a job that was
+              never going to finish.
+            </p></lf-new
+          >
+        </lf-suggestion>
+        <lf-suggestion id="pm-sug-blame">
+          <lf-old
+            ><p id="pm-blame">
+              The trigger was a workspace containing malformed attachment metadata that
+              our systems did not expect.
+            </p></lf-old
+          >
+        </lf-suggestion>
+        <p id="pm-blame-why">
+          I'm proposing the deletion because the sentence points at a customer's data,
+          and the fault wasn't theirs: our validator accepted the attachment at upload,
+          and our worker retried a job that could never succeed. The paragraph before it
+          already says everything a reader needs.
+        </p>
+      </section>
+
+      <section id="pm-impact">
+        <h2>Impact</h2>
+        <table id="pm-impact-table">
+          <caption>
+            Impact on 12 June, 09:14 to 10:48 UTC.
+          </caption>
+          <tbody>
+            <tr>
+              <th scope="row">Exports delayed</th>
+              <td class="num">1,204</td>
+            </tr>
+            <tr>
+              <th scope="row">Exports lost</th>
+              <td class="num">0</td>
+            </tr>
+            <tr>
+              <th scope="row">Workspaces affected</th>
+              <td class="num">412</td>
+            </tr>
+            <tr>
+              <th scope="row">Longest delay</th>
+              <td class="num">81 minutes</td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="pm-impact-note">
+          How these read was settled in draft 2; the record is folded below.
+        </p>
+        <lf-options id="pm-numbers" choose settled>
+          <lf-option id="pm-num-counts" recommended chosen
+            ><strong>Counts, not percentages</strong> "1,204 exports" is the incident as
+            the affected workspaces met it. "0.9% of the week's exports" is also true,
+            and reads as chosen to sound small.
+          </lf-option>
+          <lf-option id="pm-num-pct"
+            ><strong>Percentages</strong> Honest about scale, and it holds only until a
+            reply quotes the absolute number.
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="pm-timeline">
+        <h2>Timeline</h2>
+        <p id="pm-timeline-note">
+          Trimmed from the internal timeline to times and actions. The fix that didn't
+          work stays in; leaving it out would be conspicuous.
+        </p>
+        <lf-timeline id="pm-public-timeline">
+          <lf-event id="pm-e-detect" at="09:14" kind="warning">
+            <strong>Monitoring flagged the export queue backing up</strong>
+          </lf-event>
+          <lf-event id="pm-e-cause" at="09:26" kind="info">
+            <strong>Cause found</strong> One export, retrying at the front of the queue.
+          </lf-event>
+          <lf-event id="pm-e-wrong" at="09:51" kind="failure">
+            <strong>First fix didn't hold</strong> We added workers, which drained the
+            queue briefly; the stuck job still failed first, and the backlog returned.
+          </lf-event>
+          <lf-event id="pm-e-fix" at="10:32" kind="action">
+            <strong>Stuck job set aside</strong> The queue drained at its normal rate.
+          </lf-event>
+          <lf-event id="pm-e-clear" at="10:48" kind="info">
+            <strong>Every delayed export delivered</strong>
+          </lf-event>
+        </lf-timeline>
+      </section>
+
+      <section id="pm-changes">
+        <h2>What we've changed</h2>
+        <ol class="steps" id="pm-fixes">
+          <li>
+            We no longer retry a job that cannot succeed; we set it aside and page a
+            person.
+          </li>
+          <li>
+            A retried job now rejoins the queue at the back, so no single export can
+            hold up the rest again. Both changes shipped on 13 June.
+          </li>
+          <li>
+            We are adding an alert on any one job failing repeatedly — on 12 June,
+            nothing fired until the queue behind the stuck job was long enough to
+            notice.
+          </li>
+        </ol>
+        <lf-suggestion id="pm-sug-followup">
+          <lf-new
+            ><p id="pm-followup">
+              This writeup is the record of the incident, so when the alerting change
+              ships we will note it here rather than in a new post.
+            </p></lf-new
+          >
+        </lf-suggestion>
+      </section>
+
+      <section id="pm-decisions">
+        <h2>Still open</h2>
+        <p id="pm-where-note">
+          Click an option to settle each of these, or write a different answer in the
+          box beneath it.
+        </p>
+        <lf-options id="pm-where" choose>
+          <lf-option id="pm-wh-status"
+            ><lf-chip>quietest</lf-chip><lf-chip tone="warn">easy to miss</lf-chip>
+            <strong>Status page only</strong> Anyone who checks finds it; the 412
+            affected workspaces are not told it exists.
+          </lf-option>
+          <lf-option id="pm-wh-email" recommended
+            ><lf-chip>reaches the affected</lf-chip
+            ><lf-chip tone="ok">matches the impact</lf-chip>
+            <strong>Status page, plus email the 412</strong> The workspaces that felt
+            the delay hear it from us rather than finding it, and nobody else's inbox is
+            spent on it.
+          </lf-option>
+          <lf-option id="pm-wh-blog"
+            ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
+            <strong>Blog post as well</strong> More reach than 94 minutes earns, and the
+            audience of a blog post is mostly people the incident never touched.
+          </lf-option>
+        </lf-options>
+        <p id="pm-date-note">
+          And whether the third fix carries a date. The alerting change is in review
+          now.
+        </p>
+        <lf-options id="pm-date" choose>
+          <lf-option id="pm-dt-week" recommended
+            ><lf-chip tone="warn">a public promise</lf-chip>
+            <strong>"Ships this week"</strong> Specific enough to hold us to it, and it
+            is in review with two days of margin.
+          </lf-option>
+          <lf-option id="pm-dt-quarter"
+            ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and
+            reads that way.
+          </lf-option>
+          <lf-option id="pm-dt-none"
+            ><lf-chip>no promise</lf-chip> <strong>No date</strong> The first two fixes
+            shipped before publishing; undated, the page promises nothing it hasn't
+            already done.
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="pm-notice">
+        <h2>The status-page notice</h2>
+        <p id="pm-notice-note">
+          One line on the status page links the writeup. Yours to word, same as the
+          summary.
+        </p>
+        <lf-draft id="pm-notice-draft">
+          <pre>
+Postmortem for 12 June: one stuck export held the queue for 94 minutes.
+Nothing was lost. What happened and what we changed:
+https://status.example.com/incidents/1207
+</pre>
+        </lf-draft>
       </section>
 </lf-tab>
 

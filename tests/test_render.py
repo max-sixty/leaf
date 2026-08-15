@@ -479,23 +479,46 @@ class Traffic:
         self.asked = 0  # state the page has gone out for
         self.heard = 0  # ... and been given
         self._asof = {}  # a poll in flight -> the posts already answered when it went out
+        self._flying = (
+            set()
+        )  # event posts in the air, each counted once whichever way it ends
         page.on("request", self._out)
         page.on("response", lambda response: self._back(response.request))
         page.on("requestfailed", self._back)
+        # A navigation is the third way a trip ends, and the one the browser reports
+        # for neither kind: a post the reload kills mid-flight gets no `response` and
+        # no `requestfailed`. Left uncounted it holds `acked` under `sends` for the
+        # rest of the page's life — the counters are the whole life on purpose — so
+        # every later `round_trip` waits its timeout out on a trip that ended at the
+        # reload. Accept-all is where this bit: it answers its asks one awaited trip
+        # at a time, so a sweep's reload lands mid-cascade about as often as not.
+        page.on("framenavigated", self._navigated)
 
     def _out(self, request):
         if "/api/event" in request.url:
             self.sends += 1
+            self._flying.add(request)
         elif "/api/state" in request.url:
             self.asked += 1
             self._asof[request] = self.acked
 
     def _back(self, request):
+        # Counted only while in the air, so a straggling report of a post the
+        # navigation already settled can't count it twice.
         if "/api/event" in request.url:
-            self.acked += 1
+            if request in self._flying:
+                self._flying.discard(request)
+                self.acked += 1
         elif "/api/state" in request.url:
             self.heard += 1
             self.read = max(self.read, self._asof.pop(request, 0))
+
+    def _navigated(self, frame):
+        if frame.parent_frame is not None:
+            return
+        while self._flying:
+            self._flying.pop()
+            self.acked += 1
 
 
 def _traffic(page):
@@ -561,6 +584,44 @@ def told(page):
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
     route.abort("aborted")
+
+
+def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
+    """A navigation ends a trip the browser reports for neither kind, and the
+    counters must say so or every later wait on this page runs its timeout out.
+
+    Accept-all is how a real sweep gets here: it answers its asks one awaited
+    trip at a time, so a reload after the press lands mid-cascade and kills an
+    /api/event POST that then produces no `response` and no `requestfailed`.
+    The route's delay holds a post in the air so the navigation reliably lands
+    on one; the assertion is Traffic's books balancing, and then `round_trip`
+    returning on a page whose only unfinished trip ended at the reload."""
+    gallery = next(p for p in EXAMPLES if p.stem == "gallery")
+    url = serve(gallery.read_text())
+    # The console is not the subject here: a reload mid-post leaves Chrome's own
+    # "Failed to load resource" behind, which is the navigation working.
+    page, _ = open_page(browser, url)
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    def slow(route):
+        if "/api/event" in route.request.url:
+            time.sleep(0.5)
+        route.continue_()
+
+    page.route("**/api/event", slow)
+    page.locator(".lf-answer-all").first.click()
+    page.wait_for_event(
+        "request", predicate=lambda r: "/api/event" in r.url, timeout=5000
+    )
+    page.unroute("**/api/event")
+    page.goto(url, wait_until="networkidle")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    t = _traffic(page)
+    assert t.acked >= t.sends, (
+        f"a trip the navigation ended was never counted: sends={t.sends} "
+        f"acked={t.acked}"
+    )
+    round_trip(page)
 
 
 def open_page(
@@ -2474,6 +2535,128 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
                       .map((b) => b.getClientRects().length)"""
     assert page.evaluate(torn) == [1, 1], "a badge is one pill, and it was drawn as two"
+    assert errors == []
+    page.close()
+
+
+# One line past any phone column, so the box a diff renders in has to scroll and the
+# rule is the one on trial rather than the fit.
+WIDE_DIFF_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>wide diff</title>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">A diff wider than the column</h1>
+<lf-diff id="wide-diff"><pre>
+diff --git a/client/offline/merge.ts b/client/offline/merge.ts
+--- a/client/offline/merge.ts
++++ b/client/offline/merge.ts
+@@ -18,2 +18,2 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
+-  return apply(base, [...theirs, ...mine]);
++  const clash = theirs.find((t) =&gt; t.field === edit.field &amp;&amp; t.at &gt; edit.at);
+</pre></lf-diff>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
+    """Anything a mouse can scroll, a keyboard can reach — including the box a widget
+    renders inside its own shadow tree. `reachScrollers` walks the tree it is handed,
+    and `querySelectorAll` stops dead at a shadow boundary, so a diff was the one
+    scrolling box on a page that a keyboard user had no way into: no tab stop of its
+    own, and unlike a board no control inside to borrow one from. The axe sweep says
+    so too, and only while some example's diff happens to carry a line this long; this
+    is the same rule asked of the widget rather than of the corpus."""
+    page, errors = open_page(browser, serve(WIDE_DIFF_PAGE))
+    resized(page, 420, 900)
+    measured = page.locator("#wide-diff").evaluate(
+        """(d) => {
+        const pre = d.shadowRoot.querySelector('pre');
+        return { scrolls: Math.round(pre.scrollWidth - pre.clientWidth),
+                 tab: pre.tabIndex };
+    }"""
+    )
+    # The reach, then that there was anything to reach: a diff narrow enough to fit
+    # takes no tab stop and is right not to, which would pass the first assertion
+    # while saying nothing about the rule.
+    assert measured["scrolls"] > 0, "this diff fits, so it proves nothing"
+    assert measured["tab"] == 0, "a diff that scrolls is unreachable from the keyboard"
+    assert errors == []
+    page.close()
+
+
+# The same diff, arriving the other way a widget reaches a reader: on a reply, into a
+# column narrower than any page's.
+PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
+    WIDE_DIFF_PAGE.index("<lf-diff") : WIDE_DIFF_PAGE.index("</lf-diff>")
+    + len("</lf-diff>")
+].replace('id="wide-diff"', 'id="rp-diff"')
+
+
+def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
+    """The panel holds the same scroll boxes the page does — a reply carries whatever
+    widget markup the gate allows — and its column is the narrower of the two, so a box
+    that scrolls anywhere scrolls here.
+
+    The sweep that was supposed to cover this stood where each message body is built,
+    and needed two things it did not have: that body is not in the document yet, where
+    `getComputedStyle` answers "" for every property, and the widget in it has not
+    rendered, where the look a scroll box has arrives with the class its module sets on
+    the way out. It read an empty overflow off everything it walked and had tagged
+    nothing since it was written, which reads as coverage and is the only reason it
+    lasted.
+
+    The reply arrives while the panel is already open, because that is the case with
+    exactly one reconcile in it. A diff renders asynchronously, so a sweep run where the
+    panel inserts its nodes walks a host whose shadow root is still null, and the panel
+    does not reconcile on a timer to fix it later: `renderPanel` runs on an open, on a
+    fold finishing, and on a new event. Seeding the reply before the page loads gives
+    two reconciles and hides all of that."""
+    url = serve(REPLY_HOST_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-diff",
+            "author": "user",
+            "version": 1,
+            "text": "What does the change look like?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name="Comments", exact=False).click()
+    page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-diff",
+            "version": 1,
+            "text": "The one line that decides it:",
+            "markup": PANEL_DIFF_MARKUP,
+        },
+    )
+    page.wait_for_function(
+        """() => {
+        const d = document.querySelector('#rp-diff');
+        const pre = d && d.shadowRoot && d.shadowRoot.querySelector('pre');
+        return Boolean(pre) && pre.tabIndex === 0;
+    }"""
+    )
+    scrolls = page.locator("#rp-diff").evaluate(
+        "(d) => Math.round(d.shadowRoot.querySelector('pre').scrollWidth"
+        " - d.shadowRoot.querySelector('pre').clientWidth)"
+    )
+    assert scrolls > 0, "this diff fits the panel, so it proves nothing"
     assert errors == []
     page.close()
 

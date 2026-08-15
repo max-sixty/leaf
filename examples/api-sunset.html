@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Retiring the v1 API</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <meta name="lf-review" content="sign-off" />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">deprecation · month 5 of 6</p>
+      <h1>Retiring the v1 API</h1>
+      <p class="lede" id="api-lede">
+        Sixty-one of 78 integrations have moved to v2; this page is about the 17 that
+        haven't. One decision below re-cuts the plan around them, two changes to the
+        cutoff section wait in the margin, and the email they'll get is yours to
+        rewrite. Sign off when the plan reads right; nothing reaches a customer before
+        you do.
+      </p>
+
+      <lf-metrics id="api-metrics">
+        <lf-metric id="api-k-traffic" value="4.1%" delta="-2.3" direction="up-bad"
+          >requests on v1</lf-metric
+        >
+        <lf-metric id="api-k-left" value="17" delta="-9" direction="up-bad"
+          >integrations on v1</lf-metric
+        >
+        <lf-metric id="api-k-days" value="46">days to cutoff</lf-metric>
+        <lf-metric id="api-k-tickets" value="12" delta="-29" direction="up-bad"
+          >tickets, last brownout</lf-metric
+        >
+      </lf-metrics>
+
+      <section id="api-settled">
+        <h2>Settled</h2>
+        <p id="api-settled-note">
+          Two decisions carried the plan this far, each folded to one line — open one if
+          you want the options it beat.
+        </p>
+        <lf-options id="api-cutoff" choose settled>
+          <lf-option id="api-cut-date" recommended chosen
+            ><lf-chip>end: 30 june</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>A fixed date, with brownouts on the way</strong> 30 June, announced
+            six months out, with scheduled outages ahead of it so no integration meets
+            the cutoff as a surprise.
+          </lf-option>
+          <lf-option id="api-cut-traffic"
+            ><lf-chip>end: none</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>Wait for traffic to reach zero</strong> Nothing breaks by fiat. It
+            also never ends: the last cron job keeps v1 alive for years.
+          </lf-option>
+          <lf-option id="api-cut-hard"
+            ><lf-chip>end: 30 june</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+            <strong>A date and nothing else</strong> Clean to run, and every integration
+            that ignored the announcement finds out in production on cutoff day.
+          </lf-option>
+        </lf-options>
+        <p id="api-brownouts-note">And the schedule the date rides on:</p>
+        <lf-options id="api-brownouts" choose settled>
+          <lf-option id="api-bo-esc" recommended chosen
+            ><lf-chip>cadence: escalating</lf-chip
+            ><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>Escalating brownouts</strong> Five minutes, then an hour, then a
+            full day, each announced a month ahead in the Sunset header.
+          </lf-option>
+          <lf-option id="api-bo-flat"
+            ><lf-chip>cadence: monthly</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>A monthly hour</strong> Predictable enough that a team can plan
+            around it without ever migrating.
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="api-tail">
+        <h2>The 17 that remain</h2>
+        <p id="api-tail-intro">
+          Thirteen of the 17 are under 100 calls a day, and eleven of those haven't
+          deployed a change since 2024 — their v1 traffic is cron jobs whose output
+          nobody reads. Halden Analytics and Root &amp; Vine are bigger, and no easier
+          to reach. The two that matter, Meridian Freight and Ostrava Systems, are live
+          and high-volume.
+        </p>
+        <table id="api-consumers">
+          <caption>
+            Remaining v1 integrations by daily calls. Endpoint families matter because
+            the shim below can carry one of them and not the other.
+          </caption>
+          <thead>
+            <tr>
+              <th>Integration</th>
+              <th class="num">Calls/day</th>
+              <th>Endpoints</th>
+              <th>Standing</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Meridian Freight</th>
+              <td class="num">41,200</td>
+              <td><code>/v1/records</code></td>
+              <td>exempt to 30 Sep — contract names v1</td>
+            </tr>
+            <tr>
+              <th scope="row">Ostrava Systems</th>
+              <td class="num">18,760</td>
+              <td><code>/v1/records</code>, <code>/v1/search</code></td>
+              <td>migrating, their ETA mid-June</td>
+            </tr>
+            <tr>
+              <th scope="row">Halden Analytics</th>
+              <td class="num">940</td>
+              <td><code>/v1/records</code></td>
+              <td>no reply to three emails</td>
+            </tr>
+            <tr>
+              <th scope="row">Root &amp; Vine</th>
+              <td class="num">310</td>
+              <td><code>/v1/records</code></td>
+              <td>replied once, in February</td>
+            </tr>
+            <tr>
+              <th scope="row">13 more, under 100 each</th>
+              <td class="num">610</td>
+              <td><code>/v1/records</code>, two on <code>/v1/search</code></td>
+              <td>eleven dormant since 2024</td>
+            </tr>
+          </tbody>
+        </table>
+        <details id="api-tail-evidence">
+          <summary>How we know the long tail is unattended</summary>
+          <p id="api-tail-evidence-body">
+            Thirty days of gateway logs. The eleven dormant integrations pin their
+            user-agent to SDK versions from 2023 and 2024, none has fetched the
+            migration guide, and neither brownout produced a ticket from any of them. We
+            read them as cron jobs from the traffic shape: the same requests at the same
+            minute past each hour, straight through the five-minute brownout.
+          </p>
+        </details>
+        <p id="api-tail-ask">
+          Three ways to carry them past 30 June; I recommend the first, and the runbook
+          and the email below assume it. Click an option to decide, or put what none of
+          them covers in the box under the group.
+        </p>
+        <lf-options id="api-tail-plan" choose>
+          <lf-option id="api-tp-shim" recommended
+            ><lf-chip>effort: 2 weeks</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+            <strong>Shim the record readers, brownout the rest</strong>
+            <dl class="facts">
+              <dt>Covers</dt>
+              <dd>14 of 17, Meridian's exemption included</dd>
+              <dt>Gateway work</dt>
+              <dd>field renames and one date format</dd>
+              <dt>After 30 June</dt>
+              <dd>v1 handlers deleted; the shim stays</dd>
+            </dl>
+            <p id="api-tp-shim-why">
+              The gateway can translate a <code>/v1/records</code> read onto v2 and
+              reshape the response — renames, one date format, nothing stateful. That
+              carries every records-only integration, and it is what makes Meridian's
+              exemption cheap to honor: their September traffic rides the shim, not a v1
+              stack kept alive for one customer. <code>/v1/search</code> can't ride it —
+              v2 search is cursor-paginated, and a gateway inventing page numbers over
+              cursors would be a bug we own forever. Search leaves three integrations
+              exposed: Ostrava, who are migrating anyway, and two from the long tail.
+            </p>
+            <lf-diagram id="api-shim-flow">
+              <pre>
+graph LR
+  C[v1 client] --> G[gateway]
+  G -->|/v1/records, translated| H[v2 API]
+  G -.->|/v1/search| X[retired response]
+</pre>
+            </lf-diagram>
+          </lf-option>
+          <lf-option id="api-tp-all"
+            ><lf-chip>effort: a quarter</lf-chip
+            ><lf-chip tone="warn">risk: med</lf-chip>
+            <strong>Shim everything, search included</strong>
+            <dl class="facts">
+              <dt>Covers</dt>
+              <dd>17 of 17</dd>
+              <dt>Gateway work</dt>
+              <dd>a paging emulator over cursors</dd>
+              <dt>After 30 June</dt>
+              <dd>an emulator to own indefinitely</dd>
+            </dl>
+            <p id="api-tp-all-why">
+              Nobody breaks, which is the whole argument. The cost is the emulator: it
+              has to fake stable page numbers over a cursor API, and its edge cases are
+              the ones that corrupt a customer's pagination silently. Two of the three
+              integrations it would exist for are dormant.
+            </p>
+          </lf-option>
+          <lf-option id="api-tp-none"
+            ><lf-chip>effort: none</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+            <strong>No shim — the brownouts and the date do it</strong>
+            <dl class="facts">
+              <dt>Covers</dt>
+              <dd>whoever moves by 30 June</dd>
+              <dt>Gateway work</dt>
+              <dd>none</dd>
+              <dt>After 30 June</dt>
+              <dd>every v1 call fails; Meridian needs an answer</dd>
+            </dl>
+            <p id="api-tp-none-why">
+              Honest and cheap, but it re-opens the exemption: Meridian's contract runs
+              to September, so without a shim the v1 stack itself stays up three months
+              longer to serve them.
+            </p>
+          </lf-option>
+        </lf-options>
+      </section>
+
+      <section id="api-cutover">
+        <h2>Cutoff day, and after</h2>
+        <ol class="steps" id="api-runbook">
+          <li>
+            Freeze exemptions on 30 May. The list is Meridian, and stays Meridian.
+          </li>
+          <li>
+            Final brownout on 2 June: 24 hours of what 30 June leaves — shimmed reads
+            answered, everything else dark.
+          </li>
+          <li>
+            On 30 June, flip the gateway: unshimmed v1 routes answer with the retired
+            response below; shimmed reads carry on.
+          </li>
+          <li>
+            Handlers stay deployed and dark for two weeks — rollback is a config revert,
+            not a deploy.
+          </li>
+          <li>Delete the v1 handler code on 14 July.</li>
+        </ol>
+        <p id="api-sug-note">
+          Two changes to this section are proposed rather than made: accept or reject
+          each in the margin, or select the words and say why not. The first comes out
+          of the first brownout's tickets — 41 of them, mostly asking whether we were
+          down, and a 404 would keep that conversation going.
+        </p>
+        <lf-suggestion id="api-sug-410">
+          <lf-old
+            ><p id="api-retired-response">
+              The retired response is a plain 404 from the gateway.
+            </p></lf-old
+          >
+          <lf-new
+            ><p>
+              The retired response is a 410 Gone, with a body naming the cutoff date and
+              a <code>Link</code> header to the migration guide.
+            </p></lf-new
+          >
+        </lf-suggestion>
+        <lf-suggestion id="api-sug-logs">
+          <lf-new
+            ><aside class="callout" id="api-log-snapshot">
+              Before the gateway change lands, snapshot 90 days of v1 access logs to
+              cold storage. If an owner surfaces in August saying they were never told,
+              the log holds their own calls, with the Sunset header on every response.
+            </aside></lf-new
+          >
+        </lf-suggestion>
+      </section>
+
+      <section id="api-email">
+        <h2>The email to the 17</h2>
+        <p id="api-email-note">
+          This goes out under your name the day you sign off, so the words are yours:
+          double-click the block (or its ✎) and rewrite it until it sounds like you. It
+          assumes the shim; if the decision above goes another way, the next version
+          brings the email with it.
+        </p>
+        <lf-draft id="api-email-draft">
+          <pre>
+Subject: What happens to your v1 integration on 30 June
+
+We're retiring the v1 API on 30 June. Our records show your integration
+still uses it.
+
+If you only read records through /v1/records, nothing breaks on that
+date: the gateway will keep translating those calls after the cutoff.
+We'd still like you off v1 this year, and the migration guide shows the
+same request in both shapes.
+
+Everything else on v1 stops on 30 June. On 2 June we run the cutoff for
+24 hours as a test, so anything of yours that will stop then stops that
+day too, and comes back.
+
+Most integrations finish the move in under a day. Reply to this email
+and an engineer will work through yours with you.
+</pre>
+        </lf-draft>
+      </section>
+
+      <section id="api-work">
+        <h2>Workstreams</h2>
+        <p id="api-work-note">
+          Amber is finished work waiting on your read; the one red task says what it is
+          stuck on.
+        </p>
+        <lf-tasks id="api-plan">
+          <lf-task id="api-t-shim" status="blocked" owner="gateway">
+            <strong>Records shim</strong> Scoped at two weeks; blocked on the decision
+            above. If it starts this week, it lands a month before the cutoff.
+          </lf-task>
+          <lf-task id="api-t-guide" status="review" owner="devrel">
+            <strong>Migration guide rewrite</strong> Restructured around endpoint
+            families, every v1 request shown beside its v2 shape. Awaiting your read
+            before it replaces the current guide.
+          </lf-task>
+          <lf-task id="api-t-contracts" status="active" owner="legal">
+            <strong>Contract check</strong> Two annual contracts name v1 explicitly.
+            Meridian's is the exemption; the other renews on 22 May with v2 language.
+          </lf-task>
+          <lf-task id="api-t-sdk" status="done" owner="sdk">
+            <strong>Deprecation warnings</strong> Since February, every maintained SDK
+            logs a warning on each v1 call, naming the date.
+          </lf-task>
+          <lf-task id="api-t-sunset" status="done" owner="gateway">
+            <strong>Sunset headers</strong> Every v1 response has carried the date since
+            9 January.
+          </lf-task>
+          <lf-task id="api-t-teardown" status="planned" owner="gateway" when="july">
+            <strong>Teardown</strong> Routes, then handlers, then the v1 docs, two weeks
+            apart in that order.
+          </lf-task>
+        </lf-tasks>
+      </section>
+
+      <section id="api-history">
+        <h2>Already behind us</h2>
+        <lf-timeline id="api-timeline">
+          <lf-event id="api-e-announce" at="9 Jan" kind="info">
+            <strong>Retirement announced</strong> Email to all 78 integration owners;
+            the date went into every Sunset header the same day.
+          </lf-event>
+          <lf-event id="api-e-bo1" at="3 Mar" kind="action">
+            <strong>First brownout, five minutes</strong> 41 tickets; the
+            retired-response change proposed above comes from reading them.
+          </lf-event>
+          <lf-event id="api-e-exempt" at="21 Mar" kind="info">
+            <strong>Meridian exemption granted</strong> Their contract names v1 through
+            30 September, which is why the decision above has to answer for traffic past
+            the date.
+          </lf-event>
+          <lf-event id="api-e-bo2" at="7 Apr" kind="action">
+            <strong>Second brownout, one hour</strong> 12 tickets, none asking whether
+            we were down. Nine integrations migrated in the three weeks after.
+          </lf-event>
+        </lf-timeline>
+      </section>
+    </main>
+  </body>
+</html>

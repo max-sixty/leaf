@@ -18,8 +18,11 @@ GALLERY = EXAMPLES_DIR / "gallery.html"
 # Order is editorial: the first tab is the one a reader lands on, and
 # parallel-workstreams reads best last (it's tabs inside a tab).
 TABS = [
+    ("ship-review", "Ship review"),
     ("design-decision", "Design decision"),
+    ("api-sunset", "API sunset"),
     ("incident-report", "Incident report"),
+    ("public-postmortem", "Public postmortem"),
     ("pr-walkthrough", "PR walkthrough"),
     ("status-report", "Status report"),
     ("live-progress", "Live progress"),

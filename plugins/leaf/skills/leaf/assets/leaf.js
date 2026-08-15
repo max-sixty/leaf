@@ -835,16 +835,22 @@ const tagsDeclaring = (holds) =>
     .filter(([tag, entry]) => tag.startsWith("lf-") && holds(entry))
     .map(([tag]) => tag);
 
-// The open shadow roots on the page that hold the page's own words, from what the
+// The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: an x-shadow widget is
 // making a promise about whose words those are, and a root some other library happened
 // to attach is not covered by it. `getComposedRanges` is told exactly these, so what the
 // capture can see and what the reading walks are one list.
-const pageShadowRoots = () =>
+//
+// Which root to look under is the axis, because the whole document is not the only
+// answer: a message arriving in the panel carries widget markup that upgrades in a
+// subtree, so a pass over that subtree has the same boundary to cross and no document
+// to ask about.
+const shadowRootsIn = (root) =>
   tagsDeclaring((entry) => entry["x-shadow"])
-    .flatMap((tag) => [...document.querySelectorAll(tag)])
+    .flatMap((tag) => [...root.querySelectorAll(tag)])
     .map((host) => host.shadowRoot)
     .filter(Boolean);
+const pageShadowRoots = () => shadowRootsIn(document);
 
 // The theme's rules for shadow trees, sliced out once at load (see the markers in
 // theme.css). Read from the theme rather than written here so a project that overrides
@@ -1014,23 +1020,34 @@ function renderSaid(root) {
 // line off the right of it — which is a phone's every code block, since the column there
 // is 372px and a line of code is not. Asked of the computed overflow rather than of a list
 // of tags, so a widget that scrolls is covered by scrolling and the twelfth one needs no
-// entry, and it reaches the runtime's own boxes on the same terms as the page's. Asked of
-// the content first, because a box holding a control of its own is already reachable
-// (lf-board, through its grips) and a tab stop over the whole board would stand between
-// the user and the card they were tabbing to.
+// entry, and it reaches the runtime's own boxes on the same terms as the page's — and
+// into the trees an x-shadow widget renders in, which the walk alone does not enter.
+//
+// Asked of the content first, because a box holding a control of its own is already
+// reachable (lf-board, through its grips) and a tab stop over the whole board would
+// stand between the user and the card they were tabbing to.
+//
+// Two things every caller owes it, both learned by getting them wrong. It runs after a
+// widget has rendered rather than as one stages, because the look a scroll box has is
+// the theme's `:host(.lf-rendered)` rule and a widget adds that class once its render
+// returns — so a sweep at `shadowStage` time reads a box the stylesheet has not reached
+// and tags nothing. And it runs on a tree that is in the document, because
+// `getComputedStyle` answers "" for every property of a detached element, which is the
+// silent version of the same failure: a sweep that walks everything and tags nothing.
 const FOCUSABLE =
   'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 function reachScrollers(root) {
-  for (const el of root.querySelectorAll("*")) {
-    if (el.tabIndex >= 0) continue;
-    const style = getComputedStyle(el);
-    if (
-      !/^(auto|scroll)$/.test(style.overflowX) &&
-      !/^(auto|scroll)$/.test(style.overflowY)
-    )
-      continue;
-    if (!el.querySelector(FOCUSABLE)) el.tabIndex = 0;
-  }
+  for (const scope of [root, ...shadowRootsIn(root)])
+    for (const el of scope.querySelectorAll("*")) {
+      if (el.tabIndex >= 0) continue;
+      const style = getComputedStyle(el);
+      if (
+        !/^(auto|scroll)$/.test(style.overflowX) &&
+        !/^(auto|scroll)$/.test(style.overflowY)
+      )
+        continue;
+      if (!el.querySelector(FOCUSABLE)) el.tabIndex = 0;
+    }
 }
 
 // ---------- comment layer ----------
@@ -2568,7 +2585,6 @@ function msgNode(m) {
       // fenced block is a <pre><code class="language-…"> like any the page holds.
       if (m.markup) body.insertAdjacentHTML("beforeend", m.markup);
       renderSaid(body);
-      reachScrollers(body);
       // Not settle()d: that queue holds the page's geometry still for the first anchor
       // pass, and a message colors in the panel, where no anchor is captured and nothing
       // waits. Each block already fails soft to its own plain source.
@@ -2898,6 +2914,17 @@ function renderThreads() {
     wanted.push(resolvedBox);
   }
   setChildren(threadsBox, wanted);
+  // A comment carries whatever widget markup the gate allows, so the panel holds the
+  // same scroll boxes the page does, in a column half the width — and reachScrollers
+  // wants two things that are only true here, after this line. A message body is built
+  // detached, where `getComputedStyle` answers "" for every property, so a sweep at the
+  // point the body is filled tagged nothing at all and had done since it was written,
+  // reading like coverage the whole time. And a widget in that body upgrades on being
+  // connected, not on being written, so the queue it registers its render with
+  // (`settling`) has the promise only once this reconcile has appended it — which is
+  // why the wait is here rather than a snapshot taken earlier. The queue is read, never
+  // joined: nothing about the page's own first anchor pass waits on a message.
+  Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
 
   // The chip and the reply placeholder both speak the thread's address, repainted
   // after ordering because resolving an early thread renumbers everything after it.

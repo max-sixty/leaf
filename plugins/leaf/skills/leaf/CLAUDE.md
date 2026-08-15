@@ -515,6 +515,18 @@ discovered. Nothing shipped crosses it either way — `lf-diff` stages a tree bu
 parsed data and mints no ids — so the render suite stages one by hand, that move being the
 whole of what the next such widget does differently.
 
+Holding that line costs a staged element its declarations, and the two word passes owe
+an account of it. `renderSaid` and `renderQuiet` ask the document which widgets it
+holds, so an `lf-event` staged into a tree keeps `x-says` and `x-paints` and gets
+neither — and the failure is silence: no error, no missing box, an attribute that
+reaches nobody looking exactly like one with nothing to say. Crossing is what the
+paragraph above refuses, since it would settle the nesting contract in a sweep. So the
+gate says it instead (`SILENT_WORDS`, in `interact.py`), reading every open root and
+asking each declaration for its word. The same finding covers the route that needs no
+shadow tree: both passes run once at the upgrade, so a module that rebuilds its body
+from a `settle()` promise takes the words out after them. Route the failure to whoever
+can adjudicate it — here, the module's author, at handover.
+
 ## Three voices, because the page has three kinds of words
 
 What the page *says* is prose the user reads closely and points at. What it *labels* —

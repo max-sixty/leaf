@@ -585,6 +585,7 @@ EXTENSION_SCHEMA = {
         "x-refers": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
         },
         "x-report": REPORT_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -6901,6 +6902,18 @@ COVERED_WORDS = """() => {
 }"""
 
 
+# Which trees are the page, for the two readings below that answer for what a widget
+# renders rather than for what it declares. Every open root, found by walking rather than
+# read off the registry's x-shadow list: a root a module attached without declaring one
+# still holds words and code the reader has to read, and a reading that asked the
+# registry would look away from exactly the tree nobody vouched for. Written once,
+# because it is one claim about the page and two copies of it are two things to keep
+# level.
+OPEN_ROOTS = """
+    const roots = (root) => [root, ...[...root.querySelectorAll('*')]
+        .filter(el => el.shadowRoot).flatMap(el => roots(el.shadowRoot))];"""
+
+
 # Code that came out the colour of the code around it. Colouring takes two halves that
 # meet nowhere a static lint can reach: the runtime writes data-lf-syn in the browser,
 # and the theme answers it with a var() the browser resolves. Either half can stop
@@ -6937,12 +6950,14 @@ COVERED_WORDS = """() => {
 # asked for colour-contrast alone on the example carrying the beige comment, it returned
 # 44 passing elements, no violation, and not one of the spans among them.
 #
-# Which shadow roots it crosses into (the section note above says why it crosses at all)
-# are read off the drawn page rather than off the registry's x-shadow list, which is the
-# choice everything else here makes — colour is asked of what the browser painted, so
-# where it painted is too, and a root a widget attached without declaring one still holds
-# code the reader has to read.
-UNREAD_SYNTAX = """() => {
+# Which shadow roots it crosses into is OPEN_ROOTS' answer (the section note above says
+# why it crosses at all), which is the choice everything else here makes — colour is
+# asked of what the browser painted, so where it painted is too, and a root a widget
+# attached without declaring one still holds code the reader has to read.
+UNREAD_SYNTAX = (
+    """() => {"""
+    + OPEN_ROOTS
+    + """
     const cx = document.createElement('canvas').getContext('2d');
     const paint = (...layers) => {
         cx.clearRect(0, 0, 1, 1);
@@ -6958,8 +6973,6 @@ UNREAD_SYNTAX = """() => {
                             for (let a = el; a; a = up(a))
                                 layers.unshift(getComputedStyle(a).backgroundColor);
                             return layers; };
-    const roots = (root) => [root, ...[...root.querySelectorAll('*')]
-        .filter(el => el.shadowRoot).flatMap(el => roots(el.shadowRoot))];
     const seen = new Set(), found = new Map();
     for (const span of roots(document)
                        .flatMap(r => [...r.querySelectorAll('[data-lf-syn]')])) {
@@ -6983,6 +6996,57 @@ UNREAD_SYNTAX = """() => {
     }
     return [...found.values()];
 }"""
+)
+
+
+# Words a declaration promised and the page never got. Every other reading here works
+# from what the browser drew, and that is exactly what cannot see this one: a word that
+# never arrived looks the same as an attribute with nothing to say, and a fact the page
+# paints in colour alone is a fact no measurement of a drawn page has ever read. The
+# registry is what knows the difference — x-says names the attributes whose values are
+# words at the element's edge, x-paints the ones drawn as paint and spoken to a reader
+# listening (renderQuiet) — so the declaration is what this asks against.
+#
+# Both passes run once at the upgrade, before an async widget's own render lands, so a
+# module that rebuilds its body from a settle() promise takes the words out with it and
+# nothing on the page says so. renderQuiet re-runs on each replay and renderSaid never
+# does, which decides how long each stays gone rather than whether it goes.
+#
+# It reads every open root (OPEN_ROOTS) where both word passes stop at the boundary on
+# purpose: which widgets the page holds is the document's question, and settling a
+# staged widget's nesting in a sweep would be writing that contract where nobody would
+# look for it (the layer's CLAUDE.md). So a staged element keeps its declarations and
+# gets neither pass, which is exactly where a promised word reaches nobody in silence —
+# reported here, to the module's author, at handover.
+SILENT_WORDS = (
+    """() => fetch('/registry.json').then(r => r.json()).then(registry => {"""
+    + OPEN_ROOTS
+    + """
+    const found = [];
+    const all = roots(document);
+    const at = el => `<${el.localName}${el.id ? ' id=' + el.id : ''}>`;
+    const every = tag => all.flatMap(r => [...r.querySelectorAll(tag)]);
+    for (const [tag, entry] of Object.entries(registry)) {
+        for (const attr of Object.keys(entry['x-says'] ?? {}))
+            for (const el of every(tag)) {
+                const value = el.getAttribute(attr);
+                if (value !== null && !el.textContent.includes(value))
+                    found.push(`${at(el)} declares ${attr} as x-says and never says `
+                               + `"${value}"`);
+            }
+        // The word itself is renderQuiet's to derive, and this asks only that the
+        // element carries one: a widget painting a fact and saying nothing is the
+        // whole of the failure, and all a second copy of the derivation would add is
+        // a second place to change it.
+        for (const attr of entry['x-paints'] ?? [])
+            for (const el of every(tag))
+                if (el.hasAttribute(attr) && !el.querySelector(':scope > .lf-quiet'))
+                    found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
+                               + `and says nothing a reader listening can hear`);
+    }
+    return found;
+})"""
+)
 
 
 def render_version(browser, url: str) -> list:
@@ -6994,8 +7058,9 @@ def render_version(browser, url: str) -> list:
     select, words drawn on top of other words, code coloured in an ink the reader
     cannot tell from the code around it — each
     in both color schemes, because the dark theme is real CSS nobody otherwise
-    renders — plus, in one scheme, a version that authors widget state the log
-    replays over (replay isn't CSS) and, on paper, words the page drops that it
+    renders — plus, in one scheme, a word the registry promised that never reached
+    the page (a declaration is scheme-blind), a version that authors widget state
+    the log replays over (replay isn't CSS) and, on paper, words the page drops that it
     says on screen, or draws over each other (print is scheme-blind).
     Returns human-readable failures; [] is a pass.
 
@@ -7073,6 +7138,7 @@ def render_version(browser, url: str) -> list:
         # mid-replay would miss whatever hadn't landed yet.
         conflicts = []
         dishonest_verbatim = []
+        silent = []
         if scheme == "light":
             # x-verbatim honesty: the entry claims the body reaches the reader
             # as its own words, and the two readings built on that claim — the
@@ -7116,6 +7182,7 @@ def render_version(browser, url: str) -> list:
                 ".then(s => s.events.filter(e => e.kind === 'action' "
                 "|| e.kind === 'report').length)"
             )
+            replayed = True
             if n_actions:
                 try:
                     page.wait_for_function(
@@ -7123,9 +7190,16 @@ def render_version(browser, url: str) -> list:
                     )
                     conflicts = page.evaluate(REPLAY_OVERRIDES)
                 except PlaywrightTimeout:
+                    replayed = False
                     conflicts = [
                         f"the runtime never finished replaying the log ({n_actions} action(s))"
                     ]
+            # Behind the same wait: a report moves a painted attribute and the pass
+            # that speaks it runs before the stamp, so a reading taken any earlier
+            # asks after a word the page has not been asked to say yet. A page that
+            # never caught up is already reported above and read no further.
+            if replayed:
+                silent = page.evaluate(SILENT_WORDS)
         # Last, and in one scheme: paper has no color scheme, and the medium has to be
         # put back before anything else reads a box.
         on_paper = []
@@ -7171,6 +7245,7 @@ def render_version(browser, url: str) -> list:
                 f"x-shadow): {', '.join(undeclared_shadow)}"
             )
         found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
+        found += [f"[{scheme}] {s}" for s in silent]
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += on_paper
         return found

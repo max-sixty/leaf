@@ -190,8 +190,11 @@ export function failSoft(el, err, source) {
 // bounded noise over silence), capped so a fault in a loop cannot flood the
 // log, and sent bare rather than through post(): a poll fault reporting
 // itself through the poll would recurse, and nothing here needs the answer.
+// Not part of the helper surface a module gets: an upgrade that throws is already on
+// this path through window.error, and a widget that wants to say so itself has
+// failSoft, which puts the message where the reader is looking.
 const reportedErrors = new Set();
-export function reportPageError(text) {
+function reportPageError(text) {
   console.error(`leaf: ${text}`);
   if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
   reportedErrors.add(text);

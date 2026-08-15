@@ -3719,6 +3719,11 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-awaits", {"when": {"choose": True}}),
         ("x-content", "words"),
         ("x-parent", []),
+        # Each of these names attributes, so an empty one declares nothing while
+        # reading as a declaration. x-refers was the one without the floor.
+        ("x-refers", []),
+        ("x-lines", []),
+        ("x-paints", []),
         ("x-says", []),
         ("x-state", []),
         ("x-upgrade", "yes"),

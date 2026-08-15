@@ -943,6 +943,61 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     )
 
 
+def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for the other thing a declaration promises: that the words arrive. Both
+    word passes stop at a shadow boundary on purpose — which widgets the page holds is
+    the document's question — so an element a module stages into its own tree keeps its
+    declarations and gets neither pass, and the failure is silence: no error, no missing
+    box, nothing a reading of the drawn page can tell from an attribute with nothing to
+    say. Here a project widget stages an <lf-event>, whose entry declares both keys, and
+    the gate is asked for each.
+
+    A staged element rather than a module that wipes its own body after the passes have
+    run, which is the same failure by the reachable-today route: that one is a race with
+    the next poll for the painted half, and a bug-back that has to win a race is a
+    bug-back that reports the machine."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    # The scaffold's x-verbatim claim is about a body this module no longer shows, and
+    # the gate says so on its own; declaring the root keeps this test's finding the
+    # only one about the tree.
+    entries["lf-callout"].pop("x-verbatim")
+    entries["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(entries, indent=2))
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once, shadowStage } from "/leaf.js";\n'
+        "customElements.define(\n"
+        '  "lf-callout",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        '      const staged = document.createElement("lf-event");\n'
+        '      staged.id = "staged-event";\n'
+        '      staged.setAttribute("at", "09:00");\n'
+        '      staged.setAttribute("kind", "failure");\n'
+        '      staged.textContent = "The feeder stopped.";\n'
+        "      shadowStage(this, [staged]);\n"
+        "    }\n"
+        "  },\n"
+        ");\n"
+    )
+
+    failures = interact.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+
+    assert any('never says "09:00"' in f for f in failures), failures
+    assert any('paints kind="failure" and says nothing' in f for f in failures), (
+        failures
+    )
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_example_renders(browser, serve, example):
     """Every shipped example loads clean and lays out, in both color schemes: no
@@ -9443,41 +9498,6 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     assert result["astray"] == [], (
         f"{len(result['astray'])} passages in {example.stem} painted outside what was "
         f"selected: {result['astray']}"
-    )
-    assert errors == []
-    page.close()
-
-
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_every_x_says_attribute_reaches_the_page_as_text(browser, serve, example):
-    """The other half of what interact.UNREACHABLE_WORDS asks of a page — that half is
-    in the gate, because a page-local widget is where a heading goes out of reach and the
-    gate is what a user's page passes through; test_example_renders drives it over
-    these same examples.
-
-    What the gate can't ask is whether the words arrived at all: it works from the
-    rendered page, where an attribute that reaches nobody looks exactly like an attribute
-    with nothing to say. The registry knows the difference, so this reads x-says back and
-    asks each declaration to be somewhere in its element's text — a metric with no number
-    is a worse failure than one whose number can't be selected, and the only pass that
-    would notice is this one."""
-    page, errors = open_page(browser, serve(example.read_text()))
-    unsaid = page.evaluate("""async () => {
-        const out = [];
-        const reg = await (await fetch('/registry.json')).json();
-        for (const [tag, entry] of Object.entries(reg))
-            for (const attr of Object.keys(entry['x-says'] ?? {}))
-                for (const el of document.querySelectorAll(tag)) {
-                    const value = el.getAttribute(attr);
-                    if (value !== null && !el.textContent.includes(value))
-                        out.push(`<${tag}${el.id ? ' id=' + el.id : ''}> never says `
-                                 + `${attr}="${value}"`);
-                }
-        return out;
-    }""")
-    assert unsaid == [], (
-        f"{example.stem} declares attributes as x-says that never reach the page as "
-        f"text: {unsaid}"
     )
     assert errors == []
     page.close()

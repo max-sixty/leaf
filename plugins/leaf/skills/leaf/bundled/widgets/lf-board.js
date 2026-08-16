@@ -36,6 +36,7 @@ import {
   paintKeys,
   motion,
   pageScroller,
+  PRESS,
   REDUCED,
   SCROLL,
 } from "/leaf.js";
@@ -171,7 +172,7 @@ customElements.define(
     #keys(card, grip) {
       const held = () => this.#grabbed?.grip === grip;
       const grab = {
-        keys: ["Enter", " "],
+        keys: PRESS,
         does: "Grab the card",
         line: "grab the card",
         // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
@@ -200,7 +201,7 @@ customElements.define(
             ),
         },
         {
-          keys: ["Enter", " "],
+          keys: PRESS,
           does: "Drop it here",
           line: "drop",
           when: held,

@@ -870,20 +870,31 @@ const GLYPH = {
   Shift: MAC ? "⇧" : "Shift",
   Alt: MAC ? "⌥" : "Alt",
 };
+// The modifiers the matcher implements, which is the whole of what a binding may carry.
+// Read off `answers` rather than chosen here, so the list cannot claim more than the
+// dispatcher does — a fourth name would have to be taught to both.
+const MODIFIERS = ["Mod", "Alt", "Shift"];
+// One reading of a binding's syntax, for the three questions asked of it: how it is
+// spelled, whether a press answers it, and whether a text box's letters cover it. Three
+// hand-agreed splits is one representation too few — the moment one of them had to state
+// the modifier set, the other two were free to disagree about what a modifier is.
+const parsed = (binding) => {
+  const mods = binding.split("+");
+  return { key: mods.pop(), mods };
+};
 // A modifier joins its key with nothing between them where its glyph is a symbol and with
 // a + where it is a word, so "⌘⏎" and "Ctrl+⏎" are each their own platform's spelling.
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
 // how this page's reference always has: the binding says Shift+a because that is what the
 // dispatcher must ask for, and the chip says A because that is what the reader presses.
 const spell = (binding) => {
-  const parts = binding.split("+");
-  const last = parts.pop();
-  if (parts.length === 1 && parts[0] === "Shift" && /^[a-z]$/.test(last))
-    return last.toUpperCase();
-  return parts.reduceRight((rest, mod) => {
+  const { key, mods } = parsed(binding);
+  if (mods.length === 1 && mods[0] === "Shift" && /^[a-z]$/.test(key))
+    return key.toUpperCase();
+  return mods.reduceRight((rest, mod) => {
     const glyph = GLYPH[mod] ?? mod;
     return /^\w/.test(glyph) ? `${glyph}+${rest}` : `${glyph}${rest}`;
-  }, GLYPH[last] ?? last);
+  }, GLYPH[key] ?? key);
 };
 // A cell is read where it is painted, never where it is written, so it may be a function
 // of the page. That is what lets a key whose meaning moves say the meaning it has: the
@@ -910,11 +921,10 @@ const live = (row) => !row.when || row.when();
 // rather than reading the uppercase key is also what keeps that reader from getting
 // `Shift+a`, which answers every ask at once, and a decision is the end of the matter.
 function answers(binding, ev) {
-  const parts = binding.split("+");
-  const key = parts.pop();
-  if (parts.includes("Mod") !== (ev.metaKey || ev.ctrlKey)) return false;
-  if (parts.includes("Alt") !== ev.altKey) return false;
-  const shift = parts.includes("Shift");
+  const { key, mods } = parsed(binding);
+  if (mods.includes("Mod") !== (ev.metaKey || ev.ctrlKey)) return false;
+  if (mods.includes("Alt") !== ev.altKey) return false;
+  const shift = mods.includes("Shift");
   if (key.length === 1 && key.toLowerCase() !== key.toUpperCase())
     return ev.key.toLowerCase() === key.toLowerCase() && ev.shiftKey === shift;
   // A punctuation key is reached with Shift on some layouts and without it on others
@@ -933,15 +943,40 @@ function answers(binding, ev) {
 // to compute a short word from. A row with no `run` is asked for none, since the press it
 // names is not the runtime's — it either belongs to the platform, and says a word anyway
 // because Enter really does open the focused leaf, or it is not a key at all.
+// The other way a declaration can promise a press nothing will make, and the quieter one.
+// `answers` asks after the three modifiers by name and treats every other prefix as absent,
+// so a binding written `Ctrl+k` or `Cmd+Enter` is not a key that never fires — it is a
+// different key that does. `Ctrl+k` spells itself "Ctrl+k" on both surfaces, matches a bare
+// `k`, and refuses the press the chip is naming. A key on screen is a key that works, and
+// nothing was reading the half of a binding that decides which key it is.
 function checked(rows, where) {
   rows.forEach((row, i) => {
     if (row.run && !row.line)
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,
       );
+    for (const binding of bindings(row))
+      for (const mod of parsed(binding).mods)
+        if (!MODIFIERS.includes(mod))
+          throw new Error(
+            `leaf: row ${i} of ${where} binds ${binding}, and ${mod} is no modifier ` +
+              `this dispatcher answers (${MODIFIERS.join(", ")})`,
+          );
   });
   return rows;
 }
+
+// What activates a focused button, stated once because it is the platform's fact and not
+// any one row's. Five rows spelled it by hand — the runtime's own control scope, a card
+// grip in each of its two states, an option's pick mark, and the version menu's row — and
+// the fifth spelled it short, naming Enter over a real <button> that answers Space too. A
+// near-copy that has to change whenever the original does is a primitive not yet extracted,
+// and the drift here was invisible: the key worked and the page under-promised it.
+//
+// A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
+// page, so the leaves board binds Enter alone and is right to — the shared fact is what a
+// button answers, not what a control does.
+export const PRESS = ["Enter", " "];
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the overlay, their rows gathered under each title. A section is
@@ -2360,9 +2395,11 @@ keys(
         rows[Math.max(0, Math.min(rows.length - 1, at + dir))]?.focus();
       },
     },
-    // The browser's own, the row being a button — no `run`, or the press would click a
-    // control the platform has already activated. The word is the line's all the same.
-    { keys: ["Enter"], does: "Open that version", line: "open that version" },
+    // The browser's own, the row being a real <button> — no `run`, or the press would click
+    // a control the platform has already activated. The word is the line's all the same,
+    // and the keys are the shared fact rather than this row's reading of it: spelled by
+    // hand, it said Enter and left Space unnamed on a control that answers both.
+    { keys: PRESS, does: "Open that version", line: "open that version" },
     NEWEST,
   ],
   () => versions.length > 1,
@@ -5413,9 +5450,8 @@ const EVERYTHING = () => true;
 // Mod and Alt compose shortcuts a box has no use for, which is how the send key reaches its
 // own row.
 const PRINTABLE = (binding) => {
-  const parts = binding.split("+");
-  const key = parts.pop();
-  return [...key].length === 1 && parts.every((m) => m === "Shift");
+  const { key, mods } = parsed(binding);
+  return [...key].length === 1 && mods.every((m) => m === "Shift");
 };
 
 // ---------- the scopes ----------
@@ -5571,7 +5607,7 @@ const CONTROL = {
   when: () => Boolean(document.querySelector(CONTROL_SELECTOR)),
   rows: [
     {
-      keys: ["Enter", " "],
+      keys: PRESS,
       does: "Work the focused control",
       line: "press it",
       // Space would take the page out from under the press, which is why the row consumes

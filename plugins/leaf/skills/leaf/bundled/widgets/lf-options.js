@@ -81,6 +81,7 @@ import {
   keys,
   offer,
   once,
+  PRESS,
   quoted,
   relabel,
   reserve,
@@ -301,7 +302,7 @@ customElements.define(
               ]?.focus(),
           },
           {
-            keys: ["Enter", " "],
+            keys: PRESS,
             does: "Toggle the focused option",
             line: "toggle",
             run: () => mark.click(),

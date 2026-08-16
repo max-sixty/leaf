@@ -777,6 +777,28 @@ that there are threads or versions to walk, not that this edge press lands. What
 version the server no longer lists, so nothing to step between at all — and that is what
 `when` now owns; the clamp stays in the stepper.
 
+A binding says which key it is in two halves, and only one of them was ever read. `answers`
+asks after `Mod`, `Alt` and `Shift` by name and takes every other prefix to be absent, so
+`Ctrl+k` is not a binding that never fires — it is `k`, firing on a bare press, while both
+surfaces spell the chip "Ctrl+k" and the press the chip names does nothing. That is the one
+mistake a projection cannot catch, because every surface projects the declaration faithfully
+and the declaration is what lies. So the modifiers are refused where declarations enter
+(`checked`), from a list read off the matcher rather than chosen beside it. The keys
+themselves are not checkable the same way — `F7` and `Backspace` are as real as `Escape`,
+and an enumeration of what a keyboard has is a menu that goes stale — but the modifiers are
+closed by the code that implements them.
+
+What a control answers is the platform's fact, so it is stated once and read, never spelled
+per row. Five rows spelled `["Enter", " "]` by hand — the control scope, a card grip in each
+of its two states, an option's pick mark, and the version menu's row — and the fifth spelled
+it short, naming `⏎` over a real `<button>` that Space activates too. Nothing failed: the
+key worked and the page under-promised it, which is this norm's inversion and just as much
+a lie about the keyboard. `PRESS` is that fact now. The bound of it is a link, which is why
+this is not "a control answers two keys": Enter follows an `<a>` and Space scrolls the page,
+so the leaves board binds Enter alone and is right to. A shared fact that grew to cover the
+link would have put Space on a row where the press scrolls the page out from under the
+reader — the exact failure, reached from the other side.
+
 A key that acts at large takes the Shift as well as the letter, and the binding is where
 that is said: `Shift+a`, matched on the letter's lowercase with the modifier asked for
 exactly. Reading the uppercase key instead is wrong twice over, because caps lock writes

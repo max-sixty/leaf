@@ -8624,6 +8624,29 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
         }"""
     )
     assert "no word for the key line" in refused, refused
+
+    # The other half of what this gate is for, and the quieter failure. `answers` asks
+    # after Mod, Alt and Shift by name and reads every other prefix as absent, so a
+    # binding written `Ctrl+k` is not a key that never fires — it is `k`, which fires on
+    # a bare press while both surfaces spell the chip "Ctrl+k" and the press the chip
+    # names does nothing. A declaration that means a different key than it says is the
+    # one thing no surface can project, so it is refused where declarations enter.
+    modified = page.evaluate(
+        """async () => {
+          const { keys } = await import('/leaf.js');
+          try {
+            keys(document.body, 'A project scope', [
+              { keys: ['Ctrl+k'], does: 'a modifier the matcher never asks about',
+                line: 'a key that is really just k', run: () => {} },
+            ]);
+            return 'declared';
+          } catch (e) {
+            return e.message;
+          }
+        }"""
+    )
+    assert "Ctrl is no modifier" in modified, modified
+    assert "Mod, Alt, Shift" in modified, modified
     assert errors == []
     page.close()
 
@@ -11464,6 +11487,40 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     btn.click()
     page.locator('.lf-version-row[data-lf-version="3"]').click()
     page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    assert errors == []
+    page.close()
+
+
+def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
+    """A `<button>` is activated by Enter and by Space, and a row that says so by hand can
+    say half of it. This one did: the version menu's row carries no `run` — the platform
+    does the activating, and clicking behind it would be a second activation — so its keys
+    are a description of what the browser will do, and the description read `⏎` while the
+    control answered both. Nothing failed; the page under-promised a key that worked, which
+    is the register's own failure wearing its quietest form.
+
+    So the pair is one exported fact (`PRESS`) and the five rows that named it by hand read
+    it: the runtime's control scope, a card grip in both its states, an option's pick mark,
+    and this row. A link is what keeps that fact honest rather than growing into "controls
+    answer two keys" — Enter follows an `<a>` and Space scrolls the page, so the leaves
+    board binds Enter alone and is right to."""
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+    page, errors = open_page(browser, url, pin=True)
+
+    page.keyboard.press("v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    # Both keys on both surfaces, off the one declaration.
+    expect(page.locator(".lf-keyline")).to_contain_text("⏎ / space")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_contain_text("⏎ / space")
+    expect(page.locator(".lf-help")).to_contain_text("Open that version")
+    page.keyboard.press("Escape")
+
+    # And the key the row had been leaving unnamed does what the row now says it does.
+    page.locator('.lf-version-row[data-lf-version="2"]').focus()
+    page.keyboard.press("Space")
+    page.wait_for_url(lambda u: u.endswith("/versions/v2.html"))
     assert errors == []
     page.close()
 

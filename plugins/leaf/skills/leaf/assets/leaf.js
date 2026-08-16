@@ -4909,7 +4909,7 @@ document.addEventListener("mouseup", (ev) => {
 // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same button. Typing in
 // a box never does, whatever is selected elsewhere.
 document.addEventListener("keyup", (ev) => {
-  if (editable(ev.target)) return;
+  if (takesLetters(ev.target)) return;
   if (inUi(ev.target) && !pageSelection()) return;
   setTimeout(updateFab);
 });
@@ -5306,20 +5306,15 @@ const commentTarget = () =>
       : itemWord(elementById(fabAnchor.section)) || "item";
 
 // Pages are authored documents where typing can start at any moment, so a scope whose keys
-// are bare letters stands down wherever a letter is a keystroke.
-const editable = (node) =>
-  Boolean(node) &&
-  (node.tagName === "TEXTAREA" ||
-    node.tagName === "INPUT" ||
-    node.tagName === "SELECT" ||
-    node.isContentEditable);
-// The subset of editable that words are typed into. editable() answers "is a letter a
-// keystroke here" — a select's letters jump its options — while the Escape rung asks what
-// the press would take from the control, and only typed text has an Escape of its own (an
-// IME cancelling, a search box clearing, a date's picker). The platform's set of
-// text-entry types, stated whole: a denylist named the two controls to hand and left a
-// slider swallowing the rung the same way the version chooser had. A bare or unknown type
-// resolves to "text", so the default lands on the typed side.
+// are bare letters stands down wherever a letter is a keystroke. That is the whole of the
+// question, and asking a wider one cost the page its keyboard: every `<input>` counted,
+// so a reader standing on a screenshot's before/after radio — which consumes no letter the
+// platform ever gave it — lost c, d/u, a and the rest, with nothing on screen saying why.
+// A select is in, its letters jumping its options; a radio, a checkbox, a slider, a colour
+// or file button are out. The platform's set of text-entry types, stated whole: a denylist
+// named the two controls to hand and left a slider swallowing the Escape rung the same way
+// the version chooser had. A bare or unknown type resolves to "text", so the default lands
+// on the typed side.
 const TYPED_TYPES = new Set([
   "text",
   "search",
@@ -5334,10 +5329,12 @@ const TYPED_TYPES = new Set([
   "month",
   "week",
 ]);
-const typedInto = (node) =>
-  node.tagName === "TEXTAREA" ||
-  node.isContentEditable ||
-  (node.tagName === "INPUT" && TYPED_TYPES.has(node.type));
+const takesLetters = (node) =>
+  Boolean(node) &&
+  (node.tagName === "TEXTAREA" ||
+    node.tagName === "SELECT" ||
+    node.isContentEditable ||
+    (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)));
 
 // The panels' rung, one definition for every scope that reaches past the focused control,
 // so the thread's, the list's and the page's cannot disagree. With both panels standing,
@@ -5364,10 +5361,37 @@ const PANELS_ESC = {
   run: () => panelsRung().out(),
 };
 
+// ---------- what a scope takes ----------
+// A scope shadows what stands behind it two ways, and they are one rule: a row of its own
+// that names the key, and a claim on keys it has no row for. The second is the platform's
+// share — where the reader stands, the browser already answers these and the register has
+// nothing to run and nothing to say, so an outer row that named one would be promising a
+// press it will not get. Everything not claimed stacks: a scope's rows are reached
+// wherever no nearer scope has taken the binding.
+//
+// This was a blanket (`only: true`), and the blanket is what put a working keyboard out of
+// a reader's reach. A text box does claim every key that types a character, so the blanket
+// was right about the case it was written for and wrong about the class: the box also took
+// the Escape it has no use for, which one branch inside its own row then hand-rescued for
+// the controls that type nothing. One key rescued and every other one left swallowed is the
+// shape of a menu being extended. Named as a claim instead, the rescue is deleted rather than
+// widened: a select's typeahead takes the letters and leaves the page's Escape standing,
+// and a radio, which types nothing, claims nothing and keeps the whole keyboard.
+const EVERYTHING = () => true;
+// A press that puts a character in the box: one character, and Shift is the only modifier
+// that still types one — Shift+a is an A, so the page's answer-all must not fire behind it.
+// Mod and Alt compose shortcuts a box has no use for, which is how the send key reaches its
+// own row.
+const PRINTABLE = (binding) => {
+  const parts = binding.split("+");
+  const key = parts.pop();
+  return [...key].length === 1 && parts.every((m) => m === "Shift");
+};
+
 // ---------- the scopes ----------
-// Above everything: a chord is armed, or the reference is up. Both are `only` — the page
-// stands down under them — and each declares what it keeps, which is how the reference's
-// own key goes on working while every other one is suspended.
+// Above everything: a chord is armed, or the reference is up. Both claim everything — the
+// page stands down under them — and each declares what it keeps, which is how the
+// reference's own key goes on working while every other one is suspended.
 const LEADER = {
   title: "With the reply chord armed",
   // The chord addresses open threads, so a page with none has no chord to arm and the
@@ -5376,7 +5400,7 @@ const LEADER = {
   when: hasThreads,
   chord: "g",
   at: leaderArmed,
-  only: true,
+  claims: EVERYTHING,
   rows: [
     {
       // The digits the page actually has, so the row cannot offer an address no box wears;
@@ -5398,7 +5422,7 @@ const LEADER = {
 const HELP = {
   title: "In this reference",
   at: () => helpOpen,
-  only: true,
+  claims: EVERYTHING,
   rows: [
     { keys: ["?"], does: "Close this reference", line: "close", run: toggleHelp },
     {
@@ -5428,47 +5452,44 @@ const COMPOSER = {
     },
   ],
 };
-// A box words are typed into owns the keyboard: the page's bare letters are keystrokes
-// here, so this scope is `only` and everything outside it stands down, its Escape
-// included. What the scope keeps is the way back out — to the thread a reply belongs to,
-// so Esc then Enter round-trips, or to the list, so j/k walk on from where the backing-out
-// started. Drafts are kept at every rung. Outside the panel the rung stands down only
-// where the press would take something from the control: a select, a slider or a radio has
-// no Escape of its own, and swallowing the rung there left the panel unclosable by key
-// while focus sat on one.
+// The box a reply or a comment is typed into, which is the panel's; a page's own control
+// is somewhere the reader is standing, not something they are writing in. Declared above
+// the scope rather than below it, because a row naming a predicate directly reads the
+// binding as the table is built — the deferring wrapper the branch here used to need was
+// the only thing hiding that.
+const inTheBox = () => panel.contains(document.activeElement);
+const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
+// A box words are typed into takes the keys that put a character in it, and only those:
+// the page's bare letters are keystrokes here, while Escape and Enter are the box's to
+// declare or to pass on. What it declares is the way back out — to the thread a reply
+// belongs to, so Esc then Enter round-trips, or to the list, so j/k walk on from where the
+// backing-out started. Drafts are kept at every rung.
+//
+// A control the reader is standing on rather than writing in keeps that rung without this
+// scope carrying a second branch for it. That branch is what this replaced: the swallow
+// took the page's Escape from a select out on the page, so the row reimplemented the
+// panels' rung inside its own `when` and `run` and said the other scope's word on the line.
+// The keys nothing here reimplemented — c, the walks, the versions, the reference — were
+// swallowed and stayed swallowed, which is the whole argument for claiming rather than
+// swallowing.
 const TYPING = {
   title: "In a text box",
-  at: () => editable(document.activeElement),
-  only: true,
+  at: () => takesLetters(document.activeElement),
+  claims: PRINTABLE,
   rows: [
     {
       keys: ["Escape"],
       does: "Leave the box, keeping what is typed",
-      // Two branches, and the word names the one in front of the reader: a control out
-      // on the page has no box to leave, so the press is the panels' rung and saying
-      // "back to list" over it promised the wrong half. The word reads the branch the
-      // press takes rather than restating it, which is the whole reason both are here.
-      line: () =>
-        inTheBox()
-          ? focusedThreadOf()
-            ? "back to thread"
-            : "back to list"
-          : panelsRung()?.says,
-      when: () => inTheBox() || (!typedInto(document.activeElement) && panelsRung()),
+      line: () => (focusedThreadOf() ? "back to thread" : "back to list"),
+      when: inTheBox,
       run: () => {
-        if (!inTheBox()) return panelsRung().out();
         const thread = focusedThreadOf();
-        const active = document.activeElement;
-        active.blur();
+        document.activeElement.blur();
         (thread ?? threadsBox).focus();
       },
     },
   ],
 };
-// The box a reply or a comment is typed into, which is the panel's; a page's own control
-// is somewhere the reader is standing, not something they are writing in.
-const inTheBox = () => panel.contains(document.activeElement);
-const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
 
 // A focused thread: the reply and the resolve are this scope's, not the page's. They said
 // "On a focused thread" in their own sentences and were live over the whole page, so a
@@ -5686,15 +5707,30 @@ for (const scope of [...ABOVE, ...BELOW])
 latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 
 const standing = (s) => (!s.at || s.at()) && (!s.when || s.when());
+// Every scope the reader is standing in, innermost first. The whole list: what a nearer
+// scope takes out of reach is the walk's own business, and both walkers say it the same
+// way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
+// the list here instead was the same statement made where only one of the two shadowings
+// could be seen.
 function stack() {
-  const above = ABOVE.filter(standing);
-  if (above.some((s) => s.only)) return above;
-  const inner = scopesFor(document.activeElement).filter(standing);
-  const below = BELOW.filter(standing);
-  const all = [...above, ...inner, ...below];
-  const stop = all.findIndex((s) => s.only);
-  return stop === -1 ? all : all.slice(0, stop + 1);
+  return [
+    ...ABOVE.filter(standing),
+    ...scopesFor(document.activeElement).filter(standing),
+    ...BELOW.filter(standing),
+  ];
 }
+// The claims of every scope nearer the reader than this one, accumulated as either walk
+// steps outward. A scope's own claim is pushed after its rows, because what it takes from
+// the page it does not take from itself.
+const shadow = () => {
+  const claims = [];
+  return {
+    takes: (binding) => claims.some((c) => c(binding)),
+    past: (scope) => {
+      if (scope.claims) claims.push(scope.claims);
+    },
+  };
+};
 // Every scope the page has, gathered by title, for the reference. Not the stack: the
 // reference answers "what could I do here", so it names a card grip's keys whether or not
 // a grip has focus. What it does not name is a key that would refuse the press, which is
@@ -5763,16 +5799,17 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 function run(ev) {
-  for (const scope of stack())
+  const nearer = shadow();
+  for (const scope of stack()) {
     for (const row of scope.rows) {
-      // The key first, then the liveness: a `when` may be the whole event log folded
-      // (`a` asks what the page is still waiting on), and asking it of every row the press
-      // is not for makes the cost of a keystroke the size of the table rather than the
-      // size of the match. A row that matches and is dead still falls through to the scope
-      // behind it, which is what `continue` says either way round.
+      // The key first, then the claim, then the liveness: a `when` may be the whole event
+      // log folded (`a` asks what the page is still waiting on), and asking it of every row
+      // the press is not for makes the cost of a keystroke the size of the table rather
+      // than the size of the match. A row that matches and is dead still falls through to
+      // the scope behind it, which is what `continue` says either way round.
       if (!row.run) continue;
       const binding = bindings(row).find((b) => answers(b, ev));
-      if (!binding || !live(row)) continue;
+      if (!binding || nearer.takes(binding) || !live(row)) continue;
       // A held key repeats keydown where a real button fires once, so a row says whether
       // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
       // per repeat, where a walk wants the repeat and is the reason the flag exists. The
@@ -5783,6 +5820,8 @@ function run(ev) {
       row.run(binding);
       return true;
     }
+    nearer.past(scope);
+  }
   return false;
 }
 
@@ -5792,7 +5831,7 @@ function run(ev) {
 // control would consume.
 document.addEventListener("focusin", () => {
   const active = document.activeElement;
-  if (leaderTimer && (editable(active) || claimsEsc(active))) setLeader(false);
+  if (leaderTimer && (takesLetters(active) || claimsEsc(active))) setLeader(false);
   paintLine();
 });
 document.addEventListener("focusout", () => paintLine());
@@ -5812,15 +5851,23 @@ document.addEventListener("focusout", () => paintLine());
 // one press.
 function lineRows(scopes) {
   const named = new Set();
+  const nearer = shadow();
   const rows = [];
-  for (const scope of scopes)
+  for (const scope of scopes) {
     for (const row of scope.rows) {
-      if (!row.line || !live(row)) continue;
+      // Shadowing before liveness, for the reason the dispatcher matches the key first:
+      // under the reference every page row is claimed away, and asking each one what the
+      // page is waiting on to then say nothing about it is the table's cost per paint. A
+      // dead row names nothing, so it shadows nothing either.
+      if (!row.line) continue;
       const bound = bindings(row);
-      if (bound.some((k) => named.has(k))) continue;
+      if (bound.some((k) => named.has(k) || nearer.takes(k))) continue;
+      if (!live(row)) continue;
       for (const k of bound) named.add(k);
       rows.push(row);
     }
+    nearer.past(scope);
+  }
   return rows;
 }
 function renderLine() {

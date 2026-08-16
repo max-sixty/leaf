@@ -699,6 +699,39 @@ one press: an armed `g` over an option's pick mark would otherwise have offered 
 thread" and "toggle the nth" side by side, and `lf-options` asked `leaderArmed()` privately
 to stop half of it.
 
+## A scope names what it takes, and takes no more
+
+The walk above shadows an outer row wherever a nearer one names the binding, which covers
+every key the register runs. It cannot cover the keys the *platform* runs where the reader
+is standing — a text box's letters have no row here, and an outer row naming one would be
+promising a press it will never get. So a scope states them (`claims`), and everything it
+does not claim goes on standing behind it.
+
+That was a blanket first (`only: true`, the scope suspending the page whole), and the
+blanket is the more natural thing to reach for, because for the two scopes that wanted it
+the claim really is everything: an armed chord and the open reference are modes, and a mode
+takes the keyboard. A text box is not a mode. It takes the keys that put a character in
+it — which is most of the page's, so the blanket read as right — and it has no use for the
+Escape, the Enter or the send chord it was also taking. One of those was noticed and
+rescued by hand, in a branch inside the box's own Escape row that reimplemented the panels'
+rung and said that other scope's word on the line. Every other key it took — `c`, the
+walks, the versions, the reference itself — nobody rescued, and they stayed swallowed.
+
+The bill for that arrived somewhere the blanket's author never looked. `at` asked whether
+focus was in a form control, which is a different question from whether a letter is a
+keystroke, and every `<input>` answered yes. A radio, a checkbox and a slider are handed no
+letter by any platform, so a reader standing on a screenshot's before/after toggle had the
+page's whole keyboard taken from them — `c`, the walks, the versions, the reference — to
+protect typing that could not happen. The line went blank rather than wrong, which is the
+version of this that reaches its author as "the keyboard stopped working" with nothing to
+point at.
+
+Two rules fall out, and the second is the general one. A predicate is named for the
+question it answers, so `takesLetters` is the whole of what the typing scope turns on and
+there is nowhere left to put a wider one. And a scope that has to hand back a key it took
+is a scope claiming the wrong set: reach for what it uses, not for what stands near it,
+because the keys it over-claims are invisible until a reader is standing on one.
+
 ## A key on screen is a key that works
 
 Every surface that names a key promises the press does something now. One table kept the

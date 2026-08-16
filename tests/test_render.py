@@ -8724,22 +8724,27 @@ def test_c_reaches_the_general_box_while_the_panel_stands_open(browser, serve):
 
 
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
-    """Letters stand down on any editable — a select's letters jump its options —
-    but the ladder asks what the press would take from the control, and only
-    typed text has an Escape of its own. The banner's version chooser swallowed
-    the rung, so the panel could not be closed by key right after the user worked
-    it; the fix's first attempt was a two-item denylist, which an authored slider
-    walked straight past. The chooser is a button now and no longer editable at
-    all, so what holds the rule is the page's own controls — which is where it
-    always mattered, a page being free to author any of them."""
+    """A scope takes the keys it uses, so a control that has no Escape of its own
+    leaves the rung standing behind it. The banner's version chooser swallowed it,
+    so the panel could not be closed by key right after the user worked it; the
+    fix's first attempt was a two-item denylist, which an authored slider walked
+    straight past. The chooser is a button now, so what holds the rule is the
+    page's own controls — which is where it always mattered, a page being free to
+    author any of them.
+
+    A slider and a select answer here for the two sides of the claim. The slider
+    types nothing, so the typing scope never stands over it at all; the select's
+    letters jump its options, so it stands and takes them — and takes only them,
+    which is what leaves this press to the page. Reaching the rung used to be a
+    branch inside the typing scope's own row, restating another scope's word."""
     html = NOTED_PAGE.replace(
         "</main>",
         '<input id="zoom" type="range">'
         '<select id="pick"><option>one</option><option>two</option></select></main>',
     )
     page, errors = open_page(browser, serve(html))
-    # The mouse opens between rounds because c is shadowed on the very controls
-    # under test: their letters are the control's own.
+    # The mouse opens between rounds because c is the select's own letter, and the
+    # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
         page.get_by_role("button", name=re.compile("^Comments")).click()
         expect(page.locator(".lf-panel")).to_be_visible()
@@ -8747,6 +8752,52 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         expect(page.locator(".lf-keyline")).to_contain_text("close comments")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-panel")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
+    """A scope claims the keys it uses and leaves the rest standing. This one used to
+    claim the lot: the typing scope stood wherever focus was in a form control, on the
+    reading that a letter is a keystroke there — true of a text box, false of a radio, a
+    checkbox and a slider, none of which the platform ever hands a letter. So a reader
+    standing on a screenshot's before/after radio lost c, the walks, the version keys and
+    the reference itself, and the line went blank rather than wrong, which is how it
+    reaches its author as "the keyboard stopped working".
+
+    One key had already been rescued from that swallow by hand, in a branch inside the
+    typing scope's own row. Every other key it took stayed taken, and that is what says the
+    swallow was the wrong shape rather than one key short.
+
+    The claim has to hold in both directions or it has bought nothing, so the control's
+    own key is asserted beside the page's: a page whose keyboard stands over a radio must
+    not be taking Space off it."""
+    html = NOTED_PAGE.replace(
+        "</main>",
+        '<label><input id="flip" type="radio" name="frame"> after</label>'
+        '<input id="note" type="text"></main>',
+    )
+    page, errors = open_page(browser, serve(html))
+    line = page.locator(".lf-keyline")
+
+    page.locator("#flip").focus()
+    expect(line).to_contain_text("half a page")
+    page.keyboard.press("Space")
+    expect(page.locator("#flip")).to_be_checked()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    # The box beside it, where every one of those letters is the reader's. The line
+    # names none of them, which is the same register saying so.
+    page.locator("#note").focus()
+    expect(line).not_to_contain_text("half a page")
+    page.keyboard.press("c")
+    expect(page.locator("#note")).to_have_value("c")
+    expect(page.locator(".lf-help")).to_be_hidden()
+    page.keyboard.press("?")
+    expect(page.locator("#note")).to_have_value("c?")
+    expect(page.locator(".lf-help")).to_be_hidden()
     assert errors == []
     page.close()
 

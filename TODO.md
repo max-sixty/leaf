@@ -1,26 +1,5 @@
 # TODO
 
-- (2026-08-15) `render_version`'s readings are unbounded, and the obvious fix is not
-  one. Its two `wait_for_function`s turn a hang into a sentence; the `page.evaluate`
-  calls after them — `missing_upgrades`, `undeclared_shadow`, the `x-verbatim` read,
-  `n_actions`, `SILENT_WORDS` — each await a `fetch` made inside the page and have no
-  deadline at all, so a page that hangs in one hangs `leaf version check --render`
-  forever with no output.
-
-  Wrapping them was tried and reverted, because the wrapper cannot work: measured on
-  playwright 1.62, `Frame.evaluate` sends the driver no timeout, so it never raises
-  `TimeoutError` however long it waits (a probe held a fetch open and was still running
-  at 200s). What it *does* raise, on a rejected in-page promise or a destroyed context,
-  is the parent `playwright.sync_api.Error` — which `except TimeoutError` does not
-  catch, that being the subclass. A wrapper catching the subclass is dead code wearing a
-  comment that claims a net.
-
-  Bounding it for real means the deadline going where a deadline can be honoured: each
-  in-page fetch racing an `AbortSignal.timeout`, so a hang becomes a rejection the
-  evaluate reports at once, and the Python side catching `Error`. Worth doing when
-  something actually hangs; until then the failure is a hang rather than a wrong answer,
-  and the gate stopping is loud in its own way.
-
 - (2026-08-14) Left on the table by the framework-robustness sweep (its session
   holds the evidence; the landed half is in that branch's history):
 

@@ -1,10 +1,13 @@
 """The product pages use the shipped theme and widget vocabulary directly."""
 
+import html
 import json
 import re
+import shlex
 import subprocess
 from pathlib import Path
 
+import click
 from conftest import interact
 
 ROOT = Path(__file__).parent.parent
@@ -101,6 +104,64 @@ def test_customizing_guide_uses_the_current_layer_and_cli_names():
         'watchActions(this, "verb", render)',
     ):
         assert current in customizing
+
+
+def test_every_command_the_docs_show_is_one_leaf_has():
+    """A shown command is a promise the reader will type it.
+
+    The pages narrate the agent's half of the loop and `how-it-works.html` now shows
+    it, and a renamed subcommand is what quietly breaks that: the transcript is prose
+    to every other gate here, so a stale `leaf ack` would go on being published
+    indefinitely. The names are resolved against click's own tree rather than listed
+    in this file, because a list is the second copy that goes stale the same way —
+    which is the mistake the guide's own name check makes and this one is not
+    repeating.
+    """
+
+    def shown_in(text):
+        """Prompt lines inside a transcript, and the inline mentions in the prose.
+
+        A block's own tags sit on its first and last lines — `<pre><code>$ leaf …`
+        and `… 3</code></pre>` — so the markup comes out before the lines are read,
+        or the sweep silently skips the first command it was written for.
+        """
+        for block in re.findall(r"<pre[^>]*>(.*?)</pre>", text, re.DOTALL):
+            yield from re.findall(
+                r"^\$ +leaf +(.+)$", re.sub(r"<[^>]+>", "", block), re.MULTILINE
+            )
+        yield from re.findall(r"<code>leaf +([^<]+)</code>", text)
+
+    shown = [
+        (source.name, line)
+        for source in sorted(DOCS.glob("*.html"))
+        for line in shown_in(html.unescape(source.read_text()))
+    ]
+    assert len(shown) > 10, (
+        f"only {len(shown)} leaf commands found in the docs — the sweep is reading "
+        f"past them rather than checking them"
+    )
+
+    def named(tokens):
+        """The subcommand path these tokens walk, greedily, from the root group."""
+        command, path = interact.cli, []
+        for token in tokens:
+            if not isinstance(command, click.Group):
+                break
+            sub = command.get_command(None, token)
+            if sub is None:
+                break
+            path.append(token)
+            command = sub
+        return path
+
+    unknown = [
+        f"{source}: leaf {line}"
+        for source, line in shown
+        if not named(shlex.split(line))
+    ]
+    assert not unknown, "these pages show commands leaf hasn't got:\n  " + "\n  ".join(
+        unknown
+    )
 
 
 def test_tour_walks_the_interactive_and_live_workflows():

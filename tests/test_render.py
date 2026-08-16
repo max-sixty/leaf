@@ -437,6 +437,17 @@ def serve(tmp_path, monkeypatch):
         httpd.shutdown()
 
 
+def page_registry(page):
+    """The registry this page was served, read the way the render gate reads it.
+
+    The readings `render_version` runs are handed their registry rather than fetching
+    one, so a test driving one directly supplies the same thing from the same place —
+    the page's own server, not this repo's tree, since what a vendored page holds is
+    the whole question those readings answer.
+    """
+    return interact.served(page, page.url, "/registry.json").json()
+
+
 # What the page has sent and how much of it has come back, counted where the traffic is:
 # outside the page, on the browser's own request and response events. The runtime posts
 # every action and comment through fetch and reads state back the same way, so one watcher
@@ -3224,7 +3235,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     page.add_style_tag(
         content="lf-chip { display: block; height: 2px; overflow: hidden; }"
     )
-    flattened = page.evaluate(interact.TINY_BOXES)
+    flattened = page.evaluate(interact.TINY_BOXES, page_registry(page))
     page.close()
     assert [box for box in flattened if box["tag"] == "lf-chip"], (
         "a chip with no height left reports nothing, so the floor is gone rather than declared"
@@ -4586,7 +4597,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # asks the same of every example and cannot reach this moment: a group arrives
     # closed, and nothing it does opens one.
     assert row.get_attribute("aria-expanded") == "true"
-    assert page.evaluate(interact.UNDECLARED_ATTRS) == [], (
+    assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
         "opening the group left an attribute on a widget its entry never declared"
     )
 
@@ -7635,6 +7646,62 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.close()
 
 
+def test_the_render_gate_reports_a_server_that_stops_answering(
+    browser, tmp_path, monkeypatch
+):
+    """A read that never comes back is a sentence, not a hang.
+
+    Every document the gate reads used to be fetched inside the page, and
+    `page.evaluate` sends the driver no timeout at all — measured, an evaluate
+    awaiting a fetch that never answers is still running at 200s. So a server that
+    accepted a request and then went quiet left `version check --render` running with
+    nothing printed, which is the one failure a user cannot tell from slowness: the
+    gate stopping is loud, and the gate never stopping looks like a slow machine.
+
+    Stalled on the previous version's file, because the page never asks for that one
+    itself — a path the runtime fetches on load would wedge the navigation instead,
+    and the gate would report the banner it never saw rather than the read it never
+    got. The deadline is shortened here for the same reason every wait in this suite
+    states one: the number is not the subject, the bound is.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(interact, "SERVED_TIMEOUT_MS", 1500)
+    d = tmp_path / "page"
+    assert CliRunner().invoke(interact.cli, ["page", "init", str(d)]).exit_code == 0
+    for n in (1, 2):
+        (d / "versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
+        interact.append_event(
+            d, {"kind": "note", "author": "claude", "version": n, "text": "t"}
+        )
+
+    asked = threading.Event()
+
+    class Stalls(interact.handler_for(d, TOKEN)):
+        """Answers everything but the earlier version, which it accepts and drops."""
+
+        def do_GET(self):
+            if self.path.startswith("/versions/v1.html"):
+                asked.set()
+                time.sleep(300)  # longer than any patience the gate could have
+                return
+            super().do_GET()
+
+    httpd = interact.LeafHTTPServer(("127.0.0.1", 0), Stalls)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        failures = interact.render_version(
+            browser,
+            f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
+        )
+    finally:
+        httpd.shutdown()
+
+    assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
+    assert failures and all("the server stopped answering" in f for f in failures), (
+        f"a wedged server has to come back as a failure, and this came back as {failures}"
+    )
+
+
 def test_render_reports_markup_the_log_replays_over(browser, serve):
     """The static gate refuses a version that rewords what a decision rests on,
     but `chosen`, a card's column, and their kind say nothing a text diff can
@@ -8664,7 +8731,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # the author's namespace, where the entry admits nothing undeclared and no version
     # could ever have carried a record of a thread verb — invisible to every consumer
     # but shallowSigs, which reads what no version can assert as state one authored.
-    assert page.evaluate(interact.UNDECLARED_ATTRS) == [], (
+    assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
         "the Done press left an attribute on a widget its entry never declared"
     )
     round_trip(page)
@@ -8679,7 +8746,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     other, other_errors = open_page(browser, url)
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(other.locator(".lf-asks")).to_be_hidden()
-    assert other.evaluate(interact.UNDECLARED_ATTRS) == [], (
+    assert other.evaluate(interact.UNDECLARED_ATTRS, page_registry(other)) == [], (
         "replaying the answer left an attribute the entry never declared"
     )
     assert other_errors == []

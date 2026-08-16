@@ -399,7 +399,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import NamedTuple
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 import click
 import tinycss2
@@ -6687,22 +6687,20 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # resolves to content-visibility, which checkVisibility reports as visible while the
 # box measures zero. That collapse is the point of a closed tab; the collapse being
 # hunted here is the one nothing asked for.
-TINY_BOXES = """() => fetch('/registry.json')
-    .then(r => r.json())
-    .then(registry => {
-        const inline = new Set(Object.entries(registry)
-            .filter(([tag, entry]) => tag.startsWith('lf-') && entry['x-inline'])
-            .map(([tag]) => tag));
-        return [...document.querySelectorAll('*')]
-            .filter(el => el.tagName.toLowerCase().startsWith('lf-')
-                       && el.textContent.trim()
-                       && el.checkVisibility()
-                       && !el.closest('[hidden]'))
-            .map(el => ({ tag: el.tagName.toLowerCase(), id: el.id,
-                          w: Math.round(el.getBoundingClientRect().width),
-                          h: Math.round(el.getBoundingClientRect().height) }))
-            .filter(box => box.h < 10 || (!inline.has(box.tag) && box.w < 40));
-    })"""
+TINY_BOXES = """(registry) => {
+    const inline = new Set(Object.entries(registry)
+        .filter(([tag, entry]) => tag.startsWith('lf-') && entry['x-inline'])
+        .map(([tag]) => tag));
+    return [...document.querySelectorAll('*')]
+        .filter(el => el.tagName.toLowerCase().startsWith('lf-')
+                   && el.textContent.trim()
+                   && el.checkVisibility()
+                   && !el.closest('[hidden]'))
+        .map(el => ({ tag: el.tagName.toLowerCase(), id: el.id,
+                      w: Math.round(el.getBoundingClientRect().width),
+                      h: Math.round(el.getBoundingClientRect().height) }))
+        .filter(box => box.h < 10 || (!inline.has(box.tag) && box.w < 40));
+}"""
 
 
 # Words the page shows that no user can select, and so no comment can be
@@ -6993,17 +6991,17 @@ PAST_THE_COLUMN = """() => {
 # unchanged id is the initial condition the log is supposed to outrank. For the
 # message, each conflicting id is laid at the door of the widget whose replay
 # wrote it — its nearest ancestor with an applyAction.
-REPLAY_OVERRIDES = """async () => {
+#
+# The two files are handed in rather than fetched: which pair to compare is a
+# question about the log and the URL, both of which the caller holds, and a read
+# it makes is a read it can put a deadline on (see `served` in render_version).
+REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
     const ids = (document.body.dataset.lfReplayWrote ?? '').split(' ').filter(Boolean);
     if (!ids.length) return [];
-    const current = Number(location.pathname.match(/\\/versions\\/v([1-9]\\d*)\\.html$/)[1]);
-    const versions = (await (await fetch('/api/state')).json()).versions;
-    const i = versions.indexOf(current);
-    if (i <= 0) return [];
     const { shallowSigs } = await import('/leaf.js');
-    const sigs = async (v) => shallowSigs(new DOMParser().parseFromString(
-        await (await fetch(`/versions/v${v}.html`)).text(), 'text/html').body);
-    const cur = await sigs(current), prev = await sigs(versions[i - 1]);
+    const sigs = (html) => shallowSigs(
+        new DOMParser().parseFromString(html, 'text/html').body);
+    const cur = sigs(curHtml), prev = sigs(prevHtml);
     const groups = new Map();
     for (const id of ids) {
         if ((cur.get(id) ?? '') === (prev.get(id) ?? '')) continue;
@@ -7344,10 +7342,7 @@ UNREAD_SYNTAX = (
 # doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
 # out here the way COVERED_WORDS holds it out.
 SILENT_WORDS = (
-    """() => Promise.all([
-    fetch('/registry.json').then(r => r.json()),
-    import('/leaf.js'),
-]).then(([registry, leaf]) => {"""
+    """(registry) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS
     + """
     const found = [];
@@ -7403,7 +7398,7 @@ SILENT_WORDS = (
 #
 # Deduped and reported per tag and attribute, because one mistake is on every instance.
 UNDECLARED_ATTRS = (
-    """() => fetch('/registry.json').then(r => r.json()).then(registry => {"""
+    """(registry) => {"""
     + OPEN_ROOTS
     + """
     // What a module may write without declaring: the platform's own vocabulary for
@@ -7424,8 +7419,39 @@ UNDECLARED_ATTRS = (
                         found.push({tag, id: el.id, attr: a.name});
     }
     return found;
-})"""
+}"""
 )
+
+
+# How long the render gate waits on the server for one of the documents it reads.
+# The same patience playwright gives `wait_for_function` above it, and stated here
+# because it is the number that turns a wedged server into a sentence.
+SERVED_TIMEOUT_MS = 30_000
+
+
+def served(page, url: str, path: str):
+    """A document this page's own server holds, read from out here.
+
+    The one reader in the render gate that can be given a deadline. `page.evaluate`
+    sends the driver no timeout at all — measured on playwright 1.62, an evaluate
+    awaiting a fetch that never answers is still running at 200s — so a reading
+    taken inside the page is a hang with nothing printed and no way to bound it
+    from Python. `page.request` takes one, and shares the browser context's cookie
+    jar, so it reads as the same authorized client the page is: the handover key
+    rides in the URL and becomes a cookie on the first navigation."""
+    return page.request.get(urljoin(url, path), timeout=SERVED_TIMEOUT_MS)
+
+
+def previous_version(url: str, versions: list) -> int | None:
+    """The newest version this server lists before the one the URL names, or None
+    where there is none — a first version, or one the server does not list at all,
+    which is the same answer for the same reason: the conflict reading compares this
+    file against what a reader could have seen before it. The gate is always pointed
+    at a version file, so the path stating which one is a fact to read rather than
+    something to test for."""
+    here = int(re.search(r"/versions/v([1-9]\d*)\.html$", urlsplit(url).path).group(1))
+    earlier = [version for version in versions if version < here]
+    return max(earlier) if earlier else None
 
 
 def render_version(browser, url: str) -> list:
@@ -7489,16 +7515,50 @@ def render_version(browser, url: str) -> list:
                 f"[{scheme}] the widget layer never finished upgrading — "
                 + ("; ".join(errors) or "and no console error explains why")
             ]
+        # The served documents every reading below is asked against, read once each
+        # (`served` says why they are read from out here rather than fetched inside
+        # the page). The registry alone used to be fetched seven times a scheme, to
+        # answer seven questions about one document. What the readings get now is
+        # data, so most of them are plain synchronous DOM walks with nothing left in
+        # them to await, let alone hang in.
+        try:
+            registry = served(page, url, "/registry.json").json()
+            state = served(page, url, "/api/state").json()
+            markup = served(page, url, urlsplit(url).path).text()
+            # The version before this one, for the conflict reading below: which
+            # pair it compares is a question about the log and the URL, both of
+            # which are held out here. A first version has no predecessor to have
+            # authored anything against.
+            before = previous_version(url, state["versions"])
+            earlier = (
+                served(page, url, f"/versions/v{before}.html").text()
+                if before
+                else None
+            )
+        except PlaywrightTimeout as e:
+            page.close()
+            # The first line only: the rest is playwright's call log, which says
+            # nothing about the page that a reader of this failure needs.
+            return [
+                f"[{scheme}] the server stopped answering: {str(e).splitlines()[0]}"
+            ]
+        # The widgets the log has moved, in the log's order. Both replayed kinds,
+        # once: the caught-up stamp counts reports beside actions, so the wait below
+        # counts what this holds, and the verbatim reading excuses exactly these.
+        touched = [
+            e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
+        ]
         failsoft = page.evaluate(
             "[...document.querySelectorAll('.lf-error')].map(e => e.textContent.trim())"
         )
-        missing_upgrades = page.evaluate("""() => fetch('/registry.json')
-            .then(r => r.json())
-            .then(registry => Object.entries(registry)
+        missing_upgrades = page.evaluate(
+            """(registry) => Object.entries(registry)
                 .filter(([tag, entry]) => tag.startsWith('lf-')
                     && entry['x-upgrade'] && !customElements.get(tag))
-                .map(([tag]) => tag))""")
-        tiny = page.evaluate(TINY_BOXES)
+                .map(([tag]) => tag)""",
+            registry,
+        )
+        tiny = page.evaluate(TINY_BOXES, registry)
         overflow = page.evaluate(
             "document.body.scrollWidth - document.body.clientWidth"
         )
@@ -7510,11 +7570,12 @@ def render_version(browser, url: str) -> list:
         # capture and the id lookups cross exactly the declared ones, so an
         # undeclared root's words silently anchor quotes astray. UA shadow roots
         # are closed and invisible here; anything open was attached by a module.
-        undeclared_shadow = page.evaluate("""() => fetch('/registry.json')
-            .then(r => r.json())
-            .then(registry => [...new Set([...document.querySelectorAll('*')]
+        undeclared_shadow = page.evaluate(
+            """(registry) => [...new Set([...document.querySelectorAll('*')]
                 .filter(el => el.shadowRoot && !registry[el.localName]?.['x-shadow'])
-                .map(el => `<${el.localName}>`))])""")
+                .map(el => `<${el.localName}>`))]""",
+            registry,
+        )
         # Replay is scheme-blind, so one scheme's reading covers both. The wait
         # is for the runtime's own caught-up stamp: reading the replay's record
         # mid-replay would miss whatever hadn't landed yet.
@@ -7531,26 +7592,17 @@ def render_version(browser, url: str) -> list:
             # widget legitimately shows other words). A module that renders
             # something in the body's stead while the entry still says
             # verbatim strands quotes on words the screen no longer shows.
-            shown = page.evaluate("""() => Promise.all([
-                fetch('/registry.json').then(r => r.json()),
-                fetch('/api/state').then(r => r.json()),
-                import('/leaf.js'),
-            ]).then(([registry, state, leaf]) => {
-                const touched = new Set(state.events
-                    .filter(e => e.kind === 'action' || e.kind === 'report')
-                    .map(e => e.widget));
-                return Object.entries(registry)
-                    .filter(([tag, entry]) => entry['x-verbatim'])
-                    .flatMap(([tag]) => [...document.querySelectorAll(tag)]
-                        .filter(el => el.id && !touched.has(el.id))
-                        .map(el => ({tag, id: el.id, says: leaf.says(el)})));
-            })""")
+            shown = page.evaluate(
+                """({registry, touched}) => import('/leaf.js').then(leaf =>
+                    Object.entries(registry)
+                        .filter(([tag, entry]) => entry['x-verbatim'])
+                        .flatMap(([tag]) => [...document.querySelectorAll(tag)]
+                            .filter(el => el.id && !touched.includes(el.id))
+                            .map(el => ({tag, id: el.id, says: leaf.says(el)}))))""",
+                {"registry": registry, "touched": touched},
+            )
             if shown:
-                html = page.evaluate("fetch(location.pathname).then(r => r.text())")
-                served_registry = page.evaluate(
-                    "fetch('/registry.json').then(r => r.json())"
-                )
-                spk = spoken(html, served_registry)
+                spk = spoken(markup, registry)
                 dishonest_verbatim = [
                     f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
                     f"{s['says'][:80]!r} where the file reads "
@@ -7559,34 +7611,35 @@ def render_version(browser, url: str) -> list:
                     if s["says"] != spk.get(s["id"], EMPTY).words
                 ]
         if scheme == "light":
-            # Both replayed kinds: the caught-up stamp counts reports beside
-            # actions, so the wait must too or it never sees the page catch up.
-            n_actions = page.evaluate(
-                "fetch('/api/state').then(r => r.json())"
-                ".then(s => s.events.filter(e => e.kind === 'action' "
-                "|| e.kind === 'report').length)"
-            )
-            if n_actions:
+            if touched:
+                applied = len(touched)
                 try:
                     page.wait_for_function(
-                        f"() => Number(document.body.dataset.lfApplied ?? -1) >= {n_actions}"
+                        "() => Number(document.body.dataset.lfApplied ?? -1) "
+                        f">= {applied}"
                     )
-                    conflicts = page.evaluate(REPLAY_OVERRIDES)
+                    if earlier is not None:
+                        conflicts = page.evaluate(
+                            REPLAY_OVERRIDES,
+                            {"curHtml": markup, "prevHtml": earlier},
+                        )
                 except PlaywrightTimeout:
                     replayed = False
-                    conflicts = [
-                        f"the runtime never finished replaying the log ({n_actions} action(s))"
-                    ]
+                    stalled = (
+                        "the runtime never finished replaying the log "
+                        f"({applied} action(s))"
+                    )
+                    conflicts = [stalled]
             # Behind the same wait: a report moves a painted attribute and the pass
             # that speaks it runs before the stamp, so a reading taken any earlier
             # asks after a word the page has not been asked to say yet. A page that
             # never caught up is already reported above and read no further.
             if replayed:
-                silent = page.evaluate(SILENT_WORDS)
+                silent = page.evaluate(SILENT_WORDS, registry)
                 # Behind the same wait, because replay is one of the two writers:
                 # an applyAction states its widget whole, and a record form is
                 # exactly the attribute it is allowed to state it in.
-                undeclared_attrs = page.evaluate(UNDECLARED_ATTRS)
+                undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, registry)
         # Last, and in one scheme: paper has no color scheme, and the medium has to be
         # put back before anything else reads a box.
         on_paper = []

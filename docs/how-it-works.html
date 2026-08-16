@@ -212,6 +212,34 @@
           </text>
         </svg>
 
+        <h3 id="loop-shell">One turn, from the agent's side</h3>
+        <p id="loop-shell-lede">
+          A file write and four commands. The output below is a real page's, on a
+          version asking which of two ways to shed load when a queue backs up:
+        </p>
+        <pre id="loop-transcript"><code>$ leaf page init ./review
+initialized /home/you/review
+
+# the agent writes ./review/versions/v1.html — an ordinary file write
+
+$ leaf version publish ./review --version 1 --text "Two ways to shed load — which?"
+✓ v1.html: parses, widgets validate, one module script + theme link, ids and decisions carried over, nothing overflows the 720px column
+
+$ leaf wait ./review
+# … held here, for as long as the reader takes …
+{"kind": "action", "author": "user", "version": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
+{"kind": "comment", "author": "user", "version": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
+
+$ leaf ack ./review 3</code></pre>
+        <p id="loop-shell-read">
+          The batch carries two events. The pick is an action, and every later version
+          replays it, so the decision survives the page being rewritten under it. The
+          comment carries the passage it was drawn on — the reader selected
+          <em>Callers get a 429 immediately</em> and wrote against it — so the objection
+          reaches the agent attached to the sentence that prompted it, rather than as a
+          paraphrase of where they were looking. The agent answers by publishing v2.
+        </p>
+
         <p id="wait-trick">
           The two hosts carry that context through different loops. On Claude Code,
           <code>leaf wait</code> is a background task whose completion joins the same

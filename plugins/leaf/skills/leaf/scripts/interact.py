@@ -7117,8 +7117,24 @@ UNREAD_SYNTAX = (
 # look for it (the layer's CLAUDE.md). So a staged element keeps its declarations and
 # gets neither pass, which is exactly where a promised word reaches nobody in silence —
 # reported here, to the module's author, at handover.
+#
+# Both halves ask the *rendered* page rather than the markup, and a shadow host is why:
+# an element that stages a tree keeps its light DOM in the document and out of every box,
+# so both passes find the host, write there, and leave `textContent` and `querySelector`
+# reporting words the reader will never get. Each half gets to the rendered page its own
+# way, because they read different things. Words are `says()`, the layer's one answer to
+# what an element says rather than a second reading spelled here — asked of the host's
+# root where there is one, since the walk behind it substitutes a declared root for a
+# *child* and never for the element it was handed. The quiet word is in no such reading,
+# wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
+# span clipped to a pixel still has one wherever it renders, and none at all where it
+# doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
+# out here the way COVERED_WORDS holds it out.
 SILENT_WORDS = (
-    """() => fetch('/registry.json').then(r => r.json()).then(registry => {"""
+    """() => Promise.all([
+    fetch('/registry.json').then(r => r.json()),
+    import('/leaf.js'),
+]).then(([registry, leaf]) => {"""
     + OPEN_ROOTS
     + """
     const found = [];
@@ -7129,7 +7145,7 @@ SILENT_WORDS = (
         for (const attr of Object.keys(entry['x-says'] ?? {}))
             for (const el of every(tag)) {
                 const value = el.getAttribute(attr);
-                if (value !== null && !el.textContent.includes(value))
+                if (value !== null && !leaf.says(el.shadowRoot ?? el).includes(value))
                     found.push(`${at(el)} declares ${attr} as x-says and never says `
                                + `"${value}"`);
             }
@@ -7138,10 +7154,14 @@ SILENT_WORDS = (
         // whole of the failure, and all a second copy of the derivation would add is
         // a second place to change it.
         for (const attr of entry['x-paints'] ?? [])
-            for (const el of every(tag))
-                if (el.hasAttribute(attr) && !el.querySelector(':scope > .lf-quiet'))
-                    found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
-                               + `and says nothing a reader listening can hear`);
+            for (const el of every(tag)) {
+                if (!el.hasAttribute(attr)) continue;
+                const quiet = el.querySelector(':scope > .lf-quiet');
+                if (quiet && (quiet.getClientRects().length || el.closest('[hidden]')))
+                    continue;
+                found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
+                           + `and says nothing a reader listening can hear`);
+            }
     }
     return found;
 })"""

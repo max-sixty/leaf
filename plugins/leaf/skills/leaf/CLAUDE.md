@@ -527,6 +527,17 @@ shadow tree: both passes run once at the upgrade, so a module that rebuilds its 
 from a `settle()` promise takes the words out after them. Route the failure to whoever
 can adjudicate it — here, the module's author, at handover.
 
+The host is the other side of that, and it is where a reading of the markup lies outright.
+Both passes *do* find a host — it is in the document — and write into a light DOM the
+shadow root hides, so the markup holds every word the entry promised and the reader gets
+none of them: `textContent` returns the span, `querySelector` finds it, and only the
+rendered page knows. So the gate asks the rendered page for both — `says()` for the words
+and a box for the clipped one, a span rendered nowhere having no rects. `says()` has an
+edge worth knowing before reaching for it here: `textNodesUnder` substitutes a declared
+root for a *child* and never for the element it was handed, so `says(host)` reads the
+hidden light DOM. Nothing in the product passes a host, which is why the substitution has
+never had to be uniform; anything that starts to must ask the root, as the gate does.
+
 ## Three voices, because the page has three kinds of words
 
 What the page *says* is prose the user reads closely and points at. What it *labels* —

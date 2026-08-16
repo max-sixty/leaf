@@ -998,6 +998,62 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     )
 
 
+# The host case of the same failure: the declarations are on the element that stages the
+# tree, so both passes find it — it is in the document — and write into a light DOM the
+# shadow root hides. The markup then holds every word the entry promised and the reader
+# gets none of them, which is why the gate reads the rendered page rather than the markup.
+SHADOW_HOST_PAGE = CUSTOM_WIDGET_PAGE.replace(
+    '<lf-callout id="custom-note">',
+    '<lf-callout id="custom-note" label="Escalated" urgent>',
+)
+
+
+def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for the half a reading of the markup cannot see. `textContent` returns a
+    hidden light-DOM span and `querySelector` finds it, so a check written against the
+    markup passes on a page whose reader is handed neither word. Asking `says()` for the
+    words and a box for the clipped one is what tells the two apart — the layer's own
+    reading enters a declared root in the host's stead, and a span rendered nowhere has
+    no rects."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entry = entries["lf-callout"]
+    entry.pop("x-verbatim")  # the module shows a tree of its own, not the body
+    entry["x-shadow"] = True
+    entry["properties"]["label"] = {"type": "string"}
+    entry["properties"]["urgent"] = {"type": "boolean"}
+    entry["x-says"] = {"label": "before"}
+    entry["x-paints"] = ["urgent"]
+    registry_path.write_text(json.dumps(entries, indent=2))
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once, shadowStage } from "/leaf.js";\n'
+        "customElements.define(\n"
+        '  "lf-callout",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        '      const stage = document.createElement("p");\n'
+        '      stage.textContent = "The feeder stopped overnight.";\n'
+        "      shadowStage(this, [stage]);\n"
+        "    }\n"
+        "  },\n"
+        ");\n"
+    )
+
+    failures = interact.render_version(browser, serve(SHADOW_HOST_PAGE))
+
+    assert any('never says "Escalated"' in f for f in failures), failures
+    assert any('paints urgent="" and says nothing' in f for f in failures), failures
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_example_renders(browser, serve, example):
     """Every shipped example loads clean and lays out, in both color schemes: no

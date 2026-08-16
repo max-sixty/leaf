@@ -2980,6 +2980,16 @@ function buildThreads() {
   // the panel shows the same threads whichever version is pinned and a retraction
   // settles a thread's state from wherever it was declared. interact.py's callers pass
   // upto=None for the same reason.
+  //
+  // Replay is windowed to VNUM and this is not, so on any version but the newest the
+  // two disagree, and they are meant to: a thread can read reopened by a retraction
+  // beside a suggestion the page still paints accepted. They answer different
+  // questions. The page is what *this version* says, so it must not show a decision
+  // taken after it. The panel is the conversation, and a thread the reader is owed an
+  // answer in does not stop being owed because they stepped back to read v2. Neither
+  // collapse is cheaper than the disagreement: window the panel too and a retraction
+  // stays invisible until the reader walks forward to find it, and unwindow replay and
+  // an old version paints state it never held.
   const floors = retractionFloors(Infinity);
   for (const e of events) {
     if (e.kind === "comment") {
@@ -6243,8 +6253,11 @@ function toggleHelp() {
 // answered is the state x-state already declares — where a verb records itself as an
 // attribute the page carries the answer, so a version that honors a pick reads as
 // answered with no log at all (the shipped examples arrive that way) and a pick the
-// reader cleared reads as open again; where a verb records nothing, because honoring
-// retires the whole wrapper, the fold is the only record there is.
+// reader cleared reads as open again. Every other verb answers through its own
+// surviving fold entry, and the dispatch below is on the attribute kind rather than on
+// having a record at all, because the two cases that aren't attributes come to the same
+// thing: accept and reject record nothing, honoring retiring the whole wrapper, and a
+// draft's edit records into the body, which no attribute read could reach either.
 const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
 // Every declared attribute holding one of the values that ask — a flag's two values
 // being its presence and its absence, since it carries none of its own.

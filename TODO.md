@@ -1,5 +1,26 @@
 # TODO
 
+- (2026-08-15) `render_version`'s readings are unbounded, and the obvious fix is not
+  one. Its two `wait_for_function`s turn a hang into a sentence; the `page.evaluate`
+  calls after them — `missing_upgrades`, `undeclared_shadow`, the `x-verbatim` read,
+  `n_actions`, `SILENT_WORDS` — each await a `fetch` made inside the page and have no
+  deadline at all, so a page that hangs in one hangs `leaf version check --render`
+  forever with no output.
+
+  Wrapping them was tried and reverted, because the wrapper cannot work: measured on
+  playwright 1.62, `Frame.evaluate` sends the driver no timeout, so it never raises
+  `TimeoutError` however long it waits (a probe held a fetch open and was still running
+  at 200s). What it *does* raise, on a rejected in-page promise or a destroyed context,
+  is the parent `playwright.sync_api.Error` — which `except TimeoutError` does not
+  catch, that being the subclass. A wrapper catching the subclass is dead code wearing a
+  comment that claims a net.
+
+  Bounding it for real means the deadline going where a deadline can be honoured: each
+  in-page fetch racing an `AbortSignal.timeout`, so a hang becomes a rejection the
+  evaluate reports at once, and the Python side catching `Error`. Worth doing when
+  something actually hangs; until then the failure is a hang rather than a wrong answer,
+  and the gate stopping is loud in its own way.
+
 - (2026-08-14) Left on the table by the framework-robustness sweep (its session
   holds the evidence; the landed half is in that branch's history):
 
@@ -25,10 +46,10 @@
     rewrite gate, replay and the thread builders on both sides). Three things it
     deliberately did not settle: a `reject` recorded after an `accept` on the same
     suggestion still leaves the thread resolved — un-resolving that case means
-    folding by unit, a separate decision; the panel is now not version-scoped while
-    replay still is, so a reader pinned to an older version correctly sees a thread
-    reopened by a later retraction beside a suggestion still painted accepted, and
-    no prose yet says both readings answer different questions. (The other two —
+    folding by unit, a separate decision. (The prose half is done 2026-08-15: the
+    comment over `buildThreads` now says why the windowed and unwindowed readings
+    disagree on any version but the newest, and why neither collapse is cheaper than
+    the disagreement.) (The other two —
     `build_threads`'s defaulted `spk`, done 2026-08-14: required, `{}` explicit for
     the no-page callers.)
   - (done 2026-08-14) The collapse class is one set now: `COLLAPSE_CHARS` /
@@ -53,12 +74,28 @@
     state is deliberately visible to the signature (lf-suggestion's `data-lf-state`
     rides it), so a paint rename must not blanket the namespace. (The orphaned Done
     press under a settled collapse: done 2026-08-14 — it hides with the options.)
-  - One unmeasured hot path left, flagged where to point the measurement, per the
-    rule that no cost claim ships unmeasured: `openAsks()` rebuilds `stateFold`
-    two to four times per key-line paint and per poll. (The other two are done
-    2026-08-15: `retiredSlots` is computed once for the load, and
-    `retractionFloors` memoizes on the log's identity, which is what
-    `buildThreads` walked per call.)
+
+    Read 2026-08-15, and the two are not one problem: whichever answer each gets,
+    they cannot get the same one. `answered` is the log's — `applyAction("answer")`
+    writes it, so it is replayed decided state and a `record` form is what would let
+    a version carry it and every consumer read it. `open` never reaches the log at
+    all: `#open(…, remember)` persists to `sessionStorage` under `SETTLED_KEY`, per
+    tab, so it is the reader's own view of a settled group, the same category as the
+    panel's open state — and giving *that* a record would be actively wrong, since a
+    version would then assert which groups a reader had unfolded. What it wants is
+    the half of the paint vocabulary the signature looks away from. Naming them
+    together is what has made this look like one pick with two options.
+  - (measured 2026-08-15, no change) `openAsks()` rebuilding `stateFold` costs
+    nothing worth reclaiming. Timed through the shipped runtime on ship-review
+    with a synthetic board log: seven calls across the load and six per two polls,
+    totalling 0.0ms at the log size the corpus actually has, 1.1ms at 200 actions
+    and 4.0ms at 1000 — linear in the log, and about a tenth of a percent of one
+    2s poll at a size no page reaches. Memoizing it the way `retractionFloors` is
+    would have been wrong rather than merely unnecessary: `foldable` reads the DOM
+    (`elementById`, `inChrome`), so a version switch changes the answer with
+    `events` still the same array. (The other two are done 2026-08-15:
+    `retiredSlots` is computed once for the load, and `retractionFloors` memoizes
+    on the log's identity, which is what `buildThreads` walked per call.)
 
 - (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an

@@ -327,8 +327,8 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       <section id="off-work">
         <h2>The work, piece by piece</h2>
         <p id="off-work-note">
-          Amber is finished work waiting on your read; red is stuck, and each red task
-          says on what. The two under the stall are the two ways out of it.
+          Amber means the owner is done and waiting on your read. A red task names
+          whatever is holding it. The two under the stall are the two ways out of it.
         </p>
         <lf-tasks id="off-left">
           <lf-task id="off-t-resync" status="blocked" owner="mobile">
@@ -374,10 +374,10 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
         <h2>What should stop the ship</h2>
         <p id="off-punch-note">
           Everything still open, including the two things I decided not to build at all.
-          Where each card sits is my read of whether it should hold the ship. Drag
-          anything you see differently — or Tab to a grip and press Enter, then arrows:
-          each move reaches me, and the next version of this page ships with the board
-          as you left it.
+          Where each card sits is my read of whether it should hold the ship, so move
+          any card you would place differently. A grip takes the keyboard as well as the
+          pointer. Whatever you decide about a card stays where you put it when I
+          republish.
         </p>
         <lf-board id="off-punch">
           <lf-column id="off-col-ship" label="Blocks the ship">
@@ -441,9 +441,9 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
         <h2>What a full store does</h2>
         <p id="off-store-ask">
           At 40 MB a workspace, something has to give. Nothing in the beta reached the
-          cap, so this decides what happens to the first workspace that does. I
-          recommend the first; click an option to decide, or put what none of them
-          covers in the box under the group.
+          cap, so this decides what happens to the first workspace that does. My
+          recommendation is the first. Pick one to settle it; if you want a fourth
+          behaviour, the box below takes it.
         </p>
         <lf-options id="off-full-store" choose>
           <lf-option id="off-fs-evict" recommended
@@ -545,11 +545,11 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       <section id="off-announce">
         <h2>The announcement</h2>
         <p id="off-ann-note">
-          Three changes to this section are proposed rather than made: accept or reject
-          each in the margin, or select the words and say why not. The first comes
-          straight out of the beta's support tickets, where "offline" was read as
-          covering the whole product. The second states the storage limit, so it assumes
-          the recommendation above.
+          Nothing in this announcement is settled yet. Three lines wait on your decision
+          in the margin, and a line you would rather talk about than settle takes a
+          comment like any other text. The first came out of the beta's support tickets,
+          where "offline" was read as covering the whole product. The second states the
+          storage limit, so it assumes the recommendation above.
         </p>
         <lf-suggestion id="off-sug-scope">
           <lf-old
@@ -586,11 +586,11 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
           >
         </lf-suggestion>
         <p id="off-email-note">
-          This goes to the 96 beta workspaces the day you sign off, under your name, so
-          the words are yours: double-click the block (or its ✎) and rewrite it until it
-          sounds like you. It assumes both recommendations above — the oldest documents
-          leaving, and a week at ten percent — so if either decision goes another way,
-          the next version brings the email with it.
+          The 96 beta workspaces get this the day you sign off, with your name on it.
+          Open the block with a double-click, or its ✎, and put it in your own words.
+          What it says about storage and about the rollout follows the two
+          recommendations above, so a decision that goes the other way sends me back to
+          this draft before anything goes out.
         </p>
         <lf-draft id="off-email">
           <pre>
@@ -616,9 +616,9 @@ and we have reported it; the workaround ships either way.
       <section id="off-followup">
         <h2>What I pick up next</h2>
         <p id="off-followup-intro">
-          Four jobs stand behind the ship, none of them holding it. Pick the ones worth
-          starting — click a row, or Tab to its mark and press Enter — and the box takes
-          anything the rows don't cover.
+          Four jobs stand behind the ship, none of them holding it. Tick whichever you
+          want started, by click or by keyboard, and write a fifth in the box if I have
+          missed one.
         </p>
         <lf-options id="off-followups" choose multiple>
           <lf-option id="off-fu-drill" for="off-merge"
@@ -1130,10 +1130,10 @@ graph LR
           <li>Delete the v1 handler code on 14 July.</li>
         </ol>
         <p id="api-sug-note">
-          Two changes to this section are proposed rather than made: accept or reject
-          each in the margin, or select the words and say why not. The first comes out
-          of the first brownout's tickets — 41 of them, mostly asking whether we were
-          down, and a 404 would keep that conversation going.
+          Two changes to this section are proposed rather than made. Settle each in the
+          margin, or select the words and tell me what is wrong with them. The first
+          came out of the first brownout's tickets — 41 of them, mostly asking whether
+          we were down, and a 404 would keep that conversation going.
         </p>
         <lf-suggestion id="api-sug-410">
           <lf-old
@@ -1162,10 +1162,10 @@ graph LR
       <section id="api-email">
         <h2>The email to the 17</h2>
         <p id="api-email-note">
-          This goes out under your name the day you sign off, so the words are yours:
-          double-click the block (or its ✎) and rewrite it until it sounds like you. It
-          assumes the shim; if the decision above goes another way, the next version
-          brings the email with it.
+          This goes out under your name the day you sign off, so the wording should be
+          yours. Double-click the draft, or press its ✎, and say it the way you would
+          say it to them. It assumes the shim; if the decision above goes another way,
+          the next version brings the email with it.
         </p>
         <lf-draft id="api-email-draft">
           <pre>
@@ -1192,8 +1192,8 @@ and an engineer will work through yours with you.
       <section id="api-work">
         <h2>Workstreams</h2>
         <p id="api-work-note">
-          Amber is finished work waiting on your read; the one red task says what it is
-          stuck on.
+          One task is red, and it names what is holding it. The one amber task is done
+          and waiting for you to look.
         </p>
         <lf-tasks id="api-plan">
           <lf-task id="api-t-shim" status="blocked" owner="gateway">

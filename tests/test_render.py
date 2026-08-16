@@ -6358,6 +6358,100 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     page.close()
 
 
+# All three shapes, because what says "nobody has decided this" differs in each and
+# only one of them has a second half to lean on. A replace shows the pair, an insert
+# shows a tint against the prose around it, and a pending deletion is a struck line
+# with an empty margin beside it — which is also exactly what a deletion looks like
+# once it has happened.
+PROPOSED_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>proposed</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="h">Feeder notes</h1>
+<p id="replace">The camera survey found two dead zones.
+  <lf-suggestion id="sug-replace">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
+  </lf-suggestion></p>
+<p id="insert">Seed mix stays through the migration.
+  <lf-suggestion id="sug-insert">
+    <lf-new>Switch the north feeder to thistle in autumn.</lf-new>
+  </lf-suggestion></p>
+<p id="delete">The heater runs from the porch circuit.
+  <lf-suggestion id="sug-delete">
+    <lf-old>Check the thermostat every Sunday.</lf-old>
+  </lf-suggestion></p>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
+    """Who says the change is still a proposal, in each medium the page reaches.
+
+    On screen the ✓/✗ row hanging on the change's own line says it, and the word is
+    for whoever is listening, so it stays clipped. A copy and paper have no row —
+    both strip a control the page does not speak through, and a pending one says
+    nothing yet, so it goes whole — and that left the two states saying opposite
+    amounts: a decided change keeps its "✓ Accepted" in the copy, a pending one kept
+    nothing at all, and the tints alone read as a change already made.
+
+    The word also had to change to be worth showing. Pendingness was carried by the
+    word's mere presence, which no reader can perceive — nothing sits alongside to
+    compare it against — and `deletion` is ARIA's own name for the completed act, so
+    a listener heard the change announced as made while the page was still asking."""
+    url = serve(PROPOSED_PAGE)
+    page, errors = open_page(browser, url)
+
+    quiet = "lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet"
+    read = """(sel) => [...document.querySelectorAll(sel)].map(el => {
+        const r = el.getBoundingClientRect();
+        return {word: el.textContent, shown: el.checkVisibility(),
+                w: Math.round(r.width), h: Math.round(r.height)};
+    })"""
+    live = page.evaluate(read, quiet)
+    assert [q["word"] for q in live] == [
+        "proposed deletion",
+        "proposed insertion",
+        "proposed insertion",
+        "proposed deletion",
+    ], live
+    for q in live:
+        assert q["w"] <= 1 and q["h"] <= 1, (
+            f"on screen the row says it; `{q['word']}` must hold no room, got {q}"
+        )
+    # And the row is there to say it — the fact the copy is about to lose.
+    expect(page.locator(".lf-sug-actions")).to_have_count(3)
+    assert errors == []
+    page.close()
+
+    out = tmp_path / "standalone.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    copy = browser.new_page(viewport={"width": 1200, "height": 900})
+    copy.goto(out.as_uri(), wait_until="load")
+    assert copy.locator(".lf-sug-actions").count() == 0, (
+        "the copy is only interesting because it has no controls left"
+    )
+    for medium in ("screen", "print"):
+        copy.emulate_media(media=medium)
+        shown = copy.evaluate(read, quiet)
+        assert [q["word"] for q in shown] == [q["word"] for q in live], shown
+        for q in shown:
+            assert q["shown"] and q["w"] > 1, (
+                f"[{medium}] with no row on the page, `{q['word']}` is the only thing "
+                f"saying the change is unmade, and it is not on screen: {q}"
+            )
+    copy.close()
+
+
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     """The row is the column's child, not the change's, so the subtree a card
     travels in no longer carries it: a card dragged to another column, or moved by
@@ -13842,6 +13936,86 @@ def written_anchors(page_dir, html, limit=40):
         if len(anchors) == limit:
             break
     return anchors
+
+
+def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
+    """An example that ships a companion log opens mid-conversation.
+
+    A thread is the one thing the corpus could not hold: it is log state, no markup
+    describes one, and `version export` drops the layer that draws it — so a static
+    copy cannot carry a thread however it is written, and for a long time nothing
+    under examples/ showed the comment loop at all. What an example *can* ship is
+    the log itself, beside it, exactly as one that wants a screenshot ships the
+    bytes beside it. `scripts/preview.py <example>` is then a page that opens on a
+    real exchange rather than an empty panel.
+
+    The anchor in that log is the part that can rot quietly. It is captured from
+    the version file, and it has to name the same passage once the browser has
+    built the page; a rewritten sentence leaves the quote resolving to nothing and
+    the thread standing there detached, which is a broken demo and no error
+    anywhere. The corpus's own anchor sweep does not cover it, because that sweep
+    writes its own anchors. This is what reads the shipped one.
+
+    Looped rather than parametrized so an empty corpus fails here instead of
+    collecting no tests and reporting green."""
+    seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
+    assert seeded, "no example ships a log; this gate is reading nothing"
+
+    for example in seeded:
+        url = serve(example.read_text())
+        # The log's grammar is events joined by "\n" — never splitlines(), whose
+        # wider class reads a U+2028 inside a comment's text as a break.
+        events = [
+            json.loads(line)
+            for line in example.with_suffix(".jsonl")
+            .read_text(encoding="utf-8")
+            .split("\n")
+            if line.strip()
+        ]
+        assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
+        for event in events:
+            interact.append_event(serve.page_dir, event)
+
+        page, errors = open_page(browser, url)
+        anchored = [e for e in events if e.get("anchor")]
+        # The thread node first, because it arrives whether or not the quote found a
+        # home — a stranded one renders wearing `detached`. Waiting on the mark here
+        # instead spends the whole timeout on exactly the failure this gate is for
+        # and then reports it as "wait_for_function timed out", which says nothing
+        # about the anchor.
+        # Every comment opens a thread; an anchor only decides whether it also paints
+        # a mark. Counting threads against the anchored ones would red this gate the
+        # day a seed carries a general comment, which is a thing a page may hold.
+        expect(page.locator(".lf-thread")).to_have_count(
+            len([e for e in events if e["kind"] == "comment"])
+        )
+        detached = page.eval_on_selector_all(
+            ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
+        )
+        assert detached == [], (
+            f"{example.stem} ships an anchor that resolves to nothing: {detached}. "
+            "The passage it quotes has been rewritten; recapture it with "
+            "`leaf comment --quote` against the current file."
+        )
+        page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+        # The exchange is both voices, and the mark is on the words the log named.
+        for event in anchored:
+            quote = event["anchor"]["quote"]
+            painted = re.sub(
+                r"\s",
+                "",
+                page.evaluate(
+                    "() => [...CSS.highlights.get('lf-mark')]"
+                    ".map(r => r.toString()).join('')"
+                ),
+            )
+            assert re.sub(r"\s", "", quote) in painted, (
+                f"{example.stem}: `{quote}` is quoted in the shipped log and painted "
+                f"nowhere on the page; the mark reads {painted[:120]!r}"
+            )
+        expect(page.locator(".lf-thread .lf-msg.claude")).not_to_have_count(0)
+        assert errors == []
+        page.close()
 
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)

@@ -34,12 +34,61 @@ list form's business, every example stayed green, and a titled group asking "whi
 these" gave the reader nothing to count. Where an attribute or a content shape changes
 what a reader sees, a page here shows it.
 
-## An example is one version with an empty log
+## An example is one version, and the log it ships beside it
 
-`restated`, `overruled` and `resolves` each name something the log holds — an action to
-retract, a standing report to answer, a comment to close — so a page published as v1 with
-nothing behind it cannot earn one, and `version check` refuses all three here. That is
-the whole of what the corpus can't reach.
+The markup is v1 and nothing revises it, so `restated` and `overruled` stay out of reach:
+each answers something a later version does — a decision to retract, a report to
+overrule — and there is no later version here. `version check` refuses both.
+
+The log is a different matter, and it was empty by default rather than by nature. A
+thread is the one thing no markup describes, and `version export` drops the layer that
+draws one, so no static copy can carry a thread however it is written — which is why the
+corpus showed suggestions in plenty and the comment loop nowhere. An example that wants
+to show one ships its events as `<stem>.jsonl` beside it, the way one that wants a
+screenshot ships the bytes beside it, and every place that builds a page directory out
+of an example lays it in after `version publish`: `scripts/preview.py`,
+`export_examples` in `scripts/site.py`, and `test_examples_pass_check`.
+`ship-review.jsonl` is the one today, and `scripts/preview.py ship-review` is where a
+reader sees a thread at all.
+
+Where the page is then *served* — `preview.py`, and nowhere else, since site.py exports
+and throws the directory away — the cursor goes to the end of the seed with it. A seed
+is history, not news: leave the cursor at zero and every preview hands the next agent
+session a question to answer that the same log answers two lines further down, with the
+loop guard rightly nagging about it each time. The demo would spend its first move
+undoing itself.
+
+Capture an anchor with `leaf comment --quote` against the file; don't write the
+`{section, quote, suffix}` out by hand. Two captures with nothing holding them together
+is the failure the repo's "the file's reading never claims more than the page's" is
+about, and this one rots silently — a rewritten sentence leaves the quote resolving to
+nothing and the thread standing there detached, with no error anywhere.
+`test_a_shipped_log_opens_its_example_on_a_live_thread` reads the shipped anchor back
+through the browser and names that when it happens; the corpus's own anchor sweep can't,
+since it writes its own anchors.
+
+`resolves` is reachable now that a comment can stand in the log, and nothing uses it.
+The attribute would have to go in the markup, `scripts/gallery.py` embeds each example's
+`<main>` verbatim, and the gallery's own directory has no seed to answer it — so
+`version check` would refuse the gallery over an id naming no comment in *its* log.
+Seeding a log costs the example nothing; hanging markup off that log couples it to
+every page built from it.
+
+## A page's connective prose is its own
+
+The gesture vocabulary repeats and is meant to — every board takes a drag, every group
+takes a pick — and the sentence around it does not, because a page that borrows one
+describes its own work in another page's words. This is where that shows, twelve pages
+being the one place a reader sees them side by side. The rule itself is SKILL.md's
+("announce interactivity in prose"), since it governs every page and not only these;
+what lives here is the check.
+
+A batch of them arrived in a single commit, and the cause was upstream of the corpus:
+that same SKILL.md entry quoted two model sentences, and both reached shipped examples
+word for word. `test_no_example_writes_another_example_s_sentences` holds the corpus at
+twelve words, which is five more than any two examples share today — seven, and nothing
+at all at eight. It is loose enough to let a single borrowed clause through, which is a
+judgement no word count makes.
 
 ## The media an example names sits beside it
 

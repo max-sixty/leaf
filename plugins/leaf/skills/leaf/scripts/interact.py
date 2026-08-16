@@ -259,9 +259,11 @@ vocabulary for rides in the custom keywords below:
                 `when` says which instances ask (attribute values, a flag's
                 being true and false), `all` names the verb one press answers
                 every one with. What counts as answered is no new bookkeeping —
-                the record x-state already declares where there is one, the fold
-                where there isn't — so the banner's count, the key that steps
-                them and the `?` overlay read one list (see $awaits).
+                a verb recording as an attribute answers on the record the
+                replayed page carries, and every other verb, whatever else it
+                records, through its own surviving fold entry — so the banner's
+                count, the key that steps them and the `?` overlay read one list
+                (see $awaits).
     x-example   one authored example, printed by `page catalog`
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring

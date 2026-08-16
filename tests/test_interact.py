@@ -6133,6 +6133,11 @@ def test_examples_pass_check(tmp_path, monkeypatch):
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        # The example's companion log, where it ships one (examples/CLAUDE.md), so
+        # the lint reads the page under the state its own log puts on it.
+        seed = example.with_suffix(".jsonl")
+        if seed.exists():
+            (d / "comments.jsonl").write_text(seed.read_text(encoding="utf-8"))
         result = check(d)
         assert result.exit_code == 0, f"{example.name}: {result.output}"
 
@@ -6168,6 +6173,57 @@ def test_gallery_is_generated_from_the_examples():
     spec.loader.exec_module(gallery)
     committed = (Path(__file__).parent.parent / "examples" / "gallery.html").read_text()
     assert gallery.build() == committed, "examples changed — rerun scripts/gallery.py"
+
+
+def test_no_example_writes_another_example_s_sentences():
+    """Each page's connective prose is written in its own subject.
+
+    The gesture is shared vocabulary — every board takes a drag, every group takes a
+    pick, and the words for those are meant to repeat. The sentence around the gesture
+    is not: a page that borrows one is describing another page's work in that page's
+    words, and the corpus is the one place a reader sees twelve of them side by side.
+
+    A batch of them got in at once, and the cause was upstream of the corpus. SKILL.md's
+    "announce interactivity in prose" entry quoted two model sentences, and both reached
+    shipped examples word for word; a phrase sitting ready to paste is a phrase that
+    gets pasted. That entry now names what the sentence must carry instead, and this is
+    what says whether it worked.
+
+    Twelve words, from a measurement rather than a guess: with those rewritten, the
+    longest run any two examples share is seven, and nothing at all is shared at eight.
+    Both sevens are between pages this change never touched: the guarantee a version
+    makes about a board, and a fictional detail two pages were written to share. So
+    twelve leaves five words of room over what the corpus legitimately repeats, and is
+    loose enough to let a single borrowed clause through — which is the judgement the
+    skill entry carries and a word count cannot."""
+    run = 12
+    examples = {
+        p.stem: p.read_text(encoding="utf-8")
+        for p in sorted((ROOT / "examples").glob("*.html"))
+        # gallery.html embeds every sibling verbatim, so it shares everything by
+        # construction; scripts/gallery.py is what holds it true.
+        if p.stem != "gallery"
+    }
+    assert len(examples) > 1, examples
+
+    def words(html: str) -> list[str]:
+        # <main> only: the <head>'s CSP meta is identical in all twelve by requirement.
+        body = html[html.index("<main>") + len("<main>") : html.rindex("</main>")]
+        return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
+
+    seen: dict[tuple, str] = {}
+    shared: list[str] = []
+    for name, html in examples.items():
+        ws = words(html)
+        for i in range(len(ws) - run + 1):
+            gram = tuple(ws[i : i + run])
+            if gram in seen and seen[gram] != name:
+                shared.append(f"{seen[gram]} and {name}: {' '.join(gram)}")
+            seen.setdefault(gram, name)
+    assert not shared, (
+        f"{len(shared)} run(s) of {run}+ words shared between examples; write each "
+        "page's own sentence:\n  " + "\n  ".join(sorted(set(shared))[:10])
+    )
 
 
 def test_catalog_prints_widgets_and_idioms(page_dir):

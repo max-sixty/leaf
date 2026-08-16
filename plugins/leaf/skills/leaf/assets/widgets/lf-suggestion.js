@@ -459,11 +459,18 @@ customElements.define(
     // why role="deletion" is not what stands here. It follows the state exactly as the
     // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
     // up this word along with its marks, and a rewind brings both back.
+    //
+    // "proposed", because the word is only ever on a slot nobody has decided and has to
+    // say so itself. Pendingness was encoded as the word's presence, which is the one
+    // thing no reader can perceive — there is no settled slot alongside to compare it
+    // against — and `deletion` is ARIA's name for the act already carried out, so a
+    // listener heard a change announced as made while the page was still asking. The
+    // theme shows this word wherever the ✓/✗ row is not there to say the same thing.
     #voice() {
       const decided = Boolean(this.dataset.lfState);
       for (const [tag, word] of [
-        ["lf-old", "deletion"],
-        ["lf-new", "insertion"],
+        ["lf-old", "proposed deletion"],
+        ["lf-new", "proposed insertion"],
       ])
         for (const slot of this.querySelectorAll(`:scope > ${tag}`))
           quietWord(slot, decided ? "" : word);

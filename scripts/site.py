@@ -159,6 +159,14 @@ def export_examples(out: Path, env: dict) -> None:
                 "--text",
                 f"{source.name}, as it stands in the tree",
             )
+            # The example's companion log, where it ships one (examples/CLAUDE.md).
+            # A thread in it reaches no copy — export drops the layer that draws one
+            # — but an action does, so a builder that skipped this would publish a
+            # page quietly different from the one every other builder makes.
+            seed = source.with_suffix(".jsonl")
+            if seed.exists():
+                with (page / "comments.jsonl").open("a", encoding="utf-8") as log:
+                    log.write(seed.read_text(encoding="utf-8"))
             leaf(
                 env,
                 "version",

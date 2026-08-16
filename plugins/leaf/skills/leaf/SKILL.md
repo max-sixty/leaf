@@ -217,11 +217,12 @@ to click belongs on a page you are going to serve.
   carries no terminal control at all, because there is nothing there for the reader
   to answer. `version check` rejects unknown `lf-*` metas and any other `lf-review`
   value.
-- **Announce interactivity in prose.** Someone new to the page won't guess from a grip glyph
-  or a hover cursor that a board takes drags or an options group takes clicks — the
-  sentence introducing the widget says it ("drag cards to reprioritize; your edits
-  reach me directly", "click an option to decide"). The widgets stay chrome-free on
-  purpose; the page's own words carry the affordance.
+- **Announce interactivity in prose.** Someone new to the page won't guess from a grip
+  glyph or a hover cursor that a board takes drags or an options group takes clicks, so
+  the sentence introducing the widget names the gesture and says where its result goes.
+  Write that sentence in the page's own subject: the gesture is shared vocabulary, the
+  sentence around it is this page's alone. The widgets stay chrome-free on purpose; the
+  page's own words carry the affordance.
 - **Never lose user text.** A central tenet of the comment layer: drafts (the general
   box, each reply, the selection composer) survive navigation, reload, version switches,
   and server death; only a successful send clears them.

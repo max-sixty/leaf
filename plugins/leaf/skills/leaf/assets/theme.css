@@ -666,6 +666,41 @@ lf-suggestion[data-lf-state="accept"] > lf-old,
 lf-suggestion[data-lf-state="reject"] > lf-new { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
+/* Whose job it is to say the change is only proposed, in each medium. On screen the
+ * ✓/✗ row hanging on the change's own line says it, and this word stays clipped for
+ * whoever is listening. A copy has no row — export strips a control the page doesn't
+ * speak through, and a pending one says nothing yet, so it goes whole — which left the
+ * two states saying opposite amounts there: a decided change keeps its "✓ Accepted", a
+ * pending one kept nothing, and a struck red paragraph with an empty margin beside it
+ * is exactly what a deletion looks like once it has happened. The word #voice already
+ * writes is what the copy shows instead, so nothing new is drawn and both readings of
+ * the page keep the same text in the same place.
+ *
+ * Paper is in the base too, and it is the medium this note used to overstate: print
+ * drops every offer, `[data-lf-said]` included, so a decided change says nothing there
+ * either and the asymmetry the paragraph above describes is the copy's alone. What the
+ * word buys on paper is the pending state stating itself at all.
+ *
+ * Stated the way the copy states every affordance (see the widget-chrome norm): the
+ * page the markup describes is the base, and the live page's version of it goes inside
+ * the screen guard — so the clip is what is granted, rather than the word being drawn
+ * and then taken back. `user-select` is not touched either way: this is the runtime's
+ * reading of the paint rather than the page's own words, so a paragraph copied out of
+ * a published page must not come away carrying it.
+ *
+ * inline-block, because lf-old is struck and CSS runs a decoration through every
+ * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
+ * none` here is inert. Unclipped as a plain inline, the one word saying the change has
+ * *not* been made was itself painted struck in the deletion's red, which is the reading
+ * this whole rule exists to prevent. An atomic inline is where the line stops. */
+lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
+  display: inline-block; margin-right: 5px; }
+@media screen {
+  html:not(.lf-copy) lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); margin-right: 0; }
+}
 /* The controls hang in the page margin: absolute against <main> for the
  * horizontal edge, and against the anchor the widget prepends to the change for
  * the vertical — `anchor(top)` is the line that empty span sits on, mid-sentence

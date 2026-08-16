@@ -5906,75 +5906,182 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
         page.close()
 
 
-def test_the_specimen_gutter_starts_where_the_exhibit_does(browser, serve):
-    """The gutter marks what is quoted, and the "quoted ·" note over it is the
-    theme's word *about* the quoted region rather than a word in it — so the bar
-    stands beside the exhibit and beside nothing else. It opened at the note
-    instead, which drew the marking around a line the page never said.
+# Where an exhibit's own boxes begin and end, which is what the marking beside them has
+# to meet. A widget that generates no box hands its boxes to the flow — a suggestion is
+# `display: contents` — so a child with no rect is walked through rather than skipped,
+# and that is the case no selector in the theme can reach for itself. The runtime's own
+# layer is not the exhibit: `.lf-ui` is chrome standing in the page's blocks, and a
+# marking drawn around it would be marking the reading rather than the page.
+EXHIBIT_EXTENT = """
+(id) => {
+  const el = document.getElementById(id);
+  const label = el.querySelector(':scope > [data-lf-said="label"]');
+  let top = Infinity, bottom = -Infinity;
+  const walk = (n) => {
+    for (const c of n.children) {
+      if (c === label || c.classList.contains('lf-ui')) continue;
+      const r = c.getBoundingClientRect();
+      if (r.height) { top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); }
+      else walk(c);
+    }
+  };
+  walk(el);
+  return {top, bottom, note: label ? label.getBoundingClientRect().bottom : null};
+}
+"""
 
-    Geometry can't answer this. The element's own rect is the table wrapper's and
-    takes in the caption, while the bar is painted on the table box inside it,
-    which nothing in the DOM is a handle on — so a rect comparison passes exactly
-    as well with the note back inside the marking. The pixels in the bar's own
-    column are the reading: a run of the border's colour from the foot of the
-    specimen up, whose top edge is where the marking begins, and which has to land
-    in the gap between the note and the exhibit."""
+SPECIMEN_EXAMPLES = [p for p in EXAMPLES if "<lf-specimen" in p.read_text()]
+assert SPECIMEN_EXAMPLES, (
+    "no shipped example holds a specimen — the sweep below would drive the fixture "
+    "page alone, and the rule it holds is one the corpus is the whole test of"
+)
+
+
+@pytest.mark.parametrize(
+    "html",
+    [SPECIMEN_PAGE, *(p.read_text() for p in SPECIMEN_EXAMPLES)],
+    ids=["fixture", *(p.stem for p in SPECIMEN_EXAMPLES)],
+)
+def test_the_gutter_runs_beside_the_exhibit_and_no_further(html, browser, serve):
+    """The gutter marks what is quoted and nothing else, at both ends, and two separate
+    things had to be true for that. The "quoted ·" note over the bar is the theme's word
+    *about* the region rather than a word in it, and the bar opened at the note, drawing
+    the marking around a line the page never said. And a table cell is a margin barrier,
+    so the room the exhibit's outermost blocks reserve against neighbours they haven't
+    got could not collapse out and was painted as bar instead — sixteen pixels of it
+    over the first card and under the last, on every specimen shipped.
+
+    Geometry can't answer the top. The element's own rect is the table wrapper's and
+    takes in the caption, while the bar is painted on the table box inside it, which
+    nothing in the DOM is a handle on — so a rect comparison passes exactly as well
+    with the note back inside the marking. The pixels in the bar's own column are the
+    reading, and each edge is read in a strip of its own with that edge brought to the
+    middle of the window: a clip is the viewport's, so one strip over the whole bar
+    would cap the sweep at the tallest exhibit a window can hold.
+
+    Driven over every specimen in the corpus rather than the fixture alone, because
+    what the theme can reach is the specimen's direct children and what it cannot is
+    whichever widget hands its boxes to the flow instead. That gap is invisible in the
+    stylesheet and shows only as a bar longer than what it marks, so the corpus is
+    where the next one gets caught."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    page, errors = open_page(browser, serve(html))
     assert errors == []
-    box = page.locator("#spec").bounding_box()
-    note = page.locator('#spec > [data-lf-said="label"]').bounding_box()
-    exhibit = page.locator("#quoted-group").bounding_box()
-    border = page.locator("#spec").evaluate(
-        "el => getComputedStyle(el).borderLeftColor"
-    )
-    ink = tuple(int(n) for n in re.findall(r"\d+", border)[:3])
-
-    # A column one pixel wide inside the 3px bar, from the specimen's top down past
-    # where the exhibit starts. Read from the bottom up and stopped at the first
-    # pixel that isn't the bar's, so a glyph of the note's that happens to
-    # antialias through this colour is not a bar the run can reach.
-    #
-    # The clip's top is floored first and the reading counts from the floored value,
-    # because a clip is asked for in CSS pixels and Chrome truncates the rect before
-    # it scales — a pixel of unmodelled bias, against a gap of four.
     scale = page.evaluate("() => devicePixelRatio")
-    clip = {
-        "x": box["x"] + 1,
-        "y": math.floor(box["y"]),
-        "width": 1,
-        "height": math.ceil(exhibit["y"] - box["y"]) + 20,
-    }
-    on_screen = page.evaluate(
-        "([y, h]) => y >= 0 && y + h <= innerHeight", [clip["y"], clip["height"]]
+    # Rendered, not merely present. A specimen inside a tab panel the page is not
+    # showing sits in skipped content, which still reports its last laid-out rect — a
+    # position the page cannot be scrolled to, since the room it names is not in the
+    # document's height. `checkVisibility` is the question `lf-suggestion` already asks
+    # for the same reason.
+    specimens = page.locator("lf-specimen").evaluate_all(
+        "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
     )
-    assert on_screen, (
-        f"#spec is not wholly on screen ({clip}): a screenshot clip is the "
-        f"viewport's, so the scan below would read a truncated image"
-    )
-    strip = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-    assert strip.height == clip["height"] * scale, (
-        f"the clip asked for {clip['height']} CSS px at dpr {scale} and came back "
-        f"{strip.height} device px: the arithmetic below no longer locates its edge"
-    )
-    rows = [strip.getpixel((0, y)) for y in range(strip.height)]
-    painted = 0
-    while painted < len(rows) and all(
-        abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink)
-    ):
-        painted += 1
-    assert painted, f"no gutter painted in the column beside the exhibit: {rows[-1]}"
+    assert specimens, "this page shows no specimen: the reading below asserts nothing"
 
-    # One bracket rather than two assertions: the bar's top edge stands in the gap,
-    # a note inside the marking pushing it up out of the gap and a marking that
-    # starts after what it marks pushing it down out of the other end.
-    top = clip["y"] + (len(rows) - painted) / scale
-    assert note["y"] + note["height"] <= top + 1 <= exhibit["y"] + 1, (
-        f"the gutter starts at {top}, outside the gap between the note "
-        f"(to {note['y'] + note['height']}) and the exhibit (from {exhibit['y']}): "
-        f"the marking takes in the note, or begins after what it marks"
-    )
+    for spec in specimens:
+        ink = tuple(
+            int(n)
+            for n in re.findall(
+                r"\d+",
+                page.locator(f"#{spec}").evaluate(
+                    "el => getComputedStyle(el).borderLeftColor"
+                ),
+            )[:3]
+        )
+        found = {}
+        for edge in ("top", "bottom"):
+            # `instant`, because the page asks for smooth scrolling and a read taken
+            # while one is still gliding is of wherever it had got to — which passes on
+            # a short page, where the glide is over before the next call lands, and
+            # failed on the gallery, where the same delta is thousands of pixels.
+            page.evaluate(
+                """([id, edge]) => {
+                    const r = document.getElementById(id).getBoundingClientRect();
+                    document.body.scrollBy({
+                        top: (edge === 'top' ? r.top : r.bottom) - innerHeight / 2,
+                        behavior: 'instant',
+                    });
+                }""",
+                [spec, edge],
+            )
+            box = page.locator(f"#{spec}").bounding_box()
+            exhibit = page.evaluate(EXHIBIT_EXTENT, spec)
+
+            # A column one pixel wide inside the 3px bar, running from outside the
+            # marking to well inside it, and read from the inside out: stopping at the
+            # first pixel that isn't the bar's keeps a glyph of the note's that happens
+            # to antialias through this colour from being a bar the run can reach.
+            #
+            # The clip's top is floored first and the reading counts from the floored
+            # value, because a clip is asked for in CSS pixels and Chrome truncates the
+            # rect before it scales — a pixel of unmodelled bias, against a gap of four.
+            REACH = 40  # far enough inside the bar to start in it, and to give a number
+            near, far = (
+                (box["y"], exhibit["top"] + REACH)
+                if edge == "top"
+                else (exhibit["bottom"] - REACH, box["y"] + box["height"] + REACH)
+            )
+            clip = {
+                "x": box["x"] + 1,
+                "y": math.floor(near),
+                "width": 1,
+                "height": math.ceil(far) - math.floor(near),
+            }
+            on_screen = page.evaluate(
+                "([y, h]) => y >= 0 && y + h <= innerHeight",
+                [clip["y"], clip["height"]],
+            )
+            assert on_screen, (
+                f"#{spec}'s {edge} strip is not wholly on screen ({clip}): a "
+                f"screenshot clip is the viewport's, so the scan would read a "
+                f"truncated image"
+            )
+            strip = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+            assert strip.height == clip["height"] * scale, (
+                f"the clip asked for {clip['height']} CSS px at dpr {scale} and came "
+                f"back {strip.height} device px: the arithmetic below no longer "
+                f"locates its edge"
+            )
+            rows = [strip.getpixel((0, y)) for y in range(strip.height)]
+            if edge == "bottom":
+                rows.reverse()  # both edges read from the far end of the strip inward
+            painted = 0
+            while painted < len(rows) and all(
+                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink)
+            ):
+                painted += 1
+            assert painted, (
+                f"#{spec}: no gutter painted in the column beside the exhibit at the "
+                f"{edge} ({rows[-1]}) — the bar is unpainted, or it is more than "
+                f"{REACH}px away from the exhibit it marks"
+            )
+            found[edge] = (
+                clip["y"] + (len(rows) - painted) / scale
+                if edge == "top"
+                else clip["y"] + painted / scale
+            )
+            found[f"{edge}-exhibit"] = exhibit[edge]
+            if edge == "top":
+                found["note"] = exhibit["note"]
+
+        assert abs(found["top"] - found["top-exhibit"]) <= 1, (
+            f"#{spec}'s marking begins at {found['top']} and the exhibit at "
+            f"{found['top-exhibit']}: the bar runs beside something the page did not "
+            f"say, or begins after what it marks"
+        )
+        assert abs(found["bottom"] - found["bottom-exhibit"]) <= 1, (
+            f"#{spec}'s marking ends at {found['bottom']} and the exhibit at "
+            f"{found['bottom-exhibit']}: the bar outlives what it marks — most likely "
+            f"a trailing margin inside a child that generates no box, which the "
+            f"theme's rule for the specimen's last child cannot reach"
+        )
+        if found["note"] is not None:
+            assert found["note"] <= found["top"] + 1, (
+                f"#{spec}'s marking begins at {found['top']}, above the foot of the "
+                f"note at {found['note']}: the marking takes in a line the page never "
+                f"said"
+            )
     page.close()
 
 

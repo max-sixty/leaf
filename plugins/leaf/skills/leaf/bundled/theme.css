@@ -905,8 +905,10 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
  * room above the gutter on a number read out of a browser once, and land the note on
  * the paragraph above it the day a label wraps. The exhibit keeps the layout it had:
  * consecutive non-table children are wrapped in one anonymous cell, so what is
- * inside is a block flow whose margins collapse exactly as they do out on the page,
- * which is the fidelity an exhibit is for. Nor does the box become a table to anything
+ * inside is a block flow whose margins collapse between its blocks exactly as they do
+ * out on the page, which is the fidelity an exhibit is for. What a cell cannot do is
+ * let the outermost of them collapse *out*, and that is a paragraph of its own below.
+ * Nor does the box become a table to anything
  * that reads the page: Chrome types it LayoutTable where it typed the block generic,
  * and stops there — the row and the cell are anonymous boxes and neither reaches the
  * accessibility tree.
@@ -925,10 +927,36 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
  * on a page of borders, where a quoted paragraph is the only rule in a column of prose.
  * The note stands 4px off the bar and the theme's own 18px under the paragraph above,
  * because proximity is what says which block a line belongs to, and this line belongs
- * to the exhibit. */
+ * to the exhibit.
+ *
+ * Beside the exhibit is how far the bar runs as well as where it starts, and the cell is
+ * what made that a rule to write rather than something that happens. A block reserves
+ * room against the neighbours it expects; a table cell is a margin barrier, so the room
+ * the exhibit's outermost blocks reserve cannot collapse out of the marking and is
+ * painted as bar instead. Sixteen pixels of it over the first card and under the last,
+ * on every specimen in the corpus, held for neighbours that are not there — and the
+ * reader who reported it read the top as the loose end, because the note is 4px off the
+ * bar and so appears to open it, leaving a marking that begins at a line and then waits
+ * twenty pixels for the thing it is marking. So the specimen states no padding of its
+ * own and drops those margins where they abut the marking: what separates a specimen
+ * from the prose around it is its own 18px, stated once.
+ *
+ * The reach is the direct children, which is what a selector has. The label is a child
+ * too (`x-says` writes it `before`), so the leading edge is spelled for both
+ * arrangements — the exhibit's first block is `:first-child` on a page whose label is an
+ * attribute and the note's next sibling on one where the runtime has written it. A child
+ * that generates no box hands its own boxes to the flow and the rule lands on nothing:
+ * the one such widget shipped is the suggestion, and it is why the block slot asks for
+ * its room above rather than around itself (theme.css). No selector reaches the next
+ * one, so the reading that holds this is of the painted bar against the exhibit's own
+ * boxes, over every specimen the corpus has
+ * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule would
+ * have gone quiet. */
 lf-specimen { display: table; table-layout: fixed; width: 100%;
-              box-sizing: border-box; margin: 18px 0; padding: 2px 0 2px var(--sp-4);
+              box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); }
+lf-specimen > :is(:first-child, [data-lf-said="label"] + *) { margin-block-start: 0; }
+lf-specimen > :last-child { margin-block-end: 0; }
 /* The widgets here that frame what they hold, saying so where they draw the frame: the
    room a wide widget may take is the page's, and inside one of these the page is not
    what holds it. A quoted board that took the window escaped the gutter marking it as

@@ -639,13 +639,26 @@ lf-new { background: var(--add-tint); }
  * makes it checkable: the test states HTML's phrasing content once and holds both
  * copies to it, where a set filtered by what seemed worth keeping could only ever be
  * checked against itself — which is the check the two copies were already giving each
- * other, and it cannot see a name dropped from both. */
+ * other, and it cannot see a name dropped from both.
+ *
+ * The block form's room is above the slot rather than around it, so a run of changes
+ * reads as a stack. A suggestion generates no box, so these slots are the flow's own
+ * boxes and their outer margins are what a container reads at its own edge — which is
+ * how a quoted change came to stand 10px inside the gutter marking it, with nothing
+ * able to reach it: a rule for the specimen's last child finds the suggestion, and the
+ * suggestion is boxless. Asking for the room on one side is what a box in a stack can
+ * say without claiming a container's edge, and it costs the pair nothing, since the
+ * gap between two slots and between two suggestions is the second one's either way.
+ * Nor does it cost the prose around a change: collapsing already took the larger of
+ * this 10px and the 13px a paragraph reserves, so the side that went was one no reader
+ * ever saw. The inline form needs no guard here — a vertical margin on a non-replaced
+ * inline box lays nothing out. */
 :is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
     label, link, map, mark, math, meta, meter, noscript, object, output, picture,
     progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
     svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
-  display: block; padding: 2px 10px; margin: 10px 0; }
+  display: block; padding: 2px 10px; margin-top: 10px; }
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence

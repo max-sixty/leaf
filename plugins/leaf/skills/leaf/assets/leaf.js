@@ -52,8 +52,9 @@
  *
  * Never lose user text (CLAUDE.md): every unsent draft — the general box, each per-thread
  * reply, the selection composer (text + its anchor), and an in-place draft edit —
- * persists to sessionStorage on input. It survives reload and version navigation but is
- * owned by one tab, so a send or Cancel in another tab cannot erase newer unsent words.
+ * persists to the tab's own store (tabStore) on input. It survives reload and version
+ * navigation but is owned by one tab, so a send or Cancel in another tab cannot erase
+ * newer unsent words.
  *
  * Versions: an unpinned page follows the newest version, navigating to each revision as
  * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
@@ -227,6 +228,46 @@ const settling = [];
 export function settle(promise) {
   settling.push(promise);
 }
+
+// ---------- what the page keeps, and what a store may refuse ----------
+// Reading or writing web storage throws outright where the browser has it switched off —
+// a locked-down profile, a private window on some engines — and nothing kept here is
+// worth breaking the page for: a reader who cannot save which tab they were on still
+// gets the page. Said once, because a policy spelled at each caller is a policy free to
+// be spelled differently at the next one, and eleven of them had accumulated across the
+// runtime and two widget modules.
+//
+// Which store is the part worth reading at a call site, and naming them is what puts it
+// there. `tabStore` is this tab's working state and dies with the tab — unsent drafts,
+// the reading position, whether a widget stands open — because another tab's gesture
+// must never reach it (see the draft section below). `readerStore` is this reader's
+// standing preference across tabs, which is the chrome they arrange and expect to find
+// arranged. Anything two tabs must agree about is neither: it goes in the log.
+//
+// Values are the store's own vocabulary, strings and null, so nothing here has an
+// opinion about encoding: an absent key reads back as null, and writing null removes it.
+const stored = (backing) => ({
+  get(key) {
+    try {
+      return backing.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key, value) {
+    try {
+      if (value === null) backing.removeItem(key);
+      else backing.setItem(key, value);
+    } catch {
+      /* a page that cannot remember still renders */
+    }
+  },
+});
+// Only the tab's store is on the helper surface, because only widgets keep working state
+// (lf-tabs' open panel, lf-options' collapsed group). The chrome the reader arranges is
+// the runtime's own, and an export nothing imports is a promise nobody asked for.
+export const tabStore = stored(sessionStorage);
+const readerStore = stored(localStorage);
 
 // ---------- syntax ----------
 // Code is colored in the browser, at upgrade, and the spans land in the DOM — which is
@@ -2074,20 +2115,16 @@ function showOthers(open) {
     else hide();
     if (othersPanel.contains(document.activeElement)) othersBtn.focus();
   }
-  try {
-    localStorage.setItem(OTHERS_KEY, open ? "1" : "");
-  } catch {}
+  readerStore.set(OTHERS_KEY, open ? "1" : "");
   othersBtn.setAttribute("aria-expanded", String(open));
   paintLine();
 }
 othersBtn.onclick = () => showOthers(!othersOpen);
-try {
-  if (localStorage.getItem(OTHERS_KEY) === "1") {
-    othersOpen = true;
-    othersPanel.classList.add("open");
-    othersBtn.setAttribute("aria-expanded", "true");
-  }
-} catch {}
+if (readerStore.get(OTHERS_KEY) === "1") {
+  othersOpen = true;
+  othersPanel.classList.add("open");
+  othersBtn.setAttribute("aria-expanded", "true");
+}
 // The board's own scope. The walk is the board's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
@@ -2509,26 +2546,18 @@ export function watchActions(widget, action, callback) {
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
 // and server death; only a successful send clears it. It is working state of this tab,
-// not shared page state: sessionStorage keeps another tab's send or Cancel from clearing
+// not shared page state: tabStore keeps another tab's send or Cancel from clearing
 // a newer local edit. Recorded actions in the log are what converge across tabs.
 // Surviving the tab's own close is the open question (TODO.md), and it is a question
 // about what a second tab then sees rather than about where a draft lives. Storage
-// failures never break typing. Exported: a widget holding user text (lf-draft's in-place
-// edit) keeps it under the same discipline, in the same store.
+// failures never break typing (tabStore). Still a pair of its own rather than callers
+// spelling tabStore themselves, because a textarea and a store disagree about nothing:
+// one place turns the store's null into the "" a value wants, and an emptied box into a
+// removed key. A widget that means to keep an emptied draft says so by storing something
+// (lf-draft wraps its text in JSON), which is the same discipline in the same store.
 const DRAFT = "lf-draft:";
-export const saveDraft = (ctx, val) => {
-  try {
-    if (val) sessionStorage.setItem(DRAFT + ctx, val);
-    else sessionStorage.removeItem(DRAFT + ctx);
-  } catch {}
-};
-export const loadDraft = (ctx) => {
-  try {
-    return sessionStorage.getItem(DRAFT + ctx) || "";
-  } catch {
-    return "";
-  }
-};
+export const saveDraft = (ctx, val) => tabStore.set(DRAFT + ctx, val || null);
+export const loadDraft = (ctx) => tabStore.get(DRAFT + ctx) || "";
 // Reply drafts are never pruned. A thread resolving is not a discard: another
 // tab's Resolve, or this tab accepting a suggestion whose action `resolves`,
 // used to sweep an unsent reply out of sessionStorage — words going missing,
@@ -2619,9 +2648,7 @@ function setPanel(open) {
   panel.classList.toggle("open", open);
   toggleBtn.setAttribute("aria-expanded", String(open));
   syncLayout();
-  try {
-    localStorage.setItem(PANEL_KEY, open ? "1" : "0");
-  } catch {}
+  readerStore.set(PANEL_KEY, open ? "1" : "0");
   if (open) {
     renderPanel();
     syncGeneral(); // a restored draft has to reach the Send button's disabled state
@@ -4028,7 +4055,7 @@ function findQuote(text, quote, anchor, within) {
 // ---------- view continuity ----------
 // Following a new version is a navigation, so without help the reader lands at the top
 // of a fresh document mid-session. The passage they were reading rides across in
-// sessionStorage — per-tab like unsent drafts, because a reading position belongs to a
+// tabStore — per-tab like unsent drafts, because a reading position belongs to a
 // tab and shouldn't outlive it. It travels as a landmark rather than a pixel offset,
 // since content moves between versions: re-find the passage by its text within its
 // section, then the section alone, and only fall back to the raw offset when neither
@@ -7277,9 +7304,7 @@ async function poll() {
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general");
-try {
-  if (localStorage.getItem(PANEL_KEY) === "1") setPanel(true);
-} catch {}
+if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
 // panel is restored just above, so the column is already reflowed). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:
@@ -7298,18 +7323,21 @@ try {
 // a reference naming one paints detached rather than dead-ending.
 history.scrollRestoration = "manual";
 const ARRIVING = performance.getEntriesByType("navigation")[0]?.type === "navigate";
+// Parsed inside its own guard, which is a different question from whether the store
+// answered: tabStore hands back null for a store that refused, and what a page wrote
+// there is only JSON while every version of this runtime agrees about the shape. A
+// landmark that no longer parses costs the reader their scroll position; throwing here
+// would cost them the page, at module top level, with nothing else having run.
 const savedView = (() => {
   try {
-    return JSON.parse(sessionStorage.getItem(VIEW_KEY) || "null");
+    return JSON.parse(tabStore.get(VIEW_KEY) || "null");
   } catch {
     return null;
   }
 })();
 addEventListener("pagehide", () => {
   if (!anchoringReady) return;
-  try {
-    sessionStorage.setItem(VIEW_KEY, JSON.stringify(captureView()));
-  } catch {}
+  tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
 });
 function landArrival() {
   const aimed =

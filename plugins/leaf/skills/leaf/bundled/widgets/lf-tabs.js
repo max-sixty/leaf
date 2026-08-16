@@ -4,14 +4,14 @@
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
  * scrolls to a comment anchor. The open tab is view state for this reader,
- * remembered per browser tab in sessionStorage like the scroll position:
+ * remembered per browser tab in the runtime's tabStore like the scroll position:
  * switching is reading, not editing, so it never sends an action and no
  * version carries it — this widget doesn't ride the action channel at all.
  * While the version diff is on, a tab whose panel holds marked passages wears
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
-import { once, keys, offer, relabel, HIDDEN } from "/leaf.js";
+import { once, keys, offer, relabel, tabStore, HIDDEN } from "/leaf.js";
 
 const TAB_KEY = "lf-tabs:";
 
@@ -88,10 +88,7 @@ customElements.define(
       // Restore this reader's tab; a remembered id always resolves in later
       // versions because check forbids dropping ids. Restoration happens here,
       // during upgrade, so the runtime's view restore measures final geometry.
-      let saved = null;
-      try {
-        saved = sessionStorage.getItem(TAB_KEY + this.id);
-      } catch {}
+      const saved = tabStore.get(TAB_KEY + this.id);
       this.#activate(panels.find((p) => p.id === saved) || panels[0], false);
       // Δ badges follow the version diff; the runtime announces each toggle.
       document.addEventListener("lf-diff", () => this.#badges());
@@ -104,10 +101,7 @@ customElements.define(
         btn.setAttribute("aria-selected", panel === active ? "true" : "false");
         btn.tabIndex = panel === active ? 0 : -1;
       }
-      if (remember)
-        try {
-          sessionStorage.setItem(TAB_KEY + this.id, active.id);
-        } catch {}
+      if (remember) tabStore.set(TAB_KEY + this.id, active.id);
     }
 
     // One Δn chip per tab holding marked passages, so the toast's count is

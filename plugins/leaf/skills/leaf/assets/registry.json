@@ -105,7 +105,7 @@
     "names": ["ok", "warn", "danger"]
   },
   "$idioms": {
-    "description": "Recurring shapes the theme styles directly — no registry entry, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for. A layer adds one by declaring it here and styling it in its theme.css; members merge across layers, so the declaration joins this catalog rather than replacing it.",
+    "description": "Recurring shapes the theme styles directly — no registry entry, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for. Each key is the CSS selector the shape is written as, and the example beside it is that markup. A layer adds one by declaring it here and styling it in its theme.css; members merge across layers, so the declaration joins this catalog rather than replacing it.",
     ".eyebrow": {
       "description": "A small-caps label above a heading.",
       "example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
@@ -123,7 +123,7 @@
       "example": "<aside class=\"callout\">Rollback is one flag flip; the backfill is idempotent.</aside>"
     },
     "aside.sidenote": {
-      "description": "A note in the page's left margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the reader is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `version check --render` refuses the version rather than letting it ship. On a narrow window and on paper it is a small indented block where it was written, so nothing it says rests on the margin being there. These are the page's own words, so the reader can select, quote and comment on one. The margin holds about thirty characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
+      "description": "A note in the page's left margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the reader is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `version check --render` refuses the version rather than letting it ship. Where the page's box has no room for the strip — a narrow window, or the comment panel taking its side of a middling one — and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. These are the page's own words, so the reader can select, quote and comment on one. The margin holds about thirty characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
       "example": "<aside class=\"sidenote\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
     },
     ".facts": {
@@ -146,7 +146,7 @@
       "description": "Evidence: a claim as the <summary>, its backing collapsed beneath. Native disclosure; find-in-page reaches the collapsed content.",
       "example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-metric\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
     },
-    "pre > code.language-*": {
+    "pre > code[class*=\"language-\"]": {
       "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to, and `version check` refuses one outside it. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
       "example": "<pre><code class=\"language-bash\">leaf version check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
     }

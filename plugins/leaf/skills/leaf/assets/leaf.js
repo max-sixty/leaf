@@ -1427,6 +1427,15 @@ const POLL_MS = 2000;
 // questions — option rows are the one thread content that can't scroll or scale
 // its width away, and 360 crowded them.
 const PANEL_W = 420;
+// The width the theme wants a page's box to have before it takes a strip of it for the
+// margin (theme.css's --strip-min, stated there because that is where the strips and
+// their breakpoints are). Read blind: the runtime reports how wide the box is against
+// the number the theme states and never learns which idiom spends it. A theme without
+// the token leaves this NaN, every comparison against it false, and the media query
+// alone deciding — which is the same answer a page with no runtime already gets.
+const STRIP_MIN = parseFloat(
+  getComputedStyle(document.documentElement).getPropertyValue("--strip-min"),
+);
 
 // ---------- styles ----------
 /* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
@@ -2622,12 +2631,31 @@ function syncLayout() {
   // transition granted to body at the end of the restore — because an eye can follow
   // a sentence that slides and cannot find one that teleports.
   panelCovers = panelOpen && innerWidth <= PANEL_W * 2;
-  document.body.style.marginRight = panelOpen && !panelCovers ? PANEL_W + "px" : "";
+  const panelBeside = panelOpen && !panelCovers;
+  document.body.style.marginRight = panelBeside ? PANEL_W + "px" : "";
   document.body.style.overflowY = panelCovers ? "hidden" : "";
+  // The theme's margin strips are granted by a media query, which asks the window; the
+  // page's box is the window less whatever the panel just took of it, and this function
+  // is the only thing that knows the difference. So it asks the theme's own floor of the
+  // box and says whether the page is cramped — a fact about the page rather than about
+  // any idiom that spends it. Without this a 1024px window with the panel beside it
+  // left a page carrying sidenotes a 151px column, painting its widest widgets out past
+  // the edge of one, and neither `version check --render` nor the render suite can see
+  // that posture: both open a 1200px window with no panel in it.
+  //
+  // Stated from the write above rather than measured off body, whose clientWidth is the
+  // box itself and would otherwise be the natural reading. The margin transitions, so a
+  // measurement taken here is of the width the page is leaving — 1024 on the very
+  // resize that costs it the room — and the strip would stand or fall a posture late,
+  // this function running once per change and not once per frame.
+  document.body.toggleAttribute(
+    "data-lf-cramped",
+    document.documentElement.clientWidth - (panelBeside ? PANEL_W : 0) < STRIP_MIN,
+  );
   // The toast lives in the same corner as the panel's Send button. Beside a wide
   // panel it steps left; over a covering sheet it stays inside the viewport and
   // rises above the whole composer, including a textarea grown by an unsent draft.
-  toastEl.style.right = (panelOpen && !panelCovers ? PANEL_W + 18 : 18) + "px";
+  toastEl.style.right = (panelBeside ? PANEL_W + 18 : 18) + "px";
   toastEl.style.bottom = (panelCovers ? generalRow.offsetHeight + 18 : 18) + "px";
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.

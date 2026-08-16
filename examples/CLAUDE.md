@@ -1,6 +1,6 @@
 # The examples
 
-## Every widget in the vocabulary stands here
+## Every widget and idiom in the vocabulary stands here
 
 `examples/` is the whole corpus of eight sweeps in `test_render.py`: a page renders in
 both palettes, holds still under a press, passes axe, gives up every passage to a quote,
@@ -15,6 +15,15 @@ painted in the dark palette until a fixture was written by hand for it
 (`test_the_specimen_gutter_is_painted_in_both_schemes`).
 `test_every_widget_in_the_vocabulary_stands_in_an_example` is the floor, read off the
 registry, so the next widget joins the corpus by being declared.
+
+The catalog's other half stands under the same floor and takes a second test to hold it
+there. An idiom is declared as a selector rather than as a tag, so whether the corpus
+holds one is a question for a layout engine rather than for a regex, and
+`test_every_idiom_in_the_catalog_stands_in_an_example` puts every key to Chrome over the
+authored markup — the authored markup and not the upgraded page, since a `<table>` a
+module builds demonstrates nothing about the shape an author is being pointed at. Asking
+at all is what keeps a key a selector: `pre > code.language-*` read perfectly well and
+matched nothing, for as long as nothing asked.
 
 The floor is the widget; the shapes it takes are a judgement. A `lf-options` group takes
 its form from what its options hold and its arity from `multiple`, independently, so a

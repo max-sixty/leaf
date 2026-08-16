@@ -1010,6 +1010,53 @@ def test_example_renders(browser, serve, example):
     assert interact.render_version(browser, serve(example.read_text())) == []
 
 
+def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
+    """The sweep above is the corpus's own gate, and an idiom no example holds never
+    reaches it: the shape passes every test it has, because it has none. It is the
+    floor test_every_widget_in_the_vocabulary_stands_in_an_example is for widgets, and
+    the reason it is here rather than beside that one is that an idiom is declared as a
+    selector, which only a layout engine can answer.
+
+    Asked of the authored markup and not of the upgraded page, so an idiom stands
+    because an example writes it rather than because a widget's own rendering happens
+    to match — a `<table>` a module builds demonstrates nothing about the shape an
+    author is being pointed at. The gallery is left out for the same reason it is left
+    out of the widget floor: generated from the others, it can only repeat them.
+
+    Every key is put to the engine, so a key that is not a selector fails here too.
+    `pre > code.language-*` was one for as long as nothing asked — readable, matching
+    nothing, and the only member of the catalog with no way to be checked."""
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    idioms = [key for key in registry["$idioms"] if key != "description"]
+    assert idioms, "no idioms read — an empty catalog demonstrates itself"
+    page = browser.new_page()
+    held, invalid = set(), set()
+    for example in EXAMPLES:
+        if example.stem == "gallery":
+            continue
+        page.set_content(example.read_text(), wait_until="domcontentloaded")
+        answer = page.evaluate(
+            """(selectors) => {
+                const held = [], bad = [];
+                for (const s of selectors) {
+                    try { if (document.querySelector(s)) held.push(s); }
+                    catch { bad.push(s); }
+                }
+                return {held, bad};
+            }""",
+            idioms,
+        )
+        held |= set(answer["held"])
+        invalid |= set(answer["bad"])
+    page.close()
+
+    assert not invalid, f"not selectors, so nothing can ask for them: {sorted(invalid)}"
+    assert not set(idioms) - held, (
+        f"no example holds {', '.join(sorted(set(idioms) - held))}"
+        " — see examples/CLAUDE.md"
+    )
+
+
 # Every cell one unbreakable token, so no amount of wrapping gets this table
 # inside the column and the third of the theme's three cases is the one on trial.
 WIDE_TABLE_PAGE = """<!doctype html>
@@ -1202,6 +1249,58 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
         for f in failures
         if "<aside id=boxed-note> is drawn outside" in f and "clips it" in f
     ], f"a note the reader never sees went out with the handover: {failures}"
+    assert errors == []
+
+
+def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
+    """The margin form is granted by a media query, which asks the window — and the
+    panel takes 420px off the page's box without the window changing at all. Held
+    through that, a 1024px window left this page's column 151px wide and its widest
+    widgets painting out past the edge of it. So syncLayout asks the theme's own floor
+    of the box instead and says whether the page is cramped, and the strip stands down
+    for as long as it is.
+
+    Nothing else can see this posture. `version check --render` and the render sweep
+    both open a 1200px window with no panel in it, which is the width the query is
+    right at, so the gate that reads a spill is reading the one layout where there
+    isn't one.
+
+    Three readings, because each of the other two designs passes one of them. A page
+    that never had a note in the margin passes the cramped read on its own; a strip
+    released on every open panel, room or no room, passes that one too — and it is the
+    third that says no, the room being there on a wide window and the notes staying
+    where the reader had them."""
+    example = next(p for p in EXAMPLES if p.stem == "design-decision")
+    url = serve(example.read_text())
+    page, errors = open_page(browser, url)
+    reading = """() => {
+        const note = document.querySelector('aside.sidenote');
+        const main = document.querySelector('main'), s = getComputedStyle(main);
+        return {float: getComputedStyle(note).float,
+                cramped: document.body.hasAttribute('data-lf-cramped'),
+                column: Math.round(main.getBoundingClientRect().width
+                    - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
+    }"""
+    roomy = page.evaluate(reading)
+    resized(page, 1024, 900)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    cramped = page.evaluate(reading)
+    spills = page.evaluate(interact.PAST_THE_COLUMN)
+    resized(page, 1600, 900)
+    wide = page.evaluate(reading)
+    page.close()
+
+    assert roomy["float"] == "left", (
+        f"no note stood in the margin to begin with, so this proves nothing: {roomy}"
+    )
+    assert cramped["float"] == "none", (
+        f"the strip outlived the room for it: {cramped}, {spills}"
+    )
+    assert spills == [], f"content set outside a column the strip had crushed: {spills}"
+    assert wide["float"] == "left", (
+        f"a window wide enough for both moved the notes anyway: {wide}"
+    )
     assert errors == []
 
 

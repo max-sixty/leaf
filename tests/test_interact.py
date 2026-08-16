@@ -4162,6 +4162,24 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     assert "exceeds column (720px)" in result.output
 
 
+def test_the_strip_floor_is_one_number():
+    """The width a page's box needs before the theme takes a margin strip out of it is
+    asked by two parties that cannot share a form: a media query, which asks it of the
+    window and is right for a file with no runtime behind it, and syncLayout, which asks
+    it of the page's own box because only the runtime knows what the comment panel left
+    of it. A query cannot read a token and a token cannot see the panel, so the number
+    is written twice — and the second table free to disagree with the first is the shape
+    this codebase keeps getting wrong. Here it is a static fact about one file, so this
+    is the cheapest place to hold the two together."""
+    css = (interact.ASSETS / "theme.css").read_text()
+    floor = re.search(r"--strip-min:\s*(\d+)px", css)
+    assert floor, "the theme states no floor for the strips it takes off the page"
+    assert re.search(rf"min-width:\s*{floor[1]}px", css), (
+        f"the runtime is told {floor[1]}px and no media query asks for it, so the two "
+        "readings of one width have come apart"
+    )
+
+
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
     """An image reaches a page by reference, because the page's author is a language
     model and a screenshot is a megabyte of base64 it cannot type. The name is the

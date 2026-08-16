@@ -50,6 +50,17 @@
      off anything the way --rail is. The 192px it leaves the note sets about thirty
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below. */
   --note: 216px;
+  /* The width a page's box needs before a strip is worth taking out of it: main's own
+     768px and the strip. Two things ask it and they cannot share one form — the media
+     query below asks it of the window, which is the only reading a file with no runtime
+     behind it can get, and syncLayout asks it of the page's own box, which is the window
+     less whatever the comment panel has taken of it. A query cannot read a token and a
+     token cannot see the panel, so the number is here for the runtime to read and
+     written out again in the query, and test_the_strip_floor_is_one_number holds them
+     together.
+     Read blind, so it is the page's floor for margin strips rather than the sidenote's:
+     an idiom that hangs something out there wants the same answer. */
+  --strip-min: 984px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. These are the prose's hierarchy; a size
      that has to fit something states its own number where it is set — a code block
@@ -350,18 +361,24 @@ dd { margin: 0 0 8px 0; }
    The right one is the loop's: a suggestion's controls hang there, the composer's first
    choice of a place is there, and the panel takes that side of the window whole. A note
    out there would have to give way to all three, and giving way to the panel is the
-   marginalia moving under a reader who pressed Comments. Nothing the page lays out
+   marginalia moving under a reader who pressed Comments — on every window, where the
+   left gives way only on one with no room for both. Nothing the page lays out
    claims the left. Fixed chrome still crosses it — the key line stands at that corner —
    and covers a note at the foot of the window as it already covers the column's own
    last visible line.
 
    The strip comes out of body's padding, as --rail does on the other side, so the column
    centres in what is left rather than hanging the note in whatever the centring happened
-   to leave over. It is held whether or not the panel is open, which is what it costs: a
-   page carrying notes gives the column another 216px when the panel takes its 420. A
-   strip handed back at that moment would move every note on the page instead.
+   to leave over. It is held for as long as the page can afford it and no longer, and the
+   panel is what takes the room without the window saying so: 420px off the page's box at
+   an unchanged window width. Held through that, a 1024px window left the column 151px
+   and its widest widgets painting out past the edge of it — and `version check --render`
+   cannot see any of it, rendering at 1200 with no panel to open. Handing the strip back
+   the moment the panel opens is the other wrong answer, since on a wide window that
+   moves every note on the page for room the page still has. So the floor is a width
+   rather than a state (--strip-min), and syncLayout asks it of the box the panel left.
 
-   The breakpoint is the 768px of main's box plus the strip; below it the strip would
+   The breakpoint below is that same width asked of the window; under it the strip would
    come out of the column's own width. Under it, and on paper, the note is a small
    indented block where it was written. Paper has no margin to hang one in — 768px is 8
    inches at 96 to the inch, against 8.5 for Letter and 8.27 for A4 before either takes a
@@ -370,7 +387,7 @@ dd { margin: 0 0 8px 0; }
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
 @media screen and (min-width: 984px) {
-  body:has(aside.sidenote) { padding-left: var(--note); }
+  body:not([data-lf-cramped]):has(aside.sidenote) { padding-left: var(--note); }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a
      board, a table — the note is drawn nowhere at all, and the reader is the only party
@@ -389,8 +406,14 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
      two first baselines would want about 4px besides, and that is an ascent difference
      between two faces at two sizes — a fact about Charter that DejaVu answers
      differently, for a shift nobody can see across a 24px gutter. `clear` is what
-     stacks a second note under the first rather than over it. */
-  aside.sidenote {
+     stacks a second note under the first rather than over it.
+
+     data-lf-cramped is syncLayout's answer to --strip-min, and it is written as a veto
+     so that a page with nothing running behind it — an exported copy, a version opened
+     off disk — keeps the margin the query grants it. The in-flow form above is the
+     whole of what standing down means, which is why the veto qualifies the grant rather
+     than restating it: a reset here would be the same layout written twice. */
+  body:not([data-lf-cramped]) aside.sidenote {
     float: left; clear: left; width: calc(var(--note) - var(--sp-4));
     margin: 0 0 12px calc(-1 * var(--note)); }
 }

@@ -3398,12 +3398,35 @@ def shown_frames(page):
         .map(f => f.dataset.lfState)""")
 
 
+def flip_point(page, sel="lf-shot"):
+    """The middle of a shot's frame — where a reader comparing would have the pointer.
+
+    Returned rather than clicked, because what the widget is for is alternating from
+    one place: a helper that clicked would let a test press two different points and
+    still pass, which is the property the old radios failed at.
+
+    Scrolled to first, because `bounding_box` answers in viewport coordinates for an
+    element that may be past the fold — on the long page the shot sits on, the point
+    comes back below the window and `mouse.click` presses whatever is there instead,
+    which reads as the widget refusing the gesture rather than as the test missing it.
+    """
+    frame = page.locator(f"{sel} .lf-shotframe").first
+    frame.scroll_into_view_if_needed()
+    box = frame.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     """The comparison lf-shot makes is a flip: two registered frames in one grid cell,
     one of them showing. What the gate covers on the way past is the rest of the
     widget's bargain — the captions naming each frame are the page's words and stay
-    selectable, the radios are chrome and take no space in the user's reading, and
-    a printed copy keeps both frames and both captions."""
+    selectable, the switch is chrome and takes no space in the user's reading, and
+    a printed copy keeps both frames and both captions.
+
+    The image is the target, so both presses land on one point and the pointer never
+    moves: a comparison is many alternations, and the whole worth of a flip is that
+    the eye can hold still through them. Pressing the switch instead would assert the
+    state swaps while saying nothing about what it costs to swap it."""
     url = serve(SHOT_PAGE)
     for name, data in SHOTS.items():
         (serve.page_dir / "media").mkdir(exist_ok=True)
@@ -3412,29 +3435,43 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
 
     page, errors = open_page(browser, url)
     assert shown_frames(page) == ["before"]
-    page.get_by_role("radio", name="after").check()
+    at = flip_point(page)
+    page.mouse.click(*at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
+    page.mouse.click(*at)
+    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
+    assert shown_frames(page) == ["before"]
+    # The keyboard's handle, which the label over the image cannot be.
+    page.locator("lf-shot input[type=checkbox]").focus()
+    page.keyboard.press(" ")
+    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert errors == []
     page.close()
 
 
 def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
-    """Which is the whole reason the control is a radio group. A copy is the rendered
-    DOM with the scripts dropped and every press a handler answered taken out with
-    them — the upgrade has already run, so the frames are there, and this switch
+    """Which is the whole reason the control is a checkbox and a label. A copy is the
+    rendered DOM with the scripts dropped and every press a handler answered taken out
+    with them — the upgrade has already run, so the frames are there, and this switch
     survives that pass because the browser is what works it. A slider would have
     frozen at whatever the reader left it on; `:has(:checked)` is CSS, and the browser
-    owns a radio's state.
+    owns a checkbox's state — label activation included, so the image goes on being
+    the target in a file with nothing running.
 
     Through `version export` rather than a copy the test makes itself, which is what
     puts the widget's bargain in front of the code that could break it: a hand-rolled
     one dropped the script tags and nothing else, so it went on passing however the
     real export treated a control.
 
-    The bug this pins was real: setting `checked` as a property left no attribute to
-    serialize, so the copy opened with neither frame chosen and both of them stacked
-    in the one cell."""
+    What it pins is no longer that a state serializes. Setting `checked` as a property
+    left no attribute behind, so the copy opened with neither frame chosen and both of
+    them stacked in the one cell — a fault the frames' own default has since made
+    unrepresentable, the after frame being hidden until something checks the box rather
+    than until something checks the other box. So the state needs nothing serialized at
+    all, and what is left to lose is the gesture: `for` is a reflected attribute where
+    `checked` was not, and a copy that dropped it would keep every frame and every word
+    and answer no click on the image."""
     url = serve(SHOT_PAGE)
     for name, data in SHOTS.items():
         (serve.page_dir / "media").mkdir(exist_ok=True)
@@ -3446,7 +3483,7 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
     assert shown_frames(loose) == ["before"]
-    loose.get_by_role("radio", name="after").check()
+    loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
     loose.close()
 
@@ -5288,7 +5325,9 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
 
 # An option arguing its case with the evidence inside it, which is the whole reason the
 # card is more than a label. Three things to work stand in one option, one per vocabulary
-# the guard reads: a widget's own control (the shot's radios, injected through `offer`), a
+# the guard reads: a widget's own control (the shot's frame, a label injected through
+# `offer` that covers the whole image, so this is most of the card's area rather than a
+# corner of it), a
 # widget's own words (the draft's body, which is deliberately not chrome and so is reached
 # only by being inside a widget the option contains), and an element HTML calls
 # interactive that no widget put there (the disclosure). A page holding one of the three
@@ -5343,8 +5382,8 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
-    page.locator("#ro-shot .lf-shotpick label", has_text="after").click()
-    expect(page.locator("#ro-shot input[value='after']")).to_be_checked()
+    page.mouse.click(*flip_point(page, "#ro-shot"))
+    expect(page.locator("#ro-shot input[type=checkbox]")).to_be_checked()
     assert not option.evaluate(picked), "flipping the shot answered the question"
 
     page.locator("#ro-numbers summary").click()
@@ -9469,7 +9508,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     claim the lot: the typing scope stood wherever focus was in a form control, on the
     reading that a letter is a keystroke there — true of a text box, false of a radio, a
     checkbox and a slider, none of which the platform ever hands a letter. So a reader
-    standing on a screenshot's before/after radio lost c, the walks, the version keys and
+    standing on a screenshot's before/after switch lost c, the walks, the version keys and
     the reference itself, and the line went blank rather than wrong, which is how it
     reaches its author as "the keyboard stopped working".
 
@@ -15622,9 +15661,10 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
         // taught. The twelfth widget is covered by having used offer.
         //
         // The role a control the browser drives wears is the copy telling the truth —
-        // lf-shot's radiogroup names radios that still flip its frames — so the role
-        // half stands down for one of the platform's own controls. The tab stop's half
-        // does not: offer writes that on presses of its own making and on nothing else.
+        // lf-shot's label still flips its frames, its checkbox still takes the keyboard —
+        // so the role half stands down for one of the platform's own controls. The tab
+        // stop's half does not: offer writes that on presses of its own making and on
+        // nothing else.
         pressable: [...document.querySelectorAll('[data-lf-offer][tabindex]'),
                     ...[...document.querySelectorAll('[data-lf-offer][role]')]
                         .filter(el => !el.querySelector(
@@ -15642,7 +15682,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
             .map(el => (el.className || el.tagName.toLowerCase()) + ': '
                        + el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 24)),
         // The same claim in paint. A hand or a grab says a gesture lands here, and in a
-        // copy one lands nowhere the browser isn't the thing acting: a label's radio, a
+        // copy one lands nowhere the browser isn't the thing acting: a label's checkbox, a
         // link, a disclosure. The exemptions are the platform's own controls, so no
         // widget is named here either.
         offering: [...document.querySelectorAll('main *')]

@@ -338,6 +338,11 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
   ways one passes vacuously, are in `tests/CLAUDE.md`.
 - **Measure before optimising and before assuming.** The cost claims in this codebase came
   from timing the real thing on `examples/gallery.html`, not from reasoning.
+- **A page directory holds a copy of the layer, so re-vendor before believing it.**
+  `page init` is what vendors, and it re-vendors an existing directory. Until it is run
+  again a page serves the assets it was created with, so `version check --render` reads a
+  runtime the checkout no longer has — and reports it clean, which is the whole trouble:
+  the green is about the copy, and says nothing either way about the edit being checked.
 - **Merge locally.** The project isn't at the stage of PRs: landing is `wt merge`, a
   direct squash merge to main, never a PR — background jobs, whose harness default is a
   draft PR, included. That settles the form of a landing, not whether one was asked for:

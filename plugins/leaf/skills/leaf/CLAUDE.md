@@ -489,9 +489,11 @@ write.
 A `choose` group takes the pick on the whole option, and an option's case is argued
 inside the option — a screenshot pair to flip, a disclosure to open, tabs to walk.
 Reading the evidence then cast a vote. A click on a tab chose that option; one on a
-shot's `after` radio chose it and cleared it again, so the log carried two decisions
-nobody made and the page showed neither of them. What stood there was an exemption for
-`<a>`, which is one item off a list the platform had already closed.
+shot's switch chose it and cleared it again, so the log carried two decisions nobody made
+and the page showed neither of them. What stood there was an exemption for `<a>`, which is
+one item off a list the platform had already closed. The shot has since made the whole
+image its target, so what the container declines is now most of the option's area rather
+than a control in the corner of it — the same rule, carrying far more.
 
 `worksInside` is the question asked once: the nearest thing between the click and the
 container that has a use for it, or nothing, where the container itself is the aim. Two
@@ -897,12 +899,19 @@ about which one is last.
 
 ## A widget's chrome outlives its handlers
 
-`lf-shot` flips between two screenshots with a radio group and one `:has(:checked)` rule,
-where a dragged wipe divider would have read more naturally. The reason is what a leaf
-page becomes once it leaves the server: rendered DOM, script tags dropped. The upgrade has
-already run, so everything a module built is still on the page — and nothing it bound is.
-A slider would freeze wherever the last reader left it. A radio's state belongs to the
-browser, and CSS can see it.
+`lf-shot` flips between two screenshots with a checkbox, a label over the image driving
+it, and one `:has(:checked)` rule, where a dragged wipe divider would have read more
+naturally. The reason is what a leaf page becomes once it leaves the server: rendered DOM,
+script tags dropped. The upgrade has already run, so everything a module built is still on
+the page — and nothing it bound is. A slider would freeze wherever the last reader left it.
+A checkbox's state belongs to the browser, and CSS can see it.
+
+Which gesture drives it is a separate question from what holds the state, and the first
+answer conflated them. Two radios under the frame put the switch 83px off the change and
+20px tall — a fiftieth of the image's area — so every alternation cost a look away and a
+re-aim, on a widget whose whole worth is that the eye can hold still. The label over the
+image is the target now; the checkbox stays under it for the keyboard, where it covers
+nothing. Browser-owned state was never what made the control small.
 
 That cuts both ways, and the first draft got the other half wrong: `checked` set as a
 property leaves no attribute to serialize, so the standalone copy opened with neither
@@ -910,7 +919,7 @@ frame chosen and both of them stacked in the one cell. What a widget wants to su
 goes in an attribute, and the test that proves it strips every `<script>` before asking.
 
 Print is the same question asked by a medium that has always been script-less, which is
-why the answers coincide: paper drops the radios and stacks both frames, and the captions
+why the answers coincide: paper drops the switch and stacks both frames, and the captions
 naming them are `data-lf-gen` rather than `.lf-ui` — a frame's caption is the widget's own
 word, like a column's heading, not a control's like "Save".
 
@@ -950,9 +959,9 @@ and off the tab stop rather than a role by name — `offer` writes `role="button
 widget with an ARIA pattern to keep writes over it, so every press in `lf-tabs`' strip says
 `role="tab"` and a hunt for buttons walks past all of them. The tab stop is also what tells
 a copy from paper. A control the browser works has no tab stop of the runtime's making, so
-it keeps both the role that names it and its place on the page: `lf-shot`'s radios flip its
-frames in a file with no script behind them, where paper, which can press nothing either
-way, stacks both.
+it keeps both the role that names it and its place on the page: `lf-shot`'s checkbox and
+the label over its frames still flip them in a file with no script behind it, where paper,
+which can press nothing either way, stacks both.
 
 That leaves the theme less to key than it looks. An affordance on a press that goes needs
 no qualifier at all — a grip's grab cursor stands plain, since no medium shows a grip with
@@ -1022,7 +1031,7 @@ so they ask `.lf-chrome`. Asking `.lf-ui` was the same substitution the anchorin
 above is about, and it worked for the same reason — the layer wears that face — right
 up until a widget's own chrome, out on the page, wraps something of the page's. Where a
 marker does own the question it still answers it: the class for the composer's quote,
-the one injected element carrying an id (`[id]:not(.lf-ui)`), and `data-lf-offer` for a
+the class on any injected element carrying an id (`[id]:not(.lf-ui)`), and `data-lf-offer` for a
 thing to work, which is what a draft's double-click asks before it swallows the
 browser's word selection.
 

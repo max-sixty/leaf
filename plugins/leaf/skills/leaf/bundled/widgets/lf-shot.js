@@ -7,18 +7,26 @@
  * in memory. Swapping one registered frame for the other leaves the change as the only
  * thing on screen that moves — the blink comparator's trick, and how it found a planet.
  *
- * Everything the flip needs is native: the state is a radio group, the swap a
- * `:has(:checked)` rule in the theme. No handler runs after the upgrade, so a serialized
- * copy of this page — DOM kept, script tags dropped — still flips, and a printed one
- * stacks both frames instead. A dragged slider would have survived neither.
+ * That works because the eye holds still, so what the flip costs to work is the whole of
+ * what it is worth. The switch was a radio each under the frame: two targets 83px apart
+ * and 20px tall, together a fiftieth of the image's area, so every alternation spent a
+ * look away from the change, an aim, and a re-aim for the second click — and a
+ * comparison is many alternations. The frame is the target now. A transparent label
+ * over the image drives one checkbox, so the pointer rests on the change and clicks
+ * without aiming, and the two states swap under it.
+ *
+ * Everything that needs is native: the state is a checkbox, the swap a `:has(:checked)`
+ * rule in the theme. No handler runs after the upgrade, so a serialized copy of this
+ * page — DOM kept, script tags dropped — still flips, and a printed one stacks both
+ * frames instead. A dragged slider would have survived neither.
  *
  * Two kinds of word, and they are marked differently on purpose. Each frame's caption
  * names which state it holds, which is the widget's own word and the only thing telling
  * the two frames apart once paper has both of them on the page: data-lf-gen alone, so
- * the version diff looks away and the user can still select it. The radio beside it
- * is a thing to press, so it goes through `offer` with the rest of the chrome. What the
- * page has to say about the change itself is neither — it is prose, written around the
- * element, where a comment can reach it like any other sentence. */
+ * the version diff looks away and the user can still select it. The switch under the
+ * frame is a thing to press, so it goes through `offer` with the rest of the chrome.
+ * What the page has to say about the change itself is neither — it is prose, written
+ * around the element, where a comment can reach it like any other sentence. */
 import { once, offer, failSoft, settle } from "/leaf.js";
 
 customElements.define(
@@ -28,9 +36,6 @@ customElements.define(
       if (!once(this)) return;
       const alt = this.getAttribute("alt");
       const shots = [];
-      const pick = offer("div", "lf-shotpick");
-      pick.role = "radiogroup";
-      pick.ariaLabel = `${alt}: which state to show`;
 
       for (const state of ["before", "after"]) {
         const frame = document.createElement("div");
@@ -48,21 +53,40 @@ customElements.define(
         caption.textContent = state;
         frame.append(img, caption);
         this.append(frame);
-
-        const label = offer("label", "");
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        // Scoped to this element, so two pairs on a page flip independently.
-        radio.name = `lf-shot-${this.id}`;
-        radio.value = state;
-        // The attribute, not the property: a serialized copy of this page keeps
-        // attributes and drops properties, and a copy that opened with neither
-        // radio checked would show both frames stacked in the one grid cell.
-        if (state === "before") radio.setAttribute("checked", "");
-        label.append(radio, ` ${state}`);
-        pick.append(label);
       }
-      this.append(pick);
+
+      // The target: transparent, the frame's own size, and driving the checkbox below by
+      // `for`. It carries the offer marker like any other control a widget hangs, so
+      // paper drops it and a float steps around it where one would otherwise stand on
+      // the image; the copy keeps it, the checkbox's state being the browser's.
+      const flip = offer("label", "lf-shotflip");
+      flip.htmlFor = `lf-shot-${this.id}-flip`;
+
+      // The switch sits under the frame and not on it. It is not what the reader works
+      // during a comparison — the image is — so it is the keyboard's handle and the word
+      // that says the image is live, and a chip in the frame's corner buys neither of
+      // those at the price of covering the change it is there to show. Put there first,
+      // it landed on the very pill the pair existed to show.
+      const row = offer("div", "lf-shotpick");
+      const label = offer("label", "");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.id = flip.htmlFor;
+      // `.lf-ui` because it carries an id: which item a comment is on is asked as
+      // `[id]:not(.lf-ui)` of the element itself, so an injected id without the class
+      // answers that question with itself.
+      box.className = "lf-ui";
+      box.ariaLabel = `${alt}: show the after state`;
+      // The word for the bigger target is this label's own, not a note beside it. A
+      // pointer cursor is the only other thing saying the image is live, and it says so
+      // to whoever has already hovered — while an offer standing outside a control, with
+      // words and nothing to work, is what a copy has no way to honour
+      // (`test_an_exported_example_stands_on_its_own` refuses one). Inside, the press the
+      // words name is the label over the frame, and paper drops both together.
+      label.append(box, " flip — or click the image");
+      row.append(label);
+
+      this.append(flip, row);
       settle(this.register(shots));
     }
 

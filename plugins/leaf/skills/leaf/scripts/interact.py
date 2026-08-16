@@ -6757,7 +6757,7 @@ UNREACHABLE_WORDS = """() => {
     // hid while the identical badge in a settled row read as chrome), or a native
     // control. `label` is among those because a radio and a checkbox have nowhere else
     // to put their words: a button holds its own, an input cannot, and HTML's answer is
-    // an element beside it. lf-shot's flip is radios, so that it keeps working in a page
+    // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
     // whose script is gone. The line counting a passage's comments is one of these too —
     // the runtime builds it through `offer`, as a widget builds its own.
     const CONTROL = `${FORM}, label, [data-lf-offer]`;
@@ -7735,7 +7735,7 @@ def render_check(page_dir: Path, version: int) -> int:
 # comment box that swallows what you type and a banner claiming someone is listening
 # are worse than no chrome at all — a copy that lies about being a live page. What stays
 # is everything the widgets built, and the controls they injected where the browser is
-# what works them: a `lf-shot` flips on radios with no script running. A press a handler
+# what works them: a `lf-shot` flips on a checkbox with no script running. A press a handler
 # answered leaves the words it stated and takes the rest of itself with it, below.
 #
 # `lf-copy` is the medium, declared the way `@media print` is and read the same way —
@@ -7793,10 +7793,10 @@ BAKE = """() => {
     // the same two.
     //
     // A copy parts from paper on one thing: it is still a document the browser runs, so a
-    // control the browser drives keeps working, and lf-shot flips its frames on radios in
+    // control the browser drives keeps working, and lf-shot flips its frames on a checkbox in
     // a file with no script behind it. The tab stop is what tells the two apart, being the
-    // runtime's own reading of a press it made (ASK_CONTROL): a radio, a label and a §
-    // link never had one, and lf-shot's radiogroup keeps the role that says what they are.
+    // runtime's own reading of a press it made (ASK_CONTROL): a checkbox, a label and a §
+    // link never had one, and lf-shot's checkbox keeps the role that says what it is.
     //
     // Asked of the marker rather than of the role, because `offer`'s role="button" is not
     // what a press ends up wearing: a widget with an ARIA pattern to keep writes its own

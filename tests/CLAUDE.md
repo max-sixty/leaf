@@ -280,6 +280,26 @@ silently rather than failing — which is the vacuous pass, wearing the same gre
 real one. Pin the count across reloads, and check a new gate by putting each bug back and
 watching it fail; a gate that has only ever passed has been tested for nothing.
 
+## A test goes vacuous when the code stops being able to fail it
+
+The bug-back above is written for a new gate, and the expensive case is an old one. A test
+asserts a bound, the code later makes that bound uncrossable, and the assertion keeps
+passing while the fault it was named for moves somewhere it is no longer looking. Nothing
+turns red on the way through; the suite reports the same green for a check that is now
+asking nothing.
+
+Two here did it at once. Both measured a wide widget against the right edge of the page's
+box, which was where an over-wide room used to spend itself. Once the right margin was
+claimed by whatever stands in it, the widget could only ever grow leftward — so the
+assertion was true by construction, and the same faults, put back one at a time, sailed
+through both. The room read too wide now runs off the *left* of the window, which is the
+worse direction: leftward overflow scrolls nothing in a page set left to right, so what
+went past the edge is gone rather than merely out of view.
+
+So a change that alters which way a fault can point is a change that owes its existing
+tests a bug-back, not only its new ones — and the question to put to each is which edge
+the fault lands on now.
+
 ## An assertion that nothing moved must straddle the change that could move it
 
 A geometry assertion is worth only as much as the transition it is measured across, and the

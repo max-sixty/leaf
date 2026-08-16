@@ -250,6 +250,11 @@ to click belongs on a page you are going to serve.
   `max-width: 100%` or `overflow-x: auto`, and size diagrams responsively rather than a
   fixed pixel width wider than the column. `version check` flags fixed widths that
   exceed it.
+  Widgets whose width is their content's — a board's columns, a diagram's graph — stand
+  wider than the column by themselves where the window has the room, because their
+  registry entry declares it (`x-wide`, in `page catalog`). That is the whole of the
+  mechanism: nothing is authored for it, no page states a width, and a page's shape
+  follows what it holds. Write the widget and let it take the room.
 - **Images come in by reference, never inline.**
   `leaf page media <page> <file>…` copies files into the page directory and prints
   the `src` to write; that path is the only form an image takes on a page, because a

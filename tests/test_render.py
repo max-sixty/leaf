@@ -14135,6 +14135,770 @@ def test_a_wide_diagram_keeps_its_size_and_scrolls_its_own_box(browser, serve):
     page.close()
 
 
+# A widget that declares width beside one that doesn't, so what the assertions turn on is
+# the declaration and not the tag: both are widgets, both hold more than the column shows
+# comfortably, and only one of them is entitled to more of the window than the prose gets.
+WIDE_AND_NARROW_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>room</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Release</h1>
+<p id="prose">The board is as wide as its columns are; this sentence is not.</p>
+<lf-board id="sprint">
+  <lf-column id="col-todo" label="Todo">
+    <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
+  </lf-column>
+  <lf-column id="col-doing" label="Doing">
+    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+  </lf-column>
+  <lf-column id="col-review" label="Review"></lf-column>
+  <lf-column id="col-done" label="Done"></lf-column>
+</lf-board>
+<lf-diff id="patch"><pre>
+diff --git a/feeders/mount.py b/feeders/mount.py
+--- a/feeders/mount.py
++++ b/feeders/mount.py
+@@ -1,3 +1,3 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
+</main>
+</body>
+</html>
+"""
+
+# main's content box, body's, and where three elements stand in them. Read together in
+# one pass because the whole subject is their relation: a width means nothing here except
+# against the column it is or isn't wider than.
+ROOM_GEOMETRY = """() => {
+    const span = (el) => {
+        const s = getComputedStyle(el), b = el.getBoundingClientRect();
+        const left = b.left + parseFloat(s.paddingLeft);
+        const right = b.right - parseFloat(s.paddingRight);
+        return { left, right, width: right - left, centre: (left + right) / 2 };
+    };
+    const box = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const b = el.getBoundingClientRect();
+        return { left: b.left, right: b.right, width: b.width,
+                 centre: (b.left + b.right) / 2 };
+    };
+    return { column: span(document.querySelector('main')),
+             room: span(document.body),
+             board: box('sprint'), diff: box('patch'), prose: box('prose'),
+             note: box('note'),
+             sideways: document.body.scrollWidth - document.body.clientWidth };
+}"""
+
+
+def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
+    browser, serve
+):
+    """A board's columns are as wide as what they hold and prose is set to a measure, so
+    a page carrying both used to be a cramped board or a page widened past its own
+    measure for one exhibit. x-wide is which of the two a widget is, and the theme spends
+    the room the layout measured — so the exhibit grows, the prose does not move, and the
+    axis they share is what keeps a page that mixes widths reading as one design.
+
+    The diff is the half that says the declaration is doing this. It is a widget too, and
+    its lines are written to a width source already fits, so it stays in the column: a
+    rule that reached every widget, or one naming lf-board, would pass every other
+    assertion here and fail this one."""
+    page, errors = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+
+    wide = page.evaluate(ROOM_GEOMETRY)
+    assert wide["board"]["width"] > wide["column"]["width"], (
+        "a widget declaring width must take more than the column: board "
+        f"{wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
+    )
+    # Room to spare at this viewport, so a board stopping short of it is the shared cap
+    # binding rather than the window — one width for the vocabulary, not each widget's own.
+    assert wide["board"]["width"] < wide["room"]["width"], (
+        "the breakout must stop at one stated width, not fill whatever is there"
+    )
+    assert wide["board"]["left"] >= wide["room"]["left"] - 1, (
+        "past the page on the left"
+    )
+    assert wide["board"]["right"] <= wide["room"]["right"] + 1, "past the page, right"
+    assert abs(wide["board"]["centre"] - wide["column"]["centre"]) <= 1, (
+        "an exhibit that grows off the column's axis reads as one that slipped: "
+        f"board centre {wide['board']['centre']:.0f}, column {wide['column']['centre']:.0f}"
+    )
+    assert abs(wide["diff"]["width"] - wide["column"]["width"]) <= 1, (
+        "a widget that declares nothing keeps the column: diff "
+        f"{wide['diff']['width']:.0f}px against {wide['column']['width']:.0f}px"
+    )
+    assert abs(wide["prose"]["width"] - wide["column"]["width"]) <= 1, (
+        "prose keeps its measure whatever the exhibits beside it do"
+    )
+    assert wide["sideways"] == 0, "the page must not scroll sideways"
+
+    # Under the column's own width there is no room to take, and the rule has to come out
+    # as the layout the page already had — the same edge, not an inset approximation of it.
+    resized(page, 700, 900)
+    narrow = page.evaluate(ROOM_GEOMETRY)
+    assert narrow["column"]["width"] < 720, (
+        "the narrow half proves nothing unless the window is under the column"
+    )
+    assert abs(narrow["board"]["left"] - narrow["column"]["left"]) <= 1, (
+        "a board on a narrow window must start where the prose starts: board at "
+        f"{narrow['board']['left']:.0f}, column at {narrow['column']['left']:.0f}"
+    )
+    assert abs(narrow["board"]["width"] - narrow["column"]["width"]) <= 1, (
+        "and be the column exactly: board "
+        f"{narrow['board']['width']:.0f}px, column {narrow['column']['width']:.0f}px"
+    )
+    assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
+    assert errors == []
+    page.close()
+
+
+# A wide widget inside each of the two kinds of holder: a box that paints (the quoted
+# frame, the option's card) and a wrapper that doesn't (a plain section).
+FRAMED_WIDE_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>framed</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Framed</h1>
+<section id="loose">
+  <lf-board id="in-section">
+    <lf-column id="s1" label="Todo"><lf-card id="sk1"><strong>One</strong></lf-card></lf-column>
+    <lf-column id="s2" label="Done"></lf-column>
+  </lf-board>
+</section>
+<lf-specimen id="quoted" label="a board">
+  <lf-board id="in-specimen">
+    <lf-column id="q1" label="Todo"><lf-card id="qk1"><strong>One</strong></lf-card></lf-column>
+    <lf-column id="q2" label="Done"></lf-column>
+  </lf-board>
+</lf-specimen>
+<lf-options id="pick" choose>
+  <lf-option id="opt-a"><strong>With evidence</strong>
+    <lf-diagram id="in-card"><pre>
+graph LR
+  A[request] --> B[queue]
+  B --> C[worker]
+</pre></lf-diagram>
+  </lf-option>
+  <lf-option id="opt-b"><strong>Without</strong></lf-option>
+</lf-options>
+</main>
+</body>
+</html>
+"""
+
+
+# A page that reserves the margin rail and stands a wide widget in the flow beside it —
+# the pair no shipped example had until ship-review, and the pair the room has to be
+# measured after rather than before.
+RAIL_AND_WIDE_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>rail</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Release</h1>
+<lf-suggestion id="sug-copy">
+  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<lf-board id="plan">
+  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong></lf-card></lf-column>
+  <lf-column id="r2" label="Doing"></lf-column>
+  <lf-column id="r3" label="Done"></lf-column>
+</lf-board>
+</main>
+</body>
+</html>
+"""
+
+
+def test_paper_keeps_the_column(browser, serve):
+    """Paper has no window to take room from: a printed page is the column's width,
+    whatever the screen it was sent from was showing. The rule that grants the room is
+    therefore screen-only, and leaving it out of print is the whole of what paper needs —
+    the same bargain paper already has with every affordance a copy keeps.
+
+    Asked here rather than left to the print gate beside it, which reads what a medium
+    drops rather than how wide it sets what it keeps: a board printed at a screen's width
+    loses its right-hand columns off the edge of the sheet, and every word of it is still
+    in the document for that gate to find."""
+    page, errors = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+    on_screen = page.evaluate(
+        "() => document.getElementById('sprint').getBoundingClientRect().width"
+    )
+    column = page.evaluate("""() => {
+        const m = document.querySelector('main'), s = getComputedStyle(m);
+        const b = m.getBoundingClientRect();
+        return b.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+    }""")
+    assert on_screen > column + 1, (
+        "the board must be wider than the column on screen, or print proves nothing"
+    )
+
+    page.emulate_media(media="print")
+    printed = page.evaluate(
+        "() => document.getElementById('sprint').getBoundingClientRect().width"
+    )
+    assert abs(printed - column) <= 1, (
+        f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
+        "has no window to take the room from, so what runs past it is off the page"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
+    """A copy has no panel and no session, which is what makes reading its own window
+    honest — but it does have one piece of the live page's furniture left. A decided
+    change keeps the control that says so, because that record is what the margin was
+    reserved for, so the rail is still held open in the file while the room read off the
+    viewport knows nothing about it. The exported board stood 35px into that rail at a
+    laptop's width and 47px at a narrow one.
+
+    Both edges are asked about, and the left is the one that bites now: the rail claims
+    the right margin, so a room read too wide is spent on the side that is free and the
+    board runs off the left of the window rather than into the controls. That is the worse
+    of the two directions and the reason this asks about the box rather than the strip —
+    leftward overflow scrolls nothing in a page set left to right, so the columns that
+    went past the edge are not cut off with a way to reach them, they are simply gone.
+
+    Nothing could have caught it from the outside: the render gate runs on the live page
+    rather than on a file, and on the live page the room is measured rather than guessed.
+    The question has to be asked of the copy directly, which is what this does."""
+    url = serve(RAIL_AND_WIDE_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "id": "a-accept",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-copy",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    out = tmp_path / "decided.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    errors = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(out.as_uri(), wait_until="load")
+
+    fit = page.evaluate("""() => {
+        const b = document.body, s = getComputedStyle(b);
+        const box = b.getBoundingClientRect();
+        const r = document.getElementById('plan').getBoundingClientRect();
+        return { rail: s.paddingRight, widget: Math.round(r.width),
+                 rows: document.querySelectorAll('.lf-sug-actions').length,
+                 past: Math.round(Math.max(
+                     r.right - (box.right - parseFloat(s.paddingRight)),
+                     (box.left + parseFloat(s.paddingLeft)) - r.left)) };
+    }""")
+    assert fit["rows"] == 1 and fit["rail"] != "0px", (
+        "the decided control and its rail must survive into the copy, or the fault this "
+        f"is about cannot arise — rows {fit['rows']}, rail {fit['rail']}"
+    )
+    assert fit["past"] <= 1, (
+        f"the copied board stands {fit['past']}px outside the page's own box, having "
+        f"been given a room that did not know about the rail: {fit['widget']}px of widget"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_the_room_is_measured_after_a_late_rail(browser, serve):
+    """A page carrying a change to decide gives up a rail of the controls' own width, and
+    the width of those controls is a fact about their words — so lf-suggestion measures
+    the first row it builds and states it, which is long after the layout first ran. The
+    room a wide widget spends came from that first run, and nothing asked again: the
+    exhibit kept the width of a page 189px wider than the one it was standing on and hung
+    out over the rail.
+
+    Stated rather than run for. The window is between the first layout and the module's
+    arrival, and on an idle machine something later happens to restate the room inside
+    it — a poll, an observer — so the fault shows on a loaded runner and hides here,
+    which is the shape this suite has a rule about. Holding the module in the wire makes
+    the ordering the test's rather than the machine's: the page lays out, the rail lands
+    after it, and the question is whether anything asked again."""
+    url = serve(RAIL_AND_WIDE_PAGE)
+    errors = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+
+    held = []
+    page.route("**/widgets/lf-suggestion.js", lambda route: held.append(route))
+    page.goto(url)
+    # The layout has run and stated a room; the rail is still in the wire behind it.
+    page.wait_for_function(
+        "() => getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-room') !== ''"
+    )
+    assert page.evaluate(
+        "() => getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--rail') === ''"
+    ), "the rail arrived before the page was laid out; this proves nothing held"
+    held[0].continue_()
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    fit = page.evaluate("""() => {
+        const b = document.body, s = getComputedStyle(b);
+        const box = b.getBoundingClientRect();
+        const r = document.getElementById('plan').getBoundingClientRect();
+        return { rail: s.paddingRight, widget: r.width,
+                 past: Math.max(r.right - (box.right - parseFloat(s.paddingRight)),
+                                (box.left + parseFloat(s.paddingLeft)) - r.left),
+                 content: box.width - parseFloat(s.paddingLeft)
+                          - parseFloat(s.paddingRight) };
+    }""")
+    assert fit["rail"] != "0px", (
+        "no rail was reserved, so the late-arriving fact this is about never arrived"
+    )
+    assert fit["past"] <= 1, (
+        f"the board stands {fit['past']:.0f}px outside the page's own box, laid out to "
+        f"the width of a page 189px wider than the one it is on: {fit['widget']:.0f}px "
+        f"of widget in {fit['content']:.0f}px of page"
+    )
+    assert errors == []
+    page.close()
+
+
+# Where the two things in the right margin stand, and how much of the board is over the
+# controls. The controls are what the strip was reserved for, and they hang off the column
+# rather than out of the strip, so the strip's own edge says nothing about where they are.
+RAIL_OVERLAP = """() => {
+    const acts = document.querySelector('.lf-sug-actions');
+    const board = document.getElementById('plan').getBoundingClientRect();
+    const body = document.body, bs = getComputedStyle(body);
+    const bb = body.getBoundingClientRect();
+    const a = acts.getBoundingClientRect();
+    return { docked: acts.classList.contains('lf-docked'),
+             over: board.right - a.left, acts: a.left, board: board.right,
+             width: board.width,
+             column: (() => { const m = document.querySelector('main');
+                 const s = getComputedStyle(m), b = m.getBoundingClientRect();
+                 return b.width - parseFloat(s.paddingLeft)
+                        - parseFloat(s.paddingRight); })(),
+             pastPage: board.right - (bb.right - parseFloat(bs.paddingRight)),
+             sideways: body.scrollWidth - body.clientWidth };
+}"""
+
+
+def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
+    """The rail is reserved out of the right of the page and the controls hang 22px off
+    the column, and those are the same place only when the column is flush against the
+    strip. It never is — the column centres in what the strip leaves — so on any window
+    wider than that the controls stand well inside the page's own box, and a widget grown
+    to the edge of that box is drawn over them. Measured before the claim was written:
+    76px of board over the controls at 1200px and 134px at 1400 and 1600, which is the
+    whole row.
+
+    A range of windows rather than one, because the gap between the reservation and the
+    occupancy is the column's leftover and grows with the window: a single viewport can
+    be picked where the two happen to agree, and 1000px is that viewport here. What the
+    controls are for is being pressed, so anything over them is the change undecidable —
+    the page's own loop, stopped by its own exhibit."""
+    url = serve(RAIL_AND_WIDE_PAGE)
+    page, errors = open_page(browser, url)
+
+    for width in (1000, 1200, 1400, 1600):
+        resized(page, width, 900)
+        at = page.evaluate(RAIL_OVERLAP)
+        assert not at["docked"], (
+            f"at {width}px the row docked, so nothing is in the margin to run over"
+        )
+        assert at["over"] <= 1, (
+            f"at {width}px the board is drawn {at['over']:.0f}px over the controls that "
+            f"decide the change above it: board ends {at['board']:.0f}px, controls "
+            f"start {at['acts']:.0f}px"
+        )
+        assert at["pastPage"] <= 1, f"at {width}px it is past the page's box as well"
+        assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
+        assert at["width"] >= at["column"] - 1, (
+            f"at {width}px the claim cost the exhibit its own measure: board "
+            f"{at['width']:.0f}px inside a {at['column']:.0f}px column"
+        )
+
+    # The free margin is still spent, or the claim above is indistinguishable from having
+    # dropped the breakout on every page that carries a change to decide — which is five
+    # of the seven shipped examples that have a wide widget on them.
+    resized(page, 1600, 900)
+    assert (
+        page.evaluate(RAIL_OVERLAP)["width"] > page.evaluate(RAIL_OVERLAP)["column"]
+    ), (
+        "a claim on one margin must cost that side only: with the whole left margin free "
+        "the board is still the column's width, so nothing grew at all"
+    )
+    assert errors == []
+    page.close()
+
+
+# A page hanging apparatus of its own in the margin, level with a wide widget. The theme
+# has no rule for a project's own furniture and cannot — this is the case the two claims
+# in it are declarations of, seen from the side where nobody has declared anything.
+OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
+    "<main>",
+    "<main>\n<div id='own-rail' style='position: absolute; left: 100%;"
+    " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
+)
+
+
+def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
+    browser, serve
+):
+    """Two rules in the theme give a margin up to what stands in it, one per claimant,
+    and a rule is only ever as complete as the list behind it. A project hangs its own
+    apparatus out there and the theme has no rule for it, so this is what is left: the
+    room the page states is measured against what is actually in the margin, and a widget
+    drawn over any of it is named at handover with both boxes in the message.
+
+    It reads a resident by the same test the pass above excuses one by — placed
+    absolutely, or floated clear of the column — so this needs no vocabulary of its own
+    and nothing has to be declared to it. That is what keeps the two theme rules honest:
+    the next claimant that forgets one is a refusal with a name on it rather than a page
+    somebody eventually notices is drawn over its own controls."""
+    failures = interact.render_version(browser, serve(OWN_MARGIN_FURNITURE))
+
+    assert [
+        f
+        for f in failures
+        if "<lf-board id=sprint> is drawn over <div id=own-rail>" in f
+    ], (
+        f"the gate said nothing about a board drawn over the page's own margin: {failures}"
+    )
+    assert not [f for f in failures if "own-rail" in f and "past the column" in f], (
+        "the furniture itself was named for standing where it was put"
+    )
+
+
+def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
+    """The room a wide widget spends is the document's, and a thread's message is the one
+    place a widget of the page's vocabulary renders outside the document. The skill offers
+    a diagram in a reply as the way to explain a fix in the margin, and a diagram is
+    declared wide — so marked as one it would lay itself out to a 1080px page inside a
+    420px panel, and the explanation would be the half of it the panel could show.
+
+    The pass that would do that is the one deliberately left out of the message render
+    (markWide, over document.body alone). Nothing about a message says so, which is why
+    this asks: the widget is in the panel, and the panel's width is what bounds it."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-fix",
+            "author": "user",
+            "version": 1,
+            "text": "How does the fallback read?",
+        },
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "r-fix",
+            "author": "claude",
+            "parent": "c-fix",
+            "version": 1,
+            "text": "Like this:",
+            "markup": '<lf-diagram id="fallback-flow"><pre>\n'
+            "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name="Comments", exact=False).click()
+    panel_settled(page)
+    expect(page.locator("#fallback-flow svg")).to_be_visible()
+
+    fit = page.evaluate("""() => {
+        const el = document.getElementById('fallback-flow');
+        const holder = el.closest('.lf-msg-body');
+        const a = el.getBoundingClientRect(), b = holder.getBoundingClientRect();
+        return { widget: a.width, message: b.width, past: a.right - b.right,
+                 marked: el.hasAttribute('data-lf-wide') };
+    }""")
+    assert not fit["marked"], (
+        "a widget in a thread was handed the page's room; the panel is not the page"
+    )
+    assert fit["past"] <= 1, (
+        "the diagram stands past the message that holds it by "
+        f"{fit['past']:.0f}px — widget {fit['widget']:.0f}px in a "
+        f"{fit['message']:.0f}px panel"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
+    """The room is the page's to give, and a widget inside a box that paints is not held
+    by the page. A quoted board that took the window stood outside the gutter marking it
+    as quoted — the exhibit escaping its own exhibit — while a diagram in an option card
+    was worse for being invisible: a choose group clips to its own cells, so the widest
+    part of the evidence an option argued on was cut off at the card's edge rather than
+    drawn past it, and nothing on the page said a word.
+
+    A plain section is the control. It paints nothing and is the column's own width, so a
+    board inside one takes the room exactly as it would standing alone — which is what
+    says this is about the box and not about being nested."""
+    page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
+    boxes = page.evaluate("""() => {
+        const box = (id) => {
+            const r = document.getElementById(id).getBoundingClientRect();
+            return { left: r.left, right: r.right, width: r.width };
+        };
+        const main = document.querySelector('main');
+        const s = getComputedStyle(main), b = main.getBoundingClientRect();
+        return { column: b.right - parseFloat(s.paddingRight)
+                         - b.left - parseFloat(s.paddingLeft),
+                 loose: box('in-section'), specimen: box('quoted'),
+                 quoted: box('in-specimen'), card: box('opt-a'), diagram: box('in-card') };
+    }""")
+
+    assert boxes["loose"]["width"] > boxes["column"] + 1, (
+        "a transparent wrapper must not cost the exhibit its room: board "
+        f"{boxes['loose']['width']:.0f}px in a {boxes['column']:.0f}px column"
+    )
+    assert boxes["quoted"]["left"] >= boxes["specimen"]["left"] - 1, (
+        "the quoted board escaped its frame on the left"
+    )
+    assert boxes["quoted"]["right"] <= boxes["specimen"]["right"] + 1, (
+        "the quoted board escaped its frame on the right: board out to "
+        f"{boxes['quoted']['right']:.0f}, frame ends at {boxes['specimen']['right']:.0f}"
+    )
+    assert boxes["diagram"]["left"] >= boxes["card"]["left"] - 1, (
+        "the diagram crossed the card's left edge, where the group's clip cuts it off"
+    )
+    assert boxes["diagram"]["right"] <= boxes["card"]["right"] + 1, (
+        "the diagram crossed the card's right edge, where the group's clip cuts it off: "
+        f"diagram out to {boxes['diagram']['right']:.0f}, card ends at "
+        f"{boxes['card']['right']:.0f}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
+    """The comment panel takes 420px of the window, and nothing in CSS can see that — so
+    the room a wide widget spends is measured, and this is the measurement's hard case.
+    The strip is handed over as motion, so at the moment the layout is written body still
+    has the width it is leaving: a room read off the box in front of us states one 420px
+    too wide, and the exhibit hangs over the panel that displaced it with a sideways
+    scrollbar under it, for as long as it takes something else to remeasure — which, on a
+    page nobody resizes again, is the rest of the session.
+
+    Straddling the open is the whole of the test. A board already at the shared cap is
+    the same 1080px either side of a room read wrongly, so what says the room moved is
+    the exhibit coming down to fit a window that is 420px narrower than the one it was
+    laid out in."""
+    page, errors = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+    closed = page.evaluate(ROOM_GEOMETRY)
+    assert closed["board"]["width"] > closed["column"]["width"], (
+        "the board must start wider than the column, or the shrink proves nothing"
+    )
+
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    opened = page.evaluate(ROOM_GEOMETRY)
+
+    assert opened["board"]["width"] < closed["board"]["width"], (
+        "the exhibit kept the width of a window it no longer has: board "
+        f"{opened['board']['width']:.0f}px in {opened['room']['width']:.0f}px of room"
+    )
+    assert opened["board"]["right"] <= opened["room"]["right"] + 1, (
+        "the exhibit hangs over the panel that displaced it"
+    )
+    assert opened["sideways"] == 0, (
+        "the page scrolls sideways with the panel open — the strip was spent twice"
+    )
+    assert abs(opened["prose"]["width"] - opened["column"]["width"]) <= 1, (
+        "prose still keeps the column beside an open panel"
+    )
+
+    # Closing is the same hand-over the other way, and the anticipation that is right on
+    # the way in is wrong on the way out: the strip comes back over a fifth of a second,
+    # and an exhibit that took it before the page had it scrolls the document sideways
+    # for exactly as long. Read before the transition settles, because that is the whole
+    # of the window in which it is wrong.
+    page.get_by_role("button", name="Close comments").click()
+    assert page.evaluate(
+        "() => document.body.scrollWidth <= document.body.clientWidth"
+    ), "the page scrolled sideways while the panel's strip was still coming back"
+    panel_settled(page, open=False)
+    closed_again = page.evaluate(ROOM_GEOMETRY)
+    assert closed_again["board"]["width"] == closed["board"]["width"], (
+        "the room the panel gave back never reached the exhibit: board "
+        f"{closed_again['board']['width']:.0f}px, was {closed['board']['width']:.0f}px"
+    )
+    assert closed_again["sideways"] == 0
+    assert errors == []
+    page.close()
+
+
+def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
+    """A copy keeps the breakout, because it is layout the markup describes rather than
+    an affordance a handler kept — but it cannot keep the *number*. The room is measured
+    on the live page and stated inline on the root, which outranks any rule, so a copy
+    carrying it would hold the exporter's headless window forever and lay a file out for
+    a window nobody is reading it in. BAKE takes it off and the theme states the copy's
+    own, from a viewport that is honest there: a file has no comment panel to yield a
+    strip to.
+
+    Both windows, because that estimate is the half that can be wrong in either
+    direction, and it was: reading 96px off the viewport puts it under the true room on a
+    narrow window, and the first draft of this stood every copied board 24px inside the
+    prose it was set beneath. The floor at the column is what answers that, and this is
+    what says the floor is still there."""
+    url = serve(WIDE_AND_NARROW_PAGE)
+    out = tmp_path / "standalone.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    errors = []
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(out.as_uri(), wait_until="load")
+
+    assert "--lf-room" not in page.evaluate(
+        "() => document.documentElement.getAttribute('style') ?? ''"
+    ), "the copy carries this window's measurement into every window it is opened in"
+
+    wide = page.evaluate(ROOM_GEOMETRY)
+    assert wide["board"]["width"] > wide["column"]["width"], (
+        "a copy keeps the breakout: it is layout, not an affordance — board "
+        f"{wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
+    )
+    assert wide["board"]["left"] >= wide["room"]["left"] - 1, (
+        "past the page on the left"
+    )
+    assert wide["board"]["right"] <= wide["room"]["right"] + 1, "past the page, right"
+    assert wide["sideways"] == 0, "a copy must not scroll sideways either"
+
+    resized(page, 700, 900)
+    narrow = page.evaluate(ROOM_GEOMETRY)
+    assert abs(narrow["board"]["width"] - narrow["column"]["width"]) <= 1, (
+        "the copy's own reading of the room came in under the column and shrank the "
+        f"board inside the prose: board {narrow['board']['width']:.0f}px, column "
+        f"{narrow['column']['width']:.0f}px"
+    )
+    assert narrow["sideways"] == 0, "nor on a narrow one"
+    assert errors == []
+    page.close()
+
+
+# The two things on this page that want a margin, on one page and level with each other.
+# The note is written immediately before the board so they share a band of the page rather
+# than stacking, which is the only arrangement in which either can be over the other.
+NOTE_AND_WIDE_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>room and margin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Feeders</h1>
+<p id="prose">The board is as wide as its columns are; this sentence is not.</p>
+<aside class="sidenote" id="note">Counts are the warden's own, taken at dawn from the
+south hide, and the perch numbers are the ones she disputes.</aside>
+<lf-board id="sprint">
+  <lf-column id="col-todo" label="Todo">
+    <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
+  </lf-column>
+  <lf-column id="col-doing" label="Doing">
+    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+  </lf-column>
+  <lf-column id="col-review" label="Review"></lf-column>
+  <lf-column id="col-done" label="Done"></lf-column>
+</lf-board>
+</main>
+</body>
+</html>
+"""
+
+# Wide enough that the note has its strip (984px) and narrow enough that the room, not the
+# shared cap, is what decides the board's width — above about 1176px the cap binds first
+# and the two never compete. A window inside that band is where the question is live.
+NOTE_BAND = 1100
+
+
+def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
+    """The page has two claims on its left margin now: a note is read out there, and a
+    wide widget expands into it. A widget drawn over a note is the note lost — it is the
+    thing on top — and the reader loses words the page states, which is the same fault
+    the clipped-float reading refuses a version for.
+
+    Both media, because they answer the question differently and only one of them
+    measures. The live page reads the room off the box the layout actually produced, so a
+    strip reserved by any rule at all is already out of it; a copy runs no script and the
+    theme states the room from the viewport, which knows about a strip only if the rule
+    that states the room subtracts the same one the padding added."""
+    url = serve(NOTE_AND_WIDE_PAGE)
+    out = tmp_path / "standalone.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    page, errors = open_page(browser, url)
+    resized(page, NOTE_BAND, 900)
+    live = page.evaluate(ROOM_GEOMETRY)
+
+    copy_errors = []
+    copy = browser.new_page(viewport={"width": NOTE_BAND, "height": 900})
+    copy.on(
+        "console", lambda m: copy_errors.append(m.text) if m.type == "error" else None
+    )
+    copy.on("pageerror", lambda e: copy_errors.append(str(e)))
+    copy.goto(out.as_uri(), wait_until="load")
+    copied = copy.evaluate(ROOM_GEOMETRY)
+
+    for medium, wide in (("the live page", live), ("a copy", copied)):
+        assert wide["note"]["width"] > 0, (
+            f"{medium} lost the note entirely, so this proves nothing about the margin"
+        )
+        assert wide["board"]["left"] >= wide["note"]["right"] - 1, (
+            f"{medium} stands the board over the note it shares the margin with: board "
+            f"from {wide['board']['left']:.0f}px, note to {wide['note']['right']:.0f}px"
+        )
+        assert wide["sideways"] == 0, (
+            f"{medium} scrolls sideways, so the room it took was not the room it had"
+        )
+        assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
+            f"{medium} shrank the board inside the measure its own prose is set to: "
+            f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
+        )
+
+    assert errors == []
+    assert copy_errors == []
+    copy.close()
+    page.close()
+
+
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     """The URL `server run` prints is the page root carrying the key, so every handover
     arrives through the redirect to the latest version rather than at a version file.

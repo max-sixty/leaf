@@ -232,6 +232,12 @@ vocabulary for rides in the custom keywords below:
     x-visual    true when the element renders as a picture: a click anchors on
                 the element whole, there being no text in it to select — the
                 same anchor a click on an <svg> or <img> makes.
+    x-wide      true when instances stand wider than the prose column where the
+                window has the room: evidence whose width is its content's — a
+                board's columns, a diagram's graph — as against prose, which is
+                set to a measure and stays there. The runtime marks what this
+                declares and theme.css spends the room the layout measured, so
+                a page's shape follows what it holds and no page states a width.
     x-state     the widget's action verbs: each verb's detail schema, its fold
                 unit, and the record form its state takes in markup. Every
                 applyAction is absolute, so the user's standing state is a
@@ -600,6 +606,7 @@ EXTENSION_SCHEMA = {
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {"type": "boolean"},
+        "x-wide": {"type": "boolean"},
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {"x-retired-when": ["x-parent"]},
@@ -3141,6 +3148,14 @@ CATALOG_PREAMBLE = """\
 # without the reader hunting for them. x-report is the agent channel: verbs a
 # worker folds onto the page with `leaf report`, standing as provisional
 # state until a version absorbs or overrules them (printed below as $report).
+# x-wide marks a tag whose instances stand wider than the prose column when the
+# window has the room — evidence as wide as what it holds, a board's columns or
+# a diagram's graph, against prose set to a measure. Nothing is authored for it
+# and no page asks: the widget kind declares it and the theme grows the element
+# out of the column into whichever margins are free, to one width the whole
+# vocabulary shares. A margin holding something of the page's — a change's
+# controls, a sidenote — gives nothing, so the exhibit that grows is never
+# drawn over the apparatus beside it.
 """
 
 
@@ -6697,6 +6712,18 @@ PAST_THE_COLUMN = """() => {
     const style = getComputedStyle(main), box = main.getBoundingClientRect();
     const left = box.left + parseFloat(style.paddingLeft);
     const right = box.right - parseFloat(style.paddingRight);
+    // A widget the registry declares wide is answered for out here, the way an
+    // absolutely-positioned resident is: standing past the column is what it was
+    // declared for. What still has to hold is the page's own box — the room the layout
+    // measured is the column's leftover, the rail a suggestion hangs in and the strip
+    // the comment panel takes, and an exhibit over that edge is in the margin whether or
+    // not the window happened to scroll for it. So the question is the same one, asked
+    // against the wider bound: this gate renders at one viewport with no panel open, and
+    // the reader's window is free to be narrower than this one.
+    const bodyStyle = getComputedStyle(document.body);
+    const bodyBox = document.body.getBoundingClientRect();
+    const roomLeft = bodyBox.left + parseFloat(bodyStyle.paddingLeft);
+    const roomRight = bodyBox.right - parseFloat(bodyStyle.paddingRight);
     const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
     // `float` computes to whichever of the four values was written, so the two
     // logical ones are resolved against the element's own direction rather than
@@ -6721,18 +6748,90 @@ PAST_THE_COLUMN = """() => {
         }
         return false;
     };
+    // What a wide widget may not escape, whatever the page has room for: the nearest
+    // thing between it and the column that draws a box of its own. Asked of the drawing
+    // rather than of a list of tags, because the fault is visual and so is the property
+    // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
+    // and one that grows through a transparent wrapper (a section, a tab's panel) reads
+    // as the exhibit it is. The theme grants the room and each layer withholds it inside
+    // the boxes it draws; this is what says so when one of them forgets. (Nothing to do
+    // with x-paints, which is about words rather than boxes: an attribute rendered as
+    // paint instead of text, and spoken for whoever is listening.)
+    const draws = (el) => {
+        const s = getComputedStyle(el);
+        return s.backgroundImage !== 'none'
+            || !/^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(s.backgroundColor)
+            || ['Top', 'Right', 'Bottom', 'Left'].some(side =>
+                   parseFloat(s[`border${side}Width`]) > 0
+                   && s[`border${side}Style`] !== 'none');
+    };
+    const framing = (el) => {
+        for (let a = el.parentElement; a && a !== main; a = a.parentElement)
+            if (draws(a)) return a;
+        return null;
+    };
     const over = new Map();
     for (const el of main.querySelectorAll('*')) {
         if (!el.checkVisibility() || answeredFor(el)) continue;
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
-        const past = Math.round(Math.max(b.right - right, left - b.left));
-        if (past > 1) over.set(el, past);
+        const wide = el.hasAttribute('data-lf-wide');
+        const frame = wide ? framing(el) : null;
+        const bound = frame ? frame.getBoundingClientRect() : null;
+        const past = wide
+            ? Math.round(Math.max(b.right - (bound ? bound.right : roomRight),
+                                  (bound ? bound.left : roomLeft) - b.left))
+            : Math.round(Math.max(b.right - right, left - b.left));
+        if (past > 1) over.set(el, [past, wide, frame]);
     }
     const found = [];
-    for (const [el, past] of over) {
+    for (const [el, [past, wide, frame]] of over) {
         if ([...over.keys()].some(other => other !== el && other.contains(el))) continue;
-        found.push(`${at(el)} is set ${past}px past the column, out in the margin`);
+        found.push(!wide
+            ? `${at(el)} is set ${past}px past the column, out in the margin`
+            : frame
+            ? `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — `
+              + `a box that draws one withholds the room (--lf-room: 0px)`
+            : `${at(el)} stands ${past}px past the room the page has for a wide widget`);
+    }
+    // The room being the page's own box is not the whole of what a wide widget owes,
+    // because the page hangs things in that box. A suggestion's controls stand 22px off
+    // the column and a sidenote a gutter off it on the other side, while the strip each
+    // is reserved out of comes off the far edge of the page — and those are the same
+    // place only when the column is flush against the strip, which it never is, since it
+    // centres in what the strip leaves. So the reservation says where the room ends and
+    // the occupancy says where the furniture is, and between them is a band that is
+    // inside the page's box and already spoken for. A board grown to the box was drawn
+    // 134px over the controls that decide the change above it, which is the change made
+    // undecidable by the page's own exhibit.
+    //
+    // The theme is where a margin's claimant gives up that side (--lf-grow-l, --lf-grow-r),
+    // and this is what says so when one of them doesn't — the same bargain the framing
+    // rule above has, and the reason neither has to be a list anybody maintains. A
+    // resident is whatever answered for itself in the margin above, so a project hanging
+    // its own furniture out there is covered without declaring anything to this pass.
+    const residents = [];
+    for (const el of main.querySelectorAll('*')) {
+        if (!el.checkVisibility() || el.hasAttribute('data-lf-wide')) continue;
+        const s = getComputedStyle(el), b = el.getBoundingClientRect();
+        // Clipped to nothing is not standing in the margin: the words a page paints for
+        // whoever is listening are a pixel wide and under a reader's notice, so a widget
+        // drawn across one has taken nothing from anybody.
+        if (b.width < 2) continue;
+        const clear = b.right <= left + 1 || b.left >= right - 1;
+        if (clear && (s.position === 'absolute' || inTheMargin(el, s))) residents.push(el);
+    }
+    for (const el of main.querySelectorAll('[data-lf-wide]')) {
+        if (!el.checkVisibility()) continue;
+        const b = el.getBoundingClientRect();
+        const hit = residents.find((r) => {
+            if (el.contains(r) || r.contains(el)) return false;
+            const c = r.getBoundingClientRect();
+            return b.left < c.right - 1 && b.right > c.left + 1
+                && b.top < c.bottom - 1 && b.bottom > c.top + 1;
+        });
+        if (hit) found.push(`${at(el)} is drawn over ${at(hit)}, which stands in the `
+                            + `margin it grew into — the side that holds it gives no room`);
     }
     // The other half of excusing a resident: the excuse is only good if the reader can
     // see it out there. A float pulled into the page's margin from inside a box that
@@ -7343,6 +7442,17 @@ def render_check(page_dir: Path, version: int) -> int:
 BAKE = """() => {
     document.documentElement.classList.add('lf-copy');
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
+    // A measurement of this window is not a fact about the reader's. The room a wide
+    // widget may take is measured on the live page (syncLayout) and stated inline on the
+    // root, and an inline value outranks every rule a stylesheet could write — so a copy
+    // carrying it would hold whatever width the exporter's headless window happened to
+    // have, on a file whose whole point is being opened somewhere else. The theme states
+    // the copy's own room from its viewport, which is honest there: no panel takes a
+    // strip from a file, and no session grows one. Taken off the way the chrome above is,
+    // rather than guarded against in the theme, because the stale number is the thing
+    // that is wrong here and a rule written around it would leave it there to be read by
+    // the next thing that asks.
+    document.documentElement.style.removeProperty('--lf-room');
     // The tab icon is the third seat of the banner's status (paintTab), and a file has
     // no session behind it — a copy keeping the tone it was exported under would claim
     // one, which is the same lie the chrome above is dropped for. So it drops back to

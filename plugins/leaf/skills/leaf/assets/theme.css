@@ -61,6 +61,14 @@
      Read blind, so it is the page's floor for margin strips rather than the sidenote's:
      an idiom that hangs something out there wants the same answer. */
   --strip-min: 984px;
+  /* How wide a widget that declared itself wide may stand — one number for the whole
+     vocabulary, because a set of widths is what makes mixed measures read as a design
+     rather than as an accident, and a width per widget is how a page becomes a ransom
+     note. Unmistakably wider than the column on purpose: a near miss reads as a column
+     that failed to line up, where half as much again reads as a figure. --lf-room, the
+     other half of the pair, is the room left between the two strips above and is
+     measured (syncLayout), so a widget stands clear of both. */
+  --wide: 1080px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. These are the prose's hierarchy; a size
      that has to fit something states its own number where it is set — a code block
@@ -166,8 +174,18 @@
  * widgets that scroll instead (lf-board, lf-diff, pre) are untouched; a metric's headline
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
+/* The two strips the page reserves out of its own width — the rail on the right, a
+ * sidenote's margin on the left — are named here rather than written straight into the
+ * padding by whoever claims one, because a copy has to subtract exactly what the padding
+ * added. A live page measures the box it ended up with and needs no such agreement; a
+ * copy runs no script and states the room from the viewport, so every strip it does not
+ * know about is room it hands a wide widget twice. Written as one rule per strip, that is
+ * a term the room rule has to remember per claimant and a combination per pair. Here each
+ * claimant sets its own token, the padding and the room both read the pair, and a third
+ * strip is one declaration rather than a fourth room rule. */
 body { margin: 0; background: var(--paper); color: var(--ink);
-       font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word; }
+       font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
+       padding-left: var(--strip-l, 0px); padding-right: var(--strip-r, 0px); }
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.
@@ -196,6 +214,93 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * out of one column, and the way to have both would be two of them rather than a smaller
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: relative; }
+/* Evidence that is wider than the argument about it. The column above is the measure
+ * prose is read at, and a board's columns or a diagram's graph are as wide as what they
+ * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
+ * been widened to suit its widest exhibit. Neither is a choice a page should have to
+ * make, and the tradition this borrows from doesn't: Distill sets text at l-body and
+ * figures at l-page, Tufte holds the column and lets a figure go fullwidth. What keeps it
+ * reading as design is that the prose axis never moves and there is one wider width, so
+ * an exhibit is either in the column or at --wide and never at a number of its own.
+ *
+ * Which widgets those are is the registry's to say (x-wide) and not this file's: a rule
+ * naming lf-board would work perfectly for lf-board and do nothing at all for the
+ * twelfth widget, which is the failure the whole vocabulary is arranged against. The
+ * runtime marks what the registry declares, so this reaches a widget nobody has written
+ * yet — and marks the element itself, which is what carries the width into an exported
+ * copy, a file that runs no script and keeps the markup.
+ *
+ * The exhibit grows out of the column rather than being sized against the page: each
+ * margin gives what it has, up to half of the one width, and the box takes whatever it is
+ * given by having no width of its own. That is the floor for free — a margin with nothing
+ * to give gives nothing, and a widget nobody has stated a room for is exactly the column,
+ * which is the layout the page already had. It is what makes an estimate safe to state,
+ * too: a room read short can only fail to widen an exhibit, never narrow one below the
+ * measure its own page is set to.
+ *
+ * A margin has something to give only if nothing is standing in it, and on most pages here
+ * something is. A suggestion's controls hang beside the column and a sidenote is read out
+ * there, and both hang off the column rather than out of the strip reserved for them —
+ * they have to, being level with the line they belong to, while the column centres in
+ * what the strip leaves. So the reservation and the occupancy are at different places on
+ * the page, and a widget grown to the reservation is drawn over the occupancy: measured,
+ * a board stood 134px over the accept and reject controls of the change above it, and 34px
+ * over a note. Whoever claims a margin says so where it claims it, in the layer that
+ * claims it, and this rule reads the two sides separately so a claim costs that side only.
+ *
+ * A claimed side is why the exhibit is not centred on the column. Growing by the smaller
+ * of the two would be centred and would be nothing at all, since every claim here leaves
+ * its side a gutter: five of the seven shipped examples that carry a wide widget also
+ * carry a claim, so the axis is what a symmetric rule would have cost the feature. An edge
+ * flush with the column is an alignment the page already has, and a page whose margin is
+ * spoken for is asymmetric before the exhibit arrives — the column itself sits off the
+ * window's centre by exactly the strip.
+ *
+ * Screen only, in both of its media. Paper has no window to take room from and a printed
+ * page is the column's width, so leaving the rule out of print is the whole of what paper
+ * needs — the same bargain it already has with every affordance a copy keeps. A copy is a
+ * screen and does keep this, on its own reading of the room: it has no comment panel to
+ * yield a strip to and no session to grow one in, so the viewport is an honest answer
+ * there where on the live page it is 420px of lie. It is an estimate all the same, since
+ * `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet can ask
+ * how wide one is; 96px covers a gutter and any scrollbar a platform has, and the floor
+ * above covers the estimate coming in under the column on a narrow window. The strips are
+ * the half of it a window cannot show — an exported board stood 35px into a decided
+ * change's rail at a laptop's width — so the room subtracts the same pair the padding
+ * added, which is what those tokens are for. */
+@media screen {
+  html.lf-copy body {
+    --lf-room: calc(100vw - 96px - var(--strip-l, 0px) - var(--strip-r, 0px));
+  }
+  [data-lf-wide] {
+    /* Half the surplus, because a side may only ever have half: the other half is the
+       other side's whether or not it is taken, so a claim never makes the free side
+       wider than it would have been on a page with no claim at all. */
+    --lf-grow: max(0px, calc((min(var(--wide), var(--lf-room, 0px)) - 100%) / 2));
+    --lf-grow-l: var(--lf-grow);
+    --lf-grow-r: var(--lf-grow);
+    max-width: none;
+    margin-left: calc(-1 * var(--lf-grow-l));
+    margin-right: calc(-1 * var(--lf-grow-r));
+  }
+  /* A box that draws one of its own is a box a wide widget stays inside. The room is the page's to
+   * give, and inside a disclosure or a callout the page is not what holds the widget —
+   * a board that took the window from inside a <details> hung out over both edges of
+   * the frame it was filed under, which reads as a broken page rather than as a wide
+   * exhibit. Stated as no room rather than as an exception to the rule above, so the
+   * widget falls back to the floor that rule already has and fills its holder exactly.
+   *
+   * Whoever draws the box says this, in the layer that draws it: these two are the
+   * document's own, the widgets that frame their contents say it in bundled/theme.css,
+   * and a project's box says it in the project's. A transparent wrapper says nothing and
+   * needs to — a section, a tab's panel, the column itself are all the page's own flow,
+   * and an exhibit breaking out through one is the whole point. What keeps the list from
+   * being the kind that stops at what it was taught is that no list is the mechanism:
+   * `version check --render` measures every wide element against the nearest ancestor
+   * that draws one, so the next such box to forget this is a failure with a name on it
+   * rather than a page someone eventually notices looks wrong. */
+  :is(details, .callout, blockquote, figure) [data-lf-wide] { --lf-room: 0px; }
+}
 /* The headings are the body serif at weight, size and spacing — one voice, four
  * volumes — rather than a display face over a text face. A page whose subject is
  * a decision and whose furniture is diffs and boards has enough going on; the
@@ -387,7 +492,18 @@ dd { margin: 0 0 8px 0; }
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
 @media screen and (min-width: 984px) {
-  body:not([data-lf-cramped]):has(aside.sidenote) { padding-left: var(--note); }
+  body:not([data-lf-cramped]):has(aside.sidenote) {
+    --strip-l: var(--note);
+    /* The left margin is a note's, so a wide widget grows to the right alone — the same
+       claim the rail makes on the other side, and for the same reason: the note hangs a
+       gutter off the column while the strip comes out of the far edge of the page, so a
+       board grown to the strip is drawn over the note it stands level with. Inside the
+       veto with the strip it claims, because they are one condition: a cramped page has
+       handed the strip back and its notes are indented blocks in the flow, so there is
+       nothing out there for an exhibit to be drawn over and the margin is the page's
+       again. */
+    & [data-lf-wide] { --lf-grow-l: 0px; }
+  }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a
      board, a table — the note is drawn nowhere at all, and the reader is the only party
@@ -612,7 +728,11 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * user at the last decision. Below the breakpoint no strip is worth the
  * column it costs, and the widget docks as it always has; where the controls are
  * gone their room would be a blank margin, and keying on the row is what releases
- * it — paper never runs this rule, and a copy has no row left for it to find.
+ * it — paper never runs this rule, and a copy has a row only where a decision left
+ * one standing. That last case is not the empty one it reads as: the control that
+ * says a change was accepted is exactly what the margin was reserved for, so a
+ * decided change carries its rail into the file, and the room a copy states for a
+ * wide widget subtracts it (--strip-r) the way the live page's measurement does.
  *
  * Presence is also all the reservation can go on. What the row can't say is
  * whether it will use the rail, and the question feeds back on itself: a row
@@ -620,7 +740,17 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * so a rail granted only to rows that aren't docked is a rail no row is ever
  * granted. */
 @media screen and (min-width: 900px) {
-  body:has(.lf-sug-actions) { padding-right: var(--rail); }
+  body:has(.lf-sug-actions) {
+    --strip-r: var(--rail, 0px);
+    /* And the right margin is spoken for, so a wide widget grows to the left alone. The
+       row hangs 22px off the column and the strip is reserved out of the far side of the
+       page, which are not the same place once the column centres in what is left: a board
+       grown to the strip stood 134px over these controls at a laptop's width. Said here
+       because this is where the claim is made — the reservation above and this are the
+       two halves of taking a margin, and a page that reserves one without saying so is a
+       page whose exhibits are drawn over its own apparatus. */
+    & [data-lf-wide] { --lf-grow-r: 0px; }
+  }
 }
 
 /* Where a widget upgrade fails, it fails soft into this box. */

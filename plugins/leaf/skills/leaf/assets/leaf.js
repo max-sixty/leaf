@@ -149,6 +149,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   pending: "data-lf-pending",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
+  wide: "data-lf-wide",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 
@@ -1241,6 +1242,7 @@ async function upgradeWidgets() {
   )
     throw new Error("leaf: registry lacks $events, $languages or $tones");
   rememberPassageParts();
+  markWide(document.body);
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
   if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
@@ -1264,6 +1266,28 @@ async function upgradeWidgets() {
   // After the wait, because the box a widget scrolls is a box its module built: run this
   // with the rest of the upgrade and a diff's pre and a code block's are half there.
   reachScrollers(document.body);
+}
+
+// Which widgets may stand wider than the column, from what they declare. Prose is set to
+// a measure and stays at it; a board's columns and a diagram's graph are as wide as what
+// they hold, and a page carrying one had to be either a cramped board or a page whose
+// every paragraph was widened to suit it. Neither is a choice a page should have to make,
+// so the widget kind says which it is (x-wide) and the theme spends the room the layout
+// measured (--lf-room, syncLayout).
+//
+// An attribute, because the theme cannot read the registry — the same arrangement x-says
+// already has with data-lf-said, and what carries the breakout into an exported copy,
+// which runs no script but keeps the markup. It is the runtime's paint on the page's own
+// element, so it joins PAGE_PAINT_ATTRIBUTES: the version diff reads the live DOM against
+// a file nothing has painted, and an attribute missing from that exclusion list is a
+// change the author never made. Written before the modules import, because the width is
+// the box each of them renders into, and written over the page alone: the room this
+// hands out is the document's, and the one place a widget renders outside the document
+// is a thread's message, where the room is the panel's (see renderMessage).
+function markWide(root) {
+  for (const tag of tagsDeclaring((entry) => entry["x-wide"]))
+    for (const el of root.querySelectorAll(tag))
+      el.setAttribute(PAGE_PAINT_ATTRIBUTE.wide, "1");
 }
 
 // Words a widget says through an attribute — a metric's number, an event's time, an
@@ -2675,7 +2699,58 @@ function syncLayout() {
   const clear = keylineEl.offsetHeight + 20 + "px";
   othersPanel.style.paddingBottom = clear;
   othersPanel.style.scrollPaddingBottom = clear;
+  stateRoom(panelStrip());
   syncFloats();
+}
+// The strip the panel holds, which is the panel's width until the window is too narrow
+// to give one up — one expression, because the margin below, the room beside it and the
+// transition's end all have to mean the same thing by it.
+const panelStrip = () => (panelOpen && !panelCovers ? PANEL_W : 0);
+// The room a widget declared wide may take: the document's own content box, less the
+// gutter the column already gives its prose, so a breakout is centred on the column's
+// axis and stops where the page stops.
+//
+// Measured, and measured here, because the panel is the thing no stylesheet can see: it
+// is 420px of the window while it is open and nothing in CSS says so, and a rule written
+// against 100vw would also spend the rail a suggestion hangs in and the classic scrollbar
+// this platform doesn't draw. The three of them come off body's own box for free. This is
+// the layout's one writer, so the room is restated wherever that box changes shape — the
+// panel taking its strip, a resize — for the same reason the floats are placed again.
+//
+// The gutter is read off the column rather than stated, since 24px is theme.css's number
+// and a second copy here would be a release behind it. Below the column's own width the
+// two coincide exactly, so the rule that spends this is a no-op on a narrow window rather
+// than a case anyone has to write.
+//
+// The strip the panel holds is the one part of that box which isn't settled when this
+// runs: it is handed over as motion, so body's margin is still the old one for the length
+// of the transition and the box in front of us is neither the width the page has nor the
+// one it is going to. Both readings are wrong, in opposite directions and at different
+// prices, so the room takes whichever of the two is smaller and the page never owes room
+// it hasn't got. Opening, that is the width being arrived at, stated at once: the strip
+// is being taken away, and an exhibit that waited out the slide would spend it hanging
+// over the panel with a sideways scrollbar underneath. Closing, it is the width in front
+// of us: the strip is coming back, and an exhibit that took it before the page had it
+// scrolled sideways for a fifth of a second every time the panel was dismissed — which
+// is what the suggestion sweep caught, on a window narrow enough for the returning strip
+// to matter. What is given back is picked up at the transition's end, the same fact the
+// float placement below consumes, so the growth lands the frame the room is real.
+function stateRoom(strip) {
+  const main = document.querySelector("main");
+  if (!main) return;
+  const body = getComputedStyle(document.body);
+  const column = getComputedStyle(main);
+  const room =
+    document.body.clientWidth -
+    Math.max(0, strip - parseFloat(body.marginRight)) -
+    parseFloat(body.paddingLeft) -
+    parseFloat(body.paddingRight) -
+    parseFloat(column.paddingLeft) -
+    parseFloat(column.paddingRight);
+  document.documentElement.style.setProperty(
+    "--lf-room",
+    Math.max(0, Math.floor(room)) + "px",
+  );
 }
 // The floats live in the document, and syncLayout is where its box changes shape — the
 // panel takes or returns its strip, a resize moves every rect, the composer's own
@@ -2702,7 +2777,11 @@ function syncFloats() {
 // the fact to consume — reduced motion still fires it, at .01ms — and syncLayout's
 // own call covers the pre-stamp loads that run untransitioned.
 document.body.addEventListener("transitionend", (ev) => {
-  if (ev.propertyName === "margin-right") syncFloats();
+  if (ev.propertyName !== "margin-right") return;
+  // The room a returning strip gives back, which stateRoom withheld until the page
+  // actually had it.
+  stateRoom(panelStrip());
+  syncFloats();
 });
 function setPanel(open) {
   // Closing while focus is inside would drop it on body, the user's place
@@ -3004,6 +3083,12 @@ function msgNode(m) {
       // along with them — the said and quiet passes write a widget's declared words,
       // spoken and silent, and a fenced block is a <pre><code class="language-…">
       // like any the page holds.
+      //
+      // markWide is the pass that deliberately stays behind, and the reason is what
+      // it hands out: the room the *document* has, which is not the room in here. A
+      // diagram in a reply is a widget the vocabulary calls wide, and marked as one
+      // it would lay itself out to the page's measure inside a 420px panel. The room
+      // a message has is the message's, and it already has it.
       if (m.markup) body.insertAdjacentHTML("beforeend", m.markup);
       renderSaid(body);
       renderQuiet(body);
@@ -7426,6 +7511,19 @@ Promise.all([
   // and a mark that arrived after it would leave the copy's tab to chance.
   loadIcon().catch((err) => console.error(err)),
 ]).then(() => {
+  // The box the page ends up with is not the one it started in, because a module may
+  // change it while upgrading: a page with a change to decide gives up a rail of the
+  // controls' own width, and lf-suggestion states that from the first row it builds,
+  // which is long after the layout first ran. Every reader of the box is therefore
+  // re-run here rather than left holding the pre-upgrade one — the room a wide widget
+  // spends was the one that noticed, standing a diagram out over the rail on the first
+  // shipped page to carry both.
+  //
+  // The observer above covers this too, today and by accident: the key line gains its
+  // rows after upgrade, which resizes it, which calls this. That is a fact about what
+  // the chrome happens to do rather than about when the box settles, so it is not the
+  // ordering to rest on — and it is why no test here fails with this line taken out.
+  syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.
   captureAuthoredFacets();

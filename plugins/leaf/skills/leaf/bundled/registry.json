@@ -266,6 +266,7 @@
     "x-content": "data",
     "x-upgrade": true,
     "x-visual": true,
+    "x-wide": true,
     "x-example": "<lf-diagram id=\"checkout-flow\"><pre>\ngraph LR\n  Cart --> Pay\n  Pay --> Receipt\n</pre></lf-diagram>"
   },
   "lf-shot": {
@@ -300,6 +301,7 @@
         "record": {"kind": "position", "within": "lf-column", "value": "to"}
       }
     },
+    "x-wide": true,
     "x-example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
   },
   "lf-column": {

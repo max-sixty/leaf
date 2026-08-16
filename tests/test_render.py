@@ -4516,7 +4516,12 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     collapsed it is the only place the decision is stated, and it is written into a
     disclosure — chrome, and a control. And naming the card there means the page now
     says the card's lede twice, so the third part asks the one thing that buys: a
-    comment made on the card lands on the card."""
+    comment made on the card lands on the card.
+
+    Which way the disclosure stands is the row's own expanded state and nothing
+    besides: the group's markup is the author's, and opening a settled decision is
+    reading rather than editing, so no version and no log has a word to say about
+    it."""
     page, errors = open_page(
         browser, serve(SETTLED_PAGE, anchored=[("opt-strict", "arrives logged out")])
     )
@@ -4536,6 +4541,16 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     assert opened > collapsed * 3, (
         f"collapsing saved {opened - collapsed}px of {opened}px — a settled group "
         f"that still costs most of its open height isn't a sweep"
+    )
+    # Open is the row's own expanded state and nothing else. The group wore an `open`
+    # attribute here too, in a namespace its entry closes, which no version carries and
+    # no consumer reads — while shallowSigs, whose exclusion list is exactly what no
+    # version can assert, counted it as state the author had written. The render gate
+    # asks the same of every example and cannot reach this moment: a group arrives
+    # closed, and nothing it does opens one.
+    assert row.get_attribute("aria-expanded") == "true"
+    assert page.evaluate(interact.UNDECLARED_ATTRS) == [], (
+        "opening the group left an attribute on a widget its entry never declared"
     )
 
     row.click()  # closed again, so the reveal below has something to open
@@ -7527,6 +7542,253 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     assert any("id=work" in f and "card-importer" in f for f in failures), failures
 
 
+# One instance for every verb the vocabulary declares an action or a report for, so a
+# log holding one event apiece leaves the whole of it standing at once. Two option
+# groups and two suggestions, because a fold is keyed by unit: a second verb recorded on
+# one widget supersedes the first, and a verb that never stands is a verb the gate never
+# applies. The floor below derives the list from the registry, so a twelfth widget's
+# verb fails here rather than passing unexercised.
+STANDING_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>standing state</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="ab-t">The v1 cutover</h1>
+<lf-options id="ab-pick" choose>
+  <lf-option id="ab-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="ab-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options>
+<lf-options id="ab-scope" choose>
+  <lf-option id="ab-all"><strong>Every caller</strong> Nobody is left on v1.</lf-option>
+  <lf-option id="ab-ten"><strong>The top ten</strong> The rest follow in August.</lf-option>
+</lf-options>
+<lf-board id="ab-work">
+  <lf-column id="ab-doing" label="Doing"><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
+  <lf-column id="ab-done" label="Done"><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+</lf-board>
+<lf-tasks id="ab-plan">
+  <lf-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-task>
+</lf-tasks>
+<lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
+<lf-suggestion id="ab-sug-410">
+  <lf-old><p id="ab-404">The retired response is a plain 404.</p></lf-old>
+  <lf-new><p>The retired response is a 410 Gone.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="ab-sug-logs">
+  <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
+  <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
+</lf-suggestion>
+</main>
+</body>
+</html>
+"""
+
+# The event that leaves each declared verb standing, written out because a detail is
+# the verb's own shape and a schema is no help in inventing one.
+#
+# Two moves into one column, both to its head, because one move cannot say what this
+# gate has to get right. `move` folds by card, so each is its own standing entry, and
+# an absolute `#place` states one card's index and nothing about its neighbours: the
+# column ends up holding the second above the first, and re-applying the first *alone*
+# is supposed to lift it back over. Measured that way the gate called lf-board relative
+# and refused a page with nothing wrong with it. The set has to be re-applied in the
+# log's order, and with a single move on the page it passed either way.
+STANDING_ACTIONS = [
+    ("ab-pick", "choose", {"options": ["ab-stage"]}),
+    ("ab-scope", "answer", {}),
+    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "index": 0}),
+    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "index": 0}),
+    ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
+    ("ab-sug-410", "accept", {}),
+    ("ab-sug-logs", "reject", {}),
+]
+
+
+def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):
+    """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
+    module no reading of a rendered page can see: a relative implementation renders
+    perfectly and costs the user their gesture later, on the poll that replays it. So
+    the gate applies each standing action again and asks what moved, and the shipped
+    vocabulary has nothing to do — a card placed where it already is, a pick set to
+    what it already holds, a body assigned the words it already reads.
+
+    The corpus cannot say this on its own: `test_example_renders` serves every example
+    under a log holding one note, so the fold is empty there and the reading passes
+    without applying anything. This page is the log the examples haven't got, and the
+    floor is that the standing state covers every verb the registry declares — a verb
+    added without an event here fails rather than going unexercised."""
+    url = serve(STANDING_PAGE)
+    for widget, action, detail in STANDING_ACTIONS:
+        interact.append_event(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "version": 1,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
+    # The agent channel through its own door, which is the only way a report is
+    # written: both channels replay, so both rest on the same contract.
+    sent = CliRunner().invoke(
+        interact.cli,
+        ["report", str(serve.page_dir), "ab-baffles", "status", "status=done"],
+    )
+    assert sent.exit_code == 0, sent.output
+
+    page, errors = open_page(browser, url)
+    standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()
+        .map(({ widget, action }) => [widget.localName, action])""")
+    page.close()
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    declared = {
+        (tag, verb)
+        for tag, entry in registry.items()
+        if tag.startswith("lf-")
+        for channel in ("x-state", "x-report")
+        for verb in entry.get(channel, {})
+    }
+    assert {tuple(pair) for pair in standing} == declared, (
+        "the gate applies the standing state, so a declared verb missing from it is a "
+        f"verb nothing here re-applies: page holds {standing}, registry declares "
+        f"{sorted(declared)}"
+    )
+    assert errors == []
+    assert interact.render_version(browser, url) == []
+
+
+RELATIVE_WIDGET_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>relative widget</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+<main>
+<h1 id="tally-title">Squirrel baffles</h1>
+<lf-tally id="tally-fitted" count="2">
+  <strong>Baffles fitted</strong> Counted on the last walk round.
+</lf-tally>
+<lf-tally id="tally-seen" count="0">Nothing at the feeders this week.</lf-tally>
+</main>
+<script type="module" src="/leaf.js"></script>
+</body>
+</html>
+"""
+
+RELATIVE_WIDGET_MODULE = """\
+import { once } from "/leaf.js";
+
+customElements.define(
+  "lf-tally",
+  class extends HTMLElement {
+    connectedCallback() {
+      once(this);
+    }
+    applyAction(action, detail) {
+      // Both relative, one in markup the signature reads and one in words it
+      // looks away from: the count steps by the detail instead of stating it,
+      // and the caption is appended instead of replacing what stood there.
+      if (action === "step")
+        this.setAttribute("count", Number(this.getAttribute("count")) + detail.count);
+      if (action === "caption") this.append(detail.text);
+    }
+  },
+);
+"""
+
+
+def test_the_render_gate_catches_a_relative_apply_action(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for the contract the widget scaffold's own comment names first, and for
+    both readings the gate takes of it. A project widget steps its count from the count
+    it reads and appends its caption to the caption it reads: right once, and wrong
+    every time after, because the page has already replayed the action and the poll
+    replays the user's own gesture back at them. Each finding names its widget, its verb
+    and what moved.
+
+    Two verbs on two instances, because a fold is keyed by unit and the two readings
+    catch different things. The count is markup, so `shallowSigs` sees it; the caption
+    is text, which that signature excludes on purpose, so only the unit's declared
+    record form reaches it — a limb of the gate that would otherwise never have fired."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-tally", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-tally"]["properties"]["count"] = {"type": "integer", "minimum": 0}
+    # The registry holds a widget-unit verb to the attribute a version retracts a
+    # decision with, so a state channel arrives with its way out of one.
+    entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-tally"]["x-state"] = {
+        "step": {
+            "detail": {
+                "type": "object",
+                "properties": {"count": {"type": "integer", "minimum": 0}},
+                "required": ["count"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "count", "value": "count"},
+        },
+        "caption": {
+            "detail": {
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+                "required": ["text"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+            "record": {"kind": "body", "value": "text"},
+        },
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
+    url = serve(RELATIVE_WIDGET_PAGE)
+    for widget, action, detail in [
+        ("tally-fitted", "step", {"count": 3}),
+        ("tally-seen", "caption", {"text": "Two greys at the north feeder."}),
+    ]:
+        interact.append_event(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "version": 1,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
+
+    failures = interact.render_version(browser, url)
+
+    tail = (
+        ". The poll replays every standing action over the state they already "
+        "produced, so state the whole value from the detail rather than stepping "
+        "from what the page shows"
+    )
+    assert [f for f in failures if "is relative" in f] == [
+        "[light] <lf-tally id=tally-fitted> applyAction(step) is relative — "
+        "re-applying the standing log moved tally-fitted" + tail,
+        "[light] <lf-tally id=tally-seen> applyAction(caption) is relative — "
+        "re-applying the standing log moved the state recorded on tally-seen" + tail,
+    ], failures
+
+
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
     """A widget may use the runtime's namespace for state without making that state
     runtime paint. Replaying a suggestion changes only data-lf-state on its authored
@@ -7746,6 +8008,100 @@ RETIRED_WIDGET_PAGE = """<!doctype html>
 </body>
 </html>
 """
+
+
+TWO_HOLDER_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>two holders</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="th-t">The cache trial</h1>
+<lf-trial id="th-cache">
+  <lf-current><p id="th-now">The cache is warmed on every deploy.</p></lf-current>
+  <lf-proposed><p id="th-next">The cache is warmed on the first request.</p></lf-proposed>
+</lf-trial>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
+    browser, serve, tmp_path, monkeypatch
+):
+    """`x-parent` is a list, and the retired-slot selector is built from it. Written
+    `${entry["x-parent"]}` the list interpolates comma-joined, so a slot naming two
+    holders wrote a selector *list* whose first member was the bare holder tag: every
+    instance of it read as a retired slot however the log stood, its words silenced
+    from the anchor pass, while the pair that was meant matched nothing at all.
+
+    Unreachable until this layer's licensing opened `x-retired-when` past the
+    suggestion family, which is why the shipped vocabulary — every slot of it naming
+    one holder — could never have said so. The page holds an undecided trial, so
+    nothing here is retired and a quote inside it must anchor like any other."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    # The holders upgrade, because a tag declaring x-state must have a handler to
+    # replay one; the slots are markup and need none.
+    for tag, upgrade in (
+        ("lf-trial", True),
+        ("lf-pilot", True),
+        ("lf-current", False),
+        ("lf-proposed", False),
+    ):
+        made = runner.invoke(
+            interact.cli,
+            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
+        )
+        assert made.exit_code == 0, made.output
+    source = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(source.read_text())
+    verb = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "unit": "widget",
+    }
+    example = {
+        "lf-trial": '<lf-trial id="x-trial"><lf-current><p>As it stands.</p></lf-current>'
+        "<lf-proposed><p>As proposed.</p></lf-proposed></lf-trial>",
+        "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
+        "</lf-proposed></lf-pilot>",
+    }
+    for tag, state in (
+        ("lf-trial", ("adopt", "shelve")),
+        ("lf-pilot", ("run", "shelve")),
+    ):
+        entries[tag]["x-state"] = {name: dict(verb) for name in state}
+        entries[tag]["properties"]["restated"] = {"type": "boolean"}
+        entries[tag]["x-content"] = "items"
+        entries[tag]["x-example"] = example[tag]
+    # Only lf-proposed names two, which is the whole of what this is for.
+    for tag, holders, outcome in (
+        ("lf-current", ["lf-trial"], "adopt"),
+        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
+    ):
+        entries[tag] |= {"x-parent": holders, "x-retired-when": outcome}
+        entries[tag].pop("x-example", None)
+        entries[tag].pop("required", None)
+    source.write_text(json.dumps(entries))
+
+    url = serve(TWO_HOLDER_PAGE, anchored=[("th-now", "warmed on every deploy")])
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
+    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") != "", (
+        "the quote found nothing to paint: an undecided holder read as a retired slot, "
+        "so the anchor pass skipped every word inside it"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
@@ -8131,7 +8487,12 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
     home, so the group brings no box of its own — and an armed g leader keeps its
-    digits even from a mark, because the chord promised a thread."""
+    digits even from a mark, because the chord promised a thread.
+
+    The answer is said once, on the press. The log is where it is recorded, and the
+    group's own markup stays the author's: a module writes there only where the
+    registry declares the attribute as a record form, which a thread verb can never
+    have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         interact.append_event(serve.page_dir, event)
@@ -8152,11 +8513,31 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(asks).to_have_text("Asks (1)")
     page.locator("#tq-set .lf-done").click()
     expect(asks).to_be_hidden()
-    expect(page.locator("#tq-set")).to_have_attribute("answered", "")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
+    # Said once, on the press. An `answered` attribute on the group said it again in
+    # the author's namespace, where the entry admits nothing undeclared and no version
+    # could ever have carried a record of a thread verb — invisible to every consumer
+    # but shallowSigs, which reads what no version can assert as state one authored.
+    assert page.evaluate(interact.UNDECLARED_ATTRS) == [], (
+        "the Done press left an attribute on a widget its entry never declared"
+    )
     round_trip(page)
     actions = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert actions[-1]["widget"] == "tq-set" and actions[-1]["action"] == "answer"
     assert actions[-1]["detail"] == {}
+
+    # And a second tab reads it off the log, which is the only place it is written.
+    # A reader who made no gesture gets the same pressed press and the same closed
+    # ask — replay is what puts it there, and the one representation is what replay
+    # writes, so there is nothing for a version or a markup copy to fall behind.
+    other, other_errors = open_page(browser, url)
+    expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
+    expect(other.locator(".lf-asks")).to_be_hidden()
+    assert other.evaluate(interact.UNDECLARED_ATTRS) == [], (
+        "replaying the answer left an attribute the entry never declared"
+    )
+    assert other_errors == []
+    other.close()
 
     # The chord's promise holds from a mark: g then 1 reaches the first thread's
     # reply box, and no pick is sent for the digit.

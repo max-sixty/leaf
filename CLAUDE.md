@@ -216,13 +216,39 @@ skill's own prose alike; the test is whether a twelfth widget touches anything b
 module and its entry, and where it would, the thing missing is a declaration.
 
 Most widgets are things a page contains, and those are anonymous outside their own
-module. A few are part of the machine the list is defined against, and core names those
-outright. The suggestion is the one today: the log settles it, `retirable_ids` is written
-in terms of its slots, and thread markup refuses one. That name is a mechanism's, not a
-member's, so it isn't a special case waiting for a declaration to replace it. Which kind a
-widget is has one question behind it — is this one of the ways leaf works, or one of
-the things a page can hold? Convenience is not an answer to it; a widget joins the first
-set by having the loop written in terms of it.
+module. A few are part of the machine the list is defined against, and core would name
+those outright. None is today, and the suggestion is where the temptation kept landing:
+the log settles it, a version honoring that decision may drop the ids it retired, and
+thread markup refuses one, no version being able to reach a widget frozen in the log. All
+three read as sentences about the suggestion and every one of them is about a relation
+the registry states — `x-retired-when` names the outcome a slot leaves the page under and
+`x-parent` the widgets whose decision reaches it, so a holder/slot pair is the whole of
+what a settlement is (`retirement_slots`). All three are written from that pair now, and
+a family a project declares gets them the day it declares it.
+
+The licensing was the one still written in terms of `lf-old` and `lf-new`, and the
+registry door had to be held shut on the key to cover for it: a third-party slot could be
+declared, painted, decided and read, and then the version honoring the decision failed
+with "ids dropped", three versions from the declaration and with nothing to connect the
+two. Refusing the declaration gave that failure somewhere to be reported and left the
+wrong shape standing. What the pair genuinely could not say is what an *unanswered* one
+means when the author takes it back: a withdrawn suggestion leaves the page where a
+`reject` would, and "which outcome retires this slot" never says which outcome that is.
+So the widget says it (`x-withdrawn-as`) and the two halves are one rule — the outcome
+the log recorded, or the one the entry says a withdrawal stands as, hedged because there
+the author is asserting a state the user never gave.
+
+One name is left in core and it is a member's. `suggestion_errors` holds the family's
+markup to one slot of each kind, at least one of them, and no nesting; it reads which
+tags those are off the registry, and the rules themselves are the family's, cardinality
+being the thing no key states. Ask what those sentences mean for the twelfth widget and
+the answer is nothing, which is what makes them a member's lint rather than a mechanism
+reaching for a name. The day a second family wants them is the day the registry grows a
+way to say them.
+
+Which kind a widget is has one question behind it — is this one of the ways leaf works,
+or one of the things a page can hold? Convenience is not an answer to it; a widget joins
+the first set by having the loop written in terms of it.
 
 The banner's `✓ Accept all` used to be a fourth item in that list and was never one. It
 counted `lf-suggestion:not([data-lf-state])`, which is the shape of a mechanism and the
@@ -233,8 +259,9 @@ it became — the entry says an instance of this tag stands as a request to the 
 one list then feeds the banner's count, the key that steps them and the `?` overlay. So
 the question above has a second edge: a name core can only defend because that widget got
 there first is a declaration waiting to be written, and the way to tell is to ask what the
-sentence would mean for the twelfth widget. "The log settles a suggestion" stays true of
-the mechanism; "the banner counts suggestions" was already the wrong sentence.
+sentence would mean for the twelfth widget. "The log settles what a version then has to
+honor" is a mechanism's sentence, which is why it survived being rewritten without the
+name; "the banner counts suggestions" was already the wrong sentence.
 
 Declare the general property, not the particular widget, or the special case has only
 moved into the registry: `x-upgrade` says a module enhances this tag, not that mermaid
@@ -267,6 +294,42 @@ detail schema, its fold unit, and its record form are declared in the registry
 (`x-state`), not known privately to the module: absoluteness is what makes the
 user's standing state a fold over the log, and the declaration drives every consumer
 of it without teaching any of them a widget by name.
+
+For a long time nothing checked it and every gate passed a relative one, because there
+is nothing to see: it renders perfectly, and what it costs arrives later, on the poll
+that replays the sender's own action over the state their gesture already painted — the
+reader drags a card once and watches it walk. So the render gate asks the page rather
+than the code (`RELATIVE_REPLAYS`): it re-applies the standing state and reports what
+moved, at the widget, with the fix. Replaying the log again would prove nothing, since
+every action carries its seq and replay retires each exactly once, so a second pass is a
+no-op whatever the widgets do. It reads the result twice, one reading being blind where
+the other sees — `shallowSigs` for the markup state, which excludes text on purpose, and
+the unit's declared record form for the words.
+
+The set is re-applied whole and in the log's order, which is not the same check as
+asking each action on its own. Absoluteness is a claim about a unit, not about the
+page: two cards dragged to the head of one column fold to two standing moves, and
+replaying the earlier one alone is *meant* to lift it back over the later one. Measured
+per action that called lf-board relative and refused a page with nothing wrong with
+it — at the one gate a handover cannot get past, which is the expensive place to be
+wrong. What it still cannot reach is a verb nobody has used: the actions are the log's,
+so a widget shipped with no decision recorded on it yet is checked by its first user
+rather than at handover.
+
+A verb's record form is also the whole of what a module may write in the author's namespace.
+An entry's `additionalProperties: false` closes that namespace, and the file's lint holds
+a version to it — but a widget has a second writer the file cannot see, and a module can
+leave anything it likes on the element it upgrades. So it writes there only where a record
+declares the attribute (`chosen`, `status`), and everything else it needs to mark goes on
+the chrome it built, in the platform's vocabulary or under `data-`. `lf-options` had two of
+the other kind and both were silent: `answered` recorded a verb only a thread can post,
+where no version can carry the markup to honor a record of it, and `open` recorded which
+way this tab last left a disclosure, which no version carries at all. Each was a second
+copy of a fact the module already stated on the control that carries it, and the one
+reader that saw them believed them — `shallowSigs` excludes exactly the attributes no
+version can assert, and its exclusion list is the runtime's own paint, so a widget writing
+beside it is counted as state the author wrote. `version check --render` asks the rendered
+page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer shows on.
 
 ## Working on it
 

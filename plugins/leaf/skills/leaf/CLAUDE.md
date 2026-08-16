@@ -69,6 +69,33 @@ Nothing collapses the two, because they answer to different things. The document
 owes nothing to the network — a page whose server never answers has still finished
 becoming itself, and says so.
 
+## A pinned version scopes the document, never the conversation
+
+Two readings of the same log run on every page, and they take different windows of it on
+purpose. Replay asks what the document held at this version, so it stops at `VNUM`: an
+action recorded later is not yet part of the page the reader pinned, and a retraction
+floor declared later cannot reach back to undo a decision this version still stands on.
+The panel asks what has been said, so it takes the whole log
+(`retractionFloors(Infinity)`, and `upto=None` from `interact.py`'s callers): a
+conversation is not a property of a version, and a thread opened on v3 is the same thread
+on v7.
+
+The two windows disagree on screen, and the disagreement reads as a contradiction. A
+reader pinned to v3, with a v5 note that `restated` the passage an accept rested on, sees
+the thread reopened in the panel and the suggestion still painted accepted in the document
+beside it. Both are right. The document is v3's, and at v3 the accept had not been taken
+back; the thread is the conversation's, and the retraction is something that has been said.
+
+The temptation is to pick one window and give it to both readings, which loses whichever
+question the other was answering. Scope the panel, and a retraction is not news until the
+reader steps forward to the version that declared it — so the older page keeps from them
+the one thing they most need to hear, that a decision of theirs no longer stands. Unscope
+replay, and an older version stops being a historical view: decisions made after it are
+painted onto the markup it had before them, which is a page that never existed.
+
+So a reading's window follows from the question it answers. What the document holds is
+the version's; what has been said is the log's.
+
 ## Derive rendering from state; never read it back
 
 `composerOpen`, `fabAnchor`, `diffBase` are the state. `style.display` is a rendering of

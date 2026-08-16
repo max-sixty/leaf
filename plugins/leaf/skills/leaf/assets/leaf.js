@@ -2979,17 +2979,10 @@ function buildThreads() {
   // The whole log, not this version's window: a conversation is not version-scoped, so
   // the panel shows the same threads whichever version is pinned and a retraction
   // settles a thread's state from wherever it was declared. interact.py's callers pass
-  // upto=None for the same reason.
-  //
-  // Replay is windowed to VNUM and this is not, so on any version but the newest the
-  // two disagree, and they are meant to: a thread can read reopened by a retraction
-  // beside a suggestion the page still paints accepted. They answer different
-  // questions. The page is what *this version* says, so it must not show a decision
-  // taken after it. The panel is the conversation, and a thread the reader is owed an
-  // answer in does not stop being owed because they stepped back to read v2. Neither
-  // collapse is cheaper than the disagreement: window the panel too and a retraction
-  // stays invisible until the reader walks forward to find it, and unwindow replay and
-  // an old version paints state it never held.
+  // upto=None for the same reason. Replay windows to VNUM instead, and on any version
+  // but the newest the two are meant to disagree — the rule binds both sites, so it is
+  // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
+  // never the conversation".
   const floors = retractionFloors(Infinity);
   for (const e of events) {
     if (e.kind === "comment") {
@@ -3527,11 +3520,16 @@ function revealThread(id) {
 let retiredSlotsMemo;
 function retiredSlots() {
   if (retiredSlotsMemo != null) return retiredSlotsMemo;
+  // One selector per holder, never the array interpolated: `x-parent` is a list, and
+  // `${list}` joins it with a comma, so a slot naming two holders wrote a selector
+  // *list* whose first member was a bare tag — every instance of the first holder read
+  // as a retired slot, decided or not, and the pair that was meant matched nothing.
   const value = Object.entries(registry)
     .filter(([, entry]) => entry["x-retired-when"])
-    .map(
-      ([tag, entry]) =>
-        `${entry["x-parent"]}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
+    .flatMap(([tag, entry]) =>
+      entry["x-parent"].map(
+        (parent) => `${parent}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
+      ),
     )
     .join(", ");
   if (Object.keys(registry).length) retiredSlotsMemo = value;
@@ -6486,8 +6484,12 @@ const diffOpaqueSel = () =>
     ...tagsDeclaring(
       (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
     ),
+    // flatMap, so the set holds holder tags rather than the arrays naming them: a set
+    // of arrays never dedupes, two array objects never being equal.
     ...new Set(
-      tagsDeclaring((e) => e["x-retired-when"]).map((tag) => registry[tag]["x-parent"]),
+      tagsDeclaring((e) => e["x-retired-when"]).flatMap(
+        (tag) => registry[tag]["x-parent"],
+      ),
     ),
     "svg",
   ].join(",");
@@ -7375,6 +7377,47 @@ function reportFold(upto) {
   const answered = answeredReports(upto);
   return new Map(foldable("report", "x-report", upto, (e) => !answered.has(e.id)));
 }
+
+// What this page's folds hold, handed out so the one premise underneath them can
+// be tested from outside: every applyAction is absolute, and neither fold is a
+// fold if one isn't. `version check --render` applies each of these a second
+// time and asks what moved (RELATIVE_REPLAYS, in interact.py) — the page has
+// already replayed them, so a widget stating the whole value has nothing to do
+// and one stepping from what it reads moves again.
+//
+// Both channels, because both fold the same way: a report states an absolute
+// value exactly as an action does. The widget rather than the unit, because
+// applyAction is the widget's method and the detail is what names the part.
+//
+// In the log's own order, which is the whole of what makes re-applying them a
+// no-op. An absolute applyAction states its unit whole and says nothing about
+// any other, so where two units share an ordered container the page is the
+// *sequence's* result rather than any one action's: two cards dragged to the
+// head of one column leave it holding the second above the first, and replaying
+// the first alone lifts it back over the second. Neither implementation moved;
+// the reading did. A fold is keyed by unit and a Map keeps each key where it
+// first appeared, so the surviving events have to be put back in `seq` order
+// rather than taken as the fold hands them over.
+//
+// The widget and the facet are both read at the call rather than held, because
+// an application earlier in the batch is free to have replaced the element a
+// later one names. A unit the current version dropped has no facet at all —
+// its widget survived it.
+export const standingState = () =>
+  [...stateFold(VNUM), ...reportFold(VNUM)]
+    .sort(([, a], [, b]) => a.e.seq - b.e.seq)
+    .map(([unit, { e, spec }]) => ({
+      get widget() {
+        return elementById(e.widget);
+      },
+      unit,
+      action: e.action,
+      detail: e.detail,
+      facet: () => {
+        const el = spec.record && elementById(unit);
+        return el ? domFacet(el, spec.record) : null;
+      },
+    }));
 
 // data-lf-pending: this element's decided state differs from what the version's
 // markup arrived showing — the record is behind the log. It clears when a

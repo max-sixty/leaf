@@ -43,6 +43,22 @@
  * never a wider word, and the set can still change after — each later toggle still
  * reaches the agent, who reads the log rather than the moment.
  *
+ * That paint goes on the press and nowhere else, which is a rule rather than a
+ * preference. A module writes an attribute in the author's namespace only where the
+ * registry declares it as a verb's record form — `chosen` is one, so a version can
+ * carry a pick and `version check` can hold the markup against the log's fold — and
+ * the entry's `additionalProperties: false` is the whole of what else may stand
+ * there. This module wrote two that nothing declared. `answered` recorded the
+ * thread-only `answer` verb, and a thread's markup is frozen in the log, so no
+ * version could ever have honored a record of it; `open` recorded which way this
+ * tab last left the disclosure, which no version carries at all. Each was a second
+ * copy of a fact the module already states on the control that carries it — the
+ * press's `aria-pressed`, the row's `aria-expanded` — so the theme keys on those,
+ * the way lf-tabs' strip already does, and the group's own attributes are the
+ * author's again. What the copies cost was a reader that believed them:
+ * `shallowSigs` excludes exactly what no version can assert, and read both of these
+ * as state a version had written.
+ *
  * The keyboard path: every mark is a press, so Tab reaches it and ⏎ toggles. From a
  * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap) and 1–9 pick outright —
  * each option wears its digit in a column of its own, painted only while a mark holds
@@ -231,9 +247,9 @@ customElements.define(
     }
 
     // Absolute: answered is the whole statement, so replaying this tab's own press
-    // is the same call again.
+    // is the same call again. Said once, on the press: the log holds the answer and
+    // the pressed state is what the page shows for it (see the header).
     #answered(on) {
-      this.toggleAttribute("answered", on);
       this.#done?.setAttribute("aria-pressed", String(on));
       document.dispatchEvent(new CustomEvent("lf-answered"));
     }
@@ -423,6 +439,7 @@ customElements.define(
 
     #row = null; // the one-line summary a settled group collapses to
     #title = null; // the part of it naming the chosen option
+    #isOpen = false; // this tab's reading of the group; #open renders it, nothing reads it back
 
     #settle() {
       // A disclosure is a thing to work, and what it names — the chosen option — the
@@ -439,7 +456,7 @@ customElements.define(
       count.textContent = `${options.length} option${options.length === 1 ? "" : "s"}`;
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
-      this.#row.onclick = () => this.#open(!this.hasAttribute("open"), true);
+      this.#row.onclick = () => this.#open(!this.#isOpen, true);
       this.prepend(this.#row);
       for (const option of options) {
         // The browser found something inside (find-in-page, an anchor jump), or the
@@ -455,7 +472,7 @@ customElements.define(
     }
 
     #open(open, remember) {
-      this.toggleAttribute("open", open);
+      this.#isOpen = open;
       // The box for words and the Done press go behind the collapse with the options:
       // both belong to the question, and a settled group asks nothing until the
       // reader opens it again — a Done left standing was a button under a summary

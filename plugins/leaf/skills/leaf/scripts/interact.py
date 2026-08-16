@@ -255,6 +255,16 @@ vocabulary for rides in the custom keywords below:
                 `reports` on the note, written by `version publish`; `overruled`
                 on the element is how a version keeps its own state over one.
                 See $report in the registry.
+    x-retired-when  the outcome under which this element leaves the page: the
+                slot a decision retires, and x-parent the widgets whose decision
+                reaches it. That one relation is the whole of what a decision
+                settles — the anchor pass's skip list on both sides, and which
+                ids a version honoring the decision may drop (retirable_ids).
+    x-withdrawn-as  the outcome an unanswered instance stands as when the author
+                takes it back: a withdrawn suggestion leaves the page where a
+                `reject` would. Without it a question, once asked, stays until
+                the reader answers it — nothing else says which slots were the
+                author's to take back and which hold the page's own words.
     x-awaits    an instance of this tag is a standing request to the reader:
                 `when` says which instances ask (attribute values, a flag's
                 being true and false), `all` names the verb one press answers
@@ -330,7 +340,7 @@ tags; the page carries exactly one external script
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
 comment); ids are unique and every id from the previous version survives
-unless the log settled the suggestion holding it; no fixed-pixel-width element
+unless the log settled the widget holding it; no fixed-pixel-width element
 is wider than the readable column. Near-free and deterministic is what makes
 running it on every version affordable, so keep a new check that way; anything
 needing a browser belongs in `--render`.
@@ -609,6 +619,7 @@ EXTENSION_SCHEMA = {
         "x-verbatim": {"type": "boolean"},
         "x-visual": {"type": "boolean"},
         "x-wide": {"type": "boolean"},
+        "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {"x-retired-when": ["x-parent"]},
@@ -2260,7 +2271,13 @@ def custom_widget_module(tag: str) -> str:
 // skills/leaf/CLAUDE.md, learned by getting it wrong):
 // - applyAction states an absolute placement, never a relative mutation —
 //   replay applies it on every later version, and the sender's own action
-//   must be a no-op.
+//   must be a no-op. `version check --render` re-applies the standing state and
+//   reports a widget that moves under it.
+// - A holder whose slots declare x-retired-when writes data-lf-state="<outcome>"
+//   on itself as it settles. That attribute is what the page reads to know a slot
+//   has left it — the file's reading takes the same fact from the log — so a module
+//   that settles without writing it leaves `leaf comment` refusing a quote into
+//   words the reader can still see and select.
 // - Read your own slot with says(el), never textContent: the runtime's hidden
 //   comment line lands inside widgets legitimately.
 // - Anything you inject is chrome only if marked: offer() for a control,
@@ -2844,12 +2861,18 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         )
     if not frag.lf_elements:
         sys.exit("--markup carries no widget; put prose in --text")
-    if frag.suggestions:
-        sys.exit(
-            f"a {kind} can't carry <lf-suggestion>: thread markup is frozen in the "
-            "log, so no version could ever settle it — put the change in the next "
-            "version instead"
-        )
+    # A widget a decision settles is a widget a version has to honor, retiring the
+    # slots the outcome names — and thread markup is frozen in the log, so no
+    # version can reach it. Read off the registry's own holder/slot relation, so
+    # the family a layer adds is refused here for the same reason the suggestion is.
+    settled = retirement_slots(registry)
+    for rec in frag.lf_elements:
+        if rec["tag"] in settled:
+            sys.exit(
+                f"a {kind} can't carry <{rec['tag']}>: thread markup is frozen in the "
+                "log, so no version could ever settle it — put the change in the next "
+                "version instead"
+            )
     if frag.duplicate_ids:
         sys.exit(
             f"{kind} widget markup reuses an id within itself: {frag.duplicate_ids}"
@@ -3612,11 +3635,13 @@ def implicit_closes(open_tags: list, tag: str) -> int:
 
 class _StructParser(HTMLParser):
     """Tracks a tag stack to catch unclosed and mismatched tags, and collects what the
-    rest of `version check` reads off a version: element ids, every <script src> tag,
-    stylesheet links, each lf-* element (attributes, direct parent, direct children,
-    direct text) for registry validation, the page's title, and everything it says
-    about width. Foreign markup inside <svg> is skipped (SVG has its own self-closing
-    rules that don't matter here)."""
+    rest of `version check` reads off a version: element ids and the widget each
+    stands in, every <script src> tag, stylesheet links, each lf-* element
+    (attributes, direct parent, direct children, direct text) for registry
+    validation, the page's title, and everything it says about width. Structure
+    only — no tag here is known by name, so every question about what a widget
+    *means* is asked of the registry by whoever holds one. Foreign markup inside
+    <svg> is skipped (SVG has its own self-closing rules that don't matter here)."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -3641,10 +3666,13 @@ class _StructParser(HTMLParser):
         self.title = ""  # what <title> says, for the transcript's heading
         # {"tag", "line", "attrs", "parent", "children", "text"}
         self.lf_elements = []
-        # {"id", "resolves", "line", "slots", "old_ids", "new_ids", "nested"} per
-        # lf-suggestion: which slots it carries and which ids live in each, so a
-        # version's outcome can license retiring exactly the ids it settles.
-        self.suggestions = []
+        # id → the innermost lf-* element standing around it, an element's own id
+        # standing in itself. Where an id lives is structure; which of those
+        # elements is a slot a decision retires and which the widget holding it is
+        # the registry's word, read by whoever has one (`retirement_holders`), so
+        # what a version's outcome licenses is worked out without this parse
+        # knowing a widget by name.
+        self.within = {}
         # {"tag", "parent", "lang", "line"} per element claiming a language — the
         # coloring the runtime honors on a plain <pre><code>, checked here because a
         # class it doesn't honor is a request that silently isn't answered.
@@ -3709,27 +3737,18 @@ class _StructParser(HTMLParser):
         for _ in range(implicit_closes([t for t, *_ in self.stack], tag)):
             self.stack.pop()
 
-    def _open_suggestion(self):
-        """The innermost lf-suggestion still open and which of its slots we are
-        in: (record, "lf-old" | "lf-new" | None), or (None, None) outside one."""
-        slot = None
-        for tag, _, record, _ in reversed(self.stack):
-            if tag in ("lf-old", "lf-new"):
-                slot = tag
-            elif tag == "lf-suggestion":
-                return record, slot
-        return None, None
+    def _open_widget(self):
+        """The innermost lf-* element still open, or None outside every one."""
+        return next(
+            (record for _, _, record, _ in reversed(self.stack) if record), None
+        )
 
     def _harvest(self, tag, attrs_d):
         if attrs_d.get("id"):
             self.all_ids.append(attrs_d["id"])
-            suggestion, slot = self._open_suggestion()
-            if tag in ("lf-old", "lf-new"):
-                slot = tag  # the slot's own id belongs to the slot
-            if suggestion and slot:
-                suggestion["old_ids" if slot == "lf-old" else "new_ids"].add(
-                    attrs_d["id"]
-                )
+            # An lf-* element's own id stands in the element itself, which
+            # handle_starttag writes over this the moment the record exists.
+            self.within[attrs_d["id"]] = self._open_widget()
         if tag == "script" and attrs_d.get("src"):
             self.external_scripts.append((attrs_d["src"], attrs_d.get("type")))
         if tag == "link" and "stylesheet" in (attrs_d.get("rel") or ""):
@@ -3794,12 +3813,6 @@ class _StructParser(HTMLParser):
                 f"<{tag}> at line {self.getpos()[0]}: the browser renders none of "
                 "its content; write it plainly or leave it out"
             )
-        # Before _harvest, whose id attribution reads the open suggestion: a
-        # slot's contents belong to the suggestion that encloses them.
-        if tag in ("lf-old", "lf-new"):
-            suggestion, _ = self._open_suggestion()
-            if suggestion:
-                suggestion["slots"].append(tag)
         self._harvest(tag, attrs_d)
         if tag == "svg":
             self._svg_depth += 1
@@ -3848,21 +3861,14 @@ class _StructParser(HTMLParser):
                 "text": False,
                 "body": "",  # a <pre> data body's text, for the x-lines gate
                 # The nearest enclosing lf element's record, so a child's line
-                # reference (x-lines) can find the data body it points into.
-                "holder": next((r for _, _, r, _ in reversed(self.stack) if r), None),
+                # reference (x-lines) can find the data body it points into, and
+                # so a reading with the registry to hand can walk out of a slot
+                # to the widget whose decision retires it.
+                "holder": self._open_widget(),
             }
             self.lf_elements.append(record)
-            if tag == "lf-suggestion":
-                enclosing, _ = self._open_suggestion()
-                record.update(
-                    id=attrs_d.get("id"),
-                    resolves=attrs_d.get("resolves"),
-                    slots=[],
-                    old_ids=set(),
-                    new_ids=set(),
-                    nested=enclosing is not None,
-                )
-                self.suggestions.append(record)
+            if attrs_d.get("id"):
+                self.within[attrs_d["id"]] = record
         self.stack.append((tag, self.getpos()[0], record, attrs_d.get("id")))
 
     def handle_startendtag(self, tag, attrs):
@@ -4431,7 +4437,7 @@ def capture_anchor(
             sid = retired[section]
             raise ValueError(
                 f"§ {section} left the page when the user chose to {decided[sid]} "
-                f"§ {sid} — a decided suggestion's losing slot is retired, and an anchor "
+                f"§ {sid} — a decision retires the slot its outcome names, and an anchor "
                 "on it would reach nobody. Anchor on the settled text instead."
             )
         if section in gone:
@@ -4922,6 +4928,7 @@ def validate_registry(registry: dict, source) -> dict:
                         "action answers — so it must declare a string"
                     )
 
+    slots = retirement_slots(registry)
     for tag, entry in widgets.items():
         if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
             raise RegistryError(
@@ -5160,6 +5167,18 @@ def validate_registry(registry: dict, source) -> dict:
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
                             f"value `{value}` must be a string"
                         )
+        # Withdrawal is the author taking an unanswered question back, and the
+        # entry says which of its own outcomes that leaves the page in
+        # (retirable_ids). A verb no slot of this widget retires under would
+        # license nothing but the wrapper, so the withdrawal it promises would
+        # fail as "ids dropped" on the version that tried it — the misdeclaration
+        # is invisible until then, and this is where its author is standing.
+        withdrawn = entry.get("x-withdrawn-as")
+        if withdrawn is not None and withdrawn not in slots.get(tag, {}):
+            raise RegistryError(
+                f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` retires none of its "
+                "slots; withdrawing it would leave their ids on the page"
+            )
         retired = entry.get("x-retired-when")
         if retired is None:
             continue
@@ -5177,18 +5196,6 @@ def validate_registry(registry: dict, source) -> dict:
                 raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
                 )
-        # The reading honors any declared slot, but the id-survival licensing
-        # (retirable_ids) still reads the suggestion's own slot bookkeeping —
-        # so a third-party slot would get the whole loop except the honoring
-        # version's right to drop its ids, and fail three versions in with
-        # "ids dropped". Refused loudly here until the licensing is written in
-        # terms of the declaration (TODO.md holds the generalization).
-        if not set(entry["x-parent"]) <= {"lf-suggestion"}:
-            raise RegistryError(
-                f"{path}: <{tag}> declares x-retired-when outside the suggestion "
-                "family; the id-survival licensing doesn't honor a declared slot "
-                "there yet, so the retired slot's ids could never be dropped"
-            )
     return registry
 
 
@@ -5513,58 +5520,154 @@ def tone_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def suggestion_errors(suggestions: list, comment_ids: set) -> list:
+def enclosing_widgets(rec: dict):
+    """The lf-* elements standing around one, innermost first."""
+    rec = rec["holder"]
+    while rec is not None:
+        yield rec
+        rec = rec["holder"]
+
+
+def retirement_slots(registry: dict) -> dict:
+    """holder tag → {outcome verb → the tags that leave the page under it}: every
+    holder/slot pair `x-retired-when` relates, the slot naming the outcome and
+    `x-parent` the widgets whose decision reaches it. Read out of the merged
+    registry rather than known here, so which widgets a decision settles is a
+    fact about this page's vocabulary and never a list in the code."""
+    slots = {}
+    for tag, entry in registry.items():
+        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
+            continue
+        outcome = entry["x-retired-when"]
+        for holder in entry["x-parent"]:
+            slots.setdefault(holder, {}).setdefault(outcome, []).append(tag)
+    return slots
+
+
+def enclosing_slot(rec: dict, registry: dict):
+    """The innermost slot an element stands in and the widget whose decision
+    retires it, or None where it stands in neither. The element itself counts:
+    a slot's own id is the slot's, not the widget's around it."""
+    for node in (rec, *enclosing_widgets(rec)):
+        entry = registry.get(node["tag"]) or {}
+        holder = node["holder"]
+        if (
+            entry.get("x-retired-when")
+            and holder
+            and holder["tag"] in entry["x-parent"]
+        ):
+            return node, holder
+    return None
+
+
+def retirement_holders(parser: _StructParser, registry: dict) -> list:
+    """Every widget the page carries that a decision can settle, and what each
+    outcome would retire: {"id", "tag", "retires": {outcome → ids},
+    "withdrawn_as"}. An id belongs to a slot when the slot stands anywhere
+    around it, found by walking out of the id rather than down from the widget,
+    so a paragraph three elements deep in a slot is read like the slot's own.
+
+    Every outcome the registry declares gets a set, carried in the markup or
+    not: a suggestion that only inserts still retires its wrapper when accepted,
+    and a structure built from the slots the page happens to hold would have
+    nothing to license that with."""
+    declared = retirement_slots(registry)
+    holders = {}
+    for rec in parser.lf_elements:
+        wid = rec["attrs"].get("id")
+        if wid and rec["tag"] in declared:
+            holders[wid] = {
+                "id": wid,
+                "tag": rec["tag"],
+                "retires": {outcome: set() for outcome in declared[rec["tag"]]},
+                "withdrawn_as": registry[rec["tag"]].get("x-withdrawn-as"),
+            }
+    for wid, rec in parser.within.items():
+        pair = enclosing_slot(rec, registry) if rec else None
+        if pair is None:
+            continue
+        slot, holder = pair
+        held = holders.get(holder["attrs"].get("id"))
+        if held is not None:
+            held["retires"][registry[slot["tag"]]["x-retired-when"]].add(wid)
+    return list(holders.values())
+
+
+def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> list:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
-    names a comment that exists."""
+    names a comment that exists. A family lint, named for its family — and it
+    reads even its own slots out of the merged registry, so a layer that adds
+    one to the family is linted for it rather than around it."""
+    tags = {
+        tag
+        for slot_tags in retirement_slots(registry).get("lf-suggestion", {}).values()
+        for tag in slot_tags
+    }
     errors = []
-    for s in suggestions:
-        where = f"<lf-suggestion id={s['id']!r}> (line {s['line']})"
-        if s["nested"]:
+    for rec in lf_elements:
+        if rec["tag"] != "lf-suggestion":
+            continue
+        where = f"<lf-suggestion id={rec['attrs'].get('id')!r}> (line {rec['line']})"
+        if any(w["tag"] == "lf-suggestion" for w in enclosing_widgets(rec)):
             errors.append(f"{where}: suggestions don't nest")
-        if not s["slots"]:
+        carried = [tag for tag in rec["children"] if tag in tags]
+        if not carried:
             errors.append(
                 f"{where}: needs a <lf-old> (what it replaces), a <lf-new> "
                 f"(what it proposes), or both"
             )
-        for slot in ("lf-old", "lf-new"):
-            if s["slots"].count(slot) > 1:
+        for tag in sorted(tags):
+            if carried.count(tag) > 1:
                 errors.append(
-                    f"{where}: carries {s['slots'].count(slot)} <{slot}> children, one at most"
+                    f"{where}: carries {carried.count(tag)} <{tag}> children, one at most"
                 )
-        if s["resolves"] and s["resolves"] not in comment_ids:
-            errors.append(
-                f"{where}: resolves={s['resolves']!r} names no comment in the log"
-            )
+        resolves = rec["attrs"].get("resolves")
+        if resolves and resolves not in comment_ids:
+            errors.append(f"{where}: resolves={resolves!r} names no comment in the log")
     return errors
 
 
 def retirable_ids(
-    suggestions: list, events: list, dropped: set, outcomes: dict, spk: dict
+    holders: list, events: list, dropped: set, outcomes: dict, spk: dict
 ) -> set:
-    """Ids the previous version's suggestions let the next one drop, given what
-    it actually dropped. A logged outcome settles a suggestion: accepting
-    retires the markup it replaced, rejecting retires the proposal, and either
-    retires the wrapper. A proposal no one has answered can still be withdrawn —
-    no decision rested on it — but only whole: the wrapper goes with the
-    proposal inside it, so a version can't quietly keep an unanswered proposal
-    as settled content, and not while an unresolved thread is anchored in it.
+    """Ids the previous version's settled widgets let the next one drop, given
+    what it actually dropped. A logged outcome settles a widget: the slots
+    declaring that outcome leave the page, and the widget holding them goes with
+    them, its question answered — a suggestion accepted retires the markup it
+    replaced, rejected retires the proposal, and either retires the wrapper.
+    Which widgets those are is the registry's relation rather than a list here
+    (`retirement_holders`), so a family a layer adds is licensed the day it is
+    declared instead of failing three versions in with "ids dropped".
+
+    A widget no one has answered can still be withdrawn — no decision rested on
+    it — where the entry says what withdrawing it means (`x-withdrawn-as`:
+    taking a suggestion back leaves the page as a `reject` would). That is the
+    author asserting a state the user never gave, so it is hedged where a
+    decision is not: only whole, every id under the slots it retires going with
+    the widget, so a version can't quietly keep an unanswered proposal as
+    settled content — and not while an unresolved thread is anchored in any of
+    it. What the withdrawal doesn't name stays: the markup a pending deletion
+    wraps is the page's own, and only the user's own `accept` consents to losing
+    it.
 
     The outcomes are replay's own (`decisions`, folded over the version these
-    suggestions are on), so a decision a later version restated away settles
-    nothing here either — replay hands the suggestion back as pending, and the
+    widgets are on), so a decision a later version restated away settles
+    nothing here either — replay hands the widget back as pending, and the
     slots stay needed. `spk` is that same version's reading, so the thread half of
     this answer stands on the page the outcomes were folded against."""
     anchored = anchored_ids(events, spk)
     licensed = set()
-    for s in suggestions:
-        if not s["id"]:
+    for holder in holders:
+        answered = holder["id"] in outcomes
+        outcome = outcomes[holder["id"]] if answered else holder["withdrawn_as"]
+        retires = holder["retires"].get(outcome)
+        if retires is None:
             continue
-        outcome = outcomes.get(s["id"])
-        retires = {s["id"]} | (s["old_ids"] if outcome == "accept" else s["new_ids"])
-        if outcome is None and (retires & anchored or not s["new_ids"] <= dropped):
+        whole = {holder["id"]} | retires
+        if not answered and (whole & anchored or not retires <= dropped):
             continue
-        licensed |= retires
+        licensed |= whole
     return licensed
 
 
@@ -6408,6 +6511,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         errors.append(reserved_ids_error(parser.reserved_ids))
     errors.extend(reserved_marker_errors(parser))
 
+    events = read_events(page_dir)
     registry = load_registry(page_dir)
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
@@ -6422,6 +6526,16 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         )
         errors.extend(tone_errors(parser.lf_elements, registry))
         errors.extend(line_ref_errors(parser.lf_elements, registry))
+        # A family lint reads its own slots off the registry, so it stands with
+        # the checks that need one — a page missing registry.json has already
+        # been told to vendor the layer, and there is nothing to lint against.
+        errors.extend(
+            suggestion_errors(
+                parser.lf_elements,
+                registry,
+                {e["id"] for e in events if e["kind"] == "comment"},
+            )
+        )
         for tag, entry in registry.items():
             if not tag.startswith("lf-"):
                 continue
@@ -6433,13 +6547,6 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
                     f"registry marks <{tag}> as upgraded but widgets/{tag}.js "
                     f"isn't vendored; run `leaf page init`"
                 )
-
-    events = read_events(page_dir)
-    errors.extend(
-        suggestion_errors(
-            parser.suggestions, {e["id"] for e in events if e["kind"] == "comment"}
-        )
-    )
 
     # "Previous" is the last *published* version before this one — the page the
     # user was actually looking at, which is what `leaf comment` anchors
@@ -6465,22 +6572,28 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         # An id may retire when the log has settled what holds it; everything
         # else must survive, or the anchors on it break.
         gone = prev.ids - parser.ids
-        fold, _, prev_spoken = page_fold(prev_html, events, registry or {}, None)
-        dropped = sorted(
-            gone
-            - retirable_ids(
-                prev.suggestions,
-                events,
-                gone,
-                decisions(fold, registry or {}),
-                prev_spoken,
+        # With the family lints above, and for their reason: which ids a settled
+        # widget licenses is the holder/slot declaration's answer, so with no
+        # registry there is nothing to ask it — and every id a decision legitimately
+        # retired would read as dropped, stacked on the "vendor the layer" error the
+        # page already has.
+        if registry is not None:
+            fold, _, prev_spoken = page_fold(prev_html, events, registry, None)
+            dropped = sorted(
+                gone
+                - retirable_ids(
+                    retirement_holders(prev, registry),
+                    events,
+                    gone,
+                    decisions(fold, registry),
+                    prev_spoken,
+                )
             )
-        )
-        if dropped:
-            errors.append(
-                f"ids present in {prev_name} but dropped in {name} "
-                f"(anchors on them will break): {dropped}"
-            )
+            if dropped:
+                errors.append(
+                    f"ids present in {prev_name} but dropped in {name} "
+                    f"(anchors on them will break): {dropped}"
+                )
     # And the decisions recorded on the ids that stayed — the reviewer channel's
     # gate, then its mirror for the agent channel's standing reports.
     now = spoken(html, registry or {})
@@ -6908,6 +7021,104 @@ REPLAY_OVERRIDES = """async () => {
 }"""
 
 
+# Whether an applyAction is absolute, which is the premise both folds and every view
+# built on them rest on and the one thing about a widget module no gate could see. A
+# relative implementation — a card shifted one column along, a pick toggled rather than
+# set — is invisible to every other reading here: it renders perfectly, and what it
+# costs arrives later, in the poll that replays the sender's own action over the state
+# that gesture already painted. The user drags a card once and watches it walk.
+#
+# So the page is asked rather than the code. Each standing action is applied a second
+# time onto the state the page's own replay produced, and an absolute one has nothing
+# to do. Replaying the whole log again would prove nothing — every action carries its
+# seq and applyActions retires each exactly once, so a second pass is a no-op whatever
+# the widgets do — which is why this reaches past the runtime's bookkeeping and calls
+# the method.
+#
+# The standing state rather than the whole log, because that is the set the contract is
+# for: the fold's own claim is that the last surviving action per unit *is* the state,
+# so the page is already showing exactly these. It is also the set replay applied and
+# did not skip — a retracted decision, a version's future action and a widget the
+# markup dropped are all out of it — so nothing here re-applies what the page declined.
+#
+# The whole set at once and in the log's order, never one action measured on its own.
+# An absolute applyAction states its own unit and says nothing about any other, so where
+# two units share an ordered container the page is the sequence's result rather than any
+# one action's: two cards dragged to the head of one column leave it holding the second
+# above the first, and lifting the first back over the second is what replaying it alone
+# is *supposed* to do. Read per action, that named lf-board relative and refused a page
+# with nothing wrong with it — at the gate a handover cannot get past. Read across the
+# batch, an absolute set lands exactly where it already was and a relative one walks.
+#
+# Two readings, because one is blind where the other sees. shallowSigs is the id-bearing
+# markup state, which covers a moved card, a flipped attribute and a re-pointed pick;
+# it looks away from text on purpose, and a `body` record is nothing but text, so the
+# unit's declared facet is read beside it. A throw is a finding of its own rather than
+# an exception out of the gate: whatever a second application was expected to do, it was
+# not that. Each moved id is then laid at the door of the widget whose applyAction writes
+# it — its nearest ancestor with the method, as a replayed override already is — since
+# across a batch no single verb owns the difference.
+RELATIVE_REPLAYS = """async () => {
+    const { standingState, shallowSigs } = await import('/leaf.js');
+    const at = (el) => `<${el.localName}${el.id ? ' id=' + el.id : ''}>`;
+    // A fold reads the registry, so a decided widget whose module never loaded is in it
+    // and has no method to converge. That failure is reported on its own — the console,
+    // the fail-soft box, the undefined element — and asking it this question would only
+    // lay the same fault at a second door.
+    const standing = standingState().filter((s) => s.widget?.applyAction);
+    if (!standing.length) return [];
+    const found = [];
+    const before = shallowSigs(document.body);
+    const stood = standing.map((s) => s.facet());
+    for (const s of standing) {
+        const widget = s.widget;
+        if (!widget?.applyAction) continue; // an earlier application replaced it
+        try {
+            widget.applyAction(s.action, s.detail);
+        } catch (error) {
+            found.push(`${at(widget)} applyAction(${s.action}) threw when the recorded `
+                + `action was applied a second time: ${error?.message ?? error} — the `
+                + `poll replays the sender's own action, so it has to arrive twice`);
+        }
+    }
+    const now = shallowSigs(document.body);
+    const verbs = new Map();
+    for (const s of standing) {
+        if (!s.widget) continue;
+        const key = at(s.widget);
+        if (!verbs.has(key)) verbs.set(key, new Set());
+        verbs.get(key).add(s.action);
+    }
+    const groups = new Map();
+    const note = (key, what) => {
+        if (!groups.has(key)) groups.set(key, new Set());
+        groups.get(key).add(what);
+    };
+    for (const id of new Set([...before.keys(), ...now.keys()])) {
+        if (before.get(id) === now.get(id)) continue;
+        let widget = null;
+        for (let a = document.getElementById(id); a; a = a.parentElement)
+            if (a.applyAction) { widget = a; break; }
+        note(widget ? at(widget) : `id=${id}`, id);
+    }
+    // Only where the signature missed it: a record whose attribute the markup reading
+    // already caught is one fact, and naming it twice reads as two.
+    standing.forEach((s, i) => {
+        if (s.facet() === stood[i] || !s.widget) return;
+        if (!groups.get(at(s.widget))?.has(s.unit))
+            note(at(s.widget), `the state recorded on ${s.unit}`);
+    });
+    return [...found, ...[...groups].map(([who, moved]) => {
+        const said = verbs.get(who);
+        const named = said?.size ? `applyAction(${[...said].join(', ')})` : 'applyAction';
+        return `${who} ${named} is relative — re-applying the standing log moved `
+            + `${[...moved].join(', ')}. The poll replays every standing action over the `
+            + `state they already produced, so state the whole value from the detail `
+            + `rather than stepping from what the page shows`;
+    })];
+}"""
+
+
 # What the page says, and whether each run of it is showing. Read once in each medium
 # and compared by walk order: media change what is displayed, never the DOM, so the nth
 # run on screen is the nth run on paper. What a page says has to survive being printed,
@@ -7170,6 +7381,53 @@ SILENT_WORDS = (
 )
 
 
+# Attributes standing on a widget that its entry never declared. The schema is the
+# whole of the author's namespace — `additionalProperties: false` on every tag — and
+# the static lint holds a version file to it. What no reading of a file can see is the
+# other writer: a module, which upgrades the element and may leave anything it likes on
+# it. So a module writes in that namespace only where the registry declares the
+# attribute as a verb's record form (`chosen`, `status`), which is what makes the write
+# a statement the log's fold, the state gate and the record-lag report can all read.
+# Everything else it needs to mark goes where the module's own words go — the chrome it
+# built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
+# which is the layer's and a widget's alike.
+#
+# lf-options had two of the other kind, and both were quiet. `answered` recorded a verb
+# only a thread can post, and a thread's markup is frozen in the log, so no version
+# could ever have honored a record of it; `open` recorded which way this tab last left
+# a disclosure, which no version carries at all. Neither reached a consumer, and the
+# one reader that did see them read them wrong: shallowSigs excludes exactly the
+# attributes no version can assert, and its exclusion list is the runtime's own paint —
+# so a widget writing beside it is counted as state the author wrote, in the reading
+# `version check --render` uses to decide whether a version overrules the user.
+#
+# Deduped and reported per tag and attribute, because one mistake is on every instance.
+UNDECLARED_ATTRS = (
+    """() => fetch('/registry.json').then(r => r.json()).then(registry => {"""
+    + OPEN_ROOTS
+    + """
+    // What a module may write without declaring: the platform's own vocabulary for
+    // what a control is and how it behaves, and the data-* namespace the runtime and
+    // the widgets both paint in. `class` and `style` are the same kind of fact — a
+    // look, not a state a version could carry.
+    const painted = /^(?:data-|aria-)/;
+    const platform = new Set(['role', 'class', 'style', 'hidden', 'tabindex']);
+    const all = roots(document);
+    const found = [];
+    for (const [tag, entry] of Object.entries(registry)) {
+        if (!entry.properties) continue;
+        for (const root of all)
+            for (const el of root.querySelectorAll(tag))
+                for (const a of el.attributes)
+                    if (!painted.test(a.name) && !platform.has(a.name)
+                        && !(a.name in entry.properties))
+                        found.push({tag, id: el.id, attr: a.name});
+    }
+    return found;
+})"""
+)
+
+
 def render_version(browser, url: str) -> list:
     """Everything wrong with a served version that only a browser can see: a
     console or page error, a request that 404s, a fail-soft error box, an upgrade
@@ -7180,10 +7438,13 @@ def render_version(browser, url: str) -> list:
     cannot tell from the code around it — each
     in both color schemes, because the dark theme is real CSS nobody otherwise
     renders — plus, in one scheme, a word the registry promised that never reached
-    the page (a declaration is scheme-blind), a version that authors widget state
-    the log replays over (replay isn't CSS) and, on paper, words the page drops that it
-    says on screen, or draws over each other (print is scheme-blind).
-    Returns human-readable failures; [] is a pass.
+    the page (a declaration is scheme-blind), an attribute a module left standing on a
+    widget that its entry never declared (a file's reading sees one writer, and this is
+    the other), a version that authors widget state the log replays over, a widget whose
+    applyAction is relative, so the poll's replay of the sender's own gesture moves the
+    page again (none of the three is CSS) and, on paper, words the page drops that it
+    says on screen, or draws over each other (print is scheme-blind). Returns
+    human-readable failures; [] is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -7260,6 +7521,8 @@ def render_version(browser, url: str) -> list:
         conflicts = []
         dishonest_verbatim = []
         silent = []
+        replayed = True
+        undeclared_attrs = []
         if scheme == "light":
             # x-verbatim honesty: the entry claims the body reaches the reader
             # as its own words, and the two readings built on that claim — the
@@ -7303,7 +7566,6 @@ def render_version(browser, url: str) -> list:
                 ".then(s => s.events.filter(e => e.kind === 'action' "
                 "|| e.kind === 'report').length)"
             )
-            replayed = True
             if n_actions:
                 try:
                     page.wait_for_function(
@@ -7321,6 +7583,10 @@ def render_version(browser, url: str) -> list:
             # never caught up is already reported above and read no further.
             if replayed:
                 silent = page.evaluate(SILENT_WORDS)
+                # Behind the same wait, because replay is one of the two writers:
+                # an applyAction states its widget whole, and a record form is
+                # exactly the attribute it is allowed to state it in.
+                undeclared_attrs = page.evaluate(UNDECLARED_ATTRS)
         # Last, and in one scheme: paper has no color scheme, and the medium has to be
         # put back before anything else reads a box.
         on_paper = []
@@ -7341,6 +7607,14 @@ def render_version(browser, url: str) -> list:
                 for s, p in zip(screen, paper)
                 if s["text"] == p["text"] and s["shown"] and not p["shown"]
             ]
+        # Last of all, because it is the only reading here that writes: it applies each
+        # standing action again, which is a no-op exactly when the contract holds and a
+        # page nobody should read any further when it doesn't. Behind the same caught-up
+        # wait as the conflicts above, for the same reason — a page mid-replay has not
+        # finished producing the state the second application is measured against.
+        relative = []
+        if scheme == "light" and replayed:
+            relative = page.evaluate(RELATIVE_REPLAYS)
         page.close()
         found = [f"[{scheme}] console: {e}" for e in errors]
         found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
@@ -7367,7 +7641,15 @@ def render_version(browser, url: str) -> list:
             )
         found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
         found += [f"[{scheme}] {s}" for s in silent]
+        for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
+            found.append(
+                f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "
+                "its registry entry does not declare — declare it as a verb's record "
+                "form (x-state) if a version is meant to carry it, or write the state "
+                "on the chrome the module built"
+            )
         found += [f"[{scheme}] {c}" for c in conflicts]
+        found += [f"[{scheme}] {r}" for r in relative]
         found += on_paper
         return found
 

@@ -349,10 +349,12 @@ lf-options[choose]:has(> lf-option > .lf-pick:focus-visible) > lf-option > .lf-a
 /* The thread multi-question's submit (the module adds it there alone): one press
  * stating the set is whole, since every toggle already reached the agent as it
  * landed. Answered is paint, never a wider word — the pressed control's own line
- * holds still. */
+ * holds still. Keyed on the pressed state the press already wears, because the
+ * group's markup is the author's: an `answered` attribute here was the same fact
+ * a second time, in a namespace the entry closes (lf-options.js). */
 lf-options > .lf-done { margin-top: 8px; }
-lf-options[answered] > .lf-done { color: var(--ok-ink); border-color: var(--ok);
-                     background: var(--ok-tint); }
+lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
+                     border-color: var(--ok); background: var(--ok-tint); }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
  * answer is the group rather than another thing drawn on every member: a group offers and
@@ -587,12 +589,15 @@ lf-options[settled] > .lf-settled {
               font-weight: 600; text-align: left;
               background: var(--field); cursor: pointer;
               border: 1px solid var(--rule); border-radius: var(--r); }
-lf-options[settled]:not([open]) > .lf-settled { margin-bottom: 0; }
+/* Open or closed is the row's own expanded state, which is where the module says it
+ * (aria-expanded) — the group wore an `open` attribute for these two rules, and that
+ * is authored namespace for a fact no version carries (lf-options.js). */
+lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
 lf-options[settled] > .lf-settled:focus-visible { outline: 2px solid var(--accent);
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
-lf-options[open] > .lf-settled::before { content: "▾"; }
+.lf-settled[aria-expanded="true"]::before { content: "▾"; }
 .lf-settled-count { margin-left: auto; font-weight: 400; font-size: var(--t-6);
                     color: var(--muted); white-space: nowrap; }
 .lf-settled-diff { font-weight: 400; font-size: var(--t-6); padding: 0 6px;

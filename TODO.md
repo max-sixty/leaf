@@ -24,16 +24,21 @@
 - (2026-08-14) Left on the table by the framework-robustness sweep (its session
   holds the evidence; the landed half is in that branch's history):
 
-  - `x-retired-when` is declared open but the id-survival licensing
-    (`retirable_ids`) still reads the suggestion's own slot bookkeeping, so the
-    registry door now refuses the key outside the suggestion family rather than
-    letting a third-party slot fail three versions in. The generalization is to
-    record holder/slot structure for any tag pair the declaration relates and
-    write the licensing in its terms.
-  - `applyAction` absoluteness — the contract every fold rests on — is never
-    checked; a relative implementation passes every gate. The candidate check:
-    the render gate replays a version twice and asserts the second pass's
-    `shallowSigs` diff is empty.
+  - (done 2026-08-15) `x-retired-when` is open in the licensing too:
+    `retirement_slots` reads the holder/slot pair the declaration relates,
+    `retirable_ids` is written in its terms, and the door that refused the key
+    outside the suggestion family is gone. What the pair could not say —
+    what an unanswered widget means when the author takes it back — is the
+    holder's own declaration now (`x-withdrawn-as`).
+  - (done 2026-08-15) `applyAction` absoluteness is checked: the render gate
+    applies each standing action a second time and reports what moved
+    (`RELATIVE_REPLAYS`). Not the candidate check — replaying the log twice is
+    a no-op by construction (every action carries its seq and replay retires
+    each exactly once), and `shallowSigs` alone is blind to a `body` record, so
+    the unit's declared record form is read beside it. What it cannot reach is
+    a verb no user has exercised yet: the corpus's own logs carry no actions, so
+    `test_example_renders` never applies anything and the coverage is a page
+    of its own.
   - (done 2026-08-15) The render gate reads two module contracts a static lint
     can't: an `x-verbatim` widget whose rendered words differ from the file's,
     and a shadow root on a host whose entry lacks `x-shadow`.
@@ -43,14 +48,15 @@
   - Residue of the retraction-floor fix in thread settlement (landed: an accept a
     later version `restated` no longer resolves its thread forever, via one
     predicate — `action_retracted` / `retractedIds` — shared by the fold, the
-    rewrite gate, replay and the thread builders on both sides). Three things it
-    deliberately did not settle: a `reject` recorded after an `accept` on the same
-    suggestion still leaves the thread resolved — un-resolving that case means
-    folding by unit, a separate decision. (The prose half is done 2026-08-15: the
-    comment over `buildThreads` now says why the windowed and unwindowed readings
-    disagree on any version but the newest, and why neither collapse is cheaper than
-    the disagreement.) (The other two —
-    `build_threads`'s defaulted `spk`, done 2026-08-14: required, `{}` explicit for
+    rewrite gate, replay and the thread builders on both sides). One of the three
+    things it deliberately did not settle is still open: a `reject` recorded after
+    an `accept` on the same suggestion leaves the thread resolved, and un-resolving
+    that case means folding by unit, a separate decision. (The other two are done:
+    the panel's window against replay's, 2026-08-15 — the two answer different
+    questions, and the rule is one section of the skill's CLAUDE.md, "A pinned
+    version scopes the document, never the conversation", since it binds
+    `buildThreads` and `applyActions` alike and neither site owns it; and
+    `build_threads`'s defaulted `spk`, 2026-08-14 — required, `{}` explicit for
     the no-page callers.)
   - (done 2026-08-14) The collapse class is one set now: `COLLAPSE_CHARS` /
     `collapse()` beside `TEXT_BLOCK_TAGS`, leaf.js's `COLLAPSE` its twin, a test
@@ -67,35 +73,51 @@
     shim through an intermediate shell, that PID dies with the command and
     `claim_page`'s stale-session sweep deletes a live session's entry. Needs a real
     Codex invocation to settle.
-  - lf-options writes `answered` and `open` onto page markup undeclared — real widget
-    state `x-state.answer` records nowhere, so it lands in `shallowSigs` and nothing
-    outside the module knows it exists. Either a `record` form or the paint
-    vocabulary — note before picking: `shallowSigs`' comment shows widget `data-lf-*`
-    state is deliberately visible to the signature (lf-suggestion's `data-lf-state`
-    rides it), so a paint rename must not blanket the namespace. (The orphaned Done
+  - (done 2026-08-15) lf-options wrote `answered` and `open` onto the group in the
+    author's namespace, which its entry closes. Neither was state to declare: the
+    `answer` verb is a thread's, and no version can carry a thread's markup to honor a
+    record of it, while open-or-closed is this tab's reading position. Both were second
+    copies of what the module already says on the control that carries them, so each is
+    now said once (`aria-pressed`, `aria-expanded`) and the theme keys on that.
+    `version check --render` asks the rendered page for the rest
+    (`UNDECLARED_ATTRS`) — the second writer shows on no other side. (The orphaned Done
     press under a settled collapse: done 2026-08-14 — it hides with the options.)
+  - (done 2026-08-15 — measured, no change) The last unmeasured hot path was
+    `openAsks()` rebuilding `stateFold`, and the count it was flagged for holds: four
+    folds a poll — the banner's, the key line's `a` and its `Shift+a`, and
+    `paintPending`'s — and two per key-line paint. Nobody had asked what a fold costs.
+    Timed in Chrome on `examples/gallery.html`, served from a page directory with its
+    vendored `leaf.js` wrapped in a timer, each fold read off a tight loop because
+    `performance.now()`'s 100µs clamp is wider than the thing measured: 0.4µs over a
+    fresh page's log, 62µs after eight decisions and twenty comments, 137µs with three
+    hundred comments over those same eight. So the three redundant folds cost
+    0.19–0.41ms of a two-second poll, and the key line's second fold 62–137µs of a
+    16.7ms frame; a sixfold CPU throttle multiplies both by about six. The page
+    directories on this machine hold one to eleven events. Memoizing it the way
+    `retractionFloors` is would be wrong rather than merely unnecessary: `foldable`
+    reads the DOM (`elementById`, `inChrome`) and `retractedIds` asks containment, so
+    a version switch changes the answer with `events` still the same array. The code
+    stands as it is.
 
-    Read 2026-08-15, and the two are not one problem: whichever answer each gets,
-    they cannot get the same one. `answered` is the log's — `applyAction("answer")`
-    writes it, so it is replayed decided state and a `record` form is what would let
-    a version carry it and every consumer read it. `open` never reaches the log at
-    all: `#open(…, remember)` persists to `sessionStorage` under `SETTLED_KEY`, per
-    tab, so it is the reader's own view of a settled group, the same category as the
-    panel's open state — and giving *that* a record would be actively wrong, since a
-    version would then assert which groups a reader had unfolded. What it wants is
-    the half of the paint vocabulary the signature looks away from. Naming them
-    together is what has made this look like one pick with two options.
-  - (measured 2026-08-15, no change) `openAsks()` rebuilding `stateFold` costs
-    nothing worth reclaiming. Timed through the shipped runtime on ship-review
-    with a synthetic board log: seven calls across the load and six per two polls,
-    totalling 0.0ms at the log size the corpus actually has, 1.1ms at 200 actions
-    and 4.0ms at 1000 — linear in the log, and about a tenth of a percent of one
-    2s poll at a size no page reaches. Memoizing it the way `retractionFloors` is
-    would have been wrong rather than merely unnecessary: `foldable` reads the DOM
-    (`elementById`, `inChrome`), so a version switch changes the answer with
-    `events` still the same array. (The other two are done 2026-08-15:
-    `retiredSlots` is computed once for the load, and `retractionFloors` memoizes
-    on the log's identity, which is what `buildThreads` walked per call.)
+    A fold does cost at hundreds of *actions* (300: 2.1ms a fold, 13ms a poll), and it
+    is still not the thing to point at. That page spends 1.1s of its load in replay:
+    `lf-options` and `lf-suggestion` dispatch `lf-answered` from the absolute setter
+    that replay itself calls, and each dispatch runs a whole `paintAnchors` (600ms over
+    the batch) and `syncAsks` (450ms, of which the folds are 420ms). The batch already
+    does both — `applyActions` ends on `paintAnchors` when it applied anything, and
+    `lf-actions` fires `syncAsks` the moment it returns — so every per-answer pass is
+    superseded a few milliseconds later. That makes it redundant work rather than work
+    to coalesce, and the shape at fault is a widget announcing a reader's answer from
+    the path that replays one. Nothing is owed until a page carries such a log; a fold
+    memo would take out the smaller half of it in any case.
+
+    A second measurement, taken independently on ship-review with a synthetic board
+    log, agreed: seven calls across the load and six per two polls, 1.1ms at 200
+    actions and 4.0ms at 1000, linear in the log.
+
+    (The other two are done 2026-08-15: `retiredSlots` is computed once for the load,
+    and `retractionFloors` memoizes on the log's identity, which is what
+    `buildThreads` walked per call.)
 
 - (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an

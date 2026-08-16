@@ -412,7 +412,7 @@ For each acknowledged batch:
      (`page catalog`'s `$restated` has the rest). Without it replay paints their words
      over yours, so `version check` refuses the version rather than let the two
      disagree in silence. It guards the other end too: a version may retire ids only
-     where the log settled the suggestion holding them, so an undecided proposal is
+     where the log settled the widget holding them, so an undecided proposal is
      carried, withdrawn whole, or left alone, never quietly kept as settled content.
    - **A page error** (`"kind": "error"`, author `page`) is the page's own runtime
      reporting a failure in front of the user — a widget module that wouldn't
@@ -660,7 +660,9 @@ is on, words the screen shows and a printout drops, a version
 that authors widget state the log replays over
 (a different option `chosen`, a card in a column the user dragged it out of — the
 decision stands, so carry it in the markup or rewrite the passage and declare
-`restated`). The lint validates a diagram element but never the notation
+`restated`), a widget whose `applyAction` steps from what the page shows instead of
+stating the whole value, which the poll then walks on again every time it replays the
+reader's own gesture. The lint validates a diagram element but never the notation
 in its body, so a typo there would otherwise reach the reader as an error box; and it
 can't see a heading rendered as CSS generated content, or left under `.lf-ui` with
 nothing said about whose words these are, which leaves the reader looking at text they can't

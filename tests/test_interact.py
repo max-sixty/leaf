@@ -3643,41 +3643,6 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     assert "restated" in result.output
 
 
-def test_x_retired_when_outside_the_suggestion_family_is_refused(page_dir):
-    """The reading honors any declared slot, but the id-survival licensing still
-    reads the suggestion's own bookkeeping — a third-party slot would fail three
-    versions later with "ids dropped", so the door says so at declaration."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    id_schema = {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
-    registry["lf-holder"] = {
-        "type": "object",
-        "properties": {"id": id_schema, "restated": {"type": "boolean"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "prose",
-        "x-upgrade": True,
-        "x-state": {
-            "take": {
-                "detail": {"type": "object", "additionalProperties": False},
-                "unit": "widget",
-            }
-        },
-    }
-    registry["lf-slot"] = {
-        "type": "object",
-        "properties": {"id": id_schema},
-        "additionalProperties": False,
-        "x-parent": ["lf-holder"],
-        "x-content": "prose",
-        "x-upgrade": False,
-        "x-retired-when": "take",
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "suggestion family" in result.output
-
-
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     """The runtime writes data-lf-* and .lf-chrome/.lf-live/.lf-copy as its own
     record and reads them back: authored words inside .lf-chrome leave every
@@ -3984,6 +3949,182 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-old> x-retired-when `accept` must fold by widget" in result.output
+
+
+# A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`
+# or `shelve`: `adopt` retires the <lf-current> it would replace, `shelve` the
+# <lf-proposed> it offers, and taking an undecided one back leaves the page where
+# a `shelve` would. <lf-pilot> holds the same <lf-proposed> under the same verb and
+# declares no withdrawal at all — the pair, not the slot, is what the licensing is
+# keyed on. Three instances, because a page needs one to decide, one to withdraw
+# and one that can't be, and a decision is in the log for good once it is made.
+TRIAL_CACHE = """<lf-trial id="trial-cache">
+  <lf-current id="cache-now"><p id="cache-daily">The cache is rebuilt nightly.</p></lf-current>
+  <lf-proposed><p id="cache-hourly">Rebuild the cache each hour.</p></lf-proposed>
+</lf-trial>"""
+TRIAL_LOG = """<lf-trial id="trial-log">
+  <lf-current><p id="log-daily">Logs roll over at midnight.</p></lf-current>
+  <lf-proposed><p id="log-hourly">Roll logs over each hour.</p></lf-proposed>
+</lf-trial>"""
+PILOT_PURGE = """<lf-pilot id="pilot-purge">
+  <lf-proposed><p id="purge-weekly">Purge the dead-letter queue weekly.</p></lf-proposed>
+</lf-pilot>"""
+ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
+SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
+
+
+def trial_version(*markup):
+    return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
+
+
+@pytest.fixture
+def trial_page(tmp_path, monkeypatch):
+    """A page whose vocabulary a project layer widened with holder/slot families
+    of its own. Declared in `.leaf/` and vendored by `page init` — the door the
+    shipped suggestion comes through too, so what the licensing does here is what
+    a project gets rather than what a fixture arranged."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    scaffolded = (
+        ("lf-trial", True),
+        ("lf-pilot", True),
+        ("lf-current", False),
+        ("lf-proposed", False),
+    )
+    for tag, upgrade in scaffolded:
+        made = runner.invoke(
+            interact.cli,
+            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
+        )
+        assert made.exit_code == 0, made.output
+
+    source = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(source.read_text())
+    verb = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "unit": "widget",
+    }
+    for tag, state, example in (
+        ("lf-trial", ("adopt", "shelve"), TRIAL_CACHE),
+        ("lf-pilot", ("run", "shelve"), PILOT_PURGE),
+    ):
+        entries[tag] |= {
+            "x-content": "items",
+            "x-state": {name: dict(verb) for name in state},
+            "x-example": example,
+        }
+        entries[tag]["properties"]["restated"] = {"type": "boolean"}
+        del entries[tag]["x-verbatim"]  # a module renders the slots
+    # Only the trial says what taking it back would mean.
+    entries["lf-trial"]["x-withdrawn-as"] = "shelve"
+    for tag, holders, outcome in (
+        ("lf-current", ["lf-trial"], "adopt"),
+        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
+    ):
+        entries[tag] |= {"x-parent": holders, "x-retired-when": outcome}
+        del entries[tag]["x-example"]  # a slot has no standing of its own
+        del entries[tag]["required"]  # nor an id it must carry
+    source.write_text(json.dumps(entries))
+
+    page = tmp_path / "page"
+    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    (page / "versions" / "v1.html").write_text(
+        trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE)
+    )
+    assert check(page, version=1).exit_code == 0, check(page, version=1).output
+    publish(page)
+    return page
+
+
+def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
+    """The version that honors a decision drops what the outcome retired, and
+    the licensing that lets it is written in terms of the registry's holder/slot
+    relation — so a family the layer never heard of is licensed the day it is
+    declared. It used to be written in terms of the suggestion's own slots, and
+    a family like this one got every part of the loop except this: the door
+    refused the declaration outright rather than let the honoring version fail
+    here with "ids dropped"."""
+    (trial_page / "versions" / "v2.html").write_text(
+        trial_version(ADOPTED, TRIAL_LOG, PILOT_PURGE)
+    )
+
+    refused = check(trial_page, version=2)
+    assert refused.exit_code == 1
+    assert "cache-daily" in refused.output and "cache-now" in refused.output
+    # The wrapper with them: this version keeps the proposal as settled prose, so
+    # the withdrawal that would have licensed the wrapper isn't one.
+    assert "trial-cache" in refused.output
+
+    decide(trial_page, "adopt", widget="trial-cache")
+
+    honored = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(trial_page), "--version", "2", "--text", "adopted"],
+    )
+    assert honored.exit_code == 0, honored.output
+    assert live_versions(trial_page) == [1, 2]
+
+
+def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
+    """Nothing was decided, so the author may take the question back — and
+    `x-withdrawn-as` is what says which half of it was theirs to take. The other
+    half is the page's own words, which only the reader's own `adopt` consents
+    to losing, so a version dropping that is refused while the same version's
+    withdrawal stands."""
+    (trial_page / "versions" / "v2.html").write_text(
+        trial_version(TRIAL_CACHE, SHELVED, PILOT_PURGE)
+    )
+    withdrawn = check(trial_page, version=2)
+    assert withdrawn.exit_code == 0, withdrawn.output
+
+    # v2 published nothing, so v3 stands against v1 like v2 did.
+    (trial_page / "versions" / "v3.html").write_text(
+        trial_version(TRIAL_CACHE, PILOT_PURGE)
+    )
+    result = check(trial_page, version=3)
+    assert result.exit_code == 1
+    assert "log-daily" in result.output
+    assert "log-hourly" not in result.output  # the withdrawal licensed that half
+
+
+def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(
+    trial_page,
+):
+    """A withdrawal is declared, never assumed: a family that doesn't say what
+    taking its question back would mean keeps every id until the reader answers
+    it. <lf-proposed> is the same slot under the same verb in both families, so
+    what differs is the pair — which is the shape the licensing reads, and the
+    reason the declaration sits on the widget that holds the slot rather than on
+    the slot."""
+    (trial_page / "versions" / "v2.html").write_text(
+        trial_version(TRIAL_CACHE, TRIAL_LOG)
+    )
+
+    refused = check(trial_page, version=2)
+    assert refused.exit_code == 1
+    assert "pilot-purge" in refused.output and "purge-weekly" in refused.output
+
+    decide(trial_page, "shelve", widget="pilot-purge")
+
+    answered = check(trial_page, version=2)
+    assert answered.exit_code == 0, answered.output
+
+
+def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page):
+    """A withdrawal outcome no slot of the widget retires under promises the
+    author a taking-back that would leave every id in place — and the version
+    that tried it would fail as "ids dropped", a typo's distance from the
+    declaration and three versions after it."""
+    registry = json.loads((trial_page / "registry.json").read_text())
+    registry["lf-trial"]["x-withdrawn-as"] = "shelved"
+    (trial_page / "registry.json").write_text(json.dumps(registry))
+
+    result = check(trial_page)
+    assert result.exit_code != 0
+    assert "<lf-trial> x-withdrawn-as `shelved` retires none of its slots" in (
+        result.output
+    )
 
 
 @pytest.mark.parametrize(

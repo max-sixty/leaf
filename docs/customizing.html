@@ -223,7 +223,12 @@ lf-options {
             </tr>
             <tr>
               <td><code>x-retired-when</code></td>
-              <td>The parent action outcome that removes this child from the page.</td>
+              <td>
+                The parent action outcome that removes this child from the page. The
+                holder's module writes <code>data-lf-state="&lt;outcome&gt;"</code> on
+                itself as it settles, which is how the page knows the slot has gone;
+                without it the page still shows words the file's reading has retired.
+              </td>
             </tr>
             <tr>
               <td><code>x-says</code></td>
@@ -280,6 +285,14 @@ lf-options {
                 The element stands wider than the prose column where the window has the
                 room — evidence as wide as what it holds, against prose set to a
                 measure.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-withdrawn-as</code></td>
+              <td>
+                The outcome an undecided instance stands as when a later version takes
+                it back unanswered, which is what lets that version drop the ids inside
+                the slots the outcome retires.
               </td>
             </tr>
             <tr>

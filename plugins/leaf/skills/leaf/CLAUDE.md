@@ -762,6 +762,21 @@ one press: an armed `g` over an option's pick mark would otherwise have offered 
 thread" and "toggle the nth" side by side, and `lf-options` asked `leaderArmed()` privately
 to stop half of it.
 
+What there is to walk is one list (`SCOPES`, with the element scopes spliced in where they
+stand in the order), and every reader takes its order from that: the dispatcher and the line
+walk it as it stands, the reference walks it backwards, a reader learning the keyboard
+starting from the page in front of them and reading inward. Three lists said this, and the
+third was the reference's own, in its own order, holding the same eight scopes by hand — so a
+mode left out of it was a mode the reference never named. That is not a hypothetical: it is
+the failure the reference had already made when core's modes were not declared the way a
+widget's are, and a second list of the same things is that bug waiting on the next mode.
+
+Gathering the rows into sections is one function for the same reason (`merge`), since it
+happens twice: at declaration, where a widget's contributors arrive an upgraded element at a
+time, and at each open of the reference, where core's scopes and the widgets' become one list.
+It was spelled three times, and what it carries — rows keyed by sentence, `when` and `at`
+joined by or — was three chances to disagree about what one heading means.
+
 ## A scope names what it takes, and takes no more
 
 The walk above shadows an outer row wherever a nearer one names the binding, which covers
@@ -845,7 +860,9 @@ this norm forbids. So the scope carries the capability and the row carries the p
 reference lists a scope's rows wherever the page has that scope; the line filters by each
 row's own liveness, which it may do because the reader standing in the scope can see which
 state they are in. `Enter` and `r` moved into the thread's own scope on the strength of it,
-and the page's line stopped naming them at all.
+and the page's line stopped naming them at all. The two questions are named apart in the code
+as well (`pageHas`, `readerIn`), because the surfaces ask them apart: spelled `!x || x()` at
+each of the three places that ask, the distinction this norm turns on was written nowhere.
 
 Live means the capability exists, not that every press moves. A stepper at its end — j on
 the last thread, ↓ on the row of the version being read — is a clamp on a live key: the

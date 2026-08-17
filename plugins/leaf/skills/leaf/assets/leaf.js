@@ -1015,8 +1015,25 @@ export const PRESS = ["Enter", " "];
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 const elementScopes = new WeakMap();
-const declaredScopes = new Map(); // title → Map(sentence → row)
+const declaredScopes = new Map(); // title → section
 const sentence = (row) => (typeof row.does === "string" ? row.does : row);
+const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
+// One section per title, gathered from every contributor. Written once because the gathering
+// happens twice and used to be spelled three times: here at declaration, where a widget's
+// contributors arrive an upgraded element at a time, and at each open of the reference, where
+// core's scopes and the widgets' are gathered into one list of sections. The rules above are
+// this function — rows keyed by sentence, `when` and `at` joined by or — and a near-copy of a
+// merge is a merge that drifts on the day one of the three learns something.
+function merge(sections, { title, when, at, rows }) {
+  const seen = sections.get(title);
+  if (!seen) {
+    sections.set(title, { title, when, at, rows: new Map(rows) });
+    return;
+  }
+  for (const [key, row] of rows) seen.rows.set(key, row);
+  seen.when = either(seen.when, when);
+  seen.at = either(seen.at, at);
+}
 
 /** Declare a scope's keys where the code implementing them is.
  *
@@ -1055,12 +1072,7 @@ export function keys(where, title, rows, when) {
     rows: checked(rows, title ?? "a scope"),
     when,
   });
-  if (title) {
-    const section = declaredScopes.get(title) ?? { title, when, rows: new Map() };
-    section.when = either(section.when, when);
-    for (const row of rows) section.rows.set(sentence(row), row);
-    declaredScopes.set(title, section);
-  }
+  if (title) merge(declaredScopes, { title, when, rows: bySentence(rows) });
   paintLine();
   return rows;
 }
@@ -5973,36 +5985,59 @@ const PAGE = {
   ],
 };
 
-// The stack, innermost first. Element scopes sit between the two modes that suspend the
-// page and the page's own — a widget's control shadows the page, and nothing shadows an
-// armed chord or the reference. Core's scopes are checked at module load by the rule every
-// widget's are checked by at upgrade, so a row here that presses with nothing to say for
-// itself takes down the layer on the first page rather than going quiet on every one.
-const ABOVE = [LEADER, HELP];
-const BELOW = [VERSIONS, COMPOSER, TYPING, THREAD, CONTROL, PAGE];
-for (const scope of [...ABOVE, ...BELOW])
-  checked(scope.rows, scope.title ?? "the page's own keys");
+// The stack, innermost first, and the whole of what the runtime says about the order. The
+// element scopes splice in where ELEMENTS stands — between the two modes that suspend the page
+// and the page's own, because a widget's control shadows the page and nothing shadows an armed
+// chord or the reference — and every other reading is taken from here: the dispatcher and the
+// line walk it as it stands, the reference walks it backwards.
+//
+// Three lists said this, and the third was the reference's own, in its own order, holding the
+// same eight scopes by hand. A mode left out of that one was a mode the reference never named
+// — which is not a hypothetical, being the failure it had already made when core's modes were
+// not declared the way a widget's are. A list that must be edited in step with another is the
+// same bug waiting on the next mode.
+const ELEMENTS = Symbol("the scopes of the focused element");
+const SCOPES = [
+  LEADER,
+  HELP,
+  ELEMENTS,
+  VERSIONS,
+  COMPOSER,
+  TYPING,
+  THREAD,
+  CONTROL,
+  PAGE,
+];
+const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
+// Core's scopes are checked at module load by the rule every widget's are checked by at
+// upgrade, so a row here that presses with nothing to say for itself takes down the layer on
+// the first page rather than going quiet on every one.
+for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
 // A control the keyboard also reaches names its key, and names it off the row. Three
 // tooltips spelled theirs in prose — "(a)", "(o)", "(v v)" — which is the field the key
 // line's word used to be, a fact about a binding written somewhere the binding cannot
 // correct. `also` is where a row says which control it duplicates; the chip's is the one
 // motion no single row makes, so it is composed of the two rows that make it.
-for (const scope of [...ABOVE, ...BELOW])
+for (const scope of CORE)
   for (const row of scope.rows) if (row.also) row.also.title += ` (${labelOf(row)})`;
 latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 
-const standing = (s) => (!s.at || s.at()) && (!s.when || s.when());
+// The two questions a scope answers, named apart because the surfaces ask them apart: the
+// reference lists a scope the page *has* and filters its rows by liveness only where the reader
+// is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
+// in three places before, which is a rule written three times and named nowhere.
+const pageHas = (scope) => !scope.when || scope.when();
+const readerIn = (scope) => !scope.at || scope.at();
+const standing = (scope) => pageHas(scope) && readerIn(scope);
 // Every scope the reader is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
 function stack() {
-  return [
-    ...ABOVE.filter(standing),
-    ...scopesFor(focused()).filter(standing),
-    ...BELOW.filter(standing),
-  ];
+  return SCOPES.flatMap((scope) =>
+    scope === ELEMENTS ? scopesFor(focused()) : scope,
+  ).filter(standing);
 }
 // The claims of every scope nearer the reader than this one, accumulated as either walk
 // steps outward. A scope's own claim is pushed after its rows, because what it takes from
@@ -6026,35 +6061,24 @@ const shadow = () => {
 // close the overlay, and a quiet page naming no Escape at all. So a section is its title
 // wherever the title comes from — the box a reply is typed into declares its send key from
 // wireInput and its way out from the typing mode, and they are one heading.
-const SECTIONS = [PAGE, THREAD, CONTROL, TYPING, COMPOSER, VERSIONS, LEADER, HELP];
+//
+// The stack backwards, so a reader learning the keyboard starts from the page in front of them
+// and reads inward, and the widgets' sections land where their scopes stand in it rather than
+// wherever a second list happened to put them.
 function declaredStack() {
   const sections = new Map();
   const named = (section) =>
     scopesFor(focused()).some((s) => s.title === section.title);
-  for (const scope of SECTIONS) {
-    const seen = sections.get(scope.title);
-    if (!seen) {
-      sections.set(scope.title, {
-        title: scope.title,
-        when: scope.when,
-        at: scope.at,
-        rows: new Map(scope.rows.map((row) => [sentence(row), row])),
-      });
+  for (const scope of SCOPES.toReversed()) {
+    if (scope !== ELEMENTS) {
+      merge(sections, { ...scope, rows: bySentence(scope.rows) });
       continue;
     }
-    for (const row of scope.rows) seen.rows.set(sentence(row), row);
-    seen.when = either(seen.when, scope.when);
-    seen.at = either(seen.at, scope.at);
-  }
-  for (const section of declaredScopes.values()) {
-    const seen = sections.get(section.title);
-    if (!seen) {
-      sections.set(section.title, { ...section, at: () => named(section) });
-      continue;
-    }
-    for (const [key, row] of section.rows) seen.rows.set(key, row);
-    seen.when = either(seen.when, section.when);
-    seen.at = either(seen.at, () => named(section));
+    // Where the reader is, for a widget's section, is whether the focused element declares it
+    // — the one thing core's own scopes state for themselves and an element scope cannot,
+    // since it is gathered here by title and the elements wearing that title are many.
+    for (const section of declaredScopes.values())
+      merge(sections, { ...section, at: () => named(section) });
   }
   // The way out reads last, after what the scope is for. A section gathers its rows from
   // wherever they were declared, and a mode contributing only its Escape would otherwise
@@ -6315,7 +6339,7 @@ function showHelp(open) {
       return t;
     };
     for (const scope of declaredStack()) {
-      if (scope.when && !scope.when()) continue;
+      if (!pageHas(scope)) continue;
       // A scope the reader is standing in is filtered by each row's own liveness, because
       // they can see which state they are in and a row that would refuse the press must
       // not be on screen. A scope they are merely near is listed whole: a row's `when`
@@ -6323,7 +6347,7 @@ function showHelp(open) {
       // "arrows move" belongs in the reference though no card is held and `r` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
-      const inIt = !scope.at || scope.at();
+      const inIt = readerIn(scope);
       const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
       if (!rows.length) continue;
       if (scope.title) helpEl.append(el("h3", "", scope.title));

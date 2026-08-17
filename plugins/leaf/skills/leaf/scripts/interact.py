@@ -232,12 +232,21 @@ vocabulary for rides in the custom keywords below:
     x-visual    true when the element renders as a picture: a click anchors on
                 the element whole, there being no text in it to select — the
                 same anchor a click on an <svg> or <img> makes.
-    x-wide      true when instances stand wider than the prose column where the
-                window has the room: evidence whose width is its content's — a
-                board's columns, a diagram's graph — as against prose, which is
-                set to a measure and stays there. The runtime marks what this
+    x-wide      how instances stand wider than the prose column where the
+                window has the room: evidence whose width is its content's, as
+                against prose, which is set to a measure and stays there. Which
+                of two, because the width is decided by different things. `box`:
+                the widget lays its content out into whatever width it is given
+                — a board's columns — so its box stands at one width the whole
+                vocabulary shares, and never at a number of its own. `drawing`:
+                the widget renders one thing drawn at its own size — a
+                diagram's graph — so its box is only the clip around it: it
+                takes what room the page has and the drawing stands centred on
+                the column inside it, whole where the room holds it and
+                scrolling where it doesn't. The runtime marks what this
                 declares and theme.css spends the room the layout measured, so
-                a page's shape follows what it holds and no page states a width.
+                a page's shape follows what it holds and no page states a
+                width.
     x-state     the widget's action verbs: each verb's detail schema, its fold
                 unit, and the record form its state takes in markup. Every
                 applyAction is absolute, so the user's standing state is a
@@ -618,7 +627,7 @@ EXTENSION_SCHEMA = {
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {"type": "boolean"},
-        "x-wide": {"type": "boolean"},
+        "x-wide": {"enum": ["box", "drawing"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["x-content", "x-upgrade"],
@@ -3177,10 +3186,13 @@ CATALOG_PREAMBLE = """\
 # window has the room — evidence as wide as what it holds, a board's columns or
 # a diagram's graph, against prose set to a measure. Nothing is authored for it
 # and no page asks: the widget kind declares it and the theme grows the element
-# out of the column into whichever margins are free, to one width the whole
-# vocabulary shares. A margin holding something of the page's — a change's
-# controls, a sidenote — gives nothing, so the exhibit that grows is never
-# drawn over the apparatus beside it.
+# out of the column into whichever margins are free. `box` grows to one width
+# the whole vocabulary shares, for a widget that lays its content out into what
+# it is given; `drawing` grows to the room, for one holding something drawn at
+# its own size, and the drawing stands centred on the column inside that box —
+# whole where the room holds it, scrolling where it doesn't. A margin holding
+# something of the page's — a change's controls, a sidenote — gives nothing, so
+# the exhibit that grows is never drawn over the apparatus beside it.
 """
 
 

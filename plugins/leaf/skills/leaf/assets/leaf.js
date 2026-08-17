@@ -1312,7 +1312,9 @@ async function upgradeWidgets() {
 // they hold, and a page carrying one had to be either a cramped board or a page whose
 // every paragraph was widened to suit it. Neither is a choice a page should have to make,
 // so the widget kind says which it is (x-wide) and the theme spends the room the layout
-// measured (--lf-room, syncLayout).
+// measured (--lf-room, syncLayout). The value is which of two — a `box` that lays its
+// content out into the width it is given, or a `drawing` at its own size that the box
+// only clips — and the theme's rule beside `--wide` is what turns on the difference.
 //
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
 // already has with data-lf-said, and what carries the breakout into an exported copy,
@@ -1326,7 +1328,7 @@ async function upgradeWidgets() {
 function markWide(root) {
   for (const tag of tagsDeclaring((entry) => entry["x-wide"]))
     for (const el of root.querySelectorAll(tag))
-      el.setAttribute(PAGE_PAINT_ATTRIBUTE.wide, "1");
+      el.setAttribute(PAGE_PAINT_ATTRIBUTE.wide, registry[tag]["x-wide"]);
 }
 
 // Words a widget says through an attribute — a metric's number, an event's time, an

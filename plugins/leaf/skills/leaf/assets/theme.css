@@ -61,13 +61,15 @@
      Read blind, so it is the page's floor for margin strips rather than the sidenote's:
      an idiom that hangs something out there wants the same answer. */
   --strip-min: 984px;
-  /* How wide a widget that declared itself wide may stand — one number for the whole
-     vocabulary, because a set of widths is what makes mixed measures read as a design
-     rather than as an accident, and a width per widget is how a page becomes a ransom
-     note. Unmistakably wider than the column on purpose: a near miss reads as a column
-     that failed to line up, where half as much again reads as a figure. --lf-room, the
-     other half of the pair, is the room left between the two strips above and is
-     measured (syncLayout), so a widget stands clear of both. */
+  /* How wide a widget that lays its content out into the width it is given (x-wide:
+     box) may stand — one number for the whole vocabulary, because a set of widths is
+     what makes mixed measures read as a design rather than as an accident, and a width
+     per widget is how a page becomes a ransom note. Unmistakably wider than the column
+     on purpose: a near miss reads as a column that failed to line up, where half as much
+     again reads as a figure. --lf-room, the other half of the pair, is the room left
+     between the two strips above and is measured (syncLayout), so a widget stands clear
+     of both. A drawing (x-wide: drawing) is not held to this number, its width being
+     its own; the rule beside the two below says what it is held to instead. */
   --wide: 1080px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. These are the prose's hierarchy; a size
@@ -221,7 +223,10 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
  * make, and the tradition this borrows from doesn't: Distill sets text at l-body and
  * figures at l-page, Tufte holds the column and lets a figure go fullwidth. What keeps it
  * reading as design is that the prose axis never moves and there is one wider width, so
- * an exhibit is either in the column or at --wide and never at a number of its own.
+ * an exhibit that fills its box is either in the column or at --wide and never at a
+ * number of its own. A drawing is the exception that proves it: its width is not a
+ * number anyone chose but the size it was drawn at, so its box is a clip and not an
+ * exhibit, and the rule inside the block below says how far a clip may reach.
  *
  * Which widgets those are is the registry's to say (x-wide) and not this file's: a rule
  * naming lf-board would work perfectly for lf-board and do nothing at all for the
@@ -276,13 +281,69 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
     /* Half the surplus, because a side may only ever have half: the other half is the
        other side's whether or not it is taken, so a claim never makes the free side
        wider than it would have been on a page with no claim at all. */
-    --lf-grow: max(0px, calc((min(var(--wide), var(--lf-room, 0px)) - 100%) / 2));
+    --lf-grow: max(0px, calc((var(--lf-reach) - 100%) / 2));
     --lf-grow-l: var(--lf-grow);
     --lf-grow-r: var(--lf-grow);
     max-width: none;
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
   }
+  /* The two kinds of wide widget differ in one thing, how far the box may reach, and
+   * that follows from what decides their width. A box (a board) lays
+   * its columns out into whatever it is given, so the width is a choice, and the choice
+   * is the one number above. A drawing (a diagram's graph) is the size mermaid drew it
+   * at, and the box around it is nothing but the clip: capped at that number it showed
+   * the left 1080px of a 1533px sequence diagram on a window with room for the whole
+   * of it — cut off, with an overlay scrollbar the platform hides until it is used as
+   * the only sign that there was more. So a drawing's box reaches the room, and the
+   * number the vocabulary shares is a promise about boxes that fill it, which a drawing
+   * never was — what shows of one is the drawing, at its own size, whatever its box.
+   *
+   * Then the drawing has to be *placed* in a box that is now most of the window, and
+   * centring it in the box is the wrong answer on any page with a claim, since the box
+   * has grown one way and its centre is off the column's axis by half the growth: a
+   * 466px graph on a page with a rail came out 241px left of the prose it explains on a
+   * 1920 window, hanging into the free margin with nothing out there to explain. What reads right is the alignment a board already has: on
+   * the column's axis wherever the drawing fits between the claimed edges, flush with
+   * the column on the claimed side and out into the free margin when it needs the room,
+   * and scrolling only when even the room is short. Block layout cannot say that — a
+   * block wider than its holder starts at the holder's start, whatever the margins — so
+   * the box is a row: a spacer at each end stands for the room that side has and the
+   * other declined (so at most one is ever wider than nothing) and gives way before
+   * anything else does, and the drawing between them centres while the three fit and
+   * starts at the box's edge once they don't. Every child at its own size, none
+   * stretched to the row, and the box scrolls the rest.
+   *
+   * The spacers read --lf-grow, and read it differently from the box: its `100%` is the
+   * holder of whatever reads it, which for the box is the column and for a spacer is the
+   * row the box became. Read there, the growth on a free side is half of what the box
+   * fell short of the room by — nothing on a page with no claim, since the box took the
+   * whole room, and half of what the claimed side declined on a page with one, the claimed
+   * side itself reading the 0px its claim wrote. Twice that is the spacer, on exactly the
+   * side that should have one. */
+  [data-lf-wide="box"] { --lf-reach: min(var(--wide), var(--lf-room, 0px)); }
+  [data-lf-wide="drawing"] {
+    --lf-reach: var(--lf-room, 0px);
+    display: flex;
+    justify-content: safe center;
+    overflow-x: auto;
+  }
+  [data-lf-wide="drawing"]::before, [data-lf-wide="drawing"]::after {
+    content: ""; flex: 0 1 auto;
+  }
+  [data-lf-wide="drawing"]::before { width: calc(2 * var(--lf-grow-l)); }
+  [data-lf-wide="drawing"]::after  { width: calc(2 * var(--lf-grow-r)); }
+  [data-lf-wide="drawing"] > * { flex: none; }
+  /* A widget whose upgrade failed is showing the message and the source it choked on
+   * (failSoft), and prose is the column's. The room it declared was for the drawing it
+   * did not manage to make, so a parse error came out as a red slab across the whole
+   * window with its message set on one 1600px line — the degrade path, which is the
+   * worst place to be shouting. `.lf-error` is the layer's own word for this rather than
+   * any widget's, so the next widget to fail soft is covered by having failed. The box
+   * is the message's holder here and not a clip, so the message fills it rather than
+   * being sized to its longest line. */
+  [data-lf-wide]:has(> .lf-error) { --lf-room: 0px; }
+  [data-lf-wide="drawing"] > .lf-error { flex: auto; }
   /* A box that draws one of its own is a box a wide widget stays inside. The room is the page's to
    * give, and inside a disclosure or a callout the page is not what holds the widget —
    * a board that took the window from inside a <details> hung out over both edges of

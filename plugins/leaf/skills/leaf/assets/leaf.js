@@ -183,6 +183,18 @@ export function failSoft(el, err, source) {
   el.replaceChildren(box);
 }
 
+// The page's one door to the log, spelled once. Two callers reach it — `post`, which
+// orders the reader's own gestures through it, and the error report below, which
+// deliberately doesn't — and what they share is the request rather than anything about
+// the sending: same path, same method, same encoding, so a door that moved would move
+// for both. Whether a send waits on the one before it belongs to the caller.
+const postEvent = (event) =>
+  fetch("/api/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  });
+
 // The page reporting itself broken, to the party who can fix it: the agent
 // authored the page and its widgets, and before this the only route for a
 // live-session fault was the reader pasting a console nobody told them to
@@ -200,14 +212,10 @@ function reportPageError(text) {
   console.error(`leaf: ${text}`);
   if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
   reportedErrors.add(text);
-  fetch("/api/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      kind: "error",
-      text,
-      ...(VNUM != null && { version: VNUM }),
-    }),
+  postEvent({
+    kind: "error",
+    text,
+    ...(VNUM != null && { version: VNUM }),
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
@@ -1004,6 +1012,17 @@ function checked(rows, where) {
 // page, so the leaves board binds Enter alone and is right to — the shared fact is what a
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
+
+// A clamped walk over a list of focusable rows: the row `dir` steps to from wherever
+// focus stands, or the end it is already on. Clamped rather than wrapping, because ↓ on
+// the last row must land where it already stands — the press stays the panel's, so the
+// list doesn't scroll out from under a walk that reached its end, which is also how j/k
+// walks threads. A walk that wraps is a fact about that walk (lf-tabs, per the ARIA tabs
+// pattern) and states its own; this is the one two panels share.
+const walkRows = (rows, dir) =>
+  rows[
+    Math.max(0, Math.min(rows.length - 1, rows.indexOf(document.activeElement) + dir))
+  ]?.focus();
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the overlay, their rows gathered under each title. A section is
@@ -2272,15 +2291,7 @@ keys(
       does: "Walk the leaves",
       line: "walk the leaves",
       repeat: true,
-      // Clamped at the ends, the way j/k walks threads: ↓ on the last row lands where it
-      // already stands rather than wrapping to the top, and the press stays the board's,
-      // so the panel doesn't scroll out from under a walk that reached its end.
-      run: (binding) => {
-        const rows = othersLinks();
-        const at = rows.indexOf(document.activeElement);
-        const dir = binding === "ArrowDown" ? 1 : -1;
-        rows[Math.max(0, Math.min(rows.length - 1, at + dir))]?.focus();
-      },
+      run: (binding) => walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1),
     },
     // Enter is the browser's here, the row being a link — no `run`, because binding it
     // would click a control the platform has already activated. It carries a word all the
@@ -2485,15 +2496,7 @@ keys(
       does: "Walk the versions",
       line: "walk the versions",
       repeat: true,
-      // Clamped at the ends, the way j/k walks threads and ↑/↓ walks the board: ↓ on the
-      // last row lands where it already stands rather than wrapping, and the press stays
-      // the menu's, so it doesn't scroll out from under a walk that reached its end.
-      run: (binding) => {
-        const rows = versionRows();
-        const at = rows.indexOf(document.activeElement);
-        const dir = binding === "ArrowDown" ? 1 : -1;
-        rows[Math.max(0, Math.min(rows.length - 1, at + dir))]?.focus();
-      },
+      run: (binding) => walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1),
     },
     // The browser's own, the row being a real <button> — no `run`, or the press would click
     // a control the platform has already activated. The word is the line's all the same,
@@ -2927,13 +2930,7 @@ async function post(event) {
   // second send is only safe if the door can tell it from a second decision),
   // and it would hold the queue below through its own backoff, delaying every
   // later gesture to soften a case the log already reconciles.
-  const mine = taken.then(() =>
-    fetch("/api/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(event),
-    }),
-  );
+  const mine = taken.then(() => postEvent(event));
   // The turn passes on whatever the send did, failures included — and the
   // catch is what makes that true: a rejection left in `taken` is a promise
   // every later send would chain onto and none would ever run from.
@@ -4199,6 +4196,18 @@ function pageText() {
   if (previousCell) fences.add(raw.length);
   return { raw, origin, positions, fences: [...fences].sort((a, b) => a - b) };
 }
+// Where a passage's segments start and stop in that reading, as [start, stop). A passage
+// is `{node, start, end}` segments and every question about the region it covers is asked
+// in the reading's own coordinates, so the join between the two is one function — the
+// capture writing an anchor's neighbours and the snap widening a drag both ask it. No
+// segments is the document's own start: a selection that covers no quotable character has
+// a position and no extent.
+function spanIn(reading, segments) {
+  const first = segments[0];
+  const last = segments.at(-1);
+  const start = first ? reading.positions.get(first.node) + first.start : 0;
+  return [start, last ? reading.positions.get(last.node) + last.end : start];
+}
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // How much of a quote the search compiles into its pattern. The bound is the pattern's,
 // never the passage's: one expression covering every word of a long passage is a term
@@ -4980,10 +4989,7 @@ function selectionAnchor(sel) {
   const segments = segmentsIn(range);
   const quote = quoteFrom(segments);
   const reading = pageText();
-  const first = segments[0];
-  const last = segments.at(-1);
-  const start = first ? reading.positions.get(first.node) + first.start : 0;
-  const stop = last ? reading.positions.get(last.node) + last.end : start;
+  const [start, stop] = spanIn(reading, segments);
   const prefix = cut(
     neighbourhood(reading.origin, reading.fences, start, CONTEXT, true),
     -CONTEXT,
@@ -5141,10 +5147,7 @@ function snapSelection() {
   const segments = segmentsIn(range);
   if (!segments.length) return;
   const reading = pageText();
-  const first = segments[0];
-  const last = segments.at(-1);
-  const start = reading.positions.get(first.node) + first.start;
-  const stop = reading.positions.get(last.node) + last.end;
+  const [start, stop] = spanIn(reading, segments);
   const lo = snapOut(reading, start, true);
   const hi = snapOut(reading, stop, false);
   if (lo === start && hi === stop) return;

@@ -2339,6 +2339,30 @@ function rowPresence(entry) {
               : "Closed";
   return { tone: TONE[kind], line };
 }
+// The whole of what the board knows about one page, for its hover. Everything drawn
+// on a row is cut to the panel's fixed width — the title ellipsizes, the line
+// ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
+// session behind the leaf is working. A title is a sentence somebody wrote and two
+// pages a week apart share one; the work each came out of is the thing the reader
+// already holds in their head, so it is worth the room a hover has and a row hasn't.
+//
+// One tooltip for the row rather than one per part. The innermost title wins where two
+// overlap, so a title left on the line would answer the hover most likely to be asking
+// this question — a reader pointing at the words that ran out of room — with the one
+// part of the account they can already read.
+const rowAccount = (entry, title, line) =>
+  [
+    title,
+    entry.session_cwd,
+    line,
+    // The reader's own words that page's agent hasn't taken in. The banner says this
+    // number for this page; the board says it for every page, which is the seat's
+    // whole point — a leaf holding something of yours that nobody has read is a
+    // reason to go there, and nothing else on the row says so.
+    entry.pending && `${entry.pending} update${entry.pending === 1 ? "" : "s"} waiting`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 const othersRows = new Map(); // keyed by URL; the self row under its own key
 function renderOthers(state) {
   // An older server ships no list, which is an empty one. A closed leaf is not
@@ -2389,17 +2413,10 @@ function renderOthers(state) {
     const dotCls = "lf-dot" + (tone ? " " + tone : "");
     if (rowDot.className !== dotCls) rowDot.className = dotCls;
     if (rowTitle.textContent !== title) rowTitle.textContent = title;
-    if (row.title !== title) row.title = title; // the row ellipsizes; the tooltip holds it whole
-    if (rowLine.textContent !== line) {
-      // The line holds its own tooltip, now that it carries an ask and not one word:
-      // it ellipsizes at the panel's fixed width, and the row's tooltip is the page
-      // title, so the ask would be the one thing on the row a hover cannot recover.
-      // The innermost title wins where two overlap, which puts this one under the
-      // pointer here while the title still answers everywhere else on the row. One
-      // comparison answers for both, being the same words written twice.
-      rowLine.textContent = line;
-      rowLine.title = line;
-    }
+    if (rowLine.textContent !== line) rowLine.textContent = line;
+    // Everything the row was too narrow to say, on the row itself (see rowAccount).
+    const account = rowAccount(entry, title, line);
+    if (row.title !== account) row.title = account;
     const place = anchor ? anchor.nextElementSibling : othersPanel.firstElementChild;
     if (place !== row) othersPanel.insertBefore(row, place);
     anchor = row;
@@ -5925,7 +5942,11 @@ const PAGE = {
       run: (binding) => stepPage(binding === "d" ? 0.5 : -0.5),
     },
     {
-      keys: ["o"],
+      // `l` for the leaves, the word every surface names this board by. It was `o`,
+      // for the "Other leaves" the button said before the count was one off the list
+      // it promised — so the key went on spelling a word nothing on screen said, and
+      // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
+      keys: ["l"],
       does: () => `${othersOpen ? "Hide" : "Show"} the machine's leaves`,
       line: () => `${othersOpen ? "hide" : "show"} leaves`,
       also: othersBtn,

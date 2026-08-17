@@ -762,20 +762,12 @@ one press: an armed `g` over an option's pick mark would otherwise have offered 
 thread" and "toggle the nth" side by side, and `lf-options` asked `leaderArmed()` privately
 to stop half of it.
 
-What there is to walk is one list (`SCOPES`, with the element scopes spliced in where they
-stand in the order), and every reader takes its order from that: the dispatcher and the line
-walk it as it stands, the reference walks it backwards, a reader learning the keyboard
-starting from the page in front of them and reading inward. Three lists said this, and the
-third was the reference's own, in its own order, holding the same eight scopes by hand — so a
-mode left out of it was a mode the reference never named. That is not a hypothetical: it is
-the failure the reference had already made when core's modes were not declared the way a
-widget's are, and a second list of the same things is that bug waiting on the next mode.
-
-Gathering the rows into sections is one function for the same reason (`merge`), since it
-happens twice: at declaration, where a widget's contributors arrive an upgraded element at a
-time, and at each open of the reference, where core's scopes and the widgets' become one list.
-It was spelled three times, and what it carries — rows keyed by sentence, `when` and `at`
-joined by or — was three chances to disagree about what one heading means.
+What there is to walk is one list (`SCOPES`, the element scopes spliced in where they stand),
+and every reader takes its order from it: the dispatcher and the line walk it forwards, the
+reference backwards. Three lists said it before, the third the reference's own — and a mode
+left out of that one is a mode the reference never names, which is the failure it had already
+made once. Gathering the rows into sections is one function (`merge`) for the same reason: it
+runs at declaration and at every open of the reference, and was spelled three times.
 
 ## A scope names what it takes, and takes no more
 
@@ -810,43 +802,27 @@ there is nowhere left to put a wider one. And a scope that has to hand back a ke
 is a scope claiming the wrong set: reach for what it uses, not for what stands near it,
 because the keys it over-claims are invisible until a reader is standing on one.
 
-That cuts the other way for a mode, and the versions menu is the case that shows it. A mode
-does take the keyboard, and this one claimed nothing at all — so a reader in the middle of
-choosing a version could press `o` and have focus taken out of the list into the leaves
-board, `d` and scroll a page they had stopped reading, `c` and open the composer under the
-menu, or `=` and set a base the walk they were standing in disagreed with. Every one of
-those presses did exactly what it promises, somewhere the reader was not, and the line went
-on offering all of them — which is what makes the offer the fault rather than the press,
-since a claim is one statement that the dispatcher and the line both read.
-
-What a mode keeps is the reference (`allButTheReference`), and it is kept for the reason the
-line draws that chip whatever the room: a reader who has just opened something unfamiliar is
-the reader who needs to ask. The two older modes get away with the blanket because neither
-can outlive a keystroke — any key disarms the chord and runs again behind it, and the
-overlay's own `?` closes it — while a menu stands until it is dismissed, so a swallowed `?`
-would stay swallowed. Reading the key off the row rather than spelling it beside the claim
-is the same rule as everywhere else here: a fact about a binding, written where the binding
-cannot correct it, is the register's oldest bug.
-
-A kept key that costs the reader their place is barely kept, which is what the exemption
-turned up. A scope is *where focus is*, and the overlay takes focus without handing it back,
-so the reference explaining a walk was also the way out of one: opened from a version row or
-a held card and closed, it left the reader on the body, with the keys it had just listed
-reaching nothing. It restores now (`helpFrom`), from inside the overlay only — a mousedown
-elsewhere closes it too, and there the press's own focus is the browser's default action,
-still to come.
+That cuts the other way for a mode, which does take the keyboard. The versions menu claimed
+nothing, so a reader mid-walk could press `o` and lose focus to the leaves board, `d` and
+scroll a page they had stopped reading, or `=` and set a base the walk disagreed with — each
+press doing what it promises somewhere the reader was not, with the line still offering all
+of them. What a mode keeps is the reference (`allButTheReference`): the two older ones can
+blanket it because neither outlives a keystroke, where a menu stands until it is dismissed
+and a swallowed `?` stays swallowed. And a scope is *where focus is*, so the overlay hands
+focus back on close (`helpFrom`) — opened from a version row and closed onto the body, it
+left the keys it had just listed reaching nothing.
 
 ## A key on screen is a key that works
 
 Every surface that names a key promises the press does something now. One table kept the
 words from drifting and did nothing to keep the surfaces from drifting from each other:
 the key line asked `when` and the `?` overlay didn't, so a page with no open thread offered
-`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. Two
-shortcuts had no `when` at all — the diff's liveness sat inside its own `run` and the
-version stepper's inside its own stepper, where no surface could ask. So whether a key is live
-is declared once (`when`), `live` is the one question the dispatcher, the line and the
-overlay all put to it, and a label that names a range is a function (`g ${digits()}`) so it
-counts the threads that are there rather than promising nine. A liveness guard inside `run`
+`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. One
+shortcut had no `when` at all — the diff's liveness sat inside its own `run`, where no
+surface could ask. So whether a key is live is declared once (`when`), `live` is the one
+question the dispatcher, the line and the overlay all put to it, and a label that names a
+range is a function (`g ${digits()}`) so it counts the threads that are there rather than
+promising nine. A liveness guard inside `run`
 is the tell, because it makes the key refuse a press some surface is still advertising.
 
 One `when` was still one answer to two questions, and `r` is where that showed. Its
@@ -860,9 +836,8 @@ this norm forbids. So the scope carries the capability and the row carries the p
 reference lists a scope's rows wherever the page has that scope; the line filters by each
 row's own liveness, which it may do because the reader standing in the scope can see which
 state they are in. `Enter` and `r` moved into the thread's own scope on the strength of it,
-and the page's line stopped naming them at all. The two questions are named apart in the code
-as well (`pageHas`, `readerIn`), because the surfaces ask them apart: spelled `!x || x()` at
-each of the three places that ask, the distinction this norm turns on was written nowhere.
+and the page's line stopped naming them at all. They are named apart in the code too
+(`pageHas`, `readerIn`), since `!x || x()` at each of the three places that ask named neither.
 
 Live means the capability exists, not that every press moves. A stepper at its end — j on
 the last thread, ↓ on the row of the version being read — is a clamp on a live key: the
@@ -964,38 +939,18 @@ about which one is last.
 
 ## One door to a place, and it is the one that shows it
 
-`[` and `]` stepped versions — older, newer, with the chooser's own pin semantics — and
-they were the menu's walk with the list taken away. Each press was a page load, so a reader
-holding `[` travelled backwards through the work past the notes saying what each version
-changed, with the number on the chooser the only thing telling them where they had got to.
-The keys worked perfectly and what they were for was to arrive somewhere informed.
+`[` and `]` stepped versions older and newer: the menu's walk with the list taken away, a page
+load per press, so a reader holding `[` travelled back through the work past the notes saying
+what each version changed. A second key to a place the page already reaches is worth its
+binding only if it carries what the door carries. `=` passes that test by naming no version —
+"what changed since the last one I saw" needs nothing opened — and an older/newer step fails
+it, since choosing a version is reading the list.
 
-So a second key to a place the page already reaches is worth its binding only if it carries
-what the door carries. `=` keeps its place on that test, because it names no version at all:
-"what changed since the last one I saw" is a question a reader has without opening anything,
-and the answer arrives on the page they are already reading. An older/newer step fails it —
-the versions are a list with words against them, and the whole of choosing one is reading
-them.
-
-What the door gained on the strength of it is the other half. Inside the menu the walk states
-the comparison: the row focus stands on *is* the base, so ↑ marks what changed since further
-back and ↓ walks the marks away again, and the row that ends it is the version being read —
-the row an open lands on, which is why the way off needs no key and no reader has to be told
-where it is. That the two must agree is the whole of the invariant, and the landing is where
-it can silently break: opening on the version being read while a comparison stood against
-some other version left the reader's first arrow press moving a base they had set from
-outside the menu, with the marks redrawn to match and nothing saying so. So an open lands on
-the standing base.
-
-A walk that states something per press is a walk whose statement has to be ordered, and this
-one costs a fetch: the base version's document. Measured on the gallery, the whole comparison
-is 30–40ms of which the fetch is about 12 (5 warm) — so a press can afford one and the
-problem was never the cost. It was that two of them can be in flight at once, where the
-older one lands second and marks the page from a base the reader has already walked off. The
-fetch is therefore the one await (`baseDocument`), every mark is synchronous after it, and a
-request that is no longer the current one drops instead of painting (`request`). A settled
-walk applies exactly one comparison, whatever the reader did on the way, and no debounce
-guesses at when they have stopped.
+Inside the menu the row focus stands on *is* the comparison base, so the marks follow the walk
+and the row that ends it is the version being read, which is the row an open lands on. The two
+must agree, and the landing is where that breaks quietly: opening on the version being read
+while a comparison stood elsewhere moved the base on the reader's first arrow press, marks
+redrawn to match and nothing saying so. So an open lands on the standing base.
 
 ## A widget's chrome outlives its handlers
 

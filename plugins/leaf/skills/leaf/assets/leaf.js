@@ -1689,21 +1689,22 @@ ${MARK_RULES}
   body.lf-over-mark { cursor: pointer; }
   /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
      whole cost is that it is invisible. Two things say it, and the division matters:
-     the item under the pointer outlines, which answers *which*, and the cursor answers
+     the item under the pointer wears the aim's box (.lf-aim, in the chrome's scope
+     block), which answers *which*, and the cursor answers
      *whether*. crosshair was tried and read as a cross — an icon for closing something,
      not for aiming at it — and copy, alias and a menu each name an action this isn't.
      What is left is the pair this page already spends on that same distinction one line
      above: the hand where a press acts, the arrow where it doesn't. Armed, a press acts
      exactly where there is an item under it and on nothing where there isn't
      (claimPress), so those two states are those two cursors, and the hand promises no
-     more than the outline beside it does.
+     more than the box beside it does.
      The plain arrow alone was the first answer and it under-promised. It says only "not
-     a text selection", which is the half a reader can already infer from the outline,
+     a text selection", which is the half a reader can already infer from the box,
      and it says the same thing over a gap a press does nothing in as over the paragraph
-     a press would take whole — so the one question the outline leaves ("would this
+     a press would take whole — so the one question the box leaves ("would this
      click do anything?") was the one the cursor declined to answer, and a user held the
      key and asked it out loud.
-     Derived at the paint, off the value paintAnchors resolved for the outline, so there
+     Derived at the paint, off the value refreshAim resolved for the box, so there
      is one answer to what the aim is on rather than a second reading free to disagree
      with what is drawn.
      What this does not reach is a control that states a cursor of its own — a
@@ -1711,7 +1712,7 @@ ${MARK_RULES}
      press is being swallowed above it. Inherited declarations lose to declared ones, so
      covering that means either an important universal rule or naming this container at
      document level to hold the chrome out of it, and both are worse than the case: the
-     outline is absent there, which is the honest half of the answer, and the control's
+     box is absent there, which is the honest half of the answer, and the control's
      hand says what it always says rather than something new and wrong.
      One declaration on the body, inherited, rather than a rule reaching down the page:
      naming .lf-chrome here to hold the chrome out would put that class into the
@@ -1748,12 +1749,14 @@ ${MARK_RULES}
      corner radius rather than restating one, which is what the radius here used to
      override. */
   .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
-  /* The draft's own passage, and the item an armed press would take. Only the colour
-     separates it from a posted mark, and the colour moved: the burnt orange stood 77 ΔE
-     from the accent and --mark-ink stands 24, both now at a hairline. What keeps the two
-     apart is no longer the paint alone — an open composer is on screen whenever this one
-     is, and an element a thread already marks keeps the posted colour rather than taking
-     this (paintAnchors), so the pair never contend on one element. */
+  /* The draft's own passage — a standing annotation like the posted mark, which is why
+     it may share the hairline where the ⌥ aim's promise may not (the .lf-aim rule in
+     the scope block says why). Only the colour separates it from a posted mark, and the
+     colour moved: the burnt orange stood 77 ΔE from the accent and --mark-ink stands
+     24, both now at a hairline. What keeps the two apart is no longer the paint alone —
+     an open composer is on screen whenever this one is, and an element a thread already
+     marks keeps the posted colour rather than taking this (paintAnchors), so the pair
+     never contend on one element. */
   .lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto; }
   /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
      hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -2067,6 +2070,28 @@ ${MARK_RULES}
        whatever it happens to be over. */
     .lf-fab { position: absolute; z-index: 8950; display: none;
       box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    /* The ⌥ aim's promise: the item a press would take, whole. Drawn here in the
+       chrome's own layer rather than painted onto the element, because no band of a
+       page element is reliably the runtime's to paint in — the mark comment at
+       document level holds the inventory (outside the border, an enclosing scroller
+       clips; inside it, a choose group's own cells paint over; the border band is
+       wherever the widget's own border already is). A standing mark can live with the
+       hairline that survives all that, because an annotation is something a reader
+       can hunt for. A promise cannot: it answers a held key at a glance, and over a
+       card whose 1px border is already the accent — every recommended option — the
+       arm changed nothing a reader could see, which was reported as no box at all.
+       The layer over the page is the runtime's by construction, so the aim is stated
+       there instead, from the aimed element's geometry: a veil that says how much a
+       press takes and a ring that says where it stops, over everything the page can
+       paint — an lf-shot frame flush to its own edges included. pointer-events
+       stands down so the press this box promises, and every elementFromPoint behind
+       the promise, still lands on the item under it. Document-anchored like the
+       floats above (place), so a scroll moves it with the page between the events
+       that re-derive it; under the floats themselves, which are chrome the reader
+       works rather than paint about the page. */
+    .lf-aim { position: absolute; z-index: 8920; display: none; pointer-events: none;
+      border: 2px solid var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, transparent); }
     .lf-composer { position: absolute; z-index: 8950; display: none; width: 320px; background: var(--card);
       border: 1px solid var(--border-2); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 10px; }
     /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
@@ -2537,6 +2562,10 @@ generalRow.append(generalInput, generalSend);
 panel.append(panelHead, threadsBox, generalRow);
 
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
+// The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
+// screen reader and takes nothing from the press it promises; refreshAim is its one
+// writer, and data-for is the aimed id stated where a test can read the promise.
+const aimBox = el("div", "lf-ui lf-aim");
 const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
@@ -2583,6 +2612,7 @@ chromeRoot.append(
   versionMenu,
   othersPanel,
   panel,
+  aimBox,
   fab,
   composer,
   toastEl,
@@ -4461,16 +4491,64 @@ const PENDING = "lf-pending";
 const NOTE = "lf-mark-note";
 const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record of what it drew
 let pendingMarks = []; // the same record for the open composer's own passage
-let pendingOutline = []; // the elements the draft and the ⌥ aim outline, owned by nobody else
-// What the aim last painted — a repaint gate, never a paint input. paintAnchors
-// derives the aimed item live, so a pass run for any reason (a replay's repaint, the
-// arm changing) paints what is under the pointer now; a latch here was a second answer
-// to the question the press asks fresh, and a replay repainted it stale. What the
-// cheap events decide is only whether the answer moved enough to buy a pass, the same
-// division refreshHover keeps for the marks.
-let aimedDrawn = null;
+let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
+// The aim's one writer, and the whole of its paint: the box in the chrome's layer
+// (aimBox), and the cursor's half of the same promise. Everything is derived fresh on
+// every ask — the aimed item, lf-over-item, the box's geometry — because a latch here
+// was a second answer to the question the press asks fresh, and a replay repainted it
+// stale. Synchronous, not coalesced to a frame the way refreshHover is: the keydown
+// that arms the page is followed by the press in the same gesture, and a promise a
+// frame behind the arm is one the press can outrun. What each ask costs is one
+// hit-test and one rect walk, which is what the repaint gate this replaced already
+// spent per event on deciding whether to run a far dearer pass.
 function refreshAim() {
-  if ((aiming ? aimedItem() : null) !== aimedDrawn) paintAnchors();
+  const aimed = aiming ? aimedItem() : null;
+  // The cursor's half, written where the box's half is decided, so the hand cannot
+  // stand over a press the paint knows takes nothing. `aiming` alone says the page
+  // is armed; this says the aim has landed on something.
+  document.body.classList.toggle("lf-over-item", Boolean(aimed));
+  // The item's bounds, held to what the page shows of them. The box lives in a layer
+  // no ancestor's clip can reach — that is the point of it — so it owes the clips an
+  // answer of its own: an option's table box runs on under its group's overflow:
+  // hidden, and a card half-scrolled out of a board is half gone. A box drawn from
+  // the raw rect claims pixels the page has already refused, over the neighbour
+  // standing in them. The viewport is not such an edge — half off screen is still
+  // the truth about the item.
+  let r = aimed?.getBoundingClientRect();
+  // An item with no box of its own — a display: contents suggestion — shows as what
+  // its contents paint, so its bounds are theirs. A range asks the platform for that
+  // union in one read; the outline this box replaced painted nothing at all here,
+  // which the suite only learned to see when the promise became pixels.
+  if (r && !r.width && !r.height) {
+    const contents = document.createRange();
+    contents.selectNodeContents(aimed);
+    r = contents.getBoundingClientRect();
+  }
+  let { left, top, right, bottom } = r ?? {};
+  for (let a = aimed?.parentElement; a; a = a.parentElement) {
+    const s = getComputedStyle(a);
+    if (!/hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY)) continue;
+    const c = a.getBoundingClientRect();
+    left = Math.max(left, c.left);
+    top = Math.max(top, c.top);
+    right = Math.min(right, c.right);
+    bottom = Math.min(bottom, c.bottom);
+  }
+  if (!aimed || right <= left || bottom <= top) {
+    aimBox.style.display = "none";
+    aimBox.removeAttribute("data-for");
+    return;
+  }
+  aimBox.setAttribute("data-for", aimed.id);
+  // The item's own corner radius, so the ring hugs the corner the item draws.
+  Object.assign(aimBox.style, {
+    display: "block",
+    left: left + "px",
+    top: top + pageScroller.scrollTop + "px",
+    width: right - left + "px",
+    height: bottom - top + "px",
+    borderRadius: getComputedStyle(aimed).borderRadius,
+  });
 }
 const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
 let hovering = null;
@@ -4560,24 +4638,16 @@ function paintAnchors() {
   // never reads as a posted comment. An element a thread already outlines keeps the posted
   // colour: there is one outline to give, and the thread's is the clickable one.
   //
-  // The ⌥ aim wears the same paint, because it is the same fact one step earlier: the
-  // item a press would take is what the composer's mark then states. An open composer
-  // doesn't stand the aim down — a press while the box is up re-anchors it to the aimed
-  // item (openOnItem), and the outline is the promise a press keeps, so it paints
-  // wherever the press would act. Draft and aim can therefore outline two elements at
-  // once, which is the true state: where the draft stands, and where a press would
-  // move it.
+  // The ⌥ aim does not wear this paint, though it is the same fact one step earlier:
+  // a promise has to interrupt where an annotation may whisper, so the aim has a box
+  // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
+  // why). An open composer doesn't stand the aim down — a press while the box is up
+  // re-anchors it to the aimed item (openOnItem) — so the two can show at once, which
+  // is the true state: where the draft stands, and where a press would move it.
   const draft =
     composerOpen && pendingAnchor ? resolveAnchor(pendingAnchor, text) : null;
-  const aimed = aiming ? aimedItem() : null;
-  aimedDrawn = aimed;
-  // The cursor's half of the promise, written where the outline's half is decided, so
-  // the hand cannot stand over a press the paint knows takes nothing. `aiming` alone
-  // says the page is armed; this says the aim has landed on something.
-  document.body.classList.toggle("lf-over-item", Boolean(aimed));
   // Where the draft's passage is, recorded the way the threads' is, because placeComposer
-  // has to keep the box off it — the draft's alone, never the aim's, or the box would
-  // dodge whatever the pointer wanders over. An element a thread already outlines belongs
+  // has to keep the box off it. An element a thread already outlines belongs
   // in the record too — it is marked, just in the posted colour rather than the accent.
   pendingMarks = draft
     ? draft.element
@@ -4585,11 +4655,10 @@ function paintAnchors() {
       : draft.segments.map((seg) => rangeOf([seg]))
     : [];
   const pending = [];
-  for (const el of new Set([draft?.element, aimed].filter(Boolean)))
-    if (!allMarks().includes(el)) {
-      el.classList.add("lf-mark-el", PENDING);
-      pendingOutline.push(el);
-    }
+  if (draft?.element && !allMarks().includes(draft.element)) {
+    draft.element.classList.add("lf-mark-el", PENDING);
+    pendingOutline.push(draft.element);
+  }
   if (draft?.segments) pending.push(...pendingMarks);
 
   // The composer's echo of its own passage, decided here because here is where it is known
@@ -4622,6 +4691,7 @@ function paintAnchors() {
   );
   noteMarks(noted); // and the same fact for a reader who can't see any of it
   refreshHover(); // the ranges moved; whether one is under the pointer may have too
+  refreshAim(); // and so may the item a held arm is promising (a replay moves content)
 
   // The panel's side of the same fact, read off the pass's own record so the two views
   // can't disagree: a passage rewritten in a later version has no home to jump to, and a
@@ -4776,16 +4846,20 @@ document.addEventListener("mousemove", (ev) => {
   pointer.y = ev.clientY;
   refreshHover();
 });
-pageScroller.addEventListener(
+// At the document and at capture, because scroll does not bubble and body is not the
+// page's only scroller: a board scrolls its columns sideways, and a card carried under
+// a parked pointer that way is the same fact as the page scrolling under it. Capture is
+// the one place every scroller's event passes.
+document.addEventListener(
   "scroll",
   () => {
     refreshHover();
     // The page moving under a held aim is the pointer moving over the page: what a
-    // press would take can change with no mouse event to say so, and an outline left
-    // on the old item promises a press the click no longer makes.
+    // press would take can change with no mouse event to say so, and a box left over
+    // the old item promises a press the click no longer makes.
     refreshAim();
   },
-  { passive: true },
+  { capture: true, passive: true },
 );
 
 // ---------- selection → comment ----------
@@ -5185,7 +5259,7 @@ document.addEventListener("mousedown", (ev) => standDown(ev.target));
 const visualSel = () =>
   [...tagsDeclaring((e) => e["x-visual"]), "svg", "img", "figure"].join(",");
 // While ⌥ is held the page shows what a click would take — the item under
-// the pointer wears the outline the composer's own passage will wear, so the chord
+// the pointer wears the aim's box (refreshAim), so the chord
 // answers "which" before the click rather than asking the user to press and find out.
 // `aiming` is the state and the class is a rendering of it; nothing reads the class back.
 //
@@ -5244,7 +5318,7 @@ document.addEventListener("mousemove", (ev) => {
 // instead, it was a press the page had already had: ⌥-clicking an option card opened the
 // composer *and* picked the option, sending Claude a decision the user never made,
 // and ⌥-clicking a tab's name aimed at the widget while switching the panel under it.
-// Every widget that takes a press had it, because none of them was ever told. The outline
+// Every widget that takes a press had it, because none of them was ever told. The box
 // is the promise, and a press keeps it by being the only thing the press does.
 //
 // Claimed at the press rather than judged at the click, because the press is where ⌥
@@ -5254,7 +5328,7 @@ document.addEventListener("mousemove", (ev) => {
 // What is armed is the page rather than the items on it: an armed press aims where there
 // is an item under it, and acts on nothing where there isn't. That is what the cursor is
 // already saying, over everything the chrome doesn't hold out of it. Falling through to
-// the page instead would leave the user reading the outline to find out which of the
+// the page instead would leave the user reading the box to find out which of the
 // two a press is about to be — and a suggestion's ✓ Accept hangs in the page's own
 // column, outside the element it decides, so there is nothing above it to aim at and
 // getting that wrong sends Claude a decision.

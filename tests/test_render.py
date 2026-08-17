@@ -1783,18 +1783,16 @@ AIM_POINT = """(el) => {
   }
   return null;
 }"""
-# The promise itself, read where the user reads it. The item a click would take wears
-# the outline the composer's own passage wears, so the same query answers before the press
-# and after it, and the two answers agreeing is the promise being kept.
-OUTLINED = """() => document.querySelector(".lf-mark-el.lf-pending")?.id ?? null"""
+# The promise itself, read where the runtime states it: the aim's box in the chrome's
+# layer carries the aimed item's id (data-for, refreshAim's one write of it). The
+# composer's own mark then stands on that same item once the press is made, so the box's
+# answer before the press and the draft's after it agreeing is the promise being kept.
+AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
+DRAFT_MARK = """() => document.querySelector(".lf-mark-el.lf-pending")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
-# the outline is read. Asked of body, where the aim declares it and from where it is
+# the box is read. Asked of body, where the aim declares it and from where it is
 # inherited by everything on the page that doesn't state a cursor of its own.
 AIM_CURSOR = """() => getComputedStyle(document.body).cursor"""
-# All of them, for the one state that outlines two elements at once: a draft standing on
-# its anchor while the ⌥ aim says where a press would move it.
-OUTLINED_ALL = """() =>
-  [...document.querySelectorAll(".lf-mark-el.lf-pending")].map((el) => el.id).sort()"""
 # Where focus ended up, which is the effect a press has that leaves no mark in the markup:
 # `offer` gives every press it builds a tabindex, so a press the page received lands on
 # the control, where the aim's own leaves focus to the composer it opened.
@@ -1856,14 +1854,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         before = page.evaluate(PAGE_MARKUP)
         page.mouse.move(*point)
         page.keyboard.down("Alt")
-        promised = page.evaluate(OUTLINED)
+        promised = page.evaluate(AIMED)
         # The cursor is the other half of the same promise, and it is derived from the
         # same value the outline is: the hand where a press takes something, the arrow
         # where it takes nothing. Read off body, which is where the aim declares it —
         # a widget's own control still states its resting cursor, and does so whether or
         # not the key is down.
         assert page.evaluate(AIM_CURSOR) == ("pointer" if promised else "default"), (
-            f"holding ⌥ over {label} in {example.name} outlined {promised} and pointed "
+            f"holding ⌥ over {label} in {example.name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
         page.mouse.click(*point)
@@ -1878,9 +1876,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
             expect(composer).to_be_hidden()
         else:
             expect(composer).to_be_visible()
-            assert page.evaluate(OUTLINED) == promised, (
-                f"⌥-clicking {label} in {example.name} outlined {promised} and commented "
-                f"on {page.evaluate(OUTLINED)}"
+            assert page.evaluate(DRAFT_MARK) == promised, (
+                f"⌥-clicking {label} in {example.name} promised {promised} and commented "
+                f"on {page.evaluate(DRAFT_MARK)}"
             )
             # Put the composer away before reading the page back: its own passage wears
             # the outline, which is the one mark an aim is supposed to leave.
@@ -1948,9 +1946,9 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     claimPress acts whether or not a composer stands open, and openComposer carries the
     typed text onto the new anchor — so the aim standing down on composerOpen, as it did
     from its first commit, left exactly one press made blind: the one that moves a
-    draft. Holding ⌥ over a second item paints its outline beside the draft's own mark;
+    draft. Holding ⌥ over a second item raises its box beside the draft's own mark;
     two at once is the true state — where the draft stands, and where a press would
-    move it — and the press then does what the second outline promised."""
+    move it — and the press then does what the box promised."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
@@ -1964,17 +1962,17 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     card = page.locator("#card-notes")
     card.hover()
     page.keyboard.down("Alt")
-    promised = page.evaluate(OUTLINED_ALL)
+    promised = [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)]
     assert promised == ["card-notes", "t"], (
-        f"holding ⌥ over a card with a draft open on the heading promised {promised}, "
-        "so the press that would move the draft is blind"
+        f"holding ⌥ over a card with a draft open on the heading showed {promised} as "
+        "[aim, draft], so the press that would move the draft is blind"
     )
     card.click()
     page.keyboard.up("Alt")
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
-    assert page.evaluate(OUTLINED_ALL) == ["card-notes"], (
-        "the press re-anchored the draft, so only its new anchor should stand outlined"
+    assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [None, "card-notes"], (
+        "the press re-anchored the draft, so its new anchor alone should stand marked"
     )
     round_trip(page)
     assert [
@@ -1996,12 +1994,12 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)  # the latch is gone
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.keyboard.up("Alt")
     assert errors == []
     page.close()
@@ -2018,8 +2016,8 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.mouse.move(600, 300)
     page.keyboard.down("Alt")
-    first = page.evaluate(OUTLINED)
-    assert first, "nothing outlined under the parked pointer, so nothing is being aimed"
+    first = page.evaluate(AIMED)
+    assert first, "nothing promised under the parked pointer, so nothing is being aimed"
     # Three whole paragraphs of scroll, measured off the page: the paragraphs are
     # identical, so the pointer's offset into the outlined one becomes the same offset
     # into the one three later, never the margin between two. body is the page's
@@ -2031,9 +2029,9 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.wait_for_function(
         """(first) => {
-      const el = document.querySelector(".lf-mark-el.lf-pending");
+      const promised = document.querySelector(".lf-aim")?.getAttribute("data-for");
       const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
-      return Boolean(el) && el === at && el.id !== first;
+      return Boolean(promised) && promised === at?.id && promised !== first;
     }""",
         arg=first,
     )
@@ -2050,7 +2048,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     mouse event, so the pass itself painted a promise about a card no longer there.
     The aimed item is derived inside the pass now, and the events only decide when a
     pass is worth running. Nothing here moves the mouse after the arm: the page moves
-    instead, and the outline must follow or clear."""
+    instead, and the box must follow or clear."""
     url = serve(REPLAYED_PAGE)
     page, errors = open_page(browser, url)
     spot = page.locator("#card-importer").evaluate(
@@ -2059,7 +2057,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("card-importer")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-importer")
     interact.append_event(
         serve.page_dir,
         {
@@ -2075,11 +2073,107 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     expect(page.locator("#col-done #card-importer")).to_have_count(1)
     page.wait_for_function(
         """([x, y]) => {
-      const el = document.querySelector(".lf-mark-el.lf-pending");
+      const promised =
+        document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null;
       const at = document.elementFromPoint(x, y)?.closest("[id]:not(.lf-ui)") ?? null;
-      return el === at && el?.id !== "card-importer";
+      return promised === (at?.id ?? null) && promised !== "card-importer";
     }""",
         arg=spot,
+    )
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+AIM_PAINT_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aim paint</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Aim paint</h1>
+<lf-options id="cards" choose>
+  <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
+  <lf-option id="card-star" recommended><strong>Starred</strong> A border already the accent.</lf-option>
+</lf-options>
+<lf-options id="rows" choose>
+  <lf-option id="row-ship">Ship it as is</lf-option>
+  <lf-option id="row-hold">Hold for the backfill</lf-option>
+</lf-options>
+</main>
+</body>
+</html>
+"""
+
+
+def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
+    """The promise paints in the chrome's layer, and claims what the page shows.
+
+    The aim used to wear the mark's hairline, and the mark's band is one pixel at the
+    border edge — the one band of an element nobody else paints in, and exactly where a
+    widget draws a border of its own. Over a recommended option, whose border is
+    already the accent, arming changed nothing a reader could see, and what was
+    reported was no box at all. So the aim paints in the layer above the page, which no
+    widget can reach; the pixel diff here is armed against unarmed with the pointer
+    held still, so the widget's own hover wash is in both frames and the difference is
+    the promise alone.
+
+    A layer no widget can paint over is also one no ancestor's clip can reach, so the
+    second half holds the box to the page's own showing of the item: a row's table box
+    runs on under its group's overflow: hidden, and a box drawn from the raw rect
+    would claim pixels the page has refused, over whatever stands in them."""
+    from PIL import Image, ImageChops  # a dev dependency already, for the demo recorder
+
+    page, errors = open_page(browser, serve(AIM_PAINT_PAGE))
+    card = page.locator("#card-star")
+    card.hover()
+    # The wash and the lift a card answers the pointer with are transitions, and a
+    # frame taken mid-glide would bill the arm for pixels the hover was still moving.
+    page.wait_for_function(
+        """() => document.getElementById("card-star")
+                 .getAnimations({subtree: true}).length === 0"""
+    )
+    box = card.bounding_box()
+    clip = {"x": math.floor(box["x"]), "y": math.floor(box["y"])}
+    clip |= {"width": math.floor(box["width"]), "height": math.floor(box["height"])}
+    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-star")
+    armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    assert quiet.size == armed.size
+    geometry = page.evaluate("""() => {
+        const item = document.getElementById("card-star").getBoundingClientRect();
+        const box = document.querySelector(".lf-aim").getBoundingClientRect();
+        return [box.left - item.left, box.top - item.top,
+                box.width - item.width, box.height - item.height].map(Math.abs);
+    }""")
+    assert max(geometry) < 1, f"the box missed the card it promises by {geometry}"
+    pixels = zip(*[iter(ImageChops.difference(quiet, armed).tobytes())] * 3)
+    changed = sum(max(p) >= 6 for p in pixels) / (armed.size[0] * armed.size[1])
+    assert changed > 0.5, (
+        f"arming changed {changed:.0%} of the card's pixels — the promise is not "
+        "something a reader can see over the widget's own paint"
+    )
+
+    row = page.locator("#row-ship")
+    row.hover()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "row-ship")
+    edges = page.evaluate("""() => {
+        const group = document.getElementById("rows").getBoundingClientRect();
+        const row = document.getElementById("row-ship").getBoundingClientRect();
+        const box = document.querySelector(".lf-aim").getBoundingClientRect();
+        return { box: box.right, shown: Math.min(row.right, group.right),
+                 raw: row.right };
+    }""")
+    assert abs(edges["box"] - edges["shown"]) < 1, (
+        f"the box ends at {edges['box']} where the page shows the row to "
+        f"{edges['shown']} (its unclipped box runs to {edges['raw']}): a clip the "
+        "page enforces went unhonoured"
     )
     page.keyboard.up("Alt")
     assert errors == []
@@ -2342,22 +2436,22 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     page.mouse.move(*on_item)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("p2")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
     assert page.evaluate(at_pointer, on_item) == "pointer", (
-        "the aim outlined the paragraph and the cursor declined to promise the press"
+        "the aim boxed the paragraph and the cursor declined to promise the press"
     )
 
     page.mouse.move(*in_gap)
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, in_gap) == "default", (
         "the aim had nothing to take and the hand promised a press anyway"
     )
 
     # Back on the item, so the arm coming off is read from the state that promises most.
     page.mouse.move(*on_item)
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("p2")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
     )

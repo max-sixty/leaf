@@ -289,7 +289,7 @@ def fragment_errors(html, registry):
     parser = interact._StructParser()
     parser.feed(html)
     parser.close()
-    return interact.fragment_errors(parser, registry, registry["$languages"]["names"])
+    return interact.fragment_errors(parser, registry)
 
 
 def test_claude_and_codex_load_the_same_plugin_payload():
@@ -4174,17 +4174,26 @@ def test_check_refuses_an_ask_no_page_could_carry(page_dir, tag, awaits, message
         ("lf-event", "x-says", {"at": "before", "colour": "after"}, "colour"),
         ("lf-option", "x-refers", ["for", "about"], "about"),
         ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
+        ("lf-code", "x-lines", ["hi", "upto"], "upto"),
+        ("lf-code", "x-language", "dialect", "dialect"),
+        ("lf-chip", "x-tone", "shade", "shade"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """Three keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, the ones it paints and never words —
+    """Six keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, the ones it paints and never words, the
+    ones holding line references, and the two carrying a word its layer has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
     simply missing from the pass, and a page that looks authored correctly because it
-    was. The door is the only place the mistake is visible, so it refuses here."""
+    was. The door is the only place the mistake is visible, so it refuses here.
+
+    Every one of them parametrized rather than three, because it is one rule
+    (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
+    which no test of the three that were written by hand could ever see. The shapes
+    differ and the rule does not: a list, a mapping keyed by the names, one name."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = value
     (page_dir / "registry.json").write_text(json.dumps(registry))

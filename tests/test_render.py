@@ -9975,11 +9975,11 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the key line asked `when`,
-    the ? overlay didn't, and two shortcuts held their liveness where no surface
-    could ask — the diff in its own run, the version pair in stepVersion — so the
-    overlay offered g 1–9 with no thread to reply to, and the diff on a first version
-    with nothing to diff. Liveness is one declaration, and the dispatcher, the line,
-    and the overlay all ask it."""
+    the ? overlay didn't, and a shortcut could hold its liveness where no surface
+    could ask — the diff inside its own run — so the overlay offered g 1–9 with no
+    thread to reply to, and the diff on a first version with nothing to diff.
+    Liveness is one declaration, and the dispatcher, the line, and the overlay all
+    ask it."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -9994,12 +9994,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Reply to the nth")
     expect(help_el).not_to_contain_text("Next / previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
-    expect(help_el).not_to_contain_text("Older / newer version")
     expect(help_el).not_to_contain_text("Highlight changes")
     expect(help_el).not_to_contain_text("waiting on you for")
     # The chooser is the one version key a first version has: its menu holds this
-    # version and what it changed, where the pair that steps between versions has
-    # nowhere to go and the menu's own keys have nothing to walk.
+    # version and what it changed, where the menu's own keys have nothing to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).not_to_contain_text("In the versions menu")
     page.keyboard.press("Escape")
@@ -10028,11 +10026,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("g 1–2")
     expect(help_el).to_contain_text("Next / previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
-    expect(help_el).not_to_contain_text("Older / newer version")
+    expect(help_el).not_to_contain_text("In the versions menu")
     page.keyboard.press("Escape")
 
     # A v2 lands and the unpinned page follows it; on v2 the version keys are
-    # live, and v has a previous version to diff against.
+    # live — the menu has a list to walk, and v has a previous version to diff against.
     (d / "versions" / "v2.html").write_text(NOTED_PAGE)
     interact.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
@@ -10040,7 +10038,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.wait_for_url("**/versions/v2.html*")
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Older / newer version")
+    expect(help_el).to_contain_text("In the versions menu")
+    expect(help_el).to_contain_text("Walk the versions")
     expect(help_el).to_contain_text("Highlight changes since the previous version")
     expect(help_el).to_contain_text("g 1–2")
     page.keyboard.press("Escape")
@@ -12515,6 +12514,11 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     page.keyboard.press("ArrowUp")  # clamped at the other end too
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    # The comparison the row it landed on states, which the reopen below reads: the base is
+    # settled when the chooser says so, and the base's document is a fetch away, so a test
+    # that closed the menu on the press alone would ask where the walk stands from a loaded
+    # machine and be told the version being read.
+    expect(btn).to_have_text("Δ v2 ▾")
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
     # from the banner rather than from the top of the document.
@@ -12522,18 +12526,32 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way l opens the leaves board, and
-    # lands on the version being read so the walk above is the next press rather than a
-    # Tab-hunt across the banner. This menu is the only place the notes are, so what
-    # each version changed is reachable by keyboard through this key or not at all.
+    # v opens it from anywhere on the page, the way l opens the leaves board, and lands
+    # where the walk should carry on from, so that walk is the next press rather than a
+    # Tab-hunt across the banner. This menu is the only place the notes are, so what each
+    # version changed is reachable by keyboard through this key or not at all.
+    #
+    # Which row that is, is the comparison's: the walk above marked from v1, so the base
+    # is v1 and the row carrying it is where an open lands. Landing on the version being
+    # read would put the focus and the base on different rows, and the reader's next arrow
+    # press would then move the base off the version they marked from — the whole reason
+    # the two are one thing (showVersionMenu).
     page.keyboard.press("v")
     expect(menu).to_be_visible()
-    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    expect(btn).to_have_text("Δ v2 ▾")
+    # And walking back down to the version being read is the way off it, which is the row
+    # an open lands on with nothing standing.
+    page.keyboard.press("ArrowDown")
+    expect(btn).to_have_text("v2 ▾")
     # Inside the menu the letter is the menu's own — the newest version, tested where
     # it navigates — so Escape is what closes this.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
+    page.keyboard.press("v")
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    page.keyboard.press("Escape")
 
     # A second press is a close, not a re-open: without that the outside-click
     # handler and the toggle would both run and the menu could never stand.
@@ -12555,6 +12573,84 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     btn.click()
     page.locator('.lf-version-row[data-lf-version="3"]').click()
     page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    assert errors == []
+    page.close()
+
+
+def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
+    """A mode standing over the page takes the page's keys. The chord and the reference
+    always did and this menu did not, so mid-walk `d` scrolled a page the reader had
+    stopped looking at, `c` opened the composer under the list, and `=` set a base the walk
+    they were standing in disagreed with. None of it failed loudly: each press did exactly
+    what it promises, somewhere the reader was not — and the key line went on offering all
+    of them, which is what made the offer the bug rather than the press.
+
+    A claim is not the blanket it replaced, so the exemption is asserted beside it: the
+    reference is the one key a mode keeps, being the key that says what the mode's own keys
+    are, and a reader who has just opened something unfamiliar is the reader who wants it.
+
+    Which presses are asserted is decided by what a suspended one leaves to read. A key
+    the mode swallows moves nothing, and nothing is what an assertion made too early reads
+    on a key that worked — so the presses here are the two whose effect is a class and a
+    focus move in the same task as the keydown (`j` and `c`, both of which would raise the
+    panel and one of which would take the focus out of the menu). `=` and `d` land a fetch
+    and a glide later, where "not yet" and "never" read alike; the line is where those two
+    are held, off the same claim the dispatcher reads."""
+    url = serve(LONG_PAGE, comments=2)
+    _publish(
+        serve.page_dir,
+        2,
+        LONG_PAGE.replace("Paragraph 3.", "Paragraph three."),
+        "reworded a paragraph",
+    )
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    menu = page.locator(".lf-version-menu")
+    panel = page.locator(".lf-panel")
+    line = page.locator(".lf-keyline")
+    # Every one of them live on the page, which is what makes the suspension below the
+    # mode's rather than the rows' own liveness.
+    for word in ["comment", "threads", "half a page", "mark changes"]:
+        expect(line).to_contain_text(word)
+
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    row = page.locator('.lf-version-row[data-lf-version="2"]')
+    expect(row).to_be_focused()
+    # The line narrows to the menu's own keys with the page's gone from it, which is the
+    # same claim the dispatcher reads — one statement, both surfaces.
+    expect(line).to_contain_text("walk — marking changes")
+    expect(line).to_contain_text("close versions")
+    for word in ["comment", "threads", "half a page", "mark changes"]:
+        expect(line).not_to_contain_text(word)
+
+    # The exemption: still one press to the reference, which still lists the mode standing
+    # over the page, and Escape there leaves the menu where it was — with the reader on the
+    # row they left, since a scope is where focus is and the overlay takes the focus. Landing
+    # on the body instead put the walk it had just described out of reach, which is a poor
+    # thing for the one key a mode keeps to do.
+    expect(line).to_contain_text("keys")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
+    expect(menu).to_be_visible()
+    expect(row).to_be_focused()
+    expect(line).to_contain_text("walk — marking changes")
+
+    page.keyboard.press("j")  # would raise the panel and walk focus out of the menu
+    page.keyboard.press("c")  # would raise it and put focus in its box
+    expect(panel).to_be_hidden()
+    expect(row).to_be_focused()
+    expect(menu).to_be_visible(), "a page key closed the menu it was suspended by"
+
+    # And with the mode down the same key reaches the page, so what stopped it was the menu
+    # standing over the page rather than the key being broken.
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    page.keyboard.press("j")
+    expect(panel).to_be_visible()
+    expect(page.locator(".lf-thread").first).to_be_focused()
     assert errors == []
     page.close()
 
@@ -12689,7 +12785,13 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     older than this one offers itself.
 
     The rest is what the reader can tell afterwards: the closed control says a
-    comparison is standing, and reopening says which one, on the rows it spans."""
+    comparison is standing, and reopening says which one, on the rows it spans.
+
+    From the keyboard the base is the row the walk stands on, so the marks follow the
+    walk: the note says in words what a version changed and the page says it in the
+    passages, without the reader leaving the list to find out. That is also the whole of
+    the way off — the row an open lands on is the version being read, which is no
+    comparison at all — so nothing here needs a key of its own."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
     url = serve(INLINE_PAGE)
@@ -12730,10 +12832,8 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     expect(page.locator(".lf-version")).to_have_text("v3 ▾")
 
-    # From the keyboard the press is a Tab off the row it belongs to, which is what
-    # puts the walk's own landing spot next to it: the menu takes no key for this,
-    # since the row it opens on is the version being read and that is the one row with
-    # nothing to compare against.
+    # A Δ is still reachable by keyboard, a Tab off the row it belongs to, and still the
+    # toggle the pointer presses.
     page.locator(".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').focus()
     page.keyboard.press("Tab")
@@ -12748,6 +12848,40 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     page.keyboard.press("=")
     expect(page.locator(".lf-ins-block")).to_have_count(1)
+    page.keyboard.press("=")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+
+    # And the walk, which is the same series of comparisons made by standing on the rows
+    # rather than by naming a base: each step marks what changed since the row it lands
+    # on, and the list stays up while the page marks behind it — the reader is reading
+    # the note and the passages together.
+    menu = page.locator(".lf-version-menu")
+    page.keyboard.press("v")
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+
+    page.keyboard.press("ArrowUp")
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(menu).to_be_visible()
+
+    page.keyboard.press("ArrowUp")
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator(".lf-version")).to_have_text("Δ v3 ▾")
+
+    # Back down, one version at a time: the earlier base's marks go with it rather than
+    # standing beside the new one's, which is what a comparison being one base means.
+    page.keyboard.press("ArrowDown")
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+
+    # And down onto the version being read, which is no comparison — the way off, on the
+    # row an open lands on when nothing is standing.
+    page.keyboard.press("ArrowDown")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    expect(page.locator(".lf-version")).to_have_text("v3 ▾")
+    expect(menu).to_be_visible()
     assert errors == []
     page.close()
 

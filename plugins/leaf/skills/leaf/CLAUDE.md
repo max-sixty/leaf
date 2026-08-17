@@ -827,6 +827,13 @@ one press: an armed `g` over an option's pick mark would otherwise have offered 
 thread" and "toggle the nth" side by side, and `lf-options` asked `leaderArmed()` privately
 to stop half of it.
 
+What there is to walk is one list (`SCOPES`, the element scopes spliced in where they stand),
+and every reader takes its order from it: the dispatcher and the line walk it forwards, the
+reference backwards. Three lists said it before, the third the reference's own — and a mode
+left out of that one is a mode the reference never names, which is the failure it had already
+made once. Gathering the rows into sections is one function (`merge`) for the same reason: it
+runs at declaration and at every open of the reference, and was spelled three times.
+
 ## A scope names what it takes, and takes no more
 
 The walk above shadows an outer row wherever a nearer one names the binding, which covers
@@ -860,18 +867,28 @@ there is nowhere left to put a wider one. And a scope that has to hand back a ke
 is a scope claiming the wrong set: reach for what it uses, not for what stands near it,
 because the keys it over-claims are invisible until a reader is standing on one.
 
+That cuts the other way for a mode, which does take the keyboard. The versions menu claimed
+nothing, so a reader mid-walk could press `l` and lose focus to the leaves board, `d` and
+scroll a page they had stopped reading, or `=` and set a base the walk disagreed with — each
+press doing what it promises somewhere the reader was not, with the line still offering all
+of them. What a mode keeps is the reference (`allButTheReference`): the two older ones can
+blanket it because neither outlives a keystroke, where a menu stands until it is dismissed
+and a swallowed `?` stays swallowed. And a scope is *where focus is*, so the overlay hands
+focus back on close (`helpFrom`) — opened from a version row and closed onto the body, it
+left the keys it had just listed reaching nothing.
+
 ## A key on screen is a key that works
 
 Every surface that names a key promises the press does something now. One table kept the
 words from drifting and did nothing to keep the surfaces from drifting from each other:
 the key line asked `when` and the `?` overlay didn't, so a page with no open thread offered
-`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. Two
-shortcuts had no `when` at all — the diff's liveness sat inside its own `run` and the
-version pair's inside `stepVersion`, where no surface could ask. So whether a key is live
-is declared once (`when`), `live` is the one question the dispatcher, the line and the
-overlay all put to it, and a label that names a range is a function (`g ${digits()}`) so it
-counts the threads that are there rather than promising nine. A liveness guard inside `run`
-is the tell, because it makes the key refuse a press some surface is still advertising.
+`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. One
+shortcut had no `when` at all — the diff's liveness sat inside its own `run`, where no
+surface could ask. So whether a key is live is declared once (`when`), `live` is the one
+question the dispatcher, the line and the overlay all put to it, and a label that names a
+range is a function (`g ${digits()}`) so it counts the threads that are there rather than
+promising nine. A liveness guard inside `run` is the tell, because it makes the key refuse
+a press some surface is still advertising.
 
 One `when` was still one answer to two questions, and `r` is where that showed. Its
 sentence said "On a focused thread" while its liveness said "the page has threads", so a
@@ -884,14 +901,15 @@ this norm forbids. So the scope carries the capability and the row carries the p
 reference lists a scope's rows wherever the page has that scope; the line filters by each
 row's own liveness, which it may do because the reader standing in the scope can see which
 state they are in. `Enter` and `r` moved into the thread's own scope on the strength of it,
-and the page's line stopped naming them at all.
+and the page's line stopped naming them at all. They are named apart in the code too
+(`pageHas`, `readerIn`), since `!x || x()` at each of the three places that ask named neither.
 
 Live means the capability exists, not that every press moves. A stepper at its end — j on
-the last thread, `]` on the newest version — is a clamp on a live key: the promise is
-that there are threads or versions to walk, not that this edge press lands. What
-`stepVersion` used to hold alone was the other kind, deadness — one version, or a viewed
-version the server no longer lists, so nothing to step between at all — and that is what
-`when` now owns; the clamp stays in the stepper.
+the last thread, ↓ on the row of the version being read — is a clamp on a live key: the
+promise is that there are threads or versions to walk, not that this edge press lands. The
+other kind is deadness — no second version, so nothing to walk between at all — and that is
+a `when`, on the scope where a whole section of the reference stands or does not; the clamp
+stays in the walk.
 
 A binding says which key it is in two halves, and only one of them was ever read. `answers`
 asks after `Mod`, `Alt` and `Shift` by name and takes every other prefix to be absent, so
@@ -971,7 +989,7 @@ never wrong because it says nothing. Where the branch is a fact about the page r
 than about the key — what is selected, what stands open — the reader can already see
 which branch they are in, so the word has to agree with them. A row's cells are therefore
 read where they are painted (`word`), the way a label naming a range already was, and
-both surfaces get the same answer: `c` names what it would comment on, `o` says whether
+both surfaces get the same answer: `c` names what it would comment on, `l` says whether
 the press shows or hides.
 
 Passable for both is the argument to refuse. A word kept because it survives a change of
@@ -983,6 +1001,21 @@ rule the runtime already follows for everything it renders: `showFab` writes the
 `c` names, so it paints the line, as `showOthers` does for the board. `paintLine`
 coalesces to a frame, so painting from each writer costs nothing and saves reasoning
 about which one is last.
+
+## One door to a place, and it is the one that shows it
+
+`[` and `]` stepped versions older and newer: the menu's walk with the list taken away, a page
+load per press, so a reader holding `[` travelled back through the work past the notes saying
+what each version changed. A second key to a place the page already reaches is worth its
+binding only if it carries what the door carries. `=` passes that test by naming no version —
+"what changed since the last one I saw" needs nothing opened — and an older/newer step fails
+it, since choosing a version is reading the list.
+
+Inside the menu the row focus stands on *is* the comparison base, so the marks follow the walk
+and the row that ends it is the version being read, which is the row an open lands on. The two
+must agree, and the landing is where that breaks quietly: opening on the version being read
+while a comparison stood elsewhere moved the base on the reader's first arrow press, marks
+redrawn to match and nothing saying so. So an open lands on the standing base.
 
 ## A widget's chrome outlives its handlers
 

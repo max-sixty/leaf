@@ -230,6 +230,29 @@ export function settle(promise) {
   settling.push(promise);
 }
 
+// ---------- where a page's versions are ----------
+// A page directory's versions are served as siblings under its own root:
+// versions/v1.html, v2.html… Three things read that path — which version this document
+// is, where another version of it is, and which page a tab's working state belongs
+// to — so the shape is spelled once here rather than three times, and a document served
+// under a directory of its own cannot have one of them agreeing with its URL while the
+// next two contradict it.
+const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
+// Where another version is: beside this one. It was "/versions/vN.html" at the three
+// seats that travel, which is a claim about where the page directory sits — true of a
+// server serving one page at a root of its own, and of nothing else. The published site
+// serves every example from one vendored layer with each page under its own directory,
+// and there each absolute jump left the page for a root that serves nothing. Resolved
+// against the document, the travel agrees with the path the version number itself was
+// read off, which is the one form that cannot disagree with what this document is.
+const versionUrl = (version) => `v${version}.html`;
+// Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
+// server serves one page at its own root, so every key below is spelled exactly as it was.
+// Two leaf pages on one origin is what needs it — web storage is the origin's, so the
+// reading position a reader left on one example was handed back on the next, at an offset
+// that meant nothing there.
+const PAGE_SCOPE = location.pathname.replace(VERSION_PATH, "");
+
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —
 // a locked-down profile, a private window on some engines — and nothing kept here is
@@ -247,27 +270,30 @@ export function settle(promise) {
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
-const stored = (backing) => ({
+const stored = (backing, scope = "") => ({
   get(key) {
     try {
-      return backing.getItem(key);
+      return backing.getItem(scope + key);
     } catch {
       return null;
     }
   },
   set(key, value) {
     try {
-      if (value === null) backing.removeItem(key);
-      else backing.setItem(key, value);
+      if (value === null) backing.removeItem(scope + key);
+      else backing.setItem(scope + key, value);
     } catch {
       /* a page that cannot remember still renders */
     }
   },
 });
-// Only the tab's store is on the helper surface, because only widgets keep working state
-// (lf-tabs' open panel, lf-options' collapsed group). The chrome the reader arranges is
-// the runtime's own, and an export nothing imports is a promise nobody asked for.
-export const tabStore = stored(sessionStorage);
+// The tab's store is the one scoped to the page (PAGE_SCOPE): what the reader arranges is
+// theirs wherever they are reading, which is the distinction that put the two in
+// different backings to begin with. It is also the only one on the helper surface,
+// because only widgets keep working state (lf-tabs' open panel, lf-options' collapsed
+// group) — the chrome the reader arranges is the runtime's own, and an export nothing
+// imports is a promise nobody asked for.
+export const tabStore = stored(sessionStorage, PAGE_SCOPE);
 const readerStore = stored(localStorage);
 
 // ---------- syntax ----------
@@ -1428,7 +1454,7 @@ function reachScrollers(root) {
 
 // ---------- comment layer ----------
 
-const VERSION_MATCH = location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/);
+const VERSION_MATCH = location.pathname.match(VERSION_PATH);
 const VNUM = VERSION_MATCH ? parseInt(VERSION_MATCH[1], 10) : null;
 const PINNED = new URLSearchParams(location.search).has("pin");
 // Sign-off is the page's ask, not standing chrome: the approve button exists only
@@ -2234,6 +2260,7 @@ const TONE = {
   listening: "listening",
   away: "away",
   unheld: "",
+  unattended: "",
   closed: "",
 };
 function rowPresence(entry) {
@@ -2255,7 +2282,9 @@ function rowPresence(entry) {
             : "Away"
           : kind === "unheld"
             ? "Unheld"
-            : "Closed";
+            : kind === "unattended"
+              ? "Unattended"
+              : "Closed";
   return { tone: TONE[kind], line };
 }
 const othersRows = new Map(); // keyed by URL; the self row under its own key
@@ -6532,8 +6561,8 @@ function diffBlocks(root) {
   return pairs;
 }
 async function applyDiff(baseVersion) {
-  const baseName = `v${baseVersion}.html`;
-  const res = await fetch(`/versions/${baseName}`);
+  const baseName = versionUrl(baseVersion);
+  const res = await fetch(baseName);
   if (!res.ok) throw new Error(`couldn't load ${baseName}`);
   const doc = new DOMParser().parseFromString(await res.text(), "text/html");
   // Multiset membership rather than an alignment: an unchanged block that
@@ -6678,6 +6707,15 @@ async function showComparison(base) {
 // behind this page and isn't keeping up", which is worth an amber dot and a nudge, from
 // "nobody is behind it", which is the standing page at rest: grey, and the plain fact
 // that it picks up again when a session does.
+//
+// Every one of those answers is about a session that exists or existed, and a page can be
+// served with none — the whole of leaf.page is, each example a working page on a static
+// host where the log is the reader's own browser and no agent will ever read it. The
+// banner had no way to say that, so the page said the nearest thing it could and claimed
+// to be listening: green dot, "awaits", over a page waiting for nobody. Whoever answers
+// the poll declares it instead (`unattended`), and it is judged ahead of the rest because
+// it is not a state the evidence below could reach — there is no claim to weigh, no pid
+// to look for, and nothing coming that would change the answer.
 const HANDOFF_GRACE_MS = 2 * 60 * 1000;
 const WORKING_GRACE_MS = 15 * 60 * 1000;
 // Which claim each kind reads out, and so whose detail it may speak. A `working`
@@ -6696,7 +6734,7 @@ const DETAIL_FROM = { working: "working", listening: "waiting" };
 // the claim's own words where that state licenses them; the caller words it for its
 // seat.
 function presented(state) {
-  const { status, listening, session_alive } = state;
+  const { status, listening, session_alive, unattended } = state;
   // How long the claim has gone unrefreshed. The rope is short for the status
   // `leaf wait` writes as it prints a batch, because the agent writes its own
   // `leaf status` after acknowledgement — that mark outliving minutes is a dropped
@@ -6712,8 +6750,9 @@ function presented(state) {
   // once both are spent the page is unheld too.
   const unheld =
     session_alive === false || (session_alive === null && !listening && quiet);
-  const kind =
-    status.state === "idle"
+  const kind = unattended
+    ? "unattended"
+    : status.state === "idle"
       ? "closed"
       : unheld
         ? "unheld"
@@ -6840,6 +6879,12 @@ function renderStatus(state) {
   let text = "",
     showAge = false;
   if (kind === "closed") text = "Leaf closed";
+  else if (kind === "unattended")
+    // No agent named and no pickup promised, which is the whole difference from
+    // `unheld` below: there is nobody to name and nothing coming. What the reader can
+    // still do is everything — the page works, it just works alone — so the line says
+    // where their gestures go rather than that they are saved for someone.
+    text = "Nobody is behind this page. What you do here stays in this browser.";
   else if (kind === "unheld")
     // No agent is named, because which one picks the page up next is not a fact this
     // page holds — only that the log is there for whichever does.
@@ -6885,7 +6930,7 @@ function renderStatus(state) {
 // Navigate to a version with the pin semantics every chooser shares: an older
 // version pins the view, the newest unpins it.
 const goVersion = (version) => {
-  const path = `/versions/v${version}.html`;
+  const path = versionUrl(version);
   location.href = version === latestVersion ? path : `${path}?pin`;
 };
 function renderVersions(state) {
@@ -6947,7 +6992,7 @@ function renderVersions(state) {
   // drafts survive navigation, but an open composer or a live selection
   // doesn't. While deferred, the chip shows instead.
   if (behind && !PINNED && !midComposition()) {
-    location.replace(`/versions/v${latestVersion}.html`);
+    location.replace(versionUrl(latestVersion));
     return;
   }
   showNews(latestChip, behind);

@@ -41,19 +41,17 @@ each answers something a later version does — a decision to retract, a report 
 overrule — and there is no later version here. `version check` refuses both.
 
 The log is a different matter, and it was empty by default rather than by nature. A
-thread is the one thing no markup describes, and `version export` drops the layer that
-draws one, so no static copy can carry a thread however it is written — which is why the
-corpus showed suggestions in plenty and the comment loop nowhere. An example that wants
-to show one ships its events as `<stem>.jsonl` beside it, the way one that wants a
-screenshot ships the bytes beside it, and every place that builds a page directory out
-of an example lays it in after `version publish`: `scripts/preview.py`,
-`export_examples` in `scripts/site.py`, and `test_examples_pass_check`.
-`ship-review.jsonl` is the one today, and `scripts/preview.py ship-review` is where a
-reader sees a thread at all.
+thread is the one thing no markup describes, so an example that wants to show one ships
+its events as `<stem>.jsonl` beside it, the way one that wants a screenshot ships the
+bytes beside it, and every place that builds a page directory out of an example lays it
+in: `scripts/preview.py`, `publish_pages` in `scripts/site.py`, and
+`test_examples_pass_check`. `ship-review.jsonl` is the one today, and it is what a
+reader meets on <https://leaf.page/examples/ship-review/> as much as under
+`scripts/preview.py ship-review` — the published pages are served rather than exported,
+so the log reaches the browser there through the session in its own tab.
 
-Where the page is then *served* — `preview.py`, and nowhere else, since site.py exports
-and throws the directory away — the cursor goes to the end of the seed with it. A seed
-is history, not news: leave the cursor at zero and every preview hands the next agent
+Wherever the page is served, the cursor goes to the end of the seed with it. A seed is
+history, not news: leave the cursor at zero and every preview hands the next agent
 session a question to answer that the same log answers two lines further down, with the
 loop guard rightly nagging about it each time. The demo would spend its first move
 undoing itself.
@@ -96,7 +94,7 @@ A `lf-shot` needs bytes a single file can't hold. `examples/media/` carries them
 content-addressed exactly as `leaf page media` names them in a page directory, and
 every place that builds a page directory out of an example lays them in it: `serve` and
 `test_an_installed_payload_passes_its_real_browser_gate` in `test_render.py`,
-`test_examples_pass_check`, `export_examples` in `scripts/site.py`, and
+`test_examples_pass_check`, `publish_pages` in `scripts/site.py`, and
 `scripts/preview.py`. A publisher that forgets fails loudly — `version check` refuses a
 `/media/` reference the directory can't answer.
 

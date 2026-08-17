@@ -36,9 +36,8 @@ nothing of the network — except where a test drives `bin/leaf` on a subcommand
 opens Chrome. The launcher supplies Playwright to those from outside the script's lock
 (`uv run --with playwright`), and an unlocked requirement has no recorded resolution to
 install from, so uv asks pypi for one every time its cached answer has gone stale. With
-pypi unreachable the whole of `test_site.py` errors in the fixture that builds the site,
-the two tests that run the shim's own `--render` fail on its exit status, and a suite of
-six hundred passing browser tests reports as broken. Those carry `pytest.mark.nightly`
+pypi unreachable the tests that run the shim's own `--render` or `version export` fail on
+its exit status, and a suite of six hundred passing browser tests reports as broken. Those carry `pytest.mark.nightly`
 and an everyday run skips them; CI and `wt merge` pass `--run-nightly`, both holding a
 network for reasons of their own. A new test that shells out to the launcher's browser
 path wants the mark too.
@@ -129,6 +128,22 @@ everything above — it passes vacuously rather than flaking — which is why ne
 absence here holds none at all. A POST the test aborted cannot reach the log, and a
 decision the page never took cannot be in it; those assert straight after the edge that
 proves the gesture was handled.
+
+## A state the page passes through is not a state to poll for
+
+`expect` re-asks until the page matches, so what it reports is the first frame that
+matched and never the frame the gesture settled on. Where the page transits the asserted
+state on its way somewhere else, that is a gate which passes whichever way the gesture was
+going to go. Every mousedown clears the comment button before its own mouseup decides it
+again (`standDown`), so the key line reads "comment on the page" in the middle of every
+drag — and a check that the runtime refused a drag over chrome passed identically on a
+drag it accepted, put back twice before the transit was the suspect rather than the code.
+
+What to read instead is the mechanism's own last step, which is the section above applied
+where the fact is a settled state rather than an arrival. The button is decided on a
+`setTimeout` queued from the mouseup and the line repaints on the frame after that, so a
+timeout queued once the drag has returned runs behind the runtime's, and one frame behind
+that is the answer this drag left. Consume the step, then read once.
 
 ## Nothing of the suite runs inside the page
 

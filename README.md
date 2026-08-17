@@ -84,12 +84,15 @@ plugins/leaf/bin/leaf server run /tmp/demo
 `scripts/site.py` assembles <https://leaf.page/> into `.tmp/site`,
 and `.github/workflows/publish-site.yaml` runs it on every push to `main` that touches
 the pages, the examples, or the layer. The docs pages are copied with their
-checkout-relative paths substituted: the two stylesheets and the icon a page wears become
-the site's own copies, every other path into the payload becomes a GitHub link, and a
-link to an example names the exported copy beside it. Each
-example is exported through the shipped `version export`, so what a visitor reads is
-Chrome's own drawing of the page with the comment layer removed. The build resolves
-every local link it wrote and refuses a site holding one that reaches nothing.
+checkout-relative paths substituted: the stylesheet and the icon a page wears become the
+site's own copies, every other path into the payload becomes a GitHub link, and a link to
+an example names the page directory it is published as. The examples go up live — one
+vendored layer at the site's root, each example at `examples/<name>/versions/v1.html`,
+and a `/leaf.js` that loads `docs/session.js` in front of the vendored runtime. The log
+then lives in the reader's own tab, so the banner, the comment panel and every widget
+work; what a static host can't supply is the agent reading that log, and the page says so.
+The build resolves every local link it wrote and refuses a site holding one that reaches
+nothing.
 
 ```
 scripts/site.py
@@ -108,9 +111,9 @@ controls beside it. One journey test drives the whole loop through the real UI
 (select a passage, comment, drag a card, follow the next version, find the comment still
 anchored) and pins the event log it leaves. `test_product_page.py` holds the pages under
 `docs/` to the shipped theme and widget registry, and `test_site.py` builds the site and
-reads it back: the theme it serves is the shipped file, each exported example stands up
-with its scripts gone, both palettes reach the site's own layer, and no page scrolls
-sideways on a phone. Playwright attaches to the Chrome
+reads it back: the theme it serves is the shipped file, each example stands up as a live
+page that takes a comment and holds a decision through a reload, both palettes reach the
+site's own layer, and no page scrolls sideways on a phone. Playwright attaches to the Chrome
 already installed (`channel="chrome"`), so there is no browser download and still no
 build step. Driving a page by hand to check a change works the same way: run `page init`
 for the directory, then serve it from `interact.handler_for(page_dir, token)` in-process

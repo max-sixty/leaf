@@ -1,34 +1,43 @@
 """The published site: what the build assembles, and what a reader gets.
 
-The site is the repo's own pages plus an export of every example, so most of what
+The site is the repo's own pages plus every example as a live page, so most of what
 could go wrong is a path that meant one thing in a checkout and another on a host.
 The build resolves every local link it wrote and stops on one that reaches
 nothing, which is the failure a static host answers with a 404 and no other
 signal; these tests hold the rest — that the theme a page links is the shipped
-file, that an exported example still stands up with its scripts gone, and that a
-site claiming to ride the theme's tokens actually changes colour when the
-theme's palette does.
+file, that an example served here is a working page rather than a picture of one,
+and that a site claiming to ride the theme's tokens actually changes colour when
+the theme's palette does.
+
+A page under /examples has to be reached over HTTP: its markup names /theme.css and
+/leaf.js at a server root, and Chrome refuses an ES module from a file:// origin
+besides. The docs pages are read as files, which is how a checkout reads them.
 """
 
 import importlib.util
+import re
 import shutil
+import threading
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from playwright.sync_api import expect
+
+# The suite's own page primitives, so a navigation here waits on what every other
+# navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
+from test_render import BOTH_STAMPS, open_page, select
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
+BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
-
-# Every test here builds the site, and the build draws each example through
-# `bin/leaf version export`, which is the launcher's browser path — so the whole module
-# reaches the package index. CLAUDE.md, "The everyday run asks nothing of the network".
-pytestmark = pytest.mark.nightly
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
@@ -48,23 +57,55 @@ def pages_under(directory):
 
 @pytest.fixture(scope="module")
 def site(tmp_path_factory):
-    """One build for the module: it draws nine examples in Chrome."""
+    """One build for the module: it vendors a layer and checks thirteen examples."""
     out = tmp_path_factory.mktemp("published") / "site"
     site_build.build(out)
     return out
 
 
+class Quiet(SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture(scope="module")
+def hosted(site):
+    """The site on a port, which is the only way an example's own links resolve."""
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), partial(Quiet, directory=str(site)))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{httpd.server_address[1]}"
+    httpd.shutdown()
+
+
+def example_url(hosted, name):
+    return f"{hosted}/examples/{name}/versions/v1.html"
+
+
+def opened(page, url):
+    """A navigation this module makes for itself, waiting on what `open_page` waits
+    on — the document's stamp and the log's — since a page at the first alone has a
+    banner the reader would not recognize (tests/CLAUDE.md)."""
+    page.goto(url, wait_until="networkidle")
+    page.wait_for_function(BOTH_STAMPS)
+
+
 def test_the_pages_link_the_theme_the_site_serves(site):
+    """One stylesheet on the site, and it is the one a page directory vendors: a docs
+    page names both halves in a checkout because there is no merged file there to name,
+    and linking both here would restate the bundled half over the top of itself."""
     for page in pages_under(DOCS):
         published = (site / page.name).read_text()
-        assert 'href="theme.css"' in published
-        assert 'href="bundled-theme.css"' in published
+        assert published.count('href="theme.css"') == 1, page.name
+        assert "bundled/theme.css" not in published, (
+            f"{page.name} still links the bundled theme beside the merged one"
+        )
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
-    assert (site / "theme.css").read_text() == (ASSETS / "theme.css").read_text()
-    assert (site / "bundled-theme.css").read_text() == (
-        ASSETS.parent / "bundled" / "theme.css"
-    ).read_text()
+    served = (site / "theme.css").read_text()
+    for source in (ASSETS / "theme.css", BUNDLED / "theme.css"):
+        assert source.read_text().rstrip() in served, (
+            f"the theme the site serves is missing {source.parent.name}'s half"
+        )
 
 
 def test_only_the_stylesheet_link_becomes_the_served_copy(site):
@@ -78,17 +119,23 @@ def test_only_the_stylesheet_link_becomes_the_served_copy(site):
     assert published.count('href="theme.css"') == 1
 
 
-def test_every_example_is_published_standalone(site):
+def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
+    """A page asks for its layer by absolute path, so the layer is the site's root. Any
+    one of these missing is a page that opens unstyled, unupgraded, or not at all — and
+    a static host reports none of it."""
+    for name in ("theme.css", "registry.json", "icon.svg", "runtime.js", "leaf.js"):
+        assert (site / name).is_file(), f"the site root has no {name}"
+    assert (site / "runtime.js").read_text() == (ASSETS / "leaf.js").read_text(), (
+        "the runtime the site serves is not the shipped file"
+    )
+    for sub in ("widgets", "vendor", "media"):
+        assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in pages_under(EXAMPLES):
-        copy = (site / "examples" / source.name).read_text()
-        assert "<script" not in copy, f"{source.name} carries script a host can't serve"
-        assert 'href="/theme.css"' not in copy, (
-            f"{source.name} still asks for the theme"
+        version = site / "examples" / source.stem / "versions" / "v1.html"
+        assert version.read_text() == source.read_text(), (
+            f"{source.name} was published as something other than the file in the tree"
         )
-        assert 'class="lf-copy"' in copy
-        # The theme inlined and the widgets' own output: an example that only
-        # copied its source would be a fraction of this.
-        assert len(copy) > 40_000
+        assert "versions/v1.html" in (version.parent.parent / "index.html").read_text()
 
 
 def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
@@ -99,6 +146,276 @@ def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
     with pytest.raises(SystemExit) as stopped:
         site_build.check_links(staged)
     assert "whats-new.html" in str(stopped.value)
+
+
+def test_a_directory_link_with_no_index_stops_the_build(site, tmp_path):
+    """What a host answers a directory with is its index, so that is what has to be
+    there. An existence check passes on the directory itself and publishes a 404."""
+    staged = tmp_path / "staged"
+    shutil.copytree(site, staged)
+    (staged / "examples" / "triage-board" / "index.html").unlink()
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.check_links(staged)
+    assert "triage-board" in str(stopped.value)
+
+
+def test_every_example_stands_as_a_live_page(site, hosted, browser):
+    """The reader gets the page working rather than a picture of it.
+
+    The banner is the proof: the runtime builds it after reading /api/state, so a page
+    wearing one has the whole layer up and something answering the two paths behind it.
+    The version it names is the second half — the runtime reads that number off the
+    document's own path, so a page published anywhere else would say nothing there while
+    looking otherwise perfect."""
+    examples = pages_under(EXAMPLES)
+    page, errors = open_page(browser, example_url(hosted, examples[0].stem))
+    try:
+        for source in examples:
+            opened(page, example_url(hosted, source.stem))
+            expect(page.locator(".lf-banner .lf-version")).to_have_text("v1 ▾")
+            expect(page.locator(".lf-status-text")).to_contain_text(
+                "Nobody is behind this page"
+            )
+            assert not errors, f"{source.name}: {errors[:3]}"
+    finally:
+        page.close()
+
+
+def test_the_banner_says_nobody_rather_than_claiming_a_watcher(site, hosted, browser):
+    """A published example is waiting for nobody, and the banner has to say so in both
+    of the things it says at once.
+
+    The words were the easy half and the dot was the half that gave it away: the page
+    reported itself as listening, since that was the only judged state the runtime would
+    let a session speak its own detail in, and the seat drew the green of a live watcher
+    with "The demo awaits" over it. Every word after the dash was then spent denying a
+    claim only the dot had made. `unattended` is the state that had been missing, and the
+    tone is the assertion that matters — a reader takes the colour in before the sentence,
+    and it is the one part of a banner that cannot be softened by wording."""
+    page, errors = open_page(browser, example_url(hosted, "design-decision"))
+    try:
+        expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
+            "Nobody is behind this page. What you do here stays in this browser."
+        )
+        # No tone at all — not the green of a watcher, nor the amber of one falling
+        # behind. The banner's own dot: the leaves panel mirrors this page as a row, so
+        # a bare .lf-dot would resolve to that copy too (test_render.py says the same).
+        expect(page.locator(".lf-banner .lf-dot")).to_have_class(
+            re.compile(r"^lf-dot\s*$")
+        )
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
+    """The label the site puts at the head of a published example.
+
+    A visitor arrives on a URL somebody sent them, and everything the page shows is the
+    document and the runtime's chrome — neither of which says what this is or that the
+    reply it invites reaches nobody. The banner carries the short form, the label the
+    whole of it, and the label is the only way back to the site.
+
+    Its links are the half the build cannot check: `check_links` reads the markup the
+    build wrote, and these are written by a module, so a rename under `docs/` would send
+    every example to a 404 with nothing anywhere to say so. The build's own resolver is
+    what answers here, so a link in the label fails the way a link in a page does."""
+    examples = pages_under(EXAMPLES)
+    page, errors = open_page(browser, example_url(hosted, examples[0].stem))
+    try:
+        for source in examples:
+            opened(page, example_url(hosted, source.stem))
+            label = page.locator("main > .sitenote")
+            expect(label).to_contain_text("A live example of a leaf page.")
+            expect(label).to_contain_text("nothing you do here leaves your own browser")
+            published = site / "examples" / source.stem / "versions" / "v1.html"
+            targets = label.locator("a").evaluate_all(
+                "links => links.map(a => a.getAttribute('href'))"
+            )
+            # The count, so a label that came back with no links at all fails here
+            # rather than sailing through the loop under it having checked nothing.
+            assert len(targets) == 3, (
+                f"{source.name}: the label has {len(targets)} links"
+            )
+            for target in targets:
+                assert site_build.resolves(site, published, target.split("#")[0]), (
+                    f"{source.name}: the label links {target}, which the site has not got"
+                )
+            assert not errors, f"{source.name}: {errors[:3]}"
+    finally:
+        page.close()
+
+
+# The drag's own last step, waited out rather than timed: a timeout queued once the drag
+# has returned runs behind the one the runtime queued from that mouseup, and one frame
+# behind that is the key line as this drag left it. Why `expect` cannot ask instead is
+# tests/CLAUDE.md, "A state the page passes through is not a state to poll for".
+AFTER_THE_DRAG = """() => new Promise(done => setTimeout(() => requestAnimationFrame(
+  () => done({ text: getSelection().toString(),
+               says: document.querySelector('.lf-keyline').textContent }))))"""
+
+
+def drag_across(page, selector):
+    """Select an element's first line, and read what the page made of it."""
+    box = page.locator(selector).first.bounding_box()
+    select(
+        page, (box["x"] + 4, box["y"] + 6), (box["x"] + box["width"] - 24, box["y"] + 6)
+    )
+    return page.evaluate(AFTER_THE_DRAG)
+
+
+def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
+    """The site's voice, so the comment loop must not offer it.
+
+    The label stands inside <main>, where everything else is the page's own words and a
+    drag raises the pill that opens a composer on them. What holds it out is the class
+    the anchor pass reads as "not the document" — and losing that would be invisible
+    until a reader had quoted the label into a comment, where the quote names text the
+    published file has never held and resolves against nothing.
+
+    What each drag amounted to is read off the key line, which names what `c` would
+    comment on from the same anchor the button carries. Both readings are then a word
+    the page says rather than an absence to hold a window open for — and the page's own
+    lede goes first, since a line still naming the page after a drag that reached
+    nothing is a refusal this would report as the label's."""
+    page, errors = open_page(browser, example_url(hosted, "design-decision"))
+    try:
+        control = drag_across(page, "#decision-lede")
+        assert "monolith split" in control["text"]
+        assert "comment on the selection" in control["says"], (
+            "the drag never reached the runtime"
+        )
+
+        label = drag_across(page, "main > .sitenote p")
+        assert "live example" in label["text"]
+        assert "comment on the page" in label["says"], (
+            "the site's own label was offered as a passage to quote"
+        )
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
+    """An example that ships a log beside it arrives mid-conversation here too.
+
+    The thread is the one thing no markup describes, so a copy of the markup could never
+    carry one however it was written — which is what put every published example's
+    comment loop out of reach until the pages went live. The session reads the log the
+    build laid beside the versions before the runtime asks for it, so the panel is right
+    on the first paint rather than filling in under a reader already reading it.
+
+    The anchor is the half that rots quietly: the quote is captured against the file, and
+    a rewritten sentence leaves it resolving to nothing and the thread standing detached,
+    with no error anywhere."""
+    page, errors = open_page(browser, example_url(hosted, "ship-review"))
+    try:
+        expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+        page.locator(".lf-comments").click()
+        thread = page.locator(".lf-panel .lf-thread").first
+        expect(thread).to_contain_text("One reconnect in forty is worse")
+        expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
+        assert page.locator(".lf-panel .lf-quote.detached").count() == 0, (
+            "the shipped anchor found nothing on the page it was captured from"
+        )
+        # Painted, not merely resolved: the mark is what puts the reader at the passage.
+        assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
+    """The whole loop a static host could not hold before: the reader selects a passage,
+    the comment goes into a log, the page renders it back with the passage quoted, and
+    the one thing missing — an agent — says so in the thread rather than leaving the
+    reader's words in a box that ate them."""
+    page, errors = open_page(browser, example_url(hosted, "design-decision"))
+    try:
+        box = page.locator("#decision-lede").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 8),
+            (box["x"] + box["width"] - 40, box["y"] + box["height"] - 8),
+        )
+        # The pill a selection raises, which is how a reader reaches the composer.
+        page.locator(".lf-fab").click()
+        page.locator(".lf-composer textarea").fill("Does this cover key rotation?")
+        page.locator(".lf-composer .lf-btn.primary").click()
+
+        thread = page.locator(".lf-panel .lf-thread").first
+        expect(thread).to_contain_text("Does this cover key rotation?")
+        expect(thread.locator("blockquote")).to_contain_text("session state homeless")
+        expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+        # The demo answers once, in its own name, and says what the page can't do.
+        expect(thread).to_contain_text("This is the demo answering, not an agent")
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_a_decision_holds_across_a_reload(site, hosted, browser):
+    """The log is the state here as much as anywhere: a pick is an action, and what puts
+    it back on the next load is replay rather than anything the markup remembers."""
+    page, errors = open_page(browser, example_url(hosted, "design-decision"))
+    try:
+        chosen = (
+            "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
+        )
+        page.locator("#opt-jwt .lf-pick").click()
+        expect(page.locator("#session-options")).to_have_attribute(
+            "data-lf-pending", "1"
+        )
+        assert "opt-jwt" in page.evaluate(chosen)
+
+        page.reload(wait_until="networkidle")
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("#session-options")).to_have_attribute(
+            "data-lf-pending", "1"
+        )
+        assert "opt-jwt" in page.evaluate(chosen), "the reload lost the reader's pick"
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
+    """One origin serves every example here, where a server serves one page — so both
+    stores keyed by nothing but the browser's own carry from one example to the next.
+    The log is one: a comment written on a decision page would be waiting on a ship
+    review. The reading position is the other, and it is the worse of the two, because
+    an offset means something on both pages and lands the reader mid-document on one
+    they have never opened."""
+    page, errors = open_page(browser, example_url(hosted, "design-decision"))
+    try:
+        page.locator(".lf-comments").click()  # the box lives in the panel
+        page.locator(".lf-general textarea").fill("Where does this go?")
+        page.locator(".lf-general .lf-btn.primary").click()
+        expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+        # The page's own scroller (the runtime's `pageScroller`), moved the way a
+        # reader moves it far enough down that the landmark is worth restoring.
+        page.evaluate("() => document.body.scrollTo({top: 1500, behavior: 'instant'})")
+        assert page.evaluate("() => document.body.scrollTop") > 0, (
+            "the document did not scroll, so the landmark under test was never written"
+        )
+
+        # An example that ships no log of its own, so the count there is the reader's
+        # own doing or nobody's. Asked of the corpus rather than named, since a page
+        # that gains a companion log would otherwise turn this into a test of the seed.
+        plain = next(
+            p.stem
+            for p in pages_under(EXAMPLES)
+            if not p.with_suffix(".jsonl").exists()
+        )
+        opened(page, example_url(hosted, plain))
+        expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
+        assert page.evaluate("() => document.body.scrollTop") == 0, (
+            "the ship review opened at the offset the reader left on another page"
+        )
+        assert not errors, errors[:3]
+    finally:
+        page.close()
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])

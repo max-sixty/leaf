@@ -7,7 +7,10 @@ on:
     paths:
       - 'docs/**'
       - 'examples/**'
-      - 'plugins/leaf/skills/leaf/assets/**'
+      # The whole skill payload: the site serves a vendored layer, and that is merged
+      # from the integrated assets and the bundled widgets alike — a change to either
+      # is a change to what a visitor loads.
+      - 'plugins/leaf/skills/leaf/**'
       - 'scripts/site.py'
       - '.github/workflows/publish-site.yaml'
   workflow_dispatch:
@@ -26,8 +29,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
-      # Each example is exported by drawing it, so the runner's own Chrome is
-      # what the site is made with — the same `channel="chrome"` the suite uses.
+      # No browser: the examples go up as the files they are, drawn in the reader's
+      # own. `uv` is the whole of what the build needs, for `page init` and the check
+      # each example passes on the way past.
       - name: 🖼 Build site
         run: scripts/site.py
 

@@ -45,14 +45,15 @@
           <a href="../examples/gallery.html">gallery</a> puts all twelve on one page, a
           tab each.
         </p>
-        <p id="copies">
-          These are copies rather than live pages. A leaf page is served by the session
-          that wrote it, and there is no session behind a static host — so the copies
-          come from <code>leaf version export</code>, which drops the comment layer
-          along with every script rather than leave a comment box that swallows what you
-          type. What the widgets drew is all here, and a control whose state the browser
-          owns still works: a diff's files still fold away, because that fold is a
-          <code>&lt;details&gt;</code>. Dragging a card takes a session, which is
+        <p id="live">
+          These pages are live. A leaf page is a directory — the runtime and the theme
+          at a root, the versions under it — and a static host serves all of that. What
+          it hasn't got is the session that answers for the page, so here that session
+          is your own browser: comment on a passage, take a decision, drag a card, and
+          the page holds what you did across a reload, because the log is what it
+          renders from — in this tab, so a new one starts the page over. The agent at
+          the other end is the half no host can supply, so nothing written here is read
+          by anyone. That part is
           <a href="#run">one command from a checkout</a>.
         </p>
       </header>
@@ -67,7 +68,9 @@
             Screenshots flip, a diff and an annotated function show the change, a board
             takes drags, two decisions stand open beside one already settled, three
             proposed edits wait in the margin, and the announcement is a draft the user
-            owns.
+            owns. It is the one page here that arrives mid-conversation, a question
+            about the iOS stall standing anchored in the margin with the answer under
+            it.
           </dd>
 
           <dt><a href="../examples/design-decision.html">Design decision</a></dt>
@@ -113,9 +116,9 @@
 
           <dt><a href="../examples/live-progress.html">Live progress</a></dt>
           <dd>
-            A cutover rehearsal the agent republishes as each check finishes. Served
-            live, the counts and statuses move under the reader without a refresh; this
-            copy is the middle state.
+            A cutover rehearsal the agent republishes as each check finishes. Behind a
+            session the counts and statuses move under the reader without a refresh; the
+            page here stands at the middle state.
           </dd>
 
           <dt><a href="../examples/triage-board.html">Triage board</a></dt>
@@ -157,18 +160,15 @@
         </p>
         <pre><code>scripts/preview.py triage-board</code></pre>
         <p>
-          The page it opens takes comments. Run from an agent session, they reach it and
-          the example gets revised like any other page; run from a bare shell, they
+          Comments on that page reach somebody. Run from an agent session, they arrive
+          and the example gets revised like any other page; run from a bare shell, they
           queue in the log until an agent next reads it.
         </p>
         <p>
-          One example arrives mid-conversation. <code>ship-review</code> ships a log
-          beside it, so it opens with a passage already marked and the banner reading
-          <em>Comments (1)</em>; open the panel and the exchange is there, a question
-          about the iOS stall with the answer under it. That is the only place a thread
-          can be seen: one lives in the log rather than in the markup, and the export
-          that made the copies above drops the layer that draws it, so none of them can
-          show you one.
+          The <a href="examples/ship-review/">ship review</a> is where to see what comes
+          back: it ships a log beside it, so it opens mid-conversation with a passage
+          marked and the exchange under it. Write a reply there and it stops at your
+          browser; write one from a checkout and the agent answers it.
         </p>
         <pre><code>scripts/preview.py ship-review</code></pre>
         <p>

@@ -351,7 +351,7 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
   ```sh
   uv sync --frozen
   uv run playwright install chrome
-  uv tool install pre-commit && pre-commit install-hooks
+  uv tool install pre-commit
   ```
 
   Two tests fail there whatever the setup does, the container having no IPv6 stack at all:

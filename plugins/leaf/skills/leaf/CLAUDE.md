@@ -523,7 +523,7 @@ of a diff, comments on it, and the mark paints where they drew it.
 Element identity is the same boundary, and it did not follow at first. `getElementById`
 searches the document tree alone, so an id inside a shadow tree was invisible to every
 question the runtime asks by id: which element an anchor names (`sectionOf`), what an
-action rests on (`restsOn`), which unit a fold paints, which ask the `a` key steps to.
+action rests on (`restsOn`), which unit a fold paints, which ask the n/p walk steps to.
 Each answers null and then quietly does nothing — the anchor stored, the mark never
 painted, no error anywhere to find it by. `elementById` is the document first and the
 declared roots after, and every one of those questions goes through it.
@@ -944,17 +944,25 @@ being a form's submit and a leaf page having no form. The row binds no `run` —
 dispatcher skips a run-less row, so the press stays the platform's, where binding one
 would work a control the browser has already worked.
 
+A walk's keys name the direction, never the thing walked, and every walk on this page is a
+pair a reader arrives already knowing: `j`/`k` is vim's list, `d`/`u` is less's half page,
+`n`/`p` is next and previous through the things waiting on the reader. The noun is the
+tempting name and it strands the second half — the walk through the asks was `a`, and there
+is no letter that means "the previous ask", so what went beside it was chosen rather than
+known (`a`/`p`, a pair only its author could read). A borrowed pair costs nothing to learn
+and leaves the noun's own letter free, which is what the rule below spends it on.
+
 A key that acts at large takes the Shift as well as the letter, and the binding is where
 that is said: `Shift+a`, matched on the letter's lowercase with the modifier asked for
-exactly. Reading the uppercase key instead is wrong twice over, because caps lock writes
-one out of an unshifted press — a reader with it on who reached for `a`, the walk through
-the page's asks one at a time, got `A` under the first rule, which answers every one of
-them and ends the matter, and matched nothing at all under the rule that fixed it, while
-the line went on offering the walk. So the pair is a relation rather than two letters that
-happened to be free: `a` steps the page's asks and `Shift+a` gives every blanket answer it
-offers, the shifted half acting on the whole of what the lowercase one walks through. The
-chip still reads `A`, because that is the key the reader presses; the binding reads
-`Shift+a`, because that is what the dispatcher must ask for.
+exactly. `a` alone stands for nothing, deliberately — an unshifted letter that ends the
+matter for every ask on the page is a press far too cheap for what it does — and the walk
+being spelled in directions is what leaves the letter to it. Reading the uppercase key
+instead of asking for the modifier is wrong in both directions, because caps lock writes an
+uppercase key out of an unshifted press and a lowercase one out of a shifted press: the
+reader with it on would get every change on the page accepted from a letter they meant as a
+letter, and could no longer reach that answer with the Shift the chip names. The chip reads
+`A`, because that is the key the reader presses; the binding reads `Shift+a`, because that
+is what the dispatcher must ask for.
 
 A move that merely sits beside a key, rather than acting on the whole of what it walks,
 is spelled in the scope that key opens, where the letter is free again: `v` opens the
@@ -1016,6 +1024,33 @@ and the row that ends it is the version being read, which is the row an open lan
 must agree, and the landing is where that breaks quietly: opening on the version being read
 while a comparison stood elsewhere moved the base on the reader's first arrow press, marks
 redrawn to match and nothing saying so. So an open lands on the standing base.
+
+## A walk starts where the reader is standing
+
+A key that steps through the page is answering "from here, what is next", and the reader
+decides where here is. `d`/`u` measure from the scroll position, `j`/`k` from the focused
+thread. The ask walk measured from an id of its own instead, and so answered a question
+nobody asked: where its own last press had put them. A reader who scrolled halfway down
+and pressed it for the first time, or who selected a paragraph and then reached for the
+next thing waiting on them, was taken to the top of the page past everything they had
+just read.
+
+Where they are is read from what they have done, most direct first — focus, then the
+selection, then the walk's own mark, then the block they are reading — because each of
+those is a thing they did and the later ones are older news. A caret counts even where a
+quote wouldn't: this asks where the reader is, not what they meant to quote, which is why
+it is its own reading and not `pageSelection`. The banner is the one place that is no
+place: its controls are addresses held from wherever the reader stands, and the Asks
+button focuses itself on the way to running the walk, so measuring from focus there would
+have restarted the walk on every click of it.
+
+Then the walk is over places in the document rather than indices into its own list
+(`askStep`), which is what makes a direction mean anything from a standing start — and an
+ask holding the reader's place is the one they step off rather than the one they step to.
+The list has to be the page's order for any of that to hold. The panel's threads are in
+the log's order, so `j`/`k` have no page position to measure from and the head of the list
+is the right answer there; the tell is not "does this walk carry state" but "is where the
+reader is a position in what this walk walks".
 
 ## A widget's chrome outlives its handlers
 

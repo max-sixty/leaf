@@ -1097,6 +1097,19 @@ function paintLine() {
   });
 }
 
+// Where the reader is standing, which is not what `document.activeElement` answers: focus
+// inside a shadow tree retargets to the host, so every question the register asks about
+// the focused element got the widget instead of the control. A staged control found no
+// scope of its own, matched no control scope, and would have had a press aimed at its
+// host. The climb out of a tree was written long ago (upFrom); the descent into one was
+// not, and the comment below promised it anyway — lf-diff's per-file disclosure declared
+// its keys and no surface said a word about them.
+const focused = () => {
+  let el = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return el;
+};
+
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a
 // shadow tree declares them the same way.
@@ -5476,7 +5489,7 @@ const leaderArmed = () => Boolean(leaderTimer);
 function setLeader(on) {
   // Armed over a control that has claimed Escape, one press would have two owners — the
   // control's rung and the chord's cancel — so the leader refuses to arm there at all.
-  if (on && claimsEsc(document.activeElement)) return;
+  if (on && claimsEsc(focused())) return;
   const was = Boolean(leaderTimer);
   if (leaderTimer) clearTimeout(leaderTimer);
   leaderTimer = on ? setTimeout(() => setLeader(false), LEADER_MS) : null;
@@ -5690,7 +5703,7 @@ const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
 // swallowing.
 const TYPING = {
   title: "In a text box",
-  at: () => takesLetters(document.activeElement),
+  at: () => takesLetters(focused()),
   claims: PRINTABLE,
   rows: [
     {
@@ -5750,7 +5763,7 @@ const THREAD = {
 const CONTROL_SELECTOR = "[data-lf-offer][tabindex]";
 const CONTROL = {
   title: "On a control",
-  at: () => Boolean(document.activeElement?.matches?.(CONTROL_SELECTOR)),
+  at: () => Boolean(focused()?.matches?.(CONTROL_SELECTOR)),
   // The page has to have built one, or the reference names a place the reader can't
   // stand. The query is the reference's cost and not the line's: `at` is asked first and
   // answers false wherever this could be in doubt, so a paint never reaches it.
@@ -5762,7 +5775,7 @@ const CONTROL = {
       line: "press it",
       // Space would take the page out from under the press, which is why the row consumes
       // it; the dispatcher does that for every row that runs.
-      run: () => document.activeElement.click(),
+      run: () => focused().click(),
     },
   ],
 };
@@ -5931,7 +5944,7 @@ const standing = (s) => (!s.at || s.at()) && (!s.when || s.when());
 function stack() {
   return [
     ...ABOVE.filter(standing),
-    ...scopesFor(document.activeElement).filter(standing),
+    ...scopesFor(focused()).filter(standing),
     ...BELOW.filter(standing),
   ];
 }
@@ -5961,7 +5974,7 @@ const SECTIONS = [PAGE, THREAD, CONTROL, TYPING, COMPOSER, VERSIONS, LEADER, HEL
 function declaredStack() {
   const sections = new Map();
   const named = (section) =>
-    scopesFor(document.activeElement).some((s) => s.title === section.title);
+    scopesFor(focused()).some((s) => s.title === section.title);
   for (const scope of SECTIONS) {
     const seen = sections.get(scope.title);
     if (!seen) {
@@ -6046,7 +6059,10 @@ function run(ev) {
 // a digit typed in a box is text, and a chip left blooming would promise a cancel the
 // control would consume.
 document.addEventListener("focusin", () => {
-  const active = document.activeElement;
+  // The same question `setLeader` asks before arming, so it takes the same answer: two
+  // readings of where the reader is standing would refuse to arm somewhere they then
+  // failed to disarm.
+  const active = focused();
   if (leaderTimer && (takesLetters(active) || claimsEsc(active))) setLeader(false);
   paintLine();
 });

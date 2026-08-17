@@ -72,10 +72,12 @@
  * content is never discarded, so there is no failSoft.
  */
 import {
+  PRESS,
   agentName,
   dataBody,
   once,
   offer,
+  paintKeys,
   quoted,
   sendAction,
   toast,
@@ -311,6 +313,19 @@ customElements.define(
         );
         previous = text;
       });
+      // The disclosure is the platform's to work, so this binds no `run` and only says
+      // the word — one more contributor to the section the draft's other two declare,
+      // since the reader standing here is still on a draft. Read where it is painted,
+      // because which way the press goes is something they can see.
+      keys(summary, "On a draft", [
+        {
+          keys: PRESS,
+          does: () => `${history.open ? "Hide" : "Show"} the edit history`,
+          line: () => `${history.open ? "hide" : "show"} the history`,
+        },
+      ]);
+      history.addEventListener("toggle", paintKeys);
+
       history.append(summary, current, list);
       this.#history?.replaceWith(history);
       if (!this.#history) this.append(history);

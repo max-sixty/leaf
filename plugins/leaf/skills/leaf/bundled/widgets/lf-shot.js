@@ -27,7 +27,7 @@
  * frame is a thing to press, so it goes through `offer` with the rest of the chrome.
  * What the page has to say about the change itself is neither — it is prose, written
  * around the element, where a comment can reach it like any other sentence. */
-import { once, offer, failSoft, settle } from "/leaf.js";
+import { once, offer, failSoft, keys, paintKeys, settle } from "/leaf.js";
 
 customElements.define(
   "lf-shot",
@@ -85,6 +85,23 @@ customElements.define(
       // words name is the label over the frame, and paper drops both together.
       label.append(box, " flip — or click the image");
       row.append(label);
+
+      // Space is the platform's here, the control being a checkbox, so the row binds no
+      // `run`: binding one would toggle a box the browser has already toggled. It carries
+      // a word all the same, which is the whole of what it is for — a press the reader
+      // can make and no surface names is this register's own inversion, and the runtime's
+      // control scope cannot reach it, matching a tab stop of its own making where this
+      // control brought its own. Enter is left out because a checkbox answers it only as a
+      // form's submit, and there is no form on a leaf page.
+      keys(box, "On a screenshot", [
+        {
+          keys: [" "],
+          does: () => `Show the ${box.checked ? "before" : "after"} frame`,
+          line: () => `show ${box.checked ? "before" : "after"}`,
+        },
+      ]);
+      // A toggle is no focus move, so nothing else would repaint the word it just changed.
+      box.addEventListener("change", paintKeys);
 
       this.append(flip, row);
       settle(this.register(shots));

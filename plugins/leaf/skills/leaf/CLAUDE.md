@@ -536,6 +536,17 @@ at a diff means the diff, whose rows are nothing to anchor on — and the wrong 
 it is which of several marks it touched, since a host contains them all. So `markAt`
 takes the tree's own answer and `aimedItem` keeps the document's.
 
+Where the reader is *standing* is the third crossing of the same kind, and the comment
+over the scope walk promised it before anything did it. `document.activeElement`
+retargets to the host, so a control a widget staged in a tree answered as the widget: no
+scope of its own found, no control scope matched, and a press would have been aimed at
+the host. The climb out was written (`upFrom`) and the descent in was not, so `focused`
+is that half, and the register's questions go through it — the stack, the control and
+typing scopes' `at`, the leader's Escape check. `lf-diff` declared its per-file
+disclosure's keys and no surface said a word about them, which is the shape of this
+failure: the declaration is right, the reader is somewhere the runtime cannot see, and
+nothing errors.
+
 Which widgets the page holds stays the document's question. A widget staged inside
 another's tree is a nesting `x-parent` does not model, and settling it in a sweep would be
 writing that contract where nobody would look for it. The line is that an id names one
@@ -838,6 +849,17 @@ this is not "a control answers two keys": Enter follows an `<a>` and Space scrol
 so the leaves board binds Enter alone and is right to. A shared fact that grew to cover the
 link would have put Space on a row where the press scrolls the page out from under the
 reader — the exact failure, reached from the other side.
+
+A control the widget takes from the platform rather than building is the other side of
+`PRESS` again. `offer` writes a tab stop of its own making and the control scope matches
+one, so a `<summary>` or a checkbox a widget injects matched nothing and no surface named
+the press the reader could plainly make — the register's own inversion, the same size as
+the under-promise above and quieter, since the key works. The widget declares it, because
+the keys are the platform's fact about *that* control and differ between them: a
+`<summary>` is button-like and takes `PRESS`, while a checkbox takes Space alone, Enter
+being a form's submit and a leaf page having no form. The row binds no `run` — the
+dispatcher skips a run-less row, so the press stays the platform's, where binding one
+would work a control the browser has already worked.
 
 A key that acts at large takes the Shift as well as the letter, and the binding is where
 that is said: `Shift+a`, matched on the letter's lowercase with the modifier asked for

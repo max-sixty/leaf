@@ -13,10 +13,13 @@
  * What gets tokenized is a hunk, one side at a time, with the +/−/space column
  * cut off. Each of those is load-bearing; see colorHunks. */
 import {
+  PRESS,
   dataBody,
   failSoft,
+  keys,
   langForPath,
   once,
+  paintKeys,
   settle,
   shadowStage,
   synNodes,
@@ -193,6 +196,19 @@ function fileNode(file, colored) {
       textContent: `+${file.adds} −${file.dels}`,
     }),
   );
+  // Enter and Space are both the platform's on a <summary>, so this binds no `run` —
+  // one would toggle a disclosure the browser has already toggled — and exists to say
+  // the word. Which word depends on what the reader can see standing here, so it is read
+  // where it is painted rather than named once for both branches.
+  keys(summary, "On a diff", [
+    {
+      keys: PRESS,
+      does: () => `${details.open ? "Hide" : "Show"} that file's diff`,
+      line: () => `${details.open ? "hide" : "show"} this file`,
+    },
+  ]);
+  details.addEventListener("toggle", paintKeys);
+
   const pre = document.createElement("pre");
   // A line longer than the measure scrolls inside this box, and a region only a
   // wheel can move is off-limits to a keyboard: the box takes a tab stop and a

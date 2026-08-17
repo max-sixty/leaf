@@ -11496,6 +11496,72 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     page.close()
 
 
+# A page carrying both kinds of native control a widget injects: a checkbox in the light
+# DOM and a <summary> the widget staged in a shadow tree.
+NATIVE_CONTROL_PAGE = DIFF_PAGE.replace(
+    "</main>",
+    f"""<lf-shot id="shot-keys" alt="the navigation rail"
+         before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
+</main>""",
+)
+
+
+def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, serve):
+    """A key on screen is a key that works, and its inversion costs just as much: the
+    press is real, the reader can make it, and no surface says so.
+
+    The runtime's control scope matches a tab stop of its own making, which is what
+    `offer` writes on the spans it builds. A control the widget takes from the platform
+    brings its own, so it matched nothing — and the widget's own declaration is what
+    names both the key and the word, the key being the platform's fact about that
+    control and the word being what the press does here.
+
+    The two differ in what they answer, and saying so is the point: a <summary> is
+    button-like and takes both keys, while a checkbox takes Space alone, Enter being
+    the form's key and a leaf page having no form. Each row binds no `run`, so the
+    dispatcher passes the press to the platform that was going to make it anyway; a row
+    that consumed it would be the same lie from the other side.
+
+    The staged control is the one the register could not reach at all.
+    `document.activeElement` retargets to the host, so the scope walk started at the
+    widget and never saw the control the reader was standing on."""
+    url = serve(NATIVE_CONTROL_PAGE)
+    for name, data in SHOTS.items():
+        (serve.page_dir / "media").mkdir(exist_ok=True)
+        (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+
+    box = page.locator("lf-shot input[type=checkbox]")
+    box.scroll_into_view_if_needed()
+    box.focus()
+    expect(line).to_contain_text("show after")
+    page.keyboard.press(" ")
+    expect(box).to_be_checked()
+    # The word is read where it is painted, so it names the frame this press brings up
+    # rather than covering both with one that is never wrong and never says anything.
+    expect(line).to_contain_text("show before")
+    # Enter is not on the row and not the control's: it must leave the box alone.
+    page.keyboard.press("Enter")
+    expect(box).to_be_checked()
+
+    summary = page.locator("lf-diff summary").first
+    details = page.locator("lf-diff details").first
+    summary.scroll_into_view_if_needed()
+    summary.focus()
+    assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
+    expect(line).to_contain_text("hide this file")
+    page.keyboard.press("Enter")
+    expect(line).to_contain_text("show this file")
+    assert not details.evaluate("el => el.open")
+
+    # Neither control is handed a letter by any platform, so the page's own keyboard
+    # stands behind both of them.
+    expect(line).to_contain_text("comment")
+    assert errors == []
+    page.close()
+
+
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     """A figure can carry more than one thread. When the page's record of what it drew was
     keyed by the mark, the second comment overwrote the first, and the panel told the
@@ -13304,7 +13370,15 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
             f"Changes · {index} {'edit' if index == 1 else 'edits'}"
         )
 
-    draft.locator(".lf-draft-history > summary").click()
+    # The disclosure is the platform's to work and the register says so, naming the
+    # press where the reader is standing on it and reading which way it goes off the
+    # state they can already see.
+    history = draft.locator(".lf-draft-history > summary")
+    history.focus()
+    expect(page.locator(".lf-keyline")).to_contain_text("show the history")
+    history.click()
+    expect(page.locator(".lf-keyline")).to_contain_text("hide the history")
+
     current_deleted = "".join(draft.locator(".lf-draft-current del").all_inner_texts())
     current_inserted = "".join(draft.locator(".lf-draft-current ins").all_inner_texts())
     assert "before" in current_deleted and "deploying" in current_deleted

@@ -6968,9 +6968,9 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     was — on the previous ask's Accept — while the announce said otherwise, so
     Enter was aimed at a decision the reader had already seen."""
     page, errors = open_page(browser, serve(COLLAPSED_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator("[data-lf-for='sug-now'] .lf-sug-accept")).to_be_focused()
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator("#later")).to_have_attribute("open", "")
     expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_focused()
     assert errors == []
@@ -7297,10 +7297,13 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
     moment it is opened. A sentence written into the table would have said "accept" in
     core, and gone on saying it for the second widget to declare a verb of its own.
 
-    The shift is part of the key rather than decoration: caps lock turns a press of a
-    into an uppercase one, and a is the walk through these one at a time, so the reader
-    who wanted the next question would have settled every change on the page — a
-    decision being the end of the matter."""
+    The shift is part of the key rather than decoration, and the walk beside it is
+    spelled in directions (n/p) rather than in this letter, so the letter is this
+    press's alone — and stands for nothing unshifted, an unshifted `a` that settled
+    every change on the page being a press far too cheap for what it does. Caps lock is
+    where reading the glyph instead of asking for the modifier fails in both
+    directions: it writes an uppercase key out of a bare press, which must not end the
+    matter, and a lowercase one out of the shifted press that must."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     help_el = page.locator(".lf-help")
 
@@ -7536,11 +7539,13 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
-    """j/k step the open threads; `a` steps the things the page is asking, and the
-    two lists are the same kind of thing to walk. It wraps rather than clamping,
-    because an ask leaves the list as soon as it is answered — forward is the
-    direction with somewhere to go, and one key that stopped at the last one would
-    strand the reader there.
+    """j/k step the open threads; n/p step the things the page is waiting on the reader
+    for. Every walk here is a borrowed pair naming its direction rather than what it
+    walks — vim's list, less's half page, next and previous — which is what leaves `a`
+    to the answer that takes all of them at once.
+    It wraps rather than clamping, because an ask leaves the list as soon as it is
+    answered — forward is the direction with somewhere to go, and one key that stopped
+    at the last one would strand the reader there.
 
     The landing is marked on the ask and focused on the control that answers it, so
     the reader can see what they were brought to and Tab straight into working it —
@@ -7549,7 +7554,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
     for _ in range(len(ASKS_IN_ORDER) + 1):  # one press past the end: it wraps
-        page.keyboard.press("a")
+        page.keyboard.press("n")
         # Exactly one, so the mark says where this press put them rather than where an
         # earlier one did — and asserting it is also the wait for this press to land.
         expect(page.locator("[data-lf-ask]")).to_have_count(1)
@@ -7568,18 +7573,83 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         ["live-question", "span lf-pick lf-ui"],
     ], f"the walk landed somewhere else: {walked}"
 
+    # And back, from where the last press left them: p wraps at this end too, and the
+    # step off a suggestion is measured from the suggestion rather than from the ✓ Accept
+    # holding the focus — that row is hoisted out into the page margin as a sibling of the
+    # block it decides, so a walk reading it where it hangs would step back onto the
+    # change the reader is standing on.
+    back = []
+    for _ in range(len(ASKS_IN_ORDER)):
+        page.keyboard.press("p")
+        expect(page.locator("[data-lf-ask]")).to_have_count(1)
+        back.append(page.evaluate("() => document.querySelector('[data-lf-ask]').id"))
+    assert back == ["t-bath", "t-baffles", "sug-refill", "live-question"], (
+        f"the walk back landed somewhere else: {back}"
+    )
+
     # The overlay and the key line offer it because there is something to reach.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-keyline")).to_contain_text("asks")
 
-    # An answered ask leaves the walk: from the question, the next press used to reach
-    # the suggestion and now reaches what follows it.
+    # An answered ask leaves the walk: deciding the change on its own control is where
+    # the reader now stands, and the next press reaches what followed it rather than the
+    # change they have just settled.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator("#t-baffles")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
+    """The walk measures from the reader, the way d/u measure from the scroll position
+    and j/k from the focused thread. It kept an id of its own instead, so every walk
+    the reader had not made with this key started at the top of the page: scroll
+    halfway down and press `n` and you were taken back past everything you had read,
+    and so was anyone who had just selected a paragraph to comment on.
+
+    Three readings of where they are, and the page is left in each state in turn: what
+    they are reading, when they have pointed at nothing; what they have selected; and
+    the walk's own mark, once the walk itself is what last moved them. The banner's
+    button is no place — it focuses itself on the way to running the walk, so a press
+    on it measured from the focus would restart the walk on every click."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+
+    # A window short enough that reading down the page leaves the top of it behind,
+    # which is the whole of what the reader has to do to be somewhere.
+    resized(page, 900, 400)
+
+    # Scrolled to the change with nothing selected and nothing focused: the ask after
+    # it, not the question above it. They are standing *in* that suggestion, which is
+    # why it is the ask they step off rather than the one they step to.
+    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    page.keyboard.press("n")
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+
+    # The banner's press is the same walk and steps on from there, though the button
+    # holds the focus by the time it runs.
+    page.locator(".lf-asks").click()
+    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+
+    # A selection outranks the mark, because it is the reader saying where they are
+    # since the walk last moved them: from a task above the two the walk has just been
+    # through, forward is the first of them and back is the change before it. Measured
+    # after each landing, because the landing scrolled the page under the coordinates.
+    def drag_over_the_done_task():
+        page.locator("#t-mounts strong").scroll_into_view_if_needed()
+        box = page.locator("#t-mounts strong").bounding_box()
+        y = box["y"] + box["height"] / 2
+        select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+
+    drag_over_the_done_task()
+    page.keyboard.press("n")
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    drag_over_the_done_task()
+    page.keyboard.press("p")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
 
@@ -7616,7 +7686,7 @@ graph LR
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     """Clicking a quoteless thread's § label brings its element to the middle — the
-    one promise every caller of that travel makes, the `a` key's landing included.
+    one promise every caller of that travel makes, the ask walk's landing included.
 
     It was 27px short of the middle in every one of them, and invisibly so: the
     scroller declares `scroll-padding-top` to keep a native fragment jump clear of
@@ -7689,7 +7759,7 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in ["live-question", "t-baffles", "t-bath", "m-build", "m-install"]:
-        page.keyboard.press("a")
+        page.keyboard.press("n")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
@@ -8854,7 +8924,7 @@ THREAD_ASKS = [
 
 def test_a_thread_question_asks_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — a request to the reader
-    wherever it stands — and `a` opens the panel to reach it. A single-answer group
+    wherever it stands — and `n` opens the panel to reach it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
@@ -8872,7 +8942,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (2)")
 
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
@@ -8924,14 +8994,14 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — where `a` lands — ↑/↓ walk the options clamping at the ends, a
+    """From a mark — where `n` lands — ↑/↓ walk the options clamping at the ends, a
     digit picks outright, and each option wears its digit only while a mark holds
     keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     nums = page.locator("#live-question .lf-address")
     expect(nums.first).to_be_hidden()
 
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     marks = page.locator("#live-question .lf-pick")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
@@ -9036,7 +9106,7 @@ OVER_WORDS = """(el, id) => {
 #
 # Two `bounding_box()` calls are two instants, and the page moves between them: a viewport
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
-# straight into the answer. `a` scrolls to the ask it steps to, the body is the scroller,
+# straight into the answer. `n` scrolls to the ask it steps to, the body is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
 # so the chip's offset came back a pixel out on about half of the runs, on whichever row
 # the frame happened to fall between. Nothing had moved by then except the window, which is
@@ -9082,7 +9152,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["c-heater", "c-cable", "c-hand"], "in the corner"),
         (["r-now", "r-later"], "centred"),
     ]:
-        page.keyboard.press("a")
+        page.keyboard.press("n")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
@@ -10931,9 +11001,9 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
         interact.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # `a` opens the panel on the first ask and lands on its mark, which is what paints
+    # `n` opens the panel on the first ask and lands on its mark, which is what paints
     # that group's digits; g then arms the leader, which paints the reply boxes'.
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")

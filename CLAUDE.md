@@ -343,6 +343,20 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
 - **Tests are integration tests in a real browser.** `test_render.py` drives the shipped
   examples through the Chrome already on the machine. What a test must assert, and the
   ways one passes vacuously, are in `tests/CLAUDE.md`.
+- **A cloud container has none of that, so set it up first.** No system Chrome, so every
+  browser test fails at launch — the Chromium preinstalled there is a different build than
+  the locked Playwright expects, and the suite asks for `channel="chrome"`. No
+  `pre-commit` either, so the lint cannot run at all.
+
+  ```sh
+  uv sync --frozen
+  uv run playwright install chrome
+  uv tool install pre-commit
+  ```
+
+  Two tests fail there whatever the setup does, the container having no IPv6 stack at all:
+  the pair binding the stated-host wildcard `::` cannot run, and they are its answer rather
+  than the change's — landing is from a workstation, where they do.
 - **Measure before optimising and before assuming.** The cost claims in this codebase came
   from timing the real thing on `examples/gallery.html`, not from reasoning.
 - **A page directory holds a copy of the layer, so re-vendor before believing it.**

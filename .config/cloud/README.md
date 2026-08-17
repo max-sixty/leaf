@@ -1,18 +1,26 @@
 # Cloud environments
 
-`environment.sh` is what a cloud container runs before it can pass the gates: it
-installs pinned Worktrunk, approves the commands in `.config/wt.toml`, syncs the
-locked developer environment, installs system Chrome for the browser suite, and
-warms the pre-commit hooks.
+What a cloud container needs before it can pass the gates is `wt configure-cloud`,
+declared in `.config/wt.toml` beside the gates themselves: it syncs the locked
+developer environment, installs the system Chrome the browser suite attaches to,
+and warms the pre-commit hooks. Run it by hand in any container that already has
+`wt`; `wt config alias show configure-cloud` prints what it will do.
 
-Both hosts run that one script, because both containers arrive missing the same
-things. Each host reaches it its own way, and that is the only difference between
-them:
+`environment.sh` is the part that cannot be an alias, because `wt` has to exist
+before one can be invoked. It installs Worktrunk, approves this branch's
+declarations, and calls the alias. Both hosts run that one file, because both
+containers arrive missing the same things; each reaches it its own way, and that is
+the only difference between them:
 
 | Host | How it reaches the script |
 |---|---|
 | Codex Cloud | Setup and maintenance commands, saved in the environment's settings |
 | Claude Code on the web | `.claude/hooks/session-start.sh`, a `SessionStart` hook in `.claude/settings.json` |
+
+No tool version is written in either place. `uv.lock` pins what `uv sync` installs,
+`.pre-commit-config.yaml`'s hook revs decide the lint, and Worktrunk is installed
+unpinned when absent — so a cached container keeps the `wt` it was built with until
+the cache is reset, which is also what lets it start with no network at all.
 
 Neither is workstation setup — see the last section.
 
@@ -61,7 +69,7 @@ Open **Codex settings → Environments**, create an environment for
 Use this exact command for both **Setup script** and **Maintenance script**:
 
 ```bash
-ENVIRONMENT_SHA=02ab3801de89b9f7c2761f66af956fbf4471f1c0503813e30dbc93b38b8da3d1; printf '%s  %s\n' "$ENVIRONMENT_SHA" .config/cloud/environment.sh | sha256sum -c - && bash .config/cloud/environment.sh
+ENVIRONMENT_SHA=631878cdf18773b0a4e736ccc92e483b0e3e1c893c539df5edd1e7aa3df26df4; printf '%s  %s\n' "$ENVIRONMENT_SHA" .config/cloud/environment.sh | sha256sum -c - && bash .config/cloud/environment.sh
 ```
 
 The environment needs no variables or secrets. Internet access remains on
@@ -73,11 +81,15 @@ After saving the environment, start a Cloud task on the default branch and
 validate it with:
 
 ```text
-Run test "$(wt --version)" = "wt v0.74.0",
+Run wt --version,
 test "$(wt config approvals list --format=json | jq -r .state)" = approved,
 google-chrome --version, wt hook pre-merge, and
 test -z "$(git status --short)". Require every command to pass.
 ```
+
+The approval assert is the one that covers the alias: `configure-cloud` is a
+project declaration like the pre-merge commands, so an unapproved container would
+stop the setup at a prompt with nobody there to answer it.
 
 ## Keep it current
 
@@ -93,6 +105,12 @@ default branch, update both saved commands with its new `sha256sum`; changing th
 environment settings also invalidates the cache. Claude's hook is read from the
 branch it runs on and needs no such update, the settings that name it being in
 the repo beside it.
+
+Now that the steps live in the alias, that checksum covers a bootstrap that has no
+reason to change often, so the hand-copied hash stops being a recurring chore. It
+also no longer covers the steps themselves: a branch's `configure-cloud` is what
+`wt config approvals add --yes` approves unread, which is a container's business —
+the agent there can run commands anyway — and not something to rely on elsewhere.
 
 The script is cloud-specific: it installs system packages and approves this
 repo's Worktrunk commands without review. Do not use it as workstation setup, and

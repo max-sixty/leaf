@@ -2,9 +2,10 @@
 #
 # Claude Code on the web starts a container with uv, node and Go on it and none of
 # what the gates need: no system Chrome, so every browser test fails at launch; no
-# pre-commit, so the lint can't run at all. `.config/cloud/environment.sh` is what
-# supplies them, shared with Codex Cloud, and this hook is how that script is
-# reached here.
+# pre-commit, so the lint can't run at all. `wt configure-cloud` in
+# `.config/wt.toml` is what supplies them; `.config/cloud/environment.sh` is the
+# bootstrap that puts `wt` there and calls it, shared with Codex Cloud, and this
+# hook is how that script is reached here.
 #
 # Synchronous on purpose. The session pays the install once — the container is
 # cached afterwards — and in exchange no session can open on a half-built

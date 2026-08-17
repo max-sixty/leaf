@@ -14,31 +14,3 @@ checks = "pre-commit run -a"
 # is written not to need.
 [[pre-merge]]
 tests = "uv run pytest tests --run-nightly"
-
-# What a cloud container needs before either gate above can run, declared beside them
-# because it is the same subject: the locked environment, the system Chrome the browser
-# suite attaches to (`channel="chrome"`, so a preinstalled Chromium of another build is
-# no substitute), and warm hook environments.
-#
-# Who runs it, and how a container gets `wt` to run it with, is the cloud bullet in
-# CLAUDE.md — an agent reading that file is the whole mechanism, there being no hook or
-# script here to be one. Approvals come before the call, an alias being approval-gated like
-# the commands above: an unapproved container stops at a prompt with nobody to answer it.
-#
-# No version is written here. `uv.lock` pins what `uv sync` installs and the hook revs in
-# `.pre-commit-config.yaml` decide the lint, so pinning the runner that reads them was a
-# second number to bump for no behaviour it could change.
-#
-# Nothing pipes. An alias runs under `sh`, which has no `pipefail`, so a downloader piped
-# into a shell would report success having installed nothing and left the setup to run
-# without its tools — which is why the chain in CLAUDE.md writes a file and runs that.
-[aliases]
-configure-cloud = """
-set -eu
-export PATH="$HOME/.local/bin:$PATH"
-uv sync --frozen
-uv run playwright install-deps chrome
-command -v google-chrome >/dev/null 2>&1 || uv run playwright install chrome
-uv tool install pre-commit
-pre-commit install-hooks
-"""

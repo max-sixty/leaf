@@ -343,30 +343,20 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
 - **Tests are integration tests in a real browser.** `test_render.py` drives the shipped
   examples through the Chrome already on the machine. What a test must assert, and the
   ways one passes vacuously, are in `tests/CLAUDE.md`.
-- **A cloud container has none of that, so set it up first.** The machine's own Chrome is
-  not there and neither is `pre-commit`, so both gates fail before they check anything —
-  the browser suite at launch, on every test in it. The preinstalled Chromium is no
-  substitute, being a different build than the locked Playwright expects when the suite
-  asks for `channel="chrome"`. Install Worktrunk, approve this branch, and run the setup
-  declared beside the gates in `.config/wt.toml`:
+- **A cloud container has none of that, so set it up first.** No system Chrome, so every
+  browser test fails at launch — the Chromium preinstalled there is a different build than
+  the locked Playwright expects, and the suite asks for `channel="chrome"`. No
+  `pre-commit` either, so the lint cannot run at all.
 
   ```sh
-  command -v wt >/dev/null 2>&1 || {
-    curl --proto '=https' --tlsv1.2 -LsSf --retry 6 --retry-all-errors --retry-delay 2 \
-      -o /tmp/wt-install.sh \
-      https://github.com/max-sixty/worktrunk/releases/latest/download/worktrunk-installer.sh
-    WORKTRUNK_UNMANAGED_INSTALL="$HOME/.local/bin" sh /tmp/wt-install.sh
-  }
-  export PATH="$HOME/.local/bin:$PATH"
-  wt config approvals add --yes
-  wt configure-cloud
+  uv sync --frozen
+  uv run playwright install chrome
+  uv tool install pre-commit && pre-commit install-hooks
   ```
 
-  Codex Cloud runs the same chain from its own setup script, which is the only copy of it
-  outside this file. Two tests cannot pass in the container whatever the setup does: it
-  has no IPv6 stack at all, so the pair binding the stated-host wildcard `::` fail there,
-  and they are the container's answer rather than the change's — landing is from a
-  workstation, where they run.
+  Two tests fail there whatever the setup does, the container having no IPv6 stack at all:
+  the pair binding the stated-host wildcard `::` cannot run, and they are its answer rather
+  than the change's — landing is from a workstation, where they do.
 - **Measure before optimising and before assuming.** The cost claims in this codebase came
   from timing the real thing on `examples/gallery.html`, not from reasoning.
 - **A page directory holds a copy of the layer, so re-vendor before believing it.**

@@ -69,17 +69,8 @@ project/user precedence.
 dashboard meant to change as work finishes; they are live at
 <https://leaf.page/examples.html>, and `gallery.html` puts them on one page as tabs.
 
-## Related
-
-[`notes/comparisons.md`](notes/comparisons.md) reads the nearby projects against
-leaf, and covers where leaf is the wrong choice.
-
 ## Developing
 
 [`CLAUDE.md`](CLAUDE.md) is how the thing is built: the shape of the payload, the
 norms each part is held to, and the commands — the suite, the site, the vendored
 bundles.
-
-## License
-
-MIT. See [LICENSE](LICENSE).

@@ -340,8 +340,7 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
 
 ## Working on it
 
-- **Tests are integration tests in a real browser.** `test_render.py` drives the shipped
-  examples through the Chrome already on the machine. What a test must assert, and the
+- **Tests are integration tests in a real browser.** What a test must assert, and the
   ways one passes vacuously, are in `tests/CLAUDE.md`; what each file covers, and the
   commands, are under "The suite" below.
 - **A cloud container has none of that, so set it up first.** No system Chrome, so every
@@ -397,8 +396,8 @@ the pages under `docs/` to the shipped theme and widget registry, and `test_site
 builds the site and reads it back: the theme it serves is the shipped file, each example
 stands up as a live page that takes a comment and holds a decision through a reload,
 both palettes reach the site's own layer, and no page scrolls sideways on a phone.
-Playwright attaches to the Chrome already installed (`channel="chrome"`), so there is no
-browser download and still no build step.
+Playwright attaches to the Chrome already on the machine, so there is no browser
+download and still no build step.
 
 The suite runs in the environment `pyproject.toml` names and `uv.lock` pins. That is the
 developer's environment only: leaf declares what it needs in `interact.py`'s PEP 723

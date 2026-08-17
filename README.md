@@ -66,5 +66,5 @@ project/user precedence.
 ## Examples
 
 [`examples/`](examples/) holds a complete page for each kind of work, including a
-dashboard meant to change as work finishes; they are live at
+dashboard meant to change as work finishes. They are live at
 <https://leaf.page/examples.html>, and `gallery.html` puts them on one page as tabs.

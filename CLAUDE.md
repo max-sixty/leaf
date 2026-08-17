@@ -340,9 +340,9 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
 
 ## Working on it
 
-- **Tests are integration tests in a real browser.** `test_render.py` drives the shipped
-  examples through the Chrome already on the machine. What a test must assert, and the
-  ways one passes vacuously, are in `tests/CLAUDE.md`.
+- **Tests are integration tests in a real browser.** What a test must assert, and the
+  ways one passes vacuously, are in `tests/CLAUDE.md`; what each file covers, and the
+  commands, are under "The suite" below.
 - **A cloud container has none of that, so set it up first.** No system Chrome, so every
   browser test fails at launch — the Chromium preinstalled there is a different build than
   the locked Playwright expects, and the suite asks for `channel="chrome"`. No
@@ -380,3 +380,111 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
   Codex installs from a marketplace snapshot it fetches separately and does not sweep, so
   a change reaches it through `codex plugin marketplace upgrade leaf` and then
   `codex plugin add leaf@leaf`.
+
+### The suite
+
+`test_interact.py` exercises the lint, vendoring, publishing, catalog, export,
+thread-markup validation, and the anchors `leaf comment` writes by reading a version
+file. `test_render.py` loads the shipped examples in a real browser (both color schemes)
+and asserts what a static lint can't reach: every widget upgrades into a box with usable
+size, the document and the comment panel scroll in separate regions, the comment box
+grows without any script sizing it, and neither pressing a control nor news arriving on
+its own moves the controls beside it. One journey test drives the whole loop through the
+real UI (select a passage, comment, drag a card, follow the next version, find the
+comment still anchored) and pins the event log it leaves. `test_product_page.py` holds
+the pages under `docs/` to the shipped theme and widget registry, and `test_site.py`
+builds the site and reads it back: the theme it serves is the shipped file, each example
+stands up as a live page that takes a comment and holds a decision through a reload,
+both palettes reach the site's own layer, and no page scrolls sideways on a phone.
+Playwright attaches to the Chrome already on the machine, so there is no browser
+download and still no build step.
+
+The suite runs in the environment `pyproject.toml` names and `uv.lock` pins. That is the
+developer's environment only: leaf declares what it needs in `interact.py`'s PEP 723
+header, which is what installs it with no build step, and the project file leaves that
+alone. The tests need the same set anyway, because they load `interact.py` by path.
+
+```sh
+uv run pytest tests
+```
+
+Two minutes rather than eleven, because `pyproject.toml` shards it across eight workers.
+That is the whole command: no variable in front of it and no step before it. The fixtures
+move the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
+developer already has, and a fresh checkout fills it the way any other run would.
+
+That command asks nothing of the network. One resolution sits outside `uv.lock` — the
+Playwright `bin/leaf` supplies to `version export` on top of the script's header (it says
+why) — and uv asks the index for that one whenever its cached answer has gone stale, so
+the tests that shell out to it are marked `nightly` and left out. `--run-nightly` puts
+them back, which is how CI and `wt merge` run the suite, both holding a network already:
+
+```sh
+uv run pytest tests --run-nightly
+```
+
+Ruff and prettier run from `.pre-commit-config.yaml`, which says what each covers
+and why. `wt merge` runs that set and then the suite as pre-merge hooks
+(`.config/wt.toml`), and refuses a tree that doesn't pass; `.github/workflows/ci.yaml`
+runs both again on main and on every pull request. Before then:
+
+```sh
+pre-commit run --all-files
+```
+
+CI is also the only place either gate meets a platform that isn't macOS, and what the two
+disagree about is what a browser test measures: how wide a system font sets a word,
+whether a scrollbar takes a gutter out of the window. `scripts/linux-suite.sh` runs the
+suite where CI runs it, in a container carrying the runner's Chrome and its fonts, so a
+failure reported there is one to reproduce rather than one to guess at. It takes pytest's
+arguments, and needs a Docker daemon that can run linux/amd64:
+
+```sh
+scripts/linux-suite.sh
+```
+
+### Driving a page by hand
+
+`scripts/preview.py [example]` serves a shipped example as a real page, vendoring fresh
+each time; `examples/CLAUDE.md` covers what it lays in and why. For a page of your own,
+run `page init` for the directory and serve it from `interact.handler_for(page_dir,
+token)` in-process as the fixtures do, opening the page with that key in the query
+(`?t=…`). `server run` instead puts a live page behind the session, and the loop's hooks
+then hold it to watching that page.
+
+### The website
+
+`scripts/site.py` assembles <https://leaf.page/> into `.tmp/site`,
+and `.github/workflows/publish-site.yaml` runs it on every push to `main` that touches
+the pages, the examples, or the layer. The docs pages are copied with their
+checkout-relative paths substituted: the stylesheet and the icon a page wears become the
+site's own copies, every other path into the payload becomes a GitHub link, and a link to
+an example names the page directory it is published as. The examples go up live — one
+vendored layer at the site's root, each example at `examples/<name>/versions/v1.html`,
+and a `/leaf.js` that loads `docs/session.js` in front of the vendored runtime. The log
+then lives in the reader's own tab, so the banner, the comment panel and every widget
+work; what a static host can't supply is the agent reading that log, and the page says so.
+The build resolves every local link it wrote and refuses a site holding one that reaches
+nothing.
+
+```sh
+scripts/site.py
+```
+
+`docs/demo.gif`, which the README and the site both wear, is written by
+`scripts/record-demo.sh` — it drives a session through the shipped server and Chrome and
+records the result.
+
+### The vendored bundles
+
+Code blocks are colored in the browser from
+`plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js`, which upstream
+doesn't ship in a form a page can import — so it is bundled here.
+`scripts/vendor-highlight.sh` rebuilds it, reading the language list out of the
+registry's `$languages.names` so the bundle can't offer a language the lint rejects. Add a
+language there, then rerun the script.
+
+Thread messages render their Markdown in the browser too, from
+`vendor/marked.esm.js` — upstream ships that one as a single dependency-free ESM
+file, so `scripts/vendor-marked.sh` is a copy at a pinned version, not a build.

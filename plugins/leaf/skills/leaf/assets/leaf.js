@@ -595,7 +595,7 @@ export function offer(tag, cls, label) {
 // largest hole a survey of this runtime found was that Space activates nine classes of
 // control across core and five widgets and only one of them ever said so. As a scope it is
 // named once in the reference, and named on the line exactly while the reader stands on
-// one — which is where the `a` key puts them.
+// one — which is where the walk through the page's asks puts them.
 
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the
@@ -950,11 +950,11 @@ const live = (row) => !row.when || row.when();
 // browser's bookmark rather than half a page down, and ⌥ stays the aim chord's alone.
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
-// writes an uppercase key out of an unshifted press: under the old rule a reader with caps
-// lock on who reached for `a` — the walk through what the page is waiting on them for —
-// matched nothing at all while the line went on offering it. Asking for the modifier
-// rather than reading the uppercase key is also what keeps that reader from getting
-// `Shift+a`, which answers every ask at once, and a decision is the end of the matter.
+// writes an uppercase key out of an unshifted press and reads an unshifted one out of a
+// shifted press. Read off the glyph, `A` would be the answer that ends the matter for
+// every ask on the page: a reader with caps lock on gets it from a bare letter they
+// meant as a letter, and can no longer reach it with the Shift the chip names. Asking
+// for the modifier is what makes the chip true in both directions.
 function answers(binding, ev) {
   const { key, mods } = parsed(binding);
   if (mods.includes("Mod") !== (ev.metaKey || ev.ctrlKey)) return false;
@@ -2214,7 +2214,7 @@ const latestChip = el("button", "lf-ui lf-btn lf-latest-chip", "");
 // two rows that make it rather than typed out beside them.
 latestChip.title = "Open the newest version";
 // What the page is still waiting on the reader for, and the way to the next one — the
-// same list the a key steps and the "?" overlay names, counted here so a reader who
+// same list n/p step and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
 const asksBtn = el("button", "lf-btn lf-asks", "");
 asksBtn.title = "Go to the next thing this page is waiting on you for";
@@ -4796,7 +4796,7 @@ function markAt(x, y) {
 }
 
 // Bring an element of the document to the middle — a thread's element anchor, a page
-// ask the a key steps to. The document scroller's, so an element standing in the
+// ask n/p step to. The document scroller's, so an element standing in the
 // panel's own list is its region's to centre rather than this one's. reveal first,
 // since opening a tab or a settled group moves everything below it. The arithmetic is the range branch's below, because "the middle"
 // means the viewport's: scrollIntoView measures against the scroller's own
@@ -5917,18 +5917,19 @@ const PAGE = {
       run: () => setLeader(true),
     },
     {
-      // A pair of letters like every other walk on this page, rather than the letter and
-      // its own shifted twin: Shift already says "at large" here, and `A` answering every
-      // ask is worth more than a second direction spelled the one way that would make the
-      // modifier mean two things (the reasoning that refused `V` for the newest version).
-      // So `p` steps back — the direction, since `a` is already the noun and the banner's
-      // own control says it.
-      keys: ["a", "p"],
+      // A borrowed pair, like every other walk on this page: j/k is vim's list, d/u is
+      // less's half page, [/] is back and forward, and n/p is next and previous wherever
+      // a keyboard walks a list of things. The walk held `a` alone and then `a`/`p`, and
+      // both were the same mistake in different sizes — a letter naming what is walked
+      // rather than which way, so the second half had nowhere to come from and ended up
+      // a pair only its author knew. Naming the direction is also what leaves the noun's
+      // shifted letter to the answer that acts on all of them at once (A, below).
+      keys: ["n", "p"],
       does: "Next / previous thing this page is waiting on you for",
       line: "asks",
       also: asksBtn, // the banner button this key duplicates, which then names it
       when: () => openAsks().length > 0,
-      run: (binding) => stepAsk(binding === "a" ? 1 : -1),
+      run: (binding) => stepAsk(binding === "n" ? 1 : -1),
     },
     {
       keys: ["d", "u"],
@@ -5953,13 +5954,15 @@ const PAGE = {
       },
     },
     {
-      // The same list `a` steps, answered at large: every blanket answer the page offers,
+      // The same list n/p walk, answered at large: every blanket answer the page offers,
       // given through the banner's own presses, so a decision taken by key is a decision
       // taken by the control and the log records each one separately. Its words are the
       // registry's rather than a sentence written here — "accept" is one widget's verb,
       // and a key that said it in core would be the sentence the banner's count used to
-      // be. Shift is asked for rather than read off an uppercase key, so caps lock cannot
-      // turn the walk above into the answer that ends the matter.
+      // be. `a` names the asks it answers and stands for nothing on its own: an
+      // unshifted letter that ends the matter for every one of them is a press too
+      // cheap for what it does, and the walk is spelled in directions (n/p) rather than
+      // in the noun, so nothing is waiting for the letter back.
       keys: ["Shift+a"],
       does: () =>
         standingAnswers()
@@ -6378,7 +6381,7 @@ function toggleHelp() {
 // An ask is a standing request to the reader: a question with no pick on it, a change
 // nobody has decided, a piece of work the page says is waiting on them. Which widgets
 // can be one is the registry's answer (x-awaits) and nothing out here names a tag —
-// the banner's count, the a key, and the "?" overlay's row are three readings of this
+// the banner's count, the n/p walk, and the "?" overlay's row are three readings of this
 // one list, so what the banner counts and what the key steps to cannot disagree. The
 // count used to be a query for `lf-suggestion:not([data-lf-state])`, which was
 // perfect for suggestions and silently blind to every other thing a page asks.
@@ -6429,7 +6432,7 @@ function openAsks() {
   const fold = stateFold(VNUM);
   return [...document.querySelectorAll(tags.join(","))].filter((el) => {
     // settledAway: an ask inside a slot the log retired left the page with it —
-    // a group in a rejected suggestion's lf-new counted on, and the a key
+    // a group in a rejected suggestion's lf-new counted on, and the walk
     // stepped the reader to a hidden element.
     if (quoted(el) || settledAway(el) || !asking(el, askEntry(el).when)) return false;
     return !(inChrome(el) ? answeredThreadAsk(el, fold) : answeredAsk(el, fold));
@@ -6518,7 +6521,7 @@ function syncAsks() {
     showNews(btn, Boolean(n));
     btn.textContent = `✓ ${label} all (${n})`;
   }
-  // The a and A rows stand on this list, so the surfaces reading them are repainted
+  // The n/p and A rows stand on this list, so the surfaces reading them are repainted
   // where it changes — the rule showFab and showOthers already keep for the words
   // they write.
   paintLine();

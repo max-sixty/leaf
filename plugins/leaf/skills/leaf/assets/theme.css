@@ -224,9 +224,8 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
  * figures at l-page, Tufte holds the column and lets a figure go fullwidth. What keeps it
  * reading as design is that the prose axis never moves and there is one wider width, so
  * an exhibit that fills its box is either in the column or at --wide and never at a
- * number of its own. A drawing is the exception that proves it: its width is not a
- * number anyone chose but the size it was drawn at, so its box is a clip and not an
- * exhibit, and the rule inside the block below says how far a clip may reach.
+ * number of its own. A drawing fills no box, its width being the size it was drawn at,
+ * and the rules below say what its box is instead.
  *
  * Which widgets those are is the registry's to say (x-wide) and not this file's: a rule
  * naming lf-board would work perfectly for lf-board and do nothing at all for the
@@ -288,31 +287,32 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
   }
-  /* The two kinds of wide widget differ in one thing, how far the box may reach, and
-   * that follows from what decides their width. A box (a board) lays
-   * its columns out into whatever it is given, so the width is a choice, and the choice
-   * is the one number above. A drawing (a diagram's graph) is the size mermaid drew it
-   * at, and the box around it is nothing but the clip: capped at that number it showed
-   * the left 1080px of a 1533px sequence diagram on a window with room for the whole
-   * of it — cut off, with an overlay scrollbar the platform hides until it is used as
-   * the only sign that there was more. So a drawing's box reaches the room, and the
-   * number the vocabulary shares is a promise about boxes that fill it, which a drawing
-   * never was — what shows of one is the drawing, at its own size, whatever its box.
+  /* The two kinds of wide widget differ in one thing, how far the box may reach, and that
+   * follows from what decides their width. A box (a board) lays its columns out into
+   * whatever it is given, so the width is a choice, and the choice is the one number
+   * above. A drawing (a diagram's graph) is the size mermaid drew it at, and the box
+   * around it is nothing but the clip: capped at that number it showed the left 1080px of
+   * a 1533px sequence diagram on a window with room for the whole of it — cut off, with
+   * an overlay scrollbar the platform hides until it is used as the only sign that there
+   * was more. So a drawing's box reaches the room, and the number the vocabulary shares
+   * is a promise about boxes that fill it, and a drawing is not one — what shows of it is
+   * the drawing, at its own size, whatever its box.
    *
    * Then the drawing has to be *placed* in a box that is now most of the window, and
    * centring it in the box is the wrong answer on any page with a claim, since the box
    * has grown one way and its centre is off the column's axis by half the growth: a
    * 466px graph on a page with a rail came out 241px left of the prose it explains on a
-   * 1920 window, hanging into the free margin with nothing out there to explain. What reads right is the alignment a board already has: on
-   * the column's axis wherever the drawing fits between the claimed edges, flush with
-   * the column on the claimed side and out into the free margin when it needs the room,
-   * and scrolling only when even the room is short. Block layout cannot say that — a
-   * block wider than its holder starts at the holder's start, whatever the margins — so
-   * the box is a row: a spacer at each end stands for the room that side has and the
-   * other declined (so at most one is ever wider than nothing) and gives way before
-   * anything else does, and the drawing between them centres while the three fit and
-   * starts at the box's edge once they don't. Every child at its own size, none
-   * stretched to the row, and the box scrolls the rest.
+   * 1920 window, hanging into the free margin with nothing out there to explain. What
+   * reads right is the alignment a board already has: on the column's axis wherever the
+   * drawing fits between the claimed edges, flush with the column on the claimed side and
+   * out into the free margin when it needs the room, and scrolling only when even the
+   * room is short. Block layout cannot say that — a block wider than its holder starts at
+   * the holder's start, whatever the margins — so the box is a row. A spacer at each end
+   * carries the room that side has and the other gave up, so at most one of the two is
+   * ever wider than nothing, and each gives way before anything else does. The drawing
+   * between them centres while the three fit and starts at the box's edge once they
+   * don't. Every child at its own size, none squeezed to make the row fit, and the box
+   * scrolls what is left over.
    *
    * The spacers read --lf-grow, and read it differently from the box: its `100%` is the
    * holder of whatever reads it, which for the box is the column and for a spacer is the
@@ -339,11 +339,16 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
    * did not manage to make, so a parse error came out as a red slab across the whole
    * window with its message set on one 1600px line — the degrade path, which is the
    * worst place to be shouting. `.lf-error` is the layer's own word for this rather than
-   * any widget's, so the next widget to fail soft is covered by having failed. The box
-   * is the message's holder here and not a clip, so the message fills it rather than
-   * being sized to its longest line. */
+   * any widget's, so the next widget to fail soft is covered by having failed.
+   *
+   * The box is the message's holder here and not a clip, so the message fills it and
+   * wraps. Both halves of that are said: a flex item is floored at its own content's
+   * minimum unless told otherwise, and the source it holds is a `pre` that never wraps,
+   * so the box came out as wide as the longest line — 854px of it in a 720px column,
+   * scrolling, on the first real mermaid source anyone fed it. The `pre` scrolls inside
+   * the message instead, which is what a `pre` does everywhere else on the page. */
   [data-lf-wide]:has(> .lf-error) { --lf-room: 0px; }
-  [data-lf-wide="drawing"] > .lf-error { flex: auto; }
+  [data-lf-wide="drawing"] > .lf-error { flex: auto; min-width: 0; }
   /* A box that draws one of its own is a box a wide widget stays inside. The room is the page's to
    * give, and inside a disclosure or a callout the page is not what holds the widget —
    * a board that took the window from inside a <details> hung out over both edges of

@@ -983,8 +983,17 @@ lf-specimen > :last-child { margin-block-end: 0; }
    evidence an option was arguing on simply wasn't there. Everything else here is
    transparent and says nothing: a tab's panel is the column's own width, and an exhibit breaking out through
    one is what the width is for. theme.css's rule beside `--wide` has the reasoning and
-   the gate that catches the next box to forget. */
-:is(lf-option, lf-specimen, lf-old, lf-new) [data-lf-wide] { --lf-room: 0px; }
+   the gate that catches the next box to forget.
+
+   Four of these were written the day the gate could see them. A card, a milestone, an
+   event and a variant each draw a box and each let a diagram out of it — a diagram in a
+   card stood 332px past the card and across the next column of the board — and every one
+   of them was excused by the same reading, since the gate skipped anything inside a
+   scroll container and a board, a timeline and a comparison all scroll. The list is not
+   the mechanism and never was; what makes it maintainable is the gate seeing a wide
+   widget wherever it stands (PAST_THE_COLUMN). */
+:is(lf-option, lf-specimen, lf-old, lf-new,
+    lf-card, lf-milestone, lf-event, lf-variant) [data-lf-wide] { --lf-room: 0px; }
 lf-specimen::before,
 lf-specimen > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);
@@ -1032,14 +1041,26 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
  * scale-to-fit, which set a wide flowchart's labels below legibility — so a wide one
  * scrolls in its own box, the same answer a wide table gets, instead of painting over
  * the margin. max-width: none escapes the page-wide svg rule near the top, which
- * would scale it right back down. Where the runtime has marked the element wide, the
- * theme's drawing rule (beside `--wide` in theme.css) owns the box: it reaches the room,
- * places the drawing on the column's axis, and scrolls; these two rules are for the
+ * would scale it right back down. Where the runtime has marked the element wide,
+ * theme.css's `[data-lf-wide="drawing"]` rule owns the box; these two are for the
  * diagram standing where nothing marks it — a thread's message — and agree with it.
  * Paper cannot scroll, so print restores the fit: width and viewBox stay in the markup,
  * and max-width alone scales the drawing whole. */
 lf-diagram.lf-rendered { overflow-x: auto; }
 lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
+/* Until it has drawn, a drawing's box is not a drawing's box: what stands in it is the
+   authored source, which is evidence and reads at the column's width from the column's
+   own left edge. Both halves of the drawing rule are wrong for it — the room, since
+   there is no drawing to be around, and the row, whose whole job is placing one. The
+   runtime marks the element before any module imports, so this is not a corner: mermaid
+   is fetched lazily and draws at about 160ms against a 50ms first paint, so every
+   diagram on every page spends that tenth of a second as source centred in most of the
+   window, at an indent set by its own longest line — three diagrams, three indents, none
+   of them the column's. A page whose module never arrives spends the rest of its life
+   that way. `.lf-rendered` is this layer's word for a module having replaced its body,
+   so this is the sentence theme.css's `.lf-error` rule makes about a failure, said where
+   the word for the other half lives. */
+[data-lf-wide="drawing"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
 @media print {
   lf-diagram svg { max-width: 100%; }
 }

@@ -269,18 +269,18 @@ needs loading. The bar is real — an `x-` key the log records is a forever-cont
 vendored-layer stamp then carries (`$events`) — which is an argument for finding the
 general shape, not for reaching past the registry.
 
-A declaration has to be as fine as the question its consumer must answer, or the
-consumer answers the rest itself and answers it for the widget it was written beside.
-`x-wide` was a boolean, and what the theme has to decide is how far the box may reach:
-it decided once, at the one width the vocabulary shares, which is a board's answer —
-right for a widget that lays its content out into what it is given, and wrong for one
-holding something drawn at a size of its own. A 1533px sequence diagram was cut off at
-1080 on a window with room for all of it, behind an overlay scrollbar this platform
-hides until it is used, and it was the page's reader who noticed. The key states which
-kind now, and the theme is a rule per kind rather than a number chosen for the first
-member.
-The tell is not the boolean — most of these keys ask something genuinely binary — but a
-consumer that branches on something its declaration does not state.
+A boolean key is an enumeration whose second value has already been chosen, and it was
+chosen by whichever widget declared first. `x-wide: true` read as *may stand wider than
+the column* and meant *and fills whatever box it is given*, which is a board's answer to
+a question the key never asked: what the theme has to decide is how far the box may
+reach, and with nothing to read it decided once, at the one width the vocabulary shares.
+A diagram's graph is drawn at a size its source decides, so held to that width a 1533px
+sequence diagram was cut off at 1080 on a window with room for all of it, behind an
+overlay scrollbar this platform hides until it is used. Nothing named a widget and
+nothing reached past the registry, so every gate that catches those had nothing to see,
+and it surfaced three widgets later as the page's reader saying a diagram was cut off.
+The kinds are values now (`box`, `drawing`). Where a key's `true` carries a claim the
+entry never states, that claim is the value the key should have had.
 
 A fact the whole layer shares belongs to the layer, under a `$` key, rather than to
 whichever widget first needed it. The vendored tokenizer's language list lived in

@@ -1312,9 +1312,8 @@ async function upgradeWidgets() {
 // they hold, and a page carrying one had to be either a cramped board or a page whose
 // every paragraph was widened to suit it. Neither is a choice a page should have to make,
 // so the widget kind says which it is (x-wide) and the theme spends the room the layout
-// measured (--lf-room, syncLayout). The value is which of two — a `box` that lays its
-// content out into the width it is given, or a `drawing` at its own size that the box
-// only clips — and the theme's rule beside `--wide` is what turns on the difference.
+// measured (--lf-room, syncLayout). The value is the kind the entry declares, and the
+// theme's `[data-lf-wide="box"]` and `[data-lf-wide="drawing"]` rules read it.
 //
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
 // already has with data-lf-said, and what carries the breakout into an exported copy,
@@ -1324,7 +1323,7 @@ async function upgradeWidgets() {
 // change the author never made. Written before the modules import, because the width is
 // the box each of them renders into, and written over the page alone: the room this
 // hands out is the document's, and the one place a widget renders outside the document
-// is a thread's message, where the room is the panel's (see renderMessage).
+// is a thread's message, where the room is the panel's (see msgNode).
 function markWide(root) {
   for (const tag of tagsDeclaring((entry) => entry["x-wide"]))
     for (const el of root.querySelectorAll(tag))

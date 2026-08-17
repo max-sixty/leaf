@@ -2277,6 +2277,11 @@ def custom_widget_css(tag: str) -> str:
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--card);
+  /* This box frames what it holds, so the room its outermost blocks reserve against
+     neighbours they haven't got stops here rather than being painted as padding. Say
+     it wherever a box draws an inset; theme.css states the trim once for every layer,
+     and `version check --render` reports a box that shows more than it declared. */
+  --lf-frame: 1;
 }}
 """
 
@@ -7415,6 +7420,94 @@ UNDECLARED_ATTRS = (
 )
 
 
+# A box that draws an inset and shows a different one. A child's outer margin normally
+# collapses through its parent and is spent between blocks; where the parent draws
+# something at that edge, or holds a formatting context of its own, it cannot get out and
+# is painted as the parent's inset instead. So the number a stylesheet states is not the
+# number a reader sees, and which of the two they get depends on what the author wrote
+# inside: a card ending in a sentence showed its 16px, the same card ending in a paragraph
+# showed 29. theme.css states the trim and a box opts in where it draws the frame
+# (`--lf-frame`); this is what says when one hasn't.
+#
+# It is a reading of the rendered page because nothing else can be. The trim is a style
+# query, the frame is a declaration in whichever layer drew the box, and a project overlays
+# its own theme over leaf's — so which rule won, and whether the child that ended up at the
+# edge is the one the stylesheet's author had in mind, are facts only the browser holds. A
+# lint over the CSS would be reading the declarations and not the result, which is the same
+# mistake the reserved-width lint made before the press sweep replaced it.
+#
+# Two exclusions, both about what a margin means where it stands. A flex or grid container
+# collapses no margin anywhere, so a margin on an item at its edge is a placement rather
+# than room that could not get out — the switch under a screenshot pair carries 3px of
+# exactly that, the UA's own on a checkbox. And an edge whose box is a generated one (a
+# pseudo-element, an `x-says` word, an injected control) is the layer's own paint, stated
+# in the same rule as the frame: what the trim looks for is the first and last block the
+# page itself put there, so this looks for the same, and a card's absolutely-positioned
+# pick mark is not the thing under its last paragraph.
+#
+# Deduped per tag and edge, because one mistake is on every instance of that widget.
+TRAPPED_MARGINS = (
+    """() => {"""
+    + OPEN_ROOTS
+    + """
+    const px = (v) => parseFloat(v) || 0;
+    // The platform's own answer to "does a child's margin reach my edge, and can it get
+    // past it": a box that establishes a formatting context keeps every margin inside.
+    const holds = (s) =>
+        s.display === 'flow-root' || s.display === 'inline-block'
+        || s.display.startsWith('table') || s.overflow !== 'visible'
+        || s.float !== 'none' || s.position === 'absolute' || s.position === 'fixed'
+        || s.contain.includes('layout') || s.contain.includes('paint');
+    // The page's own boxes in this box's flow, in order. Out-of-flow children are not in
+    // it, a floated one spends its margins rather than reserving them, a generated one is
+    // the layer's paint, and a boxless child hands its own children to the flow.
+    const flow = (el) => {
+        const out = [];
+        for (const node of el.childNodes) {
+            if (node.nodeType === 3) { if (node.data.trim()) out.push({}); continue; }
+            if (node.nodeType !== 1) continue;
+            const s = getComputedStyle(node);
+            if (s.display === 'none') continue;
+            if (s.position === 'absolute' || s.position === 'fixed') continue;
+            if (s.float !== 'none') continue;
+            if (s.display === 'contents') { out.push(...flow(node)); continue; }
+            if (node.matches('.lf-ui, [data-lf-gen]')) { out.push({}); continue; }
+            out.push({node, s});
+        }
+        return out;
+    };
+    const found = [];
+    for (const root of roots(document))
+        for (const el of root.querySelectorAll('*')) {
+            const s = getComputedStyle(el);
+            if (s.display === 'none' || s.display === 'contents') continue;
+            // An inline box lays no vertical margin out, so it traps nothing.
+            if (s.display.startsWith('inline') && s.display !== 'inline-block') continue;
+            if (s.display.includes('flex') || s.display.includes('grid')) continue;
+            const kids = flow(el);
+            if (!kids.length) continue;
+            for (const [edge, side, end, kid, pseudo] of [
+                ['above', 'Top', 'Start', kids[0], '::before'],
+                ['below', 'Bottom', 'End', kids[kids.length - 1], '::after'],
+            ]) {
+                if (!kid.node) continue;
+                if (getComputedStyle(el, pseudo).content !== 'none') continue;
+                const drawn = px(s['padding' + side]) + px(s['border' + side + 'Width']);
+                if (!drawn && !holds(s)) continue;
+                const margin = px(kid.s['marginBlock' + end]);
+                if (margin > 0.5)
+                    found.push({
+                        tag: el.tagName.toLowerCase(), id: el.id || null,
+                        cls: el.classList[0] || null, edge, drawn, margin,
+                        child: kid.node.tagName.toLowerCase(),
+                    });
+            }
+        }
+    return found;
+}"""
+)
+
+
 # How long the render gate waits on the server for one of the documents it reads.
 # The same patience playwright gives `wait_for_function` above it, and stated here
 # because it is the number that turns a wedged server into a sentence.
@@ -7460,9 +7553,9 @@ def render_version(browser, url: str) -> list:
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     applyAction is relative, so the poll's replay of the sender's own gesture moves the
-    page again (none of the three is CSS) and, on paper, words the page drops that it
-    says on screen, or draws over each other (print is scheme-blind). Returns
-    human-readable failures; [] is a pass.
+    page again (none of the three is CSS), a box drawing one inset and showing another,
+    and, on paper, words the page drops that it says on screen, or draws over each other
+    (print is scheme-blind). Returns human-readable failures; [] is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -7631,6 +7724,9 @@ def render_version(browser, url: str) -> list:
                 # an applyAction states its widget whole, and a record form is
                 # exactly the attribute it is allowed to state it in.
                 undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, registry)
+        # One scheme, the palettes carrying no geometry between them, and before the
+        # medium moves: a box's inset is what it declared in either.
+        trapped = page.evaluate(TRAPPED_MARGINS) if scheme == "light" else []
         # Last, and in one scheme: paper has no color scheme, and the medium has to be
         # put back before anything else reads a box.
         on_paper = []
@@ -7691,6 +7787,17 @@ def render_version(browser, url: str) -> list:
                 "its registry entry does not declare — declare it as a verb's record "
                 "form (x-state) if a version is meant to carry it, or write the state "
                 "on the chrome the module built"
+            )
+        for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
+            box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+            found.append(
+                f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
+                f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
+                f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
+                f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
+                f"neighbour it hasn't got, and the box is where that margin stops. "
+                f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
+                f"in theme.css reaches it"
             )
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += [f"[{scheme}] {r}" for r in relative]

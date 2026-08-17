@@ -115,6 +115,21 @@ lf-options {
   gap: var(--sp-2);
 }</code></pre>
         <p>
+          A rule that draws an inset — padding, a border, a tinted field — says
+          <code>--lf-frame: 1</code> in the same declaration. Without it the box shows
+          the inset it stated <em>plus</em> whatever room its first and last blocks
+          reserved for neighbours they haven't got, so a card stating 16px comes out 16
+          above its title and 29 below its last paragraph, and the difference moves with
+          what the author wrote inside. The shipped theme states the trim once for every
+          layer; a box opts into it where it draws the frame, and
+          <code>version check --render</code> reports one that hasn't.
+        </p>
+        <pre><code>lf-note {
+  padding: var(--sp-3);
+  background: var(--field);
+  --lf-frame: 1;
+}</code></pre>
+        <p>
           Type is three tokens. <code>--serif</code> sets what the page says,
           <code>--sans</code> what it labels — and what the comment panel, banner, and
           every injected control are set in, so the chrome follows the page.

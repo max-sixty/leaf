@@ -68,9 +68,3 @@ project/user precedence.
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes; they are live at
 <https://leaf.page/examples.html>, and `gallery.html` puts them on one page as tabs.
-
-## Developing
-
-[`CLAUDE.md`](CLAUDE.md) is how the thing is built: the shape of the payload, the
-norms each part is held to, and the commands — the suite, the site, the vendored
-bundles.

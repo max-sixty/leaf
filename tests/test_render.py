@@ -2626,6 +2626,19 @@ def live_leaf(tmp_path, monkeypatch):
                 "ts": interact.now_iso(),
             },
         )
+        # A live leaf has a session behind it, and what the board's hover says about a
+        # page is the work that session is doing it for — so the fixture's pages come
+        # out of somewhere nameable rather than out of nowhere.
+        interact.write_json(
+            d / "session.json",
+            {
+                "id": f"s-{name}",
+                "host": "claude-code",
+                "pid": os.getpid(),
+                "agent": "Claude",
+                "cwd": str(tmp_path / f"{name}-work"),
+            },
+        )
         httpd = interact.LeafHTTPServer(
             ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
         )
@@ -2662,7 +2675,9 @@ def other_leaf(live_leaf):
     return live_leaf("other", "The other leaf")
 
 
-def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_leaf):
+def test_the_banner_opens_a_panel_of_the_machines_leaves(
+    browser, serve, other_leaf, tmp_path
+):
     """The leaves panel, end to end: the banner counts the machine's live pages,
     this one included, a press slides out a left board headed by this page's own
     marked, unlinked row, each neighbour is a link named by its title and saying what
@@ -2671,7 +2686,20 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_l
     standing. Esc is the panel's rung on the ladder. On a machine serving nothing
     else the button never appears, which every other test here shows for free."""
     other_url, _ = other_leaf
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    url = serve(LONG_PAGE)
+    # This page has a session behind it too, so its own row can say the same thing a
+    # neighbour's does.
+    interact.write_json(
+        serve.page_dir / "session.json",
+        {
+            "id": "s-self",
+            "host": "claude-code",
+            "pid": os.getpid(),
+            "agent": "Claude",
+            "cwd": str(tmp_path / "self-work"),
+        },
+    )
+    page, errors = open_page(browser, url)
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
     btn.click()
@@ -2688,6 +2716,19 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_l
     # so the row says so — dot and words both the banner's own vocabulary.
     expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    # Every row is cut to the panel's width, so the hover holds the whole account —
+    # and the fact no row draws is the work behind the page, which is what tells two
+    # rows apart when the titles somebody wrote for them are alike. Both rows carry it,
+    # from the one gatherer that answers for this page and for its neighbours
+    # (`presence`): the board's account of a neighbour is the account that page gives
+    # of itself.
+    expect(self_row).to_have_attribute(
+        "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
+    )
+    expect(link).to_have_attribute(
+        "title",
+        f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
+    )
     with page.context.expect_page() as opened:
         link.click()
     # The other server's own redirect lands the new tab on its newest published
@@ -2718,17 +2759,18 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_l
 
 
 def test_a_panel_row_follows_its_pages_status_live(
-    browser, serve, other_leaf, dead_pid
+    browser, serve, other_leaf, dead_pid, tmp_path
 ):
     """The panel is a status board, not a snapshot: a neighbour's state changing on
     disk repaints its row at the next poll, in place — and a neighbour whose claimant
     has exited reads as unheld, the computed fact its own banner would state, not the
-    claim its status file still makes."""
+    claim its status file still makes. The row's hover follows it too, being the same
+    account written where there is room for it whole."""
     _, other_dir = other_leaf
     page, errors = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("o")  # the key opens the panel like the button does
+    page.keyboard.press("l")  # the key opens the panel like the button does
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
     interact.write_json(
@@ -2750,9 +2792,12 @@ def test_a_panel_row_follows_its_pages_status_live(
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
         # And what it is waiting for, because the panel is where a reader picks which
         # page to go to: the row that says a page needs them carries the ask, the way
-        # the working row above carries what its agent is doing. Its own tooltip too —
-        # the line ellipsizes at the panel's width and the row's tooltip holds the page
-        # title, so without one the ask is what a narrow hover cannot recover.
+        # the working row above carries what its agent is doing. The hover holds it
+        # whole, with the rest of the account, since the line ellipsizes at the panel's
+        # width — and it is the row's hover and not the line's, the innermost title
+        # winning where two overlap: a title on the line would answer the hover most
+        # likely to be asking for the rest, a reader pointing at the words that ran out
+        # of room, with the one part of the account they can already read.
         interact.write_json(
             other_dir / "status.json",
             {
@@ -2764,7 +2809,27 @@ def test_a_panel_row_follows_its_pages_status_live(
         told(page)
         line = row.locator(".lf-others-line")
         expect(line).to_have_text("Awaits — pick a storage engine")
-        expect(line).to_have_attribute("title", "Awaits — pick a storage engine")
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine",
+        )
+        assert line.get_attribute("title") is None, (
+            "the line carries a tooltip of its own again, which wins under the pointer "
+            "over the row's whole account"
+        )
+        # A leaf holding words of the reader's that nobody has read is a reason to go
+        # to it, and no row draws that either: the banner says this number for the page
+        # it stands on, and the board says it for every page on the machine.
+        interact.append_event(
+            other_dir,
+            {"kind": "comment", "author": "user", "version": 1, "text": "Mine."},
+        )
+        told(page)
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine"
+            "\n1 update waiting",
+        )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
     interact.write_json(
@@ -2789,7 +2854,7 @@ def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     interact.write_json(
@@ -2810,10 +2875,10 @@ def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
 
 
 def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
-    """The board is a list, and a reader walks it without reaching for the mouse: o
+    """The board is a list, and a reader walks it without reaching for the mouse: l
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
-    to the button that opened it. The key line names o before it is pressed and the
+    to the button that opened it. The key line names l before it is pressed and the
     board's own keys while focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
@@ -2822,10 +2887,10 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")
-    # A shortcut no surface names is a shortcut nobody finds: the line carries o for
+    # A shortcut no surface names is a shortcut nobody finds: the line carries l for
     # exactly as long as there is a board to open.
     expect(keyline).to_contain_text("leaves")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     # Titles order the board, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
@@ -2868,7 +2933,7 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
     it for the thread, the list and the page scenes alike."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("o")  # the board first, then the panel over it
+    page.keyboard.press("l")  # the board first, then the panel over it
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
     page.keyboard.press("Escape")  # back out of the box, onto the panel's list
@@ -2902,7 +2967,7 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
     # Short enough that the rows overflow the board, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     for _ in names:
         page.keyboard.press("ArrowDown")
@@ -9674,11 +9739,11 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
 
     board = page.locator(".lf-others-panel")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     expect(board).to_be_visible()
-    page.evaluate(press, ["o", True])  # a toggle does not
+    page.evaluate(press, ["l", True])  # a toggle does not
     expect(board).to_be_visible()
-    page.evaluate(press, ["o", False])  # the same event, answered
+    page.evaluate(press, ["l", False])  # the same event, answered
     expect(board).to_be_hidden()
     assert errors == []
     page.close()
@@ -9893,14 +9958,14 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
     page.keyboard.press("Escape")
 
-    # o names the direction of its own toggle. Opened from the banner, because opening
+    # l names the direction of its own toggle. Opened from the banner, because opening
     # it by key lands focus inside the board, and the line is then the board's own scope
-    # rather than the page's — the o row is only on screen while the page's is.
+    # rather than the page's — the l row is only on screen while the page's is.
     expect(line).to_contain_text("show leaves")
     page.get_by_role("button", name=re.compile("^All leaves")).click()
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
     expect(line).to_contain_text("hide leaves")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
     expect(line).to_contain_text("show leaves")
     assert errors == []
@@ -12457,7 +12522,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way o opens the leaves board, and
+    # v opens it from anywhere on the page, the way l opens the leaves board, and
     # lands on the version being read so the walk above is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what
     # each version changed is reachable by keyboard through this key or not at all.

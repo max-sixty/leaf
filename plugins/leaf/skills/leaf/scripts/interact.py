@@ -77,9 +77,11 @@ A page directory holds:
                          clears it so the next serve decides afresh. The key the
                          URL also carries is the machine's, not the page's, and
                          lives in the state home
-    session.json         {"id", "host", "pid", "agent"} of the agent session last
-                         working on the page — the watcher the banner names, not
-                         necessarily the author of any given message
+    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent
+                         session last working on the page — the watcher the
+                         banner names, not necessarily the author of any given
+                         message, and the directory it was working in, which is
+                         what the leaves board tells one page from another by
 
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
@@ -1257,7 +1259,12 @@ def claim_page(page_dir: Path) -> bool:
     sid = identity["id"]
     write_json(
         page_dir / "session.json",
-        {**identity, "pid": int(pid), "ts": now_iso()},
+        # Where the session is working, which is what a page is *about* to the person
+        # reading the board: a leaf is named by a title somebody wrote and lives in a
+        # state directory nobody chose, and neither says which project it came out of.
+        # The claiming command runs from the session's own directory, the same reading
+        # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
+        {**identity, "pid": int(pid), "cwd": os.getcwd(), "ts": now_iso()},
     )
     sessions = state_home() / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
@@ -1380,11 +1387,13 @@ def unacknowledged(events: list, cursor: int) -> list:
 
 
 def presence(page_dir: Path, events: list) -> dict:
-    """The facts a shown status derives from: the agent's claim, and everything the
-    directory holds that can answer for it. One gatherer for both places a status
-    is shown — `full_state` spreads it into the page's own poll answer, and
-    `other_leaves` attaches it to each entry — so the runtime's one
-    claim-against-proof judgment reads the same fields whichever page it judges."""
+    """What a seat showing this page says about it: the agent's claim, everything
+    the directory holds that can answer for it, and where that agent is working.
+    One gatherer for every such seat — `full_state` spreads it into the page's own
+    poll answer, and `other_leaves` attaches it to each entry — so the runtime's one
+    claim-against-proof judgment reads the same fields whichever page it judges,
+    and the board's account of a neighbour is the account this page gives of
+    itself."""
     # A file that isn't there stands in as its whole record, so every read below
     # indexes rather than asking twice whether the field arrived.
     status = read_json(page_dir / "status.json") or {
@@ -1418,6 +1427,13 @@ def presence(page_dir: Path, events: list) -> dict:
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
         "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
+        # Where the claimant is working (claim_page), for the board's hover: what
+        # tells one leaf from another is the work behind it, and neither the title
+        # nor the page directory says which that is. It outlives the session that
+        # wrote it, as every other fact in this record does — a page the board
+        # calls unheld came out of somewhere, and that is still where it came from.
+        # None for a page nothing ever claimed, which is the honest nothing.
+        "session_cwd": session.get("cwd") if session else None,
     }
 
 

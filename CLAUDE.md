@@ -269,6 +269,13 @@ needs loading. The bar is real — an `x-` key the log records is a forever-cont
 vendored-layer stamp then carries (`$events`) — which is an argument for finding the
 general shape, not for reaching past the registry.
 
+The stylesheet is under the same rule and answers it in its own vocabulary, since a
+selector is a consumer too and a list of tags is the closed list wearing CSS. A box
+declares that it frames what it holds (`--lf-frame`) in the rule where it draws the frame,
+and one style query trims what every such box would otherwise paint as its own inset — so
+a project's card is covered by saying the same thing, where a list in leaf's theme could
+never have named it. The norm is `plugins/leaf/skills/leaf/CLAUDE.md`'s.
+
 A fact the whole layer shares belongs to the layer, under a `$` key, rather than to
 whichever widget first needed it. The vendored tokenizer's language list lived in
 `lf-code`'s `language` enum, and from there the only way for the lint to read it was to name

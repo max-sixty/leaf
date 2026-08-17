@@ -66,12 +66,15 @@ svg.arch { display: block; margin: 20px auto; width: 100%; max-width: 720px;
 /* One row per example: what it is on the left, the page itself on the right.
  * A grid rather than a list, so the links line up as a column to run down. */
 .exhibits { display: grid; gap: var(--sp-1) var(--sp-3); margin: 16px 0;
-            grid-template-columns: minmax(11rem, max-content) 1fr; }
+            grid-template-columns: minmax(11rem, max-content) 1fr; --lf-frame: 1; }
 .exhibits dt { font-weight: 600; }
 .exhibits dd { margin: 0 0 10px; color: var(--ink-2); font-size: var(--t-5); }
 
 /* ---------- the foot ---------- */
 
+/* The rule over the colophon is 16px off it, which is what the padding says; without the
+   frame declared it was 22, the first line's own 6px having nowhere to collapse to.
+   theme.css states the trim; a box states that it frames what it holds. */
 footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--rule);
-         font-size: var(--t-5); color: var(--muted); }
+         font-size: var(--t-5); color: var(--muted); --lf-frame: 1; }
 footer p { margin: 6px 0; }

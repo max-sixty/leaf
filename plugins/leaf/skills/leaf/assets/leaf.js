@@ -1975,8 +1975,11 @@ ${MARK_RULES}
     .lf-panel.open { display: flex; }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* contain: reaching the end of the thread list must not start scrolling the page
-       behind it — one wheel gesture moves one region. */
-    .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; }
+       behind it — one wheel gesture moves one region.
+       The frame is declared because the inset is read at both ends of a scroll region:
+       the list opened 10px above its first thread and stopped 22px under the last, the
+       last thread's own 12px having nowhere to collapse to. See theme.css. */
+    .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; --lf-frame: 1; }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
     .lf-threads:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
@@ -1985,7 +1988,7 @@ ${MARK_RULES}
        a second description of it. What .lf-going adds is the clip the fold needs and
        the outcome said in paint: the box is on its way out and may not also state
        that in metrics the fold is animating. */
-    .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; }
+    .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; --lf-frame: 1; }
     .lf-going { overflow: hidden; box-sizing: border-box; }
     /* The outcome rides the closing edge, so it is legible for the whole fold rather
        than for the frame before the box swallows it: the actions row is the thread's

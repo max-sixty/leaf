@@ -666,6 +666,71 @@ than from the lines they fell into, which is what the aria snapshot in
 reach was a reading of the page that took them for the page's own words, and that is
 answered where the question is asked — whose words are these, in `COVERED_WORDS`.
 
+## The inset a box shows is the inset it stated
+
+A box that draws an inset shows it twice, above what it holds and below it, and by default
+only one of the two is the stylesheet's to decide. A child's outer margin collapses through
+its parent and is spent between blocks; where the parent draws something at that edge, or
+holds a formatting context of its own, the margin cannot get out and is painted as the
+parent's inset instead. So the number in the rule is not the number on screen, and which of
+the two a reader gets depends on what the author wrote inside: an option card stating 16px
+came out 16 above its title and 29 under its last paragraph, and the same card ending in a
+run of words came out even. A block change's tinted field stated 2px and showed 15 at each
+end. It was on every option card, every variant, every block change and every quotation the
+corpus has, and what finally surfaced it was a reader looking at a specimen's gutter running
+sixteen pixels past the exhibit at both ends and asking why the marking was longer than the
+thing it marked.
+
+None of those numbers was chosen, which is what makes it a defect rather than a taste. An
+inset that moves with the content is the box saying one thing and the page showing another,
+and it fails silently in both directions — it renders perfectly, and it reads as a number
+somebody picked.
+
+`margin-trim` is the property for this and Chrome has not got it (checked at 151), so the
+trim is written out in `theme.css`. The half worth reading twice is who writes it. A list of
+the boxes that frame what they hold is the closed list the norms forbid: a layer's
+stylesheet can name only that layer's own boxes, so a project's card is outside it and the
+failure is a silent 13px rather than an error. A box says so itself instead, in the same
+declaration where it draws the frame (`--lf-frame: 1`), and one style query finds every one
+of them in any layer, the one nobody has written yet included. The box `leaf customize
+widget` scaffolds says it, so a project's first widget is right by construction.
+
+Which child is at that edge is a question about the page's own blocks, and `:first-child` is
+the DOM's answer to it. The two agree only where no module has written anything. A pick mark
+is appended and positioned out of the flow; a quiet word is clipped and inserted after the
+title — and each takes the trim off the block the reader can actually see, in exactly the
+widgets that build the most chrome. So the trim asks for the first and last child that is
+not generated, by the same pair of markers the anchor pass reads (`GENERATED`), because it
+is the same question: which of these words are the page's. That also dissolves the
+specimen's two arrangements into one, its "quoted ·" note being a generated child on a live
+page and a pseudo-element on a page carrying no script.
+
+What no selector reaches is a child that hands its own children's margins on rather than
+reserving room itself. A suggestion generates no box, so its slots are the flow's boxes and
+the frame's rule lands on an element with nothing to trim; a bare wrapper has a box and no
+margin of its own, so a grandchild's margin collapses through it to the frame's edge
+unchanged. The rail is that second one, and it is why `.facts` declares the frame too: a
+`dt`'s 6px between terms is the first term's as well, and it reached the option's padding
+through a `dl` that had reserved nothing, leaving the rail's first line 6px below the case
+docked beside it. The answer is the same sentence one level in — which is also why the
+block slot asks for its room above rather than around itself.
+Reaching a level further from the frame is the fix that suggests itself and trades a silent
+failure for a worse one, since the same selector over a padded child closes up that box's
+own first line. The gate reads the same level the trim does, so what it reports is what a
+declaration can fix.
+
+The check is a reading of the rendered page, because nothing else can be: the trim is a
+style query, the frame is a declaration in whichever layer drew the box, and a project
+overlays its own theme over leaf's, so which rule won is a fact only the browser holds.
+`version check --render` re-reads every drawn box and names the one showing more than it
+declared (`TRAPPED_MARGINS`, in `interact.py`), which is the same shape as the press sweep
+replacing a stylesheet lint: what a rule does to a page is a fact about a rendered page. It
+excludes two things on purpose. A flex or grid container collapses no margin anywhere, so a
+margin on an item at its edge is a placement rather than room that could not get out — the
+switch under a screenshot pair carries 3px of exactly that, the UA's own on a checkbox. And
+an edge whose box is generated is the layer's own paint, stated in the same rule as the
+frame.
+
 ## A widget's form follows its content, and each form states its own rules
 
 `lf-options` renders as stacked cards or as a list of rows, and nothing declares which:

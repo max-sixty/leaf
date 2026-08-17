@@ -18,18 +18,19 @@ tests = "uv run pytest tests --run-nightly"
 # What a cloud container needs before either gate above can run, declared beside them
 # because it is the same subject: the locked environment, the system Chrome the browser
 # suite attaches to (`channel="chrome"`, so a preinstalled Chromium of another build is
-# no substitute), and warm hook environments. Both clouds run it — Codex Cloud and Claude
-# Code on the web reach `.config/cloud/environment.sh`, which bootstraps `wt` and then
-# calls this.
+# no substitute), and warm hook environments. Both clouds run it, each from a command
+# string in its own settings that installs `wt`, approves this branch and calls this —
+# `.config/cloud.md` holds that chain and where it goes. The repo keeps no setup script,
+# there being nothing left for one to hold.
 #
 # No version is written here. `uv.lock` pins what `uv sync` installs, and the hook revs in
 # `.pre-commit-config.yaml` are what decide the lint, so pinning the runner that reads them
 # was a second number to bump for no behaviour it could change.
 #
 # `set -eu` and nothing piped, because an alias runs under `sh`: `pipefail` does not exist
-# there, so a pipe's failure would pass for success. The one step that does pipe — piping
-# a downloader into a shell, where that silence would install nothing and report a clean
-# setup — is why the bootstrap stays a bash script instead of joining this.
+# there, so a pipe's failure would pass for success — a downloader piped into a shell being
+# the case that installs nothing and reports a clean setup. Nothing here pipes, and the
+# chain that fetches `wt` writes a file and runs it for the same reason.
 [aliases]
 configure-cloud = """
 set -eu

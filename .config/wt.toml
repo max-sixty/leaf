@@ -20,32 +20,18 @@ tests = "uv run pytest tests --run-nightly"
 # suite attaches to (`channel="chrome"`, so a preinstalled Chromium of another build is
 # no substitute), and warm hook environments.
 #
-# Both clouds reach it from a command string in their own settings — Codex's setup and
-# maintenance scripts, and a Claude `SessionStart` hook in the gitignored
-# `.claude/settings.local.json` — because `wt` has to exist before an alias can run, which
-# is the whole of what the repo would keep a setup script for:
+# Who runs it, and how a container gets `wt` to run it with, is the cloud bullet in
+# CLAUDE.md — an agent reading that file is the whole mechanism, there being no hook or
+# script here to be one. Approvals come before the call, an alias being approval-gated like
+# the commands above: an unapproved container stops at a prompt with nobody to answer it.
 #
-#   command -v wt >/dev/null 2>&1 || {
-#     curl --proto '=https' --tlsv1.2 -LsSf --retry 6 --retry-all-errors --retry-delay 2 \
-#       -o /tmp/wt-install.sh \
-#       https://github.com/max-sixty/worktrunk/releases/latest/download/worktrunk-installer.sh
-#     WORKTRUNK_UNMANAGED_INSTALL="$HOME/.local/bin" sh /tmp/wt-install.sh
-#   }
-#   export PATH="$HOME/.local/bin:$PATH"
-#   wt config approvals add --yes
-#   wt configure-cloud
+# No version is written here. `uv.lock` pins what `uv sync` installs and the hook revs in
+# `.pre-commit-config.yaml` decide the lint, so pinning the runner that reads them was a
+# second number to bump for no behaviour it could change.
 #
-# Approvals before the call, an alias being approval-gated like the commands above: an
-# unapproved container stops the setup at a prompt with nobody there to answer it.
-#
-# No version is written in either place. `uv.lock` pins what `uv sync` installs and the hook
-# revs in `.pre-commit-config.yaml` decide the lint, so pinning the runner that reads them
-# was a second number to bump for no behaviour it could change; `wt` is unpinned and fetched
-# only when absent, so a cached container starts with no network at all.
-#
-# Nothing pipes, here or there. An alias runs under `sh`, which has no `pipefail`, so a
-# downloader piped into a shell would report success having installed nothing and left the
-# setup to run without its tools — hence the file that chain writes and then runs.
+# Nothing pipes. An alias runs under `sh`, which has no `pipefail`, so a downloader piped
+# into a shell would report success having installed nothing and left the setup to run
+# without its tools — which is why the chain in CLAUDE.md writes a file and runs that.
 [aliases]
 configure-cloud = """
 set -eu

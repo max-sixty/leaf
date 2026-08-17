@@ -4305,14 +4305,13 @@ function findQuote(text, quote, anchor, within) {
 // because that runs first, the column is already reflowed by the time we scroll.
 const VIEW_KEY = "lf-view";
 
-// The first text block still on screen below the banner: what the reader is reading. A
-// block's landmark is the top of its first line (a range), not its border box; restore
+// The page's own text blocks the reader can see, in document order, with the rect of each
+// one's first line — one reading of what is in front of them, for the two questions that
+// ask it: which passage a version change should land them back on (below), and where a
+// walk over the page's asks starts when they have pointed at nothing (askPosition).
+// A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
-// The quote and the section it's searched in come from the same block, or the search is
-// filtered to a section the text isn't in and can only ever fail — restore then falls back
-// to the section, which doesn't absorb content added above the reader inside it.
-function captureView() {
-  const view = { v: VNUM, y: pageScroller.scrollTop };
+function* blocksOnScreen() {
   for (const block of document.querySelectorAll(TEXT_BLOCK)) {
     // [hidden] needs an explicit skip: hidden="until-found" resolves to
     // content-visibility, under which descendants still report real rects —
@@ -4321,7 +4320,15 @@ function captureView() {
     const range = document.createRange();
     range.selectNodeContents(block);
     const rect = range.getBoundingClientRect();
-    if (!rect.height || rect.bottom <= 42) continue; // 42 = banner height
+    if (rect.height && rect.bottom > 42) yield [block, rect]; // 42 = banner height
+  }
+}
+// The quote and the section it's searched in come from the same block, or the search is
+// filtered to a section the text isn't in and can only ever fail — restore then falls back
+// to the section, which doesn't absorb content added above the reader inside it.
+function captureView() {
+  const view = { v: VNUM, y: pageScroller.scrollTop };
+  for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
     if (!view.section && section) {
       // The first on-screen block's section, kept only until a quotable block supplies
@@ -5910,12 +5917,18 @@ const PAGE = {
       run: () => setLeader(true),
     },
     {
-      keys: ["a"],
-      does: "Go to the next thing this page is waiting on you for",
+      // A pair of letters like every other walk on this page, rather than the letter and
+      // its own shifted twin: Shift already says "at large" here, and `A` answering every
+      // ask is worth more than a second direction spelled the one way that would make the
+      // modifier mean two things (the reasoning that refused `V` for the newest version).
+      // So `p` steps back — the direction, since `a` is already the noun and the banner's
+      // own control says it.
+      keys: ["a", "p"],
+      does: "Next / previous thing this page is waiting on you for",
       line: "asks",
       also: asksBtn, // the banner button this key duplicates, which then names it
       when: () => openAsks().length > 0,
-      run: stepAsk,
+      run: (binding) => stepAsk(binding === "a" ? 1 : -1),
     },
     {
       keys: ["d", "u"],
@@ -6519,22 +6532,22 @@ document.addEventListener("lf-answered", () => {
   paintAnchors();
 });
 document.addEventListener("lf-actions", syncAsks);
-asksBtn.onclick = stepAsk;
+asksBtn.onclick = () => stepAsk(1);
 
-// The next thing waiting on the reader, wrapping, because asks are a worklist rather
-// than a document to read through: answering one takes it out of the list, so forward
-// is the direction that has somewhere to go, and a single key that clamps at the end
-// would strand them there. The walk's position is carried the way the half-page keys
-// carry a destination — a place in a list rather than state anything else derives —
-// and an ask answered since the last press is simply no longer in the list, so the
-// walk resumes from the top.
-let askAt = null;
+// The walk over what the page is waiting on the reader for. It wraps at both ends,
+// because asks are a worklist rather than a document to read through: answering one takes
+// it out of the list, so forward is the direction that has somewhere to go, and a walk
+// that clamped there would strand them at the end of it.
+//
 // A press this control belongs to: one inside the ask, or one hoisted out of it and
 // pointing back (a suggestion's row is the column's child, so that it can hang in the
 // page margin). Landing on it rather than on the ask means Tab walks the rest of that
 // ask's own controls from there, and it is the only landing available where the
 // element has no box of its own to hold focus (a suggestion renders display: contents).
 const ASK_CONTROL = "[data-lf-offer][tabindex]";
+// Which ask such a control decides, where the widget hoisted it out of the element (the
+// attribute lf-suggestion writes on the row it hangs in the margin).
+const ASK_ROW = "data-lf-for";
 // The ask this walk lent a tab stop to, so it can take it back. An ask with nothing to
 // work has no box in the tab order and the runtime writes it one — which is paint on the
 // author's element, and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave
@@ -6542,12 +6555,62 @@ const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // one). So the lend lasts exactly as long as the mark it goes with. One at a time,
 // because one element wears the mark at a time.
 let askLent = null;
-function stepAsk() {
+// A place in the document, stated as the ask it belongs to wherever it belongs to one: a
+// control hoisted out of its ask and pointing back at it stands for that ask and not for
+// the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
+// land on the suggestion the reader is already standing on.
+function askPlace(node) {
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  const row = el?.closest(`[${ASK_ROW}]`);
+  return (row && elementById(row.getAttribute(ASK_ROW))) ?? node;
+}
+const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
+// Where the walk measures from: where the reader is standing, rather than where the walk
+// last put them. It carried an id of its own, so every walk the reader had not made with
+// this key started at the top of the page — select a paragraph and press `a` and you were
+// taken back past everything you had read, and so was anyone scrolled halfway down
+// pressing it for the first time. d/u measure from the scroll position and j/k from the
+// focused thread; this measured from its own memory, which is the one place the reader
+// isn't.
+//
+// Read in the order of how directly each says where they are: what they have focused,
+// what they have selected, where the walk itself last landed (the mark, which is the
+// walk's memory and needs no second copy), and what they are reading. Every one of them
+// can be absent, and then the first ask is the only answer there is.
+//
+// document.activeElement rather than focused(): a control staged in a shadow tree
+// retargets to its host, which is exactly what this question wants — a place in the
+// document to measure the asks against, not the control the register would dispatch to.
+function askPosition() {
+  const held = document.activeElement;
+  // The banner stands over the page rather than in it, and its controls are addresses
+  // the reader holds from wherever they are. The Asks button focuses itself on the way
+  // to running this, so measuring from it would send every press on it back to the top.
+  if (held && held !== document.body && !banner.contains(held)) return askPlace(held);
+  const sel = getSelection();
+  // A caret counts here, where the composer's reading of the selection (pageSelection)
+  // wants words to quote: a click that placed one is the reader saying where they are.
+  if (sel?.focusNode && !inChrome(sel.focusNode)) return askPlace(sel.focusNode);
+  return document.querySelector(`[${PAGE_PAINT_ATTRIBUTE.ask}]`) ?? readingBlock();
+}
+// The ask `dir` steps to from there. Document position rather than an index into the
+// list, because the reader's place is a place and not a row: an ask holding it is the one
+// they are standing on, so it is what they step off rather than what they step to.
+function askStep(asks, dir) {
+  const here = askPosition();
+  if (!here) return dir > 0 ? asks[0] : asks.at(-1);
+  const side =
+    dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
+  const reach = asks.filter((ask) => {
+    const rel = here.compareDocumentPosition(ask);
+    return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
+  });
+  return dir > 0 ? (reach[0] ?? asks[0]) : (reach.at(-1) ?? asks.at(-1));
+}
+function stepAsk(dir) {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
-  const to = (asks.indexOf(elementById(askAt)) + 1) % asks.length;
-  const next = asks[to];
-  askAt = next.id;
+  const next = askStep(asks, dir);
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent) {
@@ -6561,7 +6624,7 @@ function stepAsk() {
   next.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
   const control =
     next.querySelector(ASK_CONTROL) ??
-    document.querySelector(`[data-lf-for="${next.id}"] ${ASK_CONTROL}`);
+    document.querySelector(`[${ASK_ROW}="${next.id}"] ${ASK_CONTROL}`);
   if (!control) {
     next.tabIndex = -1; // nothing to work: the ask itself takes the focus
     askLent = next;
@@ -6573,7 +6636,7 @@ function stepAsk() {
   // to centre and only a page ask takes the shared travel.
   if (inChrome(next)) next.scrollIntoView({ behavior: SCROLL, block: "center" });
   else scrollToElement(next);
-  announce(`${to + 1} of ${asks.length} waiting on you`);
+  announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
 }
 
 // ---------- version diff ----------

@@ -7471,11 +7471,12 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
-    """j/k step the open threads; `a` steps the things the page is asking, and the
-    two lists are the same kind of thing to walk. It wraps rather than clamping,
-    because an ask leaves the list as soon as it is answered — forward is the
-    direction with somewhere to go, and one key that stopped at the last one would
-    strand the reader there.
+    """j/k step the open threads; a/p step the things the page is asking, and the
+    two lists are the same kind of thing to walk — a pair of letters either way,
+    since Shift on this page means an answer given at large (A) rather than the
+    other direction of a walk. It wraps rather than clamping, because an ask leaves
+    the list as soon as it is answered — forward is the direction with somewhere to
+    go, and one key that stopped at the last one would strand the reader there.
 
     The landing is marked on the ask and focused on the control that answers it, so
     the reader can see what they were brought to and Tab straight into working it —
@@ -7503,6 +7504,20 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         ["live-question", "span lf-pick lf-ui"],
     ], f"the walk landed somewhere else: {walked}"
 
+    # And back, from where the last press left them: `p` wraps at this end too, and the
+    # step off a suggestion is measured from the suggestion rather than from the ✓ Accept
+    # holding the focus — that row is hoisted out into the page margin as a sibling of the
+    # block it decides, so a walk reading it where it hangs would step back onto the
+    # change the reader is standing on.
+    back = []
+    for _ in range(len(ASKS_IN_ORDER)):
+        page.keyboard.press("p")
+        expect(page.locator("[data-lf-ask]")).to_have_count(1)
+        back.append(page.evaluate("() => document.querySelector('[data-lf-ask]').id"))
+    assert back == ["t-bath", "t-baffles", "sug-refill", "live-question"], (
+        f"the walk back landed somewhere else: {back}"
+    )
+
     # The overlay and the key line offer it because there is something to reach.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
@@ -7515,6 +7530,56 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     page.keyboard.press("a")
     expect(page.locator("#t-baffles")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
+    """The walk measures from the reader, the way d/u measure from the scroll position
+    and j/k from the focused thread. It kept an id of its own instead, so every walk
+    the reader had not made with this key started at the top of the page: scroll
+    halfway down and press `a` and you were taken back past everything you had read,
+    and so was anyone who had just selected a paragraph to comment on.
+
+    Three readings of where they are, and the page is left in each state in turn: what
+    they are reading, when they have pointed at nothing; what they have selected; and
+    the walk's own mark, once the walk itself is what last moved them. The banner's
+    button is no place — it focuses itself on the way to running the walk, so a press
+    on it measured from the focus would restart the walk on every click."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+
+    # A window short enough that reading down the page leaves the top of it behind,
+    # which is the whole of what the reader has to do to be somewhere.
+    resized(page, 900, 400)
+
+    # Scrolled to the change with nothing selected and nothing focused: the ask after
+    # it, not the question above it. They are standing *in* that suggestion, which is
+    # why it is the ask they step off rather than the one they step to.
+    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    page.keyboard.press("a")
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+
+    # The banner's press is the same walk and steps on from there, though the button
+    # holds the focus by the time it runs.
+    page.locator(".lf-asks").click()
+    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+
+    # A selection outranks the mark, because it is the reader saying where they are
+    # since the walk last moved them: from a task above the two the walk has just been
+    # through, forward is the first of them and back is the change before it. Measured
+    # after each landing, because the landing scrolled the page under the coordinates.
+    def drag_over_the_done_task():
+        page.locator("#t-mounts strong").scroll_into_view_if_needed()
+        box = page.locator("#t-mounts strong").bounding_box()
+        y = box["y"] + box["height"] / 2
+        select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+
+    drag_over_the_done_task()
+    page.keyboard.press("a")
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    drag_over_the_done_task()
+    page.keyboard.press("p")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
 

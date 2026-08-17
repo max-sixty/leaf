@@ -946,6 +946,14 @@ press first. The shifted twin is the tempting shape here and the wrong one, sinc
 that opened the newest version would act on one of them rather than on all of them, and
 Shift would then mean two things.
 
+The other direction of a walk is that same move, which is why every walk on this page is
+a pair of letters — `j`/`k`, `d`/`u`, `[`/`]`, and `a`/`p` through the asks. One letter
+and its shifted twin per noun is the tidier-looking scheme and it spends the modifier: a
+walk backwards lands on one ask rather than answering all of them, so `A` for it would
+take the at-large key away from the one press on this page that ends a matter and leave
+caps lock inverting the walk's direction in silence. The noun keeps the letter the
+banner's own control names, since a walk needs no mnemonic in both halves.
+
 The overlay renders at open and can go stale while it stands, and the two directions cost
 differently, both acceptably. A row going dead under it can't be pressed — the overlay is
 `only`, so the page stands down beneath it — and a key going live under it is merely
@@ -983,6 +991,33 @@ rule the runtime already follows for everything it renders: `showFab` writes the
 `c` names, so it paints the line, as `showOthers` does for the board. `paintLine`
 coalesces to a frame, so painting from each writer costs nothing and saves reasoning
 about which one is last.
+
+## A walk starts where the reader is standing
+
+A key that steps through the page is answering "from here, what is next", and the reader
+decides where here is. `d`/`u` measure from the scroll position, `j`/`k` from the focused
+thread. The ask walk measured from an id of its own instead, and so answered a question
+nobody asked: where its own last press had put them. A reader who scrolled halfway down
+and pressed `a` for the first time, or who selected a paragraph and then reached for the
+next thing waiting on them, was taken to the top of the page past everything they had
+just read.
+
+Where they are is read from what they have done, most direct first — focus, then the
+selection, then the walk's own mark, then the block they are reading — because each of
+those is a thing they did and the later ones are older news. A caret counts even where a
+quote wouldn't: this asks where the reader is, not what they meant to quote, which is why
+it is its own reading and not `pageSelection`. The banner is the one place that is no
+place: its controls are addresses held from wherever the reader stands, and the Asks
+button focuses itself on the way to running the walk, so measuring from focus there would
+have restarted the walk on every click of it.
+
+Then the walk is over places in the document rather than indices into its own list
+(`askStep`), which is what makes a direction mean anything from a standing start — and an
+ask holding the reader's place is the one they step off rather than the one they step to.
+The list has to be the page's order for any of that to hold. The panel's threads are in
+the log's order, so `j`/`k` have no page position to measure from and the head of the list
+is the right answer there; the tell is not "does this walk carry state" but "is where the
+reader is a position in what this walk walks".
 
 ## A widget's chrome outlives its handlers
 

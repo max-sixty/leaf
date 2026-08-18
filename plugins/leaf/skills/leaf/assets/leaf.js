@@ -1588,7 +1588,7 @@ style.textContent = `
      padding under a banner the file hasn't got — so wherever a scrollbar takes room
      the copy's column sat 7.5px left of the centre of a page it had all of. Nothing
      on this machine could say so, the declarations being no-ops here; the runner said
-     it, on all ten examples at once. That is what pins this now
+     it, on every example at once. That is what pins this now
      (test_an_exported_example_stands_on_its_own, and scripts/linux-suite.sh is where
      to watch it fail), and paper needs no rule of its own, never having been handed
      the arrangement to undo. Spelled :where(), because these declarations are the only

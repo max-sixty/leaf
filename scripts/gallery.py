@@ -20,11 +20,8 @@ GALLERY = EXAMPLES_DIR / "gallery.html"
 TABS = [
     ("ship-review", "Ship review"),
     ("design-decision", "Design decision"),
-    ("api-sunset", "API sunset"),
-    ("incident-report", "Incident report"),
-    ("public-postmortem", "Public postmortem"),
+    ("postmortem", "Postmortem"),
     ("pr-walkthrough", "PR walkthrough"),
-    ("status-report", "Status report"),
     ("live-progress", "Live progress"),
     ("triage-board", "Triage board"),
     ("command-hub", "Command hub"),

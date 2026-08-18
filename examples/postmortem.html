@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Public postmortem: the 12 June export delays</title>
+    <title>Postmortem: the 12 June export delays</title>
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -14,16 +14,25 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">public postmortem · draft 3</p>
-      <h1>What we publish about 12 June</h1>
+      <p class="eyebrow">postmortem · draft 3</p>
+      <h1>The 12 June export delays</h1>
       <p class="lede" id="pm-lede">
-        The internal report is settled; this is the version customers read. Four edits
+        The findings are settled and stand below; what customers read is not. Four edits
         wait in the margin — a plainer wording, a deleted sentence, two added paragraphs
         — and ✓ or ✗ decides each. The summary and the status-page notice are yours to
         write, and two decisions are still open: who this goes to, and whether we put a
         date on the last fix. Sign off and I publish the writeup — the drafts as you
         left them, each proposal as you decided it.
       </p>
+
+      <dl class="facts">
+        <dt>Detected</dt>
+        <dd>09:14, queue-depth alert</dd>
+        <dt>Resolved</dt>
+        <dd>10:48, poison job quarantined</dd>
+        <dt>Blast radius</dt>
+        <dd>exports only; imports and sync unaffected</dd>
+      </dl>
 
       <section id="pm-summary">
         <h2>Summary</h2>
@@ -84,10 +93,38 @@ On the morning of 12 June, exports were delayed for 94 minutes. Nothing was lost
           and our worker retried a job that could never succeed. The paragraph before it
           already says everything a reader needs.
         </p>
+        <p id="pm-mechanism-note">
+          The mechanism below stays internal. The worker treats every failure as
+          retryable, so a job that can never succeed comes back to the head of the queue
+          every 45 seconds.
+        </p>
+        <lf-diagram id="pm-failure-path">
+          <pre>
+graph LR
+  Q[queue head] --> W[worker]
+  W -->|serialize fails| R[retry in 45s]
+  R --> Q
+  Q -.->|starved| B[1,204 jobs behind]
+</pre>
+        </lf-diagram>
+        <details id="pm-evidence">
+          <summary>Why that one job could never succeed</summary>
+          <p id="pm-evidence-body">
+            The export carried an attachment with a declared size of −1, which fails
+            serialization on every attempt. The upload predates the size check added in
+            March, and two other workspaces carry one; both are quarantined now. This is
+            what the sentence proposed for deletion was pointing at, and it reads as
+            blame however it is worded.
+          </p>
+        </details>
       </section>
 
       <section id="pm-impact">
         <h2>Impact</h2>
+        <aside class="sidenote" id="pm-sn-workspaces">
+          412 counts workspaces with at least one delayed export. A workspace with forty
+          of them counts once.
+        </aside>
         <table id="pm-impact-table">
           <caption>
             Impact on 12 June, 09:14 to 10:48 UTC.
@@ -130,8 +167,8 @@ On the morning of 12 June, exports were delayed for 94 minutes. Nothing was lost
       <section id="pm-timeline">
         <h2>Timeline</h2>
         <p id="pm-timeline-note">
-          Trimmed from the internal timeline to times and actions. The fix that didn't
-          work stays in; leaving it out would be conspicuous.
+          Trimmed to times and actions. The fix that didn't work stays in; leaving it
+          out would be conspicuous.
         </p>
         <lf-timeline id="pm-public-timeline">
           <lf-event id="pm-e-detect" at="09:14" kind="warning">

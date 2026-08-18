@@ -181,9 +181,8 @@ def test_tour_walks_the_interactive_and_live_workflows():
     # formatted: prettier re-derives every line break in a paragraph, so a sentence
     # asserted as source bytes is a sentence that fails the day it gets a word longer.
     assert "browser is following the newest version" in " ".join(live.lower().split())
-    for status in ("done", "active", "planned"):
+    for status in ("done", "active", "planned", "blocked"):
         assert f'status="{status}"' in live
-    assert "<h2>Blocked</h2>" in live
 
 
 def test_demo_recording_drives_the_browser_journey(tmp_path):

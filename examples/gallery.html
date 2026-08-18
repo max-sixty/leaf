@@ -906,353 +906,15 @@ graph LR
       </section>
 </lf-tab>
 
-<lf-tab id="gal-api-sunset" label="API sunset">
-<h1>Retiring the v1 API</h1>
-      <p class="lede" id="api-lede">
-        Sixty-one of 78 integrations have moved to v2; this page is about the 17 that
-        haven't. One decision below re-cuts the plan around them, two changes to the
-        cutoff section wait in the margin, and the email they'll get is yours to
-        rewrite. Sign off when the plan reads right; nothing reaches a customer before
-        you do.
-      </p>
-
-      <lf-metrics id="api-metrics">
-        <lf-metric id="api-k-traffic" value="4.1%" delta="-2.3" direction="up-bad"
-          >requests on v1</lf-metric
-        >
-        <lf-metric id="api-k-left" value="17" delta="-9" direction="up-bad"
-          >integrations on v1</lf-metric
-        >
-        <lf-metric id="api-k-days" value="46">days to cutoff</lf-metric>
-        <lf-metric id="api-k-tickets" value="12" delta="-29" direction="up-bad"
-          >tickets, last brownout</lf-metric
-        >
-      </lf-metrics>
-
-      <section id="api-settled">
-        <h2>Settled</h2>
-        <p id="api-settled-note">
-          Two decisions carried the plan this far, each folded to one line — open one if
-          you want the options it beat.
-        </p>
-        <lf-options id="api-cutoff" choose settled>
-          <lf-option id="api-cut-date" recommended chosen
-            ><lf-chip>end: 30 june</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
-            <strong>A fixed date, with brownouts on the way</strong> 30 June, announced
-            six months out, with scheduled outages ahead of it so no integration meets
-            the cutoff as a surprise.
-          </lf-option>
-          <lf-option id="api-cut-traffic"
-            ><lf-chip>end: none</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Wait for traffic to reach zero</strong> Nothing breaks by fiat. It
-            also never ends: the last cron job keeps v1 alive for years.
-          </lf-option>
-          <lf-option id="api-cut-hard"
-            ><lf-chip>end: 30 june</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
-            <strong>A date and nothing else</strong> Clean to run, and every integration
-            that ignored the announcement finds out in production on cutoff day.
-          </lf-option>
-        </lf-options>
-        <p id="api-brownouts-note">And the schedule the date rides on:</p>
-        <lf-options id="api-brownouts" choose settled>
-          <lf-option id="api-bo-esc" recommended chosen
-            ><lf-chip>cadence: escalating</lf-chip
-            ><lf-chip tone="ok">risk: low</lf-chip>
-            <strong>Escalating brownouts</strong> Five minutes, then an hour, then a
-            full day, each announced a month ahead in the Sunset header.
-          </lf-option>
-          <lf-option id="api-bo-flat"
-            ><lf-chip>cadence: monthly</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>A monthly hour</strong> Predictable enough that a team can plan
-            around it without ever migrating.
-          </lf-option>
-        </lf-options>
-      </section>
-
-      <section id="api-tail">
-        <h2>The 17 that remain</h2>
-        <p id="api-tail-intro">
-          Thirteen of the 17 are under 100 calls a day, and eleven of those haven't
-          deployed a change since 2024 — their v1 traffic is cron jobs whose output
-          nobody reads. Halden Analytics and Root &amp; Vine are bigger, and no easier
-          to reach. The two that matter, Meridian Freight and Ostrava Systems, are live
-          and high-volume.
-        </p>
-        <table id="api-consumers">
-          <caption>
-            Remaining v1 integrations by daily calls. Endpoint families matter because
-            the shim below can carry one of them and not the other.
-          </caption>
-          <thead>
-            <tr>
-              <th>Integration</th>
-              <th class="num">Calls/day</th>
-              <th>Endpoints</th>
-              <th>Standing</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Meridian Freight</th>
-              <td class="num">41,200</td>
-              <td><code>/v1/records</code></td>
-              <td>exempt to 30 Sep — contract names v1</td>
-            </tr>
-            <tr>
-              <th scope="row">Ostrava Systems</th>
-              <td class="num">18,760</td>
-              <td><code>/v1/records</code>, <code>/v1/search</code></td>
-              <td>migrating, their ETA mid-June</td>
-            </tr>
-            <tr>
-              <th scope="row">Halden Analytics</th>
-              <td class="num">940</td>
-              <td><code>/v1/records</code></td>
-              <td>no reply to three emails</td>
-            </tr>
-            <tr>
-              <th scope="row">Root &amp; Vine</th>
-              <td class="num">310</td>
-              <td><code>/v1/records</code></td>
-              <td>replied once, in February</td>
-            </tr>
-            <tr>
-              <th scope="row">13 more, under 100 each</th>
-              <td class="num">610</td>
-              <td><code>/v1/records</code>, two on <code>/v1/search</code></td>
-              <td>eleven dormant since 2024</td>
-            </tr>
-          </tbody>
-        </table>
-        <details id="api-tail-evidence">
-          <summary>How we know the long tail is unattended</summary>
-          <p id="api-tail-evidence-body">
-            Thirty days of gateway logs. The eleven dormant integrations pin their
-            user-agent to SDK versions from 2023 and 2024, none has fetched the
-            migration guide, and neither brownout produced a ticket from any of them. We
-            read them as cron jobs from the traffic shape: the same requests at the same
-            minute past each hour, straight through the five-minute brownout.
-          </p>
-        </details>
-        <p id="api-tail-ask">
-          Three ways to carry them past 30 June; I recommend the first, and the runbook
-          and the email below assume it. Click an option to decide, or put what none of
-          them covers in the box under the group.
-        </p>
-        <lf-options id="api-tail-plan" choose>
-          <lf-option id="api-tp-shim" recommended
-            ><lf-chip>effort: 2 weeks</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
-            <strong>Shim the record readers, brownout the rest</strong>
-            <dl class="facts">
-              <dt>Covers</dt>
-              <dd>14 of 17, Meridian's exemption included</dd>
-              <dt>Gateway work</dt>
-              <dd>field renames and one date format</dd>
-              <dt>After 30 June</dt>
-              <dd>v1 handlers deleted; the shim stays</dd>
-            </dl>
-            <p id="api-tp-shim-why">
-              The gateway can translate a <code>/v1/records</code> read onto v2 and
-              reshape the response — renames, one date format, nothing stateful. That
-              carries every records-only integration, and it is what makes Meridian's
-              exemption cheap to honor: their September traffic rides the shim, not a v1
-              stack kept alive for one customer. <code>/v1/search</code> can't ride it —
-              v2 search is cursor-paginated, and a gateway inventing page numbers over
-              cursors would be a bug we own forever. Search leaves three integrations
-              exposed: Ostrava, who are migrating anyway, and two from the long tail.
-            </p>
-            <lf-diagram id="api-shim-flow">
-              <pre>
-graph LR
-  C[v1 client] --> G[gateway]
-  G -->|/v1/records, translated| H[v2 API]
-  G -.->|/v1/search| X[retired response]
-</pre>
-            </lf-diagram>
-          </lf-option>
-          <lf-option id="api-tp-all"
-            ><lf-chip>effort: a quarter</lf-chip
-            ><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Shim everything, search included</strong>
-            <dl class="facts">
-              <dt>Covers</dt>
-              <dd>17 of 17</dd>
-              <dt>Gateway work</dt>
-              <dd>a paging emulator over cursors</dd>
-              <dt>After 30 June</dt>
-              <dd>an emulator to own indefinitely</dd>
-            </dl>
-            <p id="api-tp-all-why">
-              Nobody breaks, which is the whole argument. The cost is the emulator: it
-              has to fake stable page numbers over a cursor API, and its edge cases are
-              the ones that corrupt a customer's pagination silently. Two of the three
-              integrations it would exist for are dormant.
-            </p>
-          </lf-option>
-          <lf-option id="api-tp-none"
-            ><lf-chip>effort: none</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
-            <strong>No shim — the brownouts and the date do it</strong>
-            <dl class="facts">
-              <dt>Covers</dt>
-              <dd>whoever moves by 30 June</dd>
-              <dt>Gateway work</dt>
-              <dd>none</dd>
-              <dt>After 30 June</dt>
-              <dd>every v1 call fails; Meridian needs an answer</dd>
-            </dl>
-            <p id="api-tp-none-why">
-              Honest and cheap, but it re-opens the exemption: Meridian's contract runs
-              to September, so without a shim the v1 stack itself stays up three months
-              longer to serve them.
-            </p>
-          </lf-option>
-        </lf-options>
-      </section>
-
-      <section id="api-cutover">
-        <h2>Cutoff day, and after</h2>
-        <ol class="steps" id="api-runbook">
-          <li>
-            Freeze exemptions on 30 May. The list is Meridian, and stays Meridian.
-          </li>
-          <li>
-            Final brownout on 2 June: 24 hours of what 30 June leaves — shimmed reads
-            answered, everything else dark.
-          </li>
-          <li>
-            On 30 June, flip the gateway: unshimmed v1 routes answer with the retired
-            response below; shimmed reads carry on.
-          </li>
-          <li>
-            Handlers stay deployed and dark for two weeks — rollback is a config revert,
-            not a deploy.
-          </li>
-          <li>Delete the v1 handler code on 14 July.</li>
-        </ol>
-        <p id="api-sug-note">
-          Two changes to this section are proposed rather than made. Settle each in the
-          margin, or select the words and tell me what is wrong with them. The first
-          came out of the first brownout's tickets — 41 of them, mostly asking whether
-          we were down, and a 404 would keep that conversation going.
-        </p>
-        <lf-suggestion id="api-sug-410">
-          <lf-old
-            ><p id="api-retired-response">
-              The retired response is a plain 404 from the gateway.
-            </p></lf-old
-          >
-          <lf-new
-            ><p>
-              The retired response is a 410 Gone, with a body naming the cutoff date and
-              a <code>Link</code> header to the migration guide.
-            </p></lf-new
-          >
-        </lf-suggestion>
-        <lf-suggestion id="api-sug-logs">
-          <lf-new
-            ><aside class="callout" id="api-log-snapshot">
-              Before the gateway change lands, snapshot 90 days of v1 access logs to
-              cold storage. If an owner surfaces in August saying they were never told,
-              the log holds their own calls, with the Sunset header on every response.
-            </aside></lf-new
-          >
-        </lf-suggestion>
-      </section>
-
-      <section id="api-email">
-        <h2>The email to the 17</h2>
-        <p id="api-email-note">
-          This goes out under your name the day you sign off, so the wording should be
-          yours. Double-click the draft, or press its ✎, and say it the way you would
-          say it to them. It assumes the shim; if the decision above goes another way,
-          the next version brings the email with it.
-        </p>
-        <lf-draft id="api-email-draft">
-          <pre>
-Subject: What happens to your v1 integration on 30 June
-
-We're retiring the v1 API on 30 June. Our records show your integration
-still uses it.
-
-If you only read records through /v1/records, nothing breaks on that
-date: the gateway will keep translating those calls after the cutoff.
-We'd still like you off v1 this year, and the migration guide shows the
-same request in both shapes.
-
-Everything else on v1 stops on 30 June. On 2 June we run the cutoff for
-24 hours as a test, so anything of yours that will stop then stops that
-day too, and comes back.
-
-Most integrations finish the move in under a day. Reply to this email
-and an engineer will work through yours with you.
-</pre>
-        </lf-draft>
-      </section>
-
-      <section id="api-work">
-        <h2>Workstreams</h2>
-        <p id="api-work-note">
-          One task is red, and it names what is holding it. The one amber task is done
-          and waiting for you to look.
-        </p>
-        <lf-tasks id="api-plan">
-          <lf-task id="api-t-shim" status="blocked" owner="gateway">
-            <strong>Records shim</strong> Scoped at two weeks; blocked on the decision
-            above. If it starts this week, it lands a month before the cutoff.
-          </lf-task>
-          <lf-task id="api-t-guide" status="review" owner="devrel">
-            <strong>Migration guide rewrite</strong> Restructured around endpoint
-            families, every v1 request shown beside its v2 shape. Awaiting your read
-            before it replaces the current guide.
-          </lf-task>
-          <lf-task id="api-t-contracts" status="active" owner="legal">
-            <strong>Contract check</strong> Two annual contracts name v1 explicitly.
-            Meridian's is the exemption; the other renews on 22 May with v2 language.
-          </lf-task>
-          <lf-task id="api-t-sdk" status="done" owner="sdk">
-            <strong>Deprecation warnings</strong> Since February, every maintained SDK
-            logs a warning on each v1 call, naming the date.
-          </lf-task>
-          <lf-task id="api-t-sunset" status="done" owner="gateway">
-            <strong>Sunset headers</strong> Every v1 response has carried the date since
-            9 January.
-          </lf-task>
-          <lf-task id="api-t-teardown" status="planned" owner="gateway" when="july">
-            <strong>Teardown</strong> Routes, then handlers, then the v1 docs, two weeks
-            apart in that order.
-          </lf-task>
-        </lf-tasks>
-      </section>
-
-      <section id="api-history">
-        <h2>Already behind us</h2>
-        <lf-timeline id="api-timeline">
-          <lf-event id="api-e-announce" at="9 Jan" kind="info">
-            <strong>Retirement announced</strong> Email to all 78 integration owners;
-            the date went into every Sunset header the same day.
-          </lf-event>
-          <lf-event id="api-e-bo1" at="3 Mar" kind="action">
-            <strong>First brownout, five minutes</strong> 41 tickets; the
-            retired-response change proposed above comes from reading them.
-          </lf-event>
-          <lf-event id="api-e-exempt" at="21 Mar" kind="info">
-            <strong>Meridian exemption granted</strong> Their contract names v1 through
-            30 September, which is why the decision above has to answer for traffic past
-            the date.
-          </lf-event>
-          <lf-event id="api-e-bo2" at="7 Apr" kind="action">
-            <strong>Second brownout, one hour</strong> 12 tickets, none asking whether
-            we were down. Nine integrations migrated in the three weeks after.
-          </lf-event>
-        </lf-timeline>
-      </section>
-</lf-tab>
-
-<lf-tab id="gal-incident-report" label="Incident report">
-<h1>Export queue backlog, 12 June</h1>
-      <p class="lede" id="incident-lede">
-        A retry storm from one malformed workspace held the export queue for 94 minutes.
-        No exports were lost; the oldest was delayed 81 minutes.
+<lf-tab id="gal-postmortem" label="Postmortem">
+<h1>The 12 June export delays</h1>
+      <p class="lede" id="pm-lede">
+        The findings are settled and stand below; what customers read is not. Four edits
+        wait in the margin — a plainer wording, a deleted sentence, two added paragraphs
+        — and ✓ or ✗ decides each. The summary and the status-page notice are yours to
+        write, and two decisions are still open: who this goes to, and whether we put a
+        date on the last fix. Sign off and I publish the writeup — the drafts as you
+        left them, each proposal as you decided it.
       </p>
 
       <dl class="facts">
@@ -1263,98 +925,6 @@ and an engineer will work through yours with you.
         <dt>Blast radius</dt>
         <dd>exports only; imports and sync unaffected</dd>
       </dl>
-
-      <lf-metrics id="impact">
-        <lf-metric id="m-delayed" value="1,204" delta="+1,204" direction="up-bad"
-          >exports delayed</lf-metric
-        >
-        <lf-metric id="m-oldest" value="81 min">oldest delay</lf-metric>
-        <lf-metric id="m-lost" value="0">exports lost</lf-metric>
-      </lf-metrics>
-
-      <section id="timeline">
-        <h2>Timeline</h2>
-        <lf-timeline id="incident-timeline">
-          <lf-event id="e-alert" at="09:14" kind="warning">
-            <strong>Queue-depth alert fires</strong> Depth crosses 500; normal peak is
-            60.
-          </lf-event>
-          <lf-event id="e-triage" at="09:26" kind="action">
-            <strong>On-call confirms a single hot job</strong> The same export id
-            retrying at the head of the queue, every 45 seconds.
-          </lf-event>
-          <lf-event id="e-deploy" at="09:40">
-            <strong>Adjacent deploy ruled out</strong> The 09:00 deploy touched imports
-            only; the queue code last shipped in May.
-          </lf-event>
-          <lf-event id="e-wrong" at="09:51" kind="failure">
-            <strong>First fix doesn't hold</strong> Raising worker count clears depth
-            briefly; the retry storm refills it because the head job still fails first.
-          </lf-event>
-          <lf-event id="e-quarantine" at="10:32" kind="action">
-            <strong>Poison job quarantined</strong> The workspace's export is parked in
-            a dead-letter table; the queue drains at normal rate.
-          </lf-event>
-          <lf-event id="e-resolved" at="10:48" kind="info">
-            <strong>Backlog cleared</strong> Depth back under 60; delayed exports
-            delivered.
-          </lf-event>
-        </lf-timeline>
-      </section>
-
-      <section id="cause">
-        <h2>Root cause</h2>
-        <aside class="sidenote" id="sn-negative-size">
-          The −1 came from a client upload predating the size check added in March. Two
-          other workspaces carry one.
-        </aside>
-        <p id="p-cause">
-          The export worker treats any failure as retryable. One workspace carried an
-          attachment with a declared size of −1, which fails serialization every time;
-          with retries capped by attempt count but not by queue position, the job
-          returned to the head on each attempt and starved everything behind it.
-        </p>
-        <lf-diagram id="failure-path">
-          <pre>
-graph LR
-  Q[queue head] --> W[worker]
-  W -->|serialize fails| R[retry in 45s]
-  R --> Q
-  Q -.->|starved| B[1,204 jobs behind]
-</pre>
-        </lf-diagram>
-        <aside class="callout" id="fix-note">
-          The fix is one classification: serialization errors are permanent, not
-          retryable. Retryable failures also now re-enqueue at the tail, so no single
-          job can hold the head again.
-        </aside>
-      </section>
-
-      <section id="actions">
-        <h2>Follow-ups</h2>
-        <ol class="steps" id="follow-ups">
-          <li>
-            Classify worker failures as permanent vs. retryable; dead-letter permanents
-            on first failure.
-          </li>
-          <li>Re-enqueue retries at the tail.</li>
-          <li>
-            Alert on a single job id exceeding five attempts, not only on queue depth.
-          </li>
-        </ol>
-      </section>
-</lf-tab>
-
-<lf-tab id="gal-public-postmortem" label="Public postmortem">
-<h1>What we publish about 12 June</h1>
-      <p class="lede" id="pm-lede">
-        The internal report is settled; this is the version customers read. Four edits
-        wait in the margin — a plainer wording, a deleted sentence, two added paragraphs
-        — and ✓ or ✗ decides each. The summary and the status-page notice are yours to
-        write, and two decisions are still open: who this goes to, and whether we put a
-        date on the last fix. Sign off and I publish the writeup — the drafts as you
-        left them, each proposal as you decided it.
-      </p>
 
       <section id="pm-summary">
         <h2>Summary</h2>
@@ -1415,10 +985,38 @@ On the morning of 12 June, exports were delayed for 94 minutes. Nothing was lost
           and our worker retried a job that could never succeed. The paragraph before it
           already says everything a reader needs.
         </p>
+        <p id="pm-mechanism-note">
+          The mechanism below stays internal. The worker treats every failure as
+          retryable, so a job that can never succeed comes back to the head of the queue
+          every 45 seconds.
+        </p>
+        <lf-diagram id="pm-failure-path">
+          <pre>
+graph LR
+  Q[queue head] --> W[worker]
+  W -->|serialize fails| R[retry in 45s]
+  R --> Q
+  Q -.->|starved| B[1,204 jobs behind]
+</pre>
+        </lf-diagram>
+        <details id="pm-evidence">
+          <summary>Why that one job could never succeed</summary>
+          <p id="pm-evidence-body">
+            The export carried an attachment with a declared size of −1, which fails
+            serialization on every attempt. The upload predates the size check added in
+            March, and two other workspaces carry one; both are quarantined now. This is
+            what the sentence proposed for deletion was pointing at, and it reads as
+            blame however it is worded.
+          </p>
+        </details>
       </section>
 
       <section id="pm-impact">
         <h2>Impact</h2>
+        <aside class="sidenote" id="pm-sn-workspaces">
+          412 counts workspaces with at least one delayed export. A workspace with forty
+          of them counts once.
+        </aside>
         <table id="pm-impact-table">
           <caption>
             Impact on 12 June, 09:14 to 10:48 UTC.
@@ -1461,8 +1059,8 @@ On the morning of 12 June, exports were delayed for 94 minutes. Nothing was lost
       <section id="pm-timeline">
         <h2>Timeline</h2>
         <p id="pm-timeline-note">
-          Trimmed from the internal timeline to times and actions. The fix that didn't
-          work stays in; leaving it out would be conspicuous.
+          Trimmed to times and actions. The fix that didn't work stays in; leaving it
+          out would be conspicuous.
         </p>
         <lf-timeline id="pm-public-timeline">
           <lf-event id="pm-e-detect" at="09:14" kind="warning">
@@ -1747,89 +1345,6 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
       </section>
 </lf-tab>
 
-<lf-tab id="gal-status-report" label="Status report">
-<h1>Search relaunch, week 6</h1>
-      <p class="lede" id="status-lede">
-        Indexing is done and dark-launched; relevance is the open question. The shadow
-        comparison puts the new engine ahead on head queries and behind on long-tail,
-        which is the expected trade at this stage.
-      </p>
-
-      <lf-metrics id="kpis">
-        <lf-metric id="k-p95" value="118 ms" delta="-64" direction="up-bad"
-          >p95 latency</lf-metric
-        >
-        <lf-metric id="k-ndcg" value="0.71" delta="+0.05" direction="up-good"
-          >ndcg@10, head</lf-metric
-        >
-        <lf-metric id="k-tail" value="0.58" delta="-0.03" direction="up-good"
-          >ndcg@10, tail</lf-metric
-        >
-        <lf-metric id="k-coverage" value="99.4%">index coverage</lf-metric>
-        <lf-metric id="k-shadow" value="41k/day" delta="+9k">shadow queries</lf-metric>
-      </lf-metrics>
-
-      <section id="milestones">
-        <h2>Milestones</h2>
-        <lf-milestones id="relaunch-milestones">
-          <lf-milestone id="ms-index" status="done" when="weeks 1-4">
-            <strong>Reindex on the new schema</strong> Full corpus, verified against the
-            old index by document count and spot checks.
-          </lf-milestone>
-          <lf-milestone
-            id="ms-shadow"
-            status="active"
-            when="weeks 5-7"
-            tags="relevance"
-          >
-            <strong>Shadow traffic comparison</strong> Every production query runs on
-            both engines; judgments collected on the diffs.
-          </lf-milestone>
-          <lf-milestone
-            id="ms-tail"
-            status="blocked"
-            when="week 7"
-            tags="relevance,data"
-          >
-            <strong>Long-tail recovery</strong> Blocked on the synonym table export from
-            the old engine — owner found, ETA Tuesday.
-          </lf-milestone>
-          <lf-milestone id="ms-cutover" status="planned" when="week 9">
-            <strong>Cutover behind a flag</strong> 5% of traffic, then doubling daily if
-            guardrails hold.
-          </lf-milestone>
-        </lf-milestones>
-      </section>
-
-      <section id="detail">
-        <h2>The long-tail gap</h2>
-        <p id="p-tail">
-          The old engine's synonym table carries fifteen years of manual curation; the
-          new engine currently ships without it. On tail queries where a synonym was the
-          match, we lose the document entirely, which is most of the −0.03.
-        </p>
-        <details id="ev-tail">
-          <summary>
-            Evidence: 61% of tail regressions disappear with the table patched in
-          </summary>
-          <p>
-            A one-hour experiment loading the March export into the new engine's synonym
-            slot recovered 214 of 349 regressed queries. The remainder split between
-            stemming differences and genuine ranking changes.
-          </p>
-        </details>
-      </section>
-
-      <section id="next">
-        <h2>Next week</h2>
-        <ol class="steps" id="next-steps">
-          <li>Import the synonym table export when it lands Tuesday.</li>
-          <li>Re-run the shadow comparison on the tail set.</li>
-          <li>Draft the cutover guardrails (error rate, zero-result rate, p95).</li>
-        </ol>
-      </section>
-</lf-tab>
-
 <lf-tab id="gal-live-progress" label="Live progress">
 <h1>Checkout cutover rehearsal</h1>
       <p class="lede" id="lp-lede">
@@ -1880,20 +1395,21 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
             <strong>Prove rollback</strong> Old service is live again; order-count
             comparison is still running.
           </lf-milestone>
+          <lf-milestone
+            id="lp-ms-finance"
+            status="blocked"
+            when="waiting"
+            tags="finance"
+          >
+            <strong>Reconcile the finance export</strong> Needs a fixture with a
+            partially refunded order. Nothing else in the rehearsal waits on it, so the
+            agent left the check open and carried on.
+          </lf-milestone>
           <lf-milestone id="lp-ms-report" status="planned" when="next">
             <strong>Publish the rehearsal report</strong> Attach timings and name the
             one blocked follow-up.
           </lf-milestone>
         </lf-milestones>
-      </section>
-
-      <section id="lp-blocker">
-        <h2>Blocked</h2>
-        <p id="lp-blocked-copy">
-          <strong>Finance export reconciliation</strong> needs a fixture with a
-          partially refunded order. The rest of the rehearsal does not depend on it; the
-          agent left the check open and moved on.
-        </p>
       </section>
 
       <section id="lp-events">

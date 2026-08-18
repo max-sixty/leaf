@@ -6447,7 +6447,7 @@ def test_no_example_writes_another_example_s_sentences():
     The gesture is shared vocabulary — every board takes a drag, every group takes a
     pick, and the words for those are meant to repeat. The sentence around the gesture
     is not: a page that borrows one is describing another page's work in that page's
-    words, and the corpus is the one place a reader sees twelve of them side by side.
+    words, and the corpus is the one place a reader sees them side by side.
 
     A batch of them got in at once, and the cause was upstream of the corpus. SKILL.md's
     "announce interactivity in prose" entry quoted two model sentences, and both reached
@@ -6473,7 +6473,7 @@ def test_no_example_writes_another_example_s_sentences():
     assert len(examples) > 1, examples
 
     def words(html: str) -> list[str]:
-        # <main> only: the <head>'s CSP meta is identical in all twelve by requirement.
+        # <main> only: the <head>'s CSP meta is identical in every one by requirement.
         body = html[html.index("<main>") + len("<main>") : html.rindex("</main>")]
         return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
 

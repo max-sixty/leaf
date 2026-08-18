@@ -2163,10 +2163,18 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
 
 # Every legend box stands on its item: same corner, one pixel out, for every item wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
-# compared, and items off it have no box shown at all.
+# compared, and items off it have no box shown at all. An item with no box of its own —
+# a display: contents suggestion — reads as what its contents paint, mirroring
+# shownRect's fallback: its host rect is 0×0 at the origin, which would otherwise count
+# as "wholly on screen" and fail every off-screen suggestion for its rightly hidden box.
 LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
   const it = document.getElementById(b.dataset.for);
-  const r = it.getBoundingClientRect();
+  let r = it.getBoundingClientRect();
+  if (!r.width && !r.height) {
+    const contents = document.createRange();
+    contents.selectNodeContents(it);
+    r = contents.getBoundingClientRect();
+  }
   if (r.top < 0 || r.bottom > innerHeight) return true;
   if (b.style.display === 'none') return false;
   const bb = b.getBoundingClientRect();
@@ -2183,7 +2191,10 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     re-centres, every block reflows, and no scroll or replay says so — each item's own
     resize does), and the name under the pointer, which is drawn beside the box in the
     same space: it sat in viewport space once, with the scroll added on top, and stood a
-    screen below its box on any page scrolled at all."""
+    screen below its box on any page scrolled at all. The aim is one more of the
+    chrome's promises over the same page, so the reflow doors repaint it too
+    (pageShifted): it once kept its old coordinates through the panel's slide, a box
+    and name floating half a panel to the right of the element they claimed."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("i")
     page.wait_for_function(LEGEND_TRUE)
@@ -2209,6 +2220,71 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
         "() => document.body.getAnimations().every(a => a.playState !== 'running')"
     )
     page.wait_for_function(LEGEND_TRUE)
+    # The legend's repaint above consumed the reflow's edge, and the aim was refreshed
+    # in the same pageShifted, so one plain read is the settled answer: the pointer
+    # still rests in p20, and the promise is about where p20 stands now.
+    aim = page.evaluate(
+        """() => {
+      const b = document.querySelector('.lf-aim');
+      const it = document.getElementById(b.dataset.for);
+      const r = it.getBoundingClientRect();
+      const bb = b.getBoundingClientRect();
+      return { on: b.dataset.for, dx: bb.left - r.left, dy: bb.top - r.top };
+    }"""
+    )
+    assert aim["on"] == "p20" and abs(aim["dx"]) < 2 and abs(aim["dy"]) < 2, aim
+    assert errors == []
+    page.close()
+
+
+CORNER_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>corner</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Corner</h1>
+<section id="wrap"><p id="inner">The section's first block starts at its corner.</p></section>
+</main>
+</body>
+</html>
+"""
+
+
+def test_two_names_at_one_corner_step_apart(browser, serve):
+    """A block whose top-left corner is also its container's — the paragraph's margin
+    collapses out of the section, exactly the shape a suggestion and the block it wraps
+    make — wrote both tags onto one spot, and the longer peeked out past the shorter at
+    both ends as fragments of a word nobody wrote. The later tag steps away by tag
+    heights until it stands clear."""
+    page, errors = open_page(browser, serve(CORNER_PAGE))
+    page.keyboard.press("i")
+    expect(
+        page.locator('.lf-legend-box[data-for="wrap"] .lf-legend-tag')
+    ).to_be_visible()
+    expect(
+        page.locator('.lf-legend-box[data-for="inner"] .lf-legend-tag')
+    ).to_be_visible()
+    clash = page.evaluate(
+        """() => {
+      const rs = [...document.querySelectorAll('.lf-legend-tag')]
+        .map(t => t.getBoundingClientRect()).filter(r => r.width);
+      for (let i = 0; i < rs.length; i++)
+        for (let j = i + 1; j < rs.length; j++) {
+          const a = rs[i], b = rs[j];
+          if (a.left < b.right - 1 && b.left < a.right - 1 &&
+              a.top < b.bottom - 1 && b.top < a.bottom - 1)
+            return [a, b].map(r => [r.left, r.top, r.width, r.height]);
+        }
+      return null;
+    }"""
+    )
+    assert clash is None, clash
     assert errors == []
     page.close()
 

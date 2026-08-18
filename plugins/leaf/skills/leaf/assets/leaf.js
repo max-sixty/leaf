@@ -3017,7 +3017,7 @@ function setPanel(open) {
 }
 toggleBtn.onclick = () => setPanel(!panelOpen);
 addEventListener("resize", syncLayout);
-addEventListener("resize", queueLegend);
+addEventListener("resize", pageShifted);
 // field-sizing and every other rendered-size change feed the one geometry writer —
 // the key line included, whose height sets the body's bottom reservation.
 const layoutSizes = new ResizeObserver(syncLayout);
@@ -4933,9 +4933,7 @@ function paintAnchors() {
     Object.assign(new Highlight(...pending), { priority: 2 }),
   );
   noteMarks(noted); // and the same fact for a reader who can't see any of it
-  refreshHover(); // the ranges moved; whether one is under the pointer may have too
-  refreshAim(); // and so may the item a held arm is promising (a replay moves content)
-  queueLegend(); // and every box the legend drew around the content that moved
+  pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
 
   // The panel's side of the same fact, read off the pass's own record so the two views
   // can't disagree: a passage rewritten in a later version has no home to jump to, and a
@@ -5090,24 +5088,25 @@ document.addEventListener("mousemove", (ev) => {
   pointer.y = ev.clientY;
   refreshHover();
 });
+// The page moving under a parked pointer is the pointer moving over the page: what a
+// press would take, whether a mark is under the hand, and where every legend box
+// stands can all change with no mouse event to say so, and a box left over the old
+// item promises a press the click no longer makes. One repaint set for every door
+// that says so — a scroll, a window resize, a replay's marks landing (paintAnchors),
+// a widget's FLIP settling, and the reflows only the legend's observers hear, the
+// panel opening re-centring the column among them.
+function pageShifted() {
+  refreshHover();
+  refreshAim();
+  // A board scrolled sideways carries its cards out from under their boxes, and the
+  // page scrolled brings items into view that had no box yet (shownRect).
+  queueLegend();
+}
 // At the document and at capture, because scroll does not bubble and body is not the
 // page's only scroller: a board scrolls its columns sideways, and a card carried under
 // a parked pointer that way is the same fact as the page scrolling under it. Capture is
 // the one place every scroller's event passes.
-document.addEventListener(
-  "scroll",
-  () => {
-    refreshHover();
-    // The page moving under a held aim is the pointer moving over the page: what a
-    // press would take can change with no mouse event to say so, and a box left over
-    // the old item promises a press the click no longer makes.
-    refreshAim();
-    // A board scrolled sideways carries its cards out from under their boxes, and the
-    // page scrolled brings items into view that had no box yet (shownRect).
-    queueLegend();
-  },
-  { capture: true, passive: true },
-);
+document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
 
 // ---------- selection → comment ----------
 // Floating UI stays inside the document's own box, which is body's client box: it
@@ -5678,12 +5677,12 @@ function setDesign(on, { spoken = true } = {}) {
 // rect read after one is a layout forced per item — the thrash a legend of a few
 // hundred boxes cannot afford on every scroll frame. So the box set is settled first,
 // every rect is read, and only then is anything placed.
-const legendBoxes = new Map(); // item → { box, radius }
-const legendSizes = new ResizeObserver(() => queueLegend());
+const legendBoxes = new Map(); // item → { box, radius, tagW }
+const legendSizes = new ResizeObserver(() => pageShifted());
 const legendMoves = new MutationObserver((records) => {
   // The legend's own writes are mutations too, inside the chrome; a repaint that heard
   // itself would never stop.
-  if (records.some((r) => !inChrome(r.target))) queueLegend();
+  if (records.some((r) => !inChrome(r.target))) pageShifted();
 });
 let legendQueued = false;
 let legendTagH = 0; // one tag's height, measured once: where a box's top is nearer the banner than this, the tag sits inside
@@ -5743,11 +5742,23 @@ function paintLegend() {
     const entry = legendBoxes.get(item);
     entry.radius ??= getComputedStyle(item).borderRadius;
     if (!legendTagH && entry.box.firstChild)
-      legendTagH = entry.box.firstChild.offsetHeight;
+      legendTagH = entry.box.firstChild.getBoundingClientRect().height;
+    // A tag's width is its text's (nowrap) under a viewport-relative cap (40vw), so
+    // it is re-measured while shown rather than cached: a width taken in a narrow
+    // window understates the tag after a resize, and a missed step is the garble
+    // this pass exists to prevent. A box hidden by an earlier write measures zero,
+    // so it keeps its last answer until the pass after it shows again.
+    if (entry.box.style.display !== "none")
+      entry.tagW = entry.box.firstChild ? entry.box.firstChild.offsetWidth : 0;
     return [entry, shownRect(item, clips)];
   });
-  // The writes.
-  for (const [{ box, radius }, r] of placed) {
+  // The writes. Names that would land on one spot step apart: a suggestion and the
+  // block it wraps share a top-left corner, and two tags written there garble both —
+  // the longer peeking out past the shorter as fragments of a word nobody wrote. The
+  // later tag (document order, so the part's over its widget's) steps away from the
+  // corner by tag heights until it stands clear.
+  const said = []; // tag boxes already placed this pass, in viewport coordinates
+  for (const [{ box, radius, tagW }, r] of placed) {
     if (!r) {
       box.style.display = "none";
       continue;
@@ -5760,7 +5771,27 @@ function paintLegend() {
       height: r.bottom - r.top + 2 + "px",
       borderRadius: radius,
     });
-    box.classList.toggle("lf-in", r.top - legendTagH < under);
+    const inward = r.top - legendTagH < under;
+    box.classList.toggle("lf-in", inward);
+    if (!tagW) continue;
+    const left = r.left - 1;
+    const step = inward ? legendTagH : -legendTagH;
+    let top = inward ? r.top : r.top - legendTagH;
+    let moved = 0;
+    while (
+      said.some(
+        (t) =>
+          left < t.left + t.width &&
+          t.left < left + tagW &&
+          top < t.top + legendTagH &&
+          t.top < top + legendTagH,
+      )
+    ) {
+      top += step;
+      moved += step;
+    }
+    box.firstChild.style.transform = moved ? `translateY(${moved}px)` : "";
+    said.push({ left, top, width: tagW });
   }
 }
 
@@ -8034,10 +8065,7 @@ function applyActions() {
     // pointer mid-flight. The batch's own animations are the fact to consume — never
     // the document's, whose chrome runs one that has no end — and when the last of
     // them lands, ask again.
-    Promise.allSettled(started.map((a) => a.finished)).then(() => {
-      refreshAim();
-      queueLegend();
-    });
+    Promise.allSettled(started.map((a) => a.finished)).then(() => pageShifted());
   }
   // Beside paintPending, and outside the `applied` gate above, because the two facts
   // this speaks arrive by different doors: a status a report moved is a widget the pass

@@ -990,25 +990,6 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
 lf-specimen { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-frame: 1; }
-/* The widgets here that frame what they hold, saying so where they draw the frame: the
-   room a wide widget may take is the page's, and inside one of these the page is not
-   what holds it. A quoted board that took the window escaped the gutter marking it as
-   quoted — the exhibit standing outside its own exhibit — and a diagram in an option
-   card was worse for being invisible: the group clips to its own cells, so what crossed
-   the card was cut off at its edge rather than drawn past it, and the widest part of the
-   evidence an option was arguing on simply wasn't there. Everything else here is
-   transparent and says nothing: a tab's panel is the column's own width, and an exhibit
-   breaking out through one is what the width is for. theme.css's rule beside `--wide`
-   has the reasoning, why the frame declaration cannot answer this, and the gate that
-   catches the next box to forget.
-
-   The last four arrived the day that gate could see them. A card, a milestone, an event
-   and a variant each frame what they hold and each let a diagram out — a diagram in a
-   card stood 332px past the card and across the next column of its board — and every one
-   was excused by the same reading, the gate having skipped anything inside a scroll
-   container while a board, a timeline and a comparison all scroll. */
-:is(lf-option, lf-specimen, lf-old, lf-new,
-    lf-card, lf-milestone, lf-event, lf-variant) [data-lf-wide] { --lf-room: 0px; }
 lf-specimen::before,
 lf-specimen > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);

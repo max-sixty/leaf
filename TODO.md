@@ -201,12 +201,25 @@
   the panel. Two norms say otherwise — the line promises one press, and the typing
   scope's own Escape row ("back to thread") should shadow the panel's, since a nearer
   scope naming a binding hides the outer row. Reproduce it first, in the box it was seen
-  in; expected: Escape leaves the box and does nothing else, and the line says so.
+  in; expected: Escape leaves the box and does nothing else, and the line says so. Not
+  reproduced (2026-08-17, main d4cb071, the ui-sweep): driven in a thread's reply box
+  and the general box, both palettes — the line offered esc as "back to thread" while
+  typing, and one press left the box with the panel open, the draft intact, and focus
+  on the thread. Stands until it is seen again, with the page and the box it was seen
+  in.
 
-- (2026-08-17) A thread's Reply and Resolve controls don't look elegant. As reported,
-  with no measurement behind it yet — one for the ui-sweep, walking a thread with an
-  open reply box in both palettes and saying what specifically reads wrong before
-  changing anything.
+- (2026-08-17) A thread's Reply and Resolve controls don't look elegant. Walked
+  (2026-08-17, the ui-sweep, both palettes) with a reply box open; what specifically
+  reads wrong, before changing anything: the send button says "Reply" and stands beside
+  the box at all times, so an idle thread shows the word twice in two roles — the
+  field's own placeholder ("Reply · g 2") and a disabled button beside it; the button
+  rides the bottom edge of a box that grows (the row aligns flex-end), so a grown
+  draft leaves it hanging under a strip of empty row; and "✓ Resolve" — borderless,
+  check-first, right-aligned on a row of its
+  own under every thread — reads as a status rather than an action, in a different
+  visual language from the bordered Reply above it. A redesign is constrained by the
+  hold-still norm (a control may not appear on focus and move the row), so the shape
+  wants deciding rather than patching.
 
 - (2026-08-17) A design comment whose fix belongs in leaf's shipped layer, made from a
   session outside a leaf checkout. Design mode is for the reader's own layers — a
@@ -220,3 +233,16 @@
   the comment's anchor and the page's URL so the leaf session can look at what the
   reader saw; a served page re-vendored from a checkout the session names, so a fix is
   seen before it lands. Neither is worth building before the second time it is asked.
+
+- (2026-08-17) Left out of design mode's build, each with the day it becomes worth
+  building:
+
+  - A screenshot in a design comment. The agent can render the page with the log
+    replayed, so a crop is a command it runs rather than bytes the reader sends. Worth
+    adding once a design comment has been misread for want of one.
+  - A stamped widget tag on comment events. The tag is one join from the version file,
+    the join `action_widget_tags` already makes for actions, so stamping it buys
+    nothing until a consumer reads the log without a page in hand.
+  - An inventory in the panel — the legend as a list, each row jumping to its item.
+    The boxes on the page are that list; a row earns its place on a page long enough
+    that finding an item means scrolling for it.

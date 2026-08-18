@@ -2593,9 +2593,10 @@ keys(
         if (!row || row === was) return;
         // The comparison the row states: its own version as the base, or none at all where
         // that version is not older than the one being read. So the reader walks up to mark
-        // from further back and back down to stop — and the row that stops it is the one the
-        // menu opens on, which is why the walk needs no key for the way off and no reader
-        // has to be told where it is.
+        // from further back and back down to stop, and the row that stops it is the version
+        // they are reading — the end of the walk in the direction they came from, which is
+        // why it needs no key of its own and no reader has to be told where it is — and,
+        // the page having no key for a comparison, the whole of the way off one.
         const version = +row.dataset.lfVersion;
         if (comparable(version)) showComparison(version);
         else setDiff(false);
@@ -2626,9 +2627,11 @@ const VERSIONS = {
   // A mode over the page suspends the page, which the two modes above this one always did
   // and this one did not — so a reader in the middle of choosing a version could press `l`
   // and take focus out of the menu into the leaves board, `d` and scroll a page they were
-  // not looking at, `c` and open the composer under the list, or `=` and set a base the walk
-  // they were standing in disagrees with. None of it fails loudly: the press does exactly
-  // what it says on a page the reader has stopped reading. The claim is also what narrows
+  // not looking at, or `c` and open the composer under the list. None of it fails loudly:
+  // the press does exactly what it says on a page the reader has stopped reading. The
+  // worst of them was a page-level key that set a comparison base, which the walk they
+  // were standing in then disagreed with — that key is the menu's own business now, and
+  // the claim is what would have held it either way. The claim is also what narrows
   // the line to the menu's own keys, so what the mode takes and what it offers are one
   // statement rather than a suspension the surfaces have to be told about separately.
   claims: allButTheReference,
@@ -6173,11 +6176,28 @@ const takesLetters = (node) =>
 // board off the far side of the screen took the key away from the work it was unwinding.
 // Asked of the focus rather than of which thing is open, because "in the panel" is where
 // the reader is, not what stands.
+//
+// The last rung leaves the chrome, because closing the panel does not put the reader back
+// on the page: it lands them on the control that closes it, deliberately (setPanel says
+// why), and the closing keypress rings a button a pointer-borne reader never chose. Their
+// next Space is then that button rather than the page's scroll. CLAUDE.md's "The ladder
+// ends on the page" holds the rest.
+//
+// Focus rather than blur, because the two differ in what Space does next: `html` is
+// `overflow: hidden` here so the document scrolls in `body`, and the browser scrolls
+// whichever box it last saw the reader put themselves in. A blur names none —
+// activeElement reads as body either way — and Space goes on doing nothing until the next
+// click in the page.
 function panelsRung() {
   const active = document.activeElement;
   if (othersOpen && !panel.contains(active))
     return { says: "close leaves", out: () => showOthers(false) };
   if (panelOpen) return { says: "close comments", out: () => setPanel(false) };
+  if (inChrome(active))
+    return {
+      says: "back to the page",
+      out: () => document.body.focus({ preventScroll: true }),
+    };
   return null;
 }
 // The page's own Escape, said and run off one object. A row rather than a rung, so the
@@ -6548,31 +6568,6 @@ const PAGE = {
       does: "Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
       line: "design mode",
       run: () => setDesign(true),
-    },
-    {
-      // The diff held v while the chooser had no key at all, and moved to = when the
-      // chooser took the letter. The two branches of the run are said in the words,
-      // because a word naming only the opening would promise the wrong half of the press
-      // to a reader looking at a marked-up page.
-      //
-      // The page keeps this one key about which version this is, and only because it
-      // names no version: "since the last one I saw" is a question a reader has without
-      // opening anything. [ and ] were the other kind — an older/newer step, which is the
-      // walk inside the menu with the list taken away, so the reader stepped blind past
-      // the notes saying what each version changed. One door to the versions, and it is
-      // the one that shows them.
-      keys: ["="],
-      does: () =>
-        diffOn
-          ? "Stop highlighting changes"
-          : "Highlight changes since the previous version",
-      line: () => (diffOn ? "stop marking" : "mark changes"),
-      // The page's key takes the previous version, which is the one a reader who saw the
-      // last one means; any other base is a press in the menu, where the version is named.
-      // Live once there is a previous version — and while a comparison against some
-      // further-back base is standing, since this is then the way off it.
-      when: () => diffOn || Boolean(previousVersion()),
-      run: () => (diffOn ? setDiff(false) : showComparison(previousVersion())),
     },
     REFERENCE,
     PANELS_ESC,
@@ -7395,12 +7390,6 @@ function applyDiff(doc, baseVersion) {
 // Whether a version can be compared with the one being read: anything published
 // before it, which is which rows the menu builds a press onto.
 const comparable = (version) => VNUM !== null && version < VNUM;
-// The version the page's own key compares against: the one before this, which is what
-// "what changed" means to a reader who was here for the last one.
-const previousVersion = () => {
-  const at = versions.indexOf(VNUM);
-  return at > 0 ? versions[at - 1] : null;
-};
 // Every rendering of the pair above, written in one place: the chooser's word, its
 // paint and what it says it will do, the checked state of each row's Δ, and the rail
 // down the rows the comparison spans. Called by the setter, by a menu rebuild — the
@@ -7442,10 +7431,10 @@ function setDiff(on, base) {
   }
   paintDiff();
 }
-// The one way a comparison starts, from a row's press, from the walk through the menu, or
-// from the page's own key. It states a base rather than toggling one — the toggle is a
-// press's own reading of it, and the walk has none to spend, standing on a row being what
-// makes it the base however many times the reader arrives there.
+// The one way a comparison starts, from a row's press or from the walk through the menu.
+// It states a base rather than toggling one — the toggle is a press's own reading of it,
+// and the walk has none to spend, standing on a row being what makes it the base however
+// many times the reader arrives there.
 async function showComparison(base) {
   const mine = ++diffRequest;
   let doc;
@@ -7466,8 +7455,9 @@ async function showComparison(base) {
   );
 }
 // A press names one base, so pressing the standing one again is the way off it: a Δ is a
-// toggle where it is lit and a switch of base where it isn't. The page's `=` reads the same
-// state the other way round — off whatever the base, since it names none.
+// toggle where it is lit and a switch of base where it isn't. The keyboard's way off is the
+// walk itself — down to the version being read, which is comparable with nothing and so
+// stops rather than re-bases.
 const pressComparison = (base) =>
   diffOn && base === diffBase ? setDiff(false) : showComparison(base);
 

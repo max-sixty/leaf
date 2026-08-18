@@ -477,10 +477,27 @@ dd { margin: 0 0 8px 0; }
  * four of them (a row's `for` reference, the settled row's count and Δ, a tab's
  * Δ). Those wear lf-ui, which already answers in the same face — so the rule was
  * inert, and it said the wrong thing where anyone read it: that the runtime's own
- * chrome is the page pointing at its content. This list is the page's words. */
+ * chrome is the page pointing at its content. This list is the page's words.
+ *
+ * Figures are part of the voice, because apparatus is where the page's quantities
+ * live and a quantity here is one that moves — a task's done fraction, a metric's
+ * value, a badge's count, each rewritten in place by a report the reader never
+ * asked for. The sans sets its digits to their own widths, so a rewrite resizes the
+ * box the number is set in — a chip is a filled pill, so that edge is visible on its
+ * own — and moves whatever stands after it, which for a metric is the delta riding
+ * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
+ * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
+ * tabular. That is the movement "the page holds still under the user's aim" forbids,
+ * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
+ * explain where the line went.
+ *
+ * The serif is left out because it needs nothing: Charter already sets every digit
+ * to one width, so the same four strings measure identically with the property and
+ * without it, and stating it there would be a declaration that could never be
+ * wrong and never do anything. */
 .eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt,
 .lf-error {
-  font-family: var(--sans); }
+  font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The pill a small label rides in. These numbers are a contract across layers: the
  * bundled widgets' chips (lf-chip, a milestone's attribute row) restate them in

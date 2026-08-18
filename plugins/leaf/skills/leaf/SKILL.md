@@ -255,7 +255,10 @@ to click belongs on a page you are going to serve.
   wider than the column by themselves where the window has the room, because their
   registry entry declares it (`x-wide`, in `page catalog`). That is the whole of the
   mechanism: nothing is authored for it, no page states a width, and a page's shape
-  follows what it holds. Write the widget and let it take the room.
+  follows what it holds. A diagram takes as much of that room as its source drew, and
+  scrolls in its own box past what the window has; where that costs the reader the shape
+  of the thing, the fix is in the source — fewer nodes across, or a `graph TD` down the
+  page. Write the widget and let it take the room.
 - **Images come in by reference, never inline.**
   `leaf page media <page> <file>…` copies files into the page directory and prints
   the `src` to write; that path is the only form an image takes on a page, because a

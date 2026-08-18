@@ -15363,7 +15363,9 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     page.close()
 
 
-# Wide on purpose: six nodes across lays out near 1150px against the column's 672.
+# A drawing wider than the column on purpose — six nodes across lay out near 1150px
+# against 720 — and a board beside it, so what the assertions turn on is which kind each
+# widget declares rather than that both are widgets.
 WIDE_DIAGRAM_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -15385,6 +15387,11 @@ graph LR
   F --> H
   C -->|no| L[login]
 </pre></lf-diagram>
+<lf-board id="plan">
+  <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
+  <lf-column id="d2" label="Doing"></lf-column>
+  <lf-column id="d3" label="Done"></lf-column>
+</lf-board>
 </main>
 </body>
 </html>
@@ -15411,31 +15418,316 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     page.close()
 
 
-def test_a_wide_diagram_keeps_its_size_and_scrolls_its_own_box(browser, serve):
+# What a diagram is doing with the width it was given, beside what the board on the same
+# page is doing with the width it was given: the drawing's own size, the box around it,
+# and whether either had to scroll.
+DIAGRAM_ROOM = """() => {
+    const holder = document.getElementById('flow');
+    const svg = holder.querySelector('svg');
+    const board = document.getElementById('plan');
+    const main = document.querySelector('main'), ms = getComputedStyle(main);
+    const mb = main.getBoundingClientRect();
+    return { drawn: svg.getBoundingClientRect().width,
+             natural: svg.viewBox.baseVal.width,
+             box: holder.clientWidth,
+             room: parseFloat(getComputedStyle(document.documentElement)
+                       .getPropertyValue('--lf-room')),
+             wide: parseFloat(getComputedStyle(document.body)
+                       .getPropertyValue('--wide')),
+             board: board.getBoundingClientRect().width,
+             column: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
+             scrolls: holder.scrollWidth > holder.clientWidth,
+             sideways: document.body.scrollWidth - document.body.clientWidth };
+}"""
+
+
+def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     """Mermaid fits a diagram to its holder by scaling the whole drawing down, glyphs
     included — this flowchart rendered at 63% in the column, its 16px labels
-    effectively 10px and unreadable. The module strips that: the drawing keeps the
-    size mermaid laid it out at, the widget's own box scrolls sideways — the theme's
-    answer for a wide table — and the document itself grows no sideways scroll."""
+    effectively 10px and unreadable. The module strips that, so the drawing keeps the
+    size mermaid laid it out at and what is in question is only how much of it shows.
+
+    Which is the whole of it wherever the window has the room. A drawing is not a box
+    that fills whatever it is given, so the one width the vocabulary shares is no promise
+    about it: held to that number, this 1147px flowchart was cut off at 1080 on a window
+    with 470px to spare. The board on the
+    same page is the half that says the declaration is doing this rather than the tag —
+    it lays its columns out into whatever it is given, so it takes that shared number and
+    stops there on the same window that hands the diagram half as much again.
+
+    Past the room there is nothing left to give, and the answer is the theme's for any
+    wide content: the widget's own box scrolls sideways and the document does not."""
     page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
-    sizes = page.evaluate("""() => {
-        const holder = document.getElementById('flow');
-        const svg = holder.querySelector('svg');
-        return { drawn: svg.getBoundingClientRect().width,
-                 natural: svg.viewBox.baseVal.width,
-                 box: holder.clientWidth,
-                 scrolls: holder.scrollWidth > holder.clientWidth,
-                 sideways: document.body.scrollWidth - document.body.clientWidth };
+
+    resized(page, 1600, 900)
+    wide = page.evaluate(DIAGRAM_ROOM)
+    assert wide["natural"] > wide["wide"], (
+        f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
+        "or the window having room says nothing"
+    )
+    assert wide["natural"] < wide["room"], (
+        "and inside the room this window has, or nothing here is about being cut off"
+    )
+    assert round(wide["drawn"]) == round(wide["natural"]), (
+        f"the drawing was scaled to fit: natural {wide['natural']:.0f}px, "
+        f"drawn {wide['drawn']:.0f}px"
+    )
+    assert not wide["scrolls"], (
+        f"a window with the room for the whole drawing still cut it off: "
+        f"{wide['natural']:.0f}px of diagram in a {wide['box']:.0f}px box"
+    )
+    assert wide["board"] <= wide["wide"] + 1, (
+        f"the board took the room too, so what grew was the tag and not what it "
+        f"declares: board {wide['board']:.0f}px against {wide['wide']:.0f}px"
+    )
+    assert wide["board"] > wide["column"] + 1, (
+        "and the board must still be growing, or its half of this proves nothing"
+    )
+    assert wide["sideways"] == 0, "the page itself must not scroll sideways"
+
+    resized(page, 1000, 900)
+    narrow = page.evaluate(DIAGRAM_ROOM)
+    assert narrow["natural"] > narrow["room"], (
+        "the narrow half proves nothing unless the drawing outgrows the room"
+    )
+    assert round(narrow["drawn"]) == round(narrow["natural"]), (
+        "a drawing that no longer fits is still not scaled down"
+    )
+    assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
+    assert narrow["sideways"] == 0, "nor may the page scroll sideways for it"
+    assert errors == []
+    page.close()
+
+
+# A diagram whose source mermaid refuses, which is the shape of every soft failure: the
+# module replaces the element's body with the message and the source it choked on. Its
+# first line is the length a real source has, because that line is what the box under
+# test is floored at: written short, this page passed the assertion below with the rule
+# it stands on deleted.
+BROKEN_DIAGRAM_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>broken diagram</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Broken</h1>
+<lf-diagram id="bad"><pre>
+sequenceDiagram
+  Reader-&gt;&gt;Server: POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater"}}
+  Server--&gt;&gt;&gt;--- {{{ not mermaid at all ]]]
+</pre></lf-diagram>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
+    """A wide widget's room is for the thing it draws, and a widget whose upgrade failed
+    has not drawn it: what stands there is the message and the source it choked on, which
+    is prose and belongs in the measure the page's prose is set to. Taking the room
+    anyway put a parse error across the whole window with its message on one line."""
+    # The console carries mermaid's refusal, which is what the fixture is for.
+    page, _ = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    resized(page, 1600, 900)
+    at = page.evaluate("""() => {
+        const box = document.getElementById('bad').querySelector('.lf-error');
+        const main = document.querySelector('main'), ms = getComputedStyle(main);
+        const mb = main.getBoundingClientRect();
+        return { failed: !!box,
+                 box: box ? box.getBoundingClientRect().width : 0,
+                 widget: document.getElementById('bad').getBoundingClientRect().width,
+                 // What the box would be floored at if nothing said otherwise: the
+                 // source is a `pre`, so its longest line is its minimum width.
+                 source: box ? box.querySelector('pre').scrollWidth : 0,
+                 column: mb.width - parseFloat(ms.paddingLeft)
+                         - parseFloat(ms.paddingRight) };
     }""")
-    assert sizes["natural"] > sizes["box"], (
-        "the fixture must lay out wider than the column, or this proves nothing"
+    assert at["failed"], "the fixture must fail to render, or this proves nothing"
+    assert at["source"] > at["column"], (
+        f"the fixture's source must be wider than the {at['column']:.0f}px column at the "
+        f"size it is set in, or the box has nothing to be floored at"
     )
-    assert round(sizes["drawn"]) == round(sizes["natural"]), (
-        f"the drawing was scaled to fit: natural {sizes['natural']}px, "
-        f"drawn {sizes['drawn']}px"
+    assert at["box"] <= at["column"] + 1, (
+        f"the message stands {at['box']:.0f}px wide in a {at['column']:.0f}px column"
     )
-    assert sizes["scrolls"], "a drawing wider than its box must scroll inside it"
-    assert sizes["sideways"] == 0, "the page itself must not scroll sideways"
+    assert at["widget"] <= at["column"] + 1, (
+        f"and the widget with it: {at['widget']:.0f}px, so the message hangs into the "
+        "margin behind a scrollbar"
+    )
+    page.close()
+
+
+def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
+    """The room is for the drawing, and until the module has made one what stands in the
+    box is the authored source: evidence, which reads at the column's width from the
+    column's own edge. The mark is written before any module imports, so this is every
+    page's first tenth of a second and not a corner — mermaid is fetched lazily — and
+    for a page whose module never arrives it is the whole of what the reader sees. Held
+    to the room, three sources came out centred at three indents, none of them the
+    column's.
+
+    The module is blocked outright here because that is the state the failure holds
+    still: what the timed version of it measures is the machine."""
+    url = serve(DIAGRAM_AND_RAIL_PAGE)
+    page = browser.new_page(viewport={"width": 1600, "height": 900})
+    page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    at = page.evaluate("""() => {
+        const main = document.querySelector('main'), ms = getComputedStyle(main);
+        const mb = main.getBoundingClientRect();
+        const left = mb.left + parseFloat(ms.paddingLeft);
+        const right = mb.right - parseFloat(ms.paddingRight);
+        return { column: right - left, left,
+                 sources: ['small', 'flow'].map((id) => {
+                     const el = document.getElementById(id);
+                     return { id, drawn: !!el.querySelector('svg'),
+                              box: el.getBoundingClientRect().width,
+                              at: el.querySelector('pre').getBoundingClientRect().left };
+                 }) };
+    }""")
+    for source in at["sources"]:
+        assert not source["drawn"], (
+            f"#{source['id']} rendered anyway, so the blocked module proves nothing"
+        )
+        assert source["box"] <= at["column"] + 1, (
+            f"#{source['id']}'s box took {source['box']:.0f}px of room for a drawing it "
+            f"has not made, against a {at['column']:.0f}px column"
+        )
+        assert abs(source["at"] - at["left"]) <= 1, (
+            f"#{source['id']}'s source starts at {source['at']:.0f}px and the column at "
+            f"{at['left']:.0f}px: it is set as a drawing is placed rather than read"
+        )
+    page.close()
+
+
+# A margin with the page's own apparatus in it, and drawings either side of what the free
+# margin can hold. A rail is what most shipped pages that carry a wide widget also carry,
+# so this is the ordinary case rather than a corner.
+DIAGRAM_AND_RAIL_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>diagram and rail</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Sessions</h1>
+<lf-suggestion id="sug-copy">
+  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<lf-diagram id="small"><pre>
+graph LR
+  S[Redis] -->|hit| H[handle]
+  S -->|miss| F[cookie]
+  F --> H
+</pre></lf-diagram>
+<lf-diagram id="flow"><pre>
+graph LR
+  R[request] --> C{cookie valid?}
+  C -->|yes| S[read session from Redis]
+  S -->|hit| H[handle]
+  S -->|miss/outage| F[verify signed fallback]
+  F --> H
+  C -->|no| L[login]
+</pre></lf-diagram>
+</main>
+</body>
+</html>
+"""
+
+# Where each drawing sits against the column it explains and the controls it must not
+# reach. The axis is the column's, because that is the line the prose is centred on and
+# the one an exhibit off it reads as having slipped.
+DRAWING_PLACEMENT = """() => {
+    const main = document.querySelector('main'), ms = getComputedStyle(main);
+    const mb = main.getBoundingClientRect();
+    const col = { left: mb.left + parseFloat(ms.paddingLeft),
+                  right: mb.right - parseFloat(ms.paddingRight) };
+    col.axis = (col.left + col.right) / 2;
+    const acts = document.querySelector('.lf-sug-actions');
+    // The drawing's own rect and the box's. A drawing wider than its box keeps a rect
+    // that runs on past it — the layout's answer, not the reader's — so what is painted
+    // over the margin is the box's edge and what is lost off the scroll's start edge is
+    // the drawing's left against the box's.
+    const at = (id) => {
+        const holder = document.getElementById(id);
+        const b = holder.querySelector('svg').getBoundingClientRect();
+        const h = holder.getBoundingClientRect();
+        return { left: b.left, right: b.right, width: b.width,
+                 offAxis: (b.left + b.right) / 2 - col.axis,
+                 box: { left: h.left, right: h.right },
+                 scrolls: holder.scrollWidth > holder.clientWidth };
+    };
+    return { col, docked: acts.classList.contains('lf-docked'),
+             rail: acts.getBoundingClientRect().left,
+             small: at('small'), flow: at('flow'),
+             sideways: document.body.scrollWidth - document.body.clientWidth };
+}"""
+
+
+def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
+    browser, serve
+):
+    """A drawing's box is the room, which on a page with a claimed margin is a box the
+    column does not sit in the middle of. Centred in that box, a graph explaining the
+    prose beside it would sit hundreds of pixels off the words it explains — the fault
+    the axis rule names, arrived at from the other side.
+
+    So the drawing is placed rather than the box: on the column's axis while it fits
+    between the claimed edges, out into the free margin when it needs the room, and never
+    over the controls that decide the change above it. A board is held to the same
+    bargain — a side holding something of the page's gives nothing — and this is what
+    that bargain costs a widget whose width is not its box's."""
+    page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
+    resized(page, 1500, 900)
+    at = page.evaluate(DRAWING_PLACEMENT)
+
+    assert not at["docked"], (
+        "the row docked, so there is no claim on the margin and nothing here is proved"
+    )
+    assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
+        "the small drawing must fit the column, or its placement says nothing"
+    )
+    assert abs(at["small"]["offAxis"]) <= 1, (
+        f"a drawing that fits sits off the axis of the prose it explains by "
+        f"{at['small']['offAxis']:.0f}px: it reads as an exhibit that slipped"
+    )
+
+    assert at["flow"]["width"] > at["col"]["right"] - at["col"]["left"], (
+        "the wide drawing must outgrow the column, or the margin is never asked for"
+    )
+    assert at["flow"]["box"]["left"] < at["col"]["left"] - 1, (
+        "a drawing that needs the room must take the free margin: its box starts at "
+        f"{at['flow']['box']['left']:.0f}px, the column at {at['col']['left']:.0f}px"
+    )
+    assert at["flow"]["box"]["right"] <= at["col"]["right"] + 1, (
+        f"and never the claimed one: its box ends at {at['flow']['box']['right']:.0f}px, "
+        f"the column at {at['col']['right']:.0f}px, the controls at {at['rail']:.0f}px"
+    )
+    # What is left of a drawing too wide for even that is behind a scrollbar, which is
+    # only an answer if the scroll can reach it: an overflow laid out off the start edge
+    # is unreachable in any direction, and the drawing's first node is the one a reader
+    # follows the graph from.
+    assert at["flow"]["scrolls"], (
+        "this drawing outgrows the claimed page's room, so its box must scroll"
+    )
+    assert abs(at["flow"]["left"] - at["flow"]["box"]["left"]) <= 1, (
+        f"the overflow was laid out off the box's start edge, where no scroll reaches "
+        f"it: drawing from {at['flow']['left']:.0f}px, box from "
+        f"{at['flow']['box']['left']:.0f}px"
+    )
+    assert at["sideways"] == 0, "the page must not scroll sideways for either"
     assert errors == []
     page.close()
 
@@ -15603,10 +15895,32 @@ graph LR
   </lf-option>
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
 </lf-options>
+<lf-board id="evidence">
+  <lf-column id="e1" label="Todo"><lf-card id="ek1"><strong>With evidence</strong>
+    <lf-diagram id="in-board-card"><pre>
+graph LR
+  A[request] --> B[queue]
+  B --> C[worker]
+</pre></lf-diagram>
+  </lf-card></lf-column>
+  <lf-column id="e2" label="Done"></lf-column>
+</lf-board>
 </main>
 </body>
 </html>
 """
+
+# A box of the page's own that both draws and scrolls, holding a wide widget. The theme
+# has no rule for a project's box and cannot, so what stands between it and a page drawn
+# wrong is the gate — and the gate could not see through the scroll: `answeredFor`
+# excused anything inside one, which is every card on every board.
+FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
+    "<main>",
+    "<main>\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
+    "<lf-board id='framed'><lf-column id='f1' label='Todo'>"
+    "<lf-card id='fk1'><strong>One</strong></lf-card></lf-column>"
+    "<lf-column id='f2' label='Done'></lf-column></lf-board></div>",
+)
 
 
 # A page that reserves the margin rail and stands a wide widget in the flow beside it —
@@ -15768,6 +16082,15 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
         "() => getComputedStyle(document.documentElement)"
         ".getPropertyValue('--rail') === ''"
     ), "the rail arrived before the page was laid out; this proves nothing held"
+    # The room is stated by the layout and the module is asked for by the upgrade, and
+    # nothing orders the two: on a run where the request had not reached the handler yet,
+    # releasing it here was an IndexError rather than a failure with a name. Wait for the
+    # fact the test is about — the module being in the wire — the way every other wait
+    # here consumes something the system states.
+    deadline = time.monotonic() + 30
+    while not held and time.monotonic() < deadline:
+        page.wait_for_timeout(20)
+    assert held, "the suggestion module was never asked for, so nothing was held"
     held[0].continue_()
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
@@ -15981,7 +16304,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         return { column: b.right - parseFloat(s.paddingRight)
                          - b.left - parseFloat(s.paddingLeft),
                  loose: box('in-section'), specimen: box('quoted'),
-                 quoted: box('in-specimen'), card: box('opt-a'), diagram: box('in-card') };
+                 quoted: box('in-specimen'), card: box('opt-a'), diagram: box('in-card'),
+                 boardCard: box('ek1'), inBoardCard: box('in-board-card') };
     }""")
 
     assert boxes["loose"]["width"] > boxes["column"] + 1, (
@@ -16003,8 +16327,41 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         f"diagram out to {boxes['diagram']['right']:.0f}, card ends at "
         f"{boxes['card']['right']:.0f}"
     )
+    # A board's own card is the same box asked from inside a scroller, which is where the
+    # gate below had been blind: this diagram stood 332px past its card and across the
+    # next column of the board, and every reading of the page called it clean.
+    assert boxes["inBoardCard"]["left"] >= boxes["boardCard"]["left"] - 1, (
+        "the diagram crossed its card's left edge on the board"
+    )
+    assert boxes["inBoardCard"]["right"] <= boxes["boardCard"]["right"] + 1, (
+        "the diagram crossed its card's right edge and is drawn over the next column: "
+        f"diagram out to {boxes['inBoardCard']['right']:.0f}, card ends at "
+        f"{boxes['boardCard']['right']:.0f}"
+    )
     assert errors == []
     page.close()
+
+
+def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
+    browser, serve
+):
+    """A wide widget is measured against the box that frames it, and everything else on
+    the page is excused by a scroll container above it — a box inside one is drawn only
+    as far as the scroller reaches, so it cannot spill onto the page. Asked in that order,
+    the excuse ate the measurement: a board scrolls, so every card on every board was
+    excused from the one reading that applies to what it holds, and a diagram drawn 332px
+    across the next column passed the gate that exists to name it.
+
+    The frame here is the page's own, because a project's box is what no theme rule can
+    reach — the same place the margin-furniture gate above stands."""
+    failures = interact.render_version(browser, serve(FRAMED_SCROLLER_PAGE))
+
+    assert [
+        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
+    ], (
+        "the gate said nothing about a wide widget escaping a frame that scrolls: "
+        f"{failures}"
+    )
 
 
 def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):

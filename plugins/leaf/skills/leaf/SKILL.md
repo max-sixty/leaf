@@ -435,7 +435,7 @@ For each acknowledged batch:
      the user's pick is the answer, so acknowledge it with a reply in the same
      thread. Thread markup is frozen in the log — versions neither carry nor revert
      it, and the picked state stays put on its own. A question opened this way
-     counts among the page's asks (the banner, the `a` key) until answered: one
+     counts among the page's asks (the banner, the `n`/`p` walk) until answered: one
      pick answers a plain group, while a `multiple` group answers when the user
      presses its Done control, arriving as an `answer` action — act on the set
      then, though every toggle still reaches you live as it lands.
@@ -510,7 +510,7 @@ leaf comment <page> --text "…"                         # the page as a whole
 ```
 
 A question with alternatives takes them as `--markup` — the AskUserQuestion shape,
-answered in the panel by click or by keys (`a` reaches it, digits pick):
+answered in the panel by click or by keys (`n` reaches it, digits pick):
 
 ```bash
 leaf comment <page> --text "Auth for the sync endpoint — which way?" \

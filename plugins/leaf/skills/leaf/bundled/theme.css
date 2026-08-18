@@ -93,7 +93,8 @@ lf-option { display: block; position: relative; }
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. */
 lf-options:has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
-            border-radius: var(--r); padding: var(--sp-3); background: var(--card); }
+            border-radius: var(--r); padding: var(--sp-3); background: var(--card);
+            --lf-frame: 1; }
 lf-option > strong { display: block; margin: 0 0 4px; }
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
  * the author's own markup, quotable and diffable like any other content. The pill is the
@@ -163,7 +164,14 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
    * not allowed in a container condition; it is `--sp-3`, and the rail's own margin below
    * is where it is really stated. */
   & > :is(lf-option, lf-variant) { container-type: inline-size; }
-  & > :is(lf-option, lf-variant) > .facts { display: block; margin: 0 0 var(--sp-2); }
+  /* The rail declares the frame its option already does, because the trim reaches one
+     level and the rail is what stands in that level: a `dt`'s 6px between terms is the
+     first term's too, and collapsing hands it to the option, whose padding then paints it
+     — so the rail's first line sat 6px below the case docked beside it. Stated here
+     rather than under the float, since where the rail stacks the same 6px reaches the
+     option through the same collapse. */
+  & > :is(lf-option, lf-variant) > .facts { display: block; margin: 0 0 var(--sp-2);
+      --lf-frame: 1; }
   @container (min-width: calc(9.5em + 16px + 20em)) {
     & > :is(lf-option, lf-variant) > .facts { float: right; clear: right; width: 9.5em;
         margin: 0 0 var(--sp-2) var(--sp-3); }
@@ -501,7 +509,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
  * drawing nothing reads as padding. Both are stated where the joined group is (above). */
 lf-options:not(:has(> lf-option > strong)) > lf-option {
                      display: table; width: 100%; border-spacing: var(--sp-2) 0;
-                     padding: 5px 0; border-radius: 6px; }
+                     padding: 5px 0; border-radius: 6px; --lf-frame: 1; }
 lf-options:not(:has(> lf-option > strong)) > lf-option[recommended] {
                      background: color-mix(in srgb, var(--accent) 8%, transparent); }
 lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
@@ -633,7 +641,7 @@ lf-options[settled] > .lf-settled:focus-visible { outline: 2px solid var(--accen
  * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. */
 lf-milestones { display: block; margin: 14px 0 14px 8px; }
 lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
-               border-left: 2px solid var(--rule); }
+               border-left: 2px solid var(--rule); --lf-frame: 1; }
 lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
 lf-milestone::before { content: ""; position: absolute; left: -7px; top: 3px;
                        width: 10px; height: 10px; border-radius: 50%;
@@ -676,7 +684,7 @@ lf-task[status="done"] > strong { color: var(--muted); }
  * colored by kind; the time label is the `at` attribute, said above the title. */
 lf-timeline { display: block; margin: 14px 0 14px 8px; }
 lf-event { display: block; position: relative; padding: 0 0 16px 26px;
-           border-left: 2px solid var(--rule); }
+           border-left: 2px solid var(--rule); --lf-frame: 1; }
 lf-event:last-child { border-left-color: transparent; padding-bottom: 2px; }
 lf-event::after { content: ""; position: absolute; left: -7px; top: 4px;
                   width: 10px; height: 10px; border-radius: 50%;
@@ -696,7 +704,7 @@ lf-event > strong { margin-right: 6px; }
 lf-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
              gap: var(--sp-3); margin: 14px 0; }
 lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(--r);
-             padding: var(--sp-3); background: var(--card); }
+             padding: var(--sp-3); background: var(--card); --lf-frame: 1; }
 lf-variant > strong { display: block; margin: 0 0 4px; }
 
 /* lf-metrics / lf-metric: a KPI row. The value leads, said from the attribute;
@@ -705,7 +713,8 @@ lf-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem,
              gap: var(--sp-3); margin: 14px 0; }
 lf-metric { display: block; border: 1px solid var(--rule); border-radius: var(--r);
             padding: 10px 14px; background: var(--card); font-size: var(--t-6);
-            text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+            text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+            --lf-frame: 1; }
 lf-metric::before,
 lf-metric > [data-lf-said="value"] { display: block; font-size: var(--t-2);
                     font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
@@ -737,7 +746,7 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
 lf-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(10rem, 1fr);
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
 lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
-            border-radius: var(--r); padding: 8px; min-height: 64px; }
+            border-radius: var(--r); padding: 8px; min-height: 64px; --lf-frame: 1; }
 /* The heading is written by lf-board.js rather than by the x-says pass, because
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those
@@ -752,7 +761,7 @@ lf-column::before { content: attr(label); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 8px 10px; margin: 0 0 var(--sp-2); }
+          padding: 8px 10px; margin: 0 0 var(--sp-2); --lf-frame: 1; }
 /* The column the grip hangs in, spent only where a grip hangs: the module measures its
    own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
    pick column already is, so the ladder moving or a platform substituting a different
@@ -945,22 +954,25 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
  * reader who reported it read the top as the loose end, because the note is 4px off the
  * bar and so appears to open it, leaving a marking that begins at a line and then waits
  * twenty pixels for the thing it is marking. So the specimen states no padding of its
- * own and drops those margins where they abut the marking: what separates a specimen
- * from the prose around it is its own 18px, stated once.
+ * own and declares the frame, which drops those margins where they abut the marking:
+ * what separates a specimen from the prose around it is its own 18px, stated once.
  *
- * The reach is the direct children, which is what a selector has. The label is a child
- * too (`x-says` writes it `before`), so the leading edge is spelled for both
- * arrangements — the exhibit's first block is `:first-child` on a page whose label is an
- * attribute and the note's next sibling on one where the runtime has written it. A child
- * that generates no box hands its own boxes to the flow and the rule lands on nothing:
- * the one such widget shipped is the suggestion, and it is why the block slot asks for
- * its room above rather than around itself (theme.css).
+ * The trim that declaration buys is the layer's (theme.css), and the reach is the direct
+ * children, which is what a selector has. Nothing about the note is stated here, though
+ * it is a child on a live page (`x-says` writes it `before`) and a pseudo-element on one
+ * carrying no script: the trim asks for the first child the page itself put there, so
+ * both arrangements come out the same and the exhibit's first block is what it lands on.
  *
- * That leaves one edge rather than two, and it is measured: a suggestion leading a
- * specimen still holds its 10px. Which edge is left follows from the room having to sit
- * on one side, and the other side was worse — stated between siblings, it could not
- * cross the boxless wrapper at all, and two suggestions in a row on a shipped page shut
- * against each other. Reaching a level further is the fix that suggests itself, and it
+ * A child that generates no box hands its own margins to the flow and the trim lands on
+ * nothing. The one such widget shipped is the suggestion, and it is why the block slot
+ * asks for its room above rather than around itself (theme.css) — which leaves one edge
+ * rather than two, measured: a suggestion leading a specimen still holds its 10px. Which
+ * edge is left follows from the room having to sit on one side, and the other side was
+ * worse — stated between siblings, it could not cross the boxless wrapper at all, and two
+ * suggestions in a row on a shipped page shut against each other. A box that stands in
+ * that position and has one declares the frame itself, one level in, which is the answer
+ * `.facts` takes; a suggestion has no box to declare it on. Reaching a level further from
+ * out here is the fix that suggests itself, and it
  * trades a silent failure for a worse one: the grandchild whose margin shows is the
  * grandchild of a *boxless* parent, and the same selector over a padded one — a callout
  * leading a specimen — closes up that box's own first line, which is the exhibit
@@ -971,9 +983,7 @@ lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
  * quiet, and what a leading suggestion meets the day one is written. */
 lf-specimen { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
-              border-left: 3px solid var(--border-2); }
-lf-specimen > :is(:first-child, [data-lf-said="label"] + *) { margin-block-start: 0; }
-lf-specimen > :last-child { margin-block-end: 0; }
+              border-left: 3px solid var(--border-2); --lf-frame: 1; }
 /* The widgets here that frame what they hold, saying so where they draw the frame: the
    room a wide widget may take is the page's, and inside one of these the page is not
    what holds it. A quoted board that took the window escaped the gutter marking it as
@@ -981,17 +991,16 @@ lf-specimen > :last-child { margin-block-end: 0; }
    card was worse for being invisible: the group clips to its own cells, so what crossed
    the card was cut off at its edge rather than drawn past it, and the widest part of the
    evidence an option was arguing on simply wasn't there. Everything else here is
-   transparent and says nothing: a tab's panel is the column's own width, and an exhibit breaking out through
-   one is what the width is for. theme.css's rule beside `--wide` has the reasoning and
-   the gate that catches the next box to forget.
+   transparent and says nothing: a tab's panel is the column's own width, and an exhibit
+   breaking out through one is what the width is for. theme.css's rule beside `--wide`
+   has the reasoning, why the frame declaration cannot answer this, and the gate that
+   catches the next box to forget.
 
-   Four of these were written the day the gate could see them. A card, a milestone, an
-   event and a variant each draw a box and each let a diagram out of it — a diagram in a
-   card stood 332px past the card and across the next column of the board — and every one
-   of them was excused by the same reading, since the gate skipped anything inside a
-   scroll container and a board, a timeline and a comparison all scroll. The list is not
-   the mechanism and never was; what makes it maintainable is the gate seeing a wide
-   widget wherever it stands (PAST_THE_COLUMN). */
+   The last four arrived the day that gate could see them. A card, a milestone, an event
+   and a variant each frame what they hold and each let a diagram out — a diagram in a
+   card stood 332px past the card and across the next column of its board — and every one
+   was excused by the same reading, the gate having skipped anything inside a scroll
+   container while a board, a timeline and a comparison all scroll. */
 :is(lf-option, lf-specimen, lf-old, lf-new,
     lf-card, lf-milestone, lf-event, lf-variant) [data-lf-wide] { --lf-room: 0px; }
 lf-specimen::before,

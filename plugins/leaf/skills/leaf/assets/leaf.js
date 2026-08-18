@@ -183,6 +183,18 @@ export function failSoft(el, err, source) {
   el.replaceChildren(box);
 }
 
+// The page's one door to the log, spelled once. Two callers reach it — `post`, which
+// orders the reader's own gestures through it, and the error report below, which
+// deliberately doesn't — and what they share is the request rather than anything about
+// the sending: same path, same method, same encoding, so a door that moved would move
+// for both. Whether a send waits on the one before it belongs to the caller.
+const postEvent = (event) =>
+  fetch("/api/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  });
+
 // The page reporting itself broken, to the party who can fix it: the agent
 // authored the page and its widgets, and before this the only route for a
 // live-session fault was the reader pasting a console nobody told them to
@@ -200,14 +212,10 @@ function reportPageError(text) {
   console.error(`leaf: ${text}`);
   if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
   reportedErrors.add(text);
-  fetch("/api/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      kind: "error",
-      text,
-      ...(VNUM != null && { version: VNUM }),
-    }),
+  postEvent({
+    kind: "error",
+    text,
+    ...(VNUM != null && { version: VNUM }),
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
@@ -587,7 +595,7 @@ export function offer(tag, cls, label) {
 // largest hole a survey of this runtime found was that Space activates nine classes of
 // control across core and five widgets and only one of them ever said so. As a scope it is
 // named once in the reference, and named on the line exactly while the reader stands on
-// one — which is where the `a` key puts them.
+// one — which is where the walk through the page's asks puts them.
 
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the
@@ -942,11 +950,11 @@ const live = (row) => !row.when || row.when();
 // browser's bookmark rather than half a page down, and ⌥ stays the aim chord's alone.
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
-// writes an uppercase key out of an unshifted press: under the old rule a reader with caps
-// lock on who reached for `a` — the walk through what the page is waiting on them for —
-// matched nothing at all while the line went on offering it. Asking for the modifier
-// rather than reading the uppercase key is also what keeps that reader from getting
-// `Shift+a`, which answers every ask at once, and a decision is the end of the matter.
+// writes an uppercase key out of an unshifted press and reads an unshifted one out of a
+// shifted press. Read off the glyph, `A` would be the answer that ends the matter for
+// every ask on the page: a reader with caps lock on gets it from a bare letter they
+// meant as a letter, and can no longer reach it with the Shift the chip names. Asking
+// for the modifier is what makes the chip true in both directions.
 function answers(binding, ev) {
   const { key, mods } = parsed(binding);
   if (mods.includes("Mod") !== (ev.metaKey || ev.ctrlKey)) return false;
@@ -1005,6 +1013,23 @@ function checked(rows, where) {
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
 
+// A clamped walk over a list of focusable rows: the row `dir` steps to from wherever
+// focus stands, or the end it is already on. Clamped rather than wrapping, because ↓ on
+// the last row must land where it already stands — the press stays the panel's, so the
+// list doesn't scroll out from under a walk that reached its end, which is also how j/k
+// walks threads. A walk that wraps is a fact about that walk (lf-tabs, per the ARIA tabs
+// pattern) and states its own; this is the one two panels share. It hands back the row it
+// landed on, for a walk that does more than move — the versions menu states a comparison
+// from it, and against the row focus was on, since the clamped press moved nothing.
+const walkRows = (rows, dir) => {
+  const row =
+    rows[
+      Math.max(0, Math.min(rows.length - 1, rows.indexOf(document.activeElement) + dir))
+    ];
+  row?.focus();
+  return row;
+};
+
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the overlay, their rows gathered under each title. A section is
 // its sentences: the tenth grip on a page says what the first one says, so it is one
@@ -1015,8 +1040,25 @@ export const PRESS = ["Enter", " "];
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 const elementScopes = new WeakMap();
-const declaredScopes = new Map(); // title → Map(sentence → row)
+const declaredScopes = new Map(); // title → section
 const sentence = (row) => (typeof row.does === "string" ? row.does : row);
+const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
+// One section per title, gathered from every contributor. Written once because the gathering
+// happens twice and used to be spelled three times: here at declaration, where a widget's
+// contributors arrive an upgraded element at a time, and at each open of the reference, where
+// core's scopes and the widgets' are gathered into one list of sections. The rules above are
+// this function — rows keyed by sentence, `when` and `at` joined by or — and a near-copy of a
+// merge is a merge that drifts on the day one of the three learns something.
+function merge(sections, { title, when, at, rows }) {
+  const seen = sections.get(title);
+  if (!seen) {
+    sections.set(title, { title, when, at, rows: new Map(rows) });
+    return;
+  }
+  for (const [key, row] of rows) seen.rows.set(key, row);
+  seen.when = either(seen.when, when);
+  seen.at = either(seen.at, at);
+}
 
 /** Declare a scope's keys where the code implementing them is.
  *
@@ -1055,12 +1097,7 @@ export function keys(where, title, rows, when) {
     rows: checked(rows, title ?? "a scope"),
     when,
   });
-  if (title) {
-    const section = declaredScopes.get(title) ?? { title, when, rows: new Map() };
-    section.when = either(section.when, when);
-    for (const row of rows) section.rows.set(sentence(row), row);
-    declaredScopes.set(title, section);
-  }
+  if (title) merge(declaredScopes, { title, when, rows: bySentence(rows) });
   paintLine();
   return rows;
 }
@@ -1690,21 +1727,22 @@ ${MARK_RULES}
   body.lf-over-mark { cursor: pointer; }
   /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
      whole cost is that it is invisible. Two things say it, and the division matters:
-     the item under the pointer outlines, which answers *which*, and the cursor answers
+     the item under the pointer wears the aim's box (.lf-aim, in the chrome's scope
+     block), which answers *which*, and the cursor answers
      *whether*. crosshair was tried and read as a cross — an icon for closing something,
      not for aiming at it — and copy, alias and a menu each name an action this isn't.
      What is left is the pair this page already spends on that same distinction one line
      above: the hand where a press acts, the arrow where it doesn't. Armed, a press acts
      exactly where there is an item under it and on nothing where there isn't
      (claimPress), so those two states are those two cursors, and the hand promises no
-     more than the outline beside it does.
+     more than the box beside it does.
      The plain arrow alone was the first answer and it under-promised. It says only "not
-     a text selection", which is the half a reader can already infer from the outline,
+     a text selection", which is the half a reader can already infer from the box,
      and it says the same thing over a gap a press does nothing in as over the paragraph
-     a press would take whole — so the one question the outline leaves ("would this
+     a press would take whole — so the one question the box leaves ("would this
      click do anything?") was the one the cursor declined to answer, and a user held the
      key and asked it out loud.
-     Derived at the paint, off the value paintAnchors resolved for the outline, so there
+     Derived at the paint, off the value refreshAim resolved for the box, so there
      is one answer to what the aim is on rather than a second reading free to disagree
      with what is drawn.
      What this does not reach is a control that states a cursor of its own — a
@@ -1712,7 +1750,7 @@ ${MARK_RULES}
      press is being swallowed above it. Inherited declarations lose to declared ones, so
      covering that means either an important universal rule or naming this container at
      document level to hold the chrome out of it, and both are worse than the case: the
-     outline is absent there, which is the honest half of the answer, and the control's
+     box is absent there, which is the honest half of the answer, and the control's
      hand says what it always says rather than something new and wrong.
      One declaration on the body, inherited, rather than a rule reaching down the page:
      naming .lf-chrome here to hold the chrome out would put that class into the
@@ -1749,12 +1787,14 @@ ${MARK_RULES}
      corner radius rather than restating one, which is what the radius here used to
      override. */
   .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
-  /* The draft's own passage, and the item an armed press would take. Only the colour
-     separates it from a posted mark, and the colour moved: the burnt orange stood 77 ΔE
-     from the accent and --mark-ink stands 24, both now at a hairline. What keeps the two
-     apart is no longer the paint alone — an open composer is on screen whenever this one
-     is, and an element a thread already marks keeps the posted colour rather than taking
-     this (paintAnchors), so the pair never contend on one element. */
+  /* The draft's own passage — a standing annotation like the posted mark, which is why
+     it may share the hairline where the ⌥ aim's promise may not (the .lf-aim rule in
+     the scope block says why). Only the colour separates it from a posted mark, and the
+     colour moved: the burnt orange stood 77 ΔE from the accent and --mark-ink stands
+     24, both now at a hairline. What keeps the two apart is no longer the paint alone —
+     an open composer is on screen whenever this one is, and an element a thread already
+     marks keeps the posted colour rather than taking this (paintAnchors), so the pair
+     never contend on one element. */
   .lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto; }
   /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
      hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -1954,8 +1994,11 @@ ${MARK_RULES}
     .lf-panel.open { display: flex; }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* contain: reaching the end of the thread list must not start scrolling the page
-       behind it — one wheel gesture moves one region. */
-    .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; }
+       behind it — one wheel gesture moves one region.
+       The frame is declared because the inset is read at both ends of a scroll region:
+       the list opened 10px above its first thread and stopped 22px under the last, the
+       last thread's own 12px having nowhere to collapse to. See theme.css. */
+    .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; --lf-frame: 1; }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
     .lf-threads:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
@@ -1964,7 +2007,7 @@ ${MARK_RULES}
        a second description of it. What .lf-going adds is the clip the fold needs and
        the outcome said in paint: the box is on its way out and may not also state
        that in metrics the fold is animating. */
-    .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; }
+    .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; --lf-frame: 1; }
     .lf-going { overflow: hidden; box-sizing: border-box; }
     /* The outcome rides the closing edge, so it is legible for the whole fold rather
        than for the frame before the box swallows it: the actions row is the thread's
@@ -2068,6 +2111,28 @@ ${MARK_RULES}
        whatever it happens to be over. */
     .lf-fab { position: absolute; z-index: 8950; display: none;
       box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    /* The ⌥ aim's promise: the item a press would take, whole. Drawn here in the
+       chrome's own layer rather than painted onto the element, because no band of a
+       page element is reliably the runtime's to paint in — the mark comment at
+       document level holds the inventory (outside the border, an enclosing scroller
+       clips; inside it, a choose group's own cells paint over; the border band is
+       wherever the widget's own border already is). A standing mark can live with the
+       hairline that survives all that, because an annotation is something a reader
+       can hunt for. A promise cannot: it answers a held key at a glance, and over a
+       card whose 1px border is already the accent — every recommended option — the
+       arm changed nothing a reader could see, which was reported as no box at all.
+       The layer over the page is the runtime's by construction, so the aim is stated
+       there instead, from the aimed element's geometry: a veil that says how much a
+       press takes and a ring that says where it stops, over everything the page can
+       paint — an lf-shot frame flush to its own edges included. pointer-events
+       stands down so the press this box promises, and every elementFromPoint behind
+       the promise, still lands on the item under it. Document-anchored like the
+       floats above (place), so a scroll moves it with the page between the events
+       that re-derive it; under the floats themselves, which are chrome the reader
+       works rather than paint about the page. */
+    .lf-aim { position: absolute; z-index: 8920; display: none; pointer-events: none;
+      border: 2px solid var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, transparent); }
     .lf-composer { position: absolute; z-index: 8950; display: none; width: 320px; background: var(--card);
       border: 1px solid var(--border-2); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 10px; }
     /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
@@ -2168,7 +2233,7 @@ const latestChip = el("button", "lf-ui lf-btn lf-latest-chip", "");
 // two rows that make it rather than typed out beside them.
 latestChip.title = "Open the newest version";
 // What the page is still waiting on the reader for, and the way to the next one — the
-// same list the a key steps and the "?" overlay names, counted here so a reader who
+// same list n/p step and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
 const asksBtn = el("button", "lf-btn lf-asks", "");
 asksBtn.title = "Go to the next thing this page is waiting on you for";
@@ -2236,7 +2301,7 @@ if (readerStore.get(OTHERS_KEY) === "1") {
 // The board's own scope. The walk is the board's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
-// arrives here by key — `o` lands focus on the first neighbour — so the scope names what
+// arrives here by key — `l` lands focus on the first neighbour — so the scope names what
 // activating does rather than leaving it to the platform's own contract.
 const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
 keys(
@@ -2248,15 +2313,7 @@ keys(
       does: "Walk the leaves",
       line: "walk the leaves",
       repeat: true,
-      // Clamped at the ends, the way j/k walks threads: ↓ on the last row lands where it
-      // already stands rather than wrapping to the top, and the press stays the board's,
-      // so the panel doesn't scroll out from under a walk that reached its end.
-      run: (binding) => {
-        const rows = othersLinks();
-        const at = rows.indexOf(document.activeElement);
-        const dir = binding === "ArrowDown" ? 1 : -1;
-        rows[Math.max(0, Math.min(rows.length - 1, at + dir))]?.focus();
-      },
+      run: (binding) => walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1),
     },
     // Enter is the browser's here, the row being a link — no `run`, because binding it
     // would click a control the platform has already activated. It carries a word all the
@@ -2301,6 +2358,30 @@ function rowPresence(entry) {
               : "Closed";
   return { tone: TONE[kind], line };
 }
+// The whole of what the board knows about one page, for its hover. Everything drawn
+// on a row is cut to the panel's fixed width — the title ellipsizes, the line
+// ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
+// session behind the leaf is working. A title is a sentence somebody wrote and two
+// pages a week apart share one; the work each came out of is the thing the reader
+// already holds in their head, so it is worth the room a hover has and a row hasn't.
+//
+// One tooltip for the row rather than one per part. The innermost title wins where two
+// overlap, so a title left on the line would answer the hover most likely to be asking
+// this question — a reader pointing at the words that ran out of room — with the one
+// part of the account they can already read.
+const rowAccount = (entry, title, line) =>
+  [
+    title,
+    entry.session_cwd,
+    line,
+    // The reader's own words that page's agent hasn't taken in. The banner says this
+    // number for this page; the board says it for every page, which is the seat's
+    // whole point — a leaf holding something of yours that nobody has read is a
+    // reason to go there, and nothing else on the row says so.
+    entry.pending && `${entry.pending} update${entry.pending === 1 ? "" : "s"} waiting`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 const othersRows = new Map(); // keyed by URL; the self row under its own key
 function renderOthers(state) {
   // An older server ships no list, which is an empty one. A closed leaf is not
@@ -2351,17 +2432,10 @@ function renderOthers(state) {
     const dotCls = "lf-dot" + (tone ? " " + tone : "");
     if (rowDot.className !== dotCls) rowDot.className = dotCls;
     if (rowTitle.textContent !== title) rowTitle.textContent = title;
-    if (row.title !== title) row.title = title; // the row ellipsizes; the tooltip holds it whole
-    if (rowLine.textContent !== line) {
-      // The line holds its own tooltip, now that it carries an ask and not one word:
-      // it ellipsizes at the panel's fixed width, and the row's tooltip is the page
-      // title, so the ask would be the one thing on the row a hover cannot recover.
-      // The innermost title wins where two overlap, which puts this one under the
-      // pointer here while the title still answers everywhere else on the row. One
-      // comparison answers for both, being the same words written twice.
-      rowLine.textContent = line;
-      rowLine.title = line;
-    }
+    if (rowLine.textContent !== line) rowLine.textContent = line;
+    // Everything the row was too narrow to say, on the row itself (see rowAccount).
+    const account = rowAccount(entry, title, line);
+    if (row.title !== account) row.title = account;
     const place = anchor ? anchor.nextElementSibling : othersPanel.firstElementChild;
     if (place !== row) othersPanel.insertBefore(row, place);
     anchor = row;
@@ -2417,10 +2491,17 @@ function showVersionMenu(open) {
   versionBtn.setAttribute("aria-expanded", String(open));
   // Opening lands on the version being read, so the menu's own keys are the next
   // press rather than a Tab-hunt — the same move o makes into the leaves board.
+  //
+  // Or on the standing base, where a comparison is up, because inside this menu the focused
+  // row *is* the base (the walk below). Landing on the version being read instead left the
+  // two disagreeing at the one moment the reader cannot see it coming: their first arrow
+  // press would have moved the base off the version they had marked from to the neighbour of
+  // the one they are reading, silently, with the marks redrawn to match.
   if (open)
     (
-      versionRows().find((r) => r.dataset.lfVersion === String(VNUM)) ??
-      versionRows()[0]
+      versionRows().find(
+        (r) => r.dataset.lfVersion === String(diffOn ? diffBase : VNUM),
+      ) ?? versionRows()[0]
     )?.focus();
   else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
   paintLine();
@@ -2428,10 +2509,8 @@ function showVersionMenu(open) {
 versionBtn.onclick = () => showVersionMenu(!versionMenuOpen);
 // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
 // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
-// button, and the row says so with no `run`. A row's Δ is reached from it by Tab, the way
-// every other press in the chrome is, and takes no key of its own: the walk would have had
-// to promise one the row it lands on cannot keep, since the row a press opens the menu on
-// is the version being read and that is the one row with nothing to compare against.
+// button, and the row says so with no `run`. A row's Δ is the same comparison for the
+// pointer, which has no walk to state it with, and takes no key of its own.
 //
 // v is the second half of the motion that opened the menu, and the one row worth a key of
 // its own: the newest version is where the walk ends, and where a reader who came for the
@@ -2458,17 +2537,29 @@ keys(
   [
     {
       keys: ["ArrowUp", "ArrowDown"],
-      does: "Walk the versions",
-      line: "walk the versions",
+      // The walk marks as it goes, which is what the list is for: the note says in words
+      // what a version changed and the page behind the menu then says it in the passages
+      // themselves, without the reader having to leave the list to find out. A note is
+      // Claude's sentence about a version and the marks are the version's own account of
+      // itself, so reading them together is the only way to tell the two apart.
+      does: "Walk the versions, marking what changed since the one you are on",
+      line: "walk — marking changes",
       repeat: true,
-      // Clamped at the ends, the way j/k walks threads and ↑/↓ walks the board: ↓ on the
-      // last row lands where it already stands rather than wrapping, and the press stays
-      // the menu's, so it doesn't scroll out from under a walk that reached its end.
       run: (binding) => {
-        const rows = versionRows();
-        const at = rows.indexOf(document.activeElement);
-        const dir = binding === "ArrowDown" ? 1 : -1;
-        rows[Math.max(0, Math.min(rows.length - 1, at + dir))]?.focus();
+        const was = document.activeElement;
+        const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
+        // A press at either end lands on the row it started from, and now that the walk
+        // states a comparison, landing is not free — it would re-fetch the base and toast
+        // its count again for a press that moved nothing.
+        if (!row || row === was) return;
+        // The comparison the row states: its own version as the base, or none at all where
+        // that version is not older than the one being read. So the reader walks up to mark
+        // from further back and back down to stop — and the row that stops it is the one the
+        // menu opens on, which is why the walk needs no key for the way off and no reader
+        // has to be told where it is.
+        const version = +row.dataset.lfVersion;
+        if (comparable(version)) showComparison(version);
+        else setDiff(false);
       },
     },
     // The browser's own, the row being a real <button> — no `run`, or the press would click
@@ -2493,6 +2584,15 @@ const VERSIONS = {
   // every contributor, so a mode that stays silent about it would speak for all of them.
   when: () => versions.length > 1,
   at: () => versionMenuOpen,
+  // A mode over the page suspends the page, which the two modes above this one always did
+  // and this one did not — so a reader in the middle of choosing a version could press `l`
+  // and take focus out of the menu into the leaves board, `d` and scroll a page they were
+  // not looking at, `c` and open the composer under the list, or `=` and set a base the walk
+  // they were standing in disagrees with. None of it fails loudly: the press does exactly
+  // what it says on a page the reader has stopped reading. The claim is also what narrows
+  // the line to the menu's own keys, so what the mode takes and what it offers are one
+  // statement rather than a suspension the surfaces have to be told about separately.
+  claims: allButTheReference,
   rows: [
     {
       keys: ["Escape"],
@@ -2538,6 +2638,10 @@ generalRow.append(generalInput, generalSend);
 panel.append(panelHead, threadsBox, generalRow);
 
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
+// The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
+// screen reader and takes nothing from the press it promises; refreshAim is its one
+// writer, and data-for is the aimed id stated where a test can read the promise.
+const aimBox = el("div", "lf-ui lf-aim");
 const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
@@ -2584,6 +2688,7 @@ chromeRoot.append(
   versionMenu,
   othersPanel,
   panel,
+  aimBox,
   fab,
   composer,
   toastEl,
@@ -2898,13 +3003,7 @@ async function post(event) {
   // second send is only safe if the door can tell it from a second decision),
   // and it would hold the queue below through its own backoff, delaying every
   // later gesture to soften a case the log already reconciles.
-  const mine = taken.then(() =>
-    fetch("/api/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(event),
-    }),
-  );
+  const mine = taken.then(() => postEvent(event));
   // The turn passes on whatever the send did, failures included — and the
   // catch is what makes that true: a rejection left in `taken` is a promise
   // every later send would chain onto and none would ever run from.
@@ -4170,6 +4269,18 @@ function pageText() {
   if (previousCell) fences.add(raw.length);
   return { raw, origin, positions, fences: [...fences].sort((a, b) => a - b) };
 }
+// Where a passage's segments start and stop in that reading, as [start, stop). A passage
+// is `{node, start, end}` segments and every question about the region it covers is asked
+// in the reading's own coordinates, so the join between the two is one function — the
+// capture writing an anchor's neighbours and the snap widening a drag both ask it. No
+// segments is the document's own start: a selection that covers no quotable character has
+// a position and no extent.
+function spanIn(reading, segments) {
+  const first = segments[0];
+  const last = segments.at(-1);
+  const start = first ? reading.positions.get(first.node) + first.start : 0;
+  return [start, last ? reading.positions.get(last.node) + last.end : start];
+}
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // How much of a quote the search compiles into its pattern. The bound is the pattern's,
 // never the passage's: one expression covering every word of a long passage is a term
@@ -4264,14 +4375,13 @@ function findQuote(text, quote, anchor, within) {
 // because that runs first, the column is already reflowed by the time we scroll.
 const VIEW_KEY = "lf-view";
 
-// The first text block still on screen below the banner: what the reader is reading. A
-// block's landmark is the top of its first line (a range), not its border box; restore
+// The page's own text blocks the reader can see, in document order, with the rect of each
+// one's first line — one reading of what is in front of them, for the two questions that
+// ask it: which passage a version change should land them back on (below), and where a
+// walk over the page's asks starts when they have pointed at nothing (askPosition).
+// A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
-// The quote and the section it's searched in come from the same block, or the search is
-// filtered to a section the text isn't in and can only ever fail — restore then falls back
-// to the section, which doesn't absorb content added above the reader inside it.
-function captureView() {
-  const view = { v: VNUM, y: pageScroller.scrollTop };
+function* blocksOnScreen() {
   for (const block of document.querySelectorAll(TEXT_BLOCK)) {
     // [hidden] needs an explicit skip: hidden="until-found" resolves to
     // content-visibility, under which descendants still report real rects —
@@ -4280,7 +4390,15 @@ function captureView() {
     const range = document.createRange();
     range.selectNodeContents(block);
     const rect = range.getBoundingClientRect();
-    if (!rect.height || rect.bottom <= 42) continue; // 42 = banner height
+    if (rect.height && rect.bottom > 42) yield [block, rect]; // 42 = banner height
+  }
+}
+// The quote and the section it's searched in come from the same block, or the search is
+// filtered to a section the text isn't in and can only ever fail — restore then falls back
+// to the section, which doesn't absorb content added above the reader inside it.
+function captureView() {
+  const view = { v: VNUM, y: pageScroller.scrollTop };
+  for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
     if (!view.section && section) {
       // The first on-screen block's section, kept only until a quotable block supplies
@@ -4462,16 +4580,64 @@ const PENDING = "lf-pending";
 const NOTE = "lf-mark-note";
 const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record of what it drew
 let pendingMarks = []; // the same record for the open composer's own passage
-let pendingOutline = []; // the elements the draft and the ⌥ aim outline, owned by nobody else
-// What the aim last painted — a repaint gate, never a paint input. paintAnchors
-// derives the aimed item live, so a pass run for any reason (a replay's repaint, the
-// arm changing) paints what is under the pointer now; a latch here was a second answer
-// to the question the press asks fresh, and a replay repainted it stale. What the
-// cheap events decide is only whether the answer moved enough to buy a pass, the same
-// division refreshHover keeps for the marks.
-let aimedDrawn = null;
+let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
+// The aim's one writer, and the whole of its paint: the box in the chrome's layer
+// (aimBox), and the cursor's half of the same promise. Everything is derived fresh on
+// every ask — the aimed item, lf-over-item, the box's geometry — because a latch here
+// was a second answer to the question the press asks fresh, and a replay repainted it
+// stale. Synchronous, not coalesced to a frame the way refreshHover is: the keydown
+// that arms the page is followed by the press in the same gesture, and a promise a
+// frame behind the arm is one the press can outrun. What each ask costs is one
+// hit-test and one rect walk, which is what the repaint gate this replaced already
+// spent per event on deciding whether to run a far dearer pass.
 function refreshAim() {
-  if ((aiming ? aimedItem() : null) !== aimedDrawn) paintAnchors();
+  const aimed = aiming ? aimedItem() : null;
+  // The cursor's half, written where the box's half is decided, so the hand cannot
+  // stand over a press the paint knows takes nothing. `aiming` alone says the page
+  // is armed; this says the aim has landed on something.
+  document.body.classList.toggle("lf-over-item", Boolean(aimed));
+  // The item's bounds, held to what the page shows of them. The box lives in a layer
+  // no ancestor's clip can reach — that is the point of it — so it owes the clips an
+  // answer of its own: an option's table box runs on under its group's overflow:
+  // hidden, and a card half-scrolled out of a board is half gone. A box drawn from
+  // the raw rect claims pixels the page has already refused, over the neighbour
+  // standing in them. The viewport is not such an edge — half off screen is still
+  // the truth about the item.
+  let r = aimed?.getBoundingClientRect();
+  // An item with no box of its own — a display: contents suggestion — shows as what
+  // its contents paint, so its bounds are theirs. A range asks the platform for that
+  // union in one read; the outline this box replaced painted nothing at all here,
+  // which the suite only learned to see when the promise became pixels.
+  if (r && !r.width && !r.height) {
+    const contents = document.createRange();
+    contents.selectNodeContents(aimed);
+    r = contents.getBoundingClientRect();
+  }
+  let { left, top, right, bottom } = r ?? {};
+  for (let a = aimed?.parentElement; a; a = a.parentElement) {
+    const s = getComputedStyle(a);
+    if (!/hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY)) continue;
+    const c = a.getBoundingClientRect();
+    left = Math.max(left, c.left);
+    top = Math.max(top, c.top);
+    right = Math.min(right, c.right);
+    bottom = Math.min(bottom, c.bottom);
+  }
+  if (!aimed || right <= left || bottom <= top) {
+    aimBox.style.display = "none";
+    aimBox.removeAttribute("data-for");
+    return;
+  }
+  aimBox.setAttribute("data-for", aimed.id);
+  // The item's own corner radius, so the ring hugs the corner the item draws.
+  Object.assign(aimBox.style, {
+    display: "block",
+    left: left + "px",
+    top: top + pageScroller.scrollTop + "px",
+    width: right - left + "px",
+    height: bottom - top + "px",
+    borderRadius: getComputedStyle(aimed).borderRadius,
+  });
 }
 const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
 let hovering = null;
@@ -4561,24 +4727,16 @@ function paintAnchors() {
   // never reads as a posted comment. An element a thread already outlines keeps the posted
   // colour: there is one outline to give, and the thread's is the clickable one.
   //
-  // The ⌥ aim wears the same paint, because it is the same fact one step earlier: the
-  // item a press would take is what the composer's mark then states. An open composer
-  // doesn't stand the aim down — a press while the box is up re-anchors it to the aimed
-  // item (openOnItem), and the outline is the promise a press keeps, so it paints
-  // wherever the press would act. Draft and aim can therefore outline two elements at
-  // once, which is the true state: where the draft stands, and where a press would
-  // move it.
+  // The ⌥ aim does not wear this paint, though it is the same fact one step earlier:
+  // a promise has to interrupt where an annotation may whisper, so the aim has a box
+  // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
+  // why). An open composer doesn't stand the aim down — a press while the box is up
+  // re-anchors it to the aimed item (openOnItem) — so the two can show at once, which
+  // is the true state: where the draft stands, and where a press would move it.
   const draft =
     composerOpen && pendingAnchor ? resolveAnchor(pendingAnchor, text) : null;
-  const aimed = aiming ? aimedItem() : null;
-  aimedDrawn = aimed;
-  // The cursor's half of the promise, written where the outline's half is decided, so
-  // the hand cannot stand over a press the paint knows takes nothing. `aiming` alone
-  // says the page is armed; this says the aim has landed on something.
-  document.body.classList.toggle("lf-over-item", Boolean(aimed));
   // Where the draft's passage is, recorded the way the threads' is, because placeComposer
-  // has to keep the box off it — the draft's alone, never the aim's, or the box would
-  // dodge whatever the pointer wanders over. An element a thread already outlines belongs
+  // has to keep the box off it. An element a thread already outlines belongs
   // in the record too — it is marked, just in the posted colour rather than the accent.
   pendingMarks = draft
     ? draft.element
@@ -4586,11 +4744,10 @@ function paintAnchors() {
       : draft.segments.map((seg) => rangeOf([seg]))
     : [];
   const pending = [];
-  for (const el of new Set([draft?.element, aimed].filter(Boolean)))
-    if (!allMarks().includes(el)) {
-      el.classList.add("lf-mark-el", PENDING);
-      pendingOutline.push(el);
-    }
+  if (draft?.element && !allMarks().includes(draft.element)) {
+    draft.element.classList.add("lf-mark-el", PENDING);
+    pendingOutline.push(draft.element);
+  }
   if (draft?.segments) pending.push(...pendingMarks);
 
   // The composer's echo of its own passage, decided here because here is where it is known
@@ -4623,6 +4780,7 @@ function paintAnchors() {
   );
   noteMarks(noted); // and the same fact for a reader who can't see any of it
   refreshHover(); // the ranges moved; whether one is under the pointer may have too
+  refreshAim(); // and so may the item a held arm is promising (a replay moves content)
 
   // The panel's side of the same fact, read off the pass's own record so the two views
   // can't disagree: a passage rewritten in a later version has no home to jump to, and a
@@ -4708,7 +4866,7 @@ function markAt(x, y) {
 }
 
 // Bring an element of the document to the middle — a thread's element anchor, a page
-// ask the a key steps to. The document scroller's, so an element standing in the
+// ask n/p step to. The document scroller's, so an element standing in the
 // panel's own list is its region's to centre rather than this one's. reveal first,
 // since opening a tab or a settled group moves everything below it. The arithmetic is the range branch's below, because "the middle"
 // means the viewport's: scrollIntoView measures against the scroller's own
@@ -4777,16 +4935,20 @@ document.addEventListener("mousemove", (ev) => {
   pointer.y = ev.clientY;
   refreshHover();
 });
-pageScroller.addEventListener(
+// At the document and at capture, because scroll does not bubble and body is not the
+// page's only scroller: a board scrolls its columns sideways, and a card carried under
+// a parked pointer that way is the same fact as the page scrolling under it. Capture is
+// the one place every scroller's event passes.
+document.addEventListener(
   "scroll",
   () => {
     refreshHover();
     // The page moving under a held aim is the pointer moving over the page: what a
-    // press would take can change with no mouse event to say so, and an outline left
-    // on the old item promises a press the click no longer makes.
+    // press would take can change with no mouse event to say so, and a box left over
+    // the old item promises a press the click no longer makes.
     refreshAim();
   },
-  { passive: true },
+  { capture: true, passive: true },
 );
 
 // ---------- selection → comment ----------
@@ -4907,10 +5069,7 @@ function selectionAnchor(sel) {
   const segments = segmentsIn(range);
   const quote = quoteFrom(segments);
   const reading = pageText();
-  const first = segments[0];
-  const last = segments.at(-1);
-  const start = first ? reading.positions.get(first.node) + first.start : 0;
-  const stop = last ? reading.positions.get(last.node) + last.end : start;
+  const [start, stop] = spanIn(reading, segments);
   const prefix = cut(
     neighbourhood(reading.origin, reading.fences, start, CONTEXT, true),
     -CONTEXT,
@@ -5068,10 +5227,7 @@ function snapSelection() {
   const segments = segmentsIn(range);
   if (!segments.length) return;
   const reading = pageText();
-  const first = segments[0];
-  const last = segments.at(-1);
-  const start = reading.positions.get(first.node) + first.start;
-  const stop = reading.positions.get(last.node) + last.end;
+  const [start, stop] = spanIn(reading, segments);
   const lo = snapOut(reading, start, true);
   const hi = snapOut(reading, stop, false);
   if (lo === start && hi === stop) return;
@@ -5186,7 +5342,7 @@ document.addEventListener("mousedown", (ev) => standDown(ev.target));
 const visualSel = () =>
   [...tagsDeclaring((e) => e["x-visual"]), "svg", "img", "figure"].join(",");
 // While ⌥ is held the page shows what a click would take — the item under
-// the pointer wears the outline the composer's own passage will wear, so the chord
+// the pointer wears the aim's box (refreshAim), so the chord
 // answers "which" before the click rather than asking the user to press and find out.
 // `aiming` is the state and the class is a rendering of it; nothing reads the class back.
 //
@@ -5245,7 +5401,7 @@ document.addEventListener("mousemove", (ev) => {
 // instead, it was a press the page had already had: ⌥-clicking an option card opened the
 // composer *and* picked the option, sending Claude a decision the user never made,
 // and ⌥-clicking a tab's name aimed at the widget while switching the panel under it.
-// Every widget that takes a press had it, because none of them was ever told. The outline
+// Every widget that takes a press had it, because none of them was ever told. The box
 // is the promise, and a press keeps it by being the only thing the press does.
 //
 // Claimed at the press rather than judged at the click, because the press is where ⌥
@@ -5255,7 +5411,7 @@ document.addEventListener("mousemove", (ev) => {
 // What is armed is the page rather than the items on it: an armed press aims where there
 // is an item under it, and acts on nothing where there isn't. That is what the cursor is
 // already saying, over everything the chrome doesn't hold out of it. Falling through to
-// the page instead would leave the user reading the outline to find out which of the
+// the page instead would leave the user reading the box to find out which of the
 // two a press is about to be — and a suggestion's ✓ Accept hangs in the page's own
 // column, outside the element it decides, so there is nothing above it to aim at and
 // getting that wrong sends Claude a decision.
@@ -5521,7 +5677,6 @@ const focusedThread = () => {
   const active = document.activeElement;
   return active?.classList?.contains("lf-thread") ? active : null;
 };
-const canStepVersions = () => versions.length > 1 && versions.includes(VNUM);
 // A label naming a range counts what is there rather than promising nine: at most nine
 // open threads are addressable, fewer when fewer are open.
 const addressable = () => Math.min(9, threadAddress.size);
@@ -5617,6 +5772,20 @@ const PRINTABLE = (binding) => {
   const { key, mods } = parsed(binding);
   return [...key].length === 1 && mods.every((m) => m === "Shift");
 };
+// What a mode standing over the page takes: the page's keys, and every scope between, minus
+// the one key that says what this mode's own keys are. The reference is the exemption for the
+// same reason the line draws its chip last whatever the room — a reader who has just opened
+// something unfamiliar is exactly the reader who needs it, and a mode that swallowed it would
+// leave the line naming a walk and no way to ask about anything else.
+//
+// A `function`, so the row it reads can be the one the page's own table declares: the modes
+// are built beside the controls they belong to, further up than that table, and a claim is
+// only ever called at a press. A blanket suits a mode that cannot outlive a keystroke — the
+// chord disarms on any key and runs it again, so `?` still reaches the page behind it — and
+// the versions menu is the other kind, standing until the reader closes it.
+function allButTheReference(binding) {
+  return !bindings(REFERENCE).includes(binding);
+}
 
 // ---------- the scopes ----------
 // Above everything: a chord is armed, or the reference is up. Both claim everything — the
@@ -5796,6 +5965,17 @@ const CHOOSER = {
   when: () => versions.length > 0,
   run: () => versionBtn.onclick(),
 };
+// Named for the same kind of reason: a mode standing over the page suspends the page's keys
+// and keeps this one (`allButTheReference`), and the claim reads the binding off the row
+// rather than spelling "?" beside it — a fact about a binding written where the binding
+// cannot correct it is the register's own oldest bug. Its place in the table is nominal, the
+// line drawing this chip last whatever the room (renderLine).
+const REFERENCE = {
+  keys: ["?"],
+  does: "This key reference",
+  line: "keys",
+  run: toggleHelp,
+};
 const PAGE = {
   rows: [
     {
@@ -5831,12 +6011,19 @@ const PAGE = {
       run: () => setLeader(true),
     },
     {
-      keys: ["a"],
-      does: "Go to the next thing this page is waiting on you for",
+      // A borrowed pair, like the walks either side of it: j/k is vim's list, d/u is
+      // less's half page, and n/p is next and previous wherever a keyboard walks a list
+      // of things. The walk held `a` alone and then `a`/`p`, and
+      // both were the same mistake in different sizes — a letter naming what is walked
+      // rather than which way, so the second half had nowhere to come from and ended up
+      // a pair only its author knew. Naming the direction is also what leaves the noun's
+      // shifted letter to the answer that acts on all of them at once (A, below).
+      keys: ["n", "p"],
+      does: "Next / previous thing this page is waiting on you for",
       line: "asks",
       also: asksBtn, // the banner button this key duplicates, which then names it
       when: () => openAsks().length > 0,
-      run: stepAsk,
+      run: (binding) => stepAsk(binding === "n" ? 1 : -1),
     },
     {
       keys: ["d", "u"],
@@ -5846,7 +6033,11 @@ const PAGE = {
       run: (binding) => stepPage(binding === "d" ? 0.5 : -0.5),
     },
     {
-      keys: ["o"],
+      // `l` for the leaves, the word every surface names this board by. It was `o`,
+      // for the "Other leaves" the button said before the count was one off the list
+      // it promised — so the key went on spelling a word nothing on screen said, and
+      // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
+      keys: ["l"],
       does: () => `${othersOpen ? "Hide" : "Show"} the machine's leaves`,
       line: () => `${othersOpen ? "hide" : "show"} leaves`,
       also: othersBtn,
@@ -5861,13 +6052,15 @@ const PAGE = {
       },
     },
     {
-      // The same list `a` steps, answered at large: every blanket answer the page offers,
+      // The same list n/p walk, answered at large: every blanket answer the page offers,
       // given through the banner's own presses, so a decision taken by key is a decision
       // taken by the control and the log records each one separately. Its words are the
       // registry's rather than a sentence written here — "accept" is one widget's verb,
       // and a key that said it in core would be the sentence the banner's count used to
-      // be. Shift is asked for rather than read off an uppercase key, so caps lock cannot
-      // turn the walk above into the answer that ends the matter.
+      // be. `a` names the asks it answers and stands for nothing on its own: an
+      // unshifted letter that ends the matter for every one of them is a press too
+      // cheap for what it does, and the walk is spelled in directions (n/p) rather than
+      // in the noun, so nothing is waiting for the letter back.
       keys: ["Shift+a"],
       does: () =>
         standingAnswers()
@@ -5881,10 +6074,17 @@ const PAGE = {
     },
     CHOOSER,
     {
-      // The diff held v while the chooser had no key at all; it moved to =, which sits
-      // beside [ and ], the other keys about which version this is. The two branches of
-      // the run are said in the words, because a word naming only the opening would
-      // promise the wrong half of the press to a reader looking at a marked-up page.
+      // The diff held v while the chooser had no key at all, and moved to = when the
+      // chooser took the letter. The two branches of the run are said in the words,
+      // because a word naming only the opening would promise the wrong half of the press
+      // to a reader looking at a marked-up page.
+      //
+      // The page keeps this one key about which version this is, and only because it
+      // names no version: "since the last one I saw" is a question a reader has without
+      // opening anything. [ and ] were the other kind — an older/newer step, which is the
+      // walk inside the menu with the list taken away, so the reader stepped blind past
+      // the notes saying what each version changed. One door to the versions, and it is
+      // the one that shows them.
       keys: ["="],
       does: () =>
         diffOn
@@ -5898,14 +6098,7 @@ const PAGE = {
       when: () => diffOn || Boolean(previousVersion()),
       run: () => (diffOn ? setDiff(false) : showComparison(previousVersion())),
     },
-    {
-      keys: ["[", "]"],
-      does: "Older / newer version",
-      line: "step versions",
-      when: canStepVersions,
-      run: (binding) => stepVersion(binding === "[" ? -1 : 1),
-    },
-    { keys: ["?"], does: "This key reference", line: "keys", run: toggleHelp },
+    REFERENCE,
     PANELS_ESC,
     // Reference: a real key the browser owns, and one gesture that is not a key at all.
     // Neither says a word for the line, so neither is ever promised as the next press —
@@ -5918,36 +6111,59 @@ const PAGE = {
   ],
 };
 
-// The stack, innermost first. Element scopes sit between the two modes that suspend the
-// page and the page's own — a widget's control shadows the page, and nothing shadows an
-// armed chord or the reference. Core's scopes are checked at module load by the rule every
-// widget's are checked by at upgrade, so a row here that presses with nothing to say for
-// itself takes down the layer on the first page rather than going quiet on every one.
-const ABOVE = [LEADER, HELP];
-const BELOW = [VERSIONS, COMPOSER, TYPING, THREAD, CONTROL, PAGE];
-for (const scope of [...ABOVE, ...BELOW])
-  checked(scope.rows, scope.title ?? "the page's own keys");
+// The stack, innermost first, and the whole of what the runtime says about the order. The
+// element scopes splice in where ELEMENTS stands — between the two modes that suspend the page
+// and the page's own, because a widget's control shadows the page and nothing shadows an armed
+// chord or the reference — and every other reading is taken from here: the dispatcher and the
+// line walk it as it stands, the reference walks it backwards.
+//
+// Three lists said this, and the third was the reference's own, in its own order, holding the
+// same eight scopes by hand. A mode left out of that one was a mode the reference never named
+// — which is not a hypothetical, being the failure it had already made when core's modes were
+// not declared the way a widget's are. A list that must be edited in step with another is the
+// same bug waiting on the next mode.
+const ELEMENTS = Symbol("the scopes of the focused element");
+const SCOPES = [
+  LEADER,
+  HELP,
+  ELEMENTS,
+  VERSIONS,
+  COMPOSER,
+  TYPING,
+  THREAD,
+  CONTROL,
+  PAGE,
+];
+const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
+// Core's scopes are checked at module load by the rule every widget's are checked by at
+// upgrade, so a row here that presses with nothing to say for itself takes down the layer on
+// the first page rather than going quiet on every one.
+for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
 // A control the keyboard also reaches names its key, and names it off the row. Three
 // tooltips spelled theirs in prose — "(a)", "(o)", "(v v)" — which is the field the key
 // line's word used to be, a fact about a binding written somewhere the binding cannot
 // correct. `also` is where a row says which control it duplicates; the chip's is the one
 // motion no single row makes, so it is composed of the two rows that make it.
-for (const scope of [...ABOVE, ...BELOW])
+for (const scope of CORE)
   for (const row of scope.rows) if (row.also) row.also.title += ` (${labelOf(row)})`;
 latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 
-const standing = (s) => (!s.at || s.at()) && (!s.when || s.when());
+// The two questions a scope answers, named apart because the surfaces ask them apart: the
+// reference lists a scope the page *has* and filters its rows by liveness only where the reader
+// is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
+// in three places before, which is a rule written three times and named nowhere.
+const pageHas = (scope) => !scope.when || scope.when();
+const readerIn = (scope) => !scope.at || scope.at();
+const standing = (scope) => pageHas(scope) && readerIn(scope);
 // Every scope the reader is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
 function stack() {
-  return [
-    ...ABOVE.filter(standing),
-    ...scopesFor(focused()).filter(standing),
-    ...BELOW.filter(standing),
-  ];
+  return SCOPES.flatMap((scope) =>
+    scope === ELEMENTS ? scopesFor(focused()) : scope,
+  ).filter(standing);
 }
 // The claims of every scope nearer the reader than this one, accumulated as either walk
 // steps outward. A scope's own claim is pushed after its rows, because what it takes from
@@ -5971,35 +6187,24 @@ const shadow = () => {
 // close the overlay, and a quiet page naming no Escape at all. So a section is its title
 // wherever the title comes from — the box a reply is typed into declares its send key from
 // wireInput and its way out from the typing mode, and they are one heading.
-const SECTIONS = [PAGE, THREAD, CONTROL, TYPING, COMPOSER, VERSIONS, LEADER, HELP];
+//
+// The stack backwards, so a reader learning the keyboard starts from the page in front of them
+// and reads inward, and the widgets' sections land where their scopes stand in it rather than
+// wherever a second list happened to put them.
 function declaredStack() {
   const sections = new Map();
   const named = (section) =>
     scopesFor(focused()).some((s) => s.title === section.title);
-  for (const scope of SECTIONS) {
-    const seen = sections.get(scope.title);
-    if (!seen) {
-      sections.set(scope.title, {
-        title: scope.title,
-        when: scope.when,
-        at: scope.at,
-        rows: new Map(scope.rows.map((row) => [sentence(row), row])),
-      });
+  for (const scope of SCOPES.toReversed()) {
+    if (scope !== ELEMENTS) {
+      merge(sections, { ...scope, rows: bySentence(scope.rows) });
       continue;
     }
-    for (const row of scope.rows) seen.rows.set(sentence(row), row);
-    seen.when = either(seen.when, scope.when);
-    seen.at = either(seen.at, scope.at);
-  }
-  for (const section of declaredScopes.values()) {
-    const seen = sections.get(section.title);
-    if (!seen) {
-      sections.set(section.title, { ...section, at: () => named(section) });
-      continue;
-    }
-    for (const [key, row] of section.rows) seen.rows.set(key, row);
-    seen.when = either(seen.when, section.when);
-    seen.at = either(seen.at, () => named(section));
+    // Where the reader is, for a widget's section, is whether the focused element declares it
+    // — the one thing core's own scopes state for themselves and an element scope cannot,
+    // since it is gathered here by title and the elements wearing that title are many.
+    for (const section of declaredScopes.values())
+      merge(sections, { ...section, at: () => named(section) });
   }
   // The way out reads last, after what the scope is for. A section gathers its rows from
   // wherever they were declared, and a mode contributing only its Escape would otherwise
@@ -6226,13 +6431,6 @@ function stepPage(fraction) {
   box.scrollTo({ top, behavior: SCROLL });
 }
 
-// [ and ] step versions with the picker's own pin semantics.
-function stepVersion(dir) {
-  const at = versions.indexOf(VNUM);
-  const next = at === -1 ? null : versions[at + dir];
-  if (next) goVersion(next);
-}
-
 // ---------- the reference ----------
 // Every scope the page has, live rows only, so nothing on screen is a key that does
 // nothing. It renders at open and can go stale while it stands, and the two directions
@@ -6240,7 +6438,15 @@ function stepVersion(dir) {
 // the overlay is `only` and the page stands down beneath it, and a key going live under it
 // is merely unlisted until the next open, one press away.
 let helpOpen = false;
+// Where the reference was opened from, so closing it hands the reader back. Any dialog that
+// takes focus owes that; what makes it structural here is that a scope is *where focus is*,
+// so the overlay explaining a walk was also the way out of it — open the reference from a
+// version row or a held card and the row's keys, which it had just listed, reached nothing
+// afterwards. A mode over the page keeps this one key (`allButTheReference`), and a kept key
+// that costs the reader their place is not much of an exemption.
+let helpFrom = null;
 function showHelp(open) {
+  if (open && !helpOpen) helpFrom = focused();
   helpOpen = open;
   if (open) {
     helpEl.textContent = "";
@@ -6259,7 +6465,7 @@ function showHelp(open) {
       return t;
     };
     for (const scope of declaredStack()) {
-      if (scope.when && !scope.when()) continue;
+      if (!pageHas(scope)) continue;
       // A scope the reader is standing in is filtered by each row's own liveness, because
       // they can see which state they are in and a row that would refuse the press must
       // not be on screen. A scope they are merely near is listed whole: a row's `when`
@@ -6267,7 +6473,7 @@ function showHelp(open) {
       // "arrows move" belongs in the reference though no card is held and `r` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
-      const inIt = !scope.at || scope.at();
+      const inIt = readerIn(scope);
       const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
       if (!rows.length) continue;
       if (scope.title) helpEl.append(el("h3", "", scope.title));
@@ -6276,6 +6482,11 @@ function showHelp(open) {
   }
   helpEl.classList.toggle("open", open);
   if (open) helpEl.focus({ preventScroll: true });
+  // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
+  // press's own focus is the browser's default action, still to come — a restore made from
+  // out here would be putting focus back for the click to take again.
+  else if (helpEl.contains(focused()) && helpFrom?.isConnected)
+    helpFrom.focus({ preventScroll: true });
   paintLine();
 }
 function toggleHelp() {
@@ -6286,7 +6497,7 @@ function toggleHelp() {
 // An ask is a standing request to the reader: a question with no pick on it, a change
 // nobody has decided, a piece of work the page says is waiting on them. Which widgets
 // can be one is the registry's answer (x-awaits) and nothing out here names a tag —
-// the banner's count, the a key, and the "?" overlay's row are three readings of this
+// the banner's count, the n/p walk, and the "?" overlay's row are three readings of this
 // one list, so what the banner counts and what the key steps to cannot disagree. The
 // count used to be a query for `lf-suggestion:not([data-lf-state])`, which was
 // perfect for suggestions and silently blind to every other thing a page asks.
@@ -6337,7 +6548,7 @@ function openAsks() {
   const fold = stateFold(VNUM);
   return [...document.querySelectorAll(tags.join(","))].filter((el) => {
     // settledAway: an ask inside a slot the log retired left the page with it —
-    // a group in a rejected suggestion's lf-new counted on, and the a key
+    // a group in a rejected suggestion's lf-new counted on, and the walk
     // stepped the reader to a hidden element.
     if (quoted(el) || settledAway(el) || !asking(el, askEntry(el).when)) return false;
     return !(inChrome(el) ? answeredThreadAsk(el, fold) : answeredAsk(el, fold));
@@ -6426,7 +6637,7 @@ function syncAsks() {
     showNews(btn, Boolean(n));
     btn.textContent = `✓ ${label} all (${n})`;
   }
-  // The a and A rows stand on this list, so the surfaces reading them are repainted
+  // The n/p and A rows stand on this list, so the surfaces reading them are repainted
   // where it changes — the rule showFab and showOthers already keep for the words
   // they write.
   paintLine();
@@ -6440,22 +6651,22 @@ document.addEventListener("lf-answered", () => {
   paintAnchors();
 });
 document.addEventListener("lf-actions", syncAsks);
-asksBtn.onclick = stepAsk;
+asksBtn.onclick = () => stepAsk(1);
 
-// The next thing waiting on the reader, wrapping, because asks are a worklist rather
-// than a document to read through: answering one takes it out of the list, so forward
-// is the direction that has somewhere to go, and a single key that clamps at the end
-// would strand them there. The walk's position is carried the way the half-page keys
-// carry a destination — a place in a list rather than state anything else derives —
-// and an ask answered since the last press is simply no longer in the list, so the
-// walk resumes from the top.
-let askAt = null;
+// The walk over what the page is waiting on the reader for. It wraps at both ends,
+// because asks are a worklist rather than a document to read through: answering one takes
+// it out of the list, so forward is the direction that has somewhere to go, and a walk
+// that clamped there would strand them at the end of it.
+//
 // A press this control belongs to: one inside the ask, or one hoisted out of it and
 // pointing back (a suggestion's row is the column's child, so that it can hang in the
 // page margin). Landing on it rather than on the ask means Tab walks the rest of that
 // ask's own controls from there, and it is the only landing available where the
 // element has no box of its own to hold focus (a suggestion renders display: contents).
 const ASK_CONTROL = "[data-lf-offer][tabindex]";
+// Which ask such a control decides, where the widget hoisted it out of the element (the
+// attribute lf-suggestion writes on the row it hangs in the margin).
+const ASK_ROW = "data-lf-for";
 // The ask this walk lent a tab stop to, so it can take it back. An ask with nothing to
 // work has no box in the tab order and the runtime writes it one — which is paint on the
 // author's element, and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave
@@ -6463,12 +6674,62 @@ const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // one). So the lend lasts exactly as long as the mark it goes with. One at a time,
 // because one element wears the mark at a time.
 let askLent = null;
-function stepAsk() {
+// A place in the document, stated as the ask it belongs to wherever it belongs to one: a
+// control hoisted out of its ask and pointing back at it stands for that ask and not for
+// the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
+// land on the suggestion the reader is already standing on.
+function askPlace(node) {
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  const row = el?.closest(`[${ASK_ROW}]`);
+  return (row && elementById(row.getAttribute(ASK_ROW))) ?? node;
+}
+const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
+// Where the walk measures from: where the reader is standing, rather than where the walk
+// last put them. It carried an id of its own, so every walk the reader had not made with
+// this key started at the top of the page — select a paragraph and press `a` and you were
+// taken back past everything you had read, and so was anyone scrolled halfway down
+// pressing it for the first time. d/u measure from the scroll position and j/k from the
+// focused thread; this measured from its own memory, which is the one place the reader
+// isn't.
+//
+// Read in the order of how directly each says where they are: what they have focused,
+// what they have selected, where the walk itself last landed (the mark, which is the
+// walk's memory and needs no second copy), and what they are reading. Every one of them
+// can be absent, and then the first ask is the only answer there is.
+//
+// document.activeElement rather than focused(): a control staged in a shadow tree
+// retargets to its host, which is exactly what this question wants — a place in the
+// document to measure the asks against, not the control the register would dispatch to.
+function askPosition() {
+  const held = document.activeElement;
+  // The banner stands over the page rather than in it, and its controls are addresses
+  // the reader holds from wherever they are. The Asks button focuses itself on the way
+  // to running this, so measuring from it would send every press on it back to the top.
+  if (held && held !== document.body && !banner.contains(held)) return askPlace(held);
+  const sel = getSelection();
+  // A caret counts here, where the composer's reading of the selection (pageSelection)
+  // wants words to quote: a click that placed one is the reader saying where they are.
+  if (sel?.focusNode && !inChrome(sel.focusNode)) return askPlace(sel.focusNode);
+  return document.querySelector(`[${PAGE_PAINT_ATTRIBUTE.ask}]`) ?? readingBlock();
+}
+// The ask `dir` steps to from there. Document position rather than an index into the
+// list, because the reader's place is a place and not a row: an ask holding it is the one
+// they are standing on, so it is what they step off rather than what they step to.
+function askStep(asks, dir) {
+  const here = askPosition();
+  if (!here) return dir > 0 ? asks[0] : asks.at(-1);
+  const side =
+    dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
+  const reach = asks.filter((ask) => {
+    const rel = here.compareDocumentPosition(ask);
+    return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
+  });
+  return dir > 0 ? (reach[0] ?? asks[0]) : (reach.at(-1) ?? asks.at(-1));
+}
+function stepAsk(dir) {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
-  const to = (asks.indexOf(elementById(askAt)) + 1) % asks.length;
-  const next = asks[to];
-  askAt = next.id;
+  const next = askStep(asks, dir);
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent) {
@@ -6482,7 +6743,7 @@ function stepAsk() {
   next.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
   const control =
     next.querySelector(ASK_CONTROL) ??
-    document.querySelector(`[data-lf-for="${next.id}"] ${ASK_CONTROL}`);
+    document.querySelector(`[${ASK_ROW}="${next.id}"] ${ASK_CONTROL}`);
   if (!control) {
     next.tabIndex = -1; // nothing to work: the ask itself takes the focus
     askLent = next;
@@ -6494,7 +6755,7 @@ function stepAsk() {
   // to centre and only a page ask takes the shared travel.
   if (inChrome(next)) next.scrollIntoView({ behavior: SCROLL, block: "center" });
   else scrollToElement(next);
-  announce(`${to + 1} of ${asks.length} waiting on you`);
+  announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
 }
 
 // ---------- version diff ----------
@@ -6545,6 +6806,11 @@ const diffOpaqueSel = () =>
 let diffBase = null;
 let diffOn = false;
 const diffMarked = [];
+// The comparison request that owns the page. Every request takes the next number and every
+// stop takes one too, so a base whose document lands after the reader has moved on is
+// dropped rather than painted over the base they are standing on now. Reachable because the
+// walk asks per row: it is one fetch per press, and the presses come faster than the network.
+let diffRequest = 0;
 // A block's key is its *authored* text (`wrote`), which is why that reading exists: it
 // drops even the labels anchoring reads as the page's own words, because the base
 // version is parsed unupgraded and holds none of them.
@@ -6577,11 +6843,18 @@ function diffBlocks(root) {
   }
   return pairs;
 }
-async function applyDiff(baseVersion) {
+// The base version's own document, which is the whole of what a comparison waits for. Split
+// from the marking below so that everything touching the live page happens in one synchronous
+// stretch after the single await: the walk through the menu asks for a comparison per row, and
+// a marking pass that could interleave with the next row's would leave two bases' marks
+// standing under a chooser naming one of them.
+async function baseDocument(baseVersion) {
   const baseName = versionUrl(baseVersion);
   const res = await fetch(baseName);
   if (!res.ok) throw new Error(`couldn't load ${baseName}`);
-  const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+  return new DOMParser().parseFromString(await res.text(), "text/html");
+}
+function applyDiff(doc, baseVersion) {
   // Multiset membership rather than an alignment: an unchanged block that
   // merely moved stays unmarked; a changed or new one has no base twin.
   const base = new Map();
@@ -6685,31 +6958,41 @@ function setDiff(on, base) {
   diffOn = on;
   if (on) diffBase = base;
   if (!on) {
+    diffRequest++; // a stop outranks a comparison still on its way
     for (const b of diffMarked) b.classList.remove("lf-ins-block");
     diffMarked.length = 0;
     document.dispatchEvent(new CustomEvent("lf-diff"));
   }
   paintDiff();
 }
-// The one way a comparison starts or stops, from a row's press or from the page's key.
-// Pressing the standing base again is the way off, so a Δ is a toggle where it is lit
-// and a switch of base where it isn't.
+// The one way a comparison starts, from a row's press, from the walk through the menu, or
+// from the page's own key. It states a base rather than toggling one — the toggle is a
+// press's own reading of it, and the walk has none to spend, standing on a row being what
+// makes it the base however many times the reader arrives there.
 async function showComparison(base) {
-  showVersionMenu(false);
-  if (diffOn && base === diffBase) return setDiff(false);
+  const mine = ++diffRequest;
+  let doc;
   try {
-    if (diffOn) setDiff(false); // the old base's marks, before the new base's land
-    const n = await applyDiff(base);
-    setDiff(true, base);
-    showToast(
-      n
-        ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
-        : `No text changes since v${base}`,
-    );
+    doc = await baseDocument(base);
   } catch {
     showToast(`Couldn't load v${base}`);
+    return;
   }
+  if (mine !== diffRequest) return;
+  if (diffOn) setDiff(false); // the old base's marks, before the new base's land
+  const n = applyDiff(doc, base);
+  setDiff(true, base);
+  showToast(
+    n
+      ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
+      : `No text changes since v${base}`,
+  );
 }
+// A press names one base, so pressing the standing one again is the way off it: a Δ is a
+// toggle where it is lit and a switch of base where it isn't. The page's `=` reads the same
+// state the other way round — off whatever the base, since it names none.
+const pressComparison = (base) =>
+  diffOn && base === diffBase ? setDiff(false) : showComparison(base);
 
 // ---------- banner ----------
 // "Claude is working" is a claim in status.json, and nothing revises a claim once the
@@ -6997,7 +7280,13 @@ function renderVersions(state) {
         press.dataset.lfVersion = version;
         press.setAttribute("aria-label", `Mark what changed since v${version}`);
         press.title = `Mark what changed since v${version}`;
-        press.onclick = () => showComparison(version);
+        // The pointer's own door, and it closes the menu: the marks are on the page this
+        // hangs over, and a pointer has no walk to be standing in the middle of. The
+        // keyboard's is the walk itself, which leaves the list up.
+        press.onclick = () => {
+          showVersionMenu(false);
+          pressComparison(version);
+        };
         versionMenu.append(press);
       }
     }

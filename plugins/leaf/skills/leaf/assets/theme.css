@@ -169,6 +169,54 @@
 
 /* ---------- elements ---------- */
 
+/* A box that draws an inset shows it twice — above what it holds and below it — and what
+ * a child's outer margin does at that edge decides whether the two are the same number.
+ * Out on the page that margin collapses through its parent and is spent between blocks;
+ * inside a box that draws something at the edge, or that establishes a formatting context
+ * of its own, it cannot get out, and the room the child reserved for a neighbour it hasn't
+ * got is painted as the box's own inset instead. So a card stating 16px came out 16 over
+ * its title and 29 under its last paragraph, and the difference moved with what the author
+ * wrote: the same card ending in a run of words was even. An inset that is a fact about
+ * the content is an inset the box did not state, and it is the whole of the marking on a
+ * quotation, where 16px of bar ran past the exhibit at each end.
+ *
+ * `margin-trim` is the property for this and Chrome hasn't got it (151: `CSS.supports`
+ * says no, and the declaration lays nothing out), so the trim is written here — and the
+ * half worth thinking about is who writes it. A list of the boxes that frame what they
+ * hold is the closed list the norms forbid: a layer's stylesheet can only name that
+ * layer's own, so a project's card is outside it and the failure is a silent 13px rather
+ * than an error. A box says so itself instead, in the same declaration where it draws the
+ * frame, and the trim finds it through a style query. `--lf-frame` inherits, so the reset
+ * inside is what holds the claim to the box's own children: a grandchild's margin is
+ * between blocks, where it belongs, and a nested frame outranks the reset by being a
+ * selector rather than `*`.
+ *
+ * Which child is at the edge is a question about the page's own blocks, and `:first-child`
+ * is the DOM's answer to it. The two are the same only where no module has written
+ * anything: a pick mark is appended and positioned out of the flow, a quiet word is
+ * clipped and inserted after the title, and each of them takes the trim off the block the
+ * reader can actually see — so a settled option kept 13px under its last paragraph and a
+ * block change kept 13 over its first, in exactly the widgets that build the most chrome.
+ * The generated markers are the same pair the anchor pass reads (`GENERATED`, leaf.js),
+ * because it is the same question: which of these words are the page's. That also
+ * dissolves the specimen's two arrangements into one, its "quoted ·" note being a
+ * generated child on a live page and a pseudo-element on a page carrying no script.
+ *
+ * What the trim cannot reach is a first or last child that hands its own children's
+ * margins on rather than reserving room itself — a boxless one, whose margin the rule
+ * has nowhere to land, and a bare wrapper, through which a grandchild's margin collapses
+ * to the frame's edge unchanged. The answer is the same sentence one level in: that box
+ * declares the frame too, which is why `.facts` does. Reaching a level further from out
+ * here is the fix that suggests itself and is worse, since the same selector over a
+ * padded grandchild closes up that box's own first line. `version check --render` is what
+ * says when a box hasn't declared (TRAPPED_MARGINS), because a trapped margin renders
+ * perfectly and reads as a number somebody chose. */
+@container style(--lf-frame: 1) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-start: 0; }
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-end: 0; }
+  * { --lf-frame: 0; }
+}
+
 /* A run with nothing to break on breaks anyway rather than painting outside the box that
  * was holding it — this page's subject is code, so its prose carries paths, identifiers
  * and shas, and there is no width at which one of them can't be longer. It reaches
@@ -215,7 +263,8 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * 640px — so prose set to a book's measure and evidence set to source's cannot both come
  * out of one column, and the way to have both would be two of them rather than a smaller
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
-main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: relative; }
+main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: relative;
+       --lf-frame: 1; }
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -360,11 +409,23 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
    * document's own, the widgets that frame their contents say it in bundled/theme.css,
    * and a project's box says it in the project's. A transparent wrapper says nothing and
    * needs to — a section, a tab's panel, the column itself are all the page's own flow,
-   * and an exhibit breaking out through one is the whole point. What keeps the list from
-   * being the kind that stops at what it was taught is that no list is the mechanism:
-   * `version check --render` measures every wide element against the nearest ancestor
-   * that draws one, so the next such box to forget this is a failure with a name on it
-   * rather than a page someone eventually notices looks wrong. */
+   * and an exhibit breaking out through one is the whole point.
+   *
+   * `--lf-frame` is the declaration for a box that frames what it holds and it cannot
+   * carry this, which is worth knowing before reaching for it a second time: it says the
+   * box has an inset a child's margin would double, and `main` says it — the column being
+   * a padded box like any other. Read here, that withholds the room from every exhibit on
+   * every page, which is the one thing this whole arrangement exists to grant. The two
+   * questions look like one and are not: what the trim asks is where a box's own inset
+   * ends, and what this asks is whether an exhibit inside it belongs to the page.
+   *
+   * What keeps the list from being the kind that stops at what it was taught is that no
+   * list is the mechanism: `version check --render` measures every wide element against
+   * the nearest ancestor that draws one, so the next such box to forget this is a failure
+   * with a name on it rather than a page someone eventually notices looks wrong. The gate
+   * could not see through a scroll container until a diagram in a board card was drawn
+   * 332px across the next column, and the four widgets missing from the list below it
+   * were found the day it could. */
   :is(details, .callout, blockquote, figure) [data-lf-wide] { --lf-room: 0px; }
 }
 /* The headings are the body serif at weight, size and spacing — one voice, four
@@ -420,7 +481,7 @@ pre code { background: none; padding: 0; font-size: 100%; }
 [data-lf-syn="ins"] { color: var(--ok-ink); }
 [data-lf-syn="del"] { color: var(--danger-ink); }
 blockquote { margin: 18px 0; padding: 2px 18px; border-left: 2px solid var(--rule);
-             color: var(--muted); font-style: italic; }
+             color: var(--muted); font-style: italic; --lf-frame: 1; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -452,7 +513,7 @@ table { display: block; overflow-x: auto; border-collapse: collapse;
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }
 th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
-         vertical-align: top; }
+         vertical-align: top; --lf-frame: 1; }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
    keep away from: 10px of it there set every table's first word 10px right of
    the prose above it, and stopped the last column short of the same edge. */
@@ -469,7 +530,7 @@ th:not([scope="row"]) { font-size: var(--t-6); text-transform: uppercase;
      border-bottom-color: var(--border-2); }
 th[scope="row"] { font-weight: 600; }
 details { background: var(--field); border: 1px solid var(--rule);
-          border-radius: var(--r); padding: 8px 14px; margin: 18px 0; }
+          border-radius: var(--r); padding: 8px 14px; margin: 18px 0; --lf-frame: 1; }
 summary { cursor: pointer; font-weight: 600; font-size: var(--t-5); }
 details pre { margin: 10px 0 6px; }
 dl { margin: 10px 0; }
@@ -525,7 +586,7 @@ dd { margin: 0 0 8px 0; }
    for a difference no reader could see; stating --t-4 instead was the same number in a
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
-           border-radius: var(--r); padding: 12px 16px; margin: 18px 0; }
+           border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-frame: 1; }
 /* What the margin is for is in the catalog beside the class; this is why it is the left
    margin and what the strip costs.
 
@@ -718,13 +779,17 @@ lf-new { background: var(--add-tint); }
  * Nor does it cost the prose around a change: collapsing already took the larger of
  * this 10px and the 13px a paragraph reserves, so the side that went was one no reader
  * ever saw. The inline form needs no guard here — a vertical margin on a non-replaced
- * inline box lays nothing out. */
+ * inline box lays nothing out.
+ *
+ * The padding then frames what the slot holds, so the slot says so: a block change is a
+ * whole paragraph in a tinted field, and the 2px it states came out 15 at each end on
+ * every one in the corpus. */
 :is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
     label, link, map, mark, math, meta, meter, noscript, object, output, picture,
     progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
     svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
-  display: block; padding: 2px 10px; margin-top: 10px; }
+  display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
@@ -870,7 +935,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* Where a widget upgrade fails, it fails soft into this box. */
 .lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
-            font-size: var(--t-5); white-space: normal; }
+            font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
 
 /* Reduced motion: one global guard covers every animation and transition in the

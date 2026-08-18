@@ -1783,18 +1783,16 @@ AIM_POINT = """(el) => {
   }
   return null;
 }"""
-# The promise itself, read where the user reads it. The item a click would take wears
-# the outline the composer's own passage wears, so the same query answers before the press
-# and after it, and the two answers agreeing is the promise being kept.
-OUTLINED = """() => document.querySelector(".lf-mark-el.lf-pending")?.id ?? null"""
+# The promise itself, read where the runtime states it: the aim's box in the chrome's
+# layer carries the aimed item's id (data-for, refreshAim's one write of it). The
+# composer's own mark then stands on that same item once the press is made, so the box's
+# answer before the press and the draft's after it agreeing is the promise being kept.
+AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
+DRAFT_MARK = """() => document.querySelector(".lf-mark-el.lf-pending")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
-# the outline is read. Asked of body, where the aim declares it and from where it is
+# the box is read. Asked of body, where the aim declares it and from where it is
 # inherited by everything on the page that doesn't state a cursor of its own.
 AIM_CURSOR = """() => getComputedStyle(document.body).cursor"""
-# All of them, for the one state that outlines two elements at once: a draft standing on
-# its anchor while the ⌥ aim says where a press would move it.
-OUTLINED_ALL = """() =>
-  [...document.querySelectorAll(".lf-mark-el.lf-pending")].map((el) => el.id).sort()"""
 # Where focus ended up, which is the effect a press has that leaves no mark in the markup:
 # `offer` gives every press it builds a tabindex, so a press the page received lands on
 # the control, where the aim's own leaves focus to the composer it opened.
@@ -1856,14 +1854,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         before = page.evaluate(PAGE_MARKUP)
         page.mouse.move(*point)
         page.keyboard.down("Alt")
-        promised = page.evaluate(OUTLINED)
+        promised = page.evaluate(AIMED)
         # The cursor is the other half of the same promise, and it is derived from the
         # same value the outline is: the hand where a press takes something, the arrow
         # where it takes nothing. Read off body, which is where the aim declares it —
         # a widget's own control still states its resting cursor, and does so whether or
         # not the key is down.
         assert page.evaluate(AIM_CURSOR) == ("pointer" if promised else "default"), (
-            f"holding ⌥ over {label} in {example.name} outlined {promised} and pointed "
+            f"holding ⌥ over {label} in {example.name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
         page.mouse.click(*point)
@@ -1878,9 +1876,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
             expect(composer).to_be_hidden()
         else:
             expect(composer).to_be_visible()
-            assert page.evaluate(OUTLINED) == promised, (
-                f"⌥-clicking {label} in {example.name} outlined {promised} and commented "
-                f"on {page.evaluate(OUTLINED)}"
+            assert page.evaluate(DRAFT_MARK) == promised, (
+                f"⌥-clicking {label} in {example.name} promised {promised} and commented "
+                f"on {page.evaluate(DRAFT_MARK)}"
             )
             # Put the composer away before reading the page back: its own passage wears
             # the outline, which is the one mark an aim is supposed to leave.
@@ -1948,9 +1946,9 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     claimPress acts whether or not a composer stands open, and openComposer carries the
     typed text onto the new anchor — so the aim standing down on composerOpen, as it did
     from its first commit, left exactly one press made blind: the one that moves a
-    draft. Holding ⌥ over a second item paints its outline beside the draft's own mark;
+    draft. Holding ⌥ over a second item raises its box beside the draft's own mark;
     two at once is the true state — where the draft stands, and where a press would
-    move it — and the press then does what the second outline promised."""
+    move it — and the press then does what the box promised."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
@@ -1964,17 +1962,17 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     card = page.locator("#card-notes")
     card.hover()
     page.keyboard.down("Alt")
-    promised = page.evaluate(OUTLINED_ALL)
+    promised = [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)]
     assert promised == ["card-notes", "t"], (
-        f"holding ⌥ over a card with a draft open on the heading promised {promised}, "
-        "so the press that would move the draft is blind"
+        f"holding ⌥ over a card with a draft open on the heading showed {promised} as "
+        "[aim, draft], so the press that would move the draft is blind"
     )
     card.click()
     page.keyboard.up("Alt")
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
-    assert page.evaluate(OUTLINED_ALL) == ["card-notes"], (
-        "the press re-anchored the draft, so only its new anchor should stand outlined"
+    assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [None, "card-notes"], (
+        "the press re-anchored the draft, so its new anchor alone should stand marked"
     )
     round_trip(page)
     assert [
@@ -1996,12 +1994,12 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)  # the latch is gone
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("t")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.keyboard.up("Alt")
     assert errors == []
     page.close()
@@ -2018,8 +2016,8 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.mouse.move(600, 300)
     page.keyboard.down("Alt")
-    first = page.evaluate(OUTLINED)
-    assert first, "nothing outlined under the parked pointer, so nothing is being aimed"
+    first = page.evaluate(AIMED)
+    assert first, "nothing promised under the parked pointer, so nothing is being aimed"
     # Three whole paragraphs of scroll, measured off the page: the paragraphs are
     # identical, so the pointer's offset into the outlined one becomes the same offset
     # into the one three later, never the margin between two. body is the page's
@@ -2031,9 +2029,9 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.wait_for_function(
         """(first) => {
-      const el = document.querySelector(".lf-mark-el.lf-pending");
+      const promised = document.querySelector(".lf-aim")?.getAttribute("data-for");
       const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
-      return Boolean(el) && el === at && el.id !== first;
+      return Boolean(promised) && promised === at?.id && promised !== first;
     }""",
         arg=first,
     )
@@ -2050,7 +2048,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     mouse event, so the pass itself painted a promise about a card no longer there.
     The aimed item is derived inside the pass now, and the events only decide when a
     pass is worth running. Nothing here moves the mouse after the arm: the page moves
-    instead, and the outline must follow or clear."""
+    instead, and the box must follow or clear."""
     url = serve(REPLAYED_PAGE)
     page, errors = open_page(browser, url)
     spot = page.locator("#card-importer").evaluate(
@@ -2059,7 +2057,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("card-importer")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-importer")
     interact.append_event(
         serve.page_dir,
         {
@@ -2075,11 +2073,107 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     expect(page.locator("#col-done #card-importer")).to_have_count(1)
     page.wait_for_function(
         """([x, y]) => {
-      const el = document.querySelector(".lf-mark-el.lf-pending");
+      const promised =
+        document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null;
       const at = document.elementFromPoint(x, y)?.closest("[id]:not(.lf-ui)") ?? null;
-      return el === at && el?.id !== "card-importer";
+      return promised === (at?.id ?? null) && promised !== "card-importer";
     }""",
         arg=spot,
+    )
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+AIM_PAINT_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aim paint</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Aim paint</h1>
+<lf-options id="cards" choose>
+  <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
+  <lf-option id="card-star" recommended><strong>Starred</strong> A border already the accent.</lf-option>
+</lf-options>
+<lf-options id="rows" choose>
+  <lf-option id="row-ship">Ship it as is</lf-option>
+  <lf-option id="row-hold">Hold for the backfill</lf-option>
+</lf-options>
+</main>
+</body>
+</html>
+"""
+
+
+def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
+    """The promise paints in the chrome's layer, and claims what the page shows.
+
+    The aim used to wear the mark's hairline, and the mark's band is one pixel at the
+    border edge — the one band of an element nobody else paints in, and exactly where a
+    widget draws a border of its own. Over a recommended option, whose border is
+    already the accent, arming changed nothing a reader could see, and what was
+    reported was no box at all. So the aim paints in the layer above the page, which no
+    widget can reach; the pixel diff here is armed against unarmed with the pointer
+    held still, so the widget's own hover wash is in both frames and the difference is
+    the promise alone.
+
+    A layer no widget can paint over is also one no ancestor's clip can reach, so the
+    second half holds the box to the page's own showing of the item: a row's table box
+    runs on under its group's overflow: hidden, and a box drawn from the raw rect
+    would claim pixels the page has refused, over whatever stands in them."""
+    from PIL import Image, ImageChops  # a dev dependency already, for the demo recorder
+
+    page, errors = open_page(browser, serve(AIM_PAINT_PAGE))
+    card = page.locator("#card-star")
+    card.hover()
+    # The wash and the lift a card answers the pointer with are transitions, and a
+    # frame taken mid-glide would bill the arm for pixels the hover was still moving.
+    page.wait_for_function(
+        """() => document.getElementById("card-star")
+                 .getAnimations({subtree: true}).length === 0"""
+    )
+    box = card.bounding_box()
+    clip = {"x": math.floor(box["x"]), "y": math.floor(box["y"])}
+    clip |= {"width": math.floor(box["width"]), "height": math.floor(box["height"])}
+    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-star")
+    armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    assert quiet.size == armed.size
+    geometry = page.evaluate("""() => {
+        const item = document.getElementById("card-star").getBoundingClientRect();
+        const box = document.querySelector(".lf-aim").getBoundingClientRect();
+        return [box.left - item.left, box.top - item.top,
+                box.width - item.width, box.height - item.height].map(Math.abs);
+    }""")
+    assert max(geometry) < 1, f"the box missed the card it promises by {geometry}"
+    pixels = zip(*[iter(ImageChops.difference(quiet, armed).tobytes())] * 3)
+    changed = sum(max(p) >= 6 for p in pixels) / (armed.size[0] * armed.size[1])
+    assert changed > 0.5, (
+        f"arming changed {changed:.0%} of the card's pixels — the promise is not "
+        "something a reader can see over the widget's own paint"
+    )
+
+    row = page.locator("#row-ship")
+    row.hover()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "row-ship")
+    edges = page.evaluate("""() => {
+        const group = document.getElementById("rows").getBoundingClientRect();
+        const row = document.getElementById("row-ship").getBoundingClientRect();
+        const box = document.querySelector(".lf-aim").getBoundingClientRect();
+        return { box: box.right, shown: Math.min(row.right, group.right),
+                 raw: row.right };
+    }""")
+    assert abs(edges["box"] - edges["shown"]) < 1, (
+        f"the box ends at {edges['box']} where the page shows the row to "
+        f"{edges['shown']} (its unclipped box runs to {edges['raw']}): a clip the "
+        "page enforces went unhonoured"
     )
     page.keyboard.up("Alt")
     assert errors == []
@@ -2342,22 +2436,22 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     page.mouse.move(*on_item)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("p2")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
     assert page.evaluate(at_pointer, on_item) == "pointer", (
-        "the aim outlined the paragraph and the cursor declined to promise the press"
+        "the aim boxed the paragraph and the cursor declined to promise the press"
     )
 
     page.mouse.move(*in_gap)
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, in_gap) == "default", (
         "the aim had nothing to take and the hand promised a press anyway"
     )
 
     # Back on the item, so the arm coming off is read from the state that promises most.
     page.mouse.move(*on_item)
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_id("p2")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-mark-el.lf-pending")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
     )
@@ -2532,6 +2626,19 @@ def live_leaf(tmp_path, monkeypatch):
                 "ts": interact.now_iso(),
             },
         )
+        # A live leaf has a session behind it, and what the board's hover says about a
+        # page is the work that session is doing it for — so the fixture's pages come
+        # out of somewhere nameable rather than out of nowhere.
+        interact.write_json(
+            d / "session.json",
+            {
+                "id": f"s-{name}",
+                "host": "claude-code",
+                "pid": os.getpid(),
+                "agent": "Claude",
+                "cwd": str(tmp_path / f"{name}-work"),
+            },
+        )
         httpd = interact.LeafHTTPServer(
             ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
         )
@@ -2568,7 +2675,9 @@ def other_leaf(live_leaf):
     return live_leaf("other", "The other leaf")
 
 
-def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_leaf):
+def test_the_banner_opens_a_panel_of_the_machines_leaves(
+    browser, serve, other_leaf, tmp_path
+):
     """The leaves panel, end to end: the banner counts the machine's live pages,
     this one included, a press slides out a left board headed by this page's own
     marked, unlinked row, each neighbour is a link named by its title and saying what
@@ -2577,7 +2686,20 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_l
     standing. Esc is the panel's rung on the ladder. On a machine serving nothing
     else the button never appears, which every other test here shows for free."""
     other_url, _ = other_leaf
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    url = serve(LONG_PAGE)
+    # This page has a session behind it too, so its own row can say the same thing a
+    # neighbour's does.
+    interact.write_json(
+        serve.page_dir / "session.json",
+        {
+            "id": "s-self",
+            "host": "claude-code",
+            "pid": os.getpid(),
+            "agent": "Claude",
+            "cwd": str(tmp_path / "self-work"),
+        },
+    )
+    page, errors = open_page(browser, url)
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
     btn.click()
@@ -2594,6 +2716,19 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_l
     # so the row says so — dot and words both the banner's own vocabulary.
     expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    # Every row is cut to the panel's width, so the hover holds the whole account —
+    # and the fact no row draws is the work behind the page, which is what tells two
+    # rows apart when the titles somebody wrote for them are alike. Both rows carry it,
+    # from the one gatherer that answers for this page and for its neighbours
+    # (`presence`): the board's account of a neighbour is the account that page gives
+    # of itself.
+    expect(self_row).to_have_attribute(
+        "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
+    )
+    expect(link).to_have_attribute(
+        "title",
+        f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
+    )
     with page.context.expect_page() as opened:
         link.click()
     # The other server's own redirect lands the new tab on its newest published
@@ -2624,17 +2759,18 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(browser, serve, other_l
 
 
 def test_a_panel_row_follows_its_pages_status_live(
-    browser, serve, other_leaf, dead_pid
+    browser, serve, other_leaf, dead_pid, tmp_path
 ):
     """The panel is a status board, not a snapshot: a neighbour's state changing on
     disk repaints its row at the next poll, in place — and a neighbour whose claimant
     has exited reads as unheld, the computed fact its own banner would state, not the
-    claim its status file still makes."""
+    claim its status file still makes. The row's hover follows it too, being the same
+    account written where there is room for it whole."""
     _, other_dir = other_leaf
     page, errors = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("o")  # the key opens the panel like the button does
+    page.keyboard.press("l")  # the key opens the panel like the button does
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
     interact.write_json(
@@ -2656,9 +2792,12 @@ def test_a_panel_row_follows_its_pages_status_live(
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
         # And what it is waiting for, because the panel is where a reader picks which
         # page to go to: the row that says a page needs them carries the ask, the way
-        # the working row above carries what its agent is doing. Its own tooltip too —
-        # the line ellipsizes at the panel's width and the row's tooltip holds the page
-        # title, so without one the ask is what a narrow hover cannot recover.
+        # the working row above carries what its agent is doing. The hover holds it
+        # whole, with the rest of the account, since the line ellipsizes at the panel's
+        # width — and it is the row's hover and not the line's, the innermost title
+        # winning where two overlap: a title on the line would answer the hover most
+        # likely to be asking for the rest, a reader pointing at the words that ran out
+        # of room, with the one part of the account they can already read.
         interact.write_json(
             other_dir / "status.json",
             {
@@ -2670,7 +2809,27 @@ def test_a_panel_row_follows_its_pages_status_live(
         told(page)
         line = row.locator(".lf-others-line")
         expect(line).to_have_text("Awaits — pick a storage engine")
-        expect(line).to_have_attribute("title", "Awaits — pick a storage engine")
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine",
+        )
+        assert line.get_attribute("title") is None, (
+            "the line carries a tooltip of its own again, which wins under the pointer "
+            "over the row's whole account"
+        )
+        # A leaf holding words of the reader's that nobody has read is a reason to go
+        # to it, and no row draws that either: the banner says this number for the page
+        # it stands on, and the board says it for every page on the machine.
+        interact.append_event(
+            other_dir,
+            {"kind": "comment", "author": "user", "version": 1, "text": "Mine."},
+        )
+        told(page)
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine"
+            "\n1 update waiting",
+        )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
     interact.write_json(
@@ -2695,7 +2854,7 @@ def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     interact.write_json(
@@ -2716,10 +2875,10 @@ def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
 
 
 def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
-    """The board is a list, and a reader walks it without reaching for the mouse: o
+    """The board is a list, and a reader walks it without reaching for the mouse: l
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
-    to the button that opened it. The key line names o before it is pressed and the
+    to the button that opened it. The key line names l before it is pressed and the
     board's own keys while focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
@@ -2728,10 +2887,10 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")
-    # A shortcut no surface names is a shortcut nobody finds: the line carries o for
+    # A shortcut no surface names is a shortcut nobody finds: the line carries l for
     # exactly as long as there is a board to open.
     expect(keyline).to_contain_text("leaves")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     # Titles order the board, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
@@ -2774,7 +2933,7 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
     it for the thread, the list and the page scenes alike."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("o")  # the board first, then the panel over it
+    page.keyboard.press("l")  # the board first, then the panel over it
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
     page.keyboard.press("Escape")  # back out of the box, onto the panel's list
@@ -2808,7 +2967,7 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
     # Short enough that the rows overflow the board, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     for _ in names:
         page.keyboard.press("ArrowDown")
@@ -6809,9 +6968,9 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     was — on the previous ask's Accept — while the announce said otherwise, so
     Enter was aimed at a decision the reader had already seen."""
     page, errors = open_page(browser, serve(COLLAPSED_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator("[data-lf-for='sug-now'] .lf-sug-accept")).to_be_focused()
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator("#later")).to_have_attribute("open", "")
     expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_focused()
     assert errors == []
@@ -7138,10 +7297,13 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
     moment it is opened. A sentence written into the table would have said "accept" in
     core, and gone on saying it for the second widget to declare a verb of its own.
 
-    The shift is part of the key rather than decoration: caps lock turns a press of a
-    into an uppercase one, and a is the walk through these one at a time, so the reader
-    who wanted the next question would have settled every change on the page — a
-    decision being the end of the matter."""
+    The shift is part of the key rather than decoration, and the walk beside it is
+    spelled in directions (n/p) rather than in this letter, so the letter is this
+    press's alone — and stands for nothing unshifted, an unshifted `a` that settled
+    every change on the page being a press far too cheap for what it does. Caps lock is
+    where reading the glyph instead of asking for the modifier fails in both
+    directions: it writes an uppercase key out of a bare press, which must not end the
+    matter, and a lowercase one out of the shifted press that must."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     help_el = page.locator(".lf-help")
 
@@ -7377,11 +7539,13 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
-    """j/k step the open threads; `a` steps the things the page is asking, and the
-    two lists are the same kind of thing to walk. It wraps rather than clamping,
-    because an ask leaves the list as soon as it is answered — forward is the
-    direction with somewhere to go, and one key that stopped at the last one would
-    strand the reader there.
+    """j/k step the open threads; n/p step the things the page is waiting on the reader
+    for. Every walk here is a borrowed pair naming its direction rather than what it
+    walks — vim's list, less's half page, next and previous — which is what leaves `a`
+    to the answer that takes all of them at once.
+    It wraps rather than clamping, because an ask leaves the list as soon as it is
+    answered — forward is the direction with somewhere to go, and one key that stopped
+    at the last one would strand the reader there.
 
     The landing is marked on the ask and focused on the control that answers it, so
     the reader can see what they were brought to and Tab straight into working it —
@@ -7390,7 +7554,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
     for _ in range(len(ASKS_IN_ORDER) + 1):  # one press past the end: it wraps
-        page.keyboard.press("a")
+        page.keyboard.press("n")
         # Exactly one, so the mark says where this press put them rather than where an
         # earlier one did — and asserting it is also the wait for this press to land.
         expect(page.locator("[data-lf-ask]")).to_have_count(1)
@@ -7409,18 +7573,83 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         ["live-question", "span lf-pick lf-ui"],
     ], f"the walk landed somewhere else: {walked}"
 
+    # And back, from where the last press left them: p wraps at this end too, and the
+    # step off a suggestion is measured from the suggestion rather than from the ✓ Accept
+    # holding the focus — that row is hoisted out into the page margin as a sibling of the
+    # block it decides, so a walk reading it where it hangs would step back onto the
+    # change the reader is standing on.
+    back = []
+    for _ in range(len(ASKS_IN_ORDER)):
+        page.keyboard.press("p")
+        expect(page.locator("[data-lf-ask]")).to_have_count(1)
+        back.append(page.evaluate("() => document.querySelector('[data-lf-ask]').id"))
+    assert back == ["t-bath", "t-baffles", "sug-refill", "live-question"], (
+        f"the walk back landed somewhere else: {back}"
+    )
+
     # The overlay and the key line offer it because there is something to reach.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-keyline")).to_contain_text("asks")
 
-    # An answered ask leaves the walk: from the question, the next press used to reach
-    # the suggestion and now reaches what follows it.
+    # An answered ask leaves the walk: deciding the change on its own control is where
+    # the reader now stands, and the next press reaches what followed it rather than the
+    # change they have just settled.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator("#t-baffles")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
+    """The walk measures from the reader, the way d/u measure from the scroll position
+    and j/k from the focused thread. It kept an id of its own instead, so every walk
+    the reader had not made with this key started at the top of the page: scroll
+    halfway down and press `n` and you were taken back past everything you had read,
+    and so was anyone who had just selected a paragraph to comment on.
+
+    Three readings of where they are, and the page is left in each state in turn: what
+    they are reading, when they have pointed at nothing; what they have selected; and
+    the walk's own mark, once the walk itself is what last moved them. The banner's
+    button is no place — it focuses itself on the way to running the walk, so a press
+    on it measured from the focus would restart the walk on every click."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+
+    # A window short enough that reading down the page leaves the top of it behind,
+    # which is the whole of what the reader has to do to be somewhere.
+    resized(page, 900, 400)
+
+    # Scrolled to the change with nothing selected and nothing focused: the ask after
+    # it, not the question above it. They are standing *in* that suggestion, which is
+    # why it is the ask they step off rather than the one they step to.
+    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    page.keyboard.press("n")
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+
+    # The banner's press is the same walk and steps on from there, though the button
+    # holds the focus by the time it runs.
+    page.locator(".lf-asks").click()
+    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+
+    # A selection outranks the mark, because it is the reader saying where they are
+    # since the walk last moved them: from a task above the two the walk has just been
+    # through, forward is the first of them and back is the change before it. Measured
+    # after each landing, because the landing scrolled the page under the coordinates.
+    def drag_over_the_done_task():
+        page.locator("#t-mounts strong").scroll_into_view_if_needed()
+        box = page.locator("#t-mounts strong").bounding_box()
+        y = box["y"] + box["height"] / 2
+        select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+
+    drag_over_the_done_task()
+    page.keyboard.press("n")
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    drag_over_the_done_task()
+    page.keyboard.press("p")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
 
@@ -7457,7 +7686,7 @@ graph LR
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     """Clicking a quoteless thread's § label brings its element to the middle — the
-    one promise every caller of that travel makes, the `a` key's landing included.
+    one promise every caller of that travel makes, the ask walk's landing included.
 
     It was 27px short of the middle in every one of them, and invisibly so: the
     scroller declares `scroll-padding-top` to keep a native fragment jump clear of
@@ -7530,7 +7759,7 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in ["live-question", "t-baffles", "t-bath", "m-build", "m-install"]:
-        page.keyboard.press("a")
+        page.keyboard.press("n")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
@@ -8695,7 +8924,7 @@ THREAD_ASKS = [
 
 def test_a_thread_question_asks_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — a request to the reader
-    wherever it stands — and `a` opens the panel to reach it. A single-answer group
+    wherever it stands — and `n` opens the panel to reach it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
@@ -8713,7 +8942,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (2)")
 
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
@@ -8765,14 +8994,14 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — where `a` lands — ↑/↓ walk the options clamping at the ends, a
+    """From a mark — where `n` lands — ↑/↓ walk the options clamping at the ends, a
     digit picks outright, and each option wears its digit only while a mark holds
     keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     nums = page.locator("#live-question .lf-address")
     expect(nums.first).to_be_hidden()
 
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     marks = page.locator("#live-question .lf-pick")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
@@ -8877,7 +9106,7 @@ OVER_WORDS = """(el, id) => {
 #
 # Two `bounding_box()` calls are two instants, and the page moves between them: a viewport
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
-# straight into the answer. `a` scrolls to the ask it steps to, the body is the scroller,
+# straight into the answer. `n` scrolls to the ask it steps to, the body is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
 # so the chip's offset came back a pixel out on about half of the runs, on whichever row
 # the frame happened to fall between. Nothing had moved by then except the window, which is
@@ -8923,7 +9152,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["c-heater", "c-cable", "c-hand"], "in the corner"),
         (["r-now", "r-later"], "centred"),
     ]:
-        page.keyboard.press("a")
+        page.keyboard.press("n")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
@@ -9580,11 +9809,11 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
 
     board = page.locator(".lf-others-panel")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     expect(board).to_be_visible()
-    page.evaluate(press, ["o", True])  # a toggle does not
+    page.evaluate(press, ["l", True])  # a toggle does not
     expect(board).to_be_visible()
-    page.evaluate(press, ["o", False])  # the same event, answered
+    page.evaluate(press, ["l", False])  # the same event, answered
     expect(board).to_be_hidden()
     assert errors == []
     page.close()
@@ -9799,14 +10028,14 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
     page.keyboard.press("Escape")
 
-    # o names the direction of its own toggle. Opened from the banner, because opening
+    # l names the direction of its own toggle. Opened from the banner, because opening
     # it by key lands focus inside the board, and the line is then the board's own scope
-    # rather than the page's — the o row is only on screen while the page's is.
+    # rather than the page's — the l row is only on screen while the page's is.
     expect(line).to_contain_text("show leaves")
     page.get_by_role("button", name=re.compile("^All leaves")).click()
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
     expect(line).to_contain_text("hide leaves")
-    page.keyboard.press("o")
+    page.keyboard.press("l")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
     expect(line).to_contain_text("show leaves")
     assert errors == []
@@ -9816,11 +10045,11 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the key line asked `when`,
-    the ? overlay didn't, and two shortcuts held their liveness where no surface
-    could ask — the diff in its own run, the version pair in stepVersion — so the
-    overlay offered g 1–9 with no thread to reply to, and the diff on a first version
-    with nothing to diff. Liveness is one declaration, and the dispatcher, the line,
-    and the overlay all ask it."""
+    the ? overlay didn't, and a shortcut could hold its liveness where no surface
+    could ask — the diff inside its own run — so the overlay offered g 1–9 with no
+    thread to reply to, and the diff on a first version with nothing to diff.
+    Liveness is one declaration, and the dispatcher, the line, and the overlay all
+    ask it."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -9835,12 +10064,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Reply to the nth")
     expect(help_el).not_to_contain_text("Next / previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
-    expect(help_el).not_to_contain_text("Older / newer version")
     expect(help_el).not_to_contain_text("Highlight changes")
     expect(help_el).not_to_contain_text("waiting on you for")
     # The chooser is the one version key a first version has: its menu holds this
-    # version and what it changed, where the pair that steps between versions has
-    # nowhere to go and the menu's own keys have nothing to walk.
+    # version and what it changed, where the menu's own keys have nothing to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).not_to_contain_text("In the versions menu")
     page.keyboard.press("Escape")
@@ -9869,11 +10096,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("g 1–2")
     expect(help_el).to_contain_text("Next / previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
-    expect(help_el).not_to_contain_text("Older / newer version")
+    expect(help_el).not_to_contain_text("In the versions menu")
     page.keyboard.press("Escape")
 
     # A v2 lands and the unpinned page follows it; on v2 the version keys are
-    # live, and v has a previous version to diff against.
+    # live — the menu has a list to walk, and v has a previous version to diff against.
     (d / "versions" / "v2.html").write_text(NOTED_PAGE)
     interact.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
@@ -9881,7 +10108,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.wait_for_url("**/versions/v2.html*")
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Older / newer version")
+    expect(help_el).to_contain_text("In the versions menu")
+    expect(help_el).to_contain_text("Walk the versions")
     expect(help_el).to_contain_text("Highlight changes since the previous version")
     expect(help_el).to_contain_text("g 1–2")
     page.keyboard.press("Escape")
@@ -10773,9 +11001,9 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
         interact.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # `a` opens the panel on the first ask and lands on its mark, which is what paints
+    # `n` opens the panel on the first ask and lands on its mark, which is what paints
     # that group's digits; g then arms the leader, which paints the reply boxes'.
-    page.keyboard.press("a")
+    page.keyboard.press("n")
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
@@ -12356,6 +12584,11 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     page.keyboard.press("ArrowUp")  # clamped at the other end too
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    # The comparison the row it landed on states, which the reopen below reads: the base is
+    # settled when the chooser says so, and the base's document is a fetch away, so a test
+    # that closed the menu on the press alone would ask where the walk stands from a loaded
+    # machine and be told the version being read.
+    expect(btn).to_have_text("Δ v2 ▾")
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
     # from the banner rather than from the top of the document.
@@ -12363,18 +12596,32 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way o opens the leaves board, and
-    # lands on the version being read so the walk above is the next press rather than a
-    # Tab-hunt across the banner. This menu is the only place the notes are, so what
-    # each version changed is reachable by keyboard through this key or not at all.
+    # v opens it from anywhere on the page, the way l opens the leaves board, and lands
+    # where the walk should carry on from, so that walk is the next press rather than a
+    # Tab-hunt across the banner. This menu is the only place the notes are, so what each
+    # version changed is reachable by keyboard through this key or not at all.
+    #
+    # Which row that is, is the comparison's: the walk above marked from v1, so the base
+    # is v1 and the row carrying it is where an open lands. Landing on the version being
+    # read would put the focus and the base on different rows, and the reader's next arrow
+    # press would then move the base off the version they marked from — the whole reason
+    # the two are one thing (showVersionMenu).
     page.keyboard.press("v")
     expect(menu).to_be_visible()
-    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    expect(btn).to_have_text("Δ v2 ▾")
+    # And walking back down to the version being read is the way off it, which is the row
+    # an open lands on with nothing standing.
+    page.keyboard.press("ArrowDown")
+    expect(btn).to_have_text("v2 ▾")
     # Inside the menu the letter is the menu's own — the newest version, tested where
     # it navigates — so Escape is what closes this.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
+    page.keyboard.press("v")
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    page.keyboard.press("Escape")
 
     # A second press is a close, not a re-open: without that the outside-click
     # handler and the toggle would both run and the menu could never stand.
@@ -12396,6 +12643,84 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     btn.click()
     page.locator('.lf-version-row[data-lf-version="3"]').click()
     page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    assert errors == []
+    page.close()
+
+
+def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
+    """A mode standing over the page takes the page's keys. The chord and the reference
+    always did and this menu did not, so mid-walk `d` scrolled a page the reader had
+    stopped looking at, `c` opened the composer under the list, and `=` set a base the walk
+    they were standing in disagreed with. None of it failed loudly: each press did exactly
+    what it promises, somewhere the reader was not — and the key line went on offering all
+    of them, which is what made the offer the bug rather than the press.
+
+    A claim is not the blanket it replaced, so the exemption is asserted beside it: the
+    reference is the one key a mode keeps, being the key that says what the mode's own keys
+    are, and a reader who has just opened something unfamiliar is the reader who wants it.
+
+    Which presses are asserted is decided by what a suspended one leaves to read. A key
+    the mode swallows moves nothing, and nothing is what an assertion made too early reads
+    on a key that worked — so the presses here are the two whose effect is a class and a
+    focus move in the same task as the keydown (`j` and `c`, both of which would raise the
+    panel and one of which would take the focus out of the menu). `=` and `d` land a fetch
+    and a glide later, where "not yet" and "never" read alike; the line is where those two
+    are held, off the same claim the dispatcher reads."""
+    url = serve(LONG_PAGE, comments=2)
+    _publish(
+        serve.page_dir,
+        2,
+        LONG_PAGE.replace("Paragraph 3.", "Paragraph three."),
+        "reworded a paragraph",
+    )
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    menu = page.locator(".lf-version-menu")
+    panel = page.locator(".lf-panel")
+    line = page.locator(".lf-keyline")
+    # Every one of them live on the page, which is what makes the suspension below the
+    # mode's rather than the rows' own liveness.
+    for word in ["comment", "threads", "half a page", "mark changes"]:
+        expect(line).to_contain_text(word)
+
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    row = page.locator('.lf-version-row[data-lf-version="2"]')
+    expect(row).to_be_focused()
+    # The line narrows to the menu's own keys with the page's gone from it, which is the
+    # same claim the dispatcher reads — one statement, both surfaces.
+    expect(line).to_contain_text("walk — marking changes")
+    expect(line).to_contain_text("close versions")
+    for word in ["comment", "threads", "half a page", "mark changes"]:
+        expect(line).not_to_contain_text(word)
+
+    # The exemption: still one press to the reference, which still lists the mode standing
+    # over the page, and Escape there leaves the menu where it was — with the reader on the
+    # row they left, since a scope is where focus is and the overlay takes the focus. Landing
+    # on the body instead put the walk it had just described out of reach, which is a poor
+    # thing for the one key a mode keeps to do.
+    expect(line).to_contain_text("keys")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
+    expect(menu).to_be_visible()
+    expect(row).to_be_focused()
+    expect(line).to_contain_text("walk — marking changes")
+
+    page.keyboard.press("j")  # would raise the panel and walk focus out of the menu
+    page.keyboard.press("c")  # would raise it and put focus in its box
+    expect(panel).to_be_hidden()
+    expect(row).to_be_focused()
+    expect(menu).to_be_visible(), "a page key closed the menu it was suspended by"
+
+    # And with the mode down the same key reaches the page, so what stopped it was the menu
+    # standing over the page rather than the key being broken.
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    page.keyboard.press("j")
+    expect(panel).to_be_visible()
+    expect(page.locator(".lf-thread").first).to_be_focused()
     assert errors == []
     page.close()
 
@@ -12530,7 +12855,13 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     older than this one offers itself.
 
     The rest is what the reader can tell afterwards: the closed control says a
-    comparison is standing, and reopening says which one, on the rows it spans."""
+    comparison is standing, and reopening says which one, on the rows it spans.
+
+    From the keyboard the base is the row the walk stands on, so the marks follow the
+    walk: the note says in words what a version changed and the page says it in the
+    passages, without the reader leaving the list to find out. That is also the whole of
+    the way off — the row an open lands on is the version being read, which is no
+    comparison at all — so nothing here needs a key of its own."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
     url = serve(INLINE_PAGE)
@@ -12571,10 +12902,8 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     expect(page.locator(".lf-version")).to_have_text("v3 ▾")
 
-    # From the keyboard the press is a Tab off the row it belongs to, which is what
-    # puts the walk's own landing spot next to it: the menu takes no key for this,
-    # since the row it opens on is the version being read and that is the one row with
-    # nothing to compare against.
+    # A Δ is still reachable by keyboard, a Tab off the row it belongs to, and still the
+    # toggle the pointer presses.
     page.locator(".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').focus()
     page.keyboard.press("Tab")
@@ -12589,6 +12918,40 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     page.keyboard.press("=")
     expect(page.locator(".lf-ins-block")).to_have_count(1)
+    page.keyboard.press("=")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+
+    # And the walk, which is the same series of comparisons made by standing on the rows
+    # rather than by naming a base: each step marks what changed since the row it lands
+    # on, and the list stays up while the page marks behind it — the reader is reading
+    # the note and the passages together.
+    menu = page.locator(".lf-version-menu")
+    page.keyboard.press("v")
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+
+    page.keyboard.press("ArrowUp")
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(menu).to_be_visible()
+
+    page.keyboard.press("ArrowUp")
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator(".lf-version")).to_have_text("Δ v3 ▾")
+
+    # Back down, one version at a time: the earlier base's marks go with it rather than
+    # standing beside the new one's, which is what a comparison being one base means.
+    page.keyboard.press("ArrowDown")
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+
+    # And down onto the version being read, which is no comparison — the way off, on the
+    # row an open lands on when nothing is standing.
+    page.keyboard.press("ArrowDown")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    expect(page.locator(".lf-version")).to_have_text("v3 ▾")
+    expect(menu).to_be_visible()
     assert errors == []
     page.close()
 

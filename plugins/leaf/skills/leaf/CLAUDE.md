@@ -523,7 +523,7 @@ of a diff, comments on it, and the mark paints where they drew it.
 Element identity is the same boundary, and it did not follow at first. `getElementById`
 searches the document tree alone, so an id inside a shadow tree was invisible to every
 question the runtime asks by id: which element an anchor names (`sectionOf`), what an
-action rests on (`restsOn`), which unit a fold paints, which ask the `a` key steps to.
+action rests on (`restsOn`), which unit a fold paints, which ask the n/p walk steps to.
 Each answers null and then quietly does nothing — the anchor stored, the mark never
 painted, no error anywhere to find it by. `elementById` is the document first and the
 declared roots after, and every one of those questions goes through it.
@@ -666,6 +666,71 @@ than from the lines they fell into, which is what the aria snapshot in
 reach was a reading of the page that took them for the page's own words, and that is
 answered where the question is asked — whose words are these, in `COVERED_WORDS`.
 
+## The inset a box shows is the inset it stated
+
+A box that draws an inset shows it twice, above what it holds and below it, and by default
+only one of the two is the stylesheet's to decide. A child's outer margin collapses through
+its parent and is spent between blocks; where the parent draws something at that edge, or
+holds a formatting context of its own, the margin cannot get out and is painted as the
+parent's inset instead. So the number in the rule is not the number on screen, and which of
+the two a reader gets depends on what the author wrote inside: an option card stating 16px
+came out 16 above its title and 29 under its last paragraph, and the same card ending in a
+run of words came out even. A block change's tinted field stated 2px and showed 15 at each
+end. It was on every option card, every variant, every block change and every quotation the
+corpus has, and what finally surfaced it was a reader looking at a specimen's gutter running
+sixteen pixels past the exhibit at both ends and asking why the marking was longer than the
+thing it marked.
+
+None of those numbers was chosen, which is what makes it a defect rather than a taste. An
+inset that moves with the content is the box saying one thing and the page showing another,
+and it fails silently in both directions — it renders perfectly, and it reads as a number
+somebody picked.
+
+`margin-trim` is the property for this and Chrome has not got it (checked at 151), so the
+trim is written out in `theme.css`. The half worth reading twice is who writes it. A list of
+the boxes that frame what they hold is the closed list the norms forbid: a layer's
+stylesheet can name only that layer's own boxes, so a project's card is outside it and the
+failure is a silent 13px rather than an error. A box says so itself instead, in the same
+declaration where it draws the frame (`--lf-frame: 1`), and one style query finds every one
+of them in any layer, the one nobody has written yet included. The box `leaf customize
+widget` scaffolds says it, so a project's first widget is right by construction.
+
+Which child is at that edge is a question about the page's own blocks, and `:first-child` is
+the DOM's answer to it. The two agree only where no module has written anything. A pick mark
+is appended and positioned out of the flow; a quiet word is clipped and inserted after the
+title — and each takes the trim off the block the reader can actually see, in exactly the
+widgets that build the most chrome. So the trim asks for the first and last child that is
+not generated, by the same pair of markers the anchor pass reads (`GENERATED`), because it
+is the same question: which of these words are the page's. That also dissolves the
+specimen's two arrangements into one, its "quoted ·" note being a generated child on a live
+page and a pseudo-element on a page carrying no script.
+
+What no selector reaches is a child that hands its own children's margins on rather than
+reserving room itself. A suggestion generates no box, so its slots are the flow's boxes and
+the frame's rule lands on an element with nothing to trim; a bare wrapper has a box and no
+margin of its own, so a grandchild's margin collapses through it to the frame's edge
+unchanged. The rail is that second one, and it is why `.facts` declares the frame too: a
+`dt`'s 6px between terms is the first term's as well, and it reached the option's padding
+through a `dl` that had reserved nothing, leaving the rail's first line 6px below the case
+docked beside it. The answer is the same sentence one level in — which is also why the
+block slot asks for its room above rather than around itself.
+Reaching a level further from the frame is the fix that suggests itself and trades a silent
+failure for a worse one, since the same selector over a padded child closes up that box's
+own first line. The gate reads the same level the trim does, so what it reports is what a
+declaration can fix.
+
+The check is a reading of the rendered page, because nothing else can be: the trim is a
+style query, the frame is a declaration in whichever layer drew the box, and a project
+overlays its own theme over leaf's, so which rule won is a fact only the browser holds.
+`version check --render` re-reads every drawn box and names the one showing more than it
+declared (`TRAPPED_MARGINS`, in `interact.py`), which is the same shape as the press sweep
+replacing a stylesheet lint: what a rule does to a page is a fact about a rendered page. It
+excludes two things on purpose. A flex or grid container collapses no margin anywhere, so a
+margin on an item at its edge is a placement rather than room that could not get out — the
+switch under a screenshot pair carries 3px of exactly that, the UA's own on a checkbox. And
+an edge whose box is generated is the layer's own paint, stated in the same rule as the
+frame.
+
 ## A widget's form follows its content, and each form states its own rules
 
 `lf-options` renders as stacked cards or as a list of rows, and nothing declares which:
@@ -762,6 +827,13 @@ one press: an armed `g` over an option's pick mark would otherwise have offered 
 thread" and "toggle the nth" side by side, and `lf-options` asked `leaderArmed()` privately
 to stop half of it.
 
+What there is to walk is one list (`SCOPES`, the element scopes spliced in where they stand),
+and every reader takes its order from it: the dispatcher and the line walk it forwards, the
+reference backwards. Three lists said it before, the third the reference's own — and a mode
+left out of that one is a mode the reference never names, which is the failure it had already
+made once. Gathering the rows into sections is one function (`merge`) for the same reason: it
+runs at declaration and at every open of the reference, and was spelled three times.
+
 ## A scope names what it takes, and takes no more
 
 The walk above shadows an outer row wherever a nearer one names the binding, which covers
@@ -795,18 +867,28 @@ there is nowhere left to put a wider one. And a scope that has to hand back a ke
 is a scope claiming the wrong set: reach for what it uses, not for what stands near it,
 because the keys it over-claims are invisible until a reader is standing on one.
 
+That cuts the other way for a mode, which does take the keyboard. The versions menu claimed
+nothing, so a reader mid-walk could press `l` and lose focus to the leaves board, `d` and
+scroll a page they had stopped reading, or `=` and set a base the walk disagreed with — each
+press doing what it promises somewhere the reader was not, with the line still offering all
+of them. What a mode keeps is the reference (`allButTheReference`): the two older ones can
+blanket it because neither outlives a keystroke, where a menu stands until it is dismissed
+and a swallowed `?` stays swallowed. And a scope is *where focus is*, so the overlay hands
+focus back on close (`helpFrom`) — opened from a version row and closed onto the body, it
+left the keys it had just listed reaching nothing.
+
 ## A key on screen is a key that works
 
 Every surface that names a key promises the press does something now. One table kept the
 words from drifting and did nothing to keep the surfaces from drifting from each other:
 the key line asked `when` and the `?` overlay didn't, so a page with no open thread offered
-`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. Two
-shortcuts had no `when` at all — the diff's liveness sat inside its own `run` and the
-version pair's inside `stepVersion`, where no surface could ask. So whether a key is live
-is declared once (`when`), `live` is the one question the dispatcher, the line and the
-overlay all put to it, and a label that names a range is a function (`g ${digits()}`) so it
-counts the threads that are there rather than promising nine. A liveness guard inside `run`
-is the tell, because it makes the key refuse a press some surface is still advertising.
+`g 1–9` to reply to one, and a first version offered the diff with nothing to diff. One
+shortcut had no `when` at all — the diff's liveness sat inside its own `run`, where no
+surface could ask. So whether a key is live is declared once (`when`), `live` is the one
+question the dispatcher, the line and the overlay all put to it, and a label that names a
+range is a function (`g ${digits()}`) so it counts the threads that are there rather than
+promising nine. A liveness guard inside `run` is the tell, because it makes the key refuse
+a press some surface is still advertising.
 
 One `when` was still one answer to two questions, and `r` is where that showed. Its
 sentence said "On a focused thread" while its liveness said "the page has threads", so a
@@ -819,14 +901,15 @@ this norm forbids. So the scope carries the capability and the row carries the p
 reference lists a scope's rows wherever the page has that scope; the line filters by each
 row's own liveness, which it may do because the reader standing in the scope can see which
 state they are in. `Enter` and `r` moved into the thread's own scope on the strength of it,
-and the page's line stopped naming them at all.
+and the page's line stopped naming them at all. They are named apart in the code too
+(`pageHas`, `readerIn`), since `!x || x()` at each of the three places that ask named neither.
 
 Live means the capability exists, not that every press moves. A stepper at its end — j on
-the last thread, `]` on the newest version — is a clamp on a live key: the promise is
-that there are threads or versions to walk, not that this edge press lands. What
-`stepVersion` used to hold alone was the other kind, deadness — one version, or a viewed
-version the server no longer lists, so nothing to step between at all — and that is what
-`when` now owns; the clamp stays in the stepper.
+the last thread, ↓ on the row of the version being read — is a clamp on a live key: the
+promise is that there are threads or versions to walk, not that this edge press lands. The
+other kind is deadness — no second version, so nothing to walk between at all — and that is
+a `when`, on the scope where a whole section of the reference stands or does not; the clamp
+stays in the walk.
 
 A binding says which key it is in two halves, and only one of them was ever read. `answers`
 asks after `Mod`, `Alt` and `Shift` by name and takes every other prefix to be absent, so
@@ -861,17 +944,25 @@ being a form's submit and a leaf page having no form. The row binds no `run` —
 dispatcher skips a run-less row, so the press stays the platform's, where binding one
 would work a control the browser has already worked.
 
+A walk's keys name the direction, never the thing walked, and every walk on this page is a
+pair a reader arrives already knowing: `j`/`k` is vim's list, `d`/`u` is less's half page,
+`n`/`p` is next and previous through the things waiting on the reader. The noun is the
+tempting name and it strands the second half — the walk through the asks was `a`, and there
+is no letter that means "the previous ask", so what went beside it was chosen rather than
+known (`a`/`p`, a pair only its author could read). A borrowed pair costs nothing to learn
+and leaves the noun's own letter free, which is what the rule below spends it on.
+
 A key that acts at large takes the Shift as well as the letter, and the binding is where
 that is said: `Shift+a`, matched on the letter's lowercase with the modifier asked for
-exactly. Reading the uppercase key instead is wrong twice over, because caps lock writes
-one out of an unshifted press — a reader with it on who reached for `a`, the walk through
-the page's asks one at a time, got `A` under the first rule, which answers every one of
-them and ends the matter, and matched nothing at all under the rule that fixed it, while
-the line went on offering the walk. So the pair is a relation rather than two letters that
-happened to be free: `a` steps the page's asks and `Shift+a` gives every blanket answer it
-offers, the shifted half acting on the whole of what the lowercase one walks through. The
-chip still reads `A`, because that is the key the reader presses; the binding reads
-`Shift+a`, because that is what the dispatcher must ask for.
+exactly. `a` alone stands for nothing, deliberately — an unshifted letter that ends the
+matter for every ask on the page is a press far too cheap for what it does — and the walk
+being spelled in directions is what leaves the letter to it. Reading the uppercase key
+instead of asking for the modifier is wrong in both directions, because caps lock writes an
+uppercase key out of an unshifted press and a lowercase one out of a shifted press: the
+reader with it on would get every change on the page accepted from a letter they meant as a
+letter, and could no longer reach that answer with the Shift the chip names. The chip reads
+`A`, because that is the key the reader presses; the binding reads `Shift+a`, because that
+is what the dispatcher must ask for.
 
 A move that merely sits beside a key, rather than acting on the whole of what it walks,
 is spelled in the scope that key opens, where the letter is free again: `v` opens the
@@ -906,7 +997,7 @@ never wrong because it says nothing. Where the branch is a fact about the page r
 than about the key — what is selected, what stands open — the reader can already see
 which branch they are in, so the word has to agree with them. A row's cells are therefore
 read where they are painted (`word`), the way a label naming a range already was, and
-both surfaces get the same answer: `c` names what it would comment on, `o` says whether
+both surfaces get the same answer: `c` names what it would comment on, `l` says whether
 the press shows or hides.
 
 Passable for both is the argument to refuse. A word kept because it survives a change of
@@ -918,6 +1009,48 @@ rule the runtime already follows for everything it renders: `showFab` writes the
 `c` names, so it paints the line, as `showOthers` does for the board. `paintLine`
 coalesces to a frame, so painting from each writer costs nothing and saves reasoning
 about which one is last.
+
+## One door to a place, and it is the one that shows it
+
+`[` and `]` stepped versions older and newer: the menu's walk with the list taken away, a page
+load per press, so a reader holding `[` travelled back through the work past the notes saying
+what each version changed. A second key to a place the page already reaches is worth its
+binding only if it carries what the door carries. `=` passes that test by naming no version —
+"what changed since the last one I saw" needs nothing opened — and an older/newer step fails
+it, since choosing a version is reading the list.
+
+Inside the menu the row focus stands on *is* the comparison base, so the marks follow the walk
+and the row that ends it is the version being read, which is the row an open lands on. The two
+must agree, and the landing is where that breaks quietly: opening on the version being read
+while a comparison stood elsewhere moved the base on the reader's first arrow press, marks
+redrawn to match and nothing saying so. So an open lands on the standing base.
+
+## A walk starts where the reader is standing
+
+A key that steps through the page is answering "from here, what is next", and the reader
+decides where here is. `d`/`u` measure from the scroll position, `j`/`k` from the focused
+thread. The ask walk measured from an id of its own instead, and so answered a question
+nobody asked: where its own last press had put them. A reader who scrolled halfway down
+and pressed it for the first time, or who selected a paragraph and then reached for the
+next thing waiting on them, was taken to the top of the page past everything they had
+just read.
+
+Where they are is read from what they have done, most direct first — focus, then the
+selection, then the walk's own mark, then the block they are reading — because each of
+those is a thing they did and the later ones are older news. A caret counts even where a
+quote wouldn't: this asks where the reader is, not what they meant to quote, which is why
+it is its own reading and not `pageSelection`. The banner is the one place that is no
+place: its controls are addresses held from wherever the reader stands, and the Asks
+button focuses itself on the way to running the walk, so measuring from focus there would
+have restarted the walk on every click of it.
+
+Then the walk is over places in the document rather than indices into its own list
+(`askStep`), which is what makes a direction mean anything from a standing start — and an
+ask holding the reader's place is the one they step off rather than the one they step to.
+The list has to be the page's order for any of that to hold. The panel's threads are in
+the log's order, so `j`/`k` have no page position to measure from and the head of the list
+is the right answer there; the tell is not "does this walk carry state" but "is where the
+reader is a position in what this walk walks".
 
 ## A widget's chrome outlives its handlers
 

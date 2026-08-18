@@ -289,7 +289,7 @@ def fragment_errors(html, registry):
     parser = interact._StructParser()
     parser.feed(html)
     parser.close()
-    return interact.fragment_errors(parser, registry, registry["$languages"]["names"])
+    return interact.fragment_errors(parser, registry)
 
 
 def test_claude_and_codex_load_the_same_plugin_payload():
@@ -4174,17 +4174,26 @@ def test_check_refuses_an_ask_no_page_could_carry(page_dir, tag, awaits, message
         ("lf-event", "x-says", {"at": "before", "colour": "after"}, "colour"),
         ("lf-option", "x-refers", ["for", "about"], "about"),
         ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
+        ("lf-code", "x-lines", ["hi", "upto"], "upto"),
+        ("lf-code", "x-language", "dialect", "dialect"),
+        ("lf-chip", "x-tone", "shade", "shade"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """Three keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, the ones it paints and never words —
+    """Six keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, the ones it paints and never words, the
+    ones holding line references, and the two carrying a word its layer has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
     simply missing from the pass, and a page that looks authored correctly because it
-    was. The door is the only place the mistake is visible, so it refuses here."""
+    was. The door is the only place the mistake is visible, so it refuses here.
+
+    Every one of them parametrized rather than three, because it is one rule
+    (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
+    which no test of the three that were written by hand could ever see. The shapes
+    differ and the rule does not: a list, a mapping keyed by the names, one name."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = value
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -5318,7 +5327,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     else: not a dead server's page, not one with nothing published to link, and
     not the page doing the asking. Each entry carries the same presence facts the
     page ships about itself (`presence`), so the panel's row and that page's own
-    banner judge from one shape."""
+    banner judge from one shape — where the claiming session is working included,
+    which is the one thing on a row's hover that no title could ever say."""
     pages = interact.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     interact.write_json(
@@ -5327,7 +5337,13 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     )
     interact.write_json(
         pages / "live" / "session.json",
-        {"id": "s9", "host": "claude-code", "pid": os.getpid(), "agent": "Codex"},
+        {
+            "id": "s9",
+            "host": "claude-code",
+            "pid": os.getpid(),
+            "agent": "Codex",
+            "cwd": "/work/api",
+        },
     )
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
@@ -5364,6 +5380,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "host": None,
         "session_alive": None,
         "viewed": None,
+        "session_cwd": None,
     }
     assert state["others"] == [
         {"title": "scratch", "url": claimed_url, **unclaimed},
@@ -5379,6 +5396,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "agent": "Codex",
             "host": "claude-code",
             "session_alive": True,
+            "session_cwd": "/work/api",
         },
     ]
 
@@ -5654,6 +5672,24 @@ def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
     assert session["pid"] == os.getpid()
     assert session["agent"] == "Codex" and session["host"] == "codex"
     assert page_state(codex_claimed_page)["agent"] == "Codex"
+
+
+def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
+    """What tells one leaf from another on the board is the work behind it, which
+    neither the title somebody wrote nor the state directory nobody chose says — so
+    the claim records the directory the claiming command ran in, the same reading
+    `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a
+    page nothing ever claimed says so rather than borrowing a path from somewhere."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    work = tmp_path / "api"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    assert interact.claim_page(page_dir)
+    assert interact.read_json(page_dir / "session.json")["cwd"] == str(work)
+    assert interact.presence(page_dir, [])["session_cwd"] == str(work)
+    (page_dir / "session.json").unlink()
+    assert interact.presence(page_dir, [])["session_cwd"] is None
 
 
 def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(tmp_path):

@@ -282,6 +282,22 @@ and it surfaced three widgets later as the page's reader saying a diagram was cu
 The kinds are values now (`box`, `drawing`). Where a key's `true` carries a claim the
 entry never states, that claim is the value the key should have had.
 
+The stylesheet is under the same rule and answers it in its own vocabulary, since a
+selector is a consumer too and a list of tags is the closed list wearing CSS. A box
+declares that it frames what it holds (`--lf-frame`) in the rule where it draws the frame,
+and one style query trims what every such box would otherwise paint as its own inset — so
+a project's card is covered by saying the same thing, where a list in leaf's theme could
+never have named it. The norm is `plugins/leaf/skills/leaf/CLAUDE.md`'s.
+
+Which is not to say one declaration answers every question about the same boxes. The room
+a wide exhibit may take reads as the same question — the boxes it must stay inside are
+the boxes that frame what they hold — and `--lf-frame` cannot carry it: the declaration
+says the box has an inset a child's margin would double, so `main` makes it, the column
+being a padded box like any other, and read that way the room is withheld from every
+exhibit on every page. A shared declaration is worth reaching for and worth measuring
+before it is spent; the tell is that the two questions have different answers for one
+box.
+
 A fact the whole layer shares belongs to the layer, under a `$` key, rather than to
 whichever widget first needed it. The vendored tokenizer's language list lived in
 `lf-code`'s `language` enum, and from there the only way for the lint to read it was to name
@@ -349,6 +365,20 @@ page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer
 - **Tests are integration tests in a real browser.** `test_render.py` drives the shipped
   examples through the Chrome already on the machine. What a test must assert, and the
   ways one passes vacuously, are in `tests/CLAUDE.md`.
+- **A cloud container has none of that, so set it up first.** No system Chrome, so every
+  browser test fails at launch — the Chromium preinstalled there is a different build than
+  the locked Playwright expects, and the suite asks for `channel="chrome"`. No
+  `pre-commit` either, so the lint cannot run at all.
+
+  ```sh
+  uv sync --frozen
+  uv run playwright install chrome
+  uv tool install pre-commit
+  ```
+
+  Two tests fail there whatever the setup does, the container having no IPv6 stack at all:
+  the pair binding the stated-host wildcard `::` cannot run, and they are its answer rather
+  than the change's — landing is from a workstation, where they do.
 - **Measure before optimising and before assuming.** The cost claims in this codebase came
   from timing the real thing on `examples/gallery.html`, not from reasoning.
 - **A page directory holds a copy of the layer, so re-vendor before believing it.**

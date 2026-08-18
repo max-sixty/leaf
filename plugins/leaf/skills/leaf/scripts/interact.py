@@ -77,9 +77,11 @@ A page directory holds:
                          clears it so the next serve decides afresh. The key the
                          URL also carries is the machine's, not the page's, and
                          lives in the state home
-    session.json         {"id", "host", "pid", "agent"} of the agent session last
-                         working on the page — the watcher the banner names, not
-                         necessarily the author of any given message
+    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent
+                         session last working on the page — the watcher the
+                         banner names, not necessarily the author of any given
+                         message, and the directory it was working in, which is
+                         what the leaves board tells one page from another by
 
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
@@ -574,6 +576,14 @@ AWAITS_SCHEMA = {
     },
     "additionalProperties": False,
 }
+# A list of the widget's own attribute names. One shape for the three keys that hold
+# one, since the shape is a consequence of what they name rather than three decisions.
+_ATTRIBUTE_LIST = {
+    "type": "array",
+    "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+    "minItems": 1,
+}
+_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -582,34 +592,22 @@ EXTENSION_SCHEMA = {
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
         "x-inline": {"type": "boolean"},
-        "x-language": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-language": _ATTRIBUTE_NAME,
         # Attributes holding 1-based line references into the nearest data body —
         # the element's own <pre>, or its holder's (lf-note's `at` names a line of
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
-        "x-lines": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "minItems": 1,
-        },
+        "x-lines": _ATTRIBUTE_LIST,
         # Attributes the theme renders as paint alone — a status marker's tint, an
         # event's kind, the ring on the recommended option. The runtime speaks each as
         # a clipped word (renderQuiet), the value or, where a flag carries no value,
         # the attribute's own name.
-        "x-paints": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "minItems": 1,
-        },
+        "x-paints": _ATTRIBUTE_LIST,
         "x-parent": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "minItems": 1,
         },
-        "x-refers": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "minItems": 1,
-        },
+        "x-refers": _ATTRIBUTE_LIST,
         "x-report": REPORT_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
@@ -619,7 +617,7 @@ EXTENSION_SCHEMA = {
         },
         "x-shadow": {"type": "boolean"},
         "x-state": STATE_SCHEMA,
-        "x-tone": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-tone": _ATTRIBUTE_NAME,
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {"type": "boolean"},
@@ -630,6 +628,16 @@ EXTENSION_SCHEMA = {
     "dependentRequired": {"x-retired-when": ["x-parent"]},
     "additionalProperties": False,
 }
+# The keys whose value names attributes of the widget's own schema, in whichever shape
+# each carries the names: a list, a mapping keyed by them, or one name. One rule for all
+# of them, because the failure is one — the attribute is absent, so the pass reading the
+# key finds nothing and does nothing, and the widget is simply missing from it with no
+# error anywhere (validate_registry holds every key here to the entry's `properties`).
+# The verb keys of the same shape (x-retired-when, x-withdrawn-as) are not in it: they
+# name an outcome rather than an attribute, and sharing a spelling is no reason to share
+# a check. x-awaits names attributes too and keeps its own loop, having more to say about
+# each than that it exists.
+ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-tone")
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 BUNDLED = Path(__file__).resolve().parent.parent / "bundled"
@@ -950,6 +958,17 @@ def published_versions(page_dir: Path, events: list) -> list:
     return [version for version in list_versions(page_dir) if version in noted]
 
 
+def latest_published(page_dir: Path, events: list) -> int:
+    """The page the reader is looking at, for a message the agent makes against it — a
+    comment, or a report. A version no `note` has released is a page nobody has seen, so
+    there is nothing to speak about and the command says so rather than picking a file
+    off disk."""
+    published = published_versions(page_dir, events)
+    if not published:
+        sys.exit("no published version; run `leaf version publish` first")
+    return published[-1]
+
+
 def pid_alive(pid: int) -> bool:
     # PermissionError is another user's process, and every pid this module
     # records — servers, agent sessions — runs as this user. After a reboot the
@@ -1245,7 +1264,12 @@ def claim_page(page_dir: Path) -> bool:
     sid = identity["id"]
     write_json(
         page_dir / "session.json",
-        {**identity, "pid": int(pid), "ts": now_iso()},
+        # Where the session is working, which is what a page is *about* to the person
+        # reading the board: a leaf is named by a title somebody wrote and lives in a
+        # state directory nobody chose, and neither says which project it came out of.
+        # The claiming command runs from the session's own directory, the same reading
+        # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
+        {**identity, "pid": int(pid), "cwd": os.getcwd(), "ts": now_iso()},
     )
     sessions = state_home() / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
@@ -1368,11 +1392,13 @@ def unacknowledged(events: list, cursor: int) -> list:
 
 
 def presence(page_dir: Path, events: list) -> dict:
-    """The facts a shown status derives from: the agent's claim, and everything the
-    directory holds that can answer for it. One gatherer for both places a status
-    is shown — `full_state` spreads it into the page's own poll answer, and
-    `other_leaves` attaches it to each entry — so the runtime's one
-    claim-against-proof judgment reads the same fields whichever page it judges."""
+    """What a seat showing this page says about it: the agent's claim, everything
+    the directory holds that can answer for it, and where that agent is working.
+    One gatherer for every such seat — `full_state` spreads it into the page's own
+    poll answer, and `other_leaves` attaches it to each entry — so the runtime's one
+    claim-against-proof judgment reads the same fields whichever page it judges,
+    and the board's account of a neighbour is the account this page gives of
+    itself."""
     # A file that isn't there stands in as its whole record, so every read below
     # indexes rather than asking twice whether the field arrived.
     status = read_json(page_dir / "status.json") or {
@@ -1406,6 +1432,13 @@ def presence(page_dir: Path, events: list) -> dict:
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
         "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
+        # Where the claimant is working (claim_page), for the board's hover: what
+        # tells one leaf from another is the work behind it, and neither the title
+        # nor the page directory says which that is. It outlives the session that
+        # wrote it, as every other fact in this record does — a page the board
+        # calls unheld came out of somewhere, and that is still where it came from.
+        # None for a page nothing ever claimed, which is the honest nothing.
+        "session_cwd": session.get("cwd") if session else None,
     }
 
 
@@ -1513,12 +1546,17 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._post)
 
     def _answer(self, route) -> None:
-        """One boundary for what a route raises. Unanswered, a fault drops the
-        socket, socketserver buries the traceback in stderr nothing reads, and
+        """One boundary for the key and for what a route raises. Unanswered, a fault
+        drops the socket, socketserver buries the traceback in stderr nothing reads, and
         the banner says "Server offline" about a server that is up — so every
         fault becomes a 500 naming itself, which the banner can show to the one
-        person still looking."""
+        person still looking. The key is checked here for `end_headers`'s reason: every
+        request passes through, so there is one gate rather than one per method, and a
+        route added later cannot be the one that forgot to ask."""
         try:
+            if not self.authorized():
+                self._json({"error": NO_KEY}, 403)
+                return
             route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
             try:
@@ -1527,9 +1565,6 @@ class Handler(BaseHTTPRequestHandler):
                 pass  # the peer left mid-answer; nobody to tell
 
     def _get(self):
-        if not self.authorized():
-            self._json({"error": NO_KEY}, 403)
-            return
         path = urlsplit(self.path).path
         if path == "/":
             versions = self.versions_live(read_events(self.page_dir))
@@ -1599,9 +1634,6 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
     def _post(self):
-        if not self.authorized():
-            self._json({"error": NO_KEY}, 403)
-            return
         # The preview window is the gate's own browser over a maybe-unpublished
         # version, not the reader: an error event it minted would stand in the
         # real log as the agent's debt, diagnostics the lint generated about
@@ -2147,8 +2179,13 @@ def customization_protected_paths(layer: Path) -> list:
     return paths
 
 
-def customization_overlap(targets: list, protected: list):
-    return next(
+def refuse_customization_overlap(targets: list, protected: list) -> None:
+    """Refuse a customization this scaffold would write over another layer's own source.
+
+    Three callers ask, each about a different set of targets — the layer directory
+    itself, the theme file, every file a widget scaffold stages — and the refusal is one,
+    so it is stated here with the question rather than three times beside it."""
+    overlap = next(
         (
             (target.resolve(), source)
             for target in targets
@@ -2157,6 +2194,12 @@ def customization_overlap(targets: list, protected: list):
         ),
         None,
     )
+    if overlap:
+        target, source = overlap
+        sys.exit(
+            f"customization target {target} overlaps another layer source "
+            f"{source}; customization scopes must be separate"
+        )
 
 
 def initialized_page_owning(path: Path):
@@ -2202,12 +2245,7 @@ def validate_customization_dir(layer: Path) -> list:
             "customization sources must stay separate from page-owned paths, "
             "then run `page init` to re-vendor the page"
         )
-    if overlap := customization_overlap(selected, protected):
-        target, source = overlap
-        sys.exit(
-            f"customization target {target} overlaps another layer source "
-            f"{source}; customization scopes must be separate"
-        )
+    refuse_customization_overlap(selected, protected)
     return protected
 
 
@@ -2215,12 +2253,7 @@ def cmd_customize_theme(user: bool) -> Path:
     layer = customization_dir(user)
     protected = validate_customization_dir(layer)
     path, css, exists = custom_theme_content(layer)
-    if overlap := customization_overlap([path], protected):
-        target, source = overlap
-        sys.exit(
-            f"customization target {target} overlaps another layer source "
-            f"{source}; customization scopes must be separate"
-        )
+    refuse_customization_overlap([path], protected)
     if exists:
         print(f"using {path}")
         return path
@@ -2265,6 +2298,11 @@ def custom_widget_css(tag: str) -> str:
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--card);
+  /* This box frames what it holds, so the room its outermost blocks reserve against
+     neighbours they haven't got stops here rather than being painted as padding. Say
+     it wherever a box draws an inset; theme.css states the trim once for every layer,
+     and `version check --render` reports a box that shows more than it declared. */
+  --lf-frame: 1;
 }}
 """
 
@@ -2366,12 +2404,7 @@ def cmd_customize_widget(tag: str, user: bool, upgrade: bool) -> None:
     # The registry is the declaration that makes the other files live, so it
     # commits last after every target has been staged.
     writes.append((registry_path, json_bytes(entries, indent=2), True))
-    if overlap := customization_overlap([path for path, _, _ in writes], protected):
-        target, source = overlap
-        sys.exit(
-            f"customization target {target} overlaps another layer source "
-            f"{source}; customization scopes must be separate"
-        )
+    refuse_customization_overlap([path for path, _, _ in writes], protected)
     if upgrade:
         widgets_dir.mkdir(parents=True, exist_ok=True)
     replace_files(writes)
@@ -2851,6 +2884,22 @@ def reserved_marker_errors(parser) -> list:
     ]
 
 
+def id_errors(parser) -> list:
+    """What a parsed page's own names must not do: repeat, or trespass on the runtime's
+    own namespace — its ids, and its markers. One reader, because the two gates that ask
+    are asking the same thing of the same parser: a version, and a catalog example, which
+    is markup an author writes from. Written twice, the second gate is the one that goes
+    on not asking whatever the first one learns to."""
+    errors = []
+    if parser.duplicate_ids:
+        errors.append(
+            f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
+        )
+    if parser.reserved_ids:
+        errors.append(reserved_ids_error(parser.reserved_ids))
+    return errors + reserved_marker_errors(parser)
+
+
 def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
@@ -2859,7 +2908,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     escaped, so it cannot claim a widget. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
-    errs = fragment_errors(frag, registry, registry["$languages"]["names"])
+    errs = fragment_errors(frag, registry)
     if errs:
         sys.exit(
             f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
@@ -2903,10 +2952,7 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     events = read_events(page_dir)
-    published = published_versions(page_dir, events)
-    if not published:
-        sys.exit("no published version; run `leaf version publish` first")
-    version = published[-1]
+    version = latest_published(page_dir, events)
     anchor = None
     if quote or section:
         html = version_path(page_dir, version).read_text(encoding="utf-8")
@@ -2965,9 +3011,7 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""
     events = read_events(page_dir)
-    published = published_versions(page_dir, events)
-    if not published:
-        sys.exit("no published version; run `leaf version publish` first")
+    version = latest_published(page_dir, events)
     registry = require_registry(page_dir)
     detail = {}
     for field in fields:
@@ -2982,7 +3026,7 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
         "widget": widget,
         "action": verb,
         "detail": detail,
-        "version": published[-1],
+        "version": version,
     }
     if error := report_contract_error(page_dir, event, registry):
         sys.exit(error)
@@ -3190,6 +3234,38 @@ CATALOG_PREAMBLE = """\
 """
 
 
+# The layer-wide facts printed after the widget entries, each with the sentence saying
+# what an author reads it for. A table because the catalog is the agent's own
+# documentation of a vocabulary that grows: a `$` key a layer adds is a row here, not a
+# block of its own beside six that already say the same thing differently. $events is
+# absent because it is the vocabulary stamp — what this page's runtime speaks, for
+# `page init` to hold a re-vendor against — and nothing an author writes markup from.
+CATALOG_FACTS = (
+    (
+        "$restated",
+        "`restated` — the one attribute that spans widgets; read it before revising one.",
+    ),
+    (
+        "$state",
+        "x-state — how a widget's action verbs and their record forms are declared.",
+    ),
+    (
+        "$report",
+        "x-report — the agent channel: worker reports, and how a version answers one.",
+    ),
+    ("$awaits", "x-awaits — what makes an element one of the page's standing asks."),
+    (
+        "$languages",
+        "The languages this page colors, in a code block's class or an x-language attribute.",
+    ),
+    ("$tones", "The tones this page's layer paints, on any x-tone attribute."),
+    (
+        "$idioms",
+        "Theme idioms — shapes the theme styles directly; no registry entry, no JS.",
+    ),
+)
+
+
 def cmd_catalog(page_dir: Path) -> None:
     reg = require_registry(page_dir)
     print(CATALOG_PREAMBLE)
@@ -3200,44 +3276,10 @@ def cmd_catalog(page_dir: Path) -> None:
             ensure_ascii=False,
         )
     )
-    restated = reg.get("$restated")
-    if restated:
-        print(
-            "\n# `restated` — the one attribute that spans widgets; read it before revising one.\n"
-        )
-        print(json.dumps(restated, indent=2, ensure_ascii=False))
-    state = reg.get("$state")
-    if state:
-        print(
-            "\n# x-state — how a widget's action verbs and their record forms are declared.\n"
-        )
-        print(json.dumps(state, indent=2, ensure_ascii=False))
-    report = reg.get("$report")
-    if report:
-        print(
-            "\n# x-report — the agent channel: worker reports, and how a version answers one.\n"
-        )
-        print(json.dumps(report, indent=2, ensure_ascii=False))
-    awaits = reg.get("$awaits")
-    if awaits:
-        print("\n# x-awaits — what makes an element one of the page's standing asks.\n")
-        print(json.dumps(awaits, indent=2, ensure_ascii=False))
-    languages = reg.get("$languages")
-    if languages:
-        print(
-            "\n# The languages this page colors, in a code block's class or an x-language attribute.\n"
-        )
-        print(json.dumps(languages, indent=2, ensure_ascii=False))
-    tones = reg.get("$tones")
-    if tones:
-        print("\n# The tones this page's layer paints, on any x-tone attribute.\n")
-        print(json.dumps(tones, indent=2, ensure_ascii=False))
-    idioms = reg.get("$idioms")
-    if idioms:
-        print(
-            "\n# Theme idioms — shapes the theme styles directly; no registry entry, no JS.\n"
-        )
-        print(json.dumps(idioms, indent=2, ensure_ascii=False))
+    for key, heading in CATALOG_FACTS:
+        if fact := reg.get(key):
+            print(f"\n# {heading}\n")
+            print(json.dumps(fact, indent=2, ensure_ascii=False))
 
 
 def cmd_page_state(page_dir: Path) -> None:
@@ -4860,10 +4902,10 @@ def validate_registry(registry: dict, source) -> dict:
         raise RegistryError(
             f"{path}: $languages.paths must map extensions to declared languages"
         )
-    # Shape, not just presence, because `tone_errors` asks a list for membership and a
-    # string answers the same question by substring: a layer declaring `"names": "ok"`
-    # would pass every one-letter tone and paint none of them, which is exactly the
-    # invisible failure the check exists to catch.
+    # Shape, not just presence, because `declared_word_errors` asks a list for membership
+    # and a string answers the same question by substring: a layer declaring
+    # `"names": "ok"` would pass every one-letter tone and paint none of them, which is
+    # exactly the invisible failure the check exists to catch.
     if (
         not isinstance(tones, list)
         or not all(isinstance(tone, str) for tone in tones)
@@ -4942,32 +4984,12 @@ def validate_registry(registry: dict, source) -> dict:
             )
         properties = entry.get("properties", {})
         said = set(entry.get("x-says", {}))
-        if unknown := sorted(said - set(properties)):
-            raise RegistryError(
-                f"{path}: <{tag}> x-says names undeclared attributes {unknown}"
-            )
-        if unknown := sorted(set(entry.get("x-refers", [])) - set(properties)):
-            raise RegistryError(
-                f"{path}: <{tag}> x-refers names undeclared attributes {unknown}"
-            )
-        if unknown := sorted(set(entry.get("x-paints", [])) - set(properties)):
-            raise RegistryError(
-                f"{path}: <{tag}> x-paints names undeclared attributes {unknown}"
-            )
-        tone = entry.get("x-tone")
-        if tone and tone not in properties:
-            raise RegistryError(
-                f"{path}: <{tag}> x-tone names undeclared attribute `{tone}`"
-            )
-        language = entry.get("x-language")
-        if language and language not in properties:
-            raise RegistryError(
-                f"{path}: <{tag}> x-language names undeclared attribute `{language}`"
-            )
-        for lined in entry.get("x-lines", ()):
-            if lined not in properties:
+        for key in ATTRIBUTE_KEYS:
+            declared = entry.get(key) or ()
+            named = {declared} if isinstance(declared, str) else set(declared)
+            if unknown := sorted(named - set(properties)):
                 raise RegistryError(
-                    f"{path}: <{tag}> x-lines names undeclared attribute `{lined}`"
+                    f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
                 )
         # An ask names attributes and values the page can actually carry, or it asks
         # on nothing: `status: ["reviewing"]` is a widget silently absent from every
@@ -5207,19 +5229,11 @@ def validate_registry(registry: dict, source) -> dict:
 
 def validate_registry_examples(registry: dict, source) -> dict:
     """Validate each independent catalog example where registry layers become one."""
-    known = registry["$languages"]["names"]
     for tag, entry in registry.items():
         if not tag.startswith("lf-") or (example := entry.get("x-example")) is None:
             continue
         parser = parse_structure(example)
-        errors = fragment_errors(parser, registry, known)
-        if parser.duplicate_ids:
-            errors.append(
-                f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
-            )
-        if parser.reserved_ids:
-            errors.append(reserved_ids_error(parser.reserved_ids))
-        errors.extend(reserved_marker_errors(parser))
+        errors = fragment_errors(parser, registry) + id_errors(parser)
         if errors:
             raise RegistryError(f"{source}: <{tag}> x-example is invalid: {errors[0]}")
     return registry
@@ -5339,6 +5353,15 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     ]
 
 
+def at(rec: dict, named: str = "") -> str:
+    """Where a lint finding is, in the terms the author reads their own file in: the
+    tag, whatever identifies the one meant — an id, or the attribute the rule is
+    about — and the line the markup opens on. Every gate below opens its findings this
+    way, so the shape is stated here rather than re-spelled at each of them; a reader
+    scanning a page of them reads one shape, and a change to it is one edit."""
+    return f"<{rec['tag']}{' ' + named if named else ''}> (line {rec['line']})"
+
+
 def widget_errors(lf_elements: list, registry: dict) -> list:
     """Validate parsed lf-* elements against the registry: schema over the
     attribute instance, x-parent nesting, and the x-content model."""
@@ -5352,7 +5375,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             children_of.setdefault(parent, set()).add(tag)
 
     for rec in lf_elements:
-        tag, where = rec["tag"], f"<{rec['tag']}> (line {rec['line']})"
+        tag, where = rec["tag"], at(rec)
         entry = registry.get(tag)
         if entry is None:
             errors.append(
@@ -5415,27 +5438,21 @@ def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
     carries no page to check against, and one of its widgets pointing at the version
     beside it is exactly right."""
     return [
-        f'<{rec["tag"]}> (line {rec["line"]}): {attr}="{target}" names no element '
-        "in this version"
+        f'{at(rec)}: {attr}="{target}" names no element in this version'
         for rec in lf_elements
         for attr in registry.get(rec["tag"], {}).get("x-refers", [])
         if (target := rec["attrs"].get(attr)) and target not in ids
     ]
 
 
-def language_errors(
-    blocks: list, lf_elements: list, registry: dict, known: list
-) -> list:
-    """A declared language the runtime won't honor. Nothing here is visible to the
-    user either way — a class in the wrong place and a misspelt language both render
-    as an ordinary uncolored block — so the failure is routed to the one party who can
-    still fix it, which is whoever wrote the word.
-
-    One list answers both spellings, and it is the page's ($languages) rather than any
-    widget's: a plain <pre><code class="language-…"> belongs to no widget at all, and a
-    tag that takes the word says which of its attributes carries it (x-language) instead
-    of being known here by name. The vendored bundle is built from the same list, so a
-    page cannot be told a language its own layer doesn't speak.
+def language_class_errors(blocks: list, known: list) -> list:
+    """A `class="language-…"` the runtime won't honor: the class somewhere other than
+    <pre><code>, or a word the layer doesn't speak. Neither is visible to the user — a
+    class in the wrong place and a misspelt language both render as an ordinary
+    uncolored block — so the failure is routed to the one party who can still fix it,
+    which is whoever wrote the word. A widget declaring a language is held to the same
+    list one attribute over (declared_word_errors); this half is the plain HTML block,
+    which belongs to no widget at all.
 
     The list is indexed rather than tested: a layer naming none colors none, so a word
     declared to it is still one it can't honor, and the placement rule never depended on
@@ -5454,14 +5471,41 @@ def language_errors(
             errors.append(
                 f"{where}: not a language this page's layer speaks — known: {known}"
             )
-    for rec in lf_elements:
-        attr = (registry.get(rec["tag"]) or {}).get("x-language")
-        word = rec["attrs"].get(attr) if attr else None
-        if word is not None and word not in known:
-            errors.append(
-                f'<{rec["tag"]} {attr}="{word}"> (line {rec["line"]}): not a language '
-                f"this page's layer speaks — known: {known}"
-            )
+    return errors
+
+
+# A word a widget declares that its layer has to know, as three things: the x- key
+# naming the attribute that carries it, the layer-wide fact listing the words the layer
+# has, and what the layer does with one that is on the list.
+#
+# One reader for both, because they are one failure — a misspelt language colors nothing
+# and a misspelt tone paints nothing, and each renders as a page that otherwise looks
+# perfectly well, so nobody downstream can see it: not the user, who never knew the chip
+# was meant to be red. The one party who can still fix it is whoever wrote the word, and
+# this is where they are told. A class would have been the same words with nobody
+# checking them.
+#
+# The list is the layer's ($languages, $tones) rather than any widget's, and which
+# attribute carries the word is the entry's to say — so nothing here knows which widget
+# takes a language or a tone, and the thirteenth that colors something is covered the day
+# it declares one. A third such word is a row in this table.
+DECLARED_WORDS = (
+    ("x-language", "$languages", "a language this page's layer speaks"),
+    ("x-tone", "$tones", "a tone this page's layer paints"),
+)
+
+
+def declared_word_errors(lf_elements: list, registry: dict) -> list:
+    """Every word the page declares that its layer has no entry for (DECLARED_WORDS)."""
+    errors = []
+    for key, fact, honored in DECLARED_WORDS:
+        known = registry[fact]["names"]
+        for rec in lf_elements:
+            attr = (registry.get(rec["tag"]) or {}).get(key)
+            word = rec["attrs"].get(attr) if attr else None
+            if word is not None and word not in known:
+                named = f'{attr}="{word}"'
+                errors.append(f"{at(rec, named)}: not {honored} — known: {known}")
     return errors
 
 
@@ -5490,7 +5534,7 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
             # are the source's furniture, not lines.
             body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", holder.get("body", "")))
             count = len(body.split("\n"))
-            where = f'<{rec["tag"]} {attr}="{value}"> (line {rec["line"]})'
+            where = at(rec, f'{attr}="{value}"')
             for part in value.split(","):
                 lo, _, hi = part.partition("-")
                 lo, hi = int(lo), int(hi) if hi else int(lo)
@@ -5500,29 +5544,6 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
                     errors.append(
                         f"{where}: line {part} is outside the {count}-line body"
                     )
-    return errors
-
-
-def tone_errors(lf_elements: list, registry: dict) -> list:
-    """A tone the layer has no tint for, read out of $tones rather than the widget.
-
-    The same failure `language` has and the same reason for catching it here: a
-    misspelt tone paints nothing, and a chip that should have been red renders
-    neutral on a page that otherwise looks perfectly well. Nobody downstream can
-    see it — not the user, who never knew it was meant to be red — so the one
-    party who can still fix it is whoever wrote the word, and this is where they
-    are told. A class would have been the same words with no one checking them.
-    """
-    known = registry["$tones"]["names"]
-    errors = []
-    for rec in lf_elements:
-        attr = (registry.get(rec["tag"]) or {}).get("x-tone")
-        word = rec["attrs"].get(attr) if attr else None
-        if word is not None and word not in known:
-            errors.append(
-                f'<{rec["tag"]} {attr}="{word}"> (line {rec["line"]}): not a tone this '
-                f"page's layer paints — known: {known}"
-            )
     return errors
 
 
@@ -5614,7 +5635,7 @@ def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> li
     for rec in lf_elements:
         if rec["tag"] != "lf-suggestion":
             continue
-        where = f"<lf-suggestion id={rec['attrs'].get('id')!r}> (line {rec['line']})"
+        where = at(rec, f"id={rec['attrs'].get('id')!r}")
         if any(w["tag"] == "lf-suggestion" for w in enclosing_widgets(rec)):
             errors.append(f"{where}: suggestions don't nest")
         carried = [tag for tag in rec["children"] if tag in tags]
@@ -6165,7 +6186,7 @@ def unpointable_blocks(parser: _StructParser) -> list:
     aim landing wide, noise costs the register its authority."""
     lines = []
     for block in parser.bare_blocks:
-        where = f"<{block['tag']}> (line {block['line']})"
+        where = at(block)
         under = block["under"]
         if block["tag"] in ("section", "article"):
             lines.append(
@@ -6262,7 +6283,7 @@ def restatement_errors(
         if unit in declared:
             facet_earned.add(unit)
             continue
-        where = f"<{rec['tag']} id={unit!r}> (line {rec['line']})"
+        where = at(rec, f"id={unit!r}")
         errors.append(
             f"{where}: its state changed under the user's decision — the markup "
             f"shows {f_cur!r} where their {e['action']} (on v{e.get('version', 0)}) "
@@ -6288,7 +6309,7 @@ def restatement_errors(
         }
         said = now.get(sid, EMPTY).words
         changed = sid in was and said != was[sid].words and said not in echoed
-        where = f"<{rec['tag']} id={sid!r}> (line {rec['line']})"
+        where = at(rec, f"id={sid!r}")
         # `restated` is earned by either divergence kind — words on the leaf, or
         # declared state at the unit — else a words-unchanged relocation would
         # be refused both with the attribute and without it.
@@ -6371,7 +6392,7 @@ def report_errors(
             continue  # honoring: publishing absorbs the report by id
         if f_cur == markup_facet(unit, spec, prev_byid, was):
             continue  # blessed silence: the report keeps painting
-        where = f"<{rec['tag']} id={unit!r}> (line {rec['line']})"
+        where = at(rec, f"id={unit!r}")
         who = e.get("agent", "a worker")
         errors.append(
             f"{where}: its markup contradicts a standing report — it shows "
@@ -6399,7 +6420,7 @@ def report_errors(
         rec = byid.get(sid)
         if rec is None:
             continue
-        where = f"<{rec['tag']} id={sid!r}> (line {rec['line']})"
+        where = at(rec, f"id={sid!r}")
         if sid in standing:
             errors.append(
                 f"{where}: overruled, but this version writes the reported state — "
@@ -6432,17 +6453,18 @@ def structure_errors(parser: _StructParser) -> list:
     return errors
 
 
-def fragment_errors(parser: _StructParser, registry: dict, known: list) -> list:
+def fragment_errors(parser: _StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
-    carrying widgets): the discussion-side analog of `version check`. The language
-    check comes along because the schema stopped carrying the list: a reply's
-    <lf-code language=…> is colored by the same tokenizer a version's is, and nothing
-    else would now refuse it a word that tokenizer doesn't know."""
+    carrying widgets): the discussion-side analog of `version check`. The declared-word
+    checks come along because the schema stopped carrying the lists: a reply's
+    <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
+    are tinted by the same theme, and nothing else would now refuse either a word its
+    layer doesn't know."""
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
-        + language_errors(parser.language_blocks, parser.lf_elements, registry, known)
-        + tone_errors(parser.lf_elements, registry)
+        + language_class_errors(parser.language_blocks, registry["$languages"]["names"])
+        + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )
 
@@ -6509,13 +6531,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
                 f"{where}: content must be one of {sorted(allowed)}, found {meta['content']!r}"
             )
 
-    if parser.duplicate_ids:
-        errors.append(
-            f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
-        )
-    if parser.reserved_ids:
-        errors.append(reserved_ids_error(parser.reserved_ids))
-    errors.extend(reserved_marker_errors(parser))
+    errors.extend(id_errors(parser))
 
     events = read_events(page_dir)
     registry = load_registry(page_dir)
@@ -6523,14 +6539,11 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         errors.extend(widget_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
         errors.extend(
-            language_errors(
-                parser.language_blocks,
-                parser.lf_elements,
-                registry,
-                registry["$languages"]["names"],
+            language_class_errors(
+                parser.language_blocks, registry["$languages"]["names"]
             )
         )
-        errors.extend(tone_errors(parser.lf_elements, registry))
+        errors.extend(declared_word_errors(parser.lf_elements, registry))
         errors.extend(line_ref_errors(parser.lf_elements, registry))
         # A family lint reads its own slots off the registry, so it stands with
         # the checks that need one — a page missing registry.json has already
@@ -7436,6 +7449,94 @@ UNDECLARED_ATTRS = (
 )
 
 
+# A box that draws an inset and shows a different one. A child's outer margin normally
+# collapses through its parent and is spent between blocks; where the parent draws
+# something at that edge, or holds a formatting context of its own, it cannot get out and
+# is painted as the parent's inset instead. So the number a stylesheet states is not the
+# number a reader sees, and which of the two they get depends on what the author wrote
+# inside: a card ending in a sentence showed its 16px, the same card ending in a paragraph
+# showed 29. theme.css states the trim and a box opts in where it draws the frame
+# (`--lf-frame`); this is what says when one hasn't.
+#
+# It is a reading of the rendered page because nothing else can be. The trim is a style
+# query, the frame is a declaration in whichever layer drew the box, and a project overlays
+# its own theme over leaf's — so which rule won, and whether the child that ended up at the
+# edge is the one the stylesheet's author had in mind, are facts only the browser holds. A
+# lint over the CSS would be reading the declarations and not the result, which is the same
+# mistake the reserved-width lint made before the press sweep replaced it.
+#
+# Two exclusions, both about what a margin means where it stands. A flex or grid container
+# collapses no margin anywhere, so a margin on an item at its edge is a placement rather
+# than room that could not get out — the switch under a screenshot pair carries 3px of
+# exactly that, the UA's own on a checkbox. And an edge whose box is a generated one (a
+# pseudo-element, an `x-says` word, an injected control) is the layer's own paint, stated
+# in the same rule as the frame: what the trim looks for is the first and last block the
+# page itself put there, so this looks for the same, and a card's absolutely-positioned
+# pick mark is not the thing under its last paragraph.
+#
+# Deduped per tag and edge, because one mistake is on every instance of that widget.
+TRAPPED_MARGINS = (
+    """() => {"""
+    + OPEN_ROOTS
+    + """
+    const px = (v) => parseFloat(v) || 0;
+    // The platform's own answer to "does a child's margin reach my edge, and can it get
+    // past it": a box that establishes a formatting context keeps every margin inside.
+    const holds = (s) =>
+        s.display === 'flow-root' || s.display === 'inline-block'
+        || s.display.startsWith('table') || s.overflow !== 'visible'
+        || s.float !== 'none' || s.position === 'absolute' || s.position === 'fixed'
+        || s.contain.includes('layout') || s.contain.includes('paint');
+    // The page's own boxes in this box's flow, in order. Out-of-flow children are not in
+    // it, a floated one spends its margins rather than reserving them, a generated one is
+    // the layer's paint, and a boxless child hands its own children to the flow.
+    const flow = (el) => {
+        const out = [];
+        for (const node of el.childNodes) {
+            if (node.nodeType === 3) { if (node.data.trim()) out.push({}); continue; }
+            if (node.nodeType !== 1) continue;
+            const s = getComputedStyle(node);
+            if (s.display === 'none') continue;
+            if (s.position === 'absolute' || s.position === 'fixed') continue;
+            if (s.float !== 'none') continue;
+            if (s.display === 'contents') { out.push(...flow(node)); continue; }
+            if (node.matches('.lf-ui, [data-lf-gen]')) { out.push({}); continue; }
+            out.push({node, s});
+        }
+        return out;
+    };
+    const found = [];
+    for (const root of roots(document))
+        for (const el of root.querySelectorAll('*')) {
+            const s = getComputedStyle(el);
+            if (s.display === 'none' || s.display === 'contents') continue;
+            // An inline box lays no vertical margin out, so it traps nothing.
+            if (s.display.startsWith('inline') && s.display !== 'inline-block') continue;
+            if (s.display.includes('flex') || s.display.includes('grid')) continue;
+            const kids = flow(el);
+            if (!kids.length) continue;
+            for (const [edge, side, end, kid, pseudo] of [
+                ['above', 'Top', 'Start', kids[0], '::before'],
+                ['below', 'Bottom', 'End', kids[kids.length - 1], '::after'],
+            ]) {
+                if (!kid.node) continue;
+                if (getComputedStyle(el, pseudo).content !== 'none') continue;
+                const drawn = px(s['padding' + side]) + px(s['border' + side + 'Width']);
+                if (!drawn && !holds(s)) continue;
+                const margin = px(kid.s['marginBlock' + end]);
+                if (margin > 0.5)
+                    found.push({
+                        tag: el.tagName.toLowerCase(), id: el.id || null,
+                        cls: el.classList[0] || null, edge, drawn, margin,
+                        child: kid.node.tagName.toLowerCase(),
+                    });
+            }
+        }
+    return found;
+}"""
+)
+
+
 # How long the render gate waits on the server for one of the documents it reads.
 # The same patience playwright gives `wait_for_function` above it, and stated here
 # because it is the number that turns a wedged server into a sentence.
@@ -7481,9 +7582,9 @@ def render_version(browser, url: str) -> list:
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     applyAction is relative, so the poll's replay of the sender's own gesture moves the
-    page again (none of the three is CSS) and, on paper, words the page drops that it
-    says on screen, or draws over each other (print is scheme-blind). Returns
-    human-readable failures; [] is a pass.
+    page again (none of the three is CSS), a box drawing one inset and showing another,
+    and, on paper, words the page drops that it says on screen, or draws over each other
+    (print is scheme-blind). Returns human-readable failures; [] is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -7623,7 +7724,6 @@ def render_version(browser, url: str) -> list:
                     for s in shown
                     if s["says"] != spk.get(s["id"], EMPTY).words
                 ]
-        if scheme == "light":
             if touched:
                 applied = len(touched)
                 try:
@@ -7653,6 +7753,9 @@ def render_version(browser, url: str) -> list:
                 # an applyAction states its widget whole, and a record form is
                 # exactly the attribute it is allowed to state it in.
                 undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, registry)
+        # One scheme, the palettes carrying no geometry between them, and before the
+        # medium moves: a box's inset is what it declared in either.
+        trapped = page.evaluate(TRAPPED_MARGINS) if scheme == "light" else []
         # Last, and in one scheme: paper has no color scheme, and the medium has to be
         # put back before anything else reads a box.
         on_paper = []
@@ -7713,6 +7816,17 @@ def render_version(browser, url: str) -> list:
                 "its registry entry does not declare — declare it as a verb's record "
                 "form (x-state) if a version is meant to carry it, or write the state "
                 "on the chrome the module built"
+            )
+        for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
+            box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+            found.append(
+                f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
+                f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
+                f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
+                f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
+                f"neighbour it hasn't got, and the box is where that margin stops. "
+                f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
+                f"in theme.css reaches it"
             )
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += [f"[{scheme}] {r}" for r in relative]

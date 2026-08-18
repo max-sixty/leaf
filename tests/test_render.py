@@ -1258,12 +1258,14 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
     assert not [f for f in failures if "inner-word" in f], (
         "a resident's own words were named for standing where their parent put them"
     )
-    # Clear of the column and clear of the window with it. Leftward overflow scrolls
-    # nothing in a LTR page, so the sideways reading is blind to this one and the
-    # margin exemption would carry it straight through.
-    assert [f for f in failures if "<div id=off-window> is drawn outside" in f], (
-        "a float carried off the edge of the window went out with the handover"
-    )
+    # Clear of the column and clear of the window with it. Body is the page's scroller
+    # and scrollLeft never runs below zero, so the sideways reading is blind to this one
+    # and the margin exemption would carry it straight through.
+    assert [
+        f
+        for f in failures
+        if "<div id=off-window> is drawn" in f and "outside <body>" in f
+    ], "a float carried off the edge of the window went out with the handover"
 
 
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
@@ -1287,10 +1289,11 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     live page dropped — so the reader is the only party who loses them, and a reviewer
     proofing the export sees a note that never reached anybody.
 
-    The float is left unscoped rather than restricted to what it may float out of,
-    because the boxes that clip are the minority: a section, a tab panel and a
-    disclosure all pass a note through to the margin. So the gate names the one that
-    doesn't, at handover, to the one party who can still move it."""
+    The question is put to every box rather than to floats alone, since the excuse the
+    note is claiming — my container took my overflow, so it answers for me — is granted
+    to whatever stands inside one. And the boxes that clip are the minority: a section,
+    a tab panel and a disclosure all pass a note through to the margin. So the gate
+    names the one that doesn't, at handover, to the one party who can still move it."""
     url = serve(SIDENOTE_IN_A_WIDGET)
     page, errors = open_page(browser, url)
     # elementFromPoint answers about the viewport, so the question can only be put to a
@@ -1314,9 +1317,120 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     assert [
         f
         for f in failures
-        if "<aside id=boxed-note> is drawn outside" in f and "clips it" in f
+        if "<aside id=boxed-note> is drawn" in f
+        and "outside <lf-options id=where>" in f
     ], f"a note the reader never sees went out with the handover: {failures}"
     assert errors == []
+
+
+# Five boxes over their container, differing only in what holds them and how. The first
+# two are the rule and neither alone proves it: a page that named both would refuse every
+# wide table the theme puts in a scroller, and one that named neither is the gate before
+# it could see a clipped box at all. The third says which box holds this one — it is
+# written inside a clipping box and placed against the column, so the markup and the
+# containing blocks answer differently and only one of them paints. The fourth is a box
+# that says it cuts. The fifth is where the cut falls: a border hides what is drawn under
+# it, and a border box says nothing about that. The sixth pair is why the report is
+# suppressed per container rather than per subtree — nested, and lost out of two
+# different boxes by two very different amounts.
+OVER_ITS_CONTAINER = LONG_PAGE.replace(
+    "</main>",
+    "<div id='clipping' style='width: 300px; overflow: hidden'>"
+    "<div id='eaten' style='width: 420px'>Nobody sees the end of this.</div></div>"
+    "<div id='scrolling' style='width: 300px; overflow-x: auto'>"
+    "<div id='reachable' style='width: 420px'>This one scrolls into view.</div></div>"
+    "<div id='holding' style='width: 300px; height: 40px; overflow: hidden'>"
+    "<div id='hung' style='position: absolute; width: 420px'>Placed, so this one "
+    "holds it not at all.</div></div>"
+    "<div id='telling' style='width: 300px; overflow: hidden; "
+    "text-overflow: ellipsis; white-space: nowrap'>"
+    "<span id='told'>A line long enough to run past the end of the box it is written "
+    "inside, which says so with an ellipsis.</span></div>"
+    "<div id='bordered' style='width: 300px; border-left: 20px solid #888; "
+    "overflow: hidden'>"
+    "<div id='under-border' style='margin-left: -20px; width: 300px'>The first 20px of "
+    "this are behind the border.</div></div>"
+    "<div id='barely' style='width: 300px; overflow: hidden'>"
+    "<div id='over-by-three' style='width: 303px'>Three pixels over this one."
+    "<div id='inner-box' style='position: relative; width: 200px; height: 40px; "
+    "overflow: hidden'>"
+    "<div id='over-by-far' style='position: absolute; left: 0; width: 600px'>Four "
+    "hundred over that one.</div></div></div></div>"
+    "\n</main>",
+)
+
+
+def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
+    """A box need not float to be lost. The column reading hands a whole subtree to the
+    first ancestor that takes its own overflow, and that container answers for what ran
+    out of it only where the reader can still get to it — so the gate asks which kind of
+    container it was, of every box rather than of floats alone."""
+    failures = interact.render_version(browser, serve(OVER_ITS_CONTAINER))
+
+    assert [
+        f
+        for f in failures
+        if "<div id=eaten> is drawn" in f and "outside <div id=clipping>" in f
+    ], f"a box drawn nowhere went out with the handover: {failures}"
+    assert not [f for f in failures if "reachable" in f or "scrolling" in f], (
+        "a box the reader scrolls to is where its container means it to be"
+    )
+    assert not [f for f in failures if "id=hung>" in f and "id=holding>" in f], (
+        "a placed box was laid at the door of a static box that never held it"
+    )
+    assert not [f for f in failures if "id=told>" in f], (
+        "a box that marks its own cut was refused for making it"
+    )
+    assert [
+        f
+        for f in failures
+        if "<div id=under-border> is drawn" in f and "outside <div id=bordered>" in f
+    ], f"a box drawn under a border read as inside it: {failures}"
+    assert [
+        f
+        for f in failures
+        if "<div id=over-by-far> is drawn" in f and "outside <div id=inner-box>" in f
+    ], f"a 3px loss out of one box hid a 400px loss out of another: {failures}"
+
+
+SCROLLED_CONTAINER = LONG_PAGE.replace(
+    "</main>",
+    "<div id='rolled' style='width: 300px; overflow-x: auto'>"
+    "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
+    "starts.</div></div>\n</main>",
+)
+
+
+def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, serve):
+    """A scroller's rects say where it is scrolled to, not how far its content reaches,
+    and the gate reads a page the reader has already worked: the runtime scrolls a
+    board or a table sideways to bring a comment's anchor into view. Read off the rects,
+    every box at the content's start then sits left of the container drawing it and
+    reports as lost out of a box showing it perfectly — a handover refused over a page
+    that is exactly as its author left it.
+
+    The scroll is put on from outside, through the stand-in `primed` supplies, because
+    the page's own CSP takes no inline script and the gate opens its own page. It is
+    re-applied each frame so it stands for the whole of the gate's read."""
+
+    def scroll_it(page):
+        page.add_init_script(
+            "addEventListener('DOMContentLoaded', () => {"
+            "  const hold = () => {"
+            "    const box = document.getElementById('rolled');"
+            "    if (box) box.scrollLeft = 400;"
+            "    requestAnimationFrame(hold);"
+            "  };"
+            "  hold();"
+            "});"
+        )
+
+    url = serve(SCROLLED_CONTAINER)
+    failures = interact.render_version(primed(browser, scroll_it), url)
+
+    assert not [f for f in failures if "riding" in f or "rolled" in f], (
+        f"a scrolled box was read as having lost what it was scrolled past: {failures}"
+    )
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):

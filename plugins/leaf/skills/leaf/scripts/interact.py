@@ -7001,33 +7001,89 @@ PAST_THE_COLUMN = """() => {
         if (hit) found.push(`${at(el)} is drawn over ${at(hit)}, which stands in the `
                             + `margin it grew into — the side that holds it gives no room`);
     }
-    // The other half of excusing a resident: the excuse is only good if the reader can
-    // see it out there. A float pulled into the page's margin from inside a box that
-    // clips — a choose group's own, a board's, a table's — is drawn nowhere at all, and
-    // every other reading calls it well. This pass excused it, checkVisibility() is true
-    // of a clipped box so the paper reading finds screen and print agreeing, and the
-    // copy withholds the clip and shows the words the live page dropped. The reader is
-    // the only party that loses them, which is why the question is asked here, where the
-    // excuse was granted. Wholly inside, because a resident half in the clip is half
-    // unreadable — the group above leaves 7px of a 192px note showing, which is nothing
-    // an "overlaps at all" reading would have objected to. The walk runs past main to
-    // the root, so the window is the last box asked and a float carried off the left
-    // edge of it is named too: leftward overflow scrolls nothing in a LTR page, so the
-    // sideways reading cannot see one.
-    const clips = (s) => ['hidden', 'clip'].includes(s.overflowX)
-                      || ['hidden', 'clip'].includes(s.overflowY);
+    // The other half of excusing a resident: an excuse is only good if the reader can
+    // see the thing. Both readings above hand a box to something else to answer for —
+    // the margin it was placed in, the container that took its overflow — and the
+    // second is worth exactly what the reader can tell from that container. A scroller
+    // answers for what ran out of it on the side it scrolls toward, scrollLeft running
+    // from zero to the overflow and never the other way. A box that marks where it cut
+    // answers for the rest, the mark being what says there is a rest. And a box that
+    // only clips answers for nothing at all: what leaves a choose group, a board or a
+    // table is drawn nowhere and said nowhere either, and every other reading here
+    // calls such a page well — checkVisibility() is true of a clipped box, so screen
+    // and print agree, and the copy withholds the clip and shows the words the live
+    // page dropped. The reader is the only party who loses them, which is why the
+    // question is asked here, where the excuse was granted.
+    //
+    // Every box and not floats alone. A float is how a resident reaches the margin, so
+    // it was the shape the failure first arrived in; the rule is about the excuse, and
+    // a container grants that to whatever stands inside it. Held to floats it watched
+    // one sidenote and let a question through: a row-form option 30px wider than the
+    // group holding it carried every mark on it past the clip, and four of the examples
+    // shipped a decision with no box to tick.
+    //
+    // Across the page and not down it, which is the axis every reading here takes: a
+    // box cut off below its container is usually cut on purpose — a collapsed
+    // disclosure, a shot's frame, a draft's box are all a height with the rest hidden —
+    // where one cut off at the side never is.
+    //
+    // The nearest container and no further, because past it what an outer box sees is
+    // that container's own edges, and the container answers the same question on its
+    // own turn of the loop. Body is the page's scroller, so this is also where a float
+    // carried off the leading edge of the window is named — the sideways reading, which
+    // reads how far the page scrolls, cannot see one. Wholly inside, because a box half
+    // in the clip is half unreadable: the group above leaves 7px of a 192px note
+    // showing, which is nothing an "overlaps at all" reading would have objected to.
+    const scrolls = (s) => /^(auto|scroll)$/.test(s.overflowX);
+    const lost = new Map();
+    // Up the containing blocks rather than the markup, since those are the boxes that
+    // hold this one: an absolutely-placed box hangs off the nearest positioned ancestor,
+    // and a static box it happens to be written inside clips it not at all. offsetParent
+    // names that ancestor, and a fixed box hangs off none of them.
+    const holder = (el) => {
+        const s = getComputedStyle(el);
+        return s.position === 'absolute' ? el.offsetParent
+             : s.position === 'fixed' ? null
+             : el.parentElement;
+    };
     for (const el of main.querySelectorAll('*')) {
-        if (!el.checkVisibility() || getComputedStyle(el).float === 'none') continue;
+        if (!el.checkVisibility()) continue;
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
-        for (let a = el.parentElement; a; a = a.parentElement) {
+        let a = holder(el);
+        for (; a; a = holder(a)) {
             const s = getComputedStyle(a);
-            if (!clips(s)) continue;
-            const c = a.getBoundingClientRect();
-            if (b.left >= c.left - 1 && b.right <= c.right + 1) continue;
-            found.push(`${at(el)} is drawn outside ${at(a)}, which clips it`);
-            break;
+            if (s.overflowX !== 'visible' || s.overflowY !== 'visible') break;
         }
+        if (!a) continue;
+        const s = getComputedStyle(a), c = a.getBoundingClientRect();
+        // text-overflow is the mark, declared in the rule that does the cutting, the
+        // way --lf-frame is declared where the frame is drawn. The box itself still
+        // answers here on its own turn.
+        if (s.textOverflow !== 'clip') continue;
+        // The band a container shows is its padding box less whatever a scrollbar takes,
+        // which is what clientLeft and clientWidth measure and what a border box says
+        // nothing about — a box drawn under a border or in a scrollbar's gutter is drawn
+        // nowhere as surely as one past the edge.
+        const shownL = c.left + a.clientLeft, shownR = shownL + a.clientWidth;
+        const overL = shownL - b.left, overR = b.right - shownR;
+        // A scroller reaches its whole content on the side it scrolls toward, so only
+        // its leading edge is asked — and asked from scroll position zero, since where
+        // the container happens to be scrolled while the gate reads it says nothing
+        // about where its content ends.
+        const past = Math.round(
+            !scrolls(s) ? Math.max(overL, overR)
+            : s.direction === 'rtl' ? overR + a.scrollLeft
+            : overL - a.scrollLeft);
+        if (past > 1) lost.set(el, [past, a]);
+    }
+    for (const [el, [past, a]] of lost) {
+        // Out of the same container, because that is what makes the outer box's report
+        // the inner one's too. Suppressing on containment alone let a box lost 3px out
+        // of one container hide the one hung off it and lost 400px out of another.
+        if ([...lost].some(([o, [, its]]) => o !== el && its === a && o.contains(el)))
+            continue;
+        found.push(`${at(el)} is drawn ${past}px outside ${at(a)}, which does not show it`);
     }
     return [...new Set(found)];
 }"""

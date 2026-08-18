@@ -8373,7 +8373,9 @@ Promise.all([
   // The observer above covers this too, today and by accident: the key line gains its
   // rows after upgrade, which resizes it, which calls this. That is a fact about what
   // the chrome happens to do rather than about when the box settles, so it is not the
-  // ordering to rest on — and it is why no test here fails with this line taken out.
+  // ordering to rest on — and its answer lands a frame later, which is a frame past the
+  // stamp below. What holds this line is therefore a reading taken at the stamp itself
+  // (test_the_room_is_measured_after_a_late_rail); the settled page is right without it.
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

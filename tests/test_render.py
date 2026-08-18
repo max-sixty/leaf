@@ -16184,6 +16184,21 @@ RAIL_AND_WIDE_PAGE = """<!doctype html>
 """
 
 
+# How far the exhibit stands outside the page's own box, and the rail it was supposed to
+# leave — both edges, since a room read too wide spends itself on whichever side is free.
+# One reading for the live page and for a copy of it, the fault being the same fault.
+RAIL_FIT = """() => {
+    const b = document.body, s = getComputedStyle(b);
+    const box = b.getBoundingClientRect();
+    const r = document.getElementById('plan').getBoundingClientRect();
+    return { rail: s.paddingRight, widget: r.width,
+             past: Math.max(r.right - (box.right - parseFloat(s.paddingRight)),
+                            (box.left + parseFloat(s.paddingLeft)) - r.left),
+             content: box.width - parseFloat(s.paddingLeft)
+                      - parseFloat(s.paddingRight) };
+}"""
+
+
 def test_paper_keeps_the_column(browser, serve):
     """Paper has no window to take room from: a printed page is the column's width,
     whatever the screen it was sent from was showing. The rule that grants the room is
@@ -16259,26 +16274,29 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto(out.as_uri(), wait_until="load")
 
-    fit = page.evaluate("""() => {
-        const b = document.body, s = getComputedStyle(b);
-        const box = b.getBoundingClientRect();
-        const r = document.getElementById('plan').getBoundingClientRect();
-        return { rail: s.paddingRight, widget: Math.round(r.width),
-                 rows: document.querySelectorAll('.lf-sug-actions').length,
-                 past: Math.round(Math.max(
-                     r.right - (box.right - parseFloat(s.paddingRight)),
-                     (box.left + parseFloat(s.paddingLeft)) - r.left)) };
-    }""")
-    assert fit["rows"] == 1 and fit["rail"] != "0px", (
+    fit = page.evaluate(RAIL_FIT)
+    rows = page.locator(".lf-sug-actions").count()
+    assert rows == 1 and fit["rail"] != "0px", (
         "the decided control and its rail must survive into the copy, or the fault this "
-        f"is about cannot arise — rows {fit['rows']}, rail {fit['rail']}"
+        f"is about cannot arise — rows {rows}, rail {fit['rail']}"
     )
     assert fit["past"] <= 1, (
-        f"the copied board stands {fit['past']}px outside the page's own box, having "
-        f"been given a room that did not know about the rail: {fit['widget']}px of widget"
+        f"the copied board stands {fit['past']:.0f}px outside the page's own box, having "
+        f"been given a room that did not know about the rail: {fit['widget']:.0f}px of "
+        "widget"
     )
     assert errors == []
     page.close()
+
+
+# The same reading taken at the stamp, which is the one moment nothing out here can
+# reach: a MutationObserver's callback is a microtask off the stamp's own write, and
+# the frame after it is where the runtime's layout observer restates the room.
+AT_THE_HANDOVER = (
+    "window.__handover = null;\n"
+    "new MutationObserver(() => { window.__handover ??= (" + RAIL_FIT + ")(); })\n"
+    '  .observe(document, { subtree: true, attributeFilter: ["data-lf-upgraded"] });'
+)
 
 
 def test_the_room_is_measured_after_a_late_rail(browser, serve):
@@ -16289,59 +16307,59 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     exhibit kept the width of a page 189px wider than the one it was standing on and hung
     out over the rail.
 
-    Stated rather than run for. The window is between the first layout and the module's
-    arrival, and on an idle machine something later happens to restate the room inside
-    it — a poll, an observer — so the fault shows on a loaded runner and hides here,
-    which is the shape this suite has a rule about. Holding the module in the wire makes
-    the ordering the test's rather than the machine's: the page lays out, the rail lands
-    after it, and the question is whether anything asked again."""
+    Stated rather than run for, and the route handler is where it is stated: it waits for
+    the room the page states and only then lets the module through, so the ordering holds
+    whichever way the machine would have gone. Releasing the held request from out here
+    ordered nothing, since the module is asked for behind the registry's own round trip
+    while the room needs no network at all — a loaded runner had the room stated with the
+    request still to come, and the release reached for a request nobody had made.
+
+    The reading is taken at the stamp, because a settled page is right either way: the
+    same block paints the key line, which resizes it, which restates the room a frame
+    later, and every reading taken through the browser arrives after that frame. A
+    MutationObserver on the stamp lands ahead of it. What the injection buys is the
+    record and not the wait — the stamp is the runtime's own statement that the
+    geometry it hands over is final, so this asks the page at the moment it makes the
+    claim."""
     url = serve(RAIL_AND_WIDE_PAGE)
     errors = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.on("pageerror", lambda e: errors.append(str(e)))
+    page.add_init_script(AT_THE_HANDOVER)
 
-    held = []
-    page.route("**/widgets/lf-suggestion.js", lambda route: held.append(route))
+    laid_out = []
+
+    def release_the_rail(route):
+        page.wait_for_function(
+            "() => getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--lf-room') !== ''"
+        )
+        laid_out.append(
+            page.evaluate(
+                "() => getComputedStyle(document.documentElement)"
+                ".getPropertyValue('--rail')"
+            )
+        )
+        route.continue_()
+
+    page.route("**/widgets/lf-suggestion.js", release_the_rail)
     page.goto(url)
-    # The layout has run and stated a room; the rail is still in the wire behind it.
-    page.wait_for_function(
-        "() => getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--lf-room') !== ''"
-    )
-    assert page.evaluate(
-        "() => getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--rail') === ''"
-    ), "the rail arrived before the page was laid out; this proves nothing held"
-    # The room is stated by the layout and the module is asked for by the upgrade, and
-    # nothing orders the two: on a run where the request had not reached the handler yet,
-    # releasing it here was an IndexError rather than a failure with a name. Wait for the
-    # fact the test is about — the module being in the wire — the way every other wait
-    # here consumes something the system states.
-    deadline = time.monotonic() + 30
-    while not held and time.monotonic() < deadline:
-        page.wait_for_timeout(20)
-    assert held, "the suggestion module was never asked for, so nothing was held"
-    held[0].continue_()
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
-    fit = page.evaluate("""() => {
-        const b = document.body, s = getComputedStyle(b);
-        const box = b.getBoundingClientRect();
-        const r = document.getElementById('plan').getBoundingClientRect();
-        return { rail: s.paddingRight, widget: r.width,
-                 past: Math.max(r.right - (box.right - parseFloat(s.paddingRight)),
-                                (box.left + parseFloat(s.paddingLeft)) - r.left),
-                 content: box.width - parseFloat(s.paddingLeft)
-                          - parseFloat(s.paddingRight) };
-    }""")
+    assert laid_out == [""], (
+        "the module was never held behind the layout, so the rail's arrival is the "
+        f"machine's ordering rather than this test's: {laid_out}"
+    )
+    fit = page.evaluate("() => window.__handover")
     assert fit["rail"] != "0px", (
         "no rail was reserved, so the late-arriving fact this is about never arrived"
     )
     assert fit["past"] <= 1, (
-        f"the board stands {fit['past']:.0f}px outside the page's own box, laid out to "
-        f"the width of a page 189px wider than the one it is on: {fit['widget']:.0f}px "
-        f"of widget in {fit['content']:.0f}px of page"
+        f"the board stands {fit['past']:.0f}px outside the page's own box at the moment "
+        f"the page says it is done, laid out to the width of a page 189px wider than "
+        f"the one it is on: {fit['widget']:.0f}px of widget in {fit['content']:.0f}px "
+        "of page"
     )
     assert errors == []
     page.close()

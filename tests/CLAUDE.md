@@ -155,6 +155,14 @@ out over the held first, and `Traffic.sends` says so before anything has to be t
 after the release is not the gate — `test_a_send_waits_for_the_send_before_it` reads the log's order too,
 but that order is the coin the runner tossed.
 
+Releasing the hold is the handler's too, wherever the hold is there to order something. `held[0]` from out
+here reaches for a request that may not have been made: the suggestion module is asked for behind the
+registry's own round trip while the room the layout states needs no network at all, so a loaded runner laid
+the page out with the request still to come and the reach was an `IndexError` rather than a failure with a
+name. A handler that waits for the fact the hold is about and then continues states the ordering whenever the
+request arrives (`test_the_room_is_measured_after_a_late_rail`). Where the release is unconditional instead,
+what precedes the reach is `Traffic` counting the request out.
+
 A refusal states the other timing a busy machine supplies: where the send race needs one request held in the
 wire, a page that has not heard the log needs the first `/api/state` stopped, so replay lands on the 2s retry
 past both the upgrade stamp and networkidle (`test_a_page_the_suite_opens_has_read_the_log`). Refusals are
@@ -181,9 +189,9 @@ what it looks like it says however many polls a run refuses. Where the failed re
 rather than the instrument — a send the server never takes — the abort stays plain and the entry it
 leaves is asserted.
 
-## A motion is a sequence, and every other check here reads a state
+## A sequence and an instant are the readings out here cannot take
 
-Both ways of reading an animation from outside read states. A held frame (`HOLD_MOTION`) is one state stopped
+A motion is the first, and both ways of reading one from outside read states. A held frame (`HOLD_MOTION`) is one state stopped
 where the assertions can reach it; a geometry read before and after is two. Each frame can be right on its own
 while the sequence they belong to is wrong, and that gap has exactly one shape: a frame that puts back what the
 frames before it took.
@@ -202,6 +210,14 @@ The same reading is what a recording of a motion owes. Frames of the first GIF o
 `currentTime` and one was taken at exactly the duration, already past the animation's own interval: it recorded
 the thread springing back to full size, a frame the product never paints. Every still was correct, the sequence
 was a lie, and nothing between the frames and the reader looked at them in order.
+
+The other is an instant. A reading taken through the browser is a round trip and the rendering step the page
+was in does not wait for it: the room a wide widget spends is restated and the page stamped done in the same
+block, and the layout observer restates it again on the very next frame whatever that block did — so a page
+read after the stamp is right either way, and the test written to hold that line passed with the line deleted.
+A `MutationObserver` on the stamp is a microtask off its own write and so lands ahead of that frame, which is
+where the reading is taken now (`test_the_room_is_measured_after_a_late_rail`). The injection buys the record
+again; the wait is still the stamp's.
 
 ## A page's source is formatted, so ask what it says
 

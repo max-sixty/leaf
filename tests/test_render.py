@@ -7875,6 +7875,50 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.close()
 
 
+def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
+    """A number the page rewrites unasked must not resize as it does.
+
+    The done-fraction is the page's most-moved quantity: a worker reports a leaf
+    and the parent recounts, on a poll, with nothing the reader did to account
+    for the shift. It is apparatus, so it is set in the sans — and the sans gives
+    each digit its own width where the serif carrying the prose gives them all
+    one, which is why the figures are stated for the apparatus voice and not for
+    the page. The chip is a filled pill, so its own box is what a reader watches
+    twitch; where apparatus leads something else, that something moves with it —
+    a metric's delta sits directly after the value it follows.
+
+    Measured across the recount rather than a redraw, per tests/CLAUDE.md: the
+    transition has to be one the figures actually decide. "1/2 done" to
+    "2/2 done" stands 1.61px apart with proportional figures and identical with
+    tabular, so deleting the declaration fails this. "0/3 done" to "3/3 done"
+    would have been the vacuous choice — those two measure 0.03px apart either
+    way, and the check would pass with the rule gone.
+    """
+    url = serve(REPORT_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    # The fraction is the last chip its parent builds, after owner and when.
+    fraction = page.locator("#t-feeders > .lf-chips span").last
+    expect(fraction).to_have_text("1/2 done")
+    before = fraction.bounding_box()["width"]
+
+    sent = CliRunner().invoke(
+        interact.cli, ["report", str(d), "t-parser", "status", "status=done"]
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    # The recount is the edge; the geometry is read once behind it.
+    expect(fraction).to_have_text("2/2 done")
+    after = fraction.bounding_box()["width"]
+
+    assert abs(before - after) < 0.05, (
+        f"the fraction resized as it recounted, {before}px to {after}px — a box "
+        "the reader was given no gesture to explain"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_render_gate_reports_a_server_that_stops_answering(
     browser, tmp_path, monkeypatch
 ):

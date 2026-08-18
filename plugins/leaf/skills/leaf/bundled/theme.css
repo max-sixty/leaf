@@ -31,12 +31,18 @@
  * rule for the page's idioms, and every layer restates it for the labels its own
  * widgets wear — the statement an overlay widget makes for itself. One rule per
  * layer, because what counts as apparatus is a judgement, and a judgement made per
- * widget is a dozen chances to answer it differently. */
+ * widget is a dozen chances to answer it differently.
+ *
+ * Figures come with the face, and this layer is where that earns its keep: the
+ * numbers a report moves between versions are all here — a task's done fraction, a
+ * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
+ * the pill the number is set in, and moves whatever stands after it. The integrated
+ * theme's copy of this rule carries the measurement and the norm it answers. */
 .lf-chips span, .lf-tree-badge, .lf-shotcap, lf-metric,
 lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
 lf-column > [data-lf-said="label"], lf-tab::before,
 lf-chip {
-  font-family: var(--sans); }
+  font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The pill this layer's chips ride in — the integrated theme's .tag numbers,
  * restated so a band of chips and an inline label stand the same height. */

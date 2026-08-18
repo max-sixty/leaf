@@ -129,6 +129,11 @@
   twelfth widget can claim a conversation without core hearing of it; and whether
   ownership is a property of the anchor or of the widget, which decides what
   happens to the thread when a later version drops the element it was anchored on.
+  Reported again 2026-08-17 from the reader's side: what is typed into the box goes
+  to the panel and nothing on the widget points back at it, so it can feel like it
+  went into the ether. One shape raised then — no box on the widget at all, and
+  ⌥-click on the item as the one way to say something about it, which opens the
+  composer where the words will be anchored.
 
 - (2026-07-31) An unsent draft dies with the tab. sessionStorage carries one through a
   reload, a version navigation, and a server restart — the port is derived from the page
@@ -190,3 +195,28 @@
   the difference between a mark that must be built around one hardcoded property and one
   that can take its status on a stroke, a gradient stop, or nothing at all. Worth doing
   the first time someone themes a page and notices the tab didn't follow.
+
+- (2026-08-17) Escape in a text box, as reported: the key line shows Escape as closing
+  the comments while a reply box has focus, and the press both leaves the box and closes
+  the panel. Two norms say otherwise — the line promises one press, and the typing
+  scope's own Escape row ("back to thread") should shadow the panel's, since a nearer
+  scope naming a binding hides the outer row. Reproduce it first, in the box it was seen
+  in; expected: Escape leaves the box and does nothing else, and the line says so.
+
+- (2026-08-17) A thread's Reply and Resolve controls don't look elegant. As reported,
+  with no measurement behind it yet — one for the ui-sweep, walking a thread with an
+  open reply box in both palettes and saying what specifically reads wrong before
+  changing anything.
+
+- (2026-08-17) A design comment whose fix belongs in leaf's shipped layer, made from a
+  session outside a leaf checkout. Design mode is for the reader's own layers — a
+  project's `.leaf/`, a user's `~/.config/leaf/` — and a change to leaf itself is
+  secondary, asked for in the comment's words. When it is asked for, the round trip is
+  long: the session's launcher decides which layer `page init` vendors from (a
+  checkout's for a session in a leaf worktree, the plugin cache's elsewhere), so a fix
+  landed on main reaches an open page after a push, from the next session, on a
+  re-vendor. Today the comment is handed to a leaf session by hand (`/dispatch`, with
+  the target and the page). What would shorten it is unmeasured: the dispatch carrying
+  the comment's anchor and the page's URL so the leaf session can look at what the
+  reader saw; a served page re-vendored from a checkout the session names, so a fix is
+  seen before it lands. Neither is worth building before the second time it is asked.

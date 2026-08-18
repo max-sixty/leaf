@@ -21,9 +21,10 @@ A page directory holds:
     leaf.js          the runtime (widget layer + comment layer), served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
-                         layer-wide facts under $ — $idioms, $languages, and the page's
-                         vocabulary stamp ($events, x-state): the one statement of what
-                         this page's vendored runtime speaks
+                         layer-wide facts under $ — $idioms, $languages, $keys (what
+                         each x- key means), and the page's vocabulary stamp ($events,
+                         x-state): the one statement of what this page's vendored
+                         runtime speaks
     icon.svg             the mark the tab wears, whose lf-tone element the runtime
                          paints in whatever colour the banner's dot is wearing — so a
                          reader with six leaves open sees which one wants them
@@ -444,6 +445,11 @@ EVENT_VOCABULARY = {
         "text",
         "anchor",
         "suggestion",
+        # "layer": the comment is about the layer — a widget's look or behaviour,
+        # a control, the runtime's chrome — rather than the page's words. The
+        # browser writes it from design mode; the agent reads it to answer with
+        # the layer instead of the next version's prose.
+        "about",
         "agent",
         "session",
         "markup",
@@ -1686,7 +1692,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if kind == "comment" and "anchor" in event:
             anchor = event["anchor"]
-            fields = {"section", "quote", "prefix", "suffix"}
+            # `part` is design mode's: the control a press landed on, inside the
+            # element `section` names — words for the agent and the panel, not a
+            # second anchor, so nothing resolves it.
+            fields = {"section", "quote", "prefix", "suffix", "part"}
             invalid = (
                 not isinstance(anchor, dict)
                 or set(anchor) - fields
@@ -1704,7 +1713,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(
                     {
                         "error": "comment anchor must contain a string section or quote, "
-                        "with optional string prefix/suffix"
+                        "with optional string prefix/suffix/part"
                     },
                     400,
                 )
@@ -1715,6 +1724,9 @@ class Handler(BaseHTTPRequestHandler):
             and type(event["suggestion"]) is not bool
         ):
             self._json({"error": "comment suggestion must be boolean"}, 400)
+            return
+        if kind == "comment" and "about" in event and event["about"] != "layer":
+            self._json({"error": 'comment about must be "layer"'}, 400)
             return
         events = read_events(self.page_dir)
         if "version" in event:
@@ -3174,8 +3186,12 @@ def cmd_transcript(page_dir: Path) -> None:
             head = f"> “{shown(anchor['quote'])}”"
         elif anchor.get("section"):
             head = f"> § {anchor['section']}"
+            if anchor.get("part"):
+                head += f" · {anchor['part']}"
         else:
             head = "> (page-level)"
+        if t["root"].get("about") == "layer":
+            head += "  — about the layer"
         print(head + ("  — resolved" if t["resolved"] else ""))
         for m in t["msgs"]:
             who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
@@ -3204,33 +3220,9 @@ CATALOG_PREAMBLE = """\
 # (enums, flags), children carry prose, and an item's title is a leading
 # <strong> child. Every lf-* element takes an explicit end tag — never
 # <lf-foo/>. Ids are authored (lowercase kebab), unique, stable across
-# versions. Each entry is JSON Schema over the attributes; x-parent names the
-# required parent, x-content the content model (prose | items | data | none).
-# A "data" body is one <pre> holding text in the notation the description
-# names, < > escaped — <pre> because that is the only thing in HTML that says
-# whitespace is load-bearing without a stylesheet to read.
-# x-upgrade marks tags a JS module enhances in the browser — the interactive
-# widgets and the data-body renderers; x-says names the attributes whose values
-# the reader sees as words, and the edge each renders at, so the user can
-# select and comment on them like any other text on the page. x-verbatim marks
-# an upgraded element whose body reaches the reader as its own words, which is
-# what makes it quotable — a body without it is source the widget renders.
-# x-language names the attribute carrying a code language, which is checked
-# against the one list this page colors from (printed below). x-awaits marks a
-# tag whose instances stand as requests to the reader — what the banner counts
-# and the `a` key steps through, so a page's open questions are findable
-# without the reader hunting for them. x-report is the agent channel: verbs a
-# worker folds onto the page with `leaf report`, standing as provisional
-# state until a version absorbs or overrules them (printed below as $report).
-# x-wide marks a tag whose instances stand wider than the prose column when the
-# window has the room — evidence as wide as what it holds, a board's columns or
-# a diagram's graph, against prose set to a measure. Nothing is authored for it
-# and no page asks: the widget kind declares it and the theme grows the element
-# out of the column into whichever margins are free. A `box` stops at one width
-# the whole vocabulary shares; a `drawing` takes the room, so a diagram wider
-# than the window scrolls in its own box rather than being cut off. A margin
-# holding something of the page's — a change's controls, a sidenote — gives
-# nothing, so the exhibit that grows is never drawn over the apparatus beside it.
+# versions. Each entry is JSON Schema over the attributes, plus the x- keys
+# that say how the layer treats the tag — what each of those means is printed
+# after the entries ($keys).
 """
 
 
@@ -3241,19 +3233,14 @@ CATALOG_PREAMBLE = """\
 # absent because it is the vocabulary stamp — what this page's runtime speaks, for
 # `page init` to hold a re-vendor against — and nothing an author writes markup from.
 CATALOG_FACTS = (
+    ("$keys", "The x- keys an entry may declare, and what each one means."),
     (
         "$restated",
         "`restated` — the one attribute that spans widgets; read it before revising one.",
     ),
-    (
-        "$state",
-        "x-state — how a widget's action verbs and their record forms are declared.",
-    ),
-    (
-        "$report",
-        "x-report — the agent channel: worker reports, and how a version answers one.",
-    ),
-    ("$awaits", "x-awaits — what makes an element one of the page's standing asks."),
+    ("$state", "x-state's fields — the fold unit and the record forms."),
+    ("$report", "x-report's fields — how a version answers a standing report."),
+    ("$awaits", "x-awaits' fields — when an instance asks, and what answers it."),
     (
         "$languages",
         "The languages this page colors, in a code block's class or an x-language attribute.",
@@ -4887,6 +4874,25 @@ def validate_registry(registry: dict, source) -> dict:
             f"{path}: $events.kinds omits vocabulary the current layer writes: "
             + ", ".join(missing_events)
         )
+    # $keys documents exactly the x- keys the lint admits, one string per key: the
+    # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
+    # declared is documentation of nothing, and a key with no member is one an author
+    # reads the catalog for and finds unsaid. `page catalog` prints it and the site's
+    # table is generated from it, which is what makes the pin worth keeping.
+    keys = registry.get("$keys")
+    admitted = set(EXTENSION_SCHEMA["properties"])
+    documented = set(keys or {}) - {"description"}
+    if (
+        not isinstance(keys, dict)
+        or not isinstance(keys.get("description"), str)
+        or not all(isinstance(text, str) and text for text in keys.values())
+        or documented != admitted
+    ):
+        raise RegistryError(
+            f"{path}: $keys must carry a description and one paragraph per x- key the "
+            f"lint admits — missing {sorted(admitted - documented)}, "
+            f"unadmitted {sorted(documented - admitted)}"
+        )
     if (
         not isinstance(names, list)
         or not all(isinstance(name, str) for name in names)
@@ -5960,7 +5966,13 @@ def decisions(fold: dict, registry: dict) -> dict:
     its values are the vocabulary's decision verbs — nothing here knows a widget or a
     verb by name, and a verb a later layer retires folds to nothing rather than
     standing on trust."""
-    deciding = {e["x-retired-when"] for e in registry.values() if "x-retired-when" in e}
+    # Widgets only: $keys spells its members in the x- keys' own names, so a sweep
+    # over every entry would take its paragraph on x-retired-when for a verb.
+    deciding = {
+        e["x-retired-when"]
+        for tag, e in registry.items()
+        if tag.startswith("lf-") and "x-retired-when" in e
+    }
     return {
         unit: e["action"] for unit, (e, _) in fold.items() if e["action"] in deciding
     }
@@ -6706,9 +6718,9 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # resolves to content-visibility, which checkVisibility reports as visible while the
 # box measures zero. That collapse is the point of a closed tab; the collapse being
 # hunted here is the one nothing asked for.
-TINY_BOXES = """(registry) => {
-    const inline = new Set(Object.entries(registry)
-        .filter(([tag, entry]) => tag.startsWith('lf-') && entry['x-inline'])
+TINY_BOXES = """(widgets) => {
+    const inline = new Set(Object.entries(widgets)
+        .filter(([tag, entry]) => entry['x-inline'])
         .map(([tag]) => tag));
     return [...document.querySelectorAll('*')]
         .filter(el => el.tagName.toLowerCase().startsWith('lf-')
@@ -7368,14 +7380,14 @@ UNREAD_SYNTAX = (
 # doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
 # out here the way COVERED_WORDS holds it out.
 SILENT_WORDS = (
-    """(registry) => import('/leaf.js').then(leaf => {"""
+    """(widgets) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS
     + """
     const found = [];
     const all = roots(document);
     const at = el => `<${el.localName}${el.id ? ' id=' + el.id : ''}>`;
     const every = tag => all.flatMap(r => [...r.querySelectorAll(tag)]);
-    for (const [tag, entry] of Object.entries(registry)) {
+    for (const [tag, entry] of Object.entries(widgets)) {
         for (const attr of Object.keys(entry['x-says'] ?? {}))
             for (const el of every(tag)) {
                 const value = el.getAttribute(attr);
@@ -7424,7 +7436,7 @@ SILENT_WORDS = (
 #
 # Deduped and reported per tag and attribute, because one mistake is on every instance.
 UNDECLARED_ATTRS = (
-    """(registry) => {"""
+    """(widgets) => {"""
     + OPEN_ROOTS
     + """
     // What a module may write without declaring: the platform's own vocabulary for
@@ -7435,7 +7447,7 @@ UNDECLARED_ATTRS = (
     const platform = new Set(['role', 'class', 'style', 'hidden', 'tabindex']);
     const all = roots(document);
     const found = [];
-    for (const [tag, entry] of Object.entries(registry)) {
+    for (const [tag, entry] of Object.entries(widgets)) {
         if (!entry.properties) continue;
         for (const root of all)
             for (const el of root.querySelectorAll(tag))
@@ -7637,6 +7649,10 @@ def render_version(browser, url: str) -> list:
         # them to await, let alone hang in.
         try:
             registry = served(page, url, "/registry.json").json()
+            # The readings in the page mean widgets, so they are handed only those:
+            # $keys spells its members in the x- keys' own names, and a sweep over
+            # every entry took it for a widget called $keys.
+            widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
             state = served(page, url, "/api/state").json()
             markup = served(page, url, urlsplit(url).path).text()
             # The version before this one, for the conflict reading below: which
@@ -7666,13 +7682,12 @@ def render_version(browser, url: str) -> list:
             "[...document.querySelectorAll('.lf-error')].map(e => e.textContent.trim())"
         )
         missing_upgrades = page.evaluate(
-            """(registry) => Object.entries(registry)
-                .filter(([tag, entry]) => tag.startsWith('lf-')
-                    && entry['x-upgrade'] && !customElements.get(tag))
+            """(widgets) => Object.entries(widgets)
+                .filter(([tag, entry]) => entry['x-upgrade'] && !customElements.get(tag))
                 .map(([tag]) => tag)""",
-            registry,
+            widgets,
         )
-        tiny = page.evaluate(TINY_BOXES, registry)
+        tiny = page.evaluate(TINY_BOXES, widgets)
         overflow = page.evaluate(
             "document.body.scrollWidth - document.body.clientWidth"
         )
@@ -7707,13 +7722,13 @@ def render_version(browser, url: str) -> list:
             # something in the body's stead while the entry still says
             # verbatim strands quotes on words the screen no longer shows.
             shown = page.evaluate(
-                """({registry, touched}) => import('/leaf.js').then(leaf =>
-                    Object.entries(registry)
+                """({widgets, touched}) => import('/leaf.js').then(leaf =>
+                    Object.entries(widgets)
                         .filter(([tag, entry]) => entry['x-verbatim'])
                         .flatMap(([tag]) => [...document.querySelectorAll(tag)]
                             .filter(el => el.id && !touched.includes(el.id))
                             .map(el => ({tag, id: el.id, says: leaf.says(el)}))))""",
-                {"registry": registry, "touched": touched},
+                {"widgets": widgets, "touched": touched},
             )
             if shown:
                 spk = spoken(markup, registry)
@@ -7748,11 +7763,11 @@ def render_version(browser, url: str) -> list:
             # asks after a word the page has not been asked to say yet. A page that
             # never caught up is already reported above and read no further.
             if replayed:
-                silent = page.evaluate(SILENT_WORDS, registry)
+                silent = page.evaluate(SILENT_WORDS, widgets)
                 # Behind the same wait, because replay is one of the two writers:
                 # an applyAction states its widget whole, and a record form is
                 # exactly the attribute it is allowed to state it in.
-                undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, registry)
+                undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, widgets)
         # One scheme, the palettes carrying no geometry between them, and before the
         # medium moves: a box's inset is what it declared in either.
         trapped = page.evaluate(TRAPPED_MARGINS) if scheme == "light" else []

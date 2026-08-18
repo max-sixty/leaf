@@ -545,9 +545,7 @@ export function worksInside(node, container) {
         grew = true;
       }
   }
-  const held = Object.keys(registry).filter(
-    (tag) => tag.startsWith("lf-") && !parts.has(tag),
-  );
+  const held = tagsDeclaring(() => true).filter((tag) => !parts.has(tag));
   // `closest` walks past the container to the root, so a match has to be read back
   // against it: an ordinary pick on an option's prose finds the enclosing group, which
   // is a widget the option does not hold but is above it rather than inside it. And
@@ -1209,14 +1207,21 @@ let anchoringReady = false;
 const opaquePassageRoots = new WeakSet();
 const opaquePassageParts = new WeakSet();
 
+// The vocabulary's widgets: every entry under a tag, and never a `$` entry. Those are
+// the layer's own facts, and one of them ($keys) is spelled in the x- keys' own names —
+// so a sweep that picked widgets by "declares x-says" without asking the tag took it
+// for a widget called $keys, and querySelectorAll refused the name. Every walk over the
+// registry that means widgets goes through here.
+const widgetEntries = () =>
+  Object.entries(registry).filter(([tag]) => tag.startsWith("lf-"));
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is an x- key
 // they carry, so the twelfth widget is covered by its entry alone — the alternative
 // keeps working perfectly on the widget it was taught and silently does nothing for the
 // next one.
 const tagsDeclaring = (holds) =>
-  Object.entries(registry)
-    .filter(([tag, entry]) => tag.startsWith("lf-") && holds(entry))
+  widgetEntries()
+    .filter(([, entry]) => holds(entry))
     .map(([tag]) => tag);
 
 // The open shadow roots under some root that hold the page's own words, from what the
@@ -1323,13 +1328,11 @@ async function upgradeWidgets() {
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
   if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
   await Promise.all(
-    Object.entries(registry)
-      .filter(([tag, entry]) => tag.startsWith("lf-") && entry["x-upgrade"])
-      .map(([tag]) =>
-        import(`/widgets/${tag}.js`).catch((err) =>
-          reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
-        ),
+    tagsDeclaring((entry) => entry["x-upgrade"]).map((tag) =>
+      import(`/widgets/${tag}.js`).catch((err) =>
+        reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
       ),
+    ),
   );
   renderSaid(document.body);
   renderQuiet(document.body);
@@ -1396,7 +1399,7 @@ function markWide(root) {
 // theme, whose every rule names the attribute it styles rather than matching the bare
 // marker.
 function renderSaid(root) {
-  for (const [tag, entry] of Object.entries(registry)) {
+  for (const [tag, entry] of widgetEntries()) {
     if (!entry["x-says"]) continue;
     for (const el of root.querySelectorAll(tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
@@ -1756,8 +1759,8 @@ ${MARK_RULES}
      naming .lf-chrome here to hold the chrome out would put that class into the
      document-level surface, and the class the chrome is rooted at is not vocabulary a
      widget wears. The chrome holds itself out instead, from inside its own scope. */
-  body.lf-aiming { cursor: default; }
-  body.lf-aiming.lf-over-item { cursor: pointer; }
+  body:is(.lf-aiming, .lf-design) { cursor: default; }
+  body:is(.lf-aiming, .lf-design).lf-over-item { cursor: pointer; }
   /* One pixel, just inside the border box, because both sides of that edge belong to
      somebody else. Outside it, the mark belongs to whatever encloses the element: a board
      scrolls (overflow-x: auto), its columns sit flush against its padding box on three
@@ -1800,8 +1803,8 @@ ${MARK_RULES}
      hand here is the aim's answer rather than the thread's: it stands where the aim has
      an item and comes off where it hasn't, which is the same promise the body is making
      and not the mark's own "open this thread". */
-  body.lf-aiming .lf-mark-el { cursor: default; }
-  body.lf-aiming.lf-over-item .lf-mark-el { cursor: pointer; }
+  body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
+  body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The one runtime word living inside the page's own elements, so its hiding cannot
      come from the chrome's scoped .lf-unseen — the same recipe, restated at document
      level. It becomes a skip-link-style control on focus: a reader who hears the count
@@ -2194,6 +2197,42 @@ ${MARK_RULES}
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
     .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
+    /* Design mode: the reader is commenting on the layer rather than the page, and for
+       as long as they are the page shows its bones. Every item — a widget, a section, a
+       heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
+       drawn from the item's geometry the way the aim's box is (paintLegend), one pixel
+       outside the border box so a thread's mark, one pixel inside it, still shows
+       through. Every item but a widget's parts wears its name above the box's corner
+       too — the tag and id a fix is written against, the words the composer and the
+       thread will carry — and the parts (a card, an option, a milestone: what x-parent
+       declares) keep the hairline alone and are named under the pointer, or a board
+       would wear a tag on every card and say nothing. Dashed rather than solid because
+       the solid hairline is the mark's (.lf-mark-el), and a legend is not an
+       annotation. Under the pointer the aim's box lifts one item out of the legend
+       (.lf-aim) and its full name — the control's word included — floats where the tag
+       stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
+       edge as well. Nothing here is something to press: pointer-events stands down so a
+       click still lands on the item the box outlines. */
+    .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
+      box-sizing: border-box;
+      border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
+    .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      padding: 0 5px; border-radius: 3px 3px 0 0; font-size: var(--t-6); line-height: 1.5;
+      background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent);
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); border-bottom: 0; }
+    /* Under the banner there is no room above the box, so the tag sits inside its
+       corner instead. */
+    .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0;
+      border-radius: 0 0 3px 0; }
+    .lf-banner.lf-designing { background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
+    /* Document-anchored like the box it names (paintInspect adds the scroll), so the
+       two move together between the events that re-derive them. */
+    .lf-inspect { position: absolute; z-index: 9060; pointer-events: none; display: none;
+      max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
+      background: var(--accent); color: var(--paper); }
+    .lf-inspect.lf-shown { display: block; }
   }
 `;
 document.head.appendChild(style);
@@ -2679,6 +2718,33 @@ helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen
 const keylineEl = el("div", "lf-ui lf-keyline");
 keylineEl.setAttribute("aria-hidden", "true");
 
+// The name of what the pointer is over in design mode, floated at its corner. Chrome
+// nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
+// writer (paintInspect), beside the box it names.
+const inspectEl = el("div", "lf-ui lf-inspect");
+inspectEl.setAttribute("aria-hidden", "true");
+// Design mode's legend: a box for every item on the page while the mode stands, drawn
+// here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
+// says nothing to a screen reader — the mode's announcement and the names under the
+// pointer are the spoken copy.
+const legendRoot = el("div", "lf-ui lf-legend");
+legendRoot.setAttribute("aria-hidden", "true");
+// The runtime's parts, named: a design comment can point at one, and an anchor names an
+// element by id, so each part that is a thing to point at carries a stable one under the
+// runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
+// passage is in — still passes over them, every one wearing lf-ui. What has no id is
+// what nobody comments on: the toast, the live region, the scope root itself.
+for (const [part, id] of [
+  [banner, "lf-banner"],
+  [versionMenu, "lf-versions"],
+  [othersPanel, "lf-leaves"],
+  [panel, "lf-comments"],
+  [fab, "lf-comment-button"],
+  [composer, "lf-composer"],
+  [helpEl, "lf-help"],
+  [keylineEl, "lf-keyline"],
+])
+  part.id = id;
 // The one scope root for the chrome's private rules: they match nothing outside
 // this container. A div, not a lf-* element — the render gate reads a lf-* ancestor
 // as "inside a widget", and the runtime's layer is inside none.
@@ -2688,6 +2754,7 @@ chromeRoot.append(
   versionMenu,
   othersPanel,
   panel,
+  legendRoot,
   aimBox,
   fab,
   composer,
@@ -2695,6 +2762,7 @@ chromeRoot.append(
   liveEl,
   helpEl,
   keylineEl,
+  inspectEl,
 );
 document.body.append(chromeRoot);
 // The controls that rewrite their own words hold the widest of them now, measured in
@@ -2949,6 +3017,7 @@ function setPanel(open) {
 }
 toggleBtn.onclick = () => setPanel(!panelOpen);
 addEventListener("resize", syncLayout);
+addEventListener("resize", queueLegend);
 // field-sizing and every other rendered-size change feed the one geometry writer —
 // the key line included, whose height sets the body's bottom reservation.
 const layoutSizes = new ResizeObserver(syncLayout);
@@ -3263,7 +3332,19 @@ function msgNode(m) {
 // back to the id where this version has no such element. The kind goes before the words
 // because the two together are a name, where the words alone read as a quote the thread
 // does not hold.
-function anchorLabel(anchor) {
+//
+// A design comment (`about: "layer"`) reads "layer ·" first, because what follows names
+// the thing whose look or behaviour is in question rather than the words on it: the
+// control the press landed on where it landed on one (`part`), then the item — a
+// widget by its tag and id, a runtime part by its name — since a design comment's
+// subject is the element itself and its opening words would read as a quote.
+function anchorLabel(anchor, about) {
+  if (about === "layer") {
+    const item = anchor?.section ? elementById(anchor.section) : null;
+    const name = item ? designName(item) : anchor?.section || "the page";
+    const on = anchor?.part ? `${anchor.part} · ${name}` : name;
+    return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
+  }
   if (anchor?.quote) return `“${anchor.quote}”`;
   if (!anchor?.section) return "";
   const item = elementById(anchor.section);
@@ -3348,7 +3429,7 @@ function threadNode(t, grow) {
   div.tabIndex = -1; // j/k focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
   if (grow) div.classList.add("grow");
-  const label = anchorLabel(t.root.anchor);
+  const label = anchorLabel(t.root.anchor, t.root.about);
   if (label) {
     const quote = el("blockquote", "lf-quote", label);
     quote.onclick = () => scrollToThread(t.root.id);
@@ -3666,7 +3747,7 @@ function retiredSlots() {
   // `${list}` joins it with a comma, so a slot naming two holders wrote a selector
   // *list* whose first member was a bare tag — every instance of the first holder read
   // as a retired slot, decided or not, and the pair that was meant matched nothing.
-  const value = Object.entries(registry)
+  const value = widgetEntries()
     .filter(([, entry]) => entry["x-retired-when"])
     .flatMap(([tag, entry]) =>
       entry["x-parent"].map(
@@ -4477,18 +4558,33 @@ const sectionOf = (anchor) => (anchor.section ? elementById(anchor.section) : nu
 // An item is an element the author gave an id, outside the runtime's own layer and
 // outside the panel (a reply's frozen widget markup carries ids of its own). `version
 // check` holds every id across versions, which is exactly why an anchor naming one
-// survives a rewrite that takes a quote down with it.
-const ITEM = "[id]:not(.lf-ui)";
+// survives a rewrite that takes a quote down with it. An id under the runtime's own
+// prefix is not the author's — a module coins one for what it draws (a diagram's svg
+// wears `lf-mermaid-N`, numbered by draw order) — so an anchor on it names nothing a
+// version holds and something the next load may number differently. The item is the
+// element around it, which is the widget.
+const ITEM = '[id]:not(.lf-ui):not([id^="lf-"])';
+// Whether an element is an item: what the aim walks up to, and what the legend draws a
+// box for — one predicate, so the two cannot disagree about what is on the page. Never
+// one the user's decision settled off the page: the aim's paint already refused those,
+// and a press answered by a different predicate anchored a composer to a retired
+// element — a box about nothing, promised by nothing. And never one inside a widget
+// that renders as a picture (x-visual): a diagram's nodes carry the ids its renderer
+// coined — `root-1`, `actor0`, under no prefix of ours — and an anchor on one names
+// nothing a version holds. The entry says the click's anchor is the widget rather than
+// a generated part inside it, and the aim is a click; the plain-click path already
+// took the outermost visual, and the aim named the node under the pointer.
+function isItem(at) {
+  if (!at.matches(ITEM) || inChrome(at) || inUi(at) || settledAway(at)) return false;
+  const visual = tagsDeclaring((e) => e["x-visual"]).join(",");
+  return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
+}
 // The innermost item: a card rather than its column, the column rather than the board —
-// the smallest thing under the pointer is the thing pointed at. Never one the user's
-// decision settled off the page: the aim's paint already refused those, and a press
-// answered by a different predicate anchored a composer to a retired element — a box
-// about nothing, promised by nothing. One predicate, asked by the paint and the press
-// alike; the walk continues upward, because the enclosing item is what is on screen.
+// the smallest thing under the pointer is the thing pointed at. The walk continues
+// upward past what is not one, because the enclosing item is what is on screen.
 function itemAt(node) {
   let at = node?.nodeType === 1 ? node : node?.parentElement;
-  for (; at; at = at.parentElement)
-    if (at.matches(ITEM) && !inChrome(at) && !inUi(at) && !settledAway(at)) return at;
+  for (; at; at = at.parentElement) if (isItem(at)) return at;
   return null;
 }
 // What to call an item, in a word the user reads beside a thread's § label. A widget
@@ -4581,53 +4677,85 @@ const NOTE = "lf-mark-note";
 const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record of what it drew
 let pendingMarks = []; // the same record for the open composer's own passage
 let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
-// The aim's one writer, and the whole of its paint: the box in the chrome's layer
-// (aimBox), and the cursor's half of the same promise. Everything is derived fresh on
-// every ask — the aimed item, lf-over-item, the box's geometry — because a latch here
-// was a second answer to the question the press asks fresh, and a replay repainted it
-// stale. Synchronous, not coalesced to a frame the way refreshHover is: the keydown
-// that arms the page is followed by the press in the same gesture, and a promise a
-// frame behind the arm is one the press can outrun. What each ask costs is one
-// hit-test and one rect walk, which is what the repaint gate this replaced already
-// spent per event on deciding whether to run a far dearer pass.
-function refreshAim() {
-  const aimed = aiming ? aimedItem() : null;
-  // The cursor's half, written where the box's half is decided, so the hand cannot
-  // stand over a press the paint knows takes nothing. `aiming` alone says the page
-  // is armed; this says the aim has landed on something.
-  document.body.classList.toggle("lf-over-item", Boolean(aimed));
-  // The item's bounds, held to what the page shows of them. The box lives in a layer
-  // no ancestor's clip can reach — that is the point of it — so it owes the clips an
-  // answer of its own: an option's table box runs on under its group's overflow:
-  // hidden, and a card half-scrolled out of a board is half gone. A box drawn from
-  // the raw rect claims pixels the page has already refused, over the neighbour
-  // standing in them. The viewport is not such an edge — half off screen is still
-  // the truth about the item.
-  let r = aimed?.getBoundingClientRect();
-  // An item with no box of its own — a display: contents suggestion — shows as what
-  // its contents paint, so its bounds are theirs. A range asks the platform for that
-  // union in one read; the outline this box replaced painted nothing at all here,
-  // which the suite only learned to see when the promise became pixels.
-  if (r && !r.width && !r.height) {
+// What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
+// mode's target: the element, and the control's word where the pointer is on one — and
+// null when neither is armed. One answer for the box, the cursor and the name.
+function aimTarget() {
+  if (aiming) {
+    const item = aimedItem();
+    return item ? { el: item, part: "" } : null;
+  }
+  if (designOn && pointer.x >= 0)
+    return designTarget(document.elementFromPoint(pointer.x, pointer.y));
+  return null;
+}
+// An item's bounds, held to what the page shows of them: the rect a box in the chrome's
+// layer is drawn from, for the aim's box and the legend's alike. The layer is one no
+// ancestor's clip can reach — that is the point of it — so the box owes the clips an
+// answer of its own: an option's table box runs on under its group's overflow: hidden,
+// and a card half-scrolled out of a board is half gone. A box drawn from the raw rect
+// claims pixels the page has already refused, over the neighbour standing in them.
+// body is the page's own scroller, so its edge is one of these too: what is scrolled
+// off screen has no rect, and a legend draws boxes for what is on it and nothing for
+// the rest.
+//
+// An item with no box of its own — a display: contents suggestion — shows as what its
+// contents paint, so its bounds are theirs. A range asks the platform for that union in
+// one read; the outline this box replaced painted nothing at all here, which the suite
+// only learned to see when the promise became pixels.
+//
+// `clips` caches each ancestor's answer for one pass: the legend asks for every item
+// on the page in one breath, and the items share their scrollers, so what a pass spends
+// on the walk is one style read per ancestor rather than one per item per ancestor.
+function shownRect(item, clips) {
+  let r = item.getBoundingClientRect();
+  if (!r.width && !r.height) {
     const contents = document.createRange();
-    contents.selectNodeContents(aimed);
+    contents.selectNodeContents(item);
     r = contents.getBoundingClientRect();
   }
-  let { left, top, right, bottom } = r ?? {};
-  for (let a = aimed?.parentElement; a; a = a.parentElement) {
-    const s = getComputedStyle(a);
-    if (!/hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY)) continue;
-    const c = a.getBoundingClientRect();
+  let { left, top, right, bottom } = r;
+  for (let a = item.parentElement; a; a = a.parentElement) {
+    let c = clips.get(a);
+    if (c === undefined) {
+      const s = getComputedStyle(a);
+      c = /hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY)
+        ? a.getBoundingClientRect()
+        : null;
+      clips.set(a, c);
+    }
+    if (!c) continue;
     left = Math.max(left, c.left);
     top = Math.max(top, c.top);
     right = Math.min(right, c.right);
     bottom = Math.min(bottom, c.bottom);
   }
-  if (!aimed || right <= left || bottom <= top) {
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+// The aim's one writer, and the whole of its paint: the box in the chrome's layer
+// (aimBox), the cursor's half of the same promise, and in design mode the name of what
+// the box is on. Everything is derived fresh on every ask — the aimed item, lf-over-item,
+// the box's geometry — because a latch here was a second answer to the question the
+// press asks fresh, and a replay repainted it stale. Synchronous, not coalesced to a
+// frame the way refreshHover is: the keydown that arms the page is followed by the press
+// in the same gesture, and a promise a frame behind the arm is one the press can outrun.
+// What each ask costs is one hit-test and one rect walk, which is what the repaint gate
+// this replaced already spent per event on deciding whether to run a far dearer pass.
+function refreshAim() {
+  const target = aimTarget();
+  const aimed = target?.el ?? null;
+  // The cursor's half, written where the box's half is decided, so the hand cannot
+  // stand over a press the paint knows takes nothing. `aiming` alone says the page
+  // is armed; this says the aim has landed on something.
+  document.body.classList.toggle("lf-over-item", Boolean(aimed));
+  const r = aimed && shownRect(aimed, new Map());
+  if (!r) {
     aimBox.style.display = "none";
     aimBox.removeAttribute("data-for");
+    paintInspect(null);
     return;
   }
+  const { left, top, right, bottom } = r;
   aimBox.setAttribute("data-for", aimed.id);
   // The item's own corner radius, so the ring hugs the corner the item draws.
   Object.assign(aimBox.style, {
@@ -4638,6 +4766,22 @@ function refreshAim() {
     height: bottom - top + "px",
     borderRadius: getComputedStyle(aimed).borderRadius,
   });
+  paintInspect(designOn ? target : null, { left, top });
+}
+// The name of what design mode is aimed at, at the box's top-left corner — above it
+// where there is room, inside it where there isn't (the banner sits at the top edge).
+// Document-anchored like the box, so a scroll moves the two together between the events
+// that re-derive them.
+function paintInspect(target, corner) {
+  inspectEl.classList.toggle("lf-shown", Boolean(target));
+  if (!target) return;
+  const name = target.part
+    ? `${target.part} · ${designName(target.el)}`
+    : designName(target.el);
+  if (inspectEl.textContent !== name) inspectEl.textContent = name;
+  const above = corner.top - inspectEl.offsetHeight - 2;
+  inspectEl.style.left = `${Math.max(2, corner.left)}px`;
+  inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
 }
 const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
 let hovering = null;
@@ -4719,8 +4863,13 @@ function paintAnchors() {
     const blocks = found.element
       ? [found.element]
       : [...new Set(found.segments.map((seg) => blockAt(seg.node)))].filter(Boolean);
+    // Not inside the chrome: the line is the runtime's word inside the page's own
+    // blocks, and a design comment on a runtime part is on chrome the panel already
+    // reads out — a hidden button in the key line's aria-hidden box would be focusable
+    // content nobody is told about.
     for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
-      if (holder) noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
+      if (holder && !inChrome(holder))
+        noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
   }
 
   // The composer's own passage, in the accent rather than the mark's own ink, so a draft
@@ -4767,9 +4916,14 @@ function paintAnchors() {
   // when it changes, because assigning textContent replaces the node even with the same
   // string, and this pass reruns whenever a comment arrives — a stranded quote is the only
   // copy of that passage left, so it is text a user may be selecting to keep.
-  const label = composerOpen ? anchorLabel(pendingAnchor) : "";
+  const label = composerOpen ? anchorLabel(pendingAnchor, pendingAbout) : "";
   if (composerQuote.textContent !== label) composerQuote.textContent = label;
-  composerQuote.classList.toggle("lf-unseen", !label || Boolean(draft));
+  // A design comment's label stays: the outline says which element, and only the words
+  // say the comment is about the layer and which control the press landed on.
+  composerQuote.classList.toggle(
+    "lf-unseen",
+    !label || (Boolean(draft) && !pendingAbout),
+  );
 
   // A draft outranks a posted mark where they overlap; the hover outranks both, so the
   // passage under the pointer answers the pointer.
@@ -4781,6 +4935,7 @@ function paintAnchors() {
   noteMarks(noted); // and the same fact for a reader who can't see any of it
   refreshHover(); // the ranges moved; whether one is under the pointer may have too
   refreshAim(); // and so may the item a held arm is promising (a replay moves content)
+  queueLegend(); // and every box the legend drew around the content that moved
 
   // The panel's side of the same fact, read off the pass's own record so the two views
   // can't disagree: a passage rewritten in a later version has no home to jump to, and a
@@ -4947,6 +5102,9 @@ document.addEventListener(
     // press would take can change with no mouse event to say so, and a box left over
     // the old item promises a press the click no longer makes.
     refreshAim();
+    // A board scrolled sideways carries its cards out from under their boxes, and the
+    // page scrolled brings items into view that had no box yet (shownRect).
+    queueLegend();
   },
   { capture: true, passive: true },
 );
@@ -5428,16 +5586,17 @@ const PRESS_EVENTS = [
   "click",
   "dblclick",
 ];
-let aimedPress = null; // the press the aim has taken, as {item}, until the next one starts
+// The press the aim has taken — {item} for the ⌥ aim, {design} for design mode — until
+// the next one starts.
+let aimedPress = null;
 function claimPress(ev) {
   // Made and dropped at the same moment, which is the start of a press: a drag already
   // under way when the key goes down keeps the events it is waiting for, and one that
   // ends after the aim's own press can still be ended.
   if (ev.type === "pointerdown") {
-    aimedPress =
-      ev.getModifierState(AIM.modifier) && !inChrome(ev.target)
-        ? { item: itemAt(ev.target) }
-        : null;
+    const aim = ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
+    const design = !aim && designPress(ev.target) ? designTarget(ev.target) : null;
+    aimedPress = aim ? { item: itemAt(ev.target) } : design ? { design } : null;
     if (aimedPress) standDown(ev.target);
   }
   if (!aimedPress) return;
@@ -5451,13 +5610,230 @@ function claimPress(ev) {
   // native drag would start, and on the click, since ⌥ on a link is a download.
   if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
   ev.stopPropagation();
-  if (ev.type === "click" && aimedPress.item)
-    openOnItem(aimedPress.item, { left: ev.clientX + 6, top: ev.clientY - 40 });
+  if (ev.type !== "click") return;
+  const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
+  if (aimedPress.item) openOnItem(aimedPress.item, from);
+  else if (aimedPress.design) openOnDesign(aimedPress.design, from);
 }
 for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
 
+// ---------- design mode ----------
+// The reader commenting on the layer rather than the page: what a widget looks like or
+// does, a control, the runtime's own chrome. A mode rather than a chord, because it is
+// entered for a batch of remarks and changes what a press means everywhere: a press
+// comments on what it lands on and does nothing else, so a card can be pointed at
+// without moving it and a pick mark without picking. Prose keeps the browser's
+// selection — words are still the way to point at words — and a plain click on prose
+// comments on the block it is in. `designOn` is the state; the body class, the banner's
+// wash, the toggle's pressed face and the name under the pointer are its renderings,
+// written by the one setter, and every comment opened while it stands carries
+// `about: "layer"`, which is how the agent tells a remark about the layer from one about
+// the page's words.
+let designOn = false;
+// Kept per tab across a reload, the way the panel's open state is (PANEL_KEY): a version
+// landing mid-batch reloads the document, and a reader put out of the mode by news they
+// didn't ask for is a mode error the page made for them. Working state of this tab, so
+// the tab's store rather than the reader's.
+const DESIGN_KEY = "lf-design";
+function setDesign(on, { spoken = true } = {}) {
+  designOn = on;
+  document.body.classList.toggle("lf-design", on);
+  banner.classList.toggle("lf-designing", on);
+  tabStore.set(DESIGN_KEY, on ? "1" : null);
+  // The renderings above are the eye's copy; the mode change is spoken, or it is silent
+  // to exactly the reader who can't see them. Restoring after a reload changes nothing
+  // the reader did, so it says nothing.
+  if (spoken)
+    announce(
+      on
+        ? "Design mode: a click comments on what it lands on — a widget, a control, the chrome. Escape leaves."
+        : "Design mode off",
+    );
+  syncGeneral(); // the general box's hint says which of the two it posts
+  refreshAim(); // the box and the name follow the mode, not only the pointer
+  paintLegend(); // and so does the legend — with the class, not a frame behind it
+  paintLine();
+}
+
+// The legend: what is on the page, shown while the mode stands rather than found by
+// hovering. One box per item in the chrome's layer (the stylesheet's .lf-legend-box
+// says what it looks like and why), and on every item but a widget's parts the
+// item's name — the words a design comment on it will carry (designName). The parts
+// keep the hairline alone: a board's cards each have an id and each is a target, but a
+// tag on every card names nothing a reader can't see and hides what they can.
+//
+// Painted whole from the page on every ask, like the aim's box, because a legend is a
+// reading of the page and a box kept from a previous reading is a claim about a page
+// that has since moved. What moves it: a scroll (a board's sideways one included), a
+// replay (paintAnchors), a resize, the page's markup changing under it (legendMoves —
+// a diagram finishing its draw, a details opening, a card dragged), and a size
+// changing with no mutation to say so (legendSizes — an image landing inside an item,
+// a font swapping in), body's own among them: the panel opening narrows body and
+// re-centres the column, and a column that keeps its width moves every block without
+// resizing one, which is why the items' own observations were not enough. Coalesced to
+// a frame off those doors; the mode change paints in place, so the class and the
+// legend land together.
+//
+// Reads before writes, in two passes: a box's geometry is a DOM write, and an item's
+// rect read after one is a layout forced per item — the thrash a legend of a few
+// hundred boxes cannot afford on every scroll frame. So the box set is settled first,
+// every rect is read, and only then is anything placed.
+const legendBoxes = new Map(); // item → { box, radius }
+const legendSizes = new ResizeObserver(() => queueLegend());
+const legendMoves = new MutationObserver((records) => {
+  // The legend's own writes are mutations too, inside the chrome; a repaint that heard
+  // itself would never stop.
+  if (records.some((r) => !inChrome(r.target))) queueLegend();
+});
+let legendQueued = false;
+let legendTagH = 0; // one tag's height, measured once: where a box's top is nearer the banner than this, the tag sits inside
+function queueLegend() {
+  if (!designOn || legendQueued) return;
+  legendQueued = true;
+  requestAnimationFrame(() => {
+    legendQueued = false;
+    paintLegend();
+  });
+}
+function paintLegend() {
+  if (!designOn) {
+    legendRoot.replaceChildren();
+    legendBoxes.clear();
+    legendSizes.disconnect();
+    legendMoves.disconnect();
+    return;
+  }
+  legendSizes.observe(document.body);
+  legendMoves.observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    characterData: true,
+  });
+  const items = [...document.querySelectorAll(ITEM)].filter(isItem);
+  // The set: a box for every item, in document order so a part's box paints over its
+  // widget's, and no box for an item the page no longer holds.
+  const present = new Set(items);
+  for (const [item, { box }] of legendBoxes)
+    if (!present.has(item)) {
+      box.remove();
+      legendBoxes.delete(item);
+      legendSizes.unobserve(item);
+    }
+  // A widget's part is what its entry says it is — a tag declaring x-parent has a
+  // holder, and is what the holder is made of — rather than what stands inside a
+  // widget: a tab holds a whole page, and every heading and paragraph of that page is
+  // the author's, and named.
+  const parts = new Set(tagsDeclaring((e) => e["x-parent"]));
+  for (const item of items) {
+    if (legendBoxes.has(item)) continue;
+    const box = el("div", "lf-legend-box");
+    box.dataset.for = item.id; // which item, stated where a test can read it (as .lf-aim's)
+    if (!parts.has(item.tagName.toLowerCase()))
+      box.append(el("span", "lf-legend-tag", designName(item)));
+    legendBoxes.set(item, { box });
+    legendRoot.append(box);
+    legendSizes.observe(item);
+  }
+  // The reads.
+  const clips = new Map();
+  const under = banner.getBoundingClientRect().bottom;
+  const scrollTop = pageScroller.scrollTop;
+  const placed = items.map((item) => {
+    const entry = legendBoxes.get(item);
+    entry.radius ??= getComputedStyle(item).borderRadius;
+    if (!legendTagH && entry.box.firstChild)
+      legendTagH = entry.box.firstChild.offsetHeight;
+    return [entry, shownRect(item, clips)];
+  });
+  // The writes.
+  for (const [{ box, radius }, r] of placed) {
+    if (!r) {
+      box.style.display = "none";
+      continue;
+    }
+    Object.assign(box.style, {
+      display: "block",
+      left: r.left - 1 + "px",
+      top: r.top - 1 + scrollTop + "px",
+      width: r.right - r.left + 2 + "px",
+      height: r.bottom - r.top + 2 + "px",
+      borderRadius: radius,
+    });
+    box.classList.toggle("lf-in", r.top - legendTagH < under);
+  }
+}
+
+// What a design press is about: the nearest thing with an id — a page item, the same
+// answer the ⌥ aim gives, or inside the chrome the part the runtime named — and the
+// control the press landed on where it landed on one, since "the grip" and "the card"
+// are different remarks. Nothing where the press is the mode's own machinery: the
+// composer being typed into, the 💬 that opens it, the name floating under the pointer.
+const DESIGN_OWN = ".lf-composer, .lf-fab, .lf-inspect";
+const CONTROLS =
+  "[data-lf-offer], button, [role=button], a, select, summary, input, textarea, label";
+function designTarget(node) {
+  const at = node?.nodeType === 1 ? node : node?.parentElement;
+  if (!at || closestAcross(at, DESIGN_OWN)) return null;
+  const el = inChrome(at) ? closestAcross(at, "[id]") : itemAt(at);
+  if (!el) return null;
+  const control = closestAcross(at, CONTROLS);
+  const part =
+    control && control !== el && containsAcross(el, control)
+      ? controlWord(control)
+      : "";
+  return { el, part };
+}
+// A control's word for the label: what it says to a screen reader, else what it shows,
+// else what it is.
+const CONTROL_WORD_CAP = 24;
+function controlWord(control) {
+  const said =
+    control.getAttribute("aria-label") ||
+    control.textContent.replace(/\s+/g, " ").trim();
+  if (!said) return control.tagName.toLowerCase();
+  return [...said].length > CONTROL_WORD_CAP
+    ? cut(said, 0, CONTROL_WORD_CAP) + "…"
+    : said;
+}
+// The name a design target wears — under the pointer, in the composer, beside its
+// thread. A widget is its tag and id, because both are what a fix is written against; a
+// page element takes the reader's word for its kind; a runtime part is its name, the id
+// minus the runtime's prefix.
+function designName(el) {
+  if (inChrome(el)) return el.id.replace(/^lf-/, "").replace(/-/g, " ");
+  const tag = el.tagName.toLowerCase();
+  return `${tag.startsWith("lf-") ? tag : itemWord(el)} · ${el.id}`;
+}
+// Which presses the mode takes at the press, ahead of the page: everything but prose. A
+// widget, a control, a picture, the chrome — none has words to select and each has
+// something a press would otherwise do, and the mode's promise is that it does none of
+// it. Prose is left to the browser, so a drag still selects, and the click that ends a
+// plain press on it reaches the handler below rather than being taken here.
+const PRESSED = () =>
+  [...tagsDeclaring(() => true), CONTROLS, "svg", "img", "figure"].join(",");
+const designPress = (target) =>
+  designOn &&
+  Boolean(designTarget(target)) &&
+  (inChrome(target) || Boolean(closestAcross(target, PRESSED())));
+// The one way a design target becomes the composer's anchor: the element by id, and the
+// control's word where the press landed on one.
+function openOnDesign({ el, part }, from) {
+  showFab(null);
+  openComposer({ section: el.id, ...(part && { part }) }, "", from.left, from.top);
+}
+
 document.addEventListener("click", (ev) => {
   if (inUi(ev.target)) return;
+  // A press design mode did not take at the press is a press on prose: a drag that
+  // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
+  // block; a plain click comments on the block it landed in.
+  if (designOn) {
+    if (pageSelection()) return;
+    const target = designTarget(ev.target);
+    if (target) openOnDesign(target, { left: ev.clientX + 6, top: ev.clientY - 40 });
+    return;
+  }
   const threadId = markAt(ev.clientX, ev.clientY);
   if (threadId) return revealThread(threadId);
   if (ev.target.closest?.("a")) return;
@@ -5472,6 +5848,11 @@ document.addEventListener("click", (ev) => {
   updateFab({ id, x: ev.clientX, y: ev.clientY });
 });
 
+// What the open composer's comment is about: "layer" for one opened in design mode, so
+// the anchor chosen there — a widget, a control, a runtime part — posts with the word
+// that says so. Decided at the open, where the anchor is, and carried with the draft: a
+// draft on the banner is about the layer however the mode stands by the time it is sent.
+let pendingAbout = null;
 const saveComposerDraft = () =>
   saveDraft(
     "composer",
@@ -5480,17 +5861,24 @@ const saveComposerDraft = () =>
           text: composerInput.value,
           anchor: pendingAnchor,
           suggest: suggestCheck.checked,
+          about: pendingAbout,
         })
       : "",
   );
 const syncComposer = wireInput(composerInput, {
-  hint: () => (suggestCheck.checked ? "Replacement text" : "Your comment"),
+  hint: () =>
+    suggestCheck.checked
+      ? "Replacement text"
+      : pendingAbout
+        ? "About the layer"
+        : "Your comment",
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
   save: saveComposerDraft,
   send: async (text) => {
     const event = { kind: "comment", version: VNUM, anchor: pendingAnchor, text };
     if (suggestCheck.checked) event.suggestion = true;
+    if (pendingAbout) event.about = pendingAbout;
     const sent = await post(event);
     if (!sent) return;
     closeComposer();
@@ -5540,14 +5928,26 @@ function showComposer(open) {
 // machine seed from user text: the seed belongs to its old anchor and is dropped;
 // anything the user typed or edited rides forward — never lose user text.
 let seededQuote = "";
-function openComposer(anchor, text, left, top, suggest = false) {
+// `about` defaults to the mode standing at the open — a composer opened in design mode
+// is about the layer — and a restored draft passes the word it was saved with.
+function openComposer(
+  anchor,
+  text,
+  left,
+  top,
+  suggest = false,
+  about = designOn ? "layer" : null,
+) {
   pendingAnchor = anchor || null;
+  pendingAbout = about;
   if (composerInput.value === seededQuote) composerInput.value = "";
   seededQuote = "";
   composerInput.value = text || composerInput.value;
   suggestCheck.checked = suggest;
   syncSuggestMode();
-  suggestRow.style.display = anchor?.quote ? "flex" : "none";
+  // A suggestion is replacement text for a passage of the page; a remark about the
+  // layer proposes no words, whatever it quotes.
+  suggestRow.style.display = anchor?.quote && !about ? "flex" : "none";
   // before placing: a hidden box has no height to fit, and the pass inside this call is
   // both what decides whether the quote takes up some of that height and what records
   // where the passage is that the box has to stay off.
@@ -5570,6 +5970,7 @@ function closeComposer() {
   suggestCheck.checked = false;
   syncSuggestMode();
   pendingAnchor = null;
+  pendingAbout = null;
   saveDraft("composer", "");
   hideComposer();
 }
@@ -5590,12 +5991,17 @@ fab.onclick = () => {
 composerCancel.onclick = closeComposer;
 
 const syncGeneral = wireInput(generalInput, {
-  hint: "Comment on the page",
+  // The box has no anchor to decide it at an open, so what it posts is decided at the
+  // send, by the mode standing then — and the hint says which, so the reader typing in
+  // design mode knows their remark is about the layer as a whole.
+  hint: () => (designOn ? "Comment on the layer" : "Comment on the page"),
   sends: "send",
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
   send: async (text) => {
-    const sent = await post({ kind: "comment", version: VNUM, text });
+    const event = { kind: "comment", version: VNUM, text };
+    if (designOn) event.about = "layer";
+    const sent = await post(event);
     if (!sent) return;
     generalInput.value = "";
     saveDraft("general", "");
@@ -5950,6 +6356,31 @@ const CONTROL = {
   ],
 };
 
+// Design mode: a page mode the reader stands in for a batch of remarks about the layer.
+// Its Escape is the innermost rung while it stands — a composer opened in it closes
+// first (COMPOSER is nearer), then the mode, then the panels — and the press it is made
+// of is not a key at all, so that row binds nothing and says nothing on the line, the
+// way the ⌥ aim's row does.
+const DESIGN = {
+  title: "In design mode",
+  at: () => designOn,
+  rows: [
+    {
+      keys: [],
+      label: "click",
+      does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
+    },
+    {
+      // Both keys, on one row: i is the toggle and Escape the mode's own rung, and two
+      // chips reading "leave design" said one thing twice on the line.
+      keys: ["Escape", "i"],
+      does: "Leave design mode",
+      line: "leave design",
+      run: () => setDesign(false),
+    },
+  ],
+};
+
 // The page itself. Table order is the line's priority order — a total order every row has
 // already, rather than a field one can forget — so a row's place here decides what falls
 // off the end when the window is narrow, and reordering for readability moves the line.
@@ -6074,6 +6505,14 @@ const PAGE = {
     },
     CHOOSER,
     {
+      // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
+      // than this row, so while it stands this one is shadowed off the line.
+      keys: ["i"],
+      does: "Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
+      line: "design mode",
+      run: () => setDesign(true),
+    },
+    {
       // The diff held v while the chooser had no key at all, and moved to = when the
       // chooser took the letter. The two branches of the run are said in the words,
       // because a word naming only the opening would promise the wrong half of the press
@@ -6132,6 +6571,7 @@ const SCOPES = [
   TYPING,
   THREAD,
   CONTROL,
+  DESIGN,
   PAGE,
 ];
 const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
@@ -7594,7 +8034,10 @@ function applyActions() {
     // pointer mid-flight. The batch's own animations are the fact to consume — never
     // the document's, whose chrome runs one that has no end — and when the last of
     // them lands, ask again.
-    Promise.allSettled(started.map((a) => a.finished)).then(refreshAim);
+    Promise.allSettled(started.map((a) => a.finished)).then(() => {
+      refreshAim();
+      queueLegend();
+    });
   }
   // Beside paintPending, and outside the `applied` gate above, because the two facts
   // this speaks arrive by different doors: a status a report moved is a widget the pass
@@ -7624,7 +8067,7 @@ const authoredFacets = new Map(); // unit id -> the facet this version arrived s
 // so the authored-facet capture and the diff's state half serve the two alike.
 function stateSpecs() {
   const specs = [];
-  for (const [tag, entry] of Object.entries(registry))
+  for (const [tag, entry] of widgetEntries())
     for (const key of ["x-state", "x-report"])
       for (const spec of Object.values(entry[key] ?? {})) specs.push([tag, spec]);
   return specs;
@@ -7861,6 +8304,7 @@ async function poll() {
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general");
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
+if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
 // panel is restored just above, so the column is already reflowed). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:
@@ -7944,9 +8388,16 @@ Promise.all([
   if (savedView && savedView.v < VNUM) showToast(`Updated to v${VNUM}`);
   if (savedComposer)
     try {
-      const { text, anchor, suggest } = JSON.parse(savedComposer);
+      const { text, anchor, suggest, about } = JSON.parse(savedComposer);
       if (text)
-        openComposer(anchor, text, (innerWidth - 320) / 2, 64, Boolean(suggest));
+        openComposer(
+          anchor,
+          text,
+          (innerWidth - 320) / 2,
+          64,
+          Boolean(suggest),
+          about ?? null,
+        );
     } catch {}
   poll();
   setInterval(poll, POLL_MS);

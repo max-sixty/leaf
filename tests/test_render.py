@@ -2005,6 +2005,236 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     page.close()
 
 
+def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser, serve):
+    """A press in design mode is a comment about the layer, and that is all it does.
+
+    The mode is the ⌥ aim generalized: a press on a widget names the widget rather than
+    working it, so a pick mark can be pointed at without picking. The comment posts
+    with `about: "layer"`, which is how the agent tells "this control looks wrong" from
+    a remark about the words — nothing about the anchor alone says which. Both halves
+    are asserted: the log's event, and the page exactly as it was."""
+    page, errors = open_page(browser, serve(REPLAYED_PAGE))
+    option = page.locator("#opt-shim")
+    before = page.evaluate(PAGE_MARKUP)
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    # The mode shows what is on the page rather than waiting for the pointer: a legend
+    # box on every item, and on every item but a widget's parts its name — the group
+    # is named, its options wear the hairline alone and are named under the pointer.
+    box_of = lambda id: page.locator(f'.lf-legend-box[data-for="{id}"]')
+    expect(box_of("t")).to_be_visible()
+    assert set(
+        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+    ) == set(page.eval_on_selector_all("main [id]", "es => es.map(e => e.id)"))
+    expect(box_of("approach").locator(".lf-legend-tag")).to_have_text(
+        "lf-options · approach"
+    )
+    expect(box_of("t").locator(".lf-legend-tag")).to_have_text("heading · t")
+    expect(box_of("opt-shim").locator(".lf-legend-tag")).to_have_count(0)
+    page.wait_for_function(LEGEND_TRUE)
+    # Hovering names the target — the tag and the id a fix is written against — and
+    # draws the aim's own box on it, the promise about the next press.
+    option.hover()
+    expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "opt-shim")
+    option.click()
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · lf-option · opt-shim"
+    )
+    # The press did nothing to the page: not a pick, not a focus, nothing in the markup
+    # but the composer's own outline on the element it is about.
+    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(0)
+    assert (
+        page.evaluate(PAGE_MARKUP).replace(' class="lf-mark-el lf-pending"', "")
+        == before
+    )
+    assert not page.evaluate(FOCUS_IN_PAGE)
+    page.locator(".lf-composer textarea").fill("the ring reads too heavy")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    events = interact.read_events(serve.page_dir)
+    posted = [e for e in events if e["kind"] == "comment"]
+    assert [(e["about"], e["anchor"]) for e in posted] == [
+        ("layer", {"section": "opt-shim"})
+    ]
+    assert [e for e in events if e["kind"] == "action"] == []
+    # The panel names the thread the same way the composer named the box, and the send
+    # lands typing in that thread's reply box.
+    expect(page.locator(".lf-thread .lf-quote")).to_have_text(
+        "layer · lf-option · opt-shim"
+    )
+    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    # Escape backs out one rung at a time — the box, then the mode.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread")).to_be_focused()
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-legend-box")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
+    """The banner, the panel, a control on either: what no comment could reach before.
+
+    The anchor pass passes over the runtime's own layer, so a remark about the Comments
+    button had nowhere to land. In design mode the press on it is a comment on it —
+    anchored on the part the runtime named (`lf-banner`), naming the control the press
+    landed on — and the button does not do what it does: the panel stays closed."""
+    page, errors = open_page(browser, serve(REPLAYED_PAGE))
+    page.keyboard.press("i")
+    comments = page.locator(".lf-banner .lf-comments")
+    said = comments.inner_text()  # "Comments (0)" — the control's word is what it shows
+    comments.hover()
+    expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
+    comments.click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.locator(".lf-composer textarea").fill("reads dim against the wash")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    posted = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"]
+    assert [(e["about"], e["anchor"]) for e in posted] == [
+        ("layer", {"section": "lf-banner", "part": said})
+    ]
+    # The thread's mark is the outline an element anchor wears, on the chrome too.
+    expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    assert errors == []
+    page.close()
+
+
+def test_design_mode_leaves_prose_to_the_selection(browser, serve):
+    """Words are still the way to point at words: a drag on prose selects, and the
+    comment it raises is about the layer; a plain click on prose comments on the block.
+
+    The mode takes presses on widgets, controls and the chrome at the press, ahead of the
+    page. Prose it leaves to the browser, or "this heading is too small" would have no
+    way to quote the heading."""
+    page, errors = open_page(browser, serve(REPLAYED_PAGE))
+    page.keyboard.press("i")
+    heading = page.locator("#t")
+    box = heading.bounding_box()
+    select(
+        page,
+        (box["x"] + 2, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
+    )
+    fab = page.locator(".lf-fab")
+    expect(fab).to_be_visible()
+    fab.click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · heading · t · “Rollout”"
+    )
+    page.keyboard.press("Escape")  # the composer, draft kept; the mode still stands
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    heading.click(position={"x": 4, "y": 4})
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text("layer · heading · t")
+    assert errors == []
+    page.close()
+
+
+def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
+    """A version landing mid-batch reloads the document, and a reader put out of the
+    mode by news they never asked for is a mode error the page made — so the mode is
+    this tab's working state, kept the way the panel's open state is."""
+    page, errors = open_page(browser, serve(REPLAYED_PAGE))
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    assert errors == []
+    page.close()
+
+
+# Every legend box stands on its item: same corner, one pixel out, for every item wholly
+# on screen. Items partly off it are clipped to the scroller (shownRect) and are not
+# compared, and items off it have no box shown at all.
+LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
+  const it = document.getElementById(b.dataset.for);
+  const r = it.getBoundingClientRect();
+  if (r.top < 0 || r.bottom > innerHeight) return true;
+  if (b.style.display === 'none') return false;
+  const bb = b.getBoundingClientRect();
+  return Math.abs(bb.left + 1 - r.left) < 1.5 && Math.abs(bb.top + 1 - r.top) < 1.5
+    && Math.abs(bb.width - 2 - r.width) < 1.5 && Math.abs(bb.height - 2 - r.height) < 1.5;
+})"""
+
+
+def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
+    """A legend box kept from a previous reading is a claim about a page that has moved.
+
+    Three of the doors that move it: the page scrolling (items come on screen with no
+    box yet, and the boxes are drawn in document space), the panel opening (the column
+    re-centres, every block reflows, and no scroll or replay says so — each item's own
+    resize does), and the name under the pointer, which is drawn beside the box in the
+    same space: it sat in viewport space once, with the scroll added on top, and stood a
+    screen below its box on any page scrolled at all."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("i")
+    page.wait_for_function(LEGEND_TRUE)
+    page.locator("body").evaluate("b => { b.scrollTop = 1200; }")
+    p = page.locator("#p20")
+    expect(p).to_be_in_viewport()
+    expect(page.locator('.lf-legend-box[data-for="p20"]')).to_be_visible()
+    page.wait_for_function(LEGEND_TRUE)
+    # The name floats where the box's tag stood, over the item's corner — on a scrolled
+    # page as on a fresh one.
+    p.hover()
+    expect(page.locator(".lf-inspect")).to_have_text("paragraph · p20")
+    box = page.locator(".lf-aim").bounding_box()
+    name = page.locator(".lf-inspect").bounding_box()
+    assert abs(name["y"] + name["height"] - box["y"]) < 4, (name, box)
+    assert abs(name["x"] - box["x"]) < 4, (name, box)
+    # The panel takes a strip from the page and every block moves; the legend moves
+    # with them, off the resize each item reports. Opened by key: in the mode a press
+    # on the Comments button is a comment about the button.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.body.getAnimations().every(a => a.playState !== 'running')"
+    )
+    page.wait_for_function(LEGEND_TRUE)
+    assert errors == []
+    page.close()
+
+
+def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, serve):
+    """The aim over a diagram's node named the node — `root-1`, an id mermaid minted and
+    the next render may not — where a plain click already anchored the widget. The
+    entry says which (x-visual: the click's anchor is the widget rather than a generated
+    part inside it), so the aim and the legend both stop at the widget."""
+    page, errors = open_page(browser, serve(PICTURE_PAGE))
+    node = page.locator("#flow svg g[id]").first
+    expect(node).to_be_visible()
+    node.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "flow")
+    page.keyboard.up("Alt")
+    page.keyboard.press("i")
+    assert set(
+        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+    ) == {"t", "p", "flow", "tree"}
+    node.hover()
+    expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
+    assert errors == []
+    page.close()
+
+
 def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
     """What a press would take can change with no mouse event to say so.
 
@@ -4486,6 +4716,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-ins-block",
         "lf-mark-note",
         "lf-aiming",
+        "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
         "lf-over-item",
         "lf-quiet",
     }, (

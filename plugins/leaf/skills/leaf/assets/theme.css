@@ -361,7 +361,10 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
    * ever wider than nothing, and each gives way before anything else does. The drawing
    * between them centres while the three fit and starts at the box's edge once they
    * don't. Every child at its own size, none squeezed to make the row fit, and the box
-   * scrolls what is left over.
+   * scrolls what is left over. What the row holds is the drawing and the two spacers: a
+   * widget declaring x-says as well as x-wide: drawing is refused at the registry door,
+   * the word the layer would write here being an item beside the drawing rather than a
+   * line above it.
    *
    * The spacers read --lf-grow, and read it differently from the box: its `100%` is the
    * holder of whatever reads it, which for the box is the column and for a spacer is the
@@ -398,35 +401,38 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
    * the message instead, which is what a `pre` does everywhere else on the page. */
   [data-lf-wide]:has(> .lf-error) { --lf-room: 0px; }
   [data-lf-wide="drawing"] > .lf-error { flex: auto; min-width: 0; }
-  /* A box that draws one of its own is a box a wide widget stays inside. The room is the page's to
-   * give, and inside a disclosure or a callout the page is not what holds the widget —
-   * a board that took the window from inside a <details> hung out over both edges of
-   * the frame it was filed under, which reads as a broken page rather than as a wide
-   * exhibit. Stated as no room rather than as an exception to the rule above, so the
+  /* A box that draws one of its own is a box a wide widget stays inside. The room is the
+   * page's to give, and inside a disclosure or a callout the page is not what holds the
+   * widget — a board that took the window from inside a <details> hung out over both
+   * edges of the frame it was filed under, which reads as a broken page rather than as a
+   * wide exhibit. Stated as no room rather than as an exception to the rule above, so the
    * widget falls back to the floor that rule already has and fills its holder exactly.
    *
-   * Whoever draws the box says this, in the layer that draws it: these two are the
-   * document's own, the widgets that frame their contents say it in bundled/theme.css,
-   * and a project's box says it in the project's. A transparent wrapper says nothing and
-   * needs to — a section, a tab's panel, the column itself are all the page's own flow,
-   * and an exhibit breaking out through one is the whole point.
+   * A box declares that it frames what it holds in the rule where it draws the frame
+   * (`--lf-frame`), and the room is the second thing the layer reads out of that one
+   * declaration: whoever draws a box gets both by saying one thing, in the layer that
+   * draws it, and a project's card is covered the day it says it. Two lists of tags said
+   * it before, one here and one in bundled/theme.css, and a list beside a declaration is
+   * a copy of it — every tag in them declared the frame, five boxes that declared were in
+   * neither, and `figure`, which draws no box at all, was withholding the room.
    *
-   * `--lf-frame` is the declaration for a box that frames what it holds and it cannot
-   * carry this, which is worth knowing before reaching for it a second time: it says the
-   * box has an inset a child's margin would double, and `main` says it — the column being
-   * a padded box like any other. Read here, that withholds the room from every exhibit on
-   * every page, which is the one thing this whole arrangement exists to grant. The two
-   * questions look like one and are not: what the trim asks is where a box's own inset
-   * ends, and what this asks is whether an exhibit inside it belongs to the page.
+   * `--lf-room` inherits, so one rule at a box's own children reaches a widget however
+   * deep inside it sits, and `--lf-frame` is reset one level in (above), so no box
+   * answers for its grandparent's frame.
    *
-   * What keeps the list from being the kind that stops at what it was taught is that no
-   * list is the mechanism: `version check --render` measures every wide element against
-   * the nearest ancestor that draws one, so the next such box to forget this is a failure
-   * with a name on it rather than a page someone eventually notices looks wrong. The gate
-   * could not see through a scroll container until a diagram in a board card was drawn
-   * 332px across the next column, and the four widgets missing from the list below it
-   * were found the day it could. */
-  :is(details, .callout, blockquote, figure) [data-lf-wide] { --lf-room: 0px; }
+   * The column declares the frame too — it is a padded box like any other and its first
+   * line wants the trim — so it hands the room straight back to what it holds. That is
+   * the whole difference between the page and a box on it, and the gate says it the same
+   * way, by walking up no further than `main`.
+   *
+   * A transparent wrapper declares nothing: a section and a tab's panel are the page's
+   * own flow, and an exhibit breaking out through one is the point. What says so when a
+   * box that draws has not declared is `version check --render`, which measures every
+   * wide element against the nearest ancestor that draws one. It could not see through a
+   * scroll container until a diagram in a board card was drawn 332px across the next
+   * column, and four widgets letting a diagram out were found the day it could. */
+  @container style(--lf-frame: 1) { * { --lf-room: 0px; } }
+  main > * { --lf-room: inherit; }
 }
 /* The headings are the body serif at weight, size and spacing — one voice, four
  * volumes — rather than a display face over a text face. A page whose subject is

@@ -241,15 +241,21 @@ never states, that claim is the value the key should have had.
 
 The stylesheet is under the same rule, since a selector is a consumer too and a list of tags is the
 closed list wearing CSS. A box declares that it frames what it holds (`--lf-frame`) in the rule
-where it draws the frame, and one style query trims what every such box would otherwise paint as
-its own inset — so a project's card is covered by saying the same thing. The norm is
-`plugins/leaf/skills/leaf/CLAUDE.md`'s. One declaration does not answer every question about the
-same boxes, though. The room a wide exhibit may take reads as the same one — what it must stay
-inside is a box that frames what it holds — and `--lf-frame` cannot carry it, since the declaration
-says the box has an inset a child's margin would double and `main` therefore makes it, the column
-being a padded box like any other; read that way the room is withheld from every exhibit on every
-page. Measure a shared declaration before spending it, and the tell is two questions with different
-answers for one box.
+where it draws the frame, and the layer reads that one declaration for both things that follow from
+it: the style query that trims what the box would otherwise paint as its own inset, and the one that
+withholds the room a wide exhibit takes, since inside a box on the page the page is not what holds
+it. A project's card gets both by saying the same thing. The norm is
+`plugins/leaf/skills/leaf/CLAUDE.md`'s.
+
+The room was a list of tags beside that declaration first, because the second reading looks
+impossible: `main` declares the frame too — the column is a padded box like any other — so read
+plainly it withholds the room from every exhibit on every page. But the column is one box and says
+so in one line, handing the room back to what it holds, which is what the gate had been saying all
+along by walking up no further than `main`. While the two lists stood they cost what a list costs:
+every tag in them declared the frame, five boxes that declared were in neither — a diagram in a
+metric stood 216px across the metric beside it — and the one tag that declared nothing, `figure`,
+was withholding the room while drawing no box at all. A declaration that looks like it can answer
+only one of two questions is worth measuring against the second before the list is written.
 
 A fact the whole layer shares belongs to the layer, under a `$` key, rather than to whichever widget
 first needed it. The vendored tokenizer's language list lived in `lf-code`'s `language` enum, and

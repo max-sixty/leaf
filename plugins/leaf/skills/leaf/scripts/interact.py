@@ -4997,6 +4997,21 @@ def validate_registry(registry: dict, source) -> dict:
                 raise RegistryError(
                     f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
                 )
+        # A drawing's box is the clip around something drawn at a size of its own, and
+        # the theme lays it out as a row so the drawing keeps the column's axis and
+        # scrolls only past the room. Every child of that element is an item in the row,
+        # so a word the layer writes into it stands beside the drawing rather than over
+        # it and takes it off the axis by half the word's width — a picture placed
+        # slightly wrong, which nothing else on the page has any way to notice. The
+        # widget that has words as well as a drawing is a box, which lays out both.
+        # (x-paints is the other kind of word and is not this: it renders into the
+        # shared clip, which is positioned out of the flow.)
+        if entry.get("x-wide") == "drawing" and said:
+            raise RegistryError(
+                f"{path}: <{tag}> is x-wide: drawing and says {sorted(said)} — a "
+                "drawing's box holds what was drawn and lays out nothing beside it, "
+                "so a widget that says an attribute as well declares x-wide: box"
+            )
         # An ask names attributes and values the page can actually carry, or it asks
         # on nothing: `status: ["reviewing"]` is a widget silently absent from every
         # count and every step, which is the failure a never-closed vocabulary makes
@@ -6897,10 +6912,11 @@ PAST_THE_COLUMN = """() => {
     // rather than of a list of tags, because the fault is visual and so is the property
     // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
     // and one that grows through a transparent wrapper (a section, a tab's panel) reads
-    // as the exhibit it is. The theme grants the room and each layer withholds it inside
-    // the boxes it draws; this is what says so when one of them forgets. (Nothing to do
-    // with x-paints, which is about words rather than boxes: an attribute rendered as
-    // paint instead of text, and spoken for whoever is listening.)
+    // as the exhibit it is. A box that draws one says so where it draws it (--lf-frame,
+    // theme.css) and the theme reads that declaration to withhold the room; this is what
+    // says so when a box that draws hasn't made it. (Nothing to do with x-paints, which is
+    // about words rather than boxes: an attribute rendered as paint instead of text, and
+    // spoken for whoever is listening.)
     const draws = (el) => {
         const s = getComputedStyle(el);
         return s.backgroundImage !== 'none'
@@ -6942,7 +6958,8 @@ PAST_THE_COLUMN = """() => {
             ? `${at(el)} is set ${past}px past the column, out in the margin`
             : frame
             ? `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — `
-              + `a box that draws one withholds the room (--lf-room: 0px)`
+              + `declare --lf-frame: 1 in the rule that draws the frame, so the box `
+              + `holds the room in as well as the margins`
             : `${at(el)} stands ${past}px past the room the page has for a wide widget`);
     }
     // The room being the page's own box is not the whole of what a wide widget owes,

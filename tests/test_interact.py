@@ -3643,6 +3643,22 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     assert "restated" in result.output
 
 
+def test_the_registry_door_refuses_a_drawing_that_says_an_attribute(page_dir):
+    """The theme lays a drawing's box out as a row so the drawing keeps the column's
+    axis, and a word the layer writes into that element is an item in the row: it stands
+    beside the drawing and takes it off the axis by half its own width. That renders as a
+    picture placed slightly wrong, which no other reading of the page has any way to
+    notice — so the two declarations are refused together, at the door where the widget
+    is described rather than on the page where it is drawn."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-diagram"]["properties"]["caption"] = {"type": "string"}
+    registry["lf-diagram"]["x-says"] = {"caption": "before"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "x-wide: drawing" in result.output and "caption" in result.output
+
+
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     """The runtime writes data-lf-* and .lf-chrome/.lf-live/.lf-copy as its own
     record and reads them back: authored words inside .lf-chrome leave every

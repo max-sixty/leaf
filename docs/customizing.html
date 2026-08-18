@@ -120,9 +120,12 @@ lf-options {
           the inset it stated <em>plus</em> whatever room its first and last blocks
           reserved for neighbours they haven't got, so a card stating 16px comes out 16
           above its title and 29 below its last paragraph, and the difference moves with
-          what the author wrote inside. The shipped theme states the trim once for every
-          layer; a box opts into it where it draws the frame, and
-          <code>version check --render</code> reports one that hasn't.
+          what the author wrote inside. The declaration also decides what holds a wide
+          widget: an <code>x-wide</code> element takes the page's room standing in the
+          page's own flow, and the width of the box it stands in where that box declares
+          the frame. The shipped theme states both once for every layer; a box opts in
+          where it draws the frame, and <code>version check --render</code>
+          reports one that hasn't.
         </p>
         <pre><code>lf-note {
   padding: var(--sp-3);
@@ -406,11 +409,14 @@ lf-options {
                 widget renders one thing drawn at a size of its own, a diagram's graph,
                 so its box is the clip around it — the room the page has, with the
                 drawing as near the column's axis as the claimed margins allow, and
-                scrolling where even the room is short). Nothing is authored for it and
-                no page asks: the theme grows the element out of the column into
-                whichever margins are free, and a margin holding something of the page's
-                — a change's controls, a sidenote — gives nothing, so the exhibit that
-                grows is never drawn over the apparatus beside it.
+                scrolling where even the room is short). A drawing declares no
+                <code>x-says</code>: that box is laid out as a row holding what was
+                drawn, so a word the layer writes into it would stand beside the drawing
+                rather than over it, and the registry refuses the pair. Nothing is
+                authored for it and no page asks: the theme grows the element out of the
+                column into whichever margins are free, and a margin holding something
+                of the page's — a change's controls, a sidenote — gives nothing, so the
+                exhibit that grows is never drawn over the apparatus beside it.
               </td>
             </tr>
             <tr>

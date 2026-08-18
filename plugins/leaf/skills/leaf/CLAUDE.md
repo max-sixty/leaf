@@ -403,7 +403,10 @@ in `theme.css`. The half worth reading twice is who writes it. A list of the box
 the closed list the norms forbid: a layer's stylesheet can name only that layer's own boxes, so a project's
 card is outside it and the failure is a silent 13px rather than an error. A box says so itself instead, in the
 same declaration where it draws the frame (`--lf-frame: 1`), and one style query finds every one of them in any
-layer. The box `leaf customize widget` scaffolds says it, so a project's first widget is right by construction.
+layer. The layer reads it for the other question about the same box, too: a wide widget inside a box that
+frames what it holds takes the box's width rather than the page's room (`--lf-room`, theme.css), so one
+word answers both and a project's card is covered either way. The box `leaf customize widget` scaffolds says it, so a
+project's first widget is right by construction.
 
 Which child is at that edge is a question about the page's own blocks, and `:first-child` is the DOM's answer
 to it. The two agree only where no module has written anything — a pick mark is appended and positioned out of

@@ -16091,7 +16091,10 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 
 
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
-# frame, the option's card) and a wrapper that doesn't (a plain section).
+# frame, the option's card, the metric, the page's own div) and a wrapper that doesn't
+# (a plain section). The div is the case the theme cannot name: it draws its box in the
+# page's own style and declares the frame there, which is the whole of what a project
+# writes to hold an exhibit inside its own card.
 FRAMED_WIDE_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -16136,6 +16139,22 @@ graph LR
   </lf-card></lf-column>
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
+<lf-metrics id="nums">
+  <lf-metric id="me1" value="410ms">p95, with the path it measures
+    <lf-diagram id="in-metric"><pre>
+graph LR
+  A[request] --> B[queue]
+  B --> C[worker]
+</pre></lf-diagram>
+  </lf-metric>
+</lf-metrics>
+<div id="own-box" style="border: 1px solid #999; padding: 10px; --lf-frame: 1">
+  <lf-diagram id="in-own-box"><pre>
+graph LR
+  A[request] --> B[queue]
+  B --> C[worker]
+</pre></lf-diagram>
+</div>
 </main>
 </body>
 </html>
@@ -16541,7 +16560,13 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
 
     A plain section is the control. It paints nothing and is the column's own width, so a
     board inside one takes the room exactly as it would standing alone — which is what
-    says this is about the box and not about being nested."""
+    says this is about the box and not about being nested.
+
+    Which boxes those are is read off `--lf-frame`, the word a box already says where it
+    draws its frame, so the metric here is held by declaring one and the page's own div by
+    declaring the same one. A list of tags stood in for that reading and shadowed it: the
+    metric declared the frame and was not in the list, and no list a layer writes can
+    reach the div at all."""
     page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
     boxes = page.evaluate("""() => {
         const box = (id) => {
@@ -16554,7 +16579,9 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
                          - b.left - parseFloat(s.paddingLeft),
                  loose: box('in-section'), specimen: box('quoted'),
                  quoted: box('in-specimen'), card: box('opt-a'), diagram: box('in-card'),
-                 boardCard: box('ek1'), inBoardCard: box('in-board-card') };
+                 boardCard: box('ek1'), inBoardCard: box('in-board-card'),
+                 metric: box('me1'), inMetric: box('in-metric'),
+                 ownBox: box('own-box'), inOwnBox: box('in-own-box') };
     }""")
 
     assert boxes["loose"]["width"] > boxes["column"] + 1, (
@@ -16586,6 +16613,22 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "the diagram crossed its card's right edge and is drawn over the next column: "
         f"diagram out to {boxes['inBoardCard']['right']:.0f}, card ends at "
         f"{boxes['boardCard']['right']:.0f}"
+    )
+    assert boxes["inMetric"]["left"] >= boxes["metric"]["left"] - 1, (
+        "the diagram crossed the metric's left edge"
+    )
+    assert boxes["inMetric"]["right"] <= boxes["metric"]["right"] + 1, (
+        "the diagram crossed the metric's right edge and is drawn over the metric "
+        f"beside it: diagram out to {boxes['inMetric']['right']:.0f}, metric ends at "
+        f"{boxes['metric']['right']:.0f}"
+    )
+    assert boxes["inOwnBox"]["left"] >= boxes["ownBox"]["left"] - 1, (
+        "the diagram crossed the left edge of the box the page drew for it"
+    )
+    assert boxes["inOwnBox"]["right"] <= boxes["ownBox"]["right"] + 1, (
+        "the diagram crossed the right edge of the box the page drew for it, so a "
+        "project declaring the frame does not get the room held in: diagram out to "
+        f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
     )
     assert errors == []
     page.close()

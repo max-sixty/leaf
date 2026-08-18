@@ -65,10 +65,23 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("LEAF_AGENT", raising=False)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def browser():
     """The Chrome already on the machine, driven for the tests a static read
-    can't answer: what a widget upgrades into, and what the site fits on."""
+    can't answer: what a widget upgrades into, and what the site fits on.
+
+    Session-scoped, which under xdist is one Chrome per worker for the run.
+    Module scope launched a second whenever a worker crossed between the two
+    modules that use this fixture — eleven launches on a two-module slice where
+    eight workers need eight. Launches are all it saves: eight Chromes are alive
+    at the peak either way, each a browser process, a GPU process, and a handful
+    of windows registered with WindowServer, which sat at 130% with five suites
+    running at once.
+
+    The scope does not reach isolation, which is per context: `new_page` opens a
+    fresh context per call, and a fresh context has empty `localStorage` and
+    `sessionStorage` — the state a `goto` inside one would carry over
+    (tests/CLAUDE.md, "Reloading is not resetting")."""
     with sync_playwright() as p:
         b = p.chromium.launch(channel="chrome")
         yield b

@@ -1323,16 +1323,18 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     assert errors == []
 
 
-# Five boxes over their container, differing only in what holds them and how. The first
-# two are the rule and neither alone proves it: a page that named both would refuse every
+# Boxes over their container, differing only in what holds them and how. The first two
+# are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before
 # it could see a clipped box at all. The third says which box holds this one — it is
 # written inside a clipping box and placed against the column, so the markup and the
-# containing blocks answer differently and only one of them paints. The fourth is a box
-# that says it cuts. The fifth is where the cut falls: a border hides what is drawn under
-# it, and a border box says nothing about that. The sixth pair is why the report is
-# suppressed per container rather than per subtree — nested, and lost out of two
-# different boxes by two very different amounts.
+# containing blocks answer differently and only one of them paints. The fourth is that
+# question the other way up: containment makes a static box the containing block of what
+# it then cuts, while the overflow every gate before this one read computes `visible`.
+# The fifth is a box that says it cuts. The sixth is where the cut falls: a border hides
+# what is drawn under it, and a border box says nothing about that. The last pair is why
+# the report is suppressed per container rather than per subtree — nested, and lost out
+# of two different boxes by two very different amounts.
 OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='clipping' style='width: 300px; overflow: hidden'>"
@@ -1342,6 +1344,9 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "<div id='holding' style='width: 300px; height: 40px; overflow: hidden'>"
     "<div id='hung' style='position: absolute; width: 420px'>Placed, so this one "
     "holds it not at all.</div></div>"
+    "<div id='contained' style='width: 300px; height: 40px; contain: paint'>"
+    "<div id='cut-by-paint' style='position: absolute; width: 420px'>Containment cuts "
+    "this one while overflow says visible.</div></div>"
     "<div id='telling' style='width: 300px; overflow: hidden; "
     "text-overflow: ellipsis; white-space: nowrap'>"
     "<span id='told'>A line long enough to run past the end of the box it is written "
@@ -1364,7 +1369,14 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     """A box need not float to be lost. The column reading hands a whole subtree to the
     first ancestor that takes its own overflow, and that container answers for what ran
     out of it only where the reader can still get to it — so the gate asks which kind of
-    container it was, of every box rather than of floats alone."""
+    container it was, of every box rather than of floats alone.
+
+    And asks it of what the container does rather than of its overflow, which is one of
+    three ways to draw nothing past an edge: paint containment and content-visibility
+    cut a box while overflow computes `visible`. Containment carries the placed case
+    too, being what makes a static box the containing block of the box it then cuts —
+    the converse of the box hung off `holding`, which is placed out of a clip that never
+    held it."""
     failures = interact.render_version(browser, serve(OVER_ITS_CONTAINER))
 
     assert [
@@ -1391,6 +1403,11 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         for f in failures
         if "<div id=over-by-far> is drawn" in f and "outside <div id=inner-box>" in f
     ], f"a 3px loss out of one box hid a 400px loss out of another: {failures}"
+    assert [
+        f
+        for f in failures
+        if "<div id=cut-by-paint> is drawn" in f and "outside <div id=contained>" in f
+    ], f"a container that cuts by containment answered for nothing: {failures}"
 
 
 SCROLLED_CONTAINER = LONG_PAGE.replace(
@@ -1467,7 +1484,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     page.locator(".lf-comments").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
-    spills = page.evaluate(interact.PAST_THE_COLUMN)
+    misplaced = page.evaluate(interact.MISPLACED_BOXES)
     resized(page, 1600, 900)
     wide = page.evaluate(reading)
     page.close()
@@ -1476,9 +1493,11 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
         f"no note stood in the margin to begin with, so this proves nothing: {roomy}"
     )
     assert cramped["float"] == "none", (
-        f"the strip outlived the room for it: {cramped}, {spills}"
+        f"the strip outlived the room for it: {cramped}, {misplaced}"
     )
-    assert spills == [], f"content set outside a column the strip had crushed: {spills}"
+    assert misplaced == [], (
+        f"content set outside a column the strip had crushed: {misplaced}"
+    )
     assert wide["float"] == "left", (
         f"a window wide enough for both moved the notes anyway: {wide}"
     )

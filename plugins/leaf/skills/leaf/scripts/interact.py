@@ -6828,13 +6828,18 @@ UNREACHABLE_WORDS = """() => {
 }"""
 
 
-# Content set outside the column it belongs to. The sideways-scroll reading is
-# the same question asked of the window, and the window is the wider of the two:
-# the gate renders at 1200px against a 720px column, so 200px of margin on each
-# side absorbs a spill that scrolls nothing. What is out there is the
-# margin, where a suggestion's controls hang, and the user's own window is
-# free to be narrower than this one — so a page that passed here scrolls
-# sideways on the machine it was written for.
+# Every box is drawn somewhere, and something has to answer for where. Three
+# readings ask it — of the column, of the room the page keeps for a wide widget,
+# and of the container that was handed a box's overflow — and the last two are
+# written beside the loops that make them.
+#
+# The column first: content set outside the one it belongs to. The
+# sideways-scroll reading is the same question asked of the window, and the
+# window is the wider of the two: the gate renders at 1200px against a 720px
+# column, so 200px of margin on each side absorbs a spill that scrolls nothing.
+# What is out there is the margin, where a suggestion's controls hang, and the
+# user's own window is free to be narrower than this one — so a page that passed
+# here scrolls sideways on the machine it was written for.
 #
 # The static lint asks about the column too (_column_width), and asks it of the
 # stylesheet, because that is all a linter has: a width the author pinned in
@@ -6858,14 +6863,14 @@ UNREACHABLE_WORDS = """() => {
 # its parent put in the margin on purpose — named, one by one, as spilling out of a
 # column none of them was ever in.
 #
-# And a scroll container answers for what it
-# holds: a box inside one runs on past the clip and is drawn only as far as its
-# container reaches, so a wide table's own rows would otherwise be reported as
-# spilling out of the table that is containing them. What is left is the flow,
-# which the column is the whole width of. A spill is reported once, at the
-# outermost element that has it, because everything inside one inherits its box
-# and would name the same fault a dozen times over.
-PAST_THE_COLUMN = """() => {
+# And a scroll container answers for what it holds: a box inside one runs on
+# past the clip and is drawn only as far as its container reaches, so a wide
+# table's own rows would otherwise be reported as spilling out of the table that
+# is containing them. What is left is the flow, which the column is the whole
+# width of. A spill is reported once, at the outermost element that has it,
+# because everything inside one inherits its box and would name the same fault a
+# dozen times over.
+MISPLACED_BOXES = """() => {
     const main = document.querySelector('main');
     if (!main) return [];
     const style = getComputedStyle(main), box = main.getBoundingClientRect();
@@ -6897,13 +6902,23 @@ PAST_THE_COLUMN = """() => {
         const b = el.getBoundingClientRect();
         return floatSide(s) === 'left' ? b.right <= left + 1 : b.left >= right - 1;
     };
+    // Three ways a container draws nothing past its own edge, and only one of them shows
+    // in `overflow`: paint containment and content-visibility both clip while overflow
+    // computes `visible`. Both readings that hand a box to an ancestor ask through this,
+    // or a box inside such a container is named for a spill it is drawn nowhere near and
+    // left unnamed for the loss it did take, the walk at the foot of this pass having
+    // gone straight past the container that cut it. (TRAPPED_MARGINS reads `contain` for
+    // the neighbouring question: which margins a formatting context keeps in.)
+    const clips = (s) =>
+        s.overflowX !== 'visible' || s.overflowY !== 'visible'
+        || /paint|strict|content/.test(s.contain) || s.contentVisibility !== 'visible';
     const answeredFor = (el) => {
         const own = getComputedStyle(el);
         if (own.position === 'absolute' || inTheMargin(el, own)) return true;
         for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
             const s = getComputedStyle(a);
             if (s.position === 'absolute' || inTheMargin(a, s)) return true;
-            if (s.overflowX !== 'visible' || s.overflowY !== 'visible') return true;
+            if (clips(s)) return true;
         }
         return false;
     };
@@ -7037,9 +7052,13 @@ PAST_THE_COLUMN = """() => {
     const scrolls = (s) => /^(auto|scroll)$/.test(s.overflowX);
     const lost = new Map();
     // Up the containing blocks rather than the markup, since those are the boxes that
-    // hold this one: an absolutely-placed box hangs off the nearest positioned ancestor,
-    // and a static box it happens to be written inside clips it not at all. offsetParent
-    // names that ancestor, and a fixed box hangs off none of them.
+    // hold this one: an absolutely-placed box hangs off the nearest ancestor that
+    // establishes one, and a static box it happens to be written inside clips it not at
+    // all. offsetParent names that ancestor. Its own definition says positioned
+    // ancestors, which reads as a gap — transform, filter, will-change, contain and
+    // content-visibility each establish a containing block too — but Chrome returns
+    // those as well, agreeing with where the box lands, so the property list a reader
+    // reaches for here is already in the one call. A fixed box hangs off none of them.
     const holder = (el) => {
         const s = getComputedStyle(el);
         return s.position === 'absolute' ? el.offsetParent
@@ -7051,10 +7070,7 @@ PAST_THE_COLUMN = """() => {
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
         let a = holder(el);
-        for (; a; a = holder(a)) {
-            const s = getComputedStyle(a);
-            if (s.overflowX !== 'visible' || s.overflowY !== 'visible') break;
-        }
+        while (a && !clips(getComputedStyle(a))) a = holder(a);
         if (!a) continue;
         const s = getComputedStyle(a), c = a.getBoundingClientRect();
         // text-overflow is the mark, declared in the rule that does the cutting, the
@@ -7764,7 +7780,7 @@ def render_version(browser, url: str) -> list:
         overflow = page.evaluate(
             "document.body.scrollWidth - document.body.clientWidth"
         )
-        spills = page.evaluate(PAST_THE_COLUMN)
+        misplaced = page.evaluate(MISPLACED_BOXES)
         unreachable = page.evaluate(UNREACHABLE_WORDS)
         covered = page.evaluate(COVERED_WORDS)
         unread = page.evaluate(UNREAD_SYNTAX)
@@ -7886,7 +7902,7 @@ def render_version(browser, url: str) -> list:
             )
         if overflow > 0:
             found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
-        found += [f"[{scheme}] {s}" for s in spills]
+        found += [f"[{scheme}] {s}" for s in misplaced]
         found += [f"[{scheme}] {w}" for w in unreachable]
         found += [f"[{scheme}] {c}" for c in covered]
         found += [f"[{scheme}] {u}" for u in unread]

@@ -3195,36 +3195,30 @@ def cmd_transcript(page_dir: Path) -> None:
 CATALOG_PREAMBLE = """\
 # Widget vocabulary, vendored for this page — `version check` validates against it.
 #
-# Widgets are lf-* elements in the authored HTML; attributes carry scalars
-# (enums, flags), children carry prose, and an item's title is a leading
-# <strong> child. Every lf-* element takes an explicit end tag — never
-# <lf-foo/>. Ids are authored (lowercase kebab), unique, stable across
-# versions. Each entry is JSON Schema over the attributes; x-parent names the
-# required parent, x-content the content model (prose | items | data | none).
-# A "data" body is one <pre> holding text in the notation the description
-# names, < > escaped — <pre> because that is the only thing in HTML that says
-# whitespace is load-bearing without a stylesheet to read.
-# x-upgrade marks tags a JS module enhances in the browser — the interactive
-# widgets and the data-body renderers; x-says names the attributes whose values
-# the reader sees as words, and the edge each renders at, so the user can
-# select and comment on them like any other text on the page. x-verbatim marks
-# an upgraded element whose body reaches the reader as its own words, which is
-# what makes it quotable — a body without it is source the widget renders.
-# x-language names the attribute carrying a code language, which is checked
-# against the one list this page colors from (printed below). x-awaits marks a
-# tag whose instances stand as requests to the reader — what the banner counts
-# and the `a` key steps through, so a page's open questions are findable
-# without the reader hunting for them. x-report is the agent channel: verbs a
-# worker folds onto the page with `leaf report`, standing as provisional
-# state until a version absorbs or overrules them (printed below as $report).
-# x-wide marks a tag whose instances stand wider than the prose column when the
-# window has the room — evidence as wide as what it holds, a board's columns or
-# a diagram's graph, against prose set to a measure. Nothing is authored for it
-# and no page asks: the widget kind declares it and the theme grows the element
-# out of the column into whichever margins are free, to one width the whole
-# vocabulary shares. A margin holding something of the page's — a change's
-# controls, a sidenote — gives nothing, so the exhibit that grows is never
-# drawn over the apparatus beside it.
+# Widgets are lf-* elements in the authored HTML; attributes carry scalars (enums,
+# flags), children carry prose, and an item's title is a leading <strong> child. Every
+# lf-* element takes an explicit end tag — never <lf-foo/>. Ids are authored (lowercase
+# kebab), unique, stable across versions. Each entry is JSON Schema over the attributes;
+# x-parent names the required parent, x-content the content model
+# (prose | items | data | none). A "data" body is one <pre> holding text in the notation
+# the description names, < > escaped — <pre> because that is the only thing in HTML that
+# says whitespace is load-bearing without a stylesheet to read.
+#
+# x-upgrade marks tags a JS module enhances in the browser. x-says names the attributes
+# whose values the reader sees as words, and the edge each renders at, so the user can
+# select and comment on them like any other text. x-verbatim marks an upgraded element
+# whose body reaches the reader as its own words, which is what makes it quotable — a body
+# without it is source the widget renders. x-language names the attribute carrying a code
+# language, checked against the one list this page colors from (printed below). x-awaits
+# marks a tag whose instances stand as requests to the reader — what the banner counts and
+# the `a` key steps through. x-report is the agent channel: verbs a worker folds onto the
+# page with `leaf report`, standing as provisional state until a version absorbs or
+# overrules them (printed below as $report). x-wide marks a tag whose instances stand
+# wider than the prose column when the window has the room — evidence as wide as what it
+# holds, against prose set to a measure. Nothing is authored for it: the widget kind
+# declares it and the theme grows the element into whichever margins are free. A margin
+# holding something of the page's gives nothing, so the exhibit that grows is never drawn
+# over the apparatus beside it.
 """
 
 
@@ -6787,43 +6781,34 @@ UNREACHABLE_WORDS = """() => {
 }"""
 
 
-# Content set outside the column it belongs to. The sideways-scroll reading is
-# the same question asked of the window, and the window is the wider of the two:
-# the gate renders at 1200px against a 720px column, so 200px of margin on each
-# side absorbs a spill that scrolls nothing. What is out there is the
-# margin, where a suggestion's controls hang, and the user's own window is
-# free to be narrower than this one — so a page that passed here scrolls
+# Content set outside the column it belongs to. The sideways-scroll reading is the same
+# question asked of the window, and the window is the wider of the two: the gate renders
+# at 1200px against a 720px column, so 200px of margin each side absorbs a spill that
+# scrolls nothing. What is out there is the margin, where a suggestion's controls hang,
+# and the user's own window is free to be narrower — so a page that passed here scrolls
 # sideways on the machine it was written for.
 #
 # The static lint asks about the column too (_column_width), and asks it of the
-# stylesheet, because that is all a linter has: a width the author pinned in
-# pixels, against a number parsed out of a max-width. This is the same column
-# with a layout engine behind it, so it is measured rather than parsed, and it
-# catches what no declaration states — a vw width, an unbreakable table, a
-# widget that came out wider than its content.
+# stylesheet, because that is all a linter has. This is the same column with a layout
+# engine behind it, so it is measured rather than parsed, and it catches what no
+# declaration states — a vw width, an unbreakable table, a widget that came out wider than
+# its content.
 #
-# Two kinds of element answer for their own width and not to this, and both say
-# so in their computed style. The margin has legitimate residents — a
-# suggestion's controls, a sidenote, the hidden line the paint pass writes — and
-# each is out there by its own declaration: placed absolutely, or floated clear
-# of the column. Where the box sits is what separates a resident from a spill,
-# which crosses the column's edge rather than clearing it, having started inside
-# and run out. So a float that merely overflows is still reported, and a widget's
-# own float inside the column (an option's .facts rail) is never in question.
+# Two kinds of element answer for their own width and not to this, and both say so in
+# their computed style. The margin has legitimate residents — a suggestion's controls, a
+# sidenote, the hidden line the paint pass writes — each out there by its own declaration,
+# placed absolutely or floated clear of the column. Where the box sits is what separates a
+# resident from a spill, which crosses the column's edge rather than clearing it. So a
+# float that merely overflows is still reported, and a widget's own float inside the
+# column (an option's .facts rail) is never in question.
 #
-# A resident answers for what it holds, which is why both readings are made up the
-# ancestors and not of the element alone. A sidenote is prose, so it carries the
-# <code>, links and emphasis any other prose does, and each of those inherits a box
-# its parent put in the margin on purpose — named, one by one, as spilling out of a
-# column none of them was ever in.
-#
-# And a scroll container answers for what it
-# holds: a box inside one runs on past the clip and is drawn only as far as its
-# container reaches, so a wide table's own rows would otherwise be reported as
-# spilling out of the table that is containing them. What is left is the flow,
-# which the column is the whole width of. A spill is reported once, at the
-# outermost element that has it, because everything inside one inherits its box
-# and would name the same fault a dozen times over.
+# Both readings are made up the ancestors and not of the element alone, because a resident
+# answers for what it holds: a sidenote is prose, so it carries the <code>, links and
+# emphasis any other prose does, each inheriting a box its parent put in the margin on
+# purpose. And a scroll container answers for what it holds: a box inside one runs on past
+# the clip, so a wide table's own rows would otherwise be reported as spilling out of the
+# table containing them. What is left is the flow, which the column is the whole width of.
+# A spill is reported once, at the outermost element that has it.
 PAST_THE_COLUMN = """() => {
     const main = document.querySelector('main');
     if (!main) return [];
@@ -7287,11 +7272,10 @@ UNREAD_SYNTAX = (
 
 # Words a declaration promised and the page never got. Every other reading here works
 # from what the browser drew, and that is exactly what cannot see this one: a word that
-# never arrived looks the same as an attribute with nothing to say, and a fact the page
-# paints in colour alone is a fact no measurement of a drawn page has ever read. The
-# registry is what knows the difference — x-says names the attributes whose values are
-# words at the element's edge, x-paints the ones drawn as paint and spoken to a reader
-# listening (renderQuiet) — so the declaration is what this asks against.
+# never arrived looks the same as an attribute with nothing to say. The registry is what
+# knows the difference — x-says names the attributes whose values are words at the
+# element's edge, x-paints the ones drawn as paint and spoken to a reader listening
+# (renderQuiet) — so the declaration is what this asks against.
 #
 # Both passes run once at the upgrade, before an async widget's own render lands, so a
 # module that rebuilds its body from a settle() promise takes the words out with it and
@@ -7299,24 +7283,20 @@ UNREAD_SYNTAX = (
 # does, which decides how long each stays gone rather than whether it goes.
 #
 # It reads every open root (OPEN_ROOTS) where both word passes stop at the boundary on
-# purpose: which widgets the page holds is the document's question, and settling a
-# staged widget's nesting in a sweep would be writing that contract where nobody would
-# look for it (the layer's CLAUDE.md). So a staged element keeps its declarations and
-# gets neither pass, which is exactly where a promised word reaches nobody in silence —
-# reported here, to the module's author, at handover.
+# purpose: which widgets the page holds is the document's question, and settling a staged
+# widget's nesting in a sweep would be writing that contract where nobody would look for
+# it (the layer's CLAUDE.md). So a staged element keeps its declarations and gets neither
+# pass — reported here, to the module's author, at handover.
 #
-# Both halves ask the *rendered* page rather than the markup, and a shadow host is why:
-# an element that stages a tree keeps its light DOM in the document and out of every box,
-# so both passes find the host, write there, and leave `textContent` and `querySelector`
-# reporting words the reader will never get. Each half gets to the rendered page its own
-# way, because they read different things. Words are `says()`, the layer's one answer to
-# what an element says rather than a second reading spelled here — asked of the host's
-# root where there is one, since the walk behind it substitutes a declared root for a
-# *child* and never for the element it was handed. The quiet word is in no such reading,
-# wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
-# span clipped to a pixel still has one wherever it renders, and none at all where it
-# doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
-# out here the way COVERED_WORDS holds it out.
+# Both halves ask the *rendered* page rather than the markup, and a shadow host is why: an
+# element that stages a tree keeps its light DOM in the document and out of every box, so
+# both passes find the host, write there, and leave `textContent` reporting words the
+# reader will never get. Words are `says()`, asked of the host's root where there is one,
+# since the walk behind it substitutes a declared root for a *child* and never for the
+# element it was handed. The quiet word wears the .lf-ui that `says` skips on purpose, so
+# what is asked of it is its box: a span clipped to a pixel still has one wherever it
+# renders, and none at all where it doesn't. A collapsed card lays out nothing either, so
+# [hidden] is held out here the way COVERED_WORDS holds it out.
 SILENT_WORDS = (
     """(registry) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS

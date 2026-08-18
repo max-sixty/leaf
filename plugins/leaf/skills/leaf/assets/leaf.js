@@ -465,23 +465,20 @@ const WORKS = "a, audio, button, input, label, select, summary, textarea, video"
 // It exists because an option's case is now argued inside the option — a screenshot pair
 // to flip, a disclosure to open, tabs to walk — while the whole card is what takes the
 // pick. Reading the evidence then cast a vote: a click on a tab chose that option, and one
-// on a shot's `after` radio chose it and cleared it again, two decisions the reader never
-// made and only the log to show for them. Fail closed, because a pick is sent the moment
-// it is made: a gesture nobody can prove was a choice is not one.
+// on a shot's `after` radio chose it and cleared it again. Fail closed, because a pick is
+// sent the moment it is made: a gesture nobody can prove was a choice is not one.
 //
 // Two vocabularies, because a container holds two kinds of thing. A widget it merely
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
 // this container is made of (x-parent) — declared rather than listed, so the twelfth
-// widget is covered by its entry and a widget whose gesture lands on its own words rather
-// than on chrome (lf-draft's double-click) is covered with the rest. Inert ones go in with
-// them: a diagram is evidence the reader studies with the pointer on it, and which
-// evidence happens to carry a control is nothing they can see.
+// widget is covered by its entry. Inert ones go in with them: a diagram is evidence the
+// reader studies with the pointer on it.
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
-// hidden line saying how many comments a block holds, which a screen reader reaches by
-// Tab and which used to cast a vote on the way into the thread. It catches the container's
-// own apparatus too, which no rule here could tell from the rest; a container excludes
-// its own, being the only thing that can name them.
+// hidden line saying how many comments a block holds, which a screen reader reaches by Tab
+// and which used to cast a vote on the way into the thread. It catches the container's own
+// apparatus too, which no rule here could tell from the rest; a container excludes its
+// own, being the only thing that can name them.
 export function worksInside(node, container) {
   // The closure, not one level: "what this container is made of" includes a
   // part's own parts — a column's cards are the board's, and one level deep a
@@ -579,30 +576,27 @@ document.addEventListener(
 );
 
 // A control's label, and which kind of word it is. Most are things to do — "Save",
-// "choose", a grip — and go with the rest of the UI on paper, out of reach of a
-// quote. Some are the page speaking: a pick mark reading "chosen" is the only place
-// the page says which option it carries, and a tab's name is the panel's only name
-// once the strip exists. One element wears both over its life, so the kind is
-// restated on every write rather than settled at birth.
+// "choose", a grip — and go with the rest of the UI on paper, out of reach of a quote.
+// Some are the page speaking: a pick mark reading "chosen" is the only place the page says
+// which option it carries. One element wears both over its life, so the kind is restated
+// on every write rather than settled at birth.
 //
-// This writes one marker and one only: data-lf-said, the page speaking. Anchoring
-// takes it over the `.lf-ui` box around it — that box is a look, the chrome face, and
-// it was standing in for a permission the user has no category for — and paper
-// reads it beside data-lf-offer to keep a control whose label is one of the page's own
-// words. data-lf-gen goes on either way, because the diff parses the base version
-// unupgraded and would read any label as text that version lacked.
+// This writes one marker and one only: data-lf-said, the page speaking. Anchoring takes it
+// over the `.lf-ui` box around it — that box is a look, and it was standing in for a
+// permission the user has no category for — and paper reads it beside data-lf-offer to
+// keep a control whose label is one of the page's own words. data-lf-gen goes on either
+// way, because the diff parses the base version unupgraded and would read any label as
+// text that version lacked.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
-// made: this is a control a widget injected, true for the mark's whole life however it
-// is worded, and three passes ask it (print, the drag guard above, the render gate).
-// Clearing it here made "paper drops this" the meaning and left the other two unable to
-// see a control — a drag across a picked card's mark was a press again, and only
-// lf-options' own guard on the card stood between that and clearing the pick.
+// made: this is a control a widget injected, true for the mark's whole life however it is
+// worded, and three passes ask it (print, the drag guard above, the render gate). Clearing
+// it here made "paper drops this" the meaning and left the other two unable to see a
+// control — a drag across a picked card's mark was a press again.
 //
-// `says` has no default, because the answer a caller doesn't give is the one that
-// costs a printed page its words, and silently. Refusing throws where the widget
-// upgrades, which the console reports and the render gate reads back as a finding
-// — the loud direction, in front of whoever wrote the label.
+// `says` has no default, because the answer a caller doesn't give is the one that costs a
+// printed page its words, and silently. Refusing throws where the widget upgrades, which
+// the console reports and the render gate reads back as a finding.
 export function relabel(node, label, { says } = {}) {
   if (typeof says !== "boolean")
     throw new TypeError(
@@ -1017,14 +1011,11 @@ function merge(sections, { title, when, at, rows }) {
  *
  * A scope's `when` and a row's `when` are different questions, and keeping them apart is
  * what lets one declaration feed both surfaces. The scope's is the capability — does this
- * machine have neighbours to walk, does this page have a second version — and it gates the
- * reference. The row's is whether this press would move now — is a card held, has this
- * thread a box to reply into — and it gates the line, where the reader is standing in the
- * scope and can see the answer. So the reference names `r` wherever the page has threads,
- * which is what a reader learning the keyboard needs, and the line offers it only on a
- * thread that has something to resolve, which is what "a key on screen is a key that
- * works" asks for. One `when` answering both left `r` and Enter live over the whole page,
- * where the press no-opped.
+ * page have a second version — and it gates the reference. The row's is whether this press
+ * would move now, and it gates the line, where the reader is standing in the scope and can
+ * see the answer. So the reference names `r` wherever the page has threads, and the line
+ * offers it only on a thread that has something to resolve. One `when` answering both left
+ * `r` and Enter live over the whole page, where the press no-opped.
  *
  * A control whose keys change with its state declares every state's rows at once, each
  * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is
@@ -1033,11 +1024,10 @@ function merge(sections, { title, when, at, rows }) {
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * every x-upgrade module loads on every page, so a scope declared at the top level is help
  * for a widget the page hasn't got. The scope leaves with its element; there is no
- * withdrawal, because a control that stops answering a key says so in the row's `when`,
- * where every surface can read it.
+ * withdrawal, because a control that stops answering a key says so in the row's `when`.
  *
- * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
- * grabbed card answers — reads them back off the declaration rather than restating them.
+ * Returns the rows, so a widget that says its own keys out loud reads them back off the
+ * declaration rather than restating them.
  */
 export function keys(where, title, rows, when) {
   elementScopes.set(where, {
@@ -1318,31 +1308,25 @@ function markWide(root) {
 // Words a widget says through an attribute — a metric's number, an event's time, an
 // option's chip band — rendered as text the user can reach. The theme renders the same
 // words with `content: attr()`, and a pseudo-element's glyphs are in no text node: no
-// selection can cover them, so no comment can be anchored on them, and the page shows
-// text you can read and can't point at. Not the widget author's to remember, either: the
-// registry names the attributes (x-says) and one pass renders them, so a widget cannot
-// render a word the user can't quote.
+// selection can cover them, so the page shows text you can read and can't point at. Not
+// the widget author's to remember, either: the registry names the attributes (x-says) and
+// one pass renders them, so a widget cannot render a word the user can't quote.
 //
 // Each value goes at the edge its pseudo-element occupied (before = first child, after =
 // last) — the only placement a pseudo could ever have had, and so the line past which a
-// widget writes its own (lf-milestone's chips are a list and sit mid-element;
-// lf-column's heading is its list's accessible name, which this pass knows nothing
-// about). Those write the same data-lf-said span, and the guard below means the two
-// compose rather than race. The pass runs after the upgrades, so a module that rebuilds
-// its own body can't wipe a span put there first.
+// widget writes its own (lf-milestone's chips sit mid-element; lf-column's heading is its
+// list's accessible name). Those write the same data-lf-said span, and the guard below
+// means the two compose rather than race. The pass runs after the upgrades, so a module
+// that rebuilds its own body can't wipe a span put there first.
 //
-// The theme's pseudo rules stay, as the rendering a page carrying no script at all still
-// gets (docs/how-it-works.html is one); they stand down where this pass has been, asked
-// by :has(), so the two are never both on. The span is data-lf-gen and not .lf-ui: the
-// diff parses the base version unupgraded and must not read it as text that version
-// lacked, and the user must be able to quote it.
+// The theme's pseudo rules stay, as the rendering a page carrying no script still gets;
+// they stand down where this pass has been, asked by :has(). The span is data-lf-gen and
+// not .lf-ui: the diff parses the base version unupgraded and must not read it as text
+// that version lacked, and the user must be able to quote it.
 //
 // data-lf-said names the attribute here and stands bare on a label relabel wrote, because
 // the two are one claim — these words are the page's, whoever rendered them. The anchor
-// pass reads the marker alone; the value is for whoever means one attribute in
-// particular, which is this pass (so it writes no second span over its own) and the
-// theme, whose every rule names the attribute it styles rather than matching the bare
-// marker.
+// pass reads the marker alone; the value is for whoever means one attribute in particular.
 function renderSaid(root) {
   for (const [tag, entry] of Object.entries(registry)) {
     if (!entry["x-says"]) continue;
@@ -1375,30 +1359,23 @@ function renderSaid(root) {
 // What a widget paints and never words. A task's status marker, a milestone's dot, an
 // event's kind band, the accent ring on the recommended option: each is a fact the eye
 // reads off paint alone, so a reader listening is handed every word around it and nothing
-// of the fact itself — done sounded like blocked, and the page's own recommendation was
-// invisible to the reader most in need of it. Same reasoning as renderSaid, one rung
+// of the fact itself — done sounded like blocked. Same reasoning as renderSaid, one rung
 // quieter: the registry names the attributes (x-paints) and one pass speaks them, because
 // left to each module it is a thing to remember, and lf-event and lf-option, which have no
-// module at all, could never have remembered it.
-//
-// The value is the word, or the attribute's own name where the value is empty: an enum
-// means what it says (`blocked`), and a flag attribute means what it is called
-// (`recommended`), which is the whole of what its ring says to the eye.
+// module at all, could never have remembered it. The value is the word, or the attribute's
+// own name where the value is empty: an enum means what it says (`blocked`), a flag means
+// what it is called (`recommended`).
 //
 // The runtime's own restatement paint is said here too — the same failure under a
-// different owner, and the one the code that paints it already calls a debt: a decision
-// undone looks exactly like one never made, and the outline stating the difference states
-// it in ink alone. It composes into the element's one quiet span rather than taking a
-// second, so the two cannot fight over the place, and every quiet word on the page is
-// written by one call whichever facts it is carrying.
+// different owner: a decision undone looks exactly like one never made, and the outline
+// stating the difference states it in ink alone. It composes into the element's one quiet
+// span rather than taking a second, so the two cannot fight over the place.
 //
-// Its two neighbours in that vocabulary stay silent, and the line between them is what
-// the paint is the only copy of. A retraction is one: nothing else on the page says the
+// Its two neighbours in that vocabulary stay silent, and the line between them is what the
+// paint is the only copy of. A retraction is one: nothing else on the page says the
 // decision was undone. data-lf-pending and data-lf-reported are not — each marks a state
-// whose substance is already in words, the control's own ("✓ Accepted", "your pick") or
-// the status this pass speaks, and adds only that no version carries it yet. Saying that
-// on every decided element for the rest of the session would be a second sentence about
-// every one of them, for a fact no reader is owed the way they are owed a retraction.
+// whose substance is already in words, the control's own or the status this pass speaks,
+// and adds only that no version carries it yet.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]
@@ -2395,31 +2372,29 @@ function renderOthers(state) {
     }
 }
 for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false);
-// The version chooser: a press that says which version this is, and a menu that says
-// what each one was and what it changed. It was a <select>, and the two things that
-// cost were both the control's rather than the styling's. A select takes its inner
-// height from Chrome's own metrics and refuses line-height, so it could never stand
-// level with the buttons beside it; and its closed label is its selected option's whole
-// text, so the note had to be in both places or neither — 190px of bar, the widest
-// control on the row, for about nine characters of a note that then ellipsized. A press
-// states the version alone, and the menu is the only place the notes are, where a row
-// can wrap and carry one whole.
+// The version chooser: a press that says which version this is, and a menu that says what
+// each one was and what it changed. It was a <select>, and the two things that cost were
+// both the control's rather than the styling's. A select takes its inner height from
+// Chrome's own metrics and refuses line-height, so it could never stand level with the
+// buttons beside it; and its closed label is its selected option's whole text, so the note
+// had to be in both places or neither — 190px of bar, the widest control on the row, for
+// about nine characters that then ellipsized. A press states the version alone, and the
+// menu is the only place the notes are, where a row can wrap and carry one whole.
 //
-// The diff was a second press beside it, and everything the two shared was in the
-// menu already. It named the previous version because a control with one label can
-// offer one base, and the previous version is the least useful of them on a page that
-// ships a version whenever the work moves: what the reader wants marked is what has
-// changed since they last looked, which is as far back as they were away. The base is
-// the menu's to say, so every version older than this one offers itself as one.
+// The diff was a second press beside it, and everything the two shared was in the menu
+// already. It named the previous version because a control with one label can offer one
+// base, and the previous version is the least useful of them on a page that ships a
+// version whenever the work moves: what the reader wants marked is what has changed since
+// they last looked. The base is the menu's to say, so every version older than this one
+// offers itself as one.
 //
-// Which version this is, is the document's own answer (VNUM, off the path), so the
-// press says it now rather than standing empty until the first poll answers, and the
-// only word it ever rewrites is the Δ that says a comparison is standing — enumerable,
-// so the room for it is taken from the words themselves at load (reserve) and the
-// control still cannot move the row. It is a word rather than the accent alone because
-// a reader who leaves a comparison on and scrolls into a stretch that changed nothing
-// has only this control to read it back off, and a colour is not a thing a screen
-// reader announces.
+// Which version this is, is the document's own answer (VNUM, off the path), so the press
+// says it now rather than standing empty until the first poll answers. The only word it
+// rewrites is the Δ that says a comparison is standing — enumerable, so the room for it is
+// taken from the words themselves at load (reserve). It is a word rather than the accent
+// alone because a reader who leaves a comparison on and scrolls into a stretch that
+// changed nothing has only this control to read it back off, and a colour is not a thing a
+// screen reader announces.
 const versionLabel = (comparing) =>
   (comparing ? "Δ " : "") + (VNUM === null ? "▾" : `v${VNUM} ▾`);
 const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
@@ -4082,28 +4057,24 @@ function spanOf(origin, lo, hi) {
 }
 // Context identifies a passage only when its neighbours are still exactly what they were.
 // A partial match is not weak evidence for the right copy — it is evidence the page moved
-// on, and acting on it is how a comment ends up somewhere it was never made: a version that
-// rewrote the sentence beside the anchored copy left an untouched copy elsewhere matching
-// better, and the comment followed it there. Demanding the whole stored context prevents
-// that: without one exact contextual match, only a quote with a sole candidate resolves;
-// repeated candidates detach rather than inheriting document order.
+// on, and acting on it is how a comment ends up somewhere it was never made: a version
+// that rewrote the sentence beside the anchored copy left an untouched copy elsewhere
+// matching better, and the comment followed it there. So without one exact contextual
+// match, only a quote with a sole candidate resolves; repeated candidates detach rather
+// than inheriting document order.
 //
-// Rare, not impossible. The bar is however much was stored, and the capture reads the
-// neighbours out of the whole document — a section is a filter on where a passage may sit,
-// not on what surrounds it — so both sides are full except against the document's own
-// ends. Anchors written before context reached past the section carry a side clipped at
-// that edge; they confirm at that shorter bar, which is the bar they were stored under.
-//
-// The bar is what the capture actually produces, not a number picked to fit: across every
-// selection in the shipped examples, an unmodified page confirms its stored context in full.
+// The bar is however much was stored, and the capture reads the neighbours out of the
+// whole document — a section is a filter on where a passage may sit, not on what surrounds
+// it — so both sides are full except against the document's own ends. Anchors written
+// before context reached past the section confirm at the shorter bar they were stored
+// under. Across every selection in the shipped examples, an unmodified page confirms its
+// stored context in full.
 //
 // An empty side is the case worth stating, because reading it as an absent constraint is
-// what sends a comment to a copy it was never made on. The capture reads the whole
-// document, so a side comes out empty only where the passage had nothing at all beside it:
-// the top or bottom of the page, the one place no capture can give two sides to. That is
-// not a missing constraint but the tightest one there is, and it is checkable — a candidate
-// confirms it by also having nothing there, which exactly one occurrence does. Refusing to
-// read it that way handed the last copy's mark to the first.
+// what sends a comment to a copy it was never made on. A side comes out empty only where
+// the passage had nothing beside it: the top or bottom of the page. That is not a missing
+// constraint but the tightest one there is, and it is checkable — a candidate confirms it
+// by also having nothing there, which exactly one occurrence does.
 const holds = ({ origin, fences }, at, want, before) => {
   // One character is all it takes to refute an empty side, and asking for none would answer
   // with none: doubling zero never grows.
@@ -6922,25 +6893,21 @@ const pressComparison = (base) =>
 // ---------- banner ----------
 // "Claude is working" is a claim in status.json, and nothing revises a claim once the
 // session behind it walks away — so a page nobody is watching reads exactly like a page
-// whose user has said nothing yet. The banner asks whether anyone is attending, and
-// only two things answer yes: Claude is credibly busy, or a `leaf wait` is live.
-// Everything else is absence, where the reason and the remedy are all that vary.
+// whose user has said nothing yet. The banner asks whether anyone is attending, and only
+// two things answer yes: Claude is credibly busy, or a `leaf wait` is live.
 //
 // One of those absences is not a fault, and reading it as one was the bug. A page served
-// across sessions — a command hub, a dashboard left open for a fortnight — is unheld for
-// most of its life, and a night of it is Tuesday. So the banner separates "somebody is
-// behind this page and isn't keeping up", which is worth an amber dot and a nudge, from
-// "nobody is behind it", which is the standing page at rest: grey, and the plain fact
-// that it picks up again when a session does.
+// across sessions is unheld for most of its life, and a night of it is Tuesday. So the
+// banner separates "somebody is behind this page and isn't keeping up", worth an amber dot
+// and a nudge, from "nobody is behind it", which is the standing page at rest.
 //
 // Every one of those answers is about a session that exists or existed, and a page can be
 // served with none — the whole of leaf.page is, each example a working page on a static
-// host where the log is the reader's own browser and no agent will ever read it. The
-// banner had no way to say that, so the page said the nearest thing it could and claimed
-// to be listening: green dot, "awaits", over a page waiting for nobody. Whoever answers
-// the poll declares it instead (`unattended`), and it is judged ahead of the rest because
-// it is not a state the evidence below could reach — there is no claim to weigh, no pid
-// to look for, and nothing coming that would change the answer.
+// host where the log is the reader's own browser. The banner had no way to say that, so
+// the page said the nearest thing it could and claimed to be listening: green dot,
+// "awaits", over a page waiting for nobody. Whoever answers the poll declares it instead
+// (`unattended`), judged ahead of the rest because it is not a state the evidence below
+// could reach.
 const HANDOFF_GRACE_MS = 2 * 60 * 1000;
 const WORKING_GRACE_MS = 15 * 60 * 1000;
 // Which claim each kind reads out, and so whose detail it may speak. A `working`

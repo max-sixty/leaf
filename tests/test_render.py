@@ -2337,23 +2337,18 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
 
 
 def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serve):
-    """The chord's cost is that it is invisible, and the cursor pays part of it.
-
-    Holding ⌥ used to draw a plain arrow over the whole page: it said "not a text
-    selection" and nothing else, which leaves the one question the outline can't answer
-    for a reader who hasn't looked yet — would this click do anything at all? An armed
-    press takes the item under it and acts on nothing where there is none (claimPress),
-    so the hand and the arrow are those two states, and the hand is exactly as good as
-    the outline beside it because both are read off the same value.
-
-    Read where the reader's pointer is rather than off body, since the aim declares it
-    on body and everything on the page inherits it — the promise is only kept if it
-    arrives at the glyphs. The margin beside the column is the page's own gap: no
-    element there carries an id, so an armed press has nothing to take.
-
-    `auto` is the resting state, and it is the whole point of the arrow: unarmed, the
-    browser decides from what is under the pointer and draws an I-beam over words, so
-    naming a cursor at all is the runtime saying those words are not a selection now."""
+    """The chord's cost is that it is invisible, and the cursor pays part of it. Holding ⌥
+    used to draw a plain arrow over the whole page: it said "not a text selection" and
+    nothing else, leaving the one question the outline can't answer for a reader who
+    hasn't looked yet — would this click do anything at all? An armed press takes the
+    item under it and acts on nothing where there is none (claimPress), so the hand and
+    the arrow are those two states. Read where the reader's pointer is rather than off
+    body, since the aim declares it on body and everything inherits it: the promise is
+    only kept if it arrives at the glyphs. The margin beside the column is the page's
+    own gap, where no element carries an id and an armed press has nothing to take.
+    `auto` is the resting state and is the whole point of the arrow: unarmed, the
+    browser draws an I-beam over words, so naming a cursor at all is the runtime saying
+    those words are not a selection now."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     at_pointer = """([x, y]) =>
         getComputedStyle(document.elementFromPoint(x, y)).cursor"""
@@ -2394,25 +2389,19 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
 
 def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
-    """The other half of the same rule, for the changes nobody asked for.
-
-    A press has a line — the row the pressed control stands on, where the next gesture
-    is already aimed — and below it the page is content and may move. News arriving on
-    the poll has no gesture at all, so there is no line to draw: the user was
-    somewhere else entirely, and every control in the chrome is an address they are
-    holding. The document may still change under them, because a fact arriving is what
-    they are here to see; the address it arrives at may not.
-
-    The banner is where all of it lands, and it is packed to the right against a spacer,
-    which decides who pays. A control that grows moves itself and everything to its
-    *left*; everything to its right keeps its place. So `Comments (9)` becoming
-    `Comments (10)` — a comment posted from the terminal while the user reads —
-    slid the version chooser 6px left, and the ✓ Accept all a second tab's decision puts
-    away took the New-version chip with it.
-
-    Driven by writing the events a real one would leave, since that is what the page
-    reads either way, and there is no other way to reach this half: every gesture the
-    press sweep above can make is one the user made, and none of these are."""
+    """The other half of the same rule, for the changes nobody asked for. A press has a
+    line — the row the pressed control stands on — and below it the page is content and
+    may move. News arriving on the poll has no gesture at all, so there is no line to
+    draw: the user was somewhere else entirely, and every control in the chrome is an
+    address they are holding. The document may still change under them, because a fact
+    arriving is what they are here to see; the address it arrives at may not. The banner
+    is packed to the right against a spacer, which decides who pays: a control that
+    grows moves itself and everything to its *left*, and everything to its right keeps
+    its place. So `Comments (9)` becoming `Comments (10)` slid the version chooser 6px,
+    and the ✓ Accept all a second tab's decision puts away took the New-version chip
+    with it. Driven by writing the events a real one would leave, since there is no
+    other way to reach this half: every gesture the press sweep can make is one the user
+    made, and none of these are."""
     # Three pending suggestions, so the ✓ Accept all count has somewhere to go before it
     # runs out; sign-off asked, so the row is the full one; nine comments already, so the
     # tenth crosses a digit; and pinned, so a v2 landing leaves the page where it is and
@@ -3063,22 +3052,16 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     """The panel holds the same scroll boxes the page does — a reply carries whatever
     widget markup the gate allows — and its column is the narrower of the two, so a box
-    that scrolls anywhere scrolls here.
-
-    The sweep that was supposed to cover this stood where each message body is built,
-    and needed two things it did not have: that body is not in the document yet, where
-    `getComputedStyle` answers "" for every property, and the widget in it has not
-    rendered, where the look a scroll box has arrives with the class its module sets on
-    the way out. It read an empty overflow off everything it walked and had tagged
-    nothing since it was written, which reads as coverage and is the only reason it
-    lasted.
-
-    The reply arrives while the panel is already open, because that is the case with
-    exactly one reconcile in it. A diff renders asynchronously, so a sweep run where the
-    panel inserts its nodes walks a host whose shadow root is still null, and the panel
-    does not reconcile on a timer to fix it later: `renderPanel` runs on an open, on a
-    fold finishing, and on a new event. Seeding the reply before the page loads gives
-    two reconciles and hides all of that."""
+    that scrolls anywhere scrolls here. The sweep that was supposed to cover this stood
+    where each message body is built, and needed two things it did not have: that body
+    is not in the document yet, where `getComputedStyle` answers "" for every property,
+    and the widget in it has not rendered, where the look a scroll box has arrives with
+    the class its module sets on the way out. It read an empty overflow off everything
+    it walked and had tagged nothing since it was written, which reads as coverage. The
+    reply arrives while the panel is already open, because that is the case with exactly
+    one reconcile in it: a diff renders asynchronously, and `renderPanel` runs on an
+    open, on a fold finishing, and on a new event rather than on a timer. Seeding the
+    reply before the page loads gives two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     interact.append_event(
@@ -10792,23 +10775,18 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
 
 
 def test_the_margin_offers_one_kind_of_press(browser, serve):
-    """The 💬 and a change's ✓ Accept stand in the same margin, sometimes on the same
-    line — the test above is that collision — so they have to read as one thing.
-
-    They did not. The button was the chrome's own idiom (a solid accent rectangle at
-    the chrome's size, and, through a cascade nobody meant, set in the page's serif
-    three points larger than every other control in the layer) beside two hairline
-    pills, which put two idioms four centimetres apart in the one place a reader
-    compares them. Where a control stands decides which it wears: in the runtime's
-    furniture a press is a .lf-btn and looks like one, and out in the margin it is a
-    marginal mark.
-
-    Pinned by reading both off one page. The pill is one statement now (.lf-pill, in
-    the runtime's document-level vocabulary), but either wearer can still restate a
-    property in its own rules — the fab's scoped block and the suggestion's state
-    rules both layer over it — and this is what says such a restatement kept the
-    family. The shadow is the one property allowed to differ, and it is the
-    difference that is real: only one of them floats over the page's own words rather
+    """The 💬 and a change's ✓ Accept stand in the same margin, sometimes on the same line —
+    the test above is that collision — so they have to read as one thing. They did not:
+    the button was the chrome's own idiom, a solid accent rectangle set through a
+    cascade nobody meant in the page's serif three points larger than every other
+    control in the layer, beside two hairline pills. That put two idioms four
+    centimetres apart in the one place a reader compares them. Where a control stands
+    decides which it wears: in the runtime's furniture a press is a .lf-btn, and out in
+    the margin it is a marginal mark. Pinned by reading both off one page. The pill is
+    one statement now (.lf-pill, in the runtime's document-level vocabulary), but either
+    wearer can still restate a property in its own rules, and this is what says such a
+    restatement kept the family. The shadow is the one property allowed to differ, and
+    the difference is real: only one of them floats over the page's own words rather
     than standing in the empty rail."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
@@ -11596,24 +11574,18 @@ NATIVE_CONTROL_PAGE = DIFF_PAGE.replace(
 
 
 def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, serve):
-    """A key on screen is a key that works, and its inversion costs just as much: the
-    press is real, the reader can make it, and no surface says so.
-
-    The runtime's control scope matches a tab stop of its own making, which is what
-    `offer` writes on the spans it builds. A control the widget takes from the platform
-    brings its own, so it matched nothing — and the widget's own declaration is what
-    names both the key and the word, the key being the platform's fact about that
-    control and the word being what the press does here.
-
-    The two differ in what they answer, and saying so is the point: a <summary> is
-    button-like and takes both keys, while a checkbox takes Space alone, Enter being
-    the form's key and a leaf page having no form. Each row binds no `run`, so the
-    dispatcher passes the press to the platform that was going to make it anyway; a row
-    that consumed it would be the same lie from the other side.
-
-    The staged control is the one the register could not reach at all.
-    `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the reader was standing on."""
+    """A key on screen is a key that works, and its inversion costs just as much: the press
+    is real, the reader can make it, and no surface says so. The runtime's control scope
+    matches a tab stop of its own making, which is what `offer` writes on the spans it
+    builds. A control the widget takes from the platform brings its own, so it matched
+    nothing — and the widget's own declaration is what names both the key and the word.
+    The two differ in what they answer: a <summary> is button-like and takes both keys,
+    while a checkbox takes Space alone, Enter being the form's key and a leaf page
+    having no form. Each row binds no `run`, so the dispatcher passes the press to the
+    platform that was going to make it anyway; a row that consumed it would be the same
+    lie from the other side. The staged control is the one the register could not reach
+    at all — `document.activeElement` retargets to the host, so the scope walk started
+    at the widget and never saw the control the reader was standing on."""
     url = serve(NATIVE_CONTROL_PAGE)
     for name, data in SHOTS.items():
         (serve.page_dir / "media").mkdir(exist_ok=True)
@@ -14814,25 +14786,18 @@ def written_anchors(page_dir, html, limit=40):
 
 
 def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
-    """An example that ships a companion log opens mid-conversation.
-
-    A thread is the one thing the corpus could not hold: it is log state, no markup
-    describes one, and `version export` drops the layer that draws it — so a static
-    copy cannot carry a thread however it is written, and for a long time nothing
-    under examples/ showed the comment loop at all. What an example *can* ship is
-    the log itself, beside it, exactly as one that wants a screenshot ships the
-    bytes beside it. `scripts/preview.py <example>` is then a page that opens on a
-    real exchange rather than an empty panel.
-
-    The anchor in that log is the part that can rot quietly. It is captured from
-    the version file, and it has to name the same passage once the browser has
-    built the page; a rewritten sentence leaves the quote resolving to nothing and
-    the thread standing there detached, which is a broken demo and no error
-    anywhere. The corpus's own anchor sweep does not cover it, because that sweep
-    writes its own anchors. This is what reads the shipped one.
-
-    Looped rather than parametrized so an empty corpus fails here instead of
-    collecting no tests and reporting green."""
+    """An example that ships a companion log opens mid-conversation. A thread is the one
+    thing the corpus could not hold: it is log state, no markup describes one, and
+    `version export` drops the layer that draws it, so a static copy cannot carry a
+    thread however it is written. What an example *can* ship is the log itself, beside
+    it, exactly as one that wants a screenshot ships the bytes beside it. The anchor in
+    that log is the part that can rot quietly: it is captured from the version file, and
+    it has to name the same passage once the browser has built the page, so a rewritten
+    sentence leaves the quote resolving to nothing and the thread standing there
+    detached — a broken demo and no error anywhere. The corpus's own anchor sweep does
+    not cover it, because that sweep writes its own anchors. Looped rather than
+    parametrized so an empty corpus fails here instead of collecting no tests and
+    reporting green."""
     seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
 
@@ -16048,17 +16013,14 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     contract: no server answers, so anything still reaching for one is a hole, and the
     console is where a hole says so. Driven over the corpus rather than one page because
     what a copy loses is per-widget — the gallery alone would pass while the widget only
-    it lacks was the broken one.
-
-    A copy over-promising is the other half of that, and it went unread for as long as
-    there was nothing here asking. Tab into an exported decision page landed on a pick
-    mark, which summoned the keyboard address for a key that answers nothing, into a row
-    holding no column for it; a board's ten grips each opened a grab cursor; twenty
-    options lit under a pointer that could not pick one. So the copy is asked what it
-    still offers, in the three registers an offer is made in — a widget's chrome still
-    holding a tab stop or a role, a control standing there with nothing left behind it,
-    and a hand or a grab under the pointer — and every question is put to the markers
-    rather than to any widget."""
+    it lacks was the broken one. A copy over-promising is the other half, and it went
+    unread for as long as there was nothing here asking: Tab into an exported decision
+    page landed on a pick mark, summoning the keyboard address for a key that answers
+    nothing into a row holding no column for it; a board's ten grips each opened a grab
+    cursor. So the copy is asked what it still offers, in the three registers an offer
+    is made in — a widget's chrome still holding a tab stop or a role, a control
+    standing there with nothing left behind it, and a hand or a grab under the pointer —
+    and every question is put to the markers rather than to any widget."""
     url = serve(example.read_text())
     out = tmp_path / "standalone.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))

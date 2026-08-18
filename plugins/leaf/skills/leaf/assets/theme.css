@@ -660,7 +660,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
      who loses it: checkVisibility() is true of a clipped box, so screen and paper agree,
      and the copy withholds the clip and shows the words the live page dropped. Scoping
      the float to what it may float out of would answer that and cost the cases that
-     work, a tab panel clipping nothing, so PAST_THE_COLUMN carries a reading for it and
+     work, a tab panel clipping nothing, so MISPLACED_BOXES carries a reading for it and
      the version is refused at handover instead.
 
      No margin-top. The float lands at the foot of the preceding block's bottom margin,

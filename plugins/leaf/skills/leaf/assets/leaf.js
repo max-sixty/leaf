@@ -4719,9 +4719,15 @@ function shownRect(item, clips) {
     let c = clips.get(a);
     if (c === undefined) {
       const s = getComputedStyle(a);
-      c = /hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY)
-        ? a.getBoundingClientRect()
-        : null;
+      // Overflow is one of three ways to draw nothing past an edge: paint containment
+      // and content-visibility do it while overflow computes `visible`, and an item
+      // under one of those would take its aim at a rect the reader never sees.
+      c =
+        /hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY) ||
+        /paint|strict|content/.test(s.contain) ||
+        s.contentVisibility !== "visible"
+          ? a.getBoundingClientRect()
+          : null;
       clips.set(a, c);
     }
     if (!c) continue;

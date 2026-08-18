@@ -6367,7 +6367,7 @@ def quoted_in(unit: str, byid: dict, spk: dict, registry: dict) -> bool:
 
 def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) -> list:
     """The published page's standing asks — the list the banner counts and the
-    `a` key steps, read from the file and the log instead of the DOM. An
+    `n`/`p` walk steps, read from the file and the log instead of the DOM. An
     instance asks when its replayed attributes match its entry's `when`;
     quoted material asks nothing; an instance a decision dropped from the page
     (`dropped`: ids under retired slots, and decided-empty ids, from the passage

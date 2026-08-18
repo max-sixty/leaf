@@ -7609,7 +7609,7 @@ function askPlace(node) {
 const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // Where the walk measures from: where the reader is standing, rather than where the walk
 // last put them. It carried an id of its own, so every walk the reader had not made with
-// this key started at the top of the page — select a paragraph and press `a` and you were
+// this key started at the top of the page — select a paragraph and press `n` and you were
 // taken back past everything you had read, and so was anyone scrolled halfway down
 // pressing it for the first time. d/u measure from the scroll position and j/k from the
 // focused thread; this measured from its own memory, which is the one place the reader

@@ -234,12 +234,17 @@ vocabulary for rides in the custom keywords below:
     x-visual    true when the element renders as a picture: a click anchors on
                 the element whole, there being no text in it to select — the
                 same anchor a click on an <svg> or <img> makes.
-    x-wide      true when instances stand wider than the prose column where the
-                window has the room: evidence whose width is its content's — a
-                board's columns, a diagram's graph — as against prose, which is
-                set to a measure and stays there. The runtime marks what this
-                declares and theme.css spends the room the layout measured, so
-                a page's shape follows what it holds and no page states a width.
+    x-wide      the width model, for evidence set to its content rather than to
+                the measure prose is read at: "box" (the widget lays its
+                content out into whatever width it is given, a board's columns,
+                so it stands at the one width the whole vocabulary shares),
+                "drawing" (the widget renders one thing drawn at a size of its
+                own, a diagram's graph, so its box is the clip around it — the
+                room the page has, with the drawing as near the column's axis
+                as the claimed margins allow, and scrolling where even the room
+                is short). The runtime marks what this declares and theme.css
+                spends the room the layout measured, so a page's shape follows
+                what it holds and no page states a width.
     x-state     the widget's action verbs: each verb's detail schema, its fold
                 unit, and the record form its state takes in markup. Every
                 applyAction is absolute, so the user's standing state is a
@@ -616,7 +621,7 @@ EXTENSION_SCHEMA = {
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {"type": "boolean"},
-        "x-wide": {"type": "boolean"},
+        "x-wide": {"enum": ["box", "drawing"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["x-content", "x-upgrade"],
@@ -3221,10 +3226,11 @@ CATALOG_PREAMBLE = """\
 # window has the room — evidence as wide as what it holds, a board's columns or
 # a diagram's graph, against prose set to a measure. Nothing is authored for it
 # and no page asks: the widget kind declares it and the theme grows the element
-# out of the column into whichever margins are free, to one width the whole
-# vocabulary shares. A margin holding something of the page's — a change's
-# controls, a sidenote — gives nothing, so the exhibit that grows is never
-# drawn over the apparatus beside it.
+# out of the column into whichever margins are free. A `box` stops at one width
+# the whole vocabulary shares; a `drawing` takes the room, so a diagram wider
+# than the window scrolls in its own box rather than being cut off. A margin
+# holding something of the page's — a change's controls, a sidenote — gives
+# nothing, so the exhibit that grows is never drawn over the apparatus beside it.
 """
 
 
@@ -6898,10 +6904,17 @@ PAST_THE_COLUMN = """() => {
     };
     const over = new Map();
     for (const el of main.querySelectorAll('*')) {
-        if (!el.checkVisibility() || answeredFor(el)) continue;
+        const wide = el.hasAttribute('data-lf-wide');
+        // A wide widget is asked whatever it stands in, where everything else is excused
+        // by a scroll container above it. The excuse is about the column — a box inside a
+        // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
+        // the page — and a wide widget's question is a different one: it is measured
+        // against the box that frames it, and a board scrolls, so every card on every
+        // board was excused from the only reading that applies to it. A diagram in a card
+        // was drawn across the neighbouring column and this said the page was clean.
+        if (!el.checkVisibility() || (!wide && answeredFor(el))) continue;
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
-        const wide = el.hasAttribute('data-lf-wide');
         const frame = wide ? framing(el) : null;
         const bound = frame ? frame.getBoundingClientRect() : null;
         const past = wide

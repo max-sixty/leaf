@@ -228,11 +228,28 @@ module enhances this tag, not that mermaid needs loading. The bar is real — an
 records is a forever-contract the vendored-layer stamp then carries (`$events`) — which is an
 argument for finding the general shape, not for reaching past the registry.
 
+A boolean key is an enumeration whose second value has already been chosen, and it was chosen by
+whichever widget declared first. `x-wide: true` read as *may stand wider than the column* and meant
+*and fills whatever box it is given*, which is a board's answer to a question the key never asked:
+what the theme has to decide is how far the box may reach, and with nothing to read it decided once,
+at the one width the vocabulary shares. A diagram's graph is drawn at a size its source decides, so
+held to that width a 1533px sequence diagram was cut off at 1080 on a window with room for all of
+it. Nothing named a widget and nothing reached past the registry, so every gate that catches those
+had nothing to see, and it surfaced three widgets later as the page's reader saying a diagram was
+cut off. The kinds are values now (`box`, `drawing`); where a key's `true` carries a claim the entry
+never states, that claim is the value the key should have had.
+
 The stylesheet is under the same rule, since a selector is a consumer too and a list of tags is the
 closed list wearing CSS. A box declares that it frames what it holds (`--lf-frame`) in the rule
 where it draws the frame, and one style query trims what every such box would otherwise paint as
 its own inset — so a project's card is covered by saying the same thing. The norm is
-`plugins/leaf/skills/leaf/CLAUDE.md`'s.
+`plugins/leaf/skills/leaf/CLAUDE.md`'s. One declaration does not answer every question about the
+same boxes, though. The room a wide exhibit may take reads as the same one — what it must stay
+inside is a box that frames what it holds — and `--lf-frame` cannot carry it, since the declaration
+says the box has an inset a child's margin would double and `main` therefore makes it, the column
+being a padded box like any other; read that way the room is withheld from every exhibit on every
+page. Measure a shared declaration before spending it, and the tell is two questions with different
+answers for one box.
 
 A fact the whole layer shares belongs to the layer, under a `$` key, rather than to whichever widget
 first needed it. The vendored tokenizer's language list lived in `lf-code`'s `language` enum, and

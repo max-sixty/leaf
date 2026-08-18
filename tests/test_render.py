@@ -16038,6 +16038,15 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
         "() => getComputedStyle(document.documentElement)"
         ".getPropertyValue('--rail') === ''"
     ), "the rail arrived before the page was laid out; this proves nothing held"
+    # The room is stated by the layout and the module is asked for by the upgrade, and
+    # nothing orders the two: on a run where the request had not reached the handler yet,
+    # releasing it here was an IndexError rather than a failure with a name. Wait for the
+    # fact the test is about — the module being in the wire — the way every other wait
+    # here consumes something the system states.
+    deadline = time.monotonic() + 30
+    while not held and time.monotonic() < deadline:
+        page.wait_for_timeout(20)
+    assert held, "the suggestion module was never asked for, so nothing was held"
     held[0].continue_()
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 

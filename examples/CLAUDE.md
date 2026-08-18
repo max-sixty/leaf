@@ -76,7 +76,7 @@ every page built from it.
 
 The gesture vocabulary repeats and is meant to — every board takes a drag, every group
 takes a pick — and the sentence around it does not, because a page that borrows one
-describes its own work in another page's words. This is where that shows, twelve pages
+describes its own work in another page's words. This is where that shows, the corpus
 being the one place a reader sees them side by side. The rule itself is SKILL.md's
 ("announce interactivity in prose"), since it governs every page and not only these;
 what lives here is the check.

@@ -63,20 +63,21 @@
             <strong>Prove rollback</strong> Old service is live again; order-count
             comparison is still running.
           </lf-milestone>
+          <lf-milestone
+            id="lp-ms-finance"
+            status="blocked"
+            when="waiting"
+            tags="finance"
+          >
+            <strong>Reconcile the finance export</strong> Needs a fixture with a
+            partially refunded order. Nothing else in the rehearsal waits on it, so the
+            agent left the check open and carried on.
+          </lf-milestone>
           <lf-milestone id="lp-ms-report" status="planned" when="next">
             <strong>Publish the rehearsal report</strong> Attach timings and name the
             one blocked follow-up.
           </lf-milestone>
         </lf-milestones>
-      </section>
-
-      <section id="lp-blocker">
-        <h2>Blocked</h2>
-        <p id="lp-blocked-copy">
-          <strong>Finance export reconciliation</strong> needs a fixture with a
-          partially refunded order. The rest of the rehearsal does not depend on it; the
-          agent left the check open and moved on.
-        </p>
       </section>
 
       <section id="lp-events">

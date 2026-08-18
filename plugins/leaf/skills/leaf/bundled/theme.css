@@ -512,9 +512,19 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
  * apparatus rather than anything about offers: a row reserves a column of room for its
  * mark by name below, so a mark that stopped drawing would leave a blank the width of the
  * word it isn't saying at the end of every line. A card's mark stands in padding, where
- * drawing nothing reads as padding. Both are stated where the joined group is (above). */
+ * drawing nothing reads as padding. Both are stated where the joined group is (above).
+ *
+ * The width is stated as the whole box, because another rule pads this one: a row fills
+ * its cell to put the mark at the line's end, and a live choose group then takes 30px
+ * off the same box for the keyboard address (above). Counted outside the 100%, those
+ * 30px carried every row past the group, which clips itself. What went was the last
+ * 30px of each line, and that is where the mark stands: the word came out mid-letter,
+ * the chosen option lost its tick, and the open ones lost the box to tick. Four of the
+ * examples shipped a question that way. A card is laid out at its own width and absorbs
+ * the same padding without being told. */
 lf-options:not(:has(> lf-option > strong)) > lf-option {
-                     display: table; width: 100%; border-spacing: var(--sp-2) 0;
+                     display: table; width: 100%; box-sizing: border-box;
+                     border-spacing: var(--sp-2) 0;
                      padding: 5px 0; border-radius: 6px; --lf-frame: 1; }
 lf-options:not(:has(> lf-option > strong)) > lf-option[recommended] {
                      background: color-mix(in srgb, var(--accent) 8%, transparent); }
@@ -538,9 +548,16 @@ lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
  * not a reference stands beside it. Which is what a row of flex items could not say: the
  * free space had to be handed to whichever part came first, so the column rested on an
  * attribute (`for`) the form does not require, and a row naming no block parked its mark
- * wherever its label happened to end. */
+ * wherever its label happened to end.
+ *
+ * And each stands on the row rather than on its first line, which is the answer the
+ * digit column below already gives: a label long enough to wrap carries the apparatus
+ * down with it. The mark turns that from tidiness into a rule — its dot is out of flow
+ * and centred on the row (below), so a word left on the baseline of a two-line label
+ * sat a line above the tick it belongs to. */
 lf-options:not(:has(> lf-option > strong)) > lf-option > :is(.lf-ref, .lf-pick) {
-                     display: table-cell; width: 0; white-space: nowrap; }
+                     display: table-cell; width: 0; white-space: nowrap;
+                     vertical-align: middle; }
 /* The mark holds the room its word will need before it needs it: an open mark is a dot, a
  * picked one is a dot and up to "your pick" beside it, and a mark that took that room at
  * the moment it was pressed dragged the § reference beside it 54px to the left,

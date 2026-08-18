@@ -392,6 +392,13 @@ For each acknowledged batch:
    - **A suggestion** (a comment with `"suggestion": true`) proposes replacement text
      for its quoted passage: take it verbatim into the next version, or reply with
      why not — never silently rewrite it.
+   - **A design comment** (a comment with `"about": "layer"`) is about the layer —
+     the theme, the runtime, a widget — rather than the page's words: the reader
+     pointed at a widget, a control, or the chrome itself in design mode. Read
+     `references/customizing.md` and answer it with the layer: change the project's
+     `.leaf/` (or the user's, or leaf's own, where the words say so), re-vendor the
+     page with `page init`, publish, and reply in-thread saying where the fix
+     landed. The new version is the answer, on the element the comment was made on.
    - **A page-widget action** is the user editing the document through a widget — a
      board drag arrives as `{"kind": "action", "widget": "feeder-board", "action":
      "move", "detail": {"card": "card-baffle", "to": "col-doing", "index": 0}}`, an
@@ -550,24 +557,15 @@ question you can't answer yourself. The user resolves either. There is no CLI th
 resolves a thread: a note's purpose is discharged by being read, and only the reader
 knows that happened.
 
-## Customizing the widget layer
+## Customizing the layer
 
-`page init` vendors the layer into the page directory from leaf's integrated
-layer, then its bundled widgets (the shipped content families ride this same overlay),
-then the user's `~/.config/leaf/`, then the project's `.leaf/`. Each
-mirrors the same layout (`theme.css`, `registry.json`, `icon.svg`, `widgets/`,
-`vendor/`). Theme
-files concatenate in that order, so a short later file can override tokens or rules
-without copying the defaults. Runtime, icon, widget, and vendor files replace by path;
-registry files merge at the unit of the contract: a later layer replaces a tag's
-complete entry, and one member inside a `$` entry. A custom widget therefore adds
-its entry without copying the shipped registry, overriding a tag supplies its whole
-schema, and an idiom declared under `$idioms` joins the shipped catalog beside the
-theme rules that style it. `leaf customize theme` and
-`leaf customize widget lf-name [--upgrade]` scaffold those files in the project
-layer; pass `--user` for the user layer. The merged vocabulary is validated before
-vendoring, and its `x-state.detail` schema validates every action at
-`POST /api/event`. `page catalog` reflects the result.
+`page init` vendors the layer into the page directory from leaf's own layers, then the
+user's `~/.config/leaf/`, then the project's `.leaf/`, so a project can restyle the
+theme, add or replace a widget, or declare an idiom, and every page it makes carries
+that. When the subject is the layer — a design comment arrived, or `/leaf` was invoked
+on a widget to build or a look to change — read `references/customizing.md` beside
+this file: which layer a change belongs in, the scaffold commands, what a module owes,
+and how the change reaches a page.
 
 The page directory is self-contained: a version the user approved can't change under
 them. Re-running `page init` on a live page is the explicit re-vendor; note it in

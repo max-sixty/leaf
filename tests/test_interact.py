@@ -4239,6 +4239,32 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     assert "$tones.names must be a unique list of strings" in result.output
 
 
+def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
+    """$keys documents each x- key an entry may declare, and exactly those: a member
+    for a key the lint doesn't admit is documentation of nothing, and one missing is a
+    key the catalog then leaves unsaid. A project layer overrides a member (its own
+    reading of a key) and adds none — the set is closed where the keys are checked."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps({"$keys": {"x-wide": "wider, in this project", "x-nope": "?"}})
+    )
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code != 0
+    assert "unadmitted ['x-nope']" in result.output
+
+    (overlay / "registry.json").write_text(
+        json.dumps({"$keys": {"x-wide": "wider, in this project"}})
+    )
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
+    assert keys["x-wide"] == "wider, in this project"
+    assert keys["x-says"]  # the rest of the shipped members stand
+    catalog = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+    assert "wider, in this project" in catalog.output
+
+
 @pytest.mark.parametrize("field", ["restated", "session"])
 def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path, field):
     overlay = tmp_path / ".leaf"
@@ -4664,6 +4690,26 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     moved = interact.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
+    # A design comment: about the layer, anchored on a runtime part the version never
+    # holds, naming the control the press landed on. The door takes it as posted, and
+    # the transcript says which kind of comment it was.
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "version": 1,
+                "text": "the button reads dim",
+                "about": "layer",
+                "anchor": {"section": "lf-banner", "part": "Comments"},
+            }
+        ).encode(),
+    )
+    assert status == 200
+    design = interact.read_events(page_dir)[-1]
+    assert design["about"] == "layer" and design["anchor"]["part"] == "Comments"
+    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert "> § lf-banner · Comments  — about the layer" in transcript.output
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -4703,6 +4749,10 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"quote": "x", "extra": "y"},
         },
         {"kind": "comment", "version": 1, "text": "x", "suggestion": "yes"},
+        # A design comment is about the layer, and that is the one word the field
+        # takes: a browser inventing a second subject is refused at the door.
+        {"kind": "comment", "version": 1, "text": "x", "about": "page"},
+        {"kind": "comment", "version": 1, "text": "x", "about": True},
         {
             "kind": "reply",
             "parent": posted["id"],
@@ -6352,6 +6402,29 @@ def test_gallery_is_generated_from_the_examples():
     assert gallery.build() == committed, "examples changed — rerun scripts/gallery.py"
 
 
+def test_the_key_table_is_generated_from_the_registry():
+    """docs/customizing.html's table of x- keys is written from the registry's $keys —
+    one home for what a key means, read by the catalog and the site alike — so a
+    commit that lets the two drift fails here. Compared with the whitespace between
+    tags dropped, because prettier re-flows the page and a formatter's line breaks are
+    not what the table says."""
+    spec = importlib.util.spec_from_file_location(
+        "keydocs", Path(__file__).parent.parent / "scripts" / "keydocs.py"
+    )
+    keydocs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(keydocs)
+    committed = keydocs.DOCS_PAGE.read_text()
+    said = lambda html: re.sub(r"\s+", " ", re.sub(r"\s*(<[^>]*>)\s*", r"\1", html))
+    assert said(keydocs.build(committed)) == said(committed), (
+        "the registry's $keys changed — rerun scripts/keydocs.py"
+    )
+    # And that the region holds a row for every key the registry documents.
+    keys = json.loads(interact.ASSETS.joinpath("registry.json").read_text())["$keys"]
+    for key in keys:
+        if key != "description":
+            assert f"<td><code>{key}</code></td>" in said(committed), key
+
+
 def test_no_example_writes_another_example_s_sentences():
     """Each page's connective prose is written in its own subject.
 
@@ -6410,6 +6483,10 @@ def test_catalog_prints_widgets_and_idioms(page_dir):
     assert "x-example" in result.output
     assert ".callout" in result.output
     assert "$idioms" not in result.output  # sections are split out, not dumped raw
+    # Every x- key an entry may declare is explained, in the one section that does.
+    assert "# The x- keys an entry may declare" in result.output
+    for key in interact.EXTENSION_SCHEMA["properties"]:
+        assert f'"{key}": "' in result.output, key
 
 
 def test_reply_validates_widget_markup(page_dir):

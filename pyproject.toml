@@ -44,8 +44,9 @@ dev = [
 package = false
 
 # The suite is round trips through a real browser rather than computation, so it
-# shards almost perfectly: every test gets its own tmp_path, its own HOME, and a
-# server on an ephemeral port, and Chrome launches once per worker per module.
+# shards almost perfectly: every test gets its own tmp_path, its own XDG config
+# and state homes, and a server on an ephemeral port; Chrome launches once per
+# worker for the run.
 # Eight rather than every core, so a second worktree can run its own suite.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]

@@ -223,7 +223,7 @@ to click belongs on a page you are going to serve.
   machine's live leaves with what each is doing or waiting for; don't build page UI
   for any of those. It also collects what the page is still waiting on the reader for —
   an undecided suggestion, a `choose` group with no pick, a task at `review` or `blocked`
-  — into a banner count they can step through with `a`, from the vocabulary's own
+  — into a banner count they can step through with `n` and `p`, from the vocabulary's own
   declarations (`x-awaits`). So write the asks as widgets and let the count find them;
   a hand-written "still open" list beside them is a second copy that goes stale the
   moment one is answered.

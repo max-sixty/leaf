@@ -498,6 +498,30 @@ its order from it: the dispatcher and the line walk it forwards, the reference b
 the third the reference's own — and a mode left out of that one is a mode the reference never names. Gathering the
 rows into sections is one function (`merge`) for the same reason.
 
+## The ladder ends on the page
+
+Escape unwinds what the chrome opened, and for a long time it stopped there: with the composer, the menu, the board
+and the panel all closed, it had nothing to say and the line said nothing. That reads as complete and isn't,
+because closing the panel does not put the reader back on the page. It puts them on the control that closed it —
+deliberately, since dropping focus on `<body>` loses a keyboard reader's place in silence. The press that closed is
+a keypress, so the browser then rings a button a reader who came by pointer never chose, and `Comments` sits there
+looking selected.
+
+Looking selected is the small half. Standing there, their next Space is that button's press rather than the page's
+scroll, so the panel they just dismissed comes back and nothing says why. That is a page-level key silently
+answered by a control, which is the failure the whole scope stack exists to prevent, arriving through focus instead
+of through a binding. So the last rung leaves the chrome (`panelsRung`), on the same key as every rung above it: a
+reader pressing Escape until nothing happens ends up on the page. Losing a place is a fault only when the reader
+did not ask, and the rung is the asking.
+
+It lands focus on `body` rather than blurring, and the difference is a browser fact worth having before writing
+either. `html` is `overflow: hidden` here, so the document scrolls in `body` and the panel beside it is the other
+region, and Space scrolls whichever box the browser last saw the reader put themselves in. A blur names no box.
+`document.activeElement` reads as `body` either way, so from the page the two look identical, and Space goes on
+doing nothing until the next click in the document. Only the focus hands the scroll back, which is what makes "back
+to the page" the whole sentence. It is also why the test presses Space from a click in the page rather than from a
+fresh load, where there would have been nothing to hand back.
+
 ## A scope names what it takes, and takes no more
 
 The walk above shadows an outer row wherever a nearer one names the binding, which covers every key the register
@@ -595,14 +619,23 @@ says whether the press shows or hides. Keeping it true costs a repaint wherever 
 
 `[` and `]` stepped versions older and newer: the menu's walk with the list taken away, a page load per press, so a
 reader holding `[` travelled back through the work past the notes saying what each version changed. A second key to a
-place the page already reaches is worth its binding only if it carries what the door carries. `=` passes that test by
-naming no version — "what changed since the last one I saw" needs nothing opened — and an older/newer step fails it,
-since choosing a version is reading the list.
+place the page already reaches is worth its binding only if it carries what the door carries, and choosing a version is
+reading the list, so an older/newer step fails that test.
 
-Inside the menu the row focus stands on *is* the comparison base, so the marks follow the walk and the row that ends it
-is the version being read, which is the row an open lands on. The two must agree, and the landing is where that breaks
-quietly: opening on the version being read while a comparison stood elsewhere moved the base on the reader's first arrow
-press, marks redrawn to match and nothing saying so. So an open lands on the standing base.
+`=` looked like the one key that passed it. It named no version, and "what changed since the last one I saw" is a
+question a reader has without opening anything — so it seemed to carry the whole door in one press. What it actually
+compared against was the version before this one, which is the same thing only for a reader who was here for exactly
+that version. On a page that ships a version whenever the work moves, a reader back after a week gets marks against
+v(n-1) and no way to notice, because naming no version is also naming nothing to check. The virtue and the defect were
+one property read twice. A key that answers a question the reader cannot see it answering is worse than the walk it
+saves, and the walk says which version it is standing on at every step.
+
+Inside the menu the row focus stands on *is* the comparison base, so the marks follow the walk, and the row that ends
+the walk downward is the version being read — comparable with nothing, so arriving there is the way off a comparison.
+Where an open lands has to agree with that, and the agreement is what broke quietly: opening on the version being read
+while a comparison stood elsewhere moved the base on the reader's first arrow press, marks redrawn to match and nothing
+saying so. So an open lands on the standing base, which puts the reader at one end of the span the rail draws and the
+way off at the other.
 
 ## A walk starts where the reader is standing
 

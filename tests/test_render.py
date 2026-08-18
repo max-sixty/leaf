@@ -844,8 +844,7 @@ def compare_with(page, version=None):
     The chooser opens and the row for that version carries the press, beside the note
     that says in words what it changed. With no version named it is the one before the
     version being read — the last Δ in the menu, a row offering one only where it is
-    older than this. A press rather than the `=` key, since the press is the control;
-    the tests about the key press the key."""
+    older than this."""
     page.locator(".lf-version").click()
     press = (
         page.locator(".lf-version-diff").last
@@ -3387,6 +3386,95 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
     expect(page.locator(".lf-keyline")).to_contain_text("close leaves")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
+    # The last rung, and the reason the ladder does not end at the last panel: closing
+    # one lands the reader on the control that reopens it, so pressing Esc until nothing
+    # happens has to end on the page rather than on the machinery.
+    expect(page.locator(".lf-comments")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("back to the page")
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("back to the page")
+    assert errors == []
+    page.close()
+
+
+# The page's scroll after it has stopped moving. A native Space is a smooth scroll, so
+# reading straight after the press reads a frame of the glide and calls it the answer —
+# which is the whole of what CLAUDE.md's wait norm is about.
+SCROLL_STILL = """(hold) => {
+  const at = document.body.scrollTop;
+  if (at !== window.__lfScrollAt) {
+    window.__lfScrollAt = at;
+    window.__lfScrollSince = performance.now();
+    return false;
+  }
+  return performance.now() - window.__lfScrollSince > hold;
+}"""
+
+
+def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
+    """Closing the panel lands focus on the toggle on purpose, since dropping it on
+    `<body>` loses a keyboard reader's place with nothing said. The bill for that lands
+    on the reader who opened the panel with the pointer and never asked for a keyboard
+    place at all: the press that closes is a keypress, so the browser rings a control
+    they did not choose, and their next Space is that button rather than the page's
+    scroll — the panel they just dismissed comes back and nothing says why.
+
+    Both halves are asserted, because the ring alone reads as cosmetic and the reopening
+    alone reads as a stray press. The rung answers both, and it is Escape because the
+    reader is already holding it: the same key that unwound the chrome takes them out
+    of it.
+
+    The scroll is asserted from a click in the page, which is where the browser gets its
+    answer to "which box does Space scroll" — the document scrolling in `body` rather
+    than in the viewport is what makes that a real question here, and what makes the
+    rung a focus rather than a blur."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    toggle = page.locator(".lf-comments")
+    panel = page.locator(".lf-panel")
+    ringed = "() => document.querySelector('.lf-comments').matches(':focus-visible')"
+    top = "() => document.body.scrollTop"
+
+    # A reader reading: a click in the page — outside the column, so it raises no 💬 —
+    # and Space is the page's own scroll, which is the browser's rather than the
+    # runtime's (`d`/`u` are the rows; this key has none).
+    page.mouse.click(30, 700)
+    page.keyboard.press("Space")
+    page.wait_for_function("() => document.body.scrollTop > 0")
+    page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
+    was = page.evaluate(top)
+
+    # Opened with the pointer, the button holds focus and the browser withholds the ring.
+    toggle.click()
+    expect(panel).to_be_visible()
+    expect(toggle).to_be_focused()
+    assert not page.evaluate(ringed)
+
+    # Closed with the key, the ring comes on — the reader's report, and the smaller half.
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    expect(toggle).to_be_focused()
+    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
+
+    # The larger half: the same press that scrolled a moment ago is now the button's.
+    page.keyboard.press("Space")
+    expect(panel).to_be_visible()
+    assert page.evaluate(top) == was, "the page scrolled as well as reopening"
+    page.keyboard.press("Escape")
+
+    # The rung, and what it is worth: off the chrome, and Space is the page's again.
+    expect(page.locator(".lf-keyline")).to_contain_text("back to the page")
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert not page.evaluate(ringed)
+    # And body wears no ring of its own, which is the thing a focus does that a blur
+    # cannot: the reader has to be somewhere, and the somewhere must not be drawn.
+    assert (
+        page.evaluate("() => getComputedStyle(document.body).outlineStyle") == "none"
+    ), "landing on the page drew a ring around it"
+    page.keyboard.press("Space")
+    expect(panel).to_be_hidden()
+    page.wait_for_function("(was) => document.body.scrollTop > was", arg=was)
     assert errors == []
     page.close()
 
@@ -10530,10 +10618,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the key line asked `when`,
     the ? overlay didn't, and a shortcut could hold its liveness where no surface
-    could ask — the diff inside its own run — so the overlay offered g 1–9 with no
-    thread to reply to, and the diff on a first version with nothing to diff.
-    Liveness is one declaration, and the dispatcher, the line, and the overlay all
-    ask it."""
+    could ask — inside its own run — so the overlay offered g 1–9 with no thread to
+    reply to, and named a walk through a list of one. Liveness is one declaration,
+    and the dispatcher, the line, and the overlay all ask it."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -10548,7 +10635,6 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Reply to the nth")
     expect(help_el).not_to_contain_text("Next / previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
-    expect(help_el).not_to_contain_text("Highlight changes")
     expect(help_el).not_to_contain_text("waiting on you for")
     # The chooser is the one version key a first version has: its menu holds this
     # version and what it changed, where the menu's own keys have nothing to walk.
@@ -10583,8 +10669,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("In the versions menu")
     page.keyboard.press("Escape")
 
-    # A v2 lands and the unpinned page follows it; on v2 the version keys are
-    # live — the menu has a list to walk, and v has a previous version to diff against.
+    # A v2 lands and the unpinned page follows it; on v2 the menu's own keys are
+    # live, having a list to walk and a base to walk onto.
     (d / "versions" / "v2.html").write_text(NOTED_PAGE)
     interact.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
@@ -10594,21 +10680,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Walk the versions")
-    expect(help_el).to_contain_text("Highlight changes since the previous version")
     expect(help_el).to_contain_text("g 1–2")
     page.keyboard.press("Escape")
-
-    # The diff key is a toggle, and its row stays live over a standing comparison
-    # precisely so the press can end one — so over a marked-up page the reference has to
-    # say the half of the run this press would take, not the half that already happened.
-    page.keyboard.press("=")
-    expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
-    page.keyboard.press("?")
-    expect(help_el).to_contain_text("Stop highlighting changes")
-    expect(help_el).not_to_contain_text("Highlight changes since the previous version")
-    page.keyboard.press("Escape")
-    page.keyboard.press("=")
-    expect(page.locator(".lf-version")).not_to_have_class(re.compile(r"\bon\b"))
 
     # A resolved thread stays focusable after the last open one is gone, and the
     # scene branch that restates the j/k row over it asks the same liveness.
@@ -12965,12 +13038,12 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     ]
     expect(rows.last).to_have_text("v10 (latest)")
     # The bases a diff can run against are every version older than this one, so the
-    # last press in the menu is v9 — and it is the one the page's own = reaches for,
-    # which is the reading of "the version before this" that the ordering decides.
+    # last press in the menu is v9 — which is what "the version before this" comes to
+    # once the ordering has decided it.
     presses = page.locator(".lf-version-diff")
     expect(presses).to_have_count(9)
     expect(presses.last).to_have_attribute("data-lf-version", "9")
-    page.keyboard.press("=")
+    compare_with(page)
     expect(page.locator(".lf-version")).to_have_attribute(
         "title", re.compile(r"changed since v9 ")
     )
@@ -13134,10 +13207,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     """A mode standing over the page takes the page's keys. The chord and the reference
     always did and this menu did not, so mid-walk `d` scrolled a page the reader had
-    stopped looking at, `c` opened the composer under the list, and `=` set a base the walk
-    they were standing in disagreed with. None of it failed loudly: each press did exactly
-    what it promises, somewhere the reader was not — and the key line went on offering all
-    of them, which is what made the offer the bug rather than the press.
+    stopped looking at and `c` opened the composer under the list. None of it failed
+    loudly: each press did exactly what it promises, somewhere the reader was not — and
+    the key line went on offering all of them, which is what made the offer the bug rather
+    than the press.
 
     A claim is not the blanket it replaced, so the exemption is asserted beside it: the
     reference is the one key a mode keeps, being the key that says what the mode's own keys
@@ -13147,9 +13220,9 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     the mode swallows moves nothing, and nothing is what an assertion made too early reads
     on a key that worked — so the presses here are the two whose effect is a class and a
     focus move in the same task as the keydown (`j` and `c`, both of which would raise the
-    panel and one of which would take the focus out of the menu). `=` and `d` land a fetch
-    and a glide later, where "not yet" and "never" read alike; the line is where those two
-    are held, off the same claim the dispatcher reads."""
+    panel and one of which would take the focus out of the menu). `d` lands a glide later,
+    where "not yet" and "never" read alike; the line is where it is held, off the same
+    claim the dispatcher reads."""
     url = serve(LONG_PAGE, comments=2)
     _publish(
         serve.page_dir,
@@ -13163,7 +13236,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     line = page.locator(".lf-keyline")
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
-    for word in ["comment", "threads", "half a page", "mark changes"]:
+    for word in ["comment", "threads", "half a page", "versions"]:
         expect(line).to_contain_text(word)
 
     page.keyboard.press("v")
@@ -13174,7 +13247,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # same claim the dispatcher reads — one statement, both surfaces.
     expect(line).to_contain_text("walk — marking changes")
     expect(line).to_contain_text("close versions")
-    for word in ["comment", "threads", "half a page", "mark changes"]:
+    for word in ["comment", "threads", "half a page", "design mode"]:
         expect(line).not_to_contain_text(word)
 
     # The exemption: still one press to the reference, which still lists the mode standing
@@ -13344,8 +13417,10 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     From the keyboard the base is the row the walk stands on, so the marks follow the
     walk: the note says in words what a version changed and the page says it in the
     passages, without the reader leaving the list to find out. That is also the whole of
-    the way off — the row an open lands on is the version being read, which is no
-    comparison at all — so nothing here needs a key of its own."""
+    the way off, the page having no key for a comparison. It costs nothing to find,
+    because the two ends of the walk are the two versions the reader already has in mind:
+    an open lands on the standing base, and stepping down ends on the version being read,
+    which is comparable with nothing."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
     url = serve(INLINE_PAGE)
@@ -13395,15 +13470,18 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     page.keyboard.press("Enter")
     expect(page.locator(".lf-ins-block")).to_have_count(2)
 
-    # The page's own = is the way off a comparison whatever it is against, which is why
-    # the key stays live under one; with nothing standing it takes the previous
-    # version, as it always did.
-    page.keyboard.press("=")
+    # And the keyboard's way off, which is the walk: an open lands on the base the marks
+    # came from rather than on the version being read, so the reader starts at one end of
+    # the span the rail draws and steps down it to the other, where nothing is older to
+    # compare against. Landing on the version being read instead would put the base a
+    # press away from moving under them.
+    page.keyboard.press("v")
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
-    page.keyboard.press("=")
-    expect(page.locator(".lf-ins-block")).to_have_count(1)
-    page.keyboard.press("=")
-    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    page.keyboard.press("Escape")
 
     # And the walk, which is the same series of comparisons made by standing on the rows
     # rather than by naming a base: each step marks what changed since the row it lands
@@ -14702,12 +14780,17 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     page.close()
 
 
-def test_the_version_diff_answers_a_key_beside_the_version_pair(browser, serve):
-    """The diff held v while the chooser — the control actually wearing the version
-    number — had no key at all, so v went to the chooser and the diff took =, beside
-    [ and ], the other keys about which version this is. Pressed rather than read off
-    the table: a key bound to nothing looks the same in the ? overlay as one that
-    works, which is how a rebinding would go unnoticed on the side it left."""
+def test_the_page_has_one_door_to_a_comparison(browser, serve):
+    """`=` marked what changed since the previous version from anywhere on the page, and
+    the case for it was that it named no version — "since the last one I saw" is a
+    question a reader has without opening anything. Naming no version is also naming
+    nothing to check, and the two are not the same question: on a page that ships a
+    version whenever the work moves, a reader back after a week got v(n-1) and no way to
+    see that they had. So the door is the menu, where every base says which one it is.
+
+    Pressed rather than read off the table, on both sides: a key bound to nothing looks
+    exactly like one that works in the ? overlay, which is how the removal would go
+    unnoticed here and the marks would go unnoticed on the page."""
     url = serve(LONG_PAGE)
     _publish(
         serve.page_dir,
@@ -14716,11 +14799,16 @@ def test_the_version_diff_answers_a_key_beside_the_version_pair(browser, serve):
         "reworded a paragraph",
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    line = page.locator(".lf-keyline")
+    expect(line).to_contain_text("versions")
+    expect(line).not_to_contain_text("mark changes")
     page.keyboard.press("=")
+    expect(page.locator(".lf-version-menu")).to_be_hidden()
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+
+    # The door, and it marks the same passage the key used to.
+    compare_with(page)
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
-    # And the key it left does the chooser's job now rather than both.
-    page.keyboard.press("v")
-    expect(page.locator(".lf-version-menu")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -14734,7 +14822,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
 
     Only a press can state it. A read lives through the interval, since `expect` re-asks
     for five seconds and the retry lands in two; a keystroke into a page that has no
-    versions yet is gone, and the diff never opens."""
+    versions yet is gone, and the chooser never opens."""
     url = serve(LONG_PAGE)
     _publish(
         serve.page_dir,
@@ -14754,8 +14842,8 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
         page, errors = open_page(
             browser, url.replace("v1.html", "v2.html"), context=context
         )
-        page.keyboard.press("=")
-        expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
+        page.keyboard.press("v")
+        expect(page.locator(".lf-version-menu")).to_be_visible()
         assert errors == []
     finally:
         context.close()

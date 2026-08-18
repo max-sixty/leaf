@@ -16167,10 +16167,11 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 
 
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
-# frame, the option's card, the metric, the page's own div) and a wrapper that doesn't
-# (a plain section). The div is the case the theme cannot name: it draws its box in the
-# page's own style and declares the frame there, which is the whole of what a project
-# writes to hold an exhibit inside its own card.
+# frame, the option's card, the metric, the nested task's rail, the note a code block
+# builds, the page's own div) and a wrapper that doesn't (a plain section). The div is
+# the case the theme cannot name: it draws its box in the page's own style and declares
+# the frame there, which is the whole of what a project writes to hold an exhibit inside
+# its own card.
 FRAMED_WIDE_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -16224,6 +16225,31 @@ graph LR
 </pre></lf-diagram>
   </lf-metric>
 </lf-metrics>
+<lf-tasks id="plan">
+  <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
+    <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
+      <lf-diagram id="in-task"><pre>
+graph LR
+  A[request] --> B[queue]
+  B --> C[worker]
+</pre></lf-diagram>
+    </lf-task>
+  </lf-task>
+</lf-tasks>
+<lf-code id="walk" language="python" hi="2"><pre>
+def bracket(temp):
+    if temp &lt; 0:
+        return "steel"
+    return "cedar"
+</pre>
+  <lf-note id="line-note" at="2">Freezing is the only threshold that matters.
+    <lf-diagram id="in-note"><pre>
+graph LR
+  A[request] --> B[queue]
+  B --> C[worker]
+</pre></lf-diagram>
+  </lf-note>
+</lf-code>
 <div id="own-box" style="border: 1px solid #999; padding: 10px; --lf-frame: 1">
   <lf-diagram id="in-own-box"><pre>
 graph LR
@@ -16642,22 +16668,31 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     draws its frame, so the metric here is held by declaring one and the page's own div by
     declaring the same one. A list of tags stood in for that reading and shadowed it: the
     metric declared the frame and was not in the list, and no list a layer writes can
-    reach the div at all."""
+    reach the div at all.
+
+    The task and the note are the two a list of tags could not have named even in
+    principle. A task's rail is drawn by `lf-task > lf-task`, so a task frames what it
+    holds only where it is nested, and a note's box is `.lf-code-note`, built by the code
+    block's module and worn by no tag at all. Each let a diagram out ~245px over the
+    column until the rule that draws it declared the frame."""
     page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
     boxes = page.evaluate("""() => {
-        const box = (id) => {
-            const r = document.getElementById(id).getBoundingClientRect();
+        const box = (sel) => {
+            const r = document.querySelector(sel).getBoundingClientRect();
             return { left: r.left, right: r.right, width: r.width };
         };
         const main = document.querySelector('main');
         const s = getComputedStyle(main), b = main.getBoundingClientRect();
         return { column: b.right - parseFloat(s.paddingRight)
                          - b.left - parseFloat(s.paddingLeft),
-                 loose: box('in-section'), specimen: box('quoted'),
-                 quoted: box('in-specimen'), card: box('opt-a'), diagram: box('in-card'),
-                 boardCard: box('ek1'), inBoardCard: box('in-board-card'),
-                 metric: box('me1'), inMetric: box('in-metric'),
-                 ownBox: box('own-box'), inOwnBox: box('in-own-box') };
+                 loose: box('#in-section'), specimen: box('#quoted'),
+                 quoted: box('#in-specimen'), card: box('#opt-a'),
+                 diagram: box('#in-card'),
+                 boardCard: box('#ek1'), inBoardCard: box('#in-board-card'),
+                 metric: box('#me1'), inMetric: box('#in-metric'),
+                 task: box('#t-inner'), inTask: box('#in-task'),
+                 note: box('.lf-code-note'), inNote: box('#in-note'),
+                 ownBox: box('#own-box'), inOwnBox: box('#in-own-box') };
     }""")
 
     assert boxes["loose"]["width"] > boxes["column"] + 1, (
@@ -16697,6 +16732,22 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "the diagram crossed the metric's right edge and is drawn over the metric "
         f"beside it: diagram out to {boxes['inMetric']['right']:.0f}, metric ends at "
         f"{boxes['metric']['right']:.0f}"
+    )
+    assert boxes["inTask"]["left"] >= boxes["task"]["left"] - 1, (
+        "the diagram crossed the left edge of the task that holds it"
+    )
+    assert boxes["inTask"]["right"] <= boxes["task"]["right"] + 1, (
+        "the diagram crossed the right edge of the task that holds it and is drawn past "
+        "the rail marking it as nested: diagram out to "
+        f"{boxes['inTask']['right']:.0f}, task ends at {boxes['task']['right']:.0f}"
+    )
+    assert boxes["inNote"]["left"] >= boxes["note"]["left"] - 1, (
+        "the diagram crossed the left edge of the note that holds it"
+    )
+    assert boxes["inNote"]["right"] <= boxes["note"]["right"] + 1, (
+        "the diagram crossed the right edge of the note that holds it and is drawn over "
+        "the code block it annotates: diagram out to "
+        f"{boxes['inNote']['right']:.0f}, note ends at {boxes['note']['right']:.0f}"
     )
     assert boxes["inOwnBox"]["left"] >= boxes["ownBox"]["left"] - 1, (
         "the diagram crossed the left edge of the box the page drew for it"

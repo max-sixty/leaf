@@ -408,6 +408,12 @@ frames what it holds takes the box's width rather than the page's room (`--lf-ro
 word answers both and a project's card is covered either way. The box `leaf customize widget` scaffolds says it, so a
 project's first widget is right by construction.
 
+Where the frame is drawn is where it is declared, and that is not always a tag's own rule. A task draws its rail in
+`lf-task > lf-task`, so it frames what it holds only where it is nested, and a code note's box is `.lf-code-note`,
+built by the module and worn by no tag at all. Neither said so, and a diagram inside either stood ~245px over the
+column. What found them was the gate, put to a page that stood an exhibit in each; going down the stylesheet tag by
+tag is what had missed them.
+
 Which child is at that edge is a question about the page's own blocks, and `:first-child` is the DOM's answer
 to it. The two agree only where no module has written anything — a pick mark is appended and positioned out of
 the flow, a quiet word is clipped and inserted after the title, and each takes the trim off the block the reader

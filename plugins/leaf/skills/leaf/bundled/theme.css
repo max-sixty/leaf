@@ -682,7 +682,8 @@ lf-task[status="active"]::before  { border-color: var(--accent);
                                     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 lf-task[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
 lf-task[status="review"]::before  { background: var(--warn); border-color: var(--warn); }
-lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule); }
+lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
+                    --lf-frame: 1; }
 lf-task > strong { margin-right: 6px; }
 lf-task[status="done"] > strong { color: var(--muted); }
 
@@ -1157,7 +1158,7 @@ lf-code .lf-code-line.hi { background: var(--hi-tint); }
 lf-code .lf-code-note { margin: 4px 8px 6px 46px; padding: 6px 10px;
              background: var(--field); border: 1px solid var(--rule);
              border-radius: var(--r); font-family: var(--serif);
-             font-size: var(--t-5); white-space: normal; }
+             font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
 lf-code lf-note { display: block; }
 
 /* lf-draft rendered form: a block of text the user owns. The dashed border says

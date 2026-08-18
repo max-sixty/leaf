@@ -544,25 +544,17 @@ def _traffic(page):
 
 
 def _until(page, fact, wanted):
-    """Block until `fact` holds of the page's traffic.
-
-    The events the counters are built from arrive while the client is blocked inside a
-    Playwright call, so this blocks on the next response and asks again — no polling
-    interval to pick, and nothing added to the page.
-
-    It wakes on responses alone, where the counters answer to failures too, so a fact that
-    came true through a failed request waits for the next poll that is answered to be
-    noticed. A page with every poll routed to `abort` has no such next, and a wait on one
-    runs its timeout out and says so rather than passing.
-
-    A wait that runs out says what it was watching, `wanted` naming the fact in the words
-    of the caller that wanted it — required rather than defaulted, so the next wait written
-    here cannot quietly go back to saying nothing. Playwright's own message names the event
-    it blocked on ("response") and nothing about the page, while the counters that answer
-    it are already in hand, so the failure carries them from both ends of the wait: a fact
-    stuck while polls keep arriving reads differently from a page that has stopped talking
-    at all. Raised from the timeout rather than in place of it, the budget it ran out of
-    being the one fact this message hasn't got."""
+    """Block until `fact` holds of the page's traffic. The events the counters are built
+    from arrive while the client is blocked inside a Playwright call, so this blocks on
+    the next response and asks again — no polling interval to pick, and nothing added to
+    the page. It wakes on responses alone, so a fact that came true through a failed
+    request waits for the next answered poll; a page with every poll routed to `abort`
+    has no such next and runs its timeout out rather than passing. `wanted` names the
+    fact in the words of the caller that wanted it, required rather than defaulted so
+    the next wait written here cannot quietly go back to saying nothing. Playwright's
+    own message names the event it blocked on and nothing about the page, so the failure
+    carries the counters from both ends of the wait: a fact stuck while polls keep
+    arriving reads differently from a page that has stopped talking at all."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
@@ -784,26 +776,18 @@ def panel_settled(page, open=True):
 
 
 def resized(page, width, height):
-    """Resize the window, and wait for the page to have handled it.
-
-    `set_viewport_size` returns once the browser is the new size, which is a fact about
-    the browser and not about the page: the runtime's own resize listener may not have
-    run yet, so syncLayout's layout — the margin, the covering sheet, and with it which
-    region a half-page key moves — can still be the old window's. A test that reads
-    layout on that frame reads the width it just left, and only on a machine loaded
-    enough to fit the read in first, which is the shape of every wait this suite has
-    had to learn (`tests/CLAUDE.md`, "A wait consumes a fact the system states").
-
-    The fact the page states here is the event reaching its listeners. The runtime
-    registered its own when it loaded, so one added now runs after it on the same
-    event, and a count of those is the page saying it has caught up. What syncLayout
-    then wrote is a separate question, and a test whose subject is the new layout still
-    waits for the piece of it that it is about.
-
-    A window already the size asked for fires nothing, so waiting on it would hang out
-    a whole timeout rather than return at once. The sweep that walks each example at
-    both a desk's width and a phone's asks for the first of those on a page opened at
-    it."""
+    """Resize the window, and wait for the page to have handled it. `set_viewport_size`
+    returns once the browser is the new size, which is a fact about the browser and not
+    about the page: the runtime's own resize listener may not have run, so syncLayout's
+    margin, covering sheet, and which region a half-page key moves can still be the old
+    window's. A test reading layout on that frame reads the width it just left, and only
+    on a machine loaded enough to fit the read in first (`tests/CLAUDE.md`, "A wait
+    consumes a fact the system states"). The fact the page states here is the event
+    reaching its listeners: the runtime registered its own at load, so one added now
+    runs after it on the same event. What syncLayout then wrote is a separate question,
+    and a test whose subject is the new layout still waits for the piece of it that it
+    is about. A window already the size asked for fires nothing, so waiting on it would
+    hang out a whole timeout."""
     if page.viewport_size == {"width": width, "height": height}:
         return
     page.evaluate("""() => {
@@ -1660,39 +1644,20 @@ def displaced(before, boxes):
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
-    """A press may change the page; it may not move the controls next to the one pressed.
-
-    A user works by pointing, and the line a control stands on is where their next
-    gesture is already aimed. What a press changes below it is content — a tab shows a
-    different panel, a fold opens, a suggestion resolves, and the page under it moves
-    because the user asked it to. What must not move is the row itself, because
-    nothing was asked of it and it is the one thing the user is still using.
-
-    Three shipped controls broke this rule, each by changing a metric to say something:
-    a selected tab set in 600 weight, since a bolder label is a wider one, so the strip
-    reshuffled under the pointer that had just pressed it; the sign-off button, whose
-    "✓ Approved" is 12px narrower than "✓ Looks good", sliding the version chooser and
-    the Comments button right; and a row-form pick mark, which took the room for the
-    word it says on being pressed and dragged that row's § reference 54px left. None of
-    them shows in a screenshot of either state, because every strip and every row lays
-    out perfectly well on its own; it is the two states together that say anything.
-
-    Two of the three are fixed by holding the widest word's room from the start. That
-    room is measured at load rather than stated, because a number read once out of a
-    browser covers the face it was read in and no other: the pick column's stood at 68px
-    and went 2px short the first time this ran on Linux, whose system sans sets "your
-    pick" wider than macOS's. This is what said so, and it says how late a stated number
-    is caught — a platform late, and only where there is a second platform to run on.
-
-    Driven over the corpus rather than per widget: a control this sweep has never heard
-    of joins it by being pressable, which is the only property it reads.
-
-    One press per page, because a press is a gesture made on the page as published and
-    the state an earlier one leaves changes what a later one proves. Pressing straight
-    down the document hid the sign-off button's 12px for exactly that reason: Comments
-    comes first in the banner, and with the panel open the row is crowded enough that
-    the status text takes up the slack instead of the buttons — a real regression,
-    silently masked by the sweep's own previous gesture."""
+    """A press may change the page; it may not move the controls next to the one pressed. A
+    user works by pointing, and the line a control stands on is where their next gesture
+    is already aimed. What a press changes below it is content, asked for; what must not
+    move is the row itself. Three shipped controls broke this by putting state in a
+    metric: a selected tab set in 600 weight, the sign-off button whose "✓ Approved" is
+    12px narrower than "✓ Looks good", and a row-form pick mark that took the room for
+    its word on being pressed. None shows in a screenshot of either state — only the two
+    states together say anything. The fix is holding the widest word's room from the
+    start, measured at load rather than stated: the pick column's stated 68px went 2px
+    short the first time this ran on Linux. Driven over the corpus rather than per
+    widget, so a control this sweep has never heard of joins it by being pressable. One
+    press per page, because the state an earlier press leaves changes what a later one
+    proves — pressing straight down the document hid the sign-off button's 12px behind
+    the open panel's crowding."""
     url = serve(example.read_text())
     page, errors = open_page(browser, url)
     total = page.locator(PRESS).count()
@@ -2206,44 +2171,28 @@ def token_colour(page, name):
 
 
 def mark_edges(page, ident, ink):
-    """How wide the mark is painted on each side of an element, in device pixels.
+    """How wide the mark is painted on each side of an element, in device pixels. Geometry
+    can't answer this and neither can the computed style: the mark is an outline, so
+    every rect is identical whether the stroke survived or something painted over it,
+    and `outlineWidth` is what was asked for rather than what landed.
 
-    Geometry can't answer this and neither can the computed style: the mark is an
-    outline, so every rect is identical whether the stroke survived or something
-    painted over it, and `outlineWidth` is what was asked for rather than what
-    landed. Pixels are the only reading — the same recourse the draft's focus ring
-    needed, one screenshot up from a byte comparison because the four sides have to
-    be compared with each other rather than with an earlier frame.
+    Each scan starts at the element's own edge and stops at the first pixel that isn't
+    the mark's colour, rather than counting the first ink-coloured run anywhere along
+    the scanline — an accent status dot in the clip's own padding reported 26 device
+    pixels of "mark" on a side the mark never reached. The ±12 per channel that follows
+    admits the stroke's antialiased shoulder and nothing else, where ±40 reached both
+    --accent and --syn-name. Three samples a side, returned as a set rather than a
+    majority: a majority votes the mark intact when part of the edge has been painted
+    over, which is the failure this exists to catch, so the caller sees {1, 0} rather
+    than 1.
 
-    Each scan starts at the element's own edge and stops at the first pixel that
-    isn't the mark's colour, because the first draft counted the first ink-coloured
-    run *anywhere* along the scanline: an accent status dot sitting in the clip's own
-    padding reported 26 device pixels of "mark" on a side the mark never reached, and
-    a marked code block would have counted its identifiers. What follows from that is
-    the tolerance too — ±12 per channel admits the stroke's antialiased shoulder and
-    nothing else, where ±40 reached both --accent and --syn-name.
-
-    Three samples a side, returned as a set rather than a majority. A majority is a
-    vote for the mark being intact when part of the edge has been painted over, which
-    is the failure this exists to catch; a disagreement is the finding, so the caller
-    sees {1, 0} rather than 1.
-
-    The clip is squared off to whole CSS pixels first, and each side is then asked for
-    its own ground, because a leaf page's boxes do not land on whole pixels — 17px of
-    body serif at a line-height of 1.6 is 27.2px a line, so a widget's height is a stack
-    of fractions. A clip is asked for in CSS pixels and answered in device ones, and
-    Chrome truncates the rect to whole CSS pixels before it scales: asked for the board
-    column 101.578px tall on this page, it dropped that 0.578 and took all of it off the
-    bottom, which put the element's own edge two device pixels from where MARK_PAD said
-    it was — outside the window below — and a stroke painted whole on all four sides was
-    read as half of one along the bottom. Squaring the clip is what makes that loss
-    nothing to model rather than something to allow for.
-
-    The edge is then snapped in CSS space and scaled, in that order, because that is the
-    order Blink paints in: the painted edge lands at `floor(ground + 0.5) * scale`, and it
-    was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
-    window below covers, until a scale of 4 makes it two. The window is kept for a device
-    pixel of engine drift either side."""
+    The clip is squared off to whole CSS pixels first, and each side is asked for its
+    own ground, because a leaf page's boxes do not land on whole pixels. Chrome
+    truncates a rect to whole CSS pixels before it scales, so an unsquared clip loses
+    the fraction off one edge and reads a whole stroke as half of one. The edge is then
+    snapped in CSS space and scaled, in that order, because that is the order Blink
+    paints in: the painted edge lands at `floor(ground + 0.5) * scale`. The window is
+    kept for a device pixel of engine drift either side."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
     box = page.locator(f"#{ident}").bounding_box()
@@ -2310,35 +2259,20 @@ def mark_edges(page, ident, ink):
 
 
 def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
-    """The mark is drawn in the one band of an element nobody else paints in.
-
-    Both sides of an element's edge belong to somebody. Outside it, the mark is at
-    the mercy of whatever encloses the element — a board is a scroller, so a mark
-    drawn outside a column flush against its padding box was clipped down to the one
-    vertical line that fell in the gutter. Inside it, the mark is at the mercy of
-    what the element paints over itself: an outline is painted before positioned
-    descendants, so a choose group's cells, which are relative and carry a
-    background, wipe out whatever of it reaches past the group's own border.
-
-    Neither failure moves anything, so no geometry read finds either — and both
-    reach the reader as an uneven box rather than as a missing one, which is how
-    this arrived: 2px two pixels in came out a hairline on a group's top and sides
-    and stayed 2px along its bottom, where the last cell stops short, and what was
-    reported was that the box was thicker at the bottom than the top.
-
-    One page carries both shapes, because a fix for either alone passes half of
-    this: the group is the element that paints over its own mark, the column the
-    element something else clips.
-
-    The colour is asserted here rather than assumed by the measurement, since the
-    scans have to be told what to look for and taking that off the element makes the
-    test blind to the one thing it is measuring in.
-
-    The viewport is an odd number of pixels wide so that the horizontal scans are asked
-    a real question. The page column is centred, so an even window puts every box on a
-    whole x and both side scans then measure from exactly the padding they were handed —
-    which is the one value `mark_edges` used to assume for all four sides, so half of
-    what it now derives would never have run against a number that differed."""
+    """The mark is drawn in the one band of an element nobody else paints in, and both
+    sides of that edge belong to somebody. Outside it the mark is at the mercy of
+    whatever encloses the element — a board is a scroller, so a mark outside a column
+    flush against its padding box was clipped to the one vertical line falling in the
+    gutter. Inside it the mark is at the mercy of what the element paints over itself:
+    an outline is painted before positioned descendants, so a choose group's cells wipe
+    out whatever reaches past the group's own border. Neither failure moves anything, so
+    no geometry read finds either, and both reach the reader as an uneven box rather
+    than a missing one. One page carries both shapes, because a fix for either alone
+    passes half of this. The colour is asserted here rather than assumed by the
+    measurement, since taking it off the element makes the test blind to the one thing
+    it measures in. The viewport is an odd number of pixels wide so the horizontal scans
+    are asked a real question: an even window puts every box on a whole x, which is the
+    one value `mark_edges` used to assume for all four sides."""
     context = browser.new_context(
         viewport={"width": 1201, "height": 900},
         color_scheme="light",
@@ -3623,25 +3557,17 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
 def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     """Which is the whole reason the control is a checkbox and a label. A copy is the
     rendered DOM with the scripts dropped and every press a handler answered taken out
-    with them — the upgrade has already run, so the frames are there, and this switch
-    survives that pass because the browser is what works it. A slider would have
-    frozen at whatever the reader left it on; `:has(:checked)` is CSS, and the browser
-    owns a checkbox's state — label activation included, so the image goes on being
-    the target in a file with nothing running.
-
-    Through `version export` rather than a copy the test makes itself, which is what
-    puts the widget's bargain in front of the code that could break it: a hand-rolled
-    one dropped the script tags and nothing else, so it went on passing however the
-    real export treated a control.
-
-    What it pins is no longer that a state serializes. Setting `checked` as a property
-    left no attribute behind, so the copy opened with neither frame chosen and both of
-    them stacked in the one cell — a fault the frames' own default has since made
-    unrepresentable, the after frame being hidden until something checks the box rather
-    than until something checks the other box. So the state needs nothing serialized at
-    all, and what is left to lose is the gesture: `for` is a reflected attribute where
-    `checked` was not, and a copy that dropped it would keep every frame and every word
-    and answer no click on the image."""
+    with them; this switch survives because the browser is what works it. A slider would
+    have frozen wherever the reader left it. `:has(:checked)` is CSS, and the browser
+    owns a checkbox's state — label activation included, so the image goes on being the
+    target in a file with nothing running. Through `version export` rather than a copy
+    the test makes itself, which is what puts the widget's bargain in front of the code
+    that could break it: a hand-rolled one dropped the script tags and nothing else, so
+    it went on passing however the real export treated a control. What it pins is no
+    longer that a state serializes — the frames' own default has made that
+    unrepresentable — but the gesture: `for` is a reflected attribute where `checked`
+    was not, and a copy that dropped it would keep every frame and every word and answer
+    no click on the image."""
     url = serve(SHOT_PAGE)
     for name, data in SHOTS.items():
         (serve.page_dir / "media").mkdir(exist_ok=True)
@@ -4210,27 +4136,19 @@ LIST_STATE = """() => {
 
 
 def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
-    """Resolving a thread empties its place in the list over a fifth of a second,
-    not in the frame of the press.
-
-    The node used to go the moment the log settled it: the ✓ Resolve the user had
-    just pressed took itself off the page, and every thread under it arrived
-    somewhere else with no path between the two — the same pair of failures the
-    suggestion's decided slot was already fixed for, in the panel this time. So the
-    thread stays where it stood, states on the pressed control what was done to it,
-    and folds; the disclosure gets it when the fold is over.
-
-    What the log says is true from that first frame regardless — Comments counts down
-    and Resolved counts up while the pixels catch up — and a thread on its way out is
-    out of the keys' reach from the same frame, so j/k and the g addresses walk what
-    is left rather than a corpse that is about to go. Its own reply box gives up the
-    address with them: the box under it has just taken that digit, and two boxes
-    offering g 1 is a key line promising a press that lands on one of them.
-
-    Held at its first frame rather than sampled mid-flight, the way the suggestion's
-    own fold is read: mid-flight is a race with the clock that passes on a fast
-    machine whatever the code does, where the held frame is the fold's opening state
-    for as long as the assertions need it."""
+    """Resolving a thread empties its place in the list over a fifth of a second, not in
+    the frame of the press. The node used to go the moment the log settled it: the ✓
+    Resolve the user had just pressed took itself off the page, and every thread under
+    it arrived somewhere else with no path between the two — the same pair of failures
+    the suggestion's decided slot was fixed for, in the panel this time. So the thread
+    stays where it stood, states on the pressed control what was done to it, and folds;
+    the disclosure gets it when the fold is over. What the log says is true from that
+    first frame regardless, and a thread on its way out is out of the keys' reach from
+    the same frame, so j/k and the g addresses walk what is left. Its reply box gives up
+    the address with them: the box under it has just taken that digit, and two boxes
+    offering g 1 is a key line promising a press that lands on one of them. Held at its
+    first frame rather than sampled mid-flight, which would be a race with the clock
+    that passes on a fast machine whatever the code does."""
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
     )
@@ -5267,24 +5185,20 @@ def sent_events(page_dir):
 
 
 def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serve):
-    """Which form a group takes is a fact about its options rather than an attribute
-    saying so, and the whole of that fact is whether an option leads with a title. So
-    one page carries both and neither knows about the other: the labels lay out as
-    compact rows and the titled pair as full-width cards stacked down the page.
-
-    Two things the lint cannot see. A resting mark shows no word in either form, because
-    an offer states nothing a reader could disagree with — and what a *picked* mark says
-    has to survive that, since it is the page's only statement of where the pick sits.
-    What differs is the dot: a row draws one and a single-pick card does not. A card
-    gives it up because the state has the whole cell to live in, while a row's is a
-    column at the line's end with room reserved for it by name, so a row that stopped
-    drawing there would end in a blank the width of the word it isn't saying. Both are
-    asked here, since either could be the theme forgetting a rule rather than each form
-    answering for itself. (What a card under `multiple` does instead is the next test's:
-    that one is arity's, not the form's.) And a row's name is
-    what the author wrote in it: the mark that lands inside the row once it is picked is
-    the page speaking (`says`) and must stay out of the row's own name (`wrote`), or a
-    question answered reads its answer back as part of what was asked."""
+    """Which form a group takes is a fact about its options rather than an attribute saying
+    so, and the whole of that fact is whether an option leads with a title. So one page
+    carries both and neither knows about the other: the labels lay out as compact rows
+    and the titled pair as full-width cards. Two things the lint cannot see. A resting
+    mark shows no word in either form, because an offer states nothing a reader could
+    disagree with — and what a *picked* mark says has to survive that, since it is the
+    page's only statement of where the pick sits. What differs is the dot: a card gives
+    it up because the state has the whole cell to live in, while a row's is a column at
+    the line's end with room reserved by name, so a row that stopped drawing there would
+    end in a blank the width of the word it isn't saying. Both are asked here, since
+    either could be the theme forgetting a rule rather than each form answering for
+    itself. And a row's name is what the author wrote in it: the mark landing inside the
+    row once picked is the page speaking (`says`) and must stay out of the row's own
+    name (`wrote`)."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     assert errors == []
 
@@ -5356,33 +5270,21 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
 
 
 def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
-    """How many a group takes is the one thing about it a reader has to know before
-    pressing anything, and for a while the page said it nowhere. A `multiple` group drew
-    the identical circles a single-pick group draws — the shape every platform uses for
-    "one of these" — so the two questions were pixel-for-pixel the same and the only
-    thing that distinguished them was the author remembering to say so in prose. A reader
-    who took the marks at their word would pick once and expect the next click to replace
-    it.
-
-    So the mark carries the arity, in both of the registers one control has: its corner
-    is round for one and square for any, and its word is "choose one" or "choose any" for
-    a reader who gets no corner. The corner is read as a fraction of the mark's own box,
-    because the two are computed in different units (a circle is stated as a percentage of
-    a box whose size is stated in px) and the question is the shape rather than either
-    number. What is pinned is that they differ and that the single-pick one is a full
-    round — a threshold between them would be this design's 3px corner written down a
-    second time, free to disagree with it.
-
-    Arity is not the form, which is why the contrast is card against card. Both of the
-    rules here were the list form's once, on the reading that a `multiple` group is a
-    list of slots; `multiple` is orthogonal to which form a group takes, so a titled
-    group asking "which of these" inherited neither and offered the reader nothing to
-    count. Hence the second half: an unticked box is a fact about that option, not the
-    group's offer said again, so it draws under `multiple` where a single-pick card —
-    whose state has the whole cell to live in — gives it up.
-
-    And the shape is paint inside a box that does not change, so neither arity is a
-    pixel wider than the other and every room already reserved still covers."""
+    """How many a group takes is the one thing a reader has to know before pressing
+    anything, and for a while the page said it nowhere: a `multiple` group drew the
+    identical circles a single-pick group draws, so the two questions were pixel-for-
+    pixel the same and only the author's prose distinguished them. So the mark carries
+    the arity in both registers one control has — its corner is round for one and square
+    for any, its word is "choose one" or "choose any" for a reader who gets no corner.
+    The corner is read as a fraction of the mark's own box, the two being computed in
+    different units, and what is pinned is that they differ and that the single-pick one
+    is a full round; a threshold between them would be this design's 3px corner written
+    down a second time. Arity is not the form, which is why the contrast is card against
+    card: both rules were the list form's once, so a titled group asking "which of
+    these" inherited neither. Hence the second half — an unticked box is a fact about
+    that option rather than the group's offer said again, so it draws under `multiple`
+    where a single-pick card gives it up. The shape is paint inside a box that does not
+    change, so neither arity is a pixel wider than the other."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     corner = """el => { const s = getComputedStyle(el, '::before');
                         const r = s.borderTopLeftRadius;
@@ -5876,27 +5778,18 @@ def test_a_pick_states_the_whole_set(browser, serve):
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):
-    """The log's order is the order the user acted in, and two requests in flight are
-    not: the server answers each on a thread of its own, so a pick made a moment after
-    another can be appended before it. That is the drift the test below is about,
-    arriving through the log this time rather than through a poll — and arriving where
-    nothing heals it, since replay states a widget whole and every later reading of the
-    page is of the log it left.
-
-    It reached CI before it was ever seen here, on the test above: two clicks three
-    lines apart landed reversed on a loaded runner, twice, while two dozen runs of that
-    same sequence in the dockerised Linux suite never once managed it. So the race is
-    stated rather than run for. The first send is stopped in the wire and the second
-    click made while it is still there, which is the whole of a loaded machine's
-    contribution; what the page does about that click is the instrument, since it paints
-    a pick before it sends and so has already done whatever it was going to do about
-    sending by the time the paint is readable.
-
-    Both halves are asserted and only one of them is the gate. One request in the wire
-    is a fact about this page on every run, so it is what goes red the moment the queue
-    does; the log's order after the release is the outcome the queue is for, and on its
-    own it would be the same coin the runner tossed — a second send already appended
-    beats the release, and one still in flight doesn't."""
+    """The log's order is the order the user acted in, and two requests in flight are not:
+    the server answers each on a thread of its own, so a pick made a moment after
+    another can be appended before it. It arrives where nothing heals it, since replay
+    states a widget whole and every later reading of the page is of the log it left. It
+    reached CI before it was ever seen here — two clicks three lines apart landed
+    reversed on a loaded runner, twice, while two dozen runs in the dockerised Linux
+    suite never managed it. So the race is stated rather than run for: the first send is
+    stopped in the wire and the second click made while it is still there. Both halves
+    are asserted and only one is the gate. One request in the wire is a fact about this
+    page on every run, so it is what goes red the moment the queue does; the log's order
+    after the release is the outcome the queue is for, and on its own it would be the
+    same coin the runner tossed."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     held = []
 
@@ -5931,25 +5824,19 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
 
 
 def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
-    """Replay states a widget whole, so the order is what it owes: an action applied
-    after the gesture that superseded it hands the reader their older state back, and
-    the gesture after that computes from what it painted and sends a decision they
-    never made. Applying each action once says nothing about *when* — a pick recorded
-    before a click can still be replayed after it, which is what a loaded machine does
-    to this page's own polls.
-
-    So the instrument is that answer, stated from outside: every poll is served the log
-    truncated to what the page may see, and the one that lands while the second pick is
-    still in flight carries only the first — a poll snapshotted between the two picks,
-    arriving after both, where a slow machine would have put it. Which poll that is
-    cannot be timed from here, so the answers are gated on the page's own traffic. After
-    it every poll is refused, so nothing heals what that answer did and the third pick
-    reads the page the answer left.
-
-    Another tab's pick on the group beside it rides the same answer, and is what says
-    the batch was replayed at all: a trip is over when its response lands, which is
-    before the page has done anything about it, so without that edge both the count
-    below and the third click would be about a page nothing had happened to yet."""
+    """Replay states a widget whole, so the order is what it owes: an action applied after
+    the gesture that superseded it hands the reader their older state back, and the
+    gesture after that computes from what it painted and sends a decision they never
+    made. Applying each action once says nothing about *when* — a pick recorded before a
+    click can still be replayed after it, which is what a loaded machine does to this
+    page's own polls. So the instrument is that answer, stated from outside: every poll
+    is served the log truncated to what the page may see, and the one landing while the
+    second pick is in flight carries only the first. Which poll that is cannot be timed
+    from here, so the answers are gated on the page's own traffic; after it every poll
+    is refused, so nothing heals what that answer did. Another tab's pick on the group
+    beside it rides the same answer and is what says the batch was replayed at all — a
+    trip is over when its response lands, which is before the page has done anything
+    about it."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
     # The log, and how much of it the page is shown. Seq 1 is the note it opened on,
@@ -6154,25 +6041,18 @@ assert SPECIMEN_EXAMPLES, (
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(html, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
     things had to be true for that. The "quoted ·" note over the bar is the theme's word
-    *about* the region rather than a word in it, and the bar opened at the note, drawing
-    the marking around a line the page never said. And a table cell is a margin barrier,
-    so the room the exhibit's outermost blocks reserve against neighbours they haven't
-    got could not collapse out and was painted as bar instead — sixteen pixels of it
-    over the first card and under the last, on every specimen shipped.
-
-    Geometry can't answer the top. The element's own rect is the table wrapper's and
-    takes in the caption, while the bar is painted on the table box inside it, which
-    nothing in the DOM is a handle on — so a rect comparison passes exactly as well
-    with the note back inside the marking. The pixels in the bar's own column are the
-    reading, and each edge is read in a strip of its own with that edge brought to the
-    middle of the window: a clip is the viewport's, so one strip over the whole bar
-    would cap the sweep at the tallest exhibit a window can hold.
-
-    Driven over every specimen in the corpus rather than the fixture alone, because
-    what the theme can reach is the specimen's direct children and what it cannot is
-    whichever widget hands its boxes to the flow instead. That gap is invisible in the
-    stylesheet and shows only as a bar longer than what it marks, so the corpus is
-    where the next one gets caught."""
+    *about* the region rather than a word in it, and the bar opened at the note. And a
+    table cell is a margin barrier, so the room the exhibit's outermost blocks reserve
+    against neighbours they haven't got could not collapse out and was painted as bar
+    instead — sixteen pixels over the first card and under the last, on every specimen
+    shipped. Geometry can't answer the top: the element's own rect is the table
+    wrapper's and takes in the caption, while the bar is painted on the table box inside
+    it, so a rect comparison passes exactly as well with the note back inside the
+    marking. The pixels in the bar's own column are the reading, each edge read in a
+    strip of its own with that edge brought to the middle of the window, since a clip is
+    the viewport's. Driven over every specimen in the corpus, because what the theme can
+    reach is the specimen's direct children and what it cannot is whichever widget hands
+    its boxes to the flow instead."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
     page, errors = open_page(browser, serve(html))
@@ -9123,30 +9003,19 @@ INSIDE_ITS_OPTION = """el => {
 
 
 def test_a_questions_digits_are_drawn_whole(browser, serve):
-    """An address arrives into room its option is already holding, and lands on nothing.
-
-    Every earlier placement borrowed that room instead, and each borrow showed. On the
-    cell's outer corner the chip was half outside a group that clips itself, so no
-    address the product drew had ever been whole — seven of its seventeen pixels gone,
-    and in a bare-label group the first digit was a sliver.
-    Out in the page margin beside the group it was whole and it was in the neighbouring
-    card's prose, because a middle column's margin is another cell. Neither showed up
-    as a failure: a clipped element still reports its whole box and still answers
-    `to_be_visible`, and a chip drawn over words breaks no rule anybody had written.
-
-    So the cell holds a column for it, and this asks the two questions that column
-    answers — does any ancestor cut it, is it on anybody's words — in both forms,
-    stepped through with the key that reaches them, since the room inside a cell is
-    exactly what differed: cards padded clear of their corners, rows with none to
-    spare.
-
-    How far down the column it stands is each form's own answer, so each is asked for the
-    fact it states rather than for one number covering both. A card's digit rides at the
-    head of that column, beside the title rather than over it; a row's is centred on the
-    row. Pinned as one 8px it was level with a 15px row, and the day the row went to the
-    page's own 17px it was two pixels too high with the gate still green — because what
-    the gate read was the number the theme stated, and the claim beside it, that a row's
-    digit is level with its words, was checked by nothing."""
+    """An address arrives into room its option is already holding. Every earlier placement
+    borrowed that room instead, and each borrow showed: on the cell's outer corner the
+    chip was half outside a group that clips itself, so no address the product drew had
+    ever been whole; out in the page margin it was whole and in the neighbouring card's
+    prose. Neither showed as a failure — a clipped element still reports its whole box
+    and still answers `to_be_visible`. So the cell holds a column for it, and this asks
+    the two questions that column answers — does any ancestor cut it, is it on anybody's
+    words — in both forms, since the room inside a cell is exactly what differed. How
+    far down the column it stands is each form's own answer, so each is asked for the
+    fact it states rather than one number covering both: a card's digit rides at the
+    head beside the title, a row's is centred on the row. Pinned as one 8px it was level
+    with a 15px row and two pixels too high once the row took the page's 17px, with the
+    gate still green, because what the gate read was the number the theme stated."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
     for options, sitting in [
         (["c-heater", "c-cable", "c-hand"], "in the corner"),
@@ -11062,29 +10931,21 @@ def test_the_composer_opens_where_the_button_stood(browser, serve):
 
 
 def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
-    """A drag stops where the hand stopped: four glyphs into "paragraph", four short
-    of the end of "carrying". The reader meant the words, and the quote the capture
-    would otherwise store — "graph carr" — reads as a typo in the panel and in every
-    reply that quotes it back. So the pointer path grows a selection out to word
-    boundaries, outward only: an end resting in space or against punctuation is
-    already where the reader put it, so "it," gains its 't' and not its comma, and a
-    word split across inline markup — here by splitText, which also leaves the empty
-    text node that puts two EDGEs flush in the indexed reading — still grows whole.
-
-    What the pointer path must not do is here too. A keyboard selection is never
-    grown — shift-arrow is the reader being precise — so the key release that raises
-    the button leaves a mid-word selection exactly as made, and so does the right
-    button, whose release precedes the context menu Copy lives in. A right-to-left
-    drag keeps its direction, asked of boundary points rather than node order because
-    a selection ending on the element holding its own start both precedes and
-    contains it. And machine-placed words never glue to the author's, on either
-    side of the declaration line: an undeclared generated span is a fenced cell in
-    the reading, and a declared label — a specimen's, rendered flush before its
-    words inside a list item, where both share the one block — is the seam itself.
-
-    The reads await one queued step first, the same tick the mouseup handler defers
-    its own work behind, so each one sees the selection after the snap rather than
-    racing it."""
+    """A drag stops where the hand stopped: four glyphs into "paragraph", four short of the
+    end of "carrying". The reader meant the words, and the quote the capture would
+    otherwise store — "graph carr" — reads as a typo in the panel and in every reply
+    quoting it back. So the pointer path grows a selection out to word boundaries,
+    outward only: an end resting in space or against punctuation is already where the
+    reader put it, so "it," gains its 't' and not its comma, and a word split across
+    inline markup still grows whole. What the pointer path must not do is here too. A
+    keyboard selection is never grown — shift-arrow is the reader being precise — and
+    neither is the right button's, whose release precedes the context menu Copy lives
+    in. A right-to-left drag keeps its direction, asked of boundary points rather than
+    node order because a selection ending on the element holding its own start both
+    precedes and contains it. And machine-placed words never glue to the author's, on
+    either side of the declaration line. The reads await one queued step first, the same
+    tick the mouseup handler defers behind, so each sees the selection after the snap
+    rather than racing it."""
     page, errors = open_page(
         browser,
         serve(
@@ -12650,22 +12511,17 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     """A mode standing over the page takes the page's keys. The chord and the reference
     always did and this menu did not, so mid-walk `d` scrolled a page the reader had
-    stopped looking at, `c` opened the composer under the list, and `=` set a base the walk
-    they were standing in disagreed with. None of it failed loudly: each press did exactly
-    what it promises, somewhere the reader was not — and the key line went on offering all
-    of them, which is what made the offer the bug rather than the press.
-
-    A claim is not the blanket it replaced, so the exemption is asserted beside it: the
-    reference is the one key a mode keeps, being the key that says what the mode's own keys
-    are, and a reader who has just opened something unfamiliar is the reader who wants it.
-
-    Which presses are asserted is decided by what a suspended one leaves to read. A key
-    the mode swallows moves nothing, and nothing is what an assertion made too early reads
+    stopped looking at, `c` opened the composer under the list, and `=` set a base the
+    walk disagreed with. None of it failed loudly: each press did exactly what it
+    promises, somewhere the reader was not — and the key line went on offering all of
+    them, which is what made the offer the bug rather than the press. A claim is not the
+    blanket it replaced, so the exemption is asserted beside it: the reference is the
+    one key a mode keeps, being the key that says what the mode's own keys are. Which
+    presses are asserted is decided by what a suspended one leaves to read. A key the
+    mode swallows moves nothing, and nothing is what an assertion made too early reads
     on a key that worked — so the presses here are the two whose effect is a class and a
-    focus move in the same task as the keydown (`j` and `c`, both of which would raise the
-    panel and one of which would take the focus out of the menu). `=` and `d` land a fetch
-    and a glide later, where "not yet" and "never" read alike; the line is where those two
-    are held, off the same claim the dispatcher reads."""
+    focus move in the same task as the keydown. `=` and `d` land a fetch and a glide
+    later, where "not yet" and "never" read alike; the line is where those two are held."""
     url = serve(LONG_PAGE, comments=2)
     _publish(
         serve.page_dir,
@@ -13289,33 +13145,21 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(browser, s
 
 
 def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
-    """Two halves of one gesture, both of them invisible to a static lint.
-
-    The box: reading and editing are the same box, so the words a user
-    double-clicked are still under the pointer when the editor opens. They were
-    not — the runtime's general textarea rule wraps text in padding and a border
-    and floors it at 64px, which moved the first character 9px right and 6px down
-    and stretched a two-line draft — and text that jumps out from under a
-    double-click is the user's aim thrown away.
-
-    The gesture: the word the browser would select is selected by the second
-    mousedown and painted before dblclick arrives, so the handler that cleared it
-    afterwards ran a frame late and the user saw a flash. That frame is
-    timing, and no assertion here reaches it; what is assertable is the outcome
-    on either side of it. Nothing on the page ends up selected, and the word the
-    gesture named opens selected in the box — which is what a double-click means
-    everywhere else, and what cancelling the default rather than undoing it is
-    for.
-
-    The block around them counts too: the whole draft has to keep its shape, or a
-    gesture aimed at one word is answered by everything under it moving. Cancel and
-    Save join a row the draft always has rather than arriving as one, which is worth
-    a measurement because the row is invisible in the diff that matters — both views
-    lay out fine on their own, and only the two together say whether the box moved.
-
-    And the swap is the screen's, which is why the widget writes none of it: paper
-    drops the box with the other offers, so a draft mid-edit printed as an empty
-    frame for as long as the module hid the body itself."""
+    """Two halves of one gesture, both invisible to a static lint. The box: reading and
+    editing are the same box, so the words a user double-clicked are still under the
+    pointer when the editor opens. They were not — the runtime's general textarea rule
+    wraps text in padding and a border and floors it at 64px, moving the first character
+    9px right and 6px down — and text that jumps out from under a double-click is the
+    user's aim thrown away. The gesture: the word the browser would select is selected
+    by the second mousedown and painted before dblclick arrives, so the handler that
+    cleared it afterwards ran a frame late and the user saw a flash. That frame is
+    timing and no assertion here reaches it; what is assertable is the outcome either
+    side of it — nothing on the page ends up selected, and the word the gesture named
+    opens selected in the box. The block around them counts too, so Cancel and Save join
+    a row the draft always has rather than arriving as one; both views lay out fine on
+    their own, and only the two together say whether the box moved. The swap is the
+    screen's, which is why the widget writes none of it: paper drops the box with the
+    other offers."""
     page, errors = open_page(browser, serve(JOURNEY_V1))
     metrics = """(sel) => {
       const el = document.querySelector('#draft-ops ' + sel), s = getComputedStyle(el);
@@ -15636,18 +15480,13 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     change keeps the control that says so, because that record is what the margin was
     reserved for, so the rail is still held open in the file while the room read off the
     viewport knows nothing about it. The exported board stood 35px into that rail at a
-    laptop's width and 47px at a narrow one.
-
-    Both edges are asked about, and the left is the one that bites now: the rail claims
-    the right margin, so a room read too wide is spent on the side that is free and the
-    board runs off the left of the window rather than into the controls. That is the worse
-    of the two directions and the reason this asks about the box rather than the strip —
-    leftward overflow scrolls nothing in a page set left to right, so the columns that
-    went past the edge are not cut off with a way to reach them, they are simply gone.
-
-    Nothing could have caught it from the outside: the render gate runs on the live page
-    rather than on a file, and on the live page the room is measured rather than guessed.
-    The question has to be asked of the copy directly, which is what this does."""
+    laptop's width and 47px at a narrow one. Both edges are asked about, and the left is
+    the one that bites now: the rail claims the right margin, so a room read too wide is
+    spent on the side that is free and the board runs off the left of the window. That
+    is the worse direction — leftward overflow scrolls nothing in a page set left to
+    right, so the columns that went past the edge are simply gone. Nothing could have
+    caught it from the outside: the render gate runs on the live page, where the room is
+    measured rather than guessed."""
     url = serve(RAIL_AND_WIDE_PAGE)
     interact.append_event(
         serve.page_dir,

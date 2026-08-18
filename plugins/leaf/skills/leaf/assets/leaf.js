@@ -4,130 +4,82 @@
  * Widget layer: reads /registry.json (vendored per page) and dynamically imports one
  * module per tag marked x-upgrade — element-widgets need no JS at all; the theme's CSS
  * renders them. It also renders the attributes the registry marks x-says as real text
- * (renderSaid), for every widget alike: a word the page says has to be a word the
- * user can select. Upgrades flush before the first anchor pass, so comment quotes
- * always search the enhanced DOM. Widget modules import only the small helper surface
- * they need from here.
+ * (renderSaid) and the ones it marks x-paints as clipped words (renderQuiet), for every
+ * widget alike. Upgrades flush before the first anchor pass, so comment quotes always
+ * search the enhanced DOM. Widget modules import only the small helper surface they
+ * need from here.
  *
- * Actions: an interactive widget (lf-board) reports the user editing the document
- * through it as an `action` event — sendAction posts it, `leaf wait` prints it,
- * and `leaf ack` records that the complete wait batch reached model context. The
- * live view is the version plus every action recorded up to it, replayed on each poll:
- * authored markup is what a widget was before anyone touched it, the log is every
- * transition since, and the log wins. A decision therefore outlives the version it
- * was made on, without the page's author having to copy it into the next one by
- * hand. When a version does mean to overrule one — the content the decision was
- * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * interact.py); it is never inferred from the markup's silence. Widgets opt in via an
- * applyAction(action, detail) method stating an absolute value, so a reload keeps the
- * user's drag and a second tab follows along live.
+ * Actions: an interactive widget reports the user editing the document through it as an
+ * `action` event — sendAction posts it, `leaf wait` prints it, `leaf ack` records that
+ * the batch reached model context. The live view is the version plus every action
+ * recorded up to it, replayed on each poll: the log outranks the markup, so a decision
+ * outlives the version it was made on. Widgets opt in via applyAction(action, detail)
+ * stating an absolute value. CLAUDE.md carries why, including what a version owes a
+ * decision it means to overrule (restatement_errors in interact.py).
  *
  * Comment layer: talks to interact.py's server — polls GET /api/state, posts events to
  * POST /api/event. Everything it injects is namespaced .lf-* and marked .lf-ui, and it
  * styles itself from the theme's tokens so it themes with the page.
  *
- * .lf-ui is the chrome face — the system-ui look that says "this is not the document" —
- * and it is anchoring's answer only where nothing nearer speaks. A label the widget
- * declares the page's own words (relabel's data-lf-said) is nearer, and wins: a heading
- * in a chrome-looking row and a tab's name inside its own strip button are both passages
- * a user can point at. Reading the class as the whole answer is what left a user
- * able to see a draft's heading and unable to comment on it. A widget's own label, note
- * or badge outside any control declares nothing at all: data-lf-gen alone keeps it out of
- * the diff and in reach of the anchor pass. CLAUDE.md carries why.
- *
- * Paper reads both: a control a widget injected (data-lf-offer) has nothing on paper to
- * be pressed, so it goes, unless its own label is one of the page's words. Keying print
- * on .lf-ui instead cost a printed decision the only words that stated it (see
- * CLAUDE.md), because a pick mark is a control and a statement at once. render_version
- * compares the two media and reports what a page says on screen and not on paper.
+ * Three markers decide who owns a word, and no one of them answers for the others:
+ * .lf-ui is the chrome face, data-lf-said is a label the widget declares to be the
+ * page's own words, data-lf-gen is generated-but-quotable. Anchoring takes the nearest
+ * answer, the version diff reads data-lf-gen, and paper reads data-lf-offer. Each of
+ * the three was got wrong once by being read as the whole answer; CLAUDE.md carries
+ * which failure belongs to which. render_version compares the two media and reports
+ * what a page says on screen and not on paper.
  *
  * A control that says one of the page's words is never a <button>: Chrome starts no
- * pointer selection inside a form control, so its label would be unreachable however it is
- * marked. `offer` builds every press as a span wearing role="button" for that reason, and
- * wires the keys the UA would have given it.
+ * pointer selection inside a form control. `offer` builds every press as a span wearing
+ * role="button" and wires the keys the UA would have given it.
  *
  * Passages and anchors: a comment points at an anchor (a section id, a quote, and the
  * neighbouring words where there are any). resolveAnchor is the only place the page is
  * searched and paintAnchors the only place it is marked; CLAUDE.md carries why.
  *
- * Never lose user text (CLAUDE.md): every unsent draft — the general box, each per-thread
- * reply, the selection composer (text + its anchor), and an in-place draft edit —
- * persists to the tab's own store (tabStore) on input. It survives reload and version
- * navigation but is owned by one tab, so a send or Cancel in another tab cannot erase
- * newer unsent words.
+ * Never lose user text (CLAUDE.md): every unsent draft persists to the tab's own store
+ * (tabStore) on input, survives reload and version navigation, and is owned by one tab.
  *
- * Versions: an unpinned page follows the newest version, navigating to each revision as
- * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
- * page stays put and offers the newest version as a chip instead. One control on the bar
- * holds all of it — the version being read, the list of the rest with what each changed,
- * and the press on any older one that marks that change on the page.
+ * Versions: an unpinned page follows the newest version. Picking an older one pins the
+ * view (?pin in the URL) and offers the newest as a chip. One control on the bar holds
+ * the version being read, the list of the rest with what each changed, and the press
+ * that marks that change on the page.
  *
- * Composing: every textarea behaves identically — saves its draft on each keystroke,
- * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
- * its content is the stylesheet's job: `field-sizing: content` on the one text-box rule,
- * which a widget's own box opts into by wearing `lf-ui`. No script measures a textarea,
- * so none can leave one momentarily too small for its own text — the shape of bug that
- * flashes a scrollbar per keystroke. The thread list is reconciled, never rebuilt: a
- * poll adds what arrived and touches nothing the user already holds, so scroll,
- * focus and caret keep themselves because the nodes holding them survive. News moves
- * nothing; a send reveals the message it just landed — the panel scrolls to it and
- * flashes its thread, the same answer a click on a page mark gets — and ends in the
- * composer it was sent from. A composer open on a selection keeps that passage marked
- * in the page until it closes, because focusing the box drops the browser's own
- * selection — and that mark is what says which passage the box is on, so the box only
- * quotes the passage back when this version no longer has one to mark. Whether the box
- * is up is state the stylesheet renders, never state read back off the stylesheet.
+ * Composing: every textarea is wired through wireInput, so all of them save a draft per
+ * keystroke and send on ⌘/Ctrl+Enter. Growing with content is the stylesheet's job
+ * (`field-sizing: content`), so no script measures a textarea. The thread list is
+ * reconciled, never rebuilt: a poll adds what arrived and touches nothing the user
+ * holds, so scroll, focus and caret keep themselves. A send reveals the message it
+ * landed and ends in the composer it was sent from.
  *
  * Scrolling: the document scrolls body, not the viewport, and body's margin keeps its
- * box clear of the open panel. Two scroll regions side by side, each scrollbar drawn
- * inside its own region — a viewport-scrolled document would paint its scrollbar over
- * the panel, stacked on the panel's own. Reading position goes through pageScroller.
- * The browser's own scroll keys are left alone (Space, arrows, Home/End, PageUp/Down);
- * d and u are the runtime's, stepping half a page through whichever of the two regions
- * the reader's own scrolling moves, and carrying a destination so repeats add up.
+ * box clear of the open panel — two regions side by side, each scrollbar inside its own.
+ * Reading position goes through pageScroller. The browser's own scroll keys are left
+ * alone; d and u are the runtime's, stepping half a page through whichever region the
+ * reader last moved.
  *
  * Keyboard: one register, and every surface is a projection of it. A row binds keys and
  * says what pressing one does; a scope is where the keyboard means something particular,
  * and scopes nest. One dispatcher walks the stack innermost-first, so a focused control's
- * keys shadow the page's without either knowing about the other, and `only` stops the walk
- * where a scope owns the keyboard whole — a box words are typed into, the reference
- * overlay. The register is the only way a key enters the runtime: `keys(el, title, rows)`
- * is what a widget calls, and the dispatcher it feeds is the layer's one keydown listener
- * bar the aim chord's modifier latch. The full vocabulary — what a row's cells mean, and
- * how a scope's `when` differs from a row's — is written where the register is defined.
+ * keys shadow the page's without either knowing about the other. The register is the only
+ * way a key enters the runtime: `keys(el, title, rows)` is what a widget calls. The full
+ * vocabulary — what a row's cells mean, how a scope's `when` differs from a row's — is
+ * written where the register is defined. One timed sequence exists: g arms a short leader
+ * window in which a digit addresses the nth open thread's reply box.
  *
- * One timed sequence exists: g arms a short leader window in which a digit addresses the
- * nth open thread's reply box — the address each box wears as a chip while the window is
- * armed and its placeholder speaks always — and any other key disarms the window and keeps
- * its ordinary meaning, which the dispatcher spells as disarming and walking the stack
- * again. Escape is a binding like any other, and the rung is whichever scope in reach
- * binds it first, so backing out is one layer per press and the promise cannot drift from
- * the press.
+ * What a key would do right now is state the user can read, not recall: the key line
+ * renders the stack outward and drops what the room cannot hold, `?` last and always,
+ * and the overlay names every scope the page has. The line is aria-hidden, being the
+ * eye's copy of facts spoken elsewhere — placeholders, announce(), the overlay.
  *
- * What a key would do right now is state the user can read, not recall. The key line (one
- * quiet fixed line, bottom left) renders the stack outward and drops what the room cannot
- * hold, `?` last and always, so what a narrow window costs is the page's keys and what it
- * keeps is the scope the reader stands in. The "?" overlay names every scope the page has,
- * live rows only. The line is aria-hidden: it is the eye's copy of facts spoken elsewhere
- * — placeholders speak each box's address, announce() speaks the leader arming and a
- * grabbed card's keys, the overlay speaks the whole reference.
- *
- * A message arrives as logged and renders here, in the same vendored layer that owns
- * the panel's styles — the two version together, and no wire vocabulary exists beyond
- * the log's own. Its text is Markdown, rendered with every raw tag escaped to the
- * characters it was written in, so prose that says `Vec<T>` keeps its own words and
- * text cannot inject markup. A widget rides the event's `markup` field instead, whose
- * one door is the CLI gate (`leaf comment`/`leaf reply` validate it against the
- * vendored registry; the browser door refuses the field), so what lands here is
- * injected as validated. A suggestion's text renders verbatim: its characters are
- * bound for the page as typed.
- *
- * A fragment link in a message ([the group](#d-channel)) points at an element of the
- * page, and the browser's own navigation is the travel — collapsed content wears
- * hidden="until-found", so the jump opens the tab or settled group holding it. The
- * runtime adds only the half the platform has no answer for: a comment outlives the
- * version it was written on, so a reference to an id this one hasn't got wears the
- * detached face a stranded quote wears, and its press is refused (paintAnchors). */
+ * A message's text is Markdown, rendered with every raw tag escaped, so prose that says
+ * `Vec<T>` keeps its own words and text cannot inject markup. A widget rides the event's
+ * `markup` field instead, whose one door is the CLI gate (the browser door refuses the
+ * field), so what lands here is injected as validated. A suggestion's text renders
+ * verbatim. A fragment link points at an element of the page and the browser's own
+ * navigation is the travel — collapsed content wears hidden="until-found" — while a
+ * reference to an id this version hasn't got wears the detached face a stranded quote
+ * wears, and its press is refused (paintAnchors). */
 
 // ---------- widget layer ----------
 
@@ -859,10 +811,8 @@ export function announce(msg) {
 //           its smallest — `d` and `u` pressed, and no always-visible surface named them,
 //           because the field was optional and its absence read exactly like a decision.
 //           A row with no `run` may carry one all the same, since a press can be real and
-//           immediate without being the runtime's: Enter opens the focused leaf because
-//           the row is a link. What carries no word is reference, named in the "?"
-//           overlay and never promised as the next press — F7, ⌥ click, a draft's
-//           double-click.
+//           immediate without being the runtime's. What carries no word is reference,
+//           named in the "?" overlay and never promised as the next press.
 //   when  — its liveness. The one predicate every surface asks.
 //   run   — the press, taking the binding that fired.
 //   repeat— whether holding the key repeats the press. Off by default: a held `]` was a
@@ -875,9 +825,8 @@ export function announce(msg) {
 //   the reader is IN it now  → the key line renders it
 // Both were already asked, by a pair of calls a widget made beside a listener of its own,
 // so the display list and the dispatch were separate objects: a grip that answered Space
-// said Enter on every surface, and three sites had to remember to re-declare on a state
-// change. A row's `when` is the row's own liveness and says nothing about where the reader
-// is; the scope answers that, and a row never restates it.
+// said Enter on every surface. A row's `when` is the row's own liveness and says nothing
+// about where the reader is; the scope answers that, and a row never restates it.
 
 // Which platform's spelling, and which modifier is the chord's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -2860,28 +2809,19 @@ const panelStrip = () => (panelOpen && !panelCovers ? PANEL_W : 0);
 // Measured, and measured here, because the panel is the thing no stylesheet can see: it
 // is 420px of the window while it is open and nothing in CSS says so, and a rule written
 // against 100vw would also spend the rail a suggestion hangs in and the classic scrollbar
-// this platform doesn't draw. The three of them come off body's own box for free. This is
-// the layout's one writer, so the room is restated wherever that box changes shape — the
-// panel taking its strip, a resize — for the same reason the floats are placed again.
-//
-// The gutter is read off the column rather than stated, since 24px is theme.css's number
-// and a second copy here would be a release behind it. Below the column's own width the
-// two coincide exactly, so the rule that spends this is a no-op on a narrow window rather
-// than a case anyone has to write.
+// this platform doesn't draw. The three come off body's own box for free. This is the
+// layout's one writer, so the room is restated wherever that box changes shape. The
+// gutter is read off the column rather than stated, since 24px is theme.css's number and
+// a second copy here would be a release behind it.
 //
 // The strip the panel holds is the one part of that box which isn't settled when this
-// runs: it is handed over as motion, so body's margin is still the old one for the length
-// of the transition and the box in front of us is neither the width the page has nor the
-// one it is going to. Both readings are wrong, in opposite directions and at different
-// prices, so the room takes whichever of the two is smaller and the page never owes room
-// it hasn't got. Opening, that is the width being arrived at, stated at once: the strip
-// is being taken away, and an exhibit that waited out the slide would spend it hanging
-// over the panel with a sideways scrollbar underneath. Closing, it is the width in front
-// of us: the strip is coming back, and an exhibit that took it before the page had it
-// scrolled sideways for a fifth of a second every time the panel was dismissed — which
-// is what the suggestion sweep caught, on a window narrow enough for the returning strip
-// to matter. What is given back is picked up at the transition's end, the same fact the
-// float placement below consumes, so the growth lands the frame the room is real.
+// runs: it is handed over as motion, so the box in front of us is neither the width the
+// page has nor the one it is going to. Both readings are wrong, in opposite directions,
+// so the room takes whichever is smaller and the page never owes room it hasn't got.
+// Opening, that is the width being arrived at, stated at once; closing, it is the width
+// in front of us, since an exhibit that took the returning strip early scrolled sideways
+// for a fifth of a second every time the panel was dismissed. What is given back is
+// picked up at the transition's end, so the growth lands the frame the room is real.
 function stateRoom(strip) {
   const main = document.querySelector("main");
   if (!main) return;
@@ -3629,9 +3569,8 @@ function revealThread(id) {
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
 // text speaks in them: the search for a quote, the capture of one, the landmark a version
 // change rides on, the version diff's block keys. One shape means one answer to what the
-// page says. The bugs this layer kept having were all a second answer disagreeing with the
-// first — what a selection rendered as versus what the document holds — and a second
-// answer is what there is now no room for.
+// page says, and the bugs this layer kept having were all a second answer disagreeing with
+// the first.
 //
 // Two skip lists, because two jobs genuinely differ, and the difference is the whole
 // reason .lf-ui and data-lf-gen are two markers rather than one. Anchoring skips the
@@ -3639,25 +3578,19 @@ function revealThread(id) {
 // inside its <svg>: a quote holding text the search skips is a quote nothing can find
 // again. The version diff additionally skips content an upgrade generated, because the
 // base document parses unupgraded and would never match it. So generated text the page
-// authored — a widget's label, an attribute renderSaid rendered — is diff-invisible and
-// quotable, which is the pair a user expects: they can point at it, and it doesn't
-// read as a change nobody wrote.
+// authored is diff-invisible and quotable, which is the pair a user expects.
 //
-// A decided suggestion's retired slot goes with them. Its markup is still in the
-// document — the honoring version is what finally drops it — but the user has
-// removed it, and the live view is the version plus their decisions. Text nobody can
-// see is text nobody can mean: without this a comment made on a passage then accepted
-// away kept reading as attached in the panel and jumped nowhere, and a quote from
-// elsewhere could match inside the invisible half of a replacement.
+// A decided suggestion's retired slot goes with them. Its markup is still in the document
+// — the honoring version is what finally drops it — but the user has removed it, and text
+// nobody can see is text nobody can mean: without this, a comment made on a passage then
+// accepted away kept reading as attached and jumped nowhere.
 //
 // Which slots retire is the registry's to say, so this and interact.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
-// element, x-parent the wrapper the decision is recorded on.
-// Computed once — but only once the registry has loaded: the aim listeners are
-// live from module evaluation, and a mousemove in the upgrade window would
-// otherwise seed the cache from the empty pre-fetch registry and disable the
-// retired-slot skip for the life of the page. It used to be rebuilt per
-// candidate ancestor per mousemove (itemAt's aim walk).
+// element, x-parent the wrapper the decision is recorded on. Computed once, but only once
+// the registry has loaded: the aim listeners are live from module evaluation, and a
+// mousemove in the upgrade window would otherwise seed the cache from the empty pre-fetch
+// registry and disable the retired-slot skip for the life of the page.
 let retiredSlotsMemo;
 function retiredSlots() {
   if (retiredSlotsMemo != null) return retiredSlotsMemo;
@@ -5391,34 +5324,27 @@ document.addEventListener("mousemove", (ev) => {
 });
 
 // ⌥-click means the item under the pointer, whatever it holds. It costs the page no
-// chrome and the user no selection, and it reaches an item whose words are all
-// inside a control. What it costs is discoverability, which the cursor answers as far as
-// a modifier can: while the key is down the pointer says a click will aim.
+// chrome and the user no selection, and it reaches an item whose words are all inside
+// a control. What it costs is discoverability, which the cursor answers as far as a
+// modifier can: while the key is down the pointer says a click will aim.
 //
 // The press it aims with is the aim's alone, so it is taken at capture — ahead of every
 // handler out on the page, and of the browser's own defaults. Read on the way back up
 // instead, it was a press the page had already had: ⌥-clicking an option card opened the
-// composer *and* picked the option, sending Claude a decision the user never made,
-// and ⌥-clicking a tab's name aimed at the widget while switching the panel under it.
-// Every widget that takes a press had it, because none of them was ever told. The box
-// is the promise, and a press keeps it by being the only thing the press does.
-//
-// Claimed at the press rather than judged at the click, because the press is where ⌥
-// states what the user meant. A key released before the button comes back up would
-// otherwise leave a press already taken from the page doing nothing at all.
+// composer *and* picked the option, sending Claude a decision the user never made. Every
+// widget that takes a press had it, because none of them was ever told. Claimed at the
+// press rather than judged at the click, because the press is where ⌥ states what the
+// user meant.
 //
 // What is armed is the page rather than the items on it: an armed press aims where there
-// is an item under it, and acts on nothing where there isn't. That is what the cursor is
-// already saying, over everything the chrome doesn't hold out of it. Falling through to
-// the page instead would leave the user reading the box to find out which of the
-// two a press is about to be — and a suggestion's ✓ Accept hangs in the page's own
-// column, outside the element it decides, so there is nothing above it to aim at and
-// getting that wrong sends Claude a decision.
+// is an item under it, and acts on nothing where there isn't. Falling through to the page
+// instead would leave the user reading the box to find out which of the two a press is
+// about to be — and a suggestion's ✓ Accept hangs in the page's own column, outside the
+// element it decides, so getting that wrong sends Claude a decision.
 //
 // A press is its down, its up and the click they make, a double press one event more, and
 // the aim takes every one of them: which a widget listens on is not something the runtime
-// can know, and lf-draft already opens its editor on the second mousedown rather than on
-// the dblclick, for reasons of its own.
+// can know, and lf-draft already opens its editor on the second mousedown.
 const PRESS_EVENTS = [
   "pointerdown",
   "mousedown",
@@ -7324,41 +7250,32 @@ latestChip.onclick = () => goVersion(latestVersion);
 
 // ---------- polling ----------
 // Rendering version V shows V plus every action recorded up to it, replayed in
-// seq order: a reload keeps the user's drag, a second tab follows along
-// live, and a decision made on v10 still stands on v25. Widgets opt in by
-// exposing applyAction(action, detail) — an absolute placement, so replaying
-// the sender's own action is a no-op. The first poll runs after upgrades
-// settle, so the methods exist, and the pass runs at the end of a poll, so the
-// panel's own widgets do too.
+// seq order: a reload keeps the user's drag, a second tab follows along live, and
+// a decision made on v10 still stands on v25. Widgets opt in by exposing
+// applyAction(action, detail) — an absolute placement, so replaying the sender's
+// own action is a no-op. The first poll runs after upgrades settle, so the methods
+// exist, and the pass runs at the end of a poll, so the panel's own widgets do too.
 //
-// Absolute is what makes replay converge, and the order is the rest of what it
-// owes: an action applied after the gesture that superseded it states the widget
-// from its older place in that order, and the reader's next gesture computes from
-// what it painted and sends a decision they never made. Applying each action once
-// says nothing about *when* — an action recorded before a click can still be applied
-// after it. Two facts keep the order between them. A widget whose own send is in
-// flight is left alone (`sending`): until the log has taken that gesture, the page's
-// copy of the widget is ahead of every log it can read, so nothing in one can be
-// shown to sit after it. And that hold ends on the poll `post` awaits, which has
-// read the log past the gesture — from there the log being append-only carries it,
-// since an answer the page has already read past is stale whole and dropped (poll).
+// Absolute is what makes replay converge, and the order is the rest of what it owes:
+// an action applied after the gesture that superseded it states the widget from its
+// older place, and the reader's next gesture computes from what it painted. Two facts
+// keep the order. A widget whose own send is in flight is left alone (`sending`):
+// until the log has taken that gesture, the page's copy is ahead of every log it can
+// read. And that hold ends on the poll `post` awaits, which has read the log past the
+// gesture — from there the log being append-only carries it, since an answer the page
+// has already read past is stale whole and dropped (poll).
 //
-// Reports ride the same pass with the precedence reversed. A report is a
-// worker's provisional news (`leaf report`, x-report in the registry): it
-// paints onto the versions published before it and stops at the version whose
-// note answers it by id (`reports`, the mirror of `restated`) — where an
-// action outranks every later version until a retraction. The two channels
-// never share a record today, so their order within one poll is unobservable;
-// each keeps seq order within itself.
+// Reports ride the same pass with the precedence reversed. A report is a worker's
+// provisional news (`leaf report`, x-report in the registry): it paints onto the
+// versions published before it and stops at the version whose note answers it by id
+// (`reports`, the mirror of `restated`) — where an action outranks every later version
+// until a retraction. Each keeps seq order within itself.
 //
 // The log outranks the markup, and that is the whole rule: authored state is the
-// initial condition, never a later correction, so nothing a version does or
-// omits can un-make a decision by itself. The repo's own CLAUDE.md carries why,
-// and what it cost to learn. Replay used to stop at the handoff cursor, on the
-// premise that a version written after the agent saw an action encoded it — a
-// premise nothing checked, and acknowledgement is not assent. Only a version can say
-// what the agent did with an action, and saying it is `version check`'s business now
-// (restatement_errors), not something inferred here from silence.
+// initial condition, never a later correction, so nothing a version does or omits can
+// un-make a decision by itself. Only a version can say what the agent did with an
+// action, and saying it is `version check`'s business (restatement_errors), not
+// something inferred here from silence. The repo's own CLAUDE.md carries why.
 const appliedActions = new Set();
 // What an action rests on: the widget that sent it, and the parts of that widget
 // its detail names — a `move` rests on its card as much as on the board. Either

@@ -48,17 +48,15 @@ one can win. Every such group carries a box for words, so "none of these" and a 
 why need no separate gesture. A page presenting five candidates in prose and offering
 nothing to press has handed the reader a document where it meant to ask a question.
 
-**The page keeps up with the work.** A page is not only a thing to approve before the
-work starts. Where the work is yours to do and the page tracks it, publish a version each
-time the state moves — an item to `active`, then `done`; a finding added as you find it —
-and the user watches it happen instead of reading about it afterwards. Their browser
-follows each new version by itself, deferring only while they are mid-comment or
-mid-drag, so a version costs them nothing. Ship one when an item's state actually
-changes rather than at every step it took, and let
-`leaf status <page> working "<detail>"` carry the finer grain in between. Keep
-`leaf wait <page>` running while you work, in the host-specific loop below: a comment
-that lands mid-flight ("skip that one") then reaches you at the next step rather than at
-the end, and the banner reads as working throughout.
+**The page keeps up with the work.** Where the work is yours and the page tracks it,
+publish a version each time the state moves — an item to `active`, then `done`; a finding
+added as you find it — and the user watches it happen instead of reading about it
+afterwards. Their browser follows each new version by itself, deferring only while they
+are mid-comment or mid-drag, so a version costs them nothing. Ship one when an item's
+state actually changes rather than at every step it took, and let
+`leaf status <page> working "<detail>"` carry the finer grain between. Keep
+`leaf wait <page>` running while you work, in the host-specific loop below, so a comment
+that lands mid-flight reaches you at the next step rather than at the end.
 
 Where other sessions do the work — workers reporting to a page one orchestrator
 publishes — they move it with `leaf report <page> <widget> <verb> name=value…`
@@ -190,15 +188,13 @@ to click belongs on a page you are going to serve.
   Deciding isn't the only answer: the proposed words are ordinary page text, so the
   user can select them and comment instead — worth saying where the page
   introduces its first suggestion, since ✓ and ✗ are the only visible affordances.
-- **Who writes the words picks the shape.** Three things change text once the page is
-  in front of the user, and they differ by seat rather than by style. Prose you own, rewritten
-  after the reader has seen it: a `lf-suggestion`, theirs to accept or reject. A
-  passage that is theirs to word — a release note, a summary in their voice: a
-  `lf-draft`, which nobody decides and the next version carries verbatim. Their
-  wording for prose you own: a suggestion comment, which reaches the log for you to
-  take or answer. So a draft never sits inside a suggestion — its words aren't yours
-  to propose — and a suggestion carries markup, not a widget's own state: proposing a
-  card's column or an option's pick has no form yet.
+- **Who writes the words picks the shape.** Three things change text once the page is in
+  front of the user, differing by seat rather than style. Prose you own, rewritten after
+  the reader has seen it: a `lf-suggestion`, theirs to accept or reject. A passage that is
+  theirs to word — a release note, a summary in their voice: a `lf-draft`, which nobody
+  decides and the next version carries verbatim. Their wording for prose you own: a
+  suggestion comment. So a draft never sits inside a suggestion, and a suggestion carries
+  markup rather than a widget's own state: proposing a card's column has no form yet.
 - The runtime injects the status banner, comment sidebar, version picker, keyboard
   shortcuts (`?` in the browser shows the reference), and a left panel listing the
   machine's live leaves with what each is doing or waiting for; don't build page UI
@@ -244,33 +240,26 @@ to click belongs on a page you are going to serve.
   such as `<a href="https://host/repo/blob/main/path/to/file.py#L88"><code>path/to/file.py:88</code></a>`.
   Render ticket keys, MR/PR numbers, and URLs as real `<a>` links, not plain text.
   Inside a `<lf-specimen>` a fictional URL is fine.
-- **Keep wide content inside the column** — 720px in the default theme. The comment
-  layer anchors to on-screen text, so a page that scrolls sideways is hard to comment
-  on.
-  Give any element that can overflow (a `<pre>`, a `<table>`, an `<svg>`)
-  `max-width: 100%` or `overflow-x: auto`, and size diagrams responsively rather than a
-  fixed pixel width wider than the column. `version check` flags fixed widths that
-  exceed it.
-  Widgets whose width is their content's — a board's columns, a diagram's graph — stand
-  wider than the column by themselves where the window has the room, because their
-  registry entry declares it (`x-wide`, in `page catalog`). That is the whole of the
-  mechanism: nothing is authored for it, no page states a width, and a page's shape
-  follows what it holds. Write the widget and let it take the room.
+- **Keep wide content inside the column** — 720px in the default theme. The comment layer
+  anchors to on-screen text, so a page that scrolls sideways is hard to comment on. Give
+  any element that can overflow (a `<pre>`, a `<table>`, an `<svg>`) `max-width: 100%` or
+  `overflow-x: auto`, and size diagrams responsively; `version check` flags fixed widths
+  that exceed the column. Widgets whose width is their content's stand wider by themselves
+  where the window has the room, because their registry entry declares it (`x-wide`, in
+  `page catalog`) — nothing is authored for it, so write the widget and let it take the
+  room.
 - **Images come in by reference, never inline.**
-  `leaf page media <page> <file>…` copies files into the page directory and prints
-  the `src` to write; that path is the only form an image takes on a page, because a
-  base64 `data:` URI is more bytes than you can usefully type and it would sit in every
-  version forever. Each file is named by the hash of its bytes, so two versions showing
-  one screenshot share one copy and a version the user approved cannot come to show
-  them something else. `version check` refuses a `/media/` reference the directory
-  can't answer.
+  `leaf page media <page> <file>…` copies files into the page directory and prints the
+  `src` to write; that path is the only form an image takes on a page. Each file is named
+  by the hash of its bytes, so two versions showing one screenshot share one copy and a
+  version the user approved cannot come to show them something else. `version check`
+  refuses a `/media/` reference the directory can't answer.
   Where the deliverable is a change to a UI with a real *before* state, let the reader
   compare the renders rather than describing what moved: a `lf-shot` holds the pair and
   flips between them in place. Capture both states at the same viewport (the
-  `/playwright-cli:playwright-cli` skill drives the browser; render the base commit in
-  a second worktree rather than stashing). Say in prose what changed — a downscaled
-  full-page shot shows that something moved and not what, and the column is 720px, so
-  crop to the part that moved wherever the change is smaller than the page.
+  `/playwright-cli:playwright-cli` skill drives the browser; render the base commit in a
+  second worktree rather than stashing). Say in prose what changed, and crop to the part
+  that moved wherever the change is smaller than the page.
 - **Show real content as evidence; quote invented content in a specimen.** Prefer
   putting the actual file contents, diff, or output behind `<details>` over
   paraphrasing it. An example that merely exhibits syntax or a widget goes in a
@@ -283,11 +272,10 @@ to click belongs on a page you are going to serve.
 ## Keeping the page current
 
 A page shows where its topic stands now, with what came before still on it. That is
-"Show the destination, not the journey" over time: the journey grows as the work does, so
-v1's destination — four options laid out for a decision — is the journey by v4, once the
-decision has been made and applied. Leaving it at full height in the order it was written
-turns the page into the record of the investigation, and the user has to work the
-present out of that.
+"Show the destination, not the journey" over time: v1's destination — four options laid
+out for a decision — is the journey by v4, once the decision has been made. Leaving it at
+full height in the order it was written turns the page into the record of the
+investigation, and the user has to work the present out of that.
 
 Each version is therefore a rewrite toward the present. The body carries what is live —
 the question in front of the user and what they need to answer it — and the lede says
@@ -491,14 +479,13 @@ stderr; exit 2 means it couldn't, and the page stays down until `server run`.
 
 ## Pointing at a passage yourself
 
-`leaf comment` opens a thread the way the user's selection does — same anchor,
-same Markdown, same reply box, labelled with the current agent instead of You. Reach for it when what you have to say is
-about one passage and you can't settle it yourself: a sentence that reads two ways, an
-assumption the paragraph rests on, a line only they have the fact to fix. Anything you
-can settle, settle — ship the fix. In chat, the reader has to find the passage again;
-in the margin it is already beside them. With neither `--quote` nor `--section` it
-opens a general thread — the shape the browser's own general box posts — which is
-where a question about the work rather than a passage belongs.
+`leaf comment` opens a thread the way the user's selection does — same anchor, same
+Markdown, same reply box, labelled with the current agent instead of You. Reach for it
+when what you have to say is about one passage and you can't settle it yourself: a
+sentence that reads two ways, an assumption the paragraph rests on, a line only they have
+the fact to fix. Anything you can settle, settle — ship the fix. With neither `--quote`
+nor `--section` it opens a general thread, which is where a question about the work
+rather than a passage belongs.
 
 ```bash
 leaf comment <page> --quote "<passage from the version file>" --text "…"
@@ -579,24 +566,20 @@ one the client reached this machine on; otherwise loopback. The URL therefore op
 printed whether the user's browser is here or on the machine they SSH'd from.
 
 That address is a route the session demonstrated, which the user's browser may not
-share: a jump host or NAT between them and this machine leaves it unroutable from where
-they sit. Only their browser can see that, so the report comes from them. Silence on
-this side looks the same whether they haven't looked yet or can't reach the page at all.
-When they say the URL doesn't load, `leaf server stop` and re-run with
-`--host NAME`, where NAME is a hostname they reach this machine by — it goes in the URL
-as given, and the server binds every interface so the name need not resolve to a local
-address. A machine on an overlay
-network (a tailnet) has that network as an interface, so its name there reaches a
-user with no route otherwise; failing everything, `version export` hands over the
-page as a file.
+share: a jump host or NAT leaves it unroutable from where they sit, and only their
+browser can see that, so the report comes from them. When they say the URL doesn't load,
+`leaf server stop` and re-run with `--host NAME`, where NAME is a hostname they reach
+this machine by — it goes in the URL as given, and the server binds every interface so
+the name need not resolve to a local address. A machine on an overlay network (a tailnet)
+has that network as an interface; failing everything, `version export` hands over the page
+as a file.
 
 Reaching past loopback opens the port to that network, and `POST /api/event` appends to a
 log that outranks the document, so the URL carries a key. The browser keeps it in a cookie
-from the first request, and a reader without it gets 403 on the document, the assets, the
-state reads and the event writes alike. That key is the boundary, and leaf serves only
-networks this machine is already on: there is no public tunnel — a tunnel would put the
-log's one door on the open internet, and a fresh tunnel hostname each restart would strand
-the URL an open page is polling.
+from the first request, and a reader without it gets 403 on everything. That key is the
+boundary, and leaf serves only networks this machine is already on: there is no public
+tunnel, which would put the log's one door on the open internet and strand the URL an open
+page is polling on each restart.
 
 Address and bind are recorded once in `<page>/access.json` — `--host` goes there too —
 because a restart has to reproduce the URL an open browser is still polling. Deleting that
@@ -617,23 +600,17 @@ the URL. Nothing revives a standing server and no session's end reaches it;
 since the user inherits a process only that command stops.
 
 A lifetime belongs to the process, so a crash ends it along with the server. The one
-restart in leaf is `leaf wait`'s, and it starts a server of the session running
-the wait — so a standing server that died and came back that way now goes down with that
-session. Say so when it happens, and re-establish it with `server run --standing` (a
-`server stop` first, if the wait's revival is still up).
+restart in leaf is `leaf wait`'s, and it starts a server of the session running the wait —
+so a standing server that died and came back that way now goes down with that session. Say
+so when it happens, and re-establish it with `server run --standing`.
 
-Working on a standing page changes nothing in the loop, and adds one step before it:
-the page carries weeks of decisions your session never saw, so read
-`leaf page state <page>` first — the standing state the log has folded onto the page,
-the asks still open, and where the markup lags a decision, as one JSON object. Then
-pick it up with `leaf wait` as usual, publish versions as usual, and expect the same
-loop while your session lasts — a
-`server run` of your own finds the standing server already up, prints its URL, and
-leaves it running. What changes is the ending: don't stop the server, and use
-`leaf status <page> idle` only when the *page* is finished, not when your work on it
-is. A session that just ends leaves the page up and unheld, which is what the user sees
-between sessions and what the banner says; an idled one reads "Leaf closed" to
-someone who was expecting it tomorrow.
+Working on a standing page changes nothing in the loop and adds one step before it: the
+page carries weeks of decisions your session never saw, so read `leaf page state <page>`
+first — the standing state, the asks still open, and where the markup lags a decision, as
+one JSON object. Then pick it up with `leaf wait` as usual. What changes is the ending:
+don't stop the server, and use `leaf status <page> idle` only when the *page* is finished,
+not when your work on it is. A session that just ends leaves the page up and unheld; an
+idled one reads "Leaf closed" to someone who was expecting it tomorrow.
 
 ## Before the URL goes out
 
@@ -653,22 +630,15 @@ leaf version check <page> --render
 
 It loads the version in the machine's installed Chrome (a couple of seconds, and works
 before the version is published) and fails, in both color schemes, on what a static lint
-cannot see: a console error, a widget upgraded into a box of no size, a page that
-scrolls sideways, a `lf-diagram` whose mermaid source doesn't parse, words on screen
-that no selection can reach, code set in an ink the reader can't tell from the block it
-is on, words the screen shows and a printout drops, a version
-that authors widget state the log replays over
-(a different option `chosen`, a card in a column the user dragged it out of — the
-decision stands, so carry it in the markup or rewrite the passage and declare
-`restated`), a widget whose `applyAction` steps from what the page shows instead of
-stating the whole value, which the poll then walks on again every time it replays the
-reader's own gesture. The lint validates a diagram element but never the notation
-in its body, so a typo there would otherwise reach the reader as an error box; and it
-can't see a heading rendered as CSS generated content, or left under `.lf-ui` with
-nothing said about whose words these are, which leaves the reader looking at text they can't
-comment on. When Chrome isn't installed, the gate fails and says so on stderr. It is
-the page's whole browser budget; a screenshot after it reads neither the console nor
-the second scheme.
+cannot see: a console error, a widget upgraded into a box of no size, a page that scrolls
+sideways, a `lf-diagram` whose mermaid source doesn't parse, words on screen that no
+selection can reach, code set in an ink the reader can't tell from the block it is on,
+words the screen shows and a printout drops, a version that authors widget state the log
+replays over (the decision stands, so carry it in the markup or rewrite the passage and
+declare `restated`), and a widget whose `applyAction` steps from what the page shows
+instead of stating the whole value. When Chrome isn't installed, the gate fails and says
+so on stderr. It is the page's whole browser budget; a screenshot after it reads neither
+the console nor the second scheme.
 
 **Then read the page yourself.** Neither pass above has an opinion about any of what
 follows. A page stands in for what you would otherwise have written in chat, so the

@@ -3997,50 +3997,42 @@ def version_review_mode(page_dir: Path, version: int):
 
 
 # ---------- passages: the text an anchor points at ----------
-# The runtime resolves an anchor against the DOM; `leaf comment` writes one down
-# against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors leaf.js's capture rather than approximating it:
-# the same skip list, the same block-boundary space, the same collapse, the same caps.
+# The runtime resolves an anchor against the DOM; `leaf comment` writes one down against
+# the file. The two have to read the same page or the anchor lands somewhere it was never
+# made, so this mirrors leaf.js's capture rather than approximating it: the same skip
+# list, the same block-boundary space, the same collapse, the same caps.
 #
 # What the file cannot know is what a widget's module will write, and the registry is
-# where that is declared rather than guessed at per widget. Three keywords carry what
-# can be declared, and a fence carries the rest:
+# where that is declared rather than guessed at per widget. Three keywords carry what can
+# be declared, and a fence carries the rest:
 #
 #   x-says      attribute values the reader sees. renderSaid puts them in the DOM, so
 #               they go in here too, at the edge the registry names.
 #   x-verbatim  an upgraded element whose body reaches the reader as its own words
-#               (lf-draft renders the authored text into a plain div, deliberately
-#               unmarked so anchoring can see it). Without it, an upgraded element is
-#               opaque: a mermaid body is a picture by the time it is read.
+#               (lf-draft renders the authored text into a plain div). Without it, an
+#               upgraded element is opaque: a mermaid body is a picture by the time it
+#               is read.
 #   x-retired-when  the outcome under which this element leaves the page: a decided
-#               suggestion's losing slot. The browser builds its anchor pass's skip
-#               list from this key too (`quotable` in leaf.js), so a reading given
-#               the log's outcomes drops here exactly what drops there — and a widget
-#               whose decision leaves nothing showing goes with its slots (settledAway
-#               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `decisions` reads them from.
-#   x-state, record kind "body"  the verb whose detail text becomes this element's
-#               body once the user sends one (lf-draft's `edit`): replay writes
-#               the newest surviving one into the DOM verbatim (applyAction is
-#               absolute), so a reading given the fold's word (rewritten_bodies)
-#               holds their words in the authored body's place. It asks nothing of
-#               the browser, whose page already shows the text this substitutes.
+#               suggestion's losing slot. The browser builds its anchor pass's skip list
+#               from this key too (`quotable` in leaf.js), so a reading given the log's
+#               outcomes drops here exactly what drops there. Its values are also the
+#               vocabulary's decision verbs, which is where `decisions` reads them from.
+#   x-state, record kind "body"  the verb whose detail text becomes this element's body
+#               once the user sends one (lf-draft's `edit`): replay writes the newest
+#               surviving one into the DOM verbatim, so a reading given the fold's word
+#               (rewritten_bodies) holds their words in the authored body's place.
 #
 # A module writes between the children of the element it upgrades — a column's heading, a
 # milestone's chips, a diff's gutters — so an opaque element and each of its children is
 # fenced. A quote never spans a fence, which turns "the page has words here that the file
-# doesn't" from an anchor that silently detaches in the user's browser into a refusal
-# at the moment it is written, addressed to the one party who can still fix it.
+# doesn't" from an anchor that silently detaches in the user's browser into a refusal at
+# the moment it is written, addressed to the one party who can still fix it. Retirement
+# drops and rewriting substitutes rather than fencing, because a fence says the reading
+# doesn't know what stands there, and in both of these it knows exactly.
 #
-# Retirement drops and rewriting substitutes rather than fencing, because that is what
-# each leaves on the screen. A fence says the reading doesn't know what stands there, and
-# in both of these it knows exactly.
-#
-# x-paints is the key that writes into an upgraded element and belongs in none of this.
-# Its word is clipped to nothing and marked as the runtime's (.lf-quiet, .lf-ui), so the
-# browser's own reading of the page skips it exactly as this one never sees it: the two
-# readings agree by both being silent, and a fence would be room reserved for words no
-# reader on either side can reach.
+# x-paints belongs in none of this: its word is clipped to nothing and marked as the
+# runtime's, so the browser's own reading skips it exactly as this one never sees it —
+# the two readings agree by both being silent.
 
 # The collapse class, stated outright: the characters a whitespace run is made of, one
 # spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
@@ -7035,40 +7027,31 @@ REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
 # Whether an applyAction is absolute, which is the premise both folds and every view
 # built on them rest on and the one thing about a widget module no gate could see. A
 # relative implementation — a card shifted one column along, a pick toggled rather than
-# set — is invisible to every other reading here: it renders perfectly, and what it
-# costs arrives later, in the poll that replays the sender's own action over the state
-# that gesture already painted. The user drags a card once and watches it walk.
+# set — is invisible to every other reading here: it renders perfectly, and what it costs
+# arrives later, in the poll that replays the sender's own action over the state that
+# gesture already painted. The user drags a card once and watches it walk.
 #
-# So the page is asked rather than the code. Each standing action is applied a second
-# time onto the state the page's own replay produced, and an absolute one has nothing
-# to do. Replaying the whole log again would prove nothing — every action carries its
-# seq and applyActions retires each exactly once, so a second pass is a no-op whatever
-# the widgets do — which is why this reaches past the runtime's bookkeeping and calls
-# the method.
+# So the page is asked rather than the code. Each standing action is applied a second time
+# onto the state the page's own replay produced, and an absolute one has nothing to do.
+# Replaying the whole log again would prove nothing — every action carries its seq and
+# applyActions retires each exactly once — which is why this reaches past the runtime's
+# bookkeeping and calls the method. The standing state rather than the whole log, because
+# that is the set the contract is for and the set replay applied and did not skip.
 #
-# The standing state rather than the whole log, because that is the set the contract is
-# for: the fold's own claim is that the last surviving action per unit *is* the state,
-# so the page is already showing exactly these. It is also the set replay applied and
-# did not skip — a retracted decision, a version's future action and a widget the
-# markup dropped are all out of it — so nothing here re-applies what the page declined.
-#
-# The whole set at once and in the log's order, never one action measured on its own.
-# An absolute applyAction states its own unit and says nothing about any other, so where
-# two units share an ordered container the page is the sequence's result rather than any
-# one action's: two cards dragged to the head of one column leave it holding the second
-# above the first, and lifting the first back over the second is what replaying it alone
-# is *supposed* to do. Read per action, that named lf-board relative and refused a page
-# with nothing wrong with it — at the gate a handover cannot get past. Read across the
-# batch, an absolute set lands exactly where it already was and a relative one walks.
+# The whole set at once and in the log's order, never one action measured on its own. An
+# absolute applyAction states its own unit and says nothing about any other, so where two
+# units share an ordered container the page is the sequence's result: two cards dragged to
+# the head of one column leave it holding the second above the first, and lifting the
+# first back over the second is what replaying it alone is *supposed* to do. Read per
+# action, that named lf-board relative and refused a page with nothing wrong with it — at
+# the gate a handover cannot get past.
 #
 # Two readings, because one is blind where the other sees. shallowSigs is the id-bearing
-# markup state, which covers a moved card, a flipped attribute and a re-pointed pick;
-# it looks away from text on purpose, and a `body` record is nothing but text, so the
-# unit's declared facet is read beside it. A throw is a finding of its own rather than
-# an exception out of the gate: whatever a second application was expected to do, it was
-# not that. Each moved id is then laid at the door of the widget whose applyAction writes
-# it — its nearest ancestor with the method, as a replayed override already is — since
-# across a batch no single verb owns the difference.
+# markup state, which covers a moved card, a flipped attribute and a re-pointed pick; it
+# looks away from text on purpose, and a `body` record is nothing but text, so the unit's
+# declared facet is read beside it. A throw is a finding of its own. Each moved id is laid
+# at the door of the widget whose applyAction writes it — its nearest ancestor with the
+# method — since across a batch no single verb owns the difference.
 RELATIVE_REPLAYS = """async () => {
     const { standingState, shallowSigs } = await import('/leaf.js');
     const at = (el) => `<${el.localName}${el.id ? ' id=' + el.id : ''}>`;
@@ -7159,42 +7142,33 @@ PAPER_WORDS = """() => {
 
 # Words the page draws in the same place as other words. A copy went out with a settled
 # group's cards laid across the heading above them — the cards kept the collapsed
-# padding, which is the room the group is laid out in — and the user saw it in the
-# first second while every assertion passed: the words were all present, all shown, and
-# all of a usable size. They were in the same place, and nothing was asking about place.
+# padding, which is the room the group is laid out in — and the user saw it in the first
+# second while every assertion passed: the words were all present, all shown, and all of
+# a usable size. They were in the same place, and nothing was asking about place.
 #
-# Boxes rather than a hit test, which is the other way to ask: a press landing on the
-# wrong element is a different fault with its own test, and the medium this has to hold
-# up in is the copy, where there is nothing left to press. Text against text, because
-# text over a background, a border, or a picture is how a page is built.
+# Boxes rather than a hit test: a press landing on the wrong element is a different fault
+# with its own test, and the medium this has to hold up in is the copy, where there is
+# nothing left to press. A pair where one element contains the other is skipped, a
+# paragraph and its <em> being one run of words the flow lays out together. Two pixels of
+# slack, since a line box carries its leading. The runtime's layer is skipped too: it
+# floats over the document on purpose.
 #
-# A pair where one element contains the other is skipped: a paragraph and the <em>
-# inside it are one run of words that the flow lays out together, and their boxes
-# overlap by construction. Two pixels of slack, since a line box carries its leading and
-# adjacent blocks can round into each other by a hair. The runtime's layer is skipped
-# too: it floats over the document on purpose, and where that costs the user a press
-# it is the hit test that says so.
-#
-# The layer is in two places, so the skip names both. The line counting a passage's
-# comments lives inside the page's own elements by design — it is what a screen reader
-# hears where a painted mark says nothing — and it is clipped to nothing on screen.
-# checkVisibility answers for display, visibility and opacity and knows nothing of
-# clip-path, so that line read as drawn, and its text lays out past the 1px box holding
-# it: an anchor on a container put "1 comment" across the paragraph below the widget and
-# failed the gate on a page with nothing wrong with it. Asking for `.lf-chrome` alone was
-# the class standing in for the question, the same substitution the anchor pass made with
-# `.lf-ui`. The question is whose words these are, and the runtime marks its own in both
-# of the places it writes them.
+# That layer is in two places, so the skip names both. The line counting a passage's
+# comments lives inside the page's own elements by design and is clipped to nothing on
+# screen. checkVisibility answers for display, visibility and opacity and knows nothing
+# of clip-path, so that line read as drawn and its text lays out past the 1px box holding
+# it — failing the gate on a page with nothing wrong with it. Asking for `.lf-chrome`
+# alone was the class standing in for the question, the same substitution the anchor pass
+# made with `.lf-ui`: the question is whose words these are, and the runtime marks its own
+# in both places it writes them.
 #
 # checkVisibility knows nothing of content-visibility either, which is what a collapse
-# wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
-# that find-in-page still reaches inside, and the text in one reports the boxes it last
-# laid out in — every sibling's at the same place. So a page with a collapsed group on it
-# failed about half the runs and passed the rest, which is the worst way for a gate to be
-# wrong: the page that goes out is whichever one the coin was kind to. A collapse is asked
-# for, and words nobody can see are not drawn over anything, so [hidden] is held out here
-# the way the size check holds it out. The coin comes down the same side every time on a
-# group that has been opened and closed, which is where the test pins it.
+# wears: an inactive tab's panel is hidden="until-found" so find-in-page still reaches
+# inside, and the text in one reports the boxes it last laid out in — every sibling's at
+# the same place. So a page with a collapsed group failed about half the runs and passed
+# the rest, which is the worst way for a gate to be wrong: the page that goes out is
+# whichever one the coin was kind to. Words nobody can see are not drawn over anything,
+# so [hidden] is held out here the way the size check holds it out.
 COVERED_WORDS = """() => {
     const runs = [];
     const at = el => { const named = el.closest('[id]');
@@ -7240,43 +7214,32 @@ OPEN_ROOTS = """
 # Code that came out the colour of the code around it. Colouring takes two halves that
 # meet nowhere a static lint can reach: the runtime writes data-lf-syn in the browser,
 # and the theme answers it with a var() the browser resolves. Either half can stop
-# working with nothing said — the tokenizer failing throws, and the console error is
-# already a finding here, but a stylesheet that no longer answers a role, or answers it
-# with an ink too near the paper, is silent. What reaches the user is a page of code in
-# one flat colour, which is what they report as the highlighting being gone; it was
-# reported that way, on a comment that was 3.3:1 against the block it sat on.
+# working with nothing said — the tokenizer failing throws, but a stylesheet that no
+# longer answers a role, or answers it with an ink too near the paper, is silent. What
+# reaches the user is a page of code in one flat colour, reported that way on a comment
+# that was 3.3:1 against the block it sat on.
 #
-# So both halves are asked of the drawn result rather than of the declarations behind it.
-# A palette can be read out of the stylesheet; what a role came out as cannot, because a
-# project overlays its own theme over this one and the browser is the only thing that
-# knows which declaration won.
-#
-# Once per role and surface rather than once per span: the fault belongs to the role, not
-# to the hundredth span wearing it, and a role reads differently on a diff's del tint than
-# on the plain block, so the pair is what a reading answers for. A page of code costs a
-# couple of dozen of them rather than one per token — measured at under 10ms across the
-# examples. The line is per role, since the palette is where the fix goes and a role
-# failing on two tints is one thing to change.
+# So both halves are asked of the drawn result rather than of the declarations behind it:
+# a project overlays its own theme over this one, and the browser is the only thing that
+# knows which declaration won. Once per role and surface rather than once per span — the
+# fault belongs to the role, and a role reads differently on a diff's del tint than on
+# the plain block, so the pair is what a reading answers for. Under 10ms across the
+# examples, measured.
 #
 # What a colour is comes back from the browser painting it, not from a parse of how it
-# wrote it down — getComputedStyle serializes a hex as rgb() in 0–255 and a color-mix as
+# wrote it down: getComputedStyle serializes a hex as rgb() in 0–255 and a color-mix as
 # color(srgb …) in 0–1, and a probe reading one as the other reports a ratio against a
 # colour nothing on the page is. Painting the backgrounds in order composites the
-# translucent ones the way the page does, over the white the browser paints under
-# everything, so a tint over a tint is the colour the reader actually has behind the
-# glyphs. A marked passage is not among them: the highlight registry styles glyphs and
-# not boxes, so a mark is no element's background, and it is the user's own paint over a
+# translucent ones the way the page does. A marked passage is not among them: the
+# highlight registry styles glyphs and not boxes, and it is the user's own paint over a
 # page that had to be legible before they put it there.
 #
 # 4.5:1 is WCAG AA for body text, and body text is the threshold that applies — code is
-# 13px. Axe runs over this corpus too and passes it, which is not the same guarantee:
-# asked for colour-contrast alone on the example carrying the beige comment, it returned
-# 44 passing elements, no violation, and not one of the spans among them.
-#
-# Which shadow roots it crosses into is OPEN_ROOTS' answer (the section note above says
-# why it crosses at all), which is the choice everything else here makes — colour is
-# asked of what the browser painted, so where it painted is too, and a root a widget
-# attached without declaring one still holds code the reader has to read.
+# 13px. Axe passes this corpus too, which is not the same guarantee: asked for
+# colour-contrast alone on the example carrying the beige comment, it returned 44 passing
+# elements, no violation, and not one of the spans among them. Which shadow roots it
+# crosses into is OPEN_ROOTS' answer: colour is asked of what the browser painted, so
+# where it painted is too.
 UNREAD_SYNTAX = (
     """() => {"""
     + OPEN_ROOTS

@@ -3,100 +3,17 @@
 - (2026-08-14) Left on the table by the framework-robustness sweep (its session
   holds the evidence; the landed half is in that branch's history):
 
-  - (done 2026-08-15) `x-retired-when` is open in the licensing too:
-    `retirement_slots` reads the holder/slot pair the declaration relates,
-    `retirable_ids` is written in its terms, and the door that refused the key
-    outside the suggestion family is gone. What the pair could not say —
-    what an unanswered widget means when the author takes it back — is the
-    holder's own declaration now (`x-withdrawn-as`).
-  - (done 2026-08-15) `applyAction` absoluteness is checked: the render gate
-    applies each standing action a second time and reports what moved
-    (`RELATIVE_REPLAYS`). Not the candidate check — replaying the log twice is
-    a no-op by construction (every action carries its seq and replay retires
-    each exactly once), and `shallowSigs` alone is blind to a `body` record, so
-    the unit's declared record form is read beside it. What it cannot reach is
-    a verb no user has exercised yet: the corpus's own logs carry no actions, so
-    `test_example_renders` never applies anything and the coverage is a page
-    of its own.
-  - (done 2026-08-15) The render gate reads two module contracts a static lint
-    can't: an `x-verbatim` widget whose rendered words differ from the file's,
-    and a shadow root on a host whose entry lacks `x-shadow`.
-  - (done 2026-08-15) Every page declares the layer's one CSP and `version
-    check` requires it, so "a vendored page can't phone home" is the browser's
-    to enforce.
   - Residue of the retraction-floor fix in thread settlement (landed: an accept a
     later version `restated` no longer resolves its thread forever, via one
     predicate — `action_retracted` / `retractedIds` — shared by the fold, the
     rewrite gate, replay and the thread builders on both sides). One of the three
     things it deliberately did not settle is still open: a `reject` recorded after
     an `accept` on the same suggestion leaves the thread resolved, and un-resolving
-    that case means folding by unit, a separate decision. (The other two are done:
-    the panel's window against replay's, 2026-08-15 — the two answer different
-    questions, and the rule is one section of the skill's CLAUDE.md, "A pinned
-    version scopes the document, never the conversation", since it binds
-    `buildThreads` and `applyActions` alike and neither site owns it; and
-    `build_threads`'s defaulted `spk`, 2026-08-14 — required, `{}` explicit for
-    the no-page callers.)
-  - (done 2026-08-14) The collapse class is one set now: `COLLAPSE_CHARS` /
-    `collapse()` beside `TEXT_BLOCK_TAGS`, leaf.js's `COLLAPSE` its twin, a test
-    pinning the two spellings to each other by expanding the JS class over the BMP.
-  - (done 2026-08-14) `resolves` is a reserved detail field: `$state` says what it
-    means and `validate_registry` holds any verb spelling the name to a plain
-    string.
-  - (done 2026-08-14) The block-slot rule inverts the platform's phrasing set
-    instead of enumerating widgets — any layer's block widget is covered unnamed —
-    with the registry's `x-inline` tags as the one declared residue, pinned by test
-    (lf-compare's stacked-variant trigger shares the list and the pin).
-  - (done 2026-08-14) `_PassageParser.close()` unwinds the stack at EOF.
+    that case means folding by unit, a separate decision.
   - `bin/leaf` records `$PPID` as the long-lived Codex process; if Codex execs the
     shim through an intermediate shell, that PID dies with the command and
     `claim_page`'s stale-session sweep deletes a live session's entry. Needs a real
     Codex invocation to settle.
-  - (done 2026-08-15) lf-options wrote `answered` and `open` onto the group in the
-    author's namespace, which its entry closes. Neither was state to declare: the
-    `answer` verb is a thread's, and no version can carry a thread's markup to honor a
-    record of it, while open-or-closed is this tab's reading position. Both were second
-    copies of what the module already says on the control that carries them, so each is
-    now said once (`aria-pressed`, `aria-expanded`) and the theme keys on that.
-    `version check --render` asks the rendered page for the rest
-    (`UNDECLARED_ATTRS`) — the second writer shows on no other side. (The orphaned Done
-    press under a settled collapse: done 2026-08-14 — it hides with the options.)
-  - (done 2026-08-15 — measured, no change) The last unmeasured hot path was
-    `openAsks()` rebuilding `stateFold`, and the count it was flagged for holds: four
-    folds a poll — the banner's, the key line's `a` and its `Shift+a`, and
-    `paintPending`'s — and two per key-line paint. Nobody had asked what a fold costs.
-    Timed in Chrome on `examples/gallery.html`, served from a page directory with its
-    vendored `leaf.js` wrapped in a timer, each fold read off a tight loop because
-    `performance.now()`'s 100µs clamp is wider than the thing measured: 0.4µs over a
-    fresh page's log, 62µs after eight decisions and twenty comments, 137µs with three
-    hundred comments over those same eight. So the three redundant folds cost
-    0.19–0.41ms of a two-second poll, and the key line's second fold 62–137µs of a
-    16.7ms frame; a sixfold CPU throttle multiplies both by about six. The page
-    directories on this machine hold one to eleven events. Memoizing it the way
-    `retractionFloors` is would be wrong rather than merely unnecessary: `foldable`
-    reads the DOM (`elementById`, `inChrome`) and `retractedIds` asks containment, so
-    a version switch changes the answer with `events` still the same array. The code
-    stands as it is.
-
-    A fold does cost at hundreds of *actions* (300: 2.1ms a fold, 13ms a poll), and it
-    is still not the thing to point at. That page spends 1.1s of its load in replay:
-    `lf-options` and `lf-suggestion` dispatch `lf-answered` from the absolute setter
-    that replay itself calls, and each dispatch runs a whole `paintAnchors` (600ms over
-    the batch) and `syncAsks` (450ms, of which the folds are 420ms). The batch already
-    does both — `applyActions` ends on `paintAnchors` when it applied anything, and
-    `lf-actions` fires `syncAsks` the moment it returns — so every per-answer pass is
-    superseded a few milliseconds later. That makes it redundant work rather than work
-    to coalesce, and the shape at fault is a widget announcing a reader's answer from
-    the path that replays one. Nothing is owed until a page carries such a log; a fold
-    memo would take out the smaller half of it in any case.
-
-    A second measurement, taken independently on ship-review with a synthetic board
-    log, agreed: seven calls across the load and six per two polls, 1.1ms at 200
-    actions and 4.0ms at 1000, linear in the log.
-
-    (The other two are done 2026-08-15: `retiredSlots` is computed once for the load,
-    and `retractionFloors` memoizes on the log's identity, which is what
-    `buildThreads` walked per call.)
 
 - (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
   and with it the geometry the options were complained about: equal-height cells and an
@@ -150,8 +67,7 @@
 
 - (2026-08-07) A changed line in `lf-diff` says only that the line changed. (The
   suggestion half of this landed 2026-08-14: lf-suggestion's slots deepen the words
-  that moved, through `alignText` and the highlight registry — no vendoring, cleared
-  on decide, gated on shared ink so a swap paints nothing. `alignText` may make the
+  that moved, through `alignText` and the highlight registry. `alignText` may make the
   jsdiff vendoring below unnecessary for the diff too; ::highlight cannot reach the
   diff's shadow tree, so its emphasis would be module-built spans instead.) jsdiff's
   `diffWordsWithSpace` narrows it to the words that moved, and bundles to 6 KB on its

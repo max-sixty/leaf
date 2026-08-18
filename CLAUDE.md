@@ -23,23 +23,21 @@ the work itself.
 
 Early, and nothing owes the past anything. Nobody uses it, so there is no deployment,
 no database, no command, flag, or name anyone has learned, and no page or log on disk
-with a claim on new code, whichever version of the layer minted it. Stale state is
-deleted and made again, which is the whole of the migration, so no code reads the old
-shape and a page a change breaks is neither a caveat to raise nor a follow-up to file.
-Backward compatibility carries zero weight: rename and reshape whenever the better
-form is clear, and treat a name being the current one as no argument for keeping it.
-So the trade between simplicity and robustness is already settled — take the simpler
-code. A guard earns its place only where the state it defends against is reachable and
-there is something to do about it; the rest is complexity paid for a case that never
-arrives, and it reads as if the impossible were expected.
+with a claim on new code. Stale state is deleted and made again, which is the whole of
+the migration. Backward compatibility carries zero weight: rename and reshape whenever
+the better form is clear, and treat a name being the current one as no argument for
+keeping it. So the trade between simplicity and robustness is already settled — take the
+simpler code. A guard earns its place only where the state it defends against is
+reachable and there is something to do about it; the rest is complexity paid for a case
+that never arrives, and it reads as if the impossible were expected.
 
 That settles your own hesitation too: an improvement you can see is one to make. A
 change is the user's to call when it turns on what only they know — what the work is
 for, what they meant by it, what they will do with it next. Not because it takes
 judgement, not because it changes what a page says, and not because the present form
 was chosen deliberately once; that is the ordinary substance of the work. The tell is a
-change worked out and then reported rather than made — "your call rather than a defect"
-— which spends a round trip being told to do what you had already decided on.
+change worked out and then reported rather than made, which spends a round trip being
+told to do what you had already decided on.
 
 Where data enters, check it once and completely: browser events at `POST /api/event`,
 authored markup at `version check`, a replayed action's detail in the widget's own
@@ -55,9 +53,9 @@ the product, and nothing sits between them. Six are the skill's, under
 `plugins/leaf/skills/leaf/`:
 
 - `scripts/interact.py` — a `uv` script: the server, the event log, the lint
-  (`version check`), vendoring, export. No daemon, no
-  database. Reached as `leaf`, through the payload's `bin/` shim: Claude Code puts
-  it on PATH and Codex resolves it from the active skill directory.
+  (`version check`), vendoring, export. No daemon, no database. Reached as `leaf`,
+  through the payload's `bin/` shim: Claude Code puts it on PATH and Codex resolves it
+  from the active skill directory.
 - `assets/leaf.js` — the runtime the page loads. One ES module owning the widget
   layer and the comment layer, with its stylesheet in a `<style>` block inside it. No
   build step.
@@ -68,8 +66,8 @@ the product, and nothing sits between them. Six are the skill's, under
   suggestion family's rules, and what the runtime styles its own chrome from, so a
   page themes as one thing.
 - `assets/icon.svg` — the mark, worn by the tab of every served page and by the
-  published site alike, so there is one of it. Its `lf-tone` element is what the runtime
-  paints the page's status onto.
+  published site alike. Its `lf-tone` element is what the runtime paints the page's
+  status onto.
 - `bundled/` — the content widget families, an overlay layer in the integrated
   layer's own layout: their registry entries, one module per upgraded widget, their
   theme rules, mermaid and sortable beside them. `page init` merges it exactly as it
@@ -114,9 +112,8 @@ is a second thing to reconcile.
 There was a second store once, unnamed: recorded state in the log and authored state in
 the markup, with the page's author expected to copy each decision from one to the other
 by hand. `version check` guaranteed ids survived a republish and nothing guaranteed the
-state on them did, so a forgotten copy silently un-made a decision. The user
-re-approved the same drafts version after version, and no part of the system said a
-word.
+state on them did, so a forgotten copy silently un-made a decision, and no part of the
+system said a word.
 
 One writer, then: markup states the initial condition, the log every transition after
 it. A version that says nothing about a decision leaves it standing. The cost lands
@@ -125,11 +122,11 @@ because replay would paint their state back over the revision — so `restated` 
 rewritten element retracts what rested on it, and `version check` refuses a bare rewrite
 and an unearned `restated` alike (`restatement_errors`).
 
-Both failures are invisible to the user, so the question was never which is worse
-but who can see each. A dropped decision is visible to nobody. A stale decision standing
-over rewritten content is visible to the author as they rewrite it, and only they know
-whether the rewrite invalidates it. Route a failure to whoever can adjudicate it: the
-runtime preserves by default, and discarding costs the author a word.
+Both failures are invisible to the user, so the question was never which is worse but
+who can see each. A dropped decision is visible to nobody. A stale decision standing over
+rewritten content is visible to the author as they rewrite it, and only they know whether
+the rewrite invalidates it. Route a failure to whoever can adjudicate it: the runtime
+preserves by default, and discarding costs the author a word.
 
 ### One representation per concept
 
@@ -139,33 +136,29 @@ answers to "what text is in this region", every one of them was some other one's
 selection's `toString()` returns what `text-transform` rendered, so a quote captured that
 way could never be found again. `page_passages` is that one answer on the Python side, so
 anything asking what a version says slices it (`spoken`) rather than walking the markup
-again.
-
-A second representation earns its place only when the two things are genuinely different
-(an element anchor has no text to paint, so it wears an outline). Not when they are the
-same thing reached by different code.
+again. A second representation earns its place only when the two things are genuinely
+different (an element anchor has no text to paint, so it wears an outline). Not when they
+are the same thing reached by different code.
 
 One representation means one budget too, and the budget belongs to whatever is actually
 scarce. A quote was capped at four hundred characters, which read as an economy over a
-log line and was a claim about the page: the stored quote is the passage, so the mark
-paints it and the comment is on it, and a reader who selected a paragraph past the cap
-got a comment on its opening with a highlight that shrank to match — silently, on most
-of the paragraphs a leaf page holds. What could not afford the passage was never the
-log; it was the search's pattern, one regular expression with a term per character, which
-V8 refuses to compile at all past some length between five and twelve thousand of them.
-So the bound sits on the pattern (`LEAD_CAP`), which finds the candidates, and the rest
-of the quote is walked against the text from each. A cap on the wrong side of a
-representation reads as thrift and spends what the representation was for.
+log line and was a claim about the page: the stored quote is the passage, so a reader who
+selected a paragraph past the cap got a comment on its opening with a highlight that
+shrank to match. What could not afford the passage was never the log; it was the search's
+pattern, one regular expression with a term per character, which V8 refuses to compile
+past some length between five and twelve thousand of them. So the bound sits on the
+pattern (`LEAD_CAP`), which finds the candidates, and the rest of the quote is walked
+against the text from each. A cap on the wrong side of a representation reads as thrift
+and spends what the representation was for.
 
 Two readings of one element's words are the case that does earn it, because they answer
 different questions. `says` is what is on the screen for the user to point at, so a
 label a widget declared as the page's words is in it; `wrote` is what the author put
-there, so everything an upgrade generated is out. The version diff wants the second (the
-base version it compares against has no generated nodes at all) and so does a widget
-naming one of its own parts — a picked row's mark is the page speaking, which belongs in
-what the user can quote and not in the row's name, or a question answered reads its own
-answer back as part of what was asked. One reading with a flag would have been the same
-two answers with nothing saying which is which.
+there, so everything an upgrade generated is out. The version diff wants the second and
+so does a widget naming one of its own parts — a picked row's mark is the page speaking,
+which belongs in what the user can quote and not in the row's name, or a question
+answered reads its own answer back as part of what was asked. One reading with a flag
+would have been the same two answers with nothing saying which is which.
 
 ### The file's reading never claims more than the page's
 
@@ -173,8 +166,7 @@ An anchor is captured in two places and resolved in one. `selectionAnchor` captu
 the DOM, `leaf comment` captures from the version file, and `resolveAnchor` is still
 the only thing that searches. Two captures are not two answers to "what does the page say
 here": both write the same collapsed text under the same rules, so what the file's reading
-holds the page holds too — where a module replaces what the file holds, the reading skips
-it, and everywhere else a module only adds.
+holds the page holds too.
 
 The file alone is not enough, because the user moves the page too: a decision retires a
 settled suggestion's losing slot, and an edit puts their words where the authored body was.
@@ -182,16 +174,12 @@ So both readings follow the log rather than the markup, and each refuses a quote
 it dropped by naming the act that dropped it. The keys that carry this and the shape of
 each reading are `_PassageParser`'s.
 
-Keeping that true is not free, and the first draft wasn't. A board's module prepends each
-column's heading, so a quote running from the lede into the first card matched a file the
-page no longer resembled and anchored on nothing; a milestone's chips do the same
-mid-element, where no edge keyword can reach. And a prefix captured one character wider
-than the DOM's — a leading space the runtime's own collapse trims — is context no
-occurrence can ever confirm, which silently costs the comment its copy.
-
-So where the file can't model what a module writes, the reading stops rather than guesses.
-The registry declares what it can and a fence covers the rest, and a quote across a fence
-is refused when it is written instead of detaching later in front of the user. The
+Keeping that true is not free. A board's module prepends each column's heading, so a quote
+running from the lede into the first card matched a file the page no longer resembled and
+anchored on nothing; a milestone's chips do the same mid-element, where no edge keyword can
+reach. So where the file can't model what a module writes, the reading stops rather than
+guesses. The registry declares what it can and a fence covers the rest, and a quote across a
+fence is refused when it is written instead of detaching later in front of the user. The
 browser indexes those same fences before upgrades run and clips captured context to them
 afterward, so neither capture claims neighbours the other cannot confirm. A widget that
 writes words of its own declares them or stays fenced.
@@ -203,140 +191,90 @@ is not evidence that a revised copy is the one the user meant.
 
 ### The widget list is never closed
 
-The vocabulary grows by an entry in `registry.json` and a module beside it, and nothing
-may assume it has seen the whole of it. A consumer that works from which widget it is
-looking at is a consumer that stops at the ones it was taught, and it fails quietly
-rather than loudly: it keeps working perfectly on those while silently doing nothing for
-the next one, so the bug surfaces as a feature that was never wired up rather than as an
-error. So a consumer works from what an entry declares — where a behaviour is wanted by
-some widgets and not others, it becomes an `x-` key they declare and the consumer
-dispatches on, and no branch anywhere reads `lf-diagram` and does something particular.
-That binds the runtime, the lint, `version check --render`, `version export`, and the
-skill's own prose alike; the test is whether a twelfth widget touches anything but its
-module and its entry, and where it would, the thing missing is a declaration.
+The vocabulary grows by an entry in `registry.json` and a module beside it, and nothing may
+assume it has seen the whole of it. A consumer that works from which widget it is looking at
+stops at the ones it was taught, and it fails quietly rather than loudly: it keeps working
+perfectly on those while silently doing nothing for the next one, so the bug surfaces as a
+feature that was never wired up rather than as an error. So a consumer works from what an entry
+declares — where a behaviour is wanted by some widgets and not others, it becomes an `x-` key
+they declare and the consumer dispatches on, and no branch anywhere reads `lf-diagram` and does
+something particular. That binds the runtime, the lint, `version check --render`,
+`version export`, and the skill's own prose alike; the test is whether a twelfth widget touches
+anything but its module and its entry, and where it would, the thing missing is a declaration.
 
-Most widgets are things a page contains, and those are anonymous outside their own
-module. A few are part of the machine the list is defined against, and core would name
-those outright. None is today, and the suggestion is where the temptation kept landing:
-the log settles it, a version honoring that decision may drop the ids it retired, and
-thread markup refuses one, no version being able to reach a widget frozen in the log. All
-three read as sentences about the suggestion and every one of them is about a relation
-the registry states — `x-retired-when` names the outcome a slot leaves the page under and
-`x-parent` the widgets whose decision reaches it, so a holder/slot pair is the whole of
-what a settlement is (`retirement_slots`). All three are written from that pair now, and
-a family a project declares gets them the day it declares it.
+Most widgets are things a page contains, and those are anonymous outside their own module. A few
+are part of the machine the list is defined against, and core would name those outright — none is
+today. The suggestion is where the temptation kept landing: the log settles it, a version honoring
+that decision may drop the ids it retired, and thread markup refuses one. All three read as
+sentences about the suggestion and every one is about a relation the registry states —
+`x-retired-when` names the outcome a slot leaves the page under and `x-parent` the widgets whose
+decision reaches it, so a holder/slot pair is the whole of what a settlement is
+(`retirement_slots`), and a family a project declares gets them the day it declares it. What the
+pair could not say is what an *unanswered* one means when the author takes it back, so the widget
+says it (`x-withdrawn-as`). One name is left in core and it is a member's: `suggestion_errors`
+holds the family's markup to one slot of each kind, at least one, and no nesting — cardinality
+being the thing no key states, and those sentences meaning nothing for the twelfth widget.
 
-The licensing was the one still written in terms of `lf-old` and `lf-new`, and the
-registry door had to be held shut on the key to cover for it: a third-party slot could be
-declared, painted, decided and read, and then the version honoring the decision failed
-with "ids dropped", three versions from the declaration and with nothing to connect the
-two. Refusing the declaration gave that failure somewhere to be reported and left the
-wrong shape standing. What the pair genuinely could not say is what an *unanswered* one
-means when the author takes it back: a withdrawn suggestion leaves the page where a
-`reject` would, and "which outcome retires this slot" never says which outcome that is.
-So the widget says it (`x-withdrawn-as`) and the two halves are one rule — the outcome
-the log recorded, or the one the entry says a withdrawal stands as, hedged because there
-the author is asserting a state the user never gave.
+Which kind a widget is has one question behind it — is this one of the ways leaf works, or one of
+the things a page can hold? Convenience is not an answer; a widget joins the first set by having
+the loop written in terms of it. The banner's `✓ Accept all` used to be a fourth item in that list
+and was never one: it counted `lf-suggestion:not([data-lf-state])`, which is the shape of a
+mechanism and the substance of a member, so the count was perfect for that tag and silently zero
+for every question, pick and blocked task beside it. `x-awaits` is what it became, feeding the
+banner's count, the key that steps them and the `?` overlay. So a name core can only defend because
+that widget got there first is a declaration waiting to be written. Declare the general property,
+not the particular widget, or the special case has only moved into the registry: `x-upgrade` says a
+module enhances this tag, not that mermaid needs loading. The bar is real — an `x-` key the log
+records is a forever-contract the vendored-layer stamp then carries (`$events`) — which is an
+argument for finding the general shape, not for reaching past the registry.
 
-One name is left in core and it is a member's. `suggestion_errors` holds the family's
-markup to one slot of each kind, at least one of them, and no nesting; it reads which
-tags those are off the registry, and the rules themselves are the family's, cardinality
-being the thing no key states. Ask what those sentences mean for the twelfth widget and
-the answer is nothing, which is what makes them a member's lint rather than a mechanism
-reaching for a name. The day a second family wants them is the day the registry grows a
-way to say them.
+The stylesheet is under the same rule, since a selector is a consumer too and a list of tags is the
+closed list wearing CSS. A box declares that it frames what it holds (`--lf-frame`) in the rule
+where it draws the frame, and one style query trims what every such box would otherwise paint as
+its own inset — so a project's card is covered by saying the same thing. The norm is
+`plugins/leaf/skills/leaf/CLAUDE.md`'s.
 
-Which kind a widget is has one question behind it — is this one of the ways leaf works,
-or one of the things a page can hold? Convenience is not an answer to it; a widget joins
-the first set by having the loop written in terms of it.
+A fact the whole layer shares belongs to the layer, under a `$` key, rather than to whichever widget
+first needed it. The vendored tokenizer's language list lived in `lf-code`'s `language` enum, and
+from there the only way for the lint to read it was to name `lf-code`: the wrong home was the cause
+and the reach by name only the symptom, which is why moving the list (`$languages`) is what let the
+widgets declare instead (`x-language` names the attribute carrying one). The tell is a consumer
+indexing past the entry it was handed — and the second tell is what such a consumer does when the
+reach comes up empty, because a list read from the wrong place is a list that can move, and a check
+standing down on `if not known` retires itself the day it does. Layers compose a `$` key member by
+member, where a tag's entry replaces whole, because the two are different kinds: a schema is one
+contract whose halves cannot mix, and a shared fact is a namespace whose members stand alone. Under
+replace-whole, a project declaring its one idiom vendored a `$idioms` holding exactly that idiom and
+`page catalog` silently dropped the other ten, so the natural act of declaring a shape cost the agent
+the catalog it authors from. The stamp is indifferent to the grain: its gates read the merged result
+(`merge_layer_entries`).
 
-The banner's `✓ Accept all` used to be a fourth item in that list and was never one. It
-counted `lf-suggestion:not([data-lf-state])`, which is the shape of a mechanism and the
-substance of a member: what the page is waiting on the reader for is not a suggestion's
-question but the whole page's, so the count that named one tag was perfect for that tag
-and silently zero for every question, pick and blocked task beside it. `x-awaits` is what
-it became — the entry says an instance of this tag stands as a request to the reader, and
-one list then feeds the banner's count, the key that steps them and the `?` overlay. So
-the question above has a second edge: a name core can only defend because that widget got
-there first is a declaration waiting to be written, and the way to tell is to ask what the
-sentence would mean for the twelfth widget. "The log settles what a version then has to
-honor" is a mechanism's sentence, which is why it survived being rewritten without the
-name; "the banner counts suggestions" was already the wrong sentence.
+An `applyAction` implementation states an absolute placement, never a relative mutation, because the
+poll replays it and the sender's own action must be a no-op. The verb, its detail schema, its fold
+unit, and its record form are declared in the registry (`x-state`), not known privately to the
+module: absoluteness is what makes the user's standing state a fold over the log, and the declaration
+drives every consumer of it without teaching any of them a widget by name. For a long time nothing
+checked it and every gate passed a relative one, because there is nothing to see — it renders
+perfectly, and what it costs arrives later, on the poll that replays the sender's own action over the
+state their gesture already painted. So the render gate asks the page rather than the code
+(`RELATIVE_REPLAYS`): it re-applies the standing state whole and in the log's order and reports what
+moved, at the widget, with the fix, reading the result twice — `shallowSigs` for the markup state,
+which excludes text on purpose, and the unit's declared record form for the words. Asking each action
+on its own would be a different check and a wrong one, since two cards dragged to the head of one
+column fold to two standing moves. What it cannot reach is a verb nobody has used, the actions being
+the log's.
 
-Declare the general property, not the particular widget, or the special case has only
-moved into the registry: `x-upgrade` says a module enhances this tag, not that mermaid
-needs loading. The bar is real — an `x-` key the log records is a forever-contract the
-vendored-layer stamp then carries (`$events`) — which is an argument for finding the
-general shape, not for reaching past the registry.
-
-The stylesheet is under the same rule and answers it in its own vocabulary, since a
-selector is a consumer too and a list of tags is the closed list wearing CSS. A box
-declares that it frames what it holds (`--lf-frame`) in the rule where it draws the frame,
-and one style query trims what every such box would otherwise paint as its own inset — so
-a project's card is covered by saying the same thing, where a list in leaf's theme could
-never have named it. The norm is `plugins/leaf/skills/leaf/CLAUDE.md`'s.
-
-A fact the whole layer shares belongs to the layer, under a `$` key, rather than to
-whichever widget first needed it. The vendored tokenizer's language list lived in
-`lf-code`'s `language` enum, and from there the only way for the lint to read it was to name
-`lf-code`: the wrong home was the cause and the reach by name only the symptom, which is
-why moving the list (`$languages`) is what let the widgets declare instead (`x-language`
-names the attribute carrying one). The tell is a consumer indexing past the entry it was
-handed — and the second tell is what such a consumer does when the reach comes up empty,
-because a list read from the wrong place is a list that can move, and a check standing
-down on `if not known` retires itself the day it does.
-
-Layers compose a `$` key member by member, where a tag's entry replaces whole, because
-the two are different kinds: a schema is one contract whose halves cannot mix, and a
-shared fact is a namespace whose members stand alone. Under replace-whole, a project
-declaring its one idiom vendored a `$idioms` holding exactly that idiom — every shipped
-idiom kept styling, theme.css concatenating where the registry did not, while
-`page catalog` silently dropped the other ten — so the natural act of declaring a shape
-cost the agent the catalog it authors from. The stamp is indifferent to the grain: its
-gates read the merged result (`merge_layer_entries`).
-
-An `applyAction` implementation states an absolute placement, never a relative mutation,
-because the poll replays it and the sender's own action must be a no-op. The verb, its
-detail schema, its fold unit, and its record form are declared in the registry
-(`x-state`), not known privately to the module: absoluteness is what makes the
-user's standing state a fold over the log, and the declaration drives every consumer
-of it without teaching any of them a widget by name.
-
-For a long time nothing checked it and every gate passed a relative one, because there
-is nothing to see: it renders perfectly, and what it costs arrives later, on the poll
-that replays the sender's own action over the state their gesture already painted — the
-reader drags a card once and watches it walk. So the render gate asks the page rather
-than the code (`RELATIVE_REPLAYS`): it re-applies the standing state and reports what
-moved, at the widget, with the fix. Replaying the log again would prove nothing, since
-every action carries its seq and replay retires each exactly once, so a second pass is a
-no-op whatever the widgets do. It reads the result twice, one reading being blind where
-the other sees — `shallowSigs` for the markup state, which excludes text on purpose, and
-the unit's declared record form for the words.
-
-The set is re-applied whole and in the log's order, which is not the same check as
-asking each action on its own. Absoluteness is a claim about a unit, not about the
-page: two cards dragged to the head of one column fold to two standing moves, and
-replaying the earlier one alone is *meant* to lift it back over the later one. Measured
-per action that called lf-board relative and refused a page with nothing wrong with
-it — at the one gate a handover cannot get past, which is the expensive place to be
-wrong. What it still cannot reach is a verb nobody has used: the actions are the log's,
-so a widget shipped with no decision recorded on it yet is checked by its first user
-rather than at handover.
-
-A verb's record form is also the whole of what a module may write in the author's namespace.
-An entry's `additionalProperties: false` closes that namespace, and the file's lint holds
-a version to it — but a widget has a second writer the file cannot see, and a module can
-leave anything it likes on the element it upgrades. So it writes there only where a record
-declares the attribute (`chosen`, `status`), and everything else it needs to mark goes on
-the chrome it built, in the platform's vocabulary or under `data-`. `lf-options` had two of
-the other kind and both were silent: `answered` recorded a verb only a thread can post,
-where no version can carry the markup to honor a record of it, and `open` recorded which
-way this tab last left a disclosure, which no version carries at all. Each was a second
-copy of a fact the module already stated on the control that carries it, and the one
-reader that saw them believed them — `shallowSigs` excludes exactly the attributes no
-version can assert, and its exclusion list is the runtime's own paint, so a widget writing
-beside it is counted as state the author wrote. `version check --render` asks the rendered
-page for the rest (`UNDECLARED_ATTRS`), which is the only side the second writer shows on.
+A verb's record form is also the whole of what a module may write in the author's namespace. An
+entry's `additionalProperties: false` closes that namespace, and the file's lint holds a version to
+it — but a widget has a second writer the file cannot see. So a module writes there only where a
+record declares the attribute (`chosen`, `status`), and everything else goes on the chrome it built,
+in the platform's vocabulary or under `data-`. `lf-options` had two of the other kind and both were
+silent: `answered` recorded a verb only a thread can post, and `open` recorded which way this tab last
+left a disclosure, which no version carries at all. Each was a second copy of a fact the module
+already stated on the control that carries it, and the one reader that saw them believed them —
+`shallowSigs` excludes exactly the attributes no version can assert, so a widget writing beside it is
+counted as state the author wrote. `version check --render` asks the rendered page for the rest
+(`UNDECLARED_ATTRS`), which is the only side the second writer shows on.
 
 ## Working on it
 

@@ -15541,12 +15541,6 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
         " return t.scrollHeight > t.clientHeight; }"
     ), "the thread list does not overflow, so it could not be seen to scroll below"
 
-    page.evaluate("""() => {
-        window.lfScrollEnds = 0;
-        for (const box of [document.body, document.querySelector('.lf-threads')])
-            box.addEventListener('scrollend', () => window.lfScrollEnds++);
-    }""")
-
     def offsets():
         return page.evaluate(
             "() => [document.body.scrollTop,"
@@ -15555,13 +15549,18 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
 
     def press_d():
         """Both offsets once a region answers the press — the glide's first write is
-        already the answer to which region moved. Waiting on whichever region speaks
-        makes the wrong one answering two numbers to compare rather than half a
-        minute of silence and a timeout."""
+        already the answer to which region moved, and movement is the fact waited on
+        because it is the one both platforms state: Linux Chromium fires no scrollend
+        for the step's frame-at-a-time writes, where macOS Chrome answers every one.
+        Waiting on whichever region speaks makes the wrong one answering two numbers
+        to compare rather than half a minute of silence and a timeout."""
         was = offsets()
-        page.evaluate("() => window.lfScrollEnds = 0")
         page.keyboard.press("d")
-        page.wait_for_function("() => window.lfScrollEnds > 0")
+        page.wait_for_function(
+            "w => { const t = document.querySelector('.lf-threads');"
+            " return document.body.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
+            arg=was,
+        )
         return was, offsets()
 
     (page_was, threads_was), (page_now, threads_now) = press_d()

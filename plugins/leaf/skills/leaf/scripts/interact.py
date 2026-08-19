@@ -8,7 +8,10 @@
 A `uv` script: the PEP 723 header above declares the dependencies, and
 `interact.py.lock` beside it pins them, so every install runs the same versions;
 editing the header re-resolves the lock on the next run. `uv` is the one
-prerequisite for the whole plugin — no venv to create, no build step.
+software prerequisite for the whole plugin — no venv to create, no build step.
+The host must supply POSIX `fcntl` file locking: the event log's atomic attempt
+identity and every other cross-process update use that one primitive, and a
+platform without it is refused rather than silently running unlocked.
 Run it with `uv run interact.py <group> <command> …`, or as
 `leaf <group> <command> …` through the plugin's `bin/leaf` launcher.
 Claude Code puts that launcher on PATH; Codex resolves it from the active skill.
@@ -196,6 +199,10 @@ vocabulary for rides in the custom keywords below:
                 chip reading `£9` is 31px wide and correct. Declared rather than
                 read off the rendered display, because the rendered display also
                 answers "inline" for a widget whose theme rule went missing.
+    x-conversation  when selects the page instances whose exact-section threads render
+                textually inside the widget as well as in the comments panel. The
+                module places the conversationBox; both views share one reply draft,
+                while interactive reply markup stays in the panel.
     x-says      attributes whose values are words the reader sees, mapped to the
                 edge they render at ("before" = first child, "after" = last).
                 The runtime renders them as real text there, because a user can
@@ -484,12 +491,24 @@ EVENT_VOCABULARY = {
         "agent",
         "session",
         "markup",
+        # Opaque browser-minted identity for one draft generation. Kept in the
+        # log so a replacement tab can retry after the first sender died without
+        # appending the same gesture twice.
+        "attempt",
     },
-    "reply": {"parent", "version", "text", "agent", "session", "markup"},
+    "reply": {
+        "parent",
+        "version",
+        "text",
+        "agent",
+        "session",
+        "markup",
+        "attempt",
+    },
     "resolve": {"parent", "agent", "session"},
     "unresolve": {"parent"},
     "done": {"version", "text"},
-    "action": {"widget", "action", "detail", "version"},
+    "action": {"widget", "action", "detail", "version", "attempt"},
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
     "error": {"version", "text"},
@@ -582,11 +601,9 @@ STATE_SCHEMA = _verbs_schema(
 REPORT_SCHEMA = _verbs_schema(
     [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE], ["detail", "record"]
 )
-# An ask is a standing request to the reader, and both halves of it are already
-# written down: `when` says which instances ask (attribute values, a flag's being
-# true and false), and x-state says what an answer looks like. See $awaits. One
-# condition shape serves both `when` and `until.when`, because they ask the same
-# question of the same attributes.
+# A `when` predicate selects instances by attribute values (or by a flag's being
+# present or absent). One condition shape serves every registry consumer because
+# they ask the same question of the same attributes.
 ASK_CONDITION = {
     "type": "object",
     "minProperties": 1,
@@ -626,6 +643,12 @@ EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
         "x-awaits": AWAITS_SCHEMA,
+        "x-conversation": {
+            "type": "object",
+            "properties": {"when": ASK_CONDITION},
+            "required": ["when"],
+            "additionalProperties": False,
+        },
         "x-content": {"enum": ["prose", "items", "data", "none"]},
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
@@ -737,13 +760,21 @@ CONTENT_TYPES = {
 }
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 
-# On Windows there is no fcntl; the locks degrade to no-ops. The log is
-# append-only and a torn final line is tolerated by read_events, so this only
-# loses the belt-and-suspenders against simultaneous writers, which are rare.
+# This program's one serialization primitive is POSIX flock. A platform without
+# fcntl is explicitly unsupported: a no-op fallback used to look harmless while it
+# allowed concurrent retries of one attempt to append more than one event.
 try:
     import fcntl
-except ImportError:  # pragma: no cover - Windows fallback
+except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
+
+
+def require_cross_process_locking() -> None:
+    """Refuse every writer/server path on a host without the log's lock."""
+    if fcntl is None:
+        raise RuntimeError(
+            "leaf requires POSIX cross-process file locking; this platform has no fcntl"
+        )
 
 
 @contextlib.contextmanager
@@ -753,9 +784,9 @@ def flocked(path: Path):
     read-modify-write derived from it; a `.lock` beside a registry of JSON
     files serializes updates to them, since the files themselves are replaced
     by rename and a lock on a replaced inode holds nothing."""
+    require_cross_process_locking()
     with open(path, "a+b") as f:
-        if fcntl is not None:
-            fcntl.flock(f, fcntl.LOCK_EX)
+        fcntl.flock(f, fcntl.LOCK_EX)
         yield f
 
 
@@ -847,10 +878,56 @@ def jsonl_line(event: dict) -> str:
     return line
 
 
+class AttemptConflict(ValueError):
+    """One browser attempt was reused for a different event payload."""
+
+
+def _attempt_payload(event: dict) -> dict:
+    # Kind is part of the gesture. Only fields the append boundary itself assigns
+    # disappear from the equality check.
+    return {
+        key: value
+        for key, value in event.items()
+        if key not in {"id", "ts", "author", "seq"}
+    }
+
+
+def _matching_attempt(f, event: dict) -> dict | None:
+    attempt = event.get("attempt")
+    if not attempt:
+        return None
+    f.seek(0)
+    for raw in f:
+        try:
+            existing = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if existing.get("attempt") != attempt:
+            continue
+        if _attempt_payload(existing) != _attempt_payload(event):
+            raise AttemptConflict(
+                f"attempt {attempt!r} already belongs to another event"
+            )
+        return existing
+    return None
+
+
+def accepted_attempt(page_dir: Path, event: dict) -> dict | None:
+    with flocked(page_dir / "comments.jsonl") as f:
+        return _matching_attempt(f, event)
+
+
 def append_event(page_dir: Path, event: dict) -> dict:
     event.setdefault("id", secrets.token_hex(4))
     event.setdefault("ts", now_iso())
     with flocked(page_dir / "comments.jsonl") as f:
+        # Attempt identity is checked under the log's append lock. Checking in the
+        # handler before this point would leave two server threads free to observe
+        # absence together and append together. Content and time deliberately play no
+        # part: an intentional later identical message has a fresh attempt and is a
+        # second event.
+        if event.get("attempt") and (existing := _matching_attempt(f, event)):
+            return existing
         # A crash can tear the previous append mid-line: SIGKILL under a buffered
         # flush, a full disk. The line discipline is the writer's, so the writer
         # restores it — without this, the next event glues onto the torn fragment
@@ -1118,8 +1195,7 @@ def held_by_a_live_server(path: Path) -> bool:
     call on a path that runs every couple of seconds per open page; the lock
     costs an open and is exact.
     """
-    if fcntl is None:  # pragma: no cover - Windows has no flock
-        return True  # nothing to ask; the record stands as written
+    require_cross_process_locking()
     try:
         with open(path, "r+b") as probe:
             try:
@@ -1884,6 +1960,34 @@ class Handler(BaseHTTPRequestHandler):
         if kind == "comment" and "about" in event and event["about"] != "layer":
             self._json({"error": 'comment about must be "layer"'}, 400)
             return
+        if "attempt" in event and (
+            not isinstance(event["attempt"], str)
+            or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", event["attempt"]) is None
+        ):
+            self._json(
+                {
+                    "error": "comment/reply/action attempt must be 16–128 ASCII letters, "
+                    "digits, underscores, or hyphens"
+                },
+                400,
+            )
+            return
+        # An accepted attempt outranks mutable validation state. A replacement tab may
+        # retry after a newer version retired the sender's version; this request is not
+        # a new event for that retired version, but a request for the event the log
+        # already durably accepted. Static shape and exact-payload reuse were checked
+        # above; absence continues through every state-dependent gate below, and the
+        # append lock repeats this lookup to close the race between two absent readers.
+        if "attempt" in event:
+            event["author"] = "user"
+            try:
+                existing = accepted_attempt(self.page_dir, event)
+            except AttemptConflict as error:
+                self._json({"error": str(error)}, 409)
+                return
+            if existing:
+                self._json({"ok": True, "event": existing})
+                return
         events = read_events(self.page_dir)
         if "version" in event:
             live_versions = self.versions_live(events)
@@ -1932,7 +2036,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
             return
         event["author"] = "page" if kind == "error" else "user"
-        self._json({"ok": True, "event": append_event(self.page_dir, event)})
+        try:
+            accepted = append_event(self.page_dir, event)
+        except AttemptConflict as error:
+            self._json({"error": str(error)}, 409)
+            return
+        self._json({"ok": True, "event": accepted})
 
 
 def handler_for(
@@ -2637,6 +2746,7 @@ class DualStackHTTPServer(LeafHTTPServer):
 
 
 def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -> None:
+    require_cross_process_locking()
     # `--standing` declines the claim rather than adding a second lifetime
     # mechanism: everything downstream still reads "session iff claimed".
     claimed = False if standing else claim_page(page_dir)
@@ -2714,8 +2824,7 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
     # clean up.
     record = open(page_dir / "server.json", "a+b")  # noqa: SIM115 - held for this process's life
     try:
-        if fcntl is not None:
-            fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         httpd.server_close()
         record.close()
@@ -2788,6 +2897,7 @@ def start_server(
     the note for the lifetime it recorded — or None, having put the child's
     reason on stderr.
     """
+    require_cross_process_locking()
     child = subprocess.Popen(
         [
             sys.executable,
@@ -5259,45 +5369,58 @@ def validate_registry(registry: dict, source) -> dict:
                 "drawing's box holds what was drawn and lays out nothing beside it, "
                 "so a widget that says an attribute as well declares x-wide: box"
             )
-        # An ask names attributes and values the page can actually carry, or it asks
-        # on nothing: `status: ["reviewing"]` is a widget silently absent from every
-        # count and every step, which is the failure a never-closed vocabulary makes
-        # invisible. The value's kind follows the attribute's own schema — a flag is
-        # there or it isn't, an enum admits what it lists — and a subschema that
-        # states neither contradicts nothing.
+        # A predicate names attributes and values the page can actually carry, or its
+        # widget silently disappears from every consumer. The value's kind follows the
+        # attribute's own schema — a flag is there or it isn't, an enum admits what it
+        # lists — and a subschema that states neither contradicts nothing.
         awaits = entry.get("x-awaits", {})
-        for attr, values in [
-            *awaits.get("when", {}).items(),
-            *awaits.get("until", {}).get("when", {}).items(),
-        ]:
-            if attr not in properties:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-awaits names undeclared attribute `{attr}`"
-                )
-            declared = properties[attr] if isinstance(properties[attr], dict) else {}
-            for value in values:
-                if isinstance(value, bool):
-                    # A subschema saying neither a type nor an enum contradicts nothing;
-                    # one that says either has told us this attribute carries a value.
-                    if declared.get("type") not in (None, "boolean") or declared.get(
-                        "enum"
+        conditions = [
+            ("x-awaits", awaits.get("when", {})),
+            ("x-awaits", awaits.get("until", {}).get("when", {})),
+            ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
+        ]
+        for declaration, condition in conditions:
+            for attr, values in condition.items():
+                if attr not in properties:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {declaration} names undeclared attribute "
+                        f"`{attr}`"
+                    )
+                schema = properties[attr]
+                declared = schema if isinstance(schema, dict) else {}
+                for value in values:
+                    if isinstance(value, bool):
+                        # A subschema saying neither a type nor an enum contradicts
+                        # nothing; one that says either has told us this attribute
+                        # carries a value.
+                        if declared.get("type") not in (
+                            None,
+                            "boolean",
+                        ) or declared.get("enum"):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {declaration} tests `{attr}` as "
+                                f"{str(value).lower()}, but that attribute is not a flag"
+                            )
+                    elif declared.get("type") == "boolean":
+                        raise RegistryError(
+                            f"{path}: <{tag}> {declaration} tests flag `{attr}` as "
+                            f"{value!r}; a flag is there or it isn't"
+                        )
+                    if (
+                        allowed := declared.get("enum")
+                    ) is not None and value not in allowed:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {declaration} tests `{attr}` at "
+                            f"{value!r}, which its own enum does not admit"
+                        )
+                    if errors := sorted(
+                        Draft202012Validator(schema).iter_errors(value), key=str
                     ):
                         raise RegistryError(
-                            f"{path}: <{tag}> x-awaits waits on `{attr}` being "
-                            f"{str(value).lower()}, but that attribute is not a flag"
+                            f"{path}: <{tag}> {declaration} tests `{attr}` at "
+                            f"{value!r}, which its own schema does not admit: "
+                            f"{errors[0].message}"
                         )
-                elif declared.get("type") == "boolean":
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-awaits waits on flag `{attr}` holding "
-                        f"{value!r}; a flag is there or it isn't"
-                    )
-                elif (allowed := declared.get("enum")) is not None and (
-                    value not in allowed
-                ):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-awaits waits on `{attr}` at {value!r}, "
-                        f"which its own enum does not admit"
-                    )
         # A blanket answer is one of this widget's own verbs, so the log records it
         # the way every other decision is recorded.
         if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
@@ -5316,7 +5439,14 @@ def validate_registry(registry: dict, source) -> dict:
             )
         needs_upgrade = [
             key
-            for key in ("x-state", "x-report", "x-language", "x-verbatim", "x-shadow")
+            for key in (
+                "x-state",
+                "x-report",
+                "x-language",
+                "x-verbatim",
+                "x-shadow",
+                "x-conversation",
+            )
             if entry.get(key) and not entry["x-upgrade"]
         ]
         if needs_upgrade:
@@ -6367,7 +6497,7 @@ def quoted_in(unit: str, byid: dict, spk: dict, registry: dict) -> bool:
 
 def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) -> list:
     """The published page's standing asks — the list the banner counts and the
-    `a` key steps, read from the file and the log instead of the DOM. An
+    `n`/`p` walk steps, read from the file and the log instead of the DOM. An
     instance asks when its replayed attributes match its entry's `when`;
     quoted material asks nothing; an instance a decision dropped from the page
     (`dropped`: ids under retired slots, and decided-empty ids, from the passage
@@ -8049,11 +8179,11 @@ def recurring_resize_observer_error(unit: str) -> str:
 def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console or page error, a request that 404s, a fail-soft error box, an upgrade
-    module that never defines its declared element, a widget upgraded into a box
-    of no usable size, the page scrolling sideways, content set past the column
-    and out into the margin, words the user can read and can't
-    select, words drawn on top of other words, code coloured in an ink the reader
-    cannot tell from the code around it — each
+    module that never defines its declared element, an x-conversation whose module
+    placed no matching page host, a widget upgraded into a box of no usable size,
+    the page scrolling sideways, content set past the column and out into the margin,
+    words the user can read and can't select, words drawn on top of other words, code
+    coloured in an ink the reader cannot tell from the code around it — each
     in both color schemes, because the dark theme is real CSS nobody otherwise
     renders — plus, in one scheme, a word the registry promised that never reached
     the page (a declaration is scheme-blind), an attribute a module left standing on a
@@ -8206,9 +8336,32 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         conflicts = []
         dishonest_verbatim = []
         silent = []
+        missing_conversations = []
         replayed = True
         undeclared_attrs = []
         if scheme == "light":
+            # x-conversation promises one page view per matching instance. A widget in
+            # thread chrome already has the thread's reply surface and conversationBox
+            # deliberately returns none there. Everywhere else, ask the merged registry
+            # for the instances and the module's own marker for the host it placed.
+            missing_conversations = page.evaluate(
+                """(widgets) => import('/leaf.js').then(leaf =>
+                    Object.entries(widgets)
+                        .filter(([, entry]) => entry['x-conversation'])
+                        .flatMap(([tag, entry]) => [...document.querySelectorAll(tag)]
+                            .filter(el => !leaf.inChrome(el) && !leaf.quoted(el)
+                                && leaf.matchesWhen(
+                                    el, entry['x-conversation'].when))
+                            .map(el => ({
+                                tag,
+                                id: el.id,
+                                hosts: [...el.querySelectorAll('.lf-conversation')]
+                                    .filter(host =>
+                                        host.dataset.lfConversation === el.id).length,
+                            })))
+                        .filter(instance => instance.hosts !== 1))""",
+                widgets,
+            )
             # x-verbatim honesty: the entry claims the body reaches the reader
             # as its own words, and the two readings built on that claim — the
             # browser's says() and the file's spoken() — are compared here on
@@ -8331,6 +8484,12 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             )
         found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
         found += [f"[{scheme}] {s}" for s in silent]
+        for c in missing_conversations:
+            found.append(
+                f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
+                f"rendered {c['hosts']} matching hosts; its module must place exactly "
+                "one conversationBox"
+            )
         for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
             found.append(
                 f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "

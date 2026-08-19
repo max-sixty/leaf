@@ -750,21 +750,30 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 [data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 55%, transparent);
                      outline-offset: 3px; border-radius: 2px; }
 
-/* The box for words a widget carries (the runtime's sayBox): an answer the widget's
- * own controls don't cover goes here rather than sending the reader hunting for a
- * passage to select. Withheld rather than undone everywhere it would do nothing — a
- * box with no handler behind it invites the reader to type into a page that cannot
- * send it — so the offer is made once, in the live page, and a copy and a printout
- * get the page without it by never being handed it. Where the box sits in a widget
- * is the widget's own rule; this is only what the box is. */
+/* The shared boxes of a registry-declared widget conversation. The widget places it. */
+.lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
 .lf-say textarea { flex: 1; min-width: 0; }
+.lf-conversation > .lf-say { margin-top: 0; }
+.lf-conversation-thread + .lf-conversation-thread {
+          border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
+.lf-conversation-msg { margin: var(--sp-2) 0; }
+.lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
+          font-size: var(--t-6); }
+.lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
+.lf-conversation-head time { color: var(--muted-2); }
+.lf-conversation-body { margin-top: 2px; }
+.lf-conversation-body > :first-child { margin-top: 0; }
+.lf-conversation-body > :last-child { margin-bottom: 0; }
+.lf-conversation-open { margin-top: var(--sp-2); }
+.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
 @media screen {
   html:not(.lf-copy) {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled
        group takes it with its options) — the display here would outrank the
        attribute's own hiding. */
+    .lf-conversation:not([hidden]) { display: block; }
     .lf-say:not([hidden]) { display: flex; }
   }
 }

@@ -7192,7 +7192,14 @@ UNREACHABLE_WORDS = """() => {
 # width of. A spill is reported once, at the outermost element that has it,
 # because everything inside one inherits its box and would name the same fault a
 # dozen times over.
-MISPLACED_BOXES = """() => {
+MISPLACED_BOXES = """async () => {
+    // shownBand is the runtime's own: what a container lets the reader see of what it
+    // holds, or nothing where it shows all of it. Imported rather than restated, so the
+    // band a handover is refused against and the band the page paints to cannot come
+    // apart — and because `overflow` is one of three ways to draw nothing past an edge.
+    // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
+    // formatting context keeps in.)
+    const { shownBand } = await import('/leaf.js');
     const main = document.querySelector('main');
     if (!main) return [];
     const style = getComputedStyle(main), box = main.getBoundingClientRect();
@@ -7224,23 +7231,17 @@ MISPLACED_BOXES = """() => {
         const b = el.getBoundingClientRect();
         return floatSide(s) === 'left' ? b.right <= left + 1 : b.left >= right - 1;
     };
-    // Three ways a container draws nothing past its own edge, and only one of them shows
-    // in `overflow`: paint containment and content-visibility both clip while overflow
-    // computes `visible`. Both readings that hand a box to an ancestor ask through this,
-    // or a box inside such a container is named for a spill it is drawn nowhere near and
-    // left unnamed for the loss it did take, the walk at the foot of this pass having
-    // gone straight past the container that cut it. (TRAPPED_MARGINS reads `contain` for
-    // the neighbouring question: which margins a formatting context keeps in.)
-    const clips = (s) =>
-        s.overflowX !== 'visible' || s.overflowY !== 'visible'
-        || /paint|strict|content/.test(s.contain) || s.contentVisibility !== 'visible';
+    // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
+    // container that clips without saying so in `overflow` is named for a spill it is
+    // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
+    // of this pass having gone straight past the container that cut it.
     const answeredFor = (el) => {
         const own = getComputedStyle(el);
         if (own.position === 'absolute' || inTheMargin(el, own)) return true;
         for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
             const s = getComputedStyle(a);
             if (s.position === 'absolute' || inTheMargin(a, s)) return true;
-            if (clips(s)) return true;
+            if (shownBand(a)) return true;
         }
         return false;
     };
@@ -7406,20 +7407,15 @@ MISPLACED_BOXES = """() => {
         if (!el.checkVisibility()) continue;
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
-        let a = holder(el);
-        while (a && !clips(getComputedStyle(a))) a = holder(a);
+        let a = holder(el), band = null;
+        for (; a; a = holder(a)) { band = shownBand(a); if (band) break; }
         if (!a) continue;
-        const s = getComputedStyle(a), c = a.getBoundingClientRect();
+        const s = getComputedStyle(a);
         // text-overflow is the mark, declared in the rule that does the cutting, the
         // way --lf-frame is declared where the frame is drawn. The box itself still
         // answers here on its own turn.
         if (s.textOverflow !== 'clip') continue;
-        // The band a container shows is its padding box less whatever a scrollbar takes,
-        // which is what clientLeft and clientWidth measure and what a border box says
-        // nothing about — a box drawn under a border or in a scrollbar's gutter is drawn
-        // nowhere as surely as one past the edge.
-        const shownL = c.left + a.clientLeft, shownR = shownL + a.clientWidth;
-        const overL = shownL - b.left, overR = b.right - shownR;
+        const overL = band.left - b.left, overR = b.right - band.right;
         // A scroller reaches its whole content on the side it scrolls toward, so only
         // its leading edge is asked — and asked from scroll position zero, since where
         // the container happens to be scrolled while the gate reads it says nothing

@@ -1553,6 +1553,13 @@ const POLL_MS = 2000;
 // questions — option rows are the one thread content that can't scroll or scale
 // its width away, and 360 crowded them.
 const PANEL_W = 420;
+// The window under which yielding the strip is worse than being covered by it, as a
+// query rather than a number, because three things ask it: the rule that takes the strip,
+// the rule that hands scrolling to the sheet instead, and the runtime, for what follows
+// from which of those the page is under. Written as the covering half, since that is the
+// half the runtime asks about; the strip is its complement, spelled `not` where it is
+// taken.
+const COVERING = `(width <= ${PANEL_W * 2}px)`;
 // The width the theme wants a page's box to have before it takes a strip of it for the
 // margin (theme.css's --strip-min, stated there because that is where the strips and
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
@@ -1662,6 +1669,37 @@ style.textContent = `
      The stamp lands at the end of the start chain, long after the restore. Reduced
      motion is handled globally by the theme's guard. */
   body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] { transition: margin-right .18s ease; }
+  /* The strip itself, and — where there is no room to yield one — the page handing
+     scrolling over to the sheet that covers it instead. A margin, not padding: body is
+     the document's scroll container, so this is what ends its box, and its scrollbar, at
+     the panel's edge rather than under it. Under a covering sheet one wheel gesture still
+     moves one region, and the region is the thread list; the page holds its place for
+     when the sheet closes — a hidden-overflow scroller keeps its position, and still
+     moves for a j/k walk or a version switch restoring where the user was, so the passage
+     behind the sheet is the one the panel is talking about.
+
+     The cascade's, though syncLayout is the layout's one writer, because body's box is
+     the one thing that writer may not write: it runs from an observation of that box, and
+     a write from inside that round is a resize of what was just reported — the round
+     breaks, and Chrome says so on the window's error channel and nowhere else (CLAUDE.md,
+     "The one writer may not write the box the layout is measured from"). Written in JS it
+     survived on a coincidence: the margin transitions, so the used value did not move
+     until the frame after the write, and the round the write landed in closed intact. A
+     stylesheet is where a fact about the shape of the page belongs anyway, and the panel
+     states only that it is open.
+
+     The strip comes out of the page rather than being held aside for it, which makes
+     opening the panel the largest movement in the product: the column re-centres by half
+     the panel's width, and on a window narrow enough to lose width as well it rewraps
+     every line. Both are carried as motion rather than as a jump — the transition above,
+     keyed on the stamp for the reasons given there — because an eye can follow a sentence
+     that slides and cannot find one that teleports. */
+  @media screen and (not ${COVERING}) {
+    body[data-lf-panel] { margin-right: ${PANEL_W}px; }
+  }
+  @media screen and ${COVERING} {
+    body[data-lf-panel] { overflow-y: hidden; }
+  }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
      runtime marks the page's own elements (lf-mark-el, lf-ins-block). Adding one
@@ -2828,11 +2866,6 @@ let latestVersion = null;
 let versions = [];
 let agentMsgCount = -1;
 let panelOpen = false;
-// Whether the panel stands over the page rather than beside it. That is the same fact as
-// which region the reader's own scrolling moves, so syncLayout — the layout's one writer
-// — writes it, and the half-page keys read it rather than re-deriving the breakpoint or
-// asking the overflow it set.
-let panelCovers = false;
 let pendingAnchor = null;
 
 // The fold answers where state stands; this answers how it got there. Widgets receive
@@ -3012,53 +3045,57 @@ function mirrorDraft(ta, sync, ctx) {
 // Panel open/closed is remembered too: a version switch reloads the document, and
 // reopening the panel by hand after every revision gets old fast.
 const PANEL_KEY = "lf-panel-open";
-function syncLayout() {
-  // A margin, not padding: body is the document's scroll container, so this is what
-  // ends its box — and its scrollbar — at the panel's edge instead of under it.
-  // Below the breakpoint there is no room to reserve, so the panel covers the page
-  // and the page hands over scrolling with it: one wheel gesture moves one region,
-  // and while the sheet is up that region is its thread list. The page holds its
-  // place for when the sheet closes — a hidden-overflow scroller keeps its position,
-  // and still moves for a j/k walk or a version switch restoring where the user
-  // was, so the passage behind the sheet is the one the panel is talking about.
-  //
-  // The strip is taken from the page rather than held aside for it, which makes
-  // opening the panel the largest movement in the product: the column re-centres by
-  // half the panel's width, and on a window narrow enough to lose width as well it
-  // rewraps every line. Both are carried as motion rather than as a jump — the
-  // transition granted to body at the end of the restore — because an eye can follow
-  // a sentence that slides and cannot find one that teleports.
-  panelCovers = panelOpen && innerWidth <= PANEL_W * 2;
-  const panelBeside = panelOpen && !panelCovers;
-  document.body.style.marginRight = panelBeside ? PANEL_W + "px" : "";
-  document.body.style.overflowY = panelCovers ? "hidden" : "";
-  // The theme's margin strips are granted by a media query, which asks the window; the
-  // page's box is the window less whatever the panel just took of it, and this function
-  // is the only thing that knows the difference. So it asks the theme's own floor of the
-  // box and says whether the page is cramped — a fact about the page rather than about
-  // any idiom that spends it. Without this a 1024px window with the panel beside it
-  // left a page carrying sidenotes a 151px column, painting its widest widgets out past
-  // the edge of one, and neither `version check --render` nor the render suite can see
-  // that posture: both open a 1200px window with no panel in it.
-  //
-  // Stated from the write above rather than measured off body, whose clientWidth is the
-  // box itself and would otherwise be the natural reading. The margin transitions, and
-  // the box is watched, so a measurement taken here would be taken at every frame of the
-  // slide — the posture flipping and flipping back across a fifth of a second, which is
-  // a page rewrapping its notes into the margin and out of it while the panel opens. The
-  // write above is the width being arrived at, stated once.
+// Whether the panel stands over the page rather than beside it — the same fact as which
+// of the two rules that take the strip the page is under, and as which region the
+// reader's own scrolling moves. Asked of the query rather than stored, so no reader of it
+// can hold an answer from a window that has gone.
+const covering = matchMedia(COVERING);
+const panelCovers = () => panelOpen && covering.matches;
+// The strip the panel holds, which is the panel's width until the window is too narrow
+// to give one up — one expression, because the margin the rule takes and the room
+// measured against it have to mean the same thing by it.
+const panelStrip = () => (panelOpen && !panelCovers() ? PANEL_W : 0);
+// Whether the page still has room for the margin the theme's idioms hang in. The strips
+// are granted by a media query, which asks the window; the page's box is the window less
+// whatever the panel holds of it, and this is the only thing that knows the difference. So
+// it asks the theme's own floor of the box and vetoes the grant where the room has gone —
+// a fact about the page rather than about any idiom that spends it. Without it a 1024px
+// window with the panel beside it left a page carrying sidenotes a 151px column, painting
+// its widest widgets out past the edge of one, and neither `version check --render` nor
+// the render suite can see that posture: both open a 1200px window with no panel in it.
+//
+// Its own function, and not syncLayout's, because the strip it vetoes is body's own
+// padding (theme.css) and syncLayout runs from an observation of that box — CLAUDE.md's
+// "The one writer may not write the box the layout is measured from", and the same reason
+// the strip the panel takes is a rule in the stylesheet above. Moving it costs nothing,
+// because neither fact it turns on is a reading of that box: the window states one and the
+// panel the other, and each arrives on an occasion of its own.
+//
+// The strip is stated rather than measured off body, whose clientWidth is the box itself
+// and would be the natural reading. The margin transitions, so a measurement taken during
+// the slide is the posture flipping and flipping back across a fifth of a second, which is
+// a page rewrapping its notes into the margin and out of it while the panel opens. Stated,
+// it is the width being arrived at.
+function stateStrip() {
   document.body.toggleAttribute(
     "data-lf-cramped",
-    document.documentElement.clientWidth - (panelBeside ? PANEL_W : 0) < STRIP_MIN,
+    document.documentElement.clientWidth - panelStrip() < STRIP_MIN,
   );
+}
+addEventListener("resize", stateStrip);
+// Every writer here is a writer of the chrome, so nothing this function does resizes the
+// box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
+// it yields to a margin idiom is stated above.
+function syncLayout() {
+  const panelBeside = panelOpen && !panelCovers();
   // The toast lives in the same corner as the panel's Send button. Beside a wide
   // panel it steps left; over a covering sheet it stays inside the viewport and
   // rises above the whole composer, including a textarea grown by an unsent draft.
   toastEl.style.right = (panelBeside ? PANEL_W + 18 : 18) + "px";
-  toastEl.style.bottom = (panelCovers ? generalRow.offsetHeight + 18 : 18) + "px";
+  toastEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 18 : 18) + "px";
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
-  keylineEl.style.bottom = (panelCovers ? generalRow.offsetHeight + 14 : 14) + "px";
+  keylineEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 14 : 14) + "px";
   // One line stands over two scroll regions, so one measurement is what they both
   // reserve — off the rendered line rather than stated as a number, which is what
   // keeps it true when the line's face or its padding moves.
@@ -3086,10 +3123,6 @@ function syncLayout() {
   stateRoom(panelStrip());
   syncFloats();
 }
-// The strip the panel holds, which is the panel's width until the window is too narrow
-// to give one up — one expression, because the margin written above and the room measured
-// beside it have to mean the same thing by it.
-const panelStrip = () => (panelOpen && !panelCovers ? PANEL_W : 0);
 // The room a widget declared wide may take: the document's own content box, less the
 // gutter the column already gives its prose, so a breakout is centred on the column's
 // axis and stops where the page stops.
@@ -3162,8 +3195,21 @@ function setPanel(open) {
   if (!open && panel.contains(document.activeElement))
     toggleBtn.focus({ preventScroll: true });
   panelOpen = open;
+  // Twice, the two readers being on opposite sides of the chrome's own scope: the class
+  // shows the panel, from a rule inside it, and the attribute is what the page yields its
+  // strip to, from a rule outside. A document-level rule naming .lf-panel would be a name
+  // a page could coin and take the strip with, which is the leak
+  // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
+  // body, beside data-lf-cramped.
   panel.classList.toggle("open", open);
+  document.body.toggleAttribute("data-lf-panel", open);
   toggleBtn.setAttribute("aria-expanded", String(open));
+  // Both of the page's answers to the panel are made here rather than left to the
+  // observation, and for the same reason at each: the strip the idioms hang in is body's
+  // own padding, which the observation's writer may not touch, and the chrome's posture
+  // over a covering sheet follows an open that moves body's box by nothing at all — the
+  // sheet stands over the page, so there is no observation to deliver.
+  stateStrip();
   syncLayout();
   readerStore.set(PANEL_KEY, open ? "1" : "0");
   if (open) {
@@ -3173,20 +3219,22 @@ function setPanel(open) {
   paintLine();
 }
 toggleBtn.onclick = () => setPanel(!panelOpen);
-addEventListener("resize", syncLayout);
 addEventListener("resize", pageShifted);
 // field-sizing and every other rendered-size change feed the one geometry writer —
 // the key line included, whose height is the room the chrome reserves under it.
 const layoutSizes = new ResizeObserver(syncLayout);
 // The page's own box, which is what the room is measured from and what the floats hang
-// in. Watched rather than derived, so a widget that takes a margin after the handover is
-// answered by the taking: the room used to follow a list of the ways the box was known to
-// move — the panel, the window, the one call at the end of upgrade — and a widget that
-// moved it any other way got no restatement at all. The panel's own strip was in that
-// list twice, being motion: read once at the write and again at the transition's end,
-// with a slide the reader interrupted answered by neither. Watching the box is every
-// frame of the slide, the last frame included. Nothing this observer calls may write this
-// box, which is what reserving the key line's room elsewhere is about.
+// in. Watched rather than derived, because an enumeration of the occasions the box moves
+// fails twice over. It cannot be complete: the room followed such a list once — the
+// panel, the window, the one call at the end of upgrade — and a widget that took a margin
+// any other way got no restatement at all. And each entry on it is read at a moment
+// somebody chose, which the panel's strip breaks by being motion: read where the slide
+// began and again where it was expected to end, a slide the reader interrupted was
+// answered at neither. Watching is every frame of it, the last frame included, and the
+// window comes with them — body is the window's own height and width here, so a `resize`
+// listener beside this would be one fact arriving twice. Nothing this observer calls may
+// write this box, which is what the key line's reservation being a flow box and the
+// panel's strip being the cascade's are both about.
 layoutSizes.observe(document.body);
 layoutSizes.observe(generalRow);
 layoutSizes.observe(keylineEl);
@@ -5400,7 +5448,7 @@ document.addEventListener("scroll", pageShifted, { capture: true, passive: true 
 // states — body keeps its full width under it — so the sheet's own width comes off
 // here, and a float raised from the strip beside it can't stand over the thread list.
 const rightEdge = () =>
-  (panelCovers ? innerWidth - panel.offsetWidth : pageScroller.clientWidth) - 8;
+  (panelCovers() ? innerWidth - panel.offsetWidth : pageScroller.clientWidth) - 8;
 // The floats live in the document — they scroll with the passage they stand beside —
 // while every caller reasons in viewport terms: rects, the pointer, the banner's 48px.
 // So the one writer of their position is where the coordinates change space: clamp in
@@ -7253,7 +7301,7 @@ let glide = null; // {box, goal, wrote, raf}
 const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
 function stepPage(fraction) {
-  const box = panelCovers ? threadsBox : pageScroller;
+  const box = panelCovers() ? threadsBox : pageScroller;
   const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
   const from = holding(box) ? glide.goal : box.scrollTop;
   const goal = Math.max(
@@ -8833,7 +8881,9 @@ Promise.all([
   // update, which is a frame past the stamp below, and the stamp is where `version check
   // --render` and an exported copy read the page. So the observer keeps the room true for
   // the page's life and this makes it true at the moment the page is called finished,
-  // which is what test_the_room_is_measured_after_a_late_rail holds it to.
+  // which is what test_the_room_is_measured_after_a_late_rail holds it to. The strip is
+  // stated first, being padding on the box the room comes off.
+  stateStrip();
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

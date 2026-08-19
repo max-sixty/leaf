@@ -47,6 +47,13 @@ an unlocked requirement has no recorded resolution to install from, so uv asks p
 for one every time its cached answer goes stale. Those tests therefore need the
 network available to the nightly run.
 
+The launcher's other unlocked path wants it for the same reason. Where the lock's
+own URLs cannot be served, `bin/leaf` resolves the header against the host's own
+index instead, and a test of that fallback therefore asks the index for all three
+dependencies. Such a test also needs a cache directory of its own
+(`UV_CACHE_DIR`): a wheel already in the developer's cache is served whatever URL
+the lock names, so the run would take the fast path and prove nothing.
+
 To prove a run works offline, give uv an index that isn't there —
 `UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also
 the key uv caches under, so pointing it at a dead URL means nothing already

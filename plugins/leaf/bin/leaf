@@ -27,15 +27,31 @@ if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && [ -n "${CODEX_THREAD_ID:-}" ]; then
   export LEAF_AGENT=${LEAF_AGENT:-Codex}
 fi
 
+# The lock beside the script records an absolute pypi.org URL per wheel, and uv
+# fetches exactly those, so an index the host configures is never consulted while
+# the lock can be served. On a host whose index is a private mirror that fetch
+# fails, and it fails before the script runs — every command, not one of them. So
+# the install is asked for first, and where the lock cannot be served the run
+# resolves the header itself against whatever index the host has. `--upgrade` is
+# the one thing that reaches past the lock's pins: an index flag, a refresh flag
+# and the index variables do not. It rewrites the lock to what it resolved, so a
+# mirror host pays that resolve once and pins again afterwards.
+#
+# The ask costs a few milliseconds where the wheels are already there, which is
+# every host that was working before, and it is silent because the run behind it
+# reports whatever it hits.
+resolve=
+uv sync --script "$script" >/dev/null 2>&1 || resolve=--upgrade
+
 if [ "${1-}" = "version" ] && [ "${2-}" = "export" ]; then
-  exec uv run --with playwright "$script" "$@"
+  exec uv run $resolve --with playwright "$script" "$@"
 fi
 
 if [ "${1-}" = "version" ] && [ "${2-}" = "check" ]; then
   for cli_arg in "$@"; do
     if [ "$cli_arg" = "--render" ]; then
-      exec uv run --with playwright "$script" "$@"
+      exec uv run $resolve --with playwright "$script" "$@"
     fi
   done
 fi
-exec uv run "$script" "$@"
+exec uv run $resolve "$script" "$@"

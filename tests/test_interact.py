@@ -400,6 +400,42 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     assert interact.published_versions(page, interact.read_events(page)) == [1]
 
 
+@pytest.mark.nightly  # the resolve behind the lock asks the index for the header
+def test_the_launcher_starts_where_the_locks_own_urls_cannot_be_served(tmp_path):
+    """The lock records an absolute URL per wheel and uv fetches exactly those, so an
+    index the host configures is never consulted while the lock can be satisfied. On a
+    host whose index is a private mirror rather than pypi.org that fetch fails, and it
+    fails before the script runs — `page init`, `version check` and `server run` alike.
+
+    The mirror is stood up from the other side, because that is the half this repro
+    needs: the lock's recorded URLs are pointed at a closed port, which leaves the
+    configured index as the only thing that can serve the three dependencies. The cache
+    gets a directory of its own for the same reason — a wheel already in the developer's
+    cache answers whatever the lock says, and the run proves nothing."""
+    installed = tmp_path / "plugins" / "leaf"
+    shutil.copytree(PLUGIN_ROOT, installed)
+    lock = installed / "skills" / "leaf" / "scripts" / "interact.py.lock"
+    lock.write_text(
+        lock.read_text().replace(
+            "https://files.pythonhosted.org/", "http://127.0.0.1:1/"
+        )
+    )
+
+    result = subprocess.run(
+        [installed / "bin" / "leaf", "--help"],
+        cwd=tmp_path,
+        env={**os.environ, "UV_CACHE_DIR": str(tmp_path / "uv-cache")},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (
+        "Build and run interactive pages a session shares with its user."
+        in result.stdout
+    )
+
+
 def case_alias(path):
     alias = path.with_name(path.name.swapcase())
     if not alias.exists() or not path.samefile(alias):

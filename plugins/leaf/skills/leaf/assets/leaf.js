@@ -221,9 +221,11 @@ function reportPageError(text) {
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
-  // The one benign error event the platform fires in ordinary operation: the
-  // observer loop notice arrives on window.error without anything being wrong,
-  // and reporting it would fail every clean page at the render gate.
+  // Chrome also puts ResizeObserver loop notices on window.error without an
+  // exception. This one live page cannot tell an occasional scheduling notice
+  // from a layout feedback loop, so it persists neither in the reader's log. The
+  // render gate and test navigation take one complete confirming reading and
+  // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
   reportPageError(`${e.message} (${e.filename}:${e.lineno})`);
 });

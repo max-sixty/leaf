@@ -332,6 +332,15 @@ That the fault was in the runtime and the blindness was in the suite is the part
 tests do not read is not a quiet channel; it is a channel whose contents are someone else's problem, and the
 someone else is the reader of the page.
 
+One message on that channel needs a second reading. Chrome can report a ResizeObserver loop once under load
+on a page whose layout is delivered whole, while the feedback loop that opened this channel reported it on
+every load. A second complete attempt tells those apart. `render_version` repeats both schemes and every probe —
+print included — because confirming only the navigation declares a notice raised by a later reading permanent
+without ever reading again. `navigate` makes the same distinction for the suite's ordinary page handover and
+only for errors raised inside it. `watched` still records every notice, so one raised by a later gesture or by a
+test that drives its own navigation remains a failure rather than disappearing into a global filter. Ordinary
+errors survive both readings, and a confirmation that does not complete pardons nothing.
+
 ## Reloading is not resetting
 
 The panel's open state and every unsent draft are in `localStorage` and the reading position is in

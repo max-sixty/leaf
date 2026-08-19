@@ -8023,9 +8023,18 @@ WINDOW_ERRORS = (
     "  if (!e.error) console.error('window error: ' + e.message);\n"
     "});"
 )
+RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 
 
-def render_version(browser, url: str) -> list:
+def resize_observer_error(text: str) -> bool:
+    return text.startswith(RESIZE_OBSERVER_ERROR)
+
+
+def recurring_resize_observer_error(unit: str) -> str:
+    return f"{RESIZE_OBSERVER_ERROR} notice recurred on the confirming {unit}"
+
+
+def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console or page error, a request that 404s, a fail-soft error box, an upgrade
     module that never defines its declared element, a widget upgraded into a box
@@ -8046,16 +8055,24 @@ def render_version(browser, url: str) -> list:
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
     (tests/test_render.py) — so the gate and the suite hold one set of
-    invariants. `browser` is a live Playwright browser; nothing here imports
+    invariants. Returns ordinary failures, ResizeObserver notices, and whether every
+    reading completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     def in_scheme(scheme):
         page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
         errors = []
-        page.on(
-            "console", lambda m: errors.append(m.text) if m.type == "error" else None
-        )
+        resize_notices = []
+
+        def console_message(message):
+            if message.type != "error":
+                return
+            (resize_notices if resize_observer_error(message.text) else errors).append(
+                message.text
+            )
+
+        page.on("console", console_message)
         page.on("pageerror", lambda e: errors.append(str(e)))
         # The console's own word for a bad response is "Failed to load resource",
         # which names nothing; carry the status and URL so a failure says what
@@ -8072,10 +8089,15 @@ def render_version(browser, url: str) -> list:
             )
         except PlaywrightTimeout:
             page.close()
-            return [
-                f"[{scheme}] the runtime never injected its banner — "
-                + ("; ".join(errors) or "and no console error explains why")
-            ]
+            explanations = [*errors, *resize_notices]
+            return (
+                [
+                    f"[{scheme}] the runtime never injected its banner — "
+                    + ("; ".join(explanations) or "and no console error explains why")
+                ],
+                [],
+                False,
+            )
         # Every reading below is of a settled page. The widget layer writes half the
         # document, so a box measured while it is still drawing belongs to no version of
         # the page — which is the stamp `version export` waits on for the same reason.
@@ -8083,10 +8105,15 @@ def render_version(browser, url: str) -> list:
             page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         except PlaywrightTimeout:
             page.close()
-            return [
-                f"[{scheme}] the widget layer never finished upgrading — "
-                + ("; ".join(errors) or "and no console error explains why")
-            ]
+            explanations = [*errors, *resize_notices]
+            return (
+                [
+                    f"[{scheme}] the widget layer never finished upgrading — "
+                    + ("; ".join(explanations) or "and no console error explains why")
+                ],
+                [],
+                False,
+            )
         # The served documents every reading below is asked against, read once each
         # (`served` says why they are read from out here rather than fetched inside
         # the page). The registry alone used to be fetched seven times a scheme, to
@@ -8115,9 +8142,18 @@ def render_version(browser, url: str) -> list:
             page.close()
             # The first line only: the rest is playwright's call log, which says
             # nothing about the page that a reader of this failure needs.
-            return [
-                f"[{scheme}] the server stopped answering: {str(e).splitlines()[0]}"
-            ]
+            return (
+                [
+                    *[f"[{scheme}] console: {error}" for error in errors],
+                    *[f"[{scheme}] console: {notice}" for notice in resize_notices],
+                    (
+                        f"[{scheme}] the server stopped answering: "
+                        f"{str(e).splitlines()[0]}"
+                    ),
+                ],
+                [],
+                False,
+            )
         # The widgets the log has moved, in the log's order. Both replayed kinds,
         # once: the caught-up stamp counts reports beside actions, so the wait below
         # counts what this holds, and the verbatim reading excuses exactly these.
@@ -8246,6 +8282,10 @@ def render_version(browser, url: str) -> list:
         relative = []
         if scheme == "light" and replayed:
             relative = page.evaluate(RELATIVE_REPLAYS)
+        # The print reset and replay above can resize what an observer watches. Chrome
+        # delivers that notice in the next rendering turn, so closing on the write
+        # would call an attempt complete before its last error channel had spoken.
+        page.evaluate("() => new Promise(requestAnimationFrame)")
         page.close()
         found = [f"[{scheme}] console: {e}" for e in errors]
         found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
@@ -8300,9 +8340,50 @@ def render_version(browser, url: str) -> list:
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += [f"[{scheme}] {r}" for r in relative]
         found += on_paper
-        return found
+        notices = [f"[{scheme}] console: {e}" for e in resize_notices]
+        return found, notices, True
 
-    return [*in_scheme("light"), *in_scheme("dark")]
+    light, light_notices, light_complete = in_scheme("light")
+    dark, dark_notices, dark_complete = in_scheme("dark")
+    return (
+        [*light, *dark],
+        [*light_notices, *dark_notices],
+        light_complete and dark_complete,
+    )
+
+
+def render_version(browser, url: str) -> list:
+    """Read a version, confirming a complete attempt that reports a ResizeObserver
+    loop notice.
+
+    Chrome can emit the notice once under load, while a layout feedback loop emits it
+    on every rendering. The unit here is the whole light-and-dark gate, including its
+    print and replay probes: a notice is ignored only when a later complete attempt is
+    clean. Ordinary failures from both attempts are retained, and an incomplete
+    confirmation cannot pardon the notice that prompted it.
+    """
+    failures = []
+
+    def retain(found):
+        failures.extend(failure for failure in found if failure not in failures)
+
+    found, notices, complete = _render_version_attempt(browser, url)
+    retain(found)
+    if not complete:
+        retain(notices)
+        return failures
+    if not notices:
+        return failures
+
+    found, confirming_notices, complete = _render_version_attempt(browser, url)
+    retain(found)
+    if not complete:
+        for notice in [*notices, *confirming_notices]:
+            retain([f"{notice} (the confirming render attempt did not complete)"])
+        return failures
+    if confirming_notices:
+        failures.append(recurring_resize_observer_error("render attempt"))
+    return failures
 
 
 @contextlib.contextmanager

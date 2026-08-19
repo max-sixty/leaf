@@ -7842,6 +7842,31 @@ def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     assert "unknown comment id" in result.output
 
 
+def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
+    """The agent-side fold reads the inverse transition from the same log as the
+    browser, so page state and the transcript both show the thread open again."""
+    published(page_dir)
+    root = interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Still relevant?",
+        },
+    )
+    interact.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    interact.append_event(
+        page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
+    )
+
+    assert state_json(page_dir)["threads"][0]["resolved"] is None
+    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert "— resolved" not in transcript.output
+
+
 def test_a_closed_thread_stops_asking(page_dir):
     """A question in a thread is the thread's, so closing the thread withdraws it.
     Otherwise an agent that asked and then answered the question for itself leaves

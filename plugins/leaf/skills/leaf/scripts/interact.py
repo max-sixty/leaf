@@ -301,7 +301,8 @@ vocabulary for rides in the custom keywords below:
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
 passages apart), reply (parent=id),
-resolve (parent=id), done (user sign-off; the banner offers it, and this door
+resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
+done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
 approval is the page's ask, and a page that asks nothing gets no terminal
 control at all), action (user; a widget reporting the
@@ -443,6 +444,7 @@ BROWSER_EVENT_FIELDS = {
     "comment": {"version": int, "text": str},
     "reply": {"parent": str, "version": int, "text": str},
     "resolve": {"parent": str},
+    "unresolve": {"parent": str},
     "done": {"version": int, "text": str},
     "action": {"widget": str, "action": str, "detail": dict, "version": int},
     # The page's own runtime reporting a failure in front of the user — an
@@ -473,6 +475,7 @@ EVENT_VOCABULARY = {
     },
     "reply": {"parent", "version", "text", "agent", "session", "markup"},
     "resolve": {"parent", "agent", "session"},
+    "unresolve": {"parent"},
     "done": {"version", "text"},
     "action": {"widget", "action", "detail", "version"},
     "report": {"widget", "action", "detail", "version", "agent", "session"},
@@ -934,6 +937,8 @@ def build_threads(events: list, spk: dict) -> dict:
         elif e["kind"] == "resolve":
             thread = thread_for[e["parent"]]
             thread["resolved"] = e
+        elif e["kind"] == "unresolve":
+            thread_for[e["parent"]]["resolved"] = None
     return threads
 
 

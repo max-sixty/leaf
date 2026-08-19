@@ -69,6 +69,7 @@
       "comment": ["version", "text", "anchor", "suggestion", "about", "agent", "session", "markup"],
       "reply": ["parent", "version", "text", "agent", "session", "markup"],
       "resolve": ["parent", "agent", "session"],
+      "unresolve": ["parent"],
       "done": ["version", "text"],
       "action": ["widget", "action", "detail", "version"],
       "report": ["widget", "action", "detail", "version", "agent", "session"],

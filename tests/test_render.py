@@ -4842,6 +4842,34 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     page.close()
 
 
+def test_a_resolved_thread_can_be_reopened(browser, serve):
+    """Reopening is a logged transition: the thread returns to the open list with
+    its reply and resolve controls, and the disclosure leaves when it is empty."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=18))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    comment = next(
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    round_trip(page)
+    page.locator(".lf-details summary").click()
+    page.locator(f'.lf-details .lf-thread[data-id="{comment}"] .lf-reopen').click()
+    round_trip(page)
+
+    reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
+    expect(reopened).to_be_in_viewport()
+    expect(reopened).to_be_focused()
+    expect(reopened.locator("textarea")).to_have_count(1)
+    expect(reopened.locator(".lf-resolve")).to_have_count(1)
+    expect(page.locator(".lf-details")).to_have_count(0)
+    expect(page.locator(".lf-comments")).to_have_text("Comments (18)")
+    assert interact.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    assert errors == []
+    page.close()
+
+
 def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     """Resolving a thread empties its place in the list over a fifth of a second,
     not in the frame of the press.

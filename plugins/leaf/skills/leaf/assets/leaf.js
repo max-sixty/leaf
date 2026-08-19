@@ -1923,7 +1923,7 @@ ${MARK_RULES}
        floored at its own like the rest, and no number on this row is a fact about a font
        any more. */
     @layer lf-reset {
-      .lf-resolve { font: inherit; }
+      .lf-thread-action { font: inherit; }
     }
     /* The chooser's menu: fixed under the button it hangs off, anchored rather than
        measured, so nothing recomputes a position when the row's contents change width.
@@ -2106,8 +2106,8 @@ ${MARK_RULES}
     .lf-compose, .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-compose textarea, .lf-general textarea { flex: 1; min-width: 0; }
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
-    .lf-resolve { border: none; background: none; color: var(--muted); cursor: pointer; }
-    .lf-resolve:hover { color: var(--ok); }
+    .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
+    .lf-thread-action:hover { color: var(--ok); }
     .lf-resolved-by { color: var(--muted); }
     .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
     .lf-details { margin-top: 6px; color: var(--muted); background: none; border: none; padding: 0; }
@@ -3388,6 +3388,8 @@ function buildThreads() {
       threadFor.set(e.id, thread);
     } else if (e.kind === "resolve") {
       threadFor.get(e.parent).resolved = e;
+    } else if (e.kind === "unresolve") {
+      threadFor.get(e.parent).resolved = null;
     }
   }
   return [...threads.values()];
@@ -3558,10 +3560,10 @@ let resolvedBox = null;
 
 // A thread's node is found where it already stands — the open list or the resolved
 // disclosure — and kept: the log is append-only, so a kept node only ever gains
-// messages and refreshes its clocks. Resolving is the one transition that reshapes a
-// node (the reply box, the actions and the badge all go) and so the one that rebuilds
-// it; msgBodies carries the rendered bodies across. `grow` animates what this call
-// creates, for arrivals into a list the user is already looking at.
+// messages and refreshes its clocks. A settlement transition reshapes a node: resolving
+// removes the reply box and reopening restores it, so either one rebuilds the node;
+// msgBodies carries the rendered bodies across. `grow` animates what this call creates,
+// for arrivals into a list the user is already looking at.
 function threadNode(t, grow) {
   const existing = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
@@ -3641,7 +3643,7 @@ function threadNode(t, grow) {
     // was on: nothing here has to say so, since a box out of the document drops it.
     mirrorDraft(input, div.lfSync, draftCtx);
     const actions = el("div", "lf-thread-actions");
-    const resolve = el("button", "lf-resolve", "✓ Resolve");
+    const resolve = el("button", "lf-resolve lf-thread-action", "✓ Resolve");
     // Resolving takes this node out of the open list and focus with it — the blind
     // drive fell to body here. Land where j would have gone: the thread that now
     // holds this one's place, else the previous, else the list. Which is read after
@@ -3667,19 +3669,32 @@ function threadNode(t, grow) {
     };
     actions.append(el("span"), resolve);
     div.append(row, actions);
-  } else if (t.resolved.author === "claude") {
-    // Said only where the reader was not the one who closed it. Their own resolve
-    // needs no telling: they pressed it, and the disclosure they find it under is
-    // already headed "Resolved". A thread closed from the other side settles with
-    // nothing in this tab to watch it happen, so the page is the only thing that can
-    // say who did.
-    //
-    // In the row the control stood in, at the end the control stood at, wearing the
-    // words the control wore as the thread folded: the settlement is said in one place
-    // whether there is anything left to press or not.
+  } else {
     const actions = el("div", "lf-thread-actions");
-    const by = t.resolved.agent || "Agent";
-    actions.append(el("span"), el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
+    const status = el("span");
+    if (t.resolved.author === "claude") {
+      // Said only where the reader was not the one who closed it. Their own resolve
+      // needs no telling: they pressed it, and the disclosure they find it under is
+      // already headed "Resolved". A thread closed from the other side settles with
+      // nothing in this tab to watch it happen, so the page is the only thing that can
+      // say who did.
+      const by = t.resolved.agent || "Agent";
+      status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
+    }
+    const reopen = el("button", "lf-reopen lf-thread-action", "Reopen");
+    reopen.onclick = async () => {
+      reopen.disabled = true;
+      try {
+        await post({ kind: "unresolve", parent: t.root.id });
+      } finally {
+        reopen.disabled = false;
+      }
+      threadsBox
+        .querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`)
+        ?.focus({ preventScroll: true });
+      revealThread(t.root.id);
+    };
+    actions.append(status, reopen);
     div.append(actions);
   }
   return div;

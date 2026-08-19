@@ -6000,6 +6000,19 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-shim").evaluate(edge) == 0, (
         "an option still draws its own border, so the group reads as cards standing apart"
     )
+    # The hairline belongs to the upper neighbour, so a child that floats inside the
+    # group on a margin of its own — the thread question's Done press — is never
+    # handed a recolored top edge.
+    below = """el => { const s = getComputedStyle(el);
+                       return s.borderBottomStyle === 'none' ? 0 : parseFloat(s.borderBottomWidth); }"""
+    assert page.locator("#opt-shim").evaluate(below) == 1, (
+        "the cells share no hairline, so the set reads as one box rather than as cells"
+    )
+    # The group's last child is the box for words the module appends, so the last
+    # option still draws its line — against that box, not the group's border.
+    assert page.locator("#approach > :last-child").evaluate(below) == 0, (
+        "the group's last child draws a line against the group's own border"
+    )
 
     mark = page.locator("#opt-shim .lf-pick")
     box = """el => [Math.round(el.getBoundingClientRect().width),
@@ -6011,13 +6024,17 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     )
     assert drawn == "hidden", "the ring is drawn on a card the group already speaks for"
 
-    # And a reader arriving by keyboard can see where they landed. With the mark drawing
-    # nothing, a ring on it would ring an empty box at the card's foot, so it goes on the
-    # cell — what the press acts on, and what the reader is standing on. Reached by Tab
-    # rather than focus(), because :focus-visible is a fact about how focus arrived and a
-    # programmatic call is not the keyboard. Read as a style rather than a width, because
-    # `outline: none` leaves outline-width computing to the initial `medium`: a box drawing
-    # no ring at all still reports 3px.
+    # And a reader arriving by keyboard can see where they landed. One control, one
+    # ring: keyboard focus rings the group, in the same stroke and band as the ask
+    # mark, so `n` landing here — which paints the mark and focuses the first pick in
+    # one move — draws one ring rather than nesting two. The focused cell wore its own
+    # inset ring once, and the first option of every group the walk reached read as
+    # singled out. Which cell holds the keyboard is the wash, the paint the pointer's
+    # hover already wears. Reached by Tab rather than focus(), because :focus-visible
+    # is a fact about how focus arrived and a programmatic call is not the keyboard.
+    # Read as a style rather than a width, because `outline: none` leaves
+    # outline-width computing to the initial `medium`: a box drawing no ring at all
+    # still reports 3px.
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
@@ -6025,13 +6042,29 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
                       return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
-                              drawn(on), drawn(el)]; }"""
-    on, held, card_ring, mark_ring = mark.evaluate(ring_on)
+                              drawn(on.parentElement), drawn(on), drawn(el),
+                              getComputedStyle(on).backgroundColor
+                                !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
+    on, held, group_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
     assert (on, held) == ("opt-shim", True), (
         f"Tab did not land on the mark: {on} {held}"
     )
-    assert card_ring > 0 and mark_ring == 0, (
-        f"the focus ring is on the wrong box: card {card_ring}, mark {mark_ring}"
+    assert group_ring > 0 and card_ring == 0 and mark_ring == 0, (
+        f"the focus ring is on the wrong box: group {group_ring}, card {card_ring}, "
+        f"mark {mark_ring}"
+    )
+    assert washed, "nothing says which cell the keyboard is on"
+    # The ask mark is the same ring in the same band (--here-ring), so the landing
+    # that paints the mark and hands over the focus in one move says "you are here"
+    # once — the two facts resolve to identical paint on the same element, and an
+    # element can only wear one outline. Driven with the walk's own key, so what is
+    # measured is the landing the reader gets rather than a state the test staged.
+    ring = "el => [getComputedStyle(el).outline, getComputedStyle(el).outlineOffset]"
+    focused = page.locator("#approach").evaluate(ring)
+    page.keyboard.press("n")
+    expect(page.locator("#approach[data-lf-ask]")).to_have_count(1)
+    assert page.locator("#approach").evaluate(ring) == focused, (
+        "the walk's landing draws a different ring than the focus it hands over"
     )
 
     page.locator("#opt-shim").click()
@@ -10216,6 +10249,16 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
 
+    # The group's hairline belongs to the upper neighbour, so the Done press — a
+    # control floating inside the group with a frame of its own — keeps that frame
+    # whole. Drawn by the lower neighbour instead, the divider recolored the press's
+    # top edge and left the seam above it to nothing.
+    assert page.locator("#tq-set .lf-done").evaluate(
+        """el => { const s = getComputedStyle(el);
+                   return s.borderTopColor === s.borderBottomColor
+                       && s.borderTopWidth === s.borderBottomWidth; }"""
+    ), "the group's divider recolors the Done press's own frame"
+
     page.locator("#tq-redis").click()
     expect(asks).to_have_text("Asks (1)")
 
@@ -10402,13 +10445,21 @@ OVER_WORDS = """(el, id) => {
 # so the chip's offset came back a pixel out on about half of the runs, on whichever row
 # the frame happened to fall between. Nothing had moved by then except the window, which is
 # the one thing this measurement is not about.
+#
+# Every reading is stated from the option's padding box, because that is where the chip is
+# placed from and where the option's own room starts: a joined cell wears the hairline
+# below it as its own border, so measured from the border box, the last cell of every
+# group would sit one pixel apart from the rest while the page shows them level.
 INSIDE_ITS_OPTION = """el => {
     const chip = el.getBoundingClientRect();
     const opt = el.parentElement.getBoundingClientRect();
-    const pad = getComputedStyle(el.parentElement);
-    const above = parseFloat(pad.paddingTop), below = parseFloat(pad.paddingBottom);
-    const words = opt.y + above + (opt.height - above - below) / 2;
-    return {x: chip.x - opt.x, y: chip.y - opt.y, past: chip.bottom - opt.bottom,
+    const s = getComputedStyle(el.parentElement);
+    const top = opt.y + parseFloat(s.borderTopWidth);
+    const left = opt.x + parseFloat(s.borderLeftWidth);
+    const bottom = opt.bottom - parseFloat(s.borderBottomWidth);
+    const above = parseFloat(s.paddingTop), below = parseFloat(s.paddingBottom);
+    const words = top + above + (bottom - top - above - below) / 2;
+    return {x: chip.x - left, y: chip.y - top, past: chip.bottom - bottom,
             level: (chip.y + chip.height / 2) - words};
 }"""
 

@@ -125,6 +125,13 @@
      2.38:1, which is the "the highlighting is gone" report the syntax block below
      was written for. */
   --mark: #dfd1ed66; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+  /* The "you are here" ring: the band the ask walk's mark is drawn in
+     ([data-lf-ask], leaf.js), and the band a control focused as one thing draws
+     its own ring in (a joined choose group, bundled/theme.css). Both read these
+     two tokens because the two facts coincide — `n` lands on an ask and hands it
+     the focus in the same move — and stated apart they were one ring free to
+     become two. */
+  --here-ring: 2px solid var(--accent); --here-ring-gap: 3px;
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;

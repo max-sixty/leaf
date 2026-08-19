@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -5704,8 +5705,43 @@ def claimed(page_dir, monkeypatch):
     return page_dir
 
 
+@pytest.fixture(scope="session")
+def codex_program(tmp_path_factory):
+    """A program named `codex` to run a session under, which is the whole of what
+    `session_pid` looks for above a leaf: a copy of this interpreter wearing that
+    name. The name has to be the executable's own, because what a process reports
+    is what the kernel loaded — a `#!` script and a symlink both wear the
+    interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
+    binary's signature is the system's."""
+    program = tmp_path_factory.mktemp("codex-program") / "codex"
+    shutil.copy(sys.executable, program)
+    return program
+
+
+def under_codex(codex_program, command, env, **kwargs) -> subprocess.Popen:
+    """`command` run the way Codex runs one: a session process that stays for the
+    thread, and between it and the command a shell of the moment — which is what
+    a pipeline leaves there, and what the launcher's `$PPID` used to record.
+
+    `; exit` is what puts that shell there: a lone command is exec'd in place by
+    the shell wrapping it, which is why some command shapes recorded the right
+    pid by accident. It also keeps the command's own status, where the `| cat`
+    that produced the shape in the wild would report the pipeline's last exit.
+    PYTHONHOME because a copied interpreter has no prefix beside it to find its
+    own standard library in."""
+    runner = (
+        "import subprocess, sys; "
+        "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[1]]).returncode)"
+    )
+    return subprocess.Popen(
+        [str(codex_program), "-c", runner, f"{command}; exit"],
+        env={**env, "PYTHONHOME": sys.base_prefix},
+        **kwargs,
+    )
+
+
 @pytest.fixture
-def codex_claimed_page(tmp_path, request):
+def codex_claimed_page(tmp_path, request, codex_program):
     page = tmp_path / "codex-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
     env = os.environ | {"CODEX_THREAD_ID": "codex-thread"}
@@ -5715,9 +5751,10 @@ def codex_claimed_page(tmp_path, request):
     # own message down with it, and nothing here reads either stream. Left to
     # pytest, the message is in the failure it belongs to.
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
-    server = subprocess.Popen(
-        [launcher, "server", "run", page],
-        env=env,
+    server = under_codex(
+        codex_program,
+        shlex.join([str(launcher), "server", "run", str(page)]),
+        env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -5735,9 +5772,64 @@ def codex_claimed_page(tmp_path, request):
 def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
     session = interact.read_json(codex_claimed_page / "session.json")
     assert session["id"] == "codex-thread"
-    assert session["pid"] == os.getpid()
     assert session["agent"] == "Codex" and session["host"] == "codex"
     assert page_state(codex_claimed_page)["agent"] == "Codex"
+
+
+def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
+    tmp_path, codex_program
+):
+    """The claim's pid is the one two reapers read as the session's life, and
+    `$PPID` is not it: it is a fact about the shape of the command. Measured
+    through `codex exec`, a bare command and an `&&` chain reported the codex
+    process because the wrapping shell exec'd leaf in place, and a pipeline
+    reported that shell — which exits with the command, so the sweep would drop
+    a live session's entry and its server would stop a second later. Here the
+    shell is between the session and the command and has exited by the time this
+    reads what was written, so a pid it could have recorded is one this cannot
+    match."""
+    page = tmp_path / "codex-page"
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    env = os.environ | {"CODEX_THREAD_ID": "thread-shape"}
+    subprocess.run([launcher, "page", "init", page], env=env, check=True)
+    interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
+    session_process = under_codex(
+        codex_program, shlex.join([str(launcher), "wait", str(page)]), env
+    )
+    assert session_process.wait(timeout=60) == 0
+    assert interact.read_json(page / "session.json")["pid"] == session_process.pid
+    registry = interact.state_home() / "sessions" / "thread-shape.json"
+    assert interact.read_json(registry)["pid"] == session_process.pid
+
+
+def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path):
+    """A hand-built environment: LEAF_SESSION_ID states a Codex session and
+    nothing running Codex is above this process, so there is no process whose
+    life is that session's. Nothing to fall back on either — a pid guessed here
+    is a claim that expires by itself, and every state that follows from one is
+    silent — so it fails the way a missing LEAF_AGENT does, naming what it
+    walked.
+
+    Its premise is this process's own ancestry, which is the developer's to
+    supply: run the suite from inside Codex and the walk finds that session,
+    correctly, and there is no refusal here to read."""
+    if any(program == "codex" for _, program in interact.ancestry()):
+        pytest.skip("run from inside Codex, which is the codex above this one")
+    page = tmp_path / "handmade-page"
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    env = os.environ | {"CODEX_THREAD_ID": "thread-nobody"}
+    subprocess.run([launcher, "page", "init", page], env=env, check=True)
+    interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
+    refused = subprocess.run(
+        [launcher, "wait", page],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert refused.returncode == 1, refused.stdout
+    assert "no codex process runs above this one" in refused.stderr
+    assert not (page / "session.json").exists()
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
@@ -5758,7 +5850,9 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert interact.presence(page_dir, [])["session_cwd"] is None
 
 
-def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(tmp_path):
+def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(
+    tmp_path, codex_program
+):
     """A Codex worker launched with LEAF_AGENT set keeps that voice: the
     launcher's Codex branch supplies the default name, not the last word."""
     page = tmp_path / "worker-page"
@@ -5766,28 +5860,36 @@ def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(tmp_path):
     env = os.environ | {"CODEX_THREAD_ID": "thread-9", "LEAF_AGENT": "Indexer"}
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    subprocess.run([launcher, "wait", page], env=env, check=True)
+    waited = under_codex(
+        codex_program, shlex.join([str(launcher), "wait", str(page)]), env
+    )
+    assert waited.wait(timeout=60) == 0
     session = interact.read_json(page / "session.json")
     assert session["id"] == "thread-9"
     assert session["agent"] == "Indexer" and session["host"] == "codex"
 
 
 def test_hook_remedies_follow_the_host_not_the_display_name(
-    page_dir, monkeypatch, capsys
+    tmp_path, codex_program, capsys
 ):
     """LEAF_AGENT names the voice the banner and threads show; which
     machinery the hook prescribes (unified exec vs background tasks) keys on the
     recorded host, so a renamed Codex worker still gets Codex remedies."""
-    monkeypatch.setenv("LEAF_SESSION_ID", "w1")
-    monkeypatch.setenv("LEAF_SESSION_PID", str(os.getpid()))
-    monkeypatch.setenv("LEAF_AGENT", "Indexer")
-    interact.claim_page(page_dir)
-    interact.cmd_status(page_dir, "waiting", "")
+    page = tmp_path / "worker-page"
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    env = os.environ | {"CODEX_THREAD_ID": "w1", "LEAF_AGENT": "Indexer"}
+    subprocess.run([launcher, "page", "init", page], env=env, check=True)
+    interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
+    waited = under_codex(
+        codex_program, shlex.join([str(launcher), "wait", str(page)]), env
+    )
+    assert waited.wait(timeout=60) == 0
+    interact.cmd_status(page, "waiting", "")
 
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "unified exec" in reason and "write_stdin" in reason
-    assert interact.read_json(page_dir / "session.json")["agent"] == "Indexer"
+    assert interact.read_json(page / "session.json")["agent"] == "Indexer"
 
 
 def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
@@ -5998,10 +6100,13 @@ def test_session_end_idles_the_page_and_stops_its_server(claimed):
 
 
 def start_managed_server(page_dir, session_id, session_pid):
+    """A server whose lifetime is a session the test can end on purpose. Claude
+    Code's door, because that host states its session's pid outright and the
+    test wants a process of its own in that role; which host claimed the page is
+    nothing to the watcher that reads the claim."""
     env = os.environ | {
-        "LEAF_SESSION_ID": session_id,
-        "LEAF_SESSION_PID": str(session_pid),
-        "LEAF_AGENT": "Codex",
+        "CLAUDE_CODE_SESSION_ID": session_id,
+        "CLAUDE_PID": str(session_pid),
     }
     process = subprocess.Popen(
         [
@@ -6064,8 +6169,8 @@ def start_standing_server(page_dir):
     for name in (
         "CLAUDE_CODE_SESSION_ID",
         "CLAUDE_PID",
+        "CODEX_THREAD_ID",
         "LEAF_SESSION_ID",
-        "LEAF_SESSION_PID",
         "LEAF_AGENT",
     ):
         env.pop(name, None)

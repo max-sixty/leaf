@@ -36,12 +36,13 @@
  * in a control row the draft always has, which Cancel and Save join for the length of
  * an edit — one row of the same button either way, so opening one changes what the box
  * offers without changing its shape. Unsent keystrokes ride the runtime's draft store
- * (saveDraft/loadDraft), the composer's discipline: written on input, cleared only by a
- * successful send or explicit Cancel, so reload, version switch, and server death all
- * recover. The stored value is an object rather than the text bare: an empty string is a
- * real replacement here, while the shared store uses a bare empty string to mean remove.
- * Recovery is tab-local; submitted actions converge through the log, but one tab's
- * successful send or Cancel must not erase another tab's newer unsent edit.
+ * (saveDraft/clearDraft), the composer's discipline: written on input, cleared only by a
+ * successful send or explicit Cancel, so reload, version switch, server death and the
+ * tab's own close all recover. The text goes in bare, an empty edit being a real
+ * replacement the store keeps and only a settlement removing the key — the store's rule,
+ * not this widget's exception to it. One edit has one copy across the reader's tabs
+ * (watchDraft): an open box follows the words being typed in another, a settled draft
+ * closes the box it left behind, and a closed one stays closed.
  * A send owns the widget until its response, as a composer does; otherwise a second save
  * can overtake the first on the network and the earlier response can clear newer text.
  *
@@ -84,21 +85,21 @@ import {
   keys,
   saveDraft,
   loadDraft,
+  clearDraft,
+  watchDraft,
   alignText,
   watchActions,
 } from "/leaf.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
 // the id alone is unambiguous — the same scoping every composer draft relies on.
+// Presence and content are different for this widget, because deleting every character is
+// an unsent edit — and that is the shared store's own rule, so the text goes in bare and
+// the store's null is "nothing pending".
 const ctx = (id) => "edit:" + id;
-// Presence and content are different for this widget: deleting every character is an
-// unsent edit, so wrap the text in a truthy record before handing it to the shared store.
-const saveEdit = (id, text) => saveDraft(ctx(id), JSON.stringify({ text }));
-const clearEdit = (id) => saveDraft(ctx(id), "");
-function loadEdit(id) {
-  const stored = loadDraft(ctx(id));
-  return stored ? JSON.parse(stored).text : null;
-}
+const saveEdit = (id, text) => saveDraft(ctx(id), text);
+const clearEdit = (id) => clearDraft(ctx(id));
+const loadEdit = (id) => loadDraft(ctx(id));
 
 // Where the browser's own double-click would have drawn the word's edges. Segmenter
 // knows the boundaries of the language the draft is written in, which /\w+/ does not:
@@ -201,6 +202,18 @@ customElements.define(
           return;
         ev.preventDefault();
         this.#open(undefined, wordAt(this.#body, ev.clientX, ev.clientY));
+      });
+
+      // One edit, however many tabs are open on the page. An open box follows what is
+      // typed in another; a closed one stays closed, because news arriving has no gesture
+      // behind it and the box would open under whatever the reader is doing here — it
+      // takes up the words at the next opening either way (#open reads the store). A
+      // settlement is the case that does move this tab: the words are sent or discarded,
+      // so an open box holding them has nothing left to hold, and closing it lets replay
+      // paint whatever the log ends up saying.
+      watchDraft(ctx(this.id), (text) => {
+        if (text === null) this.#close(false);
+        else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
       });
 
       // A recovered edit outranks the authored text: the user typed it and never
@@ -401,14 +414,17 @@ customElements.define(
     #close(discard) {
       if (!this.#ta) return;
       if (discard) clearEdit(this.id);
+      // Only where the reader was standing in it. A close this tab's own gesture made
+      // has focus in the box that is going, and the draft's one persistent control is
+      // where it lands so a keyboard user isn't dropped back at the page top; a close
+      // another tab's settlement brings takes focus from wherever they actually are.
+      const stood = this.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
       // States the whole row rather than removing two buttons from it, so read mode
-      // is one call from anywhere. The edit box had focus and is gone; hand it to the
-      // draft's one persistent control so a keyboard user isn't dropped back at
-      // the page top.
+      // is one call from anywhere.
       this.#row.replaceChildren(this.#pencil);
-      this.#pencil.focus();
+      if (stood) this.#pencil.focus();
     }
 
     async #commit() {

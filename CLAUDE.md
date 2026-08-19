@@ -82,6 +82,11 @@ it).
 `plugins/leaf/hooks/hooks.json` is shared too: both hosts speak its three events,
 and Codex supplies `CLAUDE_PLUGIN_ROOT` as a compatibility alias. The launcher maps
 Codex's thread identity into the session record that Claude Code supplies directly.
+The other half of that record is the session's lifetime, and a launcher cannot map
+it: a shell tool's `$PPID` is the shape of the command rather than the session — a
+pipeline leaves a shell there that exits with the command, and the page's server
+follows it down a second later. So `session_pid` reads Claude Code's own
+`CLAUDE_PID` and finds Codex's by walking to the ancestor running `codex`.
 
 The whole layer is vendored into each page directory by `page init`. A page you approved
 can't change under you when the defaults do. What a page directory holds, and why each

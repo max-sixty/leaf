@@ -736,11 +736,34 @@ carrying an id (`[id]:not(.lf-ui)`), and `data-lf-offer` for a thing to work.
 
 ## Never lose user text
 
-Every draft persists to tab-local `sessionStorage` on input; absence and an empty value are different, because deleting all
-of a `lf-draft` is still an edit. It survives reload and version navigation, while another tab's successful send or Cancel
-cannot erase it; submitted actions converge through the log instead. Only a successful send (or finding the same value
-already authored) clears one. A send owns that input until its response, so an earlier response can never clear or overtake
-newer text. Escape and outside clicks hide, they don't discard. Cancel is the only discard.
+Every draft persists on input — the general box, each thread's reply, the selection composer, a widget's box for words, a
+`lf-draft` edit. Only a successful send (or finding the same value already authored) clears one; Escape and outside clicks
+hide rather than discard, and Cancel is the only discard. A send owns its input until its response, so an earlier response
+can never clear or overtake newer text.
+
+The store is the reader's (`localStorage`), because the ordinary end of a tab here is being closed. Each round's reply hands
+the URL over again and the user opens the page from the turn in front of them, so a page's tabs accumulate and the one
+holding a half-written sentence is as likely to be shut as any other. Tab-local storage carried a draft through reload,
+version navigation and a server restart, and lost it to the one gesture nobody thinks of as destructive.
+
+What that costs is that one draft now has a box in several places at once, and the answer is that there is one of it: every
+box is a view of the store, mirrored live (`watchDraft`), so two tabs cannot end up holding two halves of one thought. The
+index that needs — from a draft's context to the box showing it — is the document's own listener list rather than a map of
+ours, which is what keeps it in step with the panel: a box that has left the document, a reply box gone with its resolved
+thread, renders nothing and drops its view at the next word it would have shown. Nothing tells it that it went, because the
+alternative is the panel keeping this design's index up to date on the side.
+
+Presence and value are different, and that is what says *why* a draft cleared. A box the reader emptied stores `""` and is
+still a draft they are holding; only a settlement removes the key. So the event's `newValue` tells an edit from a
+send-or-Cancel on its own, and no channel beside the store has to carry the reason — a value diff alone could not have told
+them apart, which is what a `BroadcastChannel` was going to be for. Which settlement it was, nothing asks: both leave the
+same box for the other tab to render, and what was sent arrives there through the log. What a settlement does is the box's
+own — a reply box and the general box empty, the composer on that anchor closes, a draft editor closes and lets replay paint
+the body — while a mirrored *edit* moves nothing that was not already showing, news arriving having no gesture behind it.
+
+The composer's draft is keyed by the passage it is on. One key was enough while a draft died with its tab and, shared, is
+two tabs on two passages overwriting each other; the record carries the anchor, the mode, and when it was last touched,
+which is what the load reopens the most recent of.
 
 ## Working on it
 

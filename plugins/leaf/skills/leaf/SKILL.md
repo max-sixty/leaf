@@ -225,7 +225,8 @@ to click belongs on a page you are going to serve.
   page's own words carry the affordance.
 - **Never lose user text.** A central tenet of the comment layer: drafts (the general
   box, each reply, the selection composer) survive navigation, reload, version switches,
-  and server death; only a successful send clears them.
+  server death, and the close of the tab they were typed in; only a successful send
+  clears them.
 - **Diagrams are graphical, never ASCII.** Flow, sequence, and state diagrams go in a
   `lf-diagram` (mermaid source body); reach for hand-drawn inline `<svg>` only where
   layout must be bespoke, drawn from the theme's tokens, with labelled nodes and

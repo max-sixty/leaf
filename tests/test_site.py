@@ -27,7 +27,7 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from test_render import BOTH_STAMPS, open_page, select
+from test_render import BOTH_STAMPS, navigate, open_page, select
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
@@ -42,6 +42,10 @@ _spec.loader.exec_module(site_build)
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
+
+# The module-scoped build and host are one shared setup, so they belong to one
+# xdist work unit rather than being rebuilt independently on every worker.
+pytestmark = pytest.mark.xdist_group(name="site")
 
 
 def pages_under(directory):
@@ -81,12 +85,11 @@ def example_url(hosted, name):
     return f"{hosted}/examples/{name}/versions/v1.html"
 
 
-def opened(page, url):
+def opened(page, errors, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
     banner the reader would not recognize (tests/CLAUDE.md)."""
-    page.goto(url, wait_until="networkidle")
-    page.wait_for_function(BOTH_STAMPS)
+    navigate(page, errors, url, wait_until="load")
 
 
 def test_the_pages_link_the_theme_the_site_serves(site):
@@ -172,7 +175,7 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
     page, errors = open_page(browser, example_url(hosted, examples[0].stem))
     try:
         for source in examples:
-            opened(page, example_url(hosted, source.stem))
+            opened(page, errors, example_url(hosted, source.stem))
             expect(page.locator(".lf-banner .lf-version")).to_have_text("v1 ▾")
             expect(page.locator(".lf-status-text")).to_contain_text(
                 "Nobody is behind this page"
@@ -225,7 +228,7 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
     page, errors = open_page(browser, example_url(hosted, examples[0].stem))
     try:
         for source in examples:
-            opened(page, example_url(hosted, source.stem))
+            opened(page, errors, example_url(hosted, source.stem))
             label = page.locator("main > .sitenote")
             expect(label).to_contain_text("A live example of a leaf page.")
             expect(label).to_contain_text("nothing you do here leaves your own browser")
@@ -369,7 +372,7 @@ def test_a_decision_holds_across_a_reload(site, hosted, browser):
         )
         assert "opt-jwt" in page.evaluate(chosen)
 
-        page.reload(wait_until="networkidle")
+        page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#session-options")).to_have_attribute(
             "data-lf-pending", "1"
@@ -408,7 +411,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
             for p in pages_under(EXAMPLES)
             if not p.with_suffix(".jsonl").exists()
         )
-        opened(page, example_url(hosted, plain))
+        opened(page, errors, example_url(hosted, plain))
         expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
         assert page.evaluate("() => document.body.scrollTop") == 0, (
             "the ship review opened at the offset the reader left on another page"

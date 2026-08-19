@@ -620,10 +620,9 @@ def refuse(route):
     route.abort("aborted")
 
 
-# Both stamps a page earns by finishing, which is what anything meaning "this page is
-# ready" wants. `lf-upgraded` is the document's — widgets upgraded, the anchor pass run,
-# the geometry final — and `lf-applied` is the log's, written at the end of every replay
-# pass, so its presence is the page saying a poll has landed and been rendered in full.
+# The two state-readiness stamps: `lf-upgraded` is the document's — widgets upgraded and
+# the anchor pass run — and `lf-applied` is the log's, written at the end of every replay
+# pass. They say the poll's state was applied, not that later layout work has settled.
 # The runtime stamps the document in the same breath as it starts that first poll and
 # never awaits it, so a page can be done becoming itself while knowing nothing of what
 # the reader has decided or which version is newest.
@@ -668,7 +667,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
         "request", predicate=lambda r: "/api/event" in r.url, timeout=5000
     )
     page.unroute("**/api/event")
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
     t = _traffic(page)
     assert t.acked >= t.sends, (
@@ -703,17 +702,53 @@ def watched(page):
     return errors
 
 
+def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
+    """Navigate through a complete page handover, classifying only the
+    ResizeObserver notices raised during that navigation.
+
+    A platform notice seen once under load is not a page fault; one repeated by the
+    confirming navigation is. Everything else remains in `errors` from the attempt
+    that reported it, and anything arriving after this helper returns remains strict.
+    """
+
+    def complete_navigation():
+        start = len(errors)
+        page.goto(url, wait_until=wait_until)
+        page.wait_for_function(ready)
+        # Let the rendering turn that earned the readiness stamp finish. A loop
+        # notice is delivered by that turn, rather than by the DOM write alone.
+        page.evaluate("() => new Promise(requestAnimationFrame)")
+        fresh = errors[start:]
+        del errors[start:]
+        notices = [error for error in fresh if interact.resize_observer_error(error)]
+        errors.extend(
+            error for error in fresh if not interact.resize_observer_error(error)
+        )
+        return notices
+
+    notices = complete_navigation()
+    if not notices:
+        return
+    try:
+        confirming_notices = complete_navigation()
+    except Exception:
+        errors.extend(notice for notice in notices if notice not in errors)
+        raise
+    if confirming_notices:
+        errors.append(interact.recurring_resize_observer_error("navigation"))
+
+
 def open_page(
     browser,
     url,
     *,
     pin=False,
     init_script=None,
-    wait_until="networkidle",
+    wait_until="load",
     context=None,
     upgraded=True,
 ):
-    """A page with its console errors collected, done becoming itself.
+    """A page with its console errors collected and its document and log state applied.
 
     `pin` asks for the version the URL names rather than the newest, and is a keyword
     because the URL a handover carries already has a query holding the page's key: a
@@ -722,6 +757,10 @@ def open_page(
     `upgraded` takes the page's own two stamps for having finished, `BOTH_STAMPS` above
     saying what each of them answers for. Twenty-two tests stood on the pair the day it
     was written here, and a dockerised Linux runner had named three.
+
+    Navigation waits for `load`, so the stylesheet and media that determine layout have
+    arrived. Network silence is not a readiness fact; the stamps state that the document
+    and its log finished applying.
 
     False is for the one test whose subject is the interval between them, which holds the
     registry fetch open and so never earns either. It waits on the banner instead, which
@@ -750,11 +789,16 @@ def open_page(
         page.add_init_script(init_script)
     if pin:
         url += ("&" if "?" in url else "?") + "pin"
-    page.goto(url, wait_until=wait_until)
-    page.wait_for_function(
-        BOTH_STAMPS
-        if upgraded
-        else "() => document.querySelector('.lf-banner') !== null"
+    navigate(
+        page,
+        errors,
+        url,
+        wait_until=wait_until,
+        ready=(
+            BOTH_STAMPS
+            if upgraded
+            else "() => document.querySelector('.lf-banner') !== null"
+        ),
     )
     return page, errors
 
@@ -771,9 +815,9 @@ def primed(browser, prepare):
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
     that has earned its keep: the runtime stamps `lf-upgraded` in the same breath as it
-    starts that poll, never awaiting it, so a refusal puts replay on the far side of both
-    the stamp and networkidle — where a slow machine would have put it — deterministically
-    and in a second."""
+    starts that poll, never awaiting it, so a refusal puts replay on the far side of the
+    document's stamp — where a slow machine would have put it — deterministically and in
+    a second."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)
@@ -896,6 +940,137 @@ CUSTOM_WIDGET_PAGE = """<!doctype html>
 </body>
 </html>
 """
+
+RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
+  message: 'ResizeObserver loop completed with undelivered notifications.'
+}));"""
+
+
+def resize_notice_after_last_probe(page):
+    """Schedule the notice for the rendering turn after the gate's last probe."""
+    evaluate = page.evaluate
+
+    def with_notice(expression, *args, **kwargs):
+        result = evaluate(expression, *args, **kwargs)
+        if expression == interact.RELATIVE_REPLAYS:
+            evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
+        return result
+
+    page.evaluate = with_notice
+
+
+def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
+    """The notice can arrive on the rendering turn after the gate's last probe. A
+    navigation-only confirmation would call the attempt clean, and an immediate close
+    would never hear it; the confirmation is the whole two-scheme gate."""
+    pages = []
+
+    def prepare(page):
+        if len(pages) < 2:  # both pages in the first light-and-dark attempt
+            resize_notice_after_last_probe(page)
+        pages.append(page)
+
+    failures = interact.render_version(
+        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+    )
+
+    assert failures == []
+    assert len(pages) == 4, "the complete gate was not confirmed once"
+
+
+def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, serve):
+    pages = []
+
+    def prepare(page):
+        if not pages:
+            page.add_init_script(
+                "addEventListener('DOMContentLoaded', () => "
+                "console.error('ordinary error from first attempt'), {once: true});"
+            )
+        if len(pages) < 2:
+            resize_notice_after_last_probe(page)
+        pages.append(page)
+
+    failures = interact.render_version(
+        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+    )
+
+    assert len(pages) == 4
+    assert sum("ordinary error from first attempt" in f for f in failures) == 1
+
+
+def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
+    pages = []
+
+    def prepare(page):
+        resize_notice_after_last_probe(page)
+        pages.append(page)
+
+    failures = interact.render_version(
+        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+    )
+
+    assert len(pages) == 4
+    assert interact.recurring_resize_observer_error("render attempt") in failures
+
+
+def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, serve):
+    pages = []
+
+    def prepare(page):
+        number = len(pages)
+        if number == 0:
+            page.add_init_script(
+                "addEventListener('DOMContentLoaded', () => "
+                "console.error('ordinary error from first attempt'), {once: true});"
+            )
+            resize_notice_after_last_probe(page)
+        elif number >= 2:
+            page.set_default_timeout(500)
+            page.route("**/leaf.js", lambda route: route.abort())
+        pages.append(page)
+
+    failures = interact.render_version(
+        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+    )
+
+    assert any("ordinary error from first attempt" in failure for failure in failures)
+    assert any("runtime never injected its banner" in failure for failure in failures)
+    assert any(
+        "confirming render attempt did not complete" in failure for failure in failures
+    )
+
+
+def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
+    first_load_only = (
+        """addEventListener('DOMContentLoaded', () => {
+      const seen = Number(sessionStorage.getItem('lf-test-resize-loads') || 0);
+      sessionStorage.setItem('lf-test-resize-loads', String(seen + 1));
+      if (seen === 0) """
+        + RESIZE_LOOP_EVENT
+        + """
+    });"""
+    )
+    page, errors = open_page(
+        browser, serve(CUSTOM_WIDGET_PAGE), init_script=first_load_only
+    )
+
+    assert errors == []
+    page.evaluate(RESIZE_LOOP_EVENT)
+    assert errors == [
+        "window error: ResizeObserver loop completed with undelivered notifications."
+    ], "a notice after the classified navigation was hidden too"
+    page.close()
+
+
+def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
+    every_load = (
+        "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"
+    )
+    page, errors = open_page(browser, serve(CUSTOM_WIDGET_PAGE), init_script=every_load)
+
+    assert errors == [interact.recurring_resize_observer_error("navigation")]
+    page.close()
 
 
 def test_a_scaffolded_project_widget_loads_through_the_real_layer(
@@ -14866,7 +15041,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     expect(page.locator(".lf-latest-chip")).to_be_visible()
     assert "/v1.html" in page.url, "an empty live edit was mistaken for no composition"
 
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
     expect(draft.locator("textarea")).to_be_visible()
     expect(draft.locator("textarea")).to_have_value("")
@@ -15652,6 +15827,21 @@ def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
     assert page.evaluate(
         "() => document.body.scrollHeight > document.body.clientHeight * 3"
     ), "the page is too short for these steps to be told apart"
+    # A callback's frame timestamp may predate performance.now() in the key handler.
+    # Make that browser timing deterministic: a negative first fraction used to write
+    # above the page, get clamped to zero, then cancel the glide as if the reader moved.
+    page.evaluate("""() => {
+      const raf = requestAnimationFrame;
+      let stale = false;
+      addEventListener('keydown', event => {
+        if (event.key === 'd' || event.key === 'u') stale = true;
+      }, {capture: true});
+      window.requestAnimationFrame = callback => {
+        const firstAfterPress = stale;
+        stale = false;
+        return raf(now => callback(firstAfterPress ? -1 : now));
+      };
+    }""")
 
     def rests_at(act, expected):
         """Position after `act`, awaited at `expected` and handed to the assertion:
@@ -15831,9 +16021,9 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     """`open_page` promises a page that has finished becoming itself, and the log is half
     of what that means. The instrument is a refusal of the first `/api/state`. Replay then
-    lands on the 2s retry, past both the document's stamp and networkidle, which is where
-    a loaded Linux runner put it — so this press meets the same page those runs handed the
-    test above, on any machine and in a second.
+    lands on the 2s retry, past the document's stamp, which is where a loaded Linux runner
+    put it — so this press meets the same page those runs handed the test above, on any
+    machine and in a second.
 
     Only a press can state it. A read lives through the interval, since `expect` re-asks
     for five seconds and the retry lands in two; a keystroke into a page that has no

@@ -57,6 +57,11 @@
  * tab open on the page shows one copy of it: a keystroke lands in the store and the
  * store's own event carries it to the rest (watchDraft), so a draft cleared by a send in
  * one tab arrives in the others as a box that has sent rather than as words gone missing.
+ * A draft's attempt follows every request into the append-locked log. Two tabs may POST
+ * the same generation together, but both receive the one event that attempt identifies;
+ * a retry after a sender dies returns it too. Cleanup tombstones only that generation, so
+ * a later edit remains. The same path serves general and selection comments, question
+ * messages and replies, and lf-draft actions.
  *
  * Versions: an unpinned page follows the newest version, navigating to each revision as
  * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
@@ -286,19 +291,24 @@ const PAGE_SCOPE = location.pathname.replace(VERSION_PATH, "");
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
 const stored = (backing, scope = "") => ({
-  get(key) {
+  read(key) {
     try {
-      return backing.getItem(scope + key);
+      return { available: true, value: backing.getItem(scope + key) };
     } catch {
-      return null;
+      return { available: false, value: null };
     }
+  },
+  get(key) {
+    return this.read(key).value;
   },
   set(key, value) {
     try {
       if (value === null) backing.removeItem(scope + key);
       else backing.setItem(scope + key, value);
+      return true;
     } catch {
       /* a page that cannot remember still renders */
+      return false;
     }
   },
   // What this scope holds, spelled as the callers spell it. The drafts are what needs
@@ -776,7 +786,7 @@ export const pageScroller = document.body;
 // in flight — navigating away could lose the unrecorded edit — and it lives here
 // because every widget's action passes through this door.
 const sending = new Map(); // widget id -> sends in flight for it
-export async function sendAction(el, action, detail) {
+export async function sendAction(el, action, detail, attempt = null) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
   // mention must not become a decision Claude reads. Failing closed costs a
@@ -790,7 +800,14 @@ export async function sendAction(el, action, detail) {
   }
   sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
   try {
-    return await post({ kind: "action", version: VNUM, widget: el.id, action, detail });
+    return await post({
+      kind: "action",
+      version: VNUM,
+      widget: el.id,
+      action,
+      detail,
+      ...(attempt && { attempt }),
+    });
   } finally {
     const left = sending.get(el.id) - 1;
     if (left) sending.set(el.id, left);
@@ -798,22 +815,28 @@ export async function sendAction(el, action, detail) {
   }
 }
 
-// A widget's box for words. A page can ask a question its options don't cover the
-// answer to — "none of these", or a pick's why — and the user needs somewhere to
-// put that without going hunting for a passage to select. What they type goes back as
-// an ordinary comment anchored on the widget, so it is a thread beside the question:
-// replied to in place, resolved like any other, and in the transcript with everything
-// else they said.
+// The page seat of a widget's conversation (x-conversation). A module places the seat;
+// the comment layer fills it from the whole log. Before a thread exists it is a box for
+// an answer the widget's own controls do not cover. Sending starts an ordinary comment
+// thread anchored exactly on the widget; the next poll replaces the box with that same
+// thread's inline textual view, while the panel keeps the complete view including any
+// interactive reply markup.
 //
-// Built here rather than in each widget, because everything that makes it safe is the
-// comment layer's: the draft written on each keystroke and cleared only by a
-// successful send, one send per click, ⌘⏎. A widget says where the box goes and what
-// it invites; nothing else — including whether a box belongs there at all, which is
-// why a widget standing in a thread gets null: the thread's own reply box is already
-// the words' home, and a box here would double it and open a second thread anchored
-// on an id no version holds.
-export function sayBox(el, hint) {
-  if (inChrome(el)) return null;
+// A widget standing inside a thread gets no seat: the containing thread already owns
+// the reply box, and no version carries the nested widget id an anchored root would need.
+// The declaration is checked at the helper boundary so a module cannot quietly place a
+// conversation for a tag whose registry says nothing about one.
+export function conversationBox(el, hint) {
+  if (inChrome(el) || quoted(el)) return null;
+  const declaration = registry[el.localName]?.["x-conversation"];
+  if (!declaration || !matchesWhen(el, declaration.when))
+    throw new TypeError(
+      `<${el.localName}> placed a conversation outside its x-conversation predicate`,
+    );
+  if (!el.id)
+    throw new TypeError(`<${el.localName}> needs an id to own a conversation`);
+  const box = offer("div", "lf-conversation");
+  box.dataset.lfConversation = el.id;
   const row = offer("div", "lf-say");
   const ta = offer("textarea");
   const send = offer("button", "lf-btn primary", "Send");
@@ -826,25 +849,39 @@ export function sayBox(el, hint) {
     sends: "send",
     sendBtn: send,
     save: (v) => saveDraft(ctx, v),
-    send: async (text) => {
+    send: async (text, raw) => {
       if (
-        !(await post({
-          kind: "comment",
-          version: VNUM,
-          anchor: { section: el.id },
-          text,
-        }))
+        !(await sendDraft(
+          ctx,
+          () => ta.value === raw,
+          (attempt) =>
+            post({
+              kind: "comment",
+              version: VNUM,
+              anchor: { section: el.id },
+              text,
+              attempt,
+            }),
+        ))
       )
         return;
-      clearDraft(ctx);
-      ta.value = "";
-      sync();
       showToast(`Sent to ${agent}`);
     },
   });
   sync();
-  mirrorDraft(ta, sync, ctx);
-  return row;
+  // Keep the first-message box reachable even while an existing exact-section
+  // thread has displaced it. A draft edited in another tab can then restore the box
+  // instead of surviving only in storage with no surface left to send it from.
+  box.lfFirstMessage = row;
+  const off = watchDraft(ctx, (value) => {
+    if (!box.isConnected) return off();
+    const text = value ?? "";
+    if (ta.value !== text) ta.value = text;
+    sync();
+    renderPanel();
+  });
+  box.append(row);
+  return box;
 }
 
 // Transient confirmation ("Moved to Doing — sent to Claude"), styled and placed by
@@ -1245,6 +1282,17 @@ const tagsDeclaring = (holds) =>
   widgetEntries()
     .filter(([, entry]) => holds(entry))
     .map(([tag]) => tag);
+// The registry's shared predicate vocabulary: every declared attribute holds one of
+// the admitted values. A boolean asks whether a flag is present; other values compare
+// with the attribute's text. The lint holds each value to the attribute's schema.
+export const matchesWhen = (el, when) =>
+  Object.entries(when ?? {}).every(([attr, values]) =>
+    values.some((value) =>
+      typeof value === "boolean"
+        ? el.hasAttribute(attr) === value
+        : el.getAttribute(attr) === value,
+    ),
+  );
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: an x-shadow widget is
@@ -2090,6 +2138,7 @@ ${MARK_RULES}
        what it passes (background) rather than reading through it, and it says the
        outcome in ink, since the metrics here are what the fold is animating. */
     .lf-going .lf-thread-actions { position: absolute; inset: auto var(--lf-thread-pad) var(--lf-thread-pad); background: var(--card); }
+    .lf-going .lf-thread-send { visibility: hidden; }
     .lf-going .lf-resolve { color: var(--ok); }
     .lf-thread.flash { animation: lf-runtime-4f3c2a8d-flash 1.2s ease-out; }
     /* An arrival the reconcile added while the user was watching. Motion, not a
@@ -2152,9 +2201,11 @@ ${MARK_RULES}
        because a widget's § reference (lf-ref) undressed its underline and a style
        alone would paint nothing there. paintAnchors is the one writer. */
     .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
-    /* Send buttons sit at the bottom so a growing textarea doesn't stretch them. */
-    .lf-compose, .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
-    .lf-compose textarea, .lf-general textarea { flex: 1; min-width: 0; }
+    .lf-compose { display: block; margin-top: 8px; }
+    .lf-compose textarea { display: block; width: 100%; min-width: 0; }
+    /* The general Send stays beside its field; a thread gives the field its own row. */
+    .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
+    .lf-general textarea { flex: 1; min-width: 0; }
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-thread-action:hover { color: var(--ok); }
@@ -2965,26 +3016,213 @@ export const watchReports = (widget, verb, callback) =>
 // alternative and it fails in the direction that loses words — two tabs each holding a
 // different half of one thought, and whichever is closed takes its half.
 //
-// Presence and value are different, and that is what says why a draft cleared. A box the
-// reader emptied stores "" and is still a draft they are holding; only a settlement — a
-// successful send, or Cancel — removes the key. So the event's newValue tells an edit
-// from a settlement on its own, and no channel beside the store is needed to carry the
-// reason. *Which* settlement it was, nothing here asks: a send and a discard leave the
-// same box for the other tab to render, and what was sent arrives there through the log.
-// Nor is there a toast — it would be news about a gesture made in another tab, seen only
-// if this one happens to be on screen at that moment, and where it is on screen the panel
-// beside the emptied box is already showing the thread the send became.
+// The stored value is one record, not raw words plus lock markers: {text, attempt, base}
+// while active and {attempt, base, settled:true} afterward. `base` is the shared attempt this
+// edit descended from, or null when the store was absent. A new edit always mints a new
+// attempt but a chain of failed local writes keeps the same base. That provenance is
+// what lets the branch survive news settling its predecessor without letting it overwrite
+// an unrelated generation another tab durably wrote later.
 //
-// Storage failures never break typing (`stored`). Still a trio of its own rather than
-// callers spelling draftStore themselves, because a textarea and a store disagree about
-// nothing: one place holds the key spelling, and the store's null reads as "nothing
-// pending" — which is lf-draft's whole question, and why its edits need no wrapper.
+// A new attempt is minted even when its words equal an earlier message. The tombstone
+// rather than key removal is
+// what makes asymmetric removeItem behavior irrelevant, and the attempt is what lets the
+// log recognize the same gesture after the tab holding the browser lock has died.
+//
+// Storage failures never break typing (`stored`). Every local save updates the document
+// cache first and then tries the one record write, so a successful set followed by a
+// failed get remains sendable, and a failed newer set cannot be erased by news settling
+// the older shared attempt. The log still outranks both: an attempt already present in
+// `events` is settled whatever stale active record storage hands back on reload.
 const DRAFT = "lf-draft:";
-export const saveDraft = (ctx, val) => draftStore.set(DRAFT + ctx, val);
-export const clearDraft = (ctx) => draftStore.set(DRAFT + ctx, null);
-export const loadDraft = (ctx) => draftStore.get(DRAFT + ctx);
+const DRAFT_NEWS = "lf-drafts";
+const draftCache = new Map(); // context -> {record, durable}
+const tellDraft = (ctx, value) =>
+  document.dispatchEvent(new CustomEvent(DRAFT_NEWS, { detail: { ctx, value } }));
+const parseDraftRecord = (value) => {
+  if (typeof value !== "string") return null;
+  try {
+    const record = JSON.parse(value);
+    if (
+      !record ||
+      typeof record !== "object" ||
+      typeof record.attempt !== "string" ||
+      !(record.base === null || typeof record.base === "string") ||
+      (record.settled === true
+        ? Object.keys(record).some(
+            (key) => !["attempt", "base", "settled"].includes(key),
+          )
+        : typeof record.text !== "string" ||
+          Object.keys(record).some((key) => !["attempt", "text", "base"].includes(key)))
+    )
+      return null;
+    return record;
+  } catch {
+    return null;
+  }
+};
+const attemptAccepted = (attempt) => events.some((event) => event.attempt === attempt);
+const writeDraftRecord = (ctx, record) =>
+  draftStore.set(DRAFT + ctx, JSON.stringify(record));
+const rawDraftRecord = (ctx) => {
+  if (draftCache.has(ctx)) return draftCache.get(ctx).record;
+  const read = draftStore.read(DRAFT + ctx);
+  const record = read.available ? parseDraftRecord(read.value) : null;
+  if (record) draftCache.set(ctx, { record, durable: true });
+  return record;
+};
+const sameDraftRecord = (left, right) =>
+  (left === null && right === null) ||
+  (left !== null && right !== null && JSON.stringify(left) === JSON.stringify(right));
+// Refresh is a reconciliation as real as a storage event. Publish an adopted shared
+// generation after the current call returns, so every mounted view follows the cache
+// without making a composer's synchronous close clear itself recursively.
+const projectDraftRecord = (ctx, record) =>
+  queueMicrotask(() => {
+    const current = draftCache.get(ctx)?.record ?? null;
+    if (!sameDraftRecord(current, record)) return;
+    const active = current && !current.settled && !attemptAccepted(current.attempt);
+    tellDraft(ctx, active ? current.text : null);
+  });
+// A nondurable branch may replace exactly the shared generation it was editing, not
+// merely whatever record happens to be there when a failed writer becomes writable
+// again. A tombstone for that base is the older branch settling; it still cannot erase
+// the newer local words. An unrelated attempt is later shared ownership and wins.
+const sharedIsBaseOf = (branch, shared) =>
+  branch.base === null ? shared === null : shared?.attempt === branch.base;
+// A durable cache is a rendering convenience, never a claim that storage still holds
+// that generation. Refresh it immediately before sending or settling. If the
+// read itself is refused, the cache is the only copy available. A nondurable branch wins
+// only over its own base; unrelated shared news wins even when its storage event was
+// delayed or suppressed.
+const refreshDraftRecord = (ctx) => {
+  const cached = draftCache.get(ctx);
+  const read = draftStore.read(DRAFT + ctx);
+  if (!read.available) return cached?.record ?? null;
+  const shared = parseDraftRecord(read.value);
+  if (cached && !cached.durable) {
+    if (sameDraftRecord(cached.record, shared)) {
+      cached.durable = true;
+      return cached.record;
+    }
+    if (sharedIsBaseOf(cached.record, shared)) {
+      if (cached.record.settled) cached.durable = writeDraftRecord(ctx, cached.record);
+      return cached.record;
+    }
+  }
+  const changed = Boolean(cached && !sameDraftRecord(cached.record, shared));
+  if (shared) draftCache.set(ctx, { record: shared, durable: true });
+  else draftCache.delete(ctx);
+  if (changed) projectDraftRecord(ctx, shared);
+  return shared;
+};
+const activeDraftRecord = (ctx) => {
+  const record = rawDraftRecord(ctx);
+  return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
+};
+// Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
+// action, or a poll that observed the attempt in the log. Re-read shared storage before
+// making that claim so a stale view cannot settle a newer durable generation. A refused
+// read and a nondurable local edit still use the document cache, their only copy.
+const settleDraft = (ctx, attempt) => {
+  const current = refreshDraftRecord(ctx);
+  if (!current || current.settled || current.attempt !== attempt) return false;
+  const currentDurable = draftCache.get(ctx)?.durable;
+  // If this write fails, the cache tombstone still descends from whatever the active
+  // branch could replace. If it succeeds, the tombstone itself is the new shared
+  // generation and later edits descend from its attempt.
+  const storedRecord = { attempt, base: attempt, settled: true };
+  const durable = writeDraftRecord(ctx, storedRecord);
+  const record = durable
+    ? storedRecord
+    : {
+        attempt,
+        base: currentDurable ? current.attempt : current.base,
+        settled: true,
+      };
+  draftCache.set(ctx, { record, durable });
+  return true;
+};
+const newAttempt = () => {
+  const bytes = new Uint8Array(16);
+  // Unlike randomUUID(), getRandomValues is available when leaf is served over plain
+  // HTTP to a stated/LAN host as well as in a secure localhost context.
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+export const saveDraft = (ctx, text) => {
+  const cached = draftCache.get(ctx);
+  const previous = rawDraftRecord(ctx);
+  // A series of local edits whose writes all fail is one branch from the last shared
+  // generation, not a chain that progressively forgets what it may replace.
+  const base =
+    cached && !cached.durable && previous ? previous.base : (previous?.attempt ?? null);
+  const record = { text, attempt: newAttempt(), base };
+  const durable = writeDraftRecord(ctx, record);
+  draftCache.set(ctx, { record, durable });
+  return durable;
+};
+export const clearDraft = (ctx) => {
+  const current = rawDraftRecord(ctx);
+  if (!current || current.settled) {
+    draftCache.delete(ctx);
+    return false;
+  }
+  return settleDraft(ctx, current.attempt);
+};
+export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
+const draftContexts = () =>
+  new Set([
+    ...draftCache.keys(),
+    ...draftStore
+      .keys()
+      .filter((key) => key.startsWith(DRAFT))
+      .map((key) => key.slice(DRAFT.length)),
+  ]);
 
-// A draft written in another tab, routed to whatever is showing it here. The document is
+// The log is authoritative over a stale active storage record. Run after each poll so a
+// remove-resistant record from an accepted send becomes a tombstone in every live tab;
+// activeDraftRecord already masks it during the write attempt itself.
+function settleAcceptedDrafts() {
+  for (const ctx of draftContexts()) {
+    const record = refreshDraftRecord(ctx);
+    if (
+      record &&
+      !record.settled &&
+      attemptAccepted(record.attempt) &&
+      settleDraft(ctx, record.attempt)
+    )
+      tellDraft(ctx, null);
+  }
+}
+
+// One draft generation has one attempt across every tab showing this page. Two tabs may
+// POST it together; the append-locked log returns the same event to both. The attempt is
+// also what lets a replacement tab recover after the first sender dies.
+//
+// Attempt and exact untrimmed text are rechecked immediately before POST. A successful
+// older send settles only that generation; any later edit has a fresh attempt and remains
+// standing.
+export async function sendDraft(ctx, owns, send) {
+  const before = activeDraftRecord(ctx);
+  const refreshed = refreshDraftRecord(ctx);
+  const current =
+    refreshed && !refreshed.settled && !attemptAccepted(refreshed.attempt)
+      ? refreshed
+      : null;
+  if (
+    !before ||
+    !current ||
+    current.attempt !== before.attempt ||
+    current.text !== before.text ||
+    !owns()
+  )
+    return null;
+  const sent = await send(current.attempt);
+  if (sent && settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
+  return sent;
+}
+
+// A draft written in another view, routed to whatever is showing it here. The document is
 // the bus, as it is for replayed actions (watchActions), and that is what supplies the
 // index this needs — from a draft's context to the box on screen — without a map of our
 // own to hold in step with the panel: a box that has left the document takes its view off
@@ -2996,7 +3234,6 @@ export const loadDraft = (ctx) => draftStore.get(DRAFT + ctx);
 // and the boxes answer them differently: a draft editor opens on recovery at load and
 // stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
 // it and so may move nothing.
-const DRAFT_NEWS = "lf-drafts";
 export function watchDraft(ctx, callback) {
   const update = (ev) => ev.detail.ctx === ctx && callback(ev.detail.value);
   document.addEventListener(DRAFT_NEWS, update);
@@ -3007,11 +3244,24 @@ addEventListener("storage", (ev) => {
   // Null where the whole store was cleared, and every key of another page on this origin
   // besides — a published site serves each example from one root.
   if (!ev.key?.startsWith(prefix)) return;
-  document.dispatchEvent(
-    new CustomEvent(DRAFT_NEWS, {
-      detail: { ctx: ev.key.slice(prefix.length), value: ev.newValue },
-    }),
-  );
+  const ctx = ev.key.slice(prefix.length);
+  const incoming = parseDraftRecord(ev.newValue);
+  const cached = draftCache.get(ctx);
+  const current = cached?.record;
+  // Reconcile the same way the lock callback does. A nondurable branch can reassert
+  // itself over its base (including that base's tombstone), but unrelated active news
+  // is a later shared generation and retires the local branch.
+  if (current && !cached.durable) {
+    if (sameDraftRecord(current, incoming)) cached.durable = true;
+    else if (sharedIsBaseOf(current, incoming)) {
+      cached.durable = writeDraftRecord(ctx, current);
+      return;
+    }
+  }
+  if (incoming) draftCache.set(ctx, { record: incoming, durable: true });
+  else draftCache.delete(ctx);
+  const active = incoming && !incoming.settled && !attemptAccepted(incoming.attempt);
+  tellDraft(ctx, active ? incoming.text : null);
 });
 
 // One box's view of one draft: the plain boxes, which have nothing to render about a
@@ -3325,7 +3575,10 @@ const SEND_KEYS = spell(SEND);
 // `sends` is the word the box's own send row says — "send", "suggest", "comment" — since
 // a composer in suggestion mode and a thread's reply are the same binding doing different
 // things, and the row is where the surfaces read that from.
-function wireInput(ta, { hint, address, save, send, sendBtn, sends }) {
+function wireInput(
+  ta,
+  { hint, address, save, send, sendBtn, sends, busy = () => false },
+) {
   // The hint goes in the placeholder, where it's visible exactly while the box is
   // empty and can't be found any other way; the button's tooltip spells the send key
   // out. The send shortcut is focus-scoped, so only the focused box may claim it —
@@ -3350,19 +3603,24 @@ function wireInput(ta, { hint, address, save, send, sendBtn, sends }) {
   // saying it can't send yet is better than one the reader can't reach to find out.
   const sync = () => {
     paint();
-    sendBtn.setAttribute("aria-disabled", String(sending || !ta.value.trim()));
+    sendBtn.setAttribute(
+      "aria-disabled",
+      String(sending || busy() || !ta.value.trim()),
+    );
   };
   paint();
   const submit = async () => {
-    if (sending) return;
+    if (sending || busy()) return;
     // A send key on an empty box answered with silence reads as a send that
     // happened — the blind drive believed exactly that. Say the nothing out loud
     // (the toast announces too).
-    if (!ta.value.trim()) return showToast("Nothing to send — the box is empty");
+    const raw = ta.value;
+    const text = raw.trim();
+    if (!text) return showToast("Nothing to send — the box is empty");
     sending = true;
     sync();
     try {
-      await send(ta.value.trim());
+      await send(text, raw);
     } finally {
       sending = false;
       sync();
@@ -3374,7 +3632,7 @@ function wireInput(ta, { hint, address, save, send, sendBtn, sends }) {
   });
   // The box's own scope: one row, so the key line's word, the "?" overlay's sentence and
   // the press are the same object. Every box the runtime wires gets it — the general box,
-  // each thread's reply, the selection composer, a widget's say-box — where the reference
+  // each thread's reply, the selection composer, a widget conversation — where the reference
   // used to carry one row saying "in the focused composer" for a chord that fires in all
   // of them.
   // The sentence is the same in every box, so the reference names the binding once however
@@ -3626,6 +3884,174 @@ function systemNode(e, text) {
 // element does — the rebuild this replaced snapped it shut on every one.
 let resolvedBox = null;
 
+// A thread has one send in flight even though its reply draft has two views. wireInput's
+// private hold is still the right scope for every other composer, which has one control;
+// a reply adds this thread-scoped hold and announces it on the document bus so both Send
+// controls render the same fact. The promise is the post itself, because a queue would
+// serialize the duplicate rather than refuse it.
+const REPLY_FLIGHT_NEWS = "lf-reply-flight";
+const replyFlights = new Map(); // thread id -> post in flight
+const replyBusy = (id) => replyFlights.has(id);
+const tellReplyFlight = (id) =>
+  document.dispatchEvent(new CustomEvent(REPLY_FLIGHT_NEWS, { detail: { id } }));
+
+function mirrorReplyFlight(ta, sync, id) {
+  const update = (ev) => {
+    if (ev.detail.id !== id) return;
+    if (!ta.isConnected) return document.removeEventListener(REPLY_FLIGHT_NEWS, update);
+    sync();
+  };
+  document.addEventListener(REPLY_FLIGHT_NEWS, update);
+}
+
+async function sendReply(t, text, raw, owns) {
+  const id = t.root.id;
+  if (replyBusy(id)) return null;
+  const draftCtx = "reply:" + id;
+  const flight = sendDraft(draftCtx, owns, (attempt) =>
+    post({
+      kind: "reply",
+      parent: id,
+      version: VNUM,
+      text,
+      attempt,
+    }),
+  );
+  replyFlights.set(id, flight);
+  tellReplyFlight(id);
+  try {
+    return await flight;
+  } finally {
+    replyFlights.delete(id);
+    tellReplyFlight(id);
+  }
+}
+
+// One reply draft and one send path, however many views the thread has. The panel adds
+// an address and reveals the sent message; an inline conversation supplies neither.
+// Everything else — persistence, mirroring, the wire event and the focus landing — is
+// the thread's and is therefore stated once.
+function wireReply(t, input, send, { address, landed } = {}) {
+  const draftCtx = "reply:" + t.root.id;
+  input.value = loadDraft(draftCtx) ?? "";
+  const sync = wireInput(input, {
+    hint: "Reply",
+    sends: "send",
+    address,
+    sendBtn: send,
+    busy: () => replyBusy(t.root.id),
+    // localStorage notifies other tabs but skips this document. A conversation's
+    // inline and panel boxes are two views here, so reply drafts take the same bus
+    // directly. Other draft kinds still have one view per document.
+    save: (v) => {
+      saveDraft(draftCtx, v);
+      tellDraft(draftCtx, v);
+    },
+    send: async (text, raw) => {
+      const sent = await sendReply(t, text, raw, () => input.value === raw);
+      if (!sent) return;
+      landed?.(sent);
+      input.focus({ preventScroll: true });
+    },
+  });
+  sync();
+  mirrorDraft(input, sync, draftCtx);
+  mirrorReplyFlight(input, sync, t.root.id);
+  return sync;
+}
+
+function conversationMessageNode(thread, message) {
+  let node = thread.querySelector(
+    `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
+  );
+  if (node) {
+    const time = node.querySelector("time");
+    const when = ago(message.ts);
+    if (time.textContent !== when) time.textContent = when;
+    return node;
+  }
+  node = offer("div", `lf-conversation-msg ${message.author}`);
+  node.dataset.event = message.id;
+  const head = el("div", "lf-conversation-head");
+  head.append(
+    el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
+    el("time", "", ago(message.ts)),
+  );
+  const body = el("div", "lf-conversation-body");
+  if (message.suggestion) body.textContent = message.text;
+  else body.innerHTML = renderMarkdown(message.text);
+  node.append(head, body);
+  if (message.markup) {
+    const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
+    open.onclick = () => revealThread(message.id);
+    node.append(open);
+  }
+  return node;
+}
+
+function conversationThreadNode(host, t) {
+  let thread = host.querySelector(
+    `:scope > .lf-conversation-thread[data-thread="${t.root.id}"]`,
+  );
+  if (!thread) {
+    thread = offer("div", "lf-conversation-thread");
+    thread.dataset.thread = t.root.id;
+    thread.tabIndex = -1;
+  }
+  const messages = t.msgs.map((message) => conversationMessageNode(thread, message));
+  let tail;
+  if (t.resolved) {
+    const compose = thread.querySelector(":scope > .lf-say");
+    if (compose?.contains(focused())) thread.focus({ preventScroll: true });
+    tail = thread.querySelector(":scope > .lf-conversation-resolved");
+    const settledBy =
+      t.resolved.author === "claude"
+        ? `✓ Resolved by ${t.resolved.agent || "Agent"}`
+        : "✓ Resolved";
+    if (!tail) tail = offer("div", "lf-conversation-resolved");
+    if (tail.textContent !== settledBy) tail.textContent = settledBy;
+  } else {
+    tail = thread.querySelector(":scope > .lf-say");
+    if (!tail) {
+      tail = offer("div", "lf-say");
+      const input = offer("textarea");
+      const send = offer("button", "lf-btn primary", "Send");
+      tail.append(input, send);
+      wireReply(t, input, send);
+    }
+  }
+  setChildren(thread, [...messages, tail]);
+  return thread;
+}
+
+function renderConversations(threads) {
+  for (const host of document.querySelectorAll(
+    ".lf-conversation[data-lf-conversation]",
+  )) {
+    const owner = elementById(host.dataset.lfConversation);
+    const owned = threads.filter((thread) => {
+      const anchor = thread.root.anchor;
+      return (
+        !thread.root.about &&
+        anchor?.section === owner.id &&
+        Object.keys(anchor).length === 1
+      );
+    });
+    // Before the first comment, conversationBox's first-message composer is already
+    // the complete view. An externally arriving root may find unsent first-message
+    // words here, so the root does not get to take their only box: presence in the
+    // draft store (including "") keeps it after the existing threads until a successful
+    // send settles it. A box with no draft gives way to the conversation immediately.
+    if (!owned.length) continue;
+    const first = host.lfFirstMessage;
+    const pending = loadDraft("say:" + owner.id) !== null ? first : null;
+    setChildren(host, [
+      ...owned.map((thread) => conversationThreadNode(host, thread)),
+      ...(pending ? [pending] : []),
+    ]);
+  }
+}
+
 // A thread's node is found where it already stands — the open list or the resolved
 // disclosure — and kept: the log is append-only, so a kept node only ever gains
 // messages and refreshes its clocks. A settlement transition reshapes a node: resolving
@@ -3637,12 +4063,13 @@ function threadNode(t, grow) {
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
     const compose = existing.querySelector(":scope > .lf-compose");
+    const tail = compose ?? existing.querySelector(":scope > .lf-thread-actions");
     for (const m of t.msgs) {
       let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
       if (!msg) {
         msg = msgNode(m);
         if (grow) msg.classList.add("grow");
-        existing.insertBefore(msg, compose);
+        existing.insertBefore(msg, tail);
       }
       // The head's clock, not any <time> a reply's own markup might carry.
       const time = msg.querySelector(":scope > .lf-msg-head time");
@@ -3675,43 +4102,17 @@ function threadNode(t, grow) {
     badge.setAttribute("aria-hidden", "true");
     row.append(badge);
     const input = document.createElement("textarea");
-    const draftCtx = "reply:" + t.root.id;
-    input.value = loadDraft(draftCtx) ?? "";
-    const send = el("button", "lf-btn", "Reply");
-    row.append(input, send);
-    div.lfSync = wireInput(input, {
-      hint: "Reply",
-      sends: "send",
+    const send = el("button", "lf-btn primary lf-thread-send", "Send");
+    row.append(input);
+    div.lfSync = wireReply(t, input, send, {
       address: () => {
         const num = threadAddress.get(t.root.id);
         return num ? `g ${num}` : "";
       },
-      sendBtn: send,
-      save: (v) => saveDraft(draftCtx, v),
-      send: async (text) => {
-        const sent = await post({
-          kind: "reply",
-          parent: t.root.id,
-          version: VNUM,
-          text,
-        });
-        if (!sent) return;
-        // post() polled, so the reconcile has already appended the message — and kept
-        // this very box, which empties for the next thought and holds focus whichever
-        // control sent it.
-        clearDraft(draftCtx);
-        input.value = "";
-        revealThread(sent.id);
-        input.focus({ preventScroll: true });
-      },
+      landed: (sent) => revealThread(sent.id),
     });
-    div.lfSync(); // a restored reply draft enables its Reply button
-    // This box is a view of that draft wherever it is being typed. The node is kept for
-    // the thread's life and rebuilt when it resolves, and the view goes with the box it
-    // was on: nothing here has to say so, since a box out of the document drops it.
-    mirrorDraft(input, div.lfSync, draftCtx);
     const actions = el("div", "lf-thread-actions");
-    const resolve = el("button", "lf-resolve lf-thread-action", "✓ Resolve");
+    const resolve = el("button", "lf-btn lf-resolve", "Resolve");
     // Resolving takes this node out of the open list and focus with it — the blind
     // drive fell to body here. Land where j would have gone: the thread that now
     // holds this one's place, else the previous, else the list. Which is read after
@@ -3735,7 +4136,7 @@ function threadNode(t, grow) {
       const kept = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
       (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
     };
-    actions.append(el("span"), resolve);
+    actions.append(send, resolve);
     div.append(row, actions);
   } else {
     const actions = el("div", "lf-thread-actions");
@@ -3813,9 +4214,9 @@ function foldOut(t) {
   const played = motion(node, [from, to], FOLD_MS);
   if (!played) return null;
   // The control the press was made on states the outcome where it stood. It needs no
-  // reservation for the longer word: the actions row holds this one control against
-  // an empty span, so the extra room comes out of the gap beside it and moves
-  // nothing. A second control on that row would change that answer.
+  // reservation for the longer word: Send and Resolve hold the two edges, so the
+  // longer outcome takes room from the gap and moves neither edge. Send stays in the
+  // row with visibility hidden, keeping the same room without reading as live.
   node.querySelector(":scope > .lf-thread-actions > .lf-resolve").textContent =
     "✓ Resolved";
   node.className = "lf-going";
@@ -3851,8 +4252,7 @@ function foldOut(t) {
 // no restore could give back was identity: nothing could animate, one send route kept
 // focus and the other dropped it, and a user's own comment landed below the fold
 // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
-function renderThreads() {
-  const threads = buildThreads();
+function renderThreads(threads) {
   const open = threads.filter((t) => !t.resolved);
   const resolved = threads.filter((t) => t.resolved);
   // Newcomers settle in (`grow`) only when the user already has the list in front
@@ -3940,8 +4340,10 @@ threadsBox.addEventListener("animationend", (ev) => ev.target.classList.remove("
 // The panel and the page marks are two views of the same threads, and the paint pass
 // reports back to the list renderThreads just reconciled — always render them as a pair.
 function renderPanel() {
-  renderThreads();
-  paintAnchors();
+  const threads = buildThreads();
+  renderThreads(threads);
+  renderConversations(threads);
+  paintAnchors(threads);
 }
 
 // One answer to "show me that thread", whoever asks: a click on a mark out on the page
@@ -5163,7 +5565,7 @@ function noteMarks(noted) {
     if (!noted.has(note.parentElement)) note.remove();
 }
 
-function paintAnchors() {
+function paintAnchors(threads = buildThreads()) {
   if (!anchoringReady) return;
   for (const where of allMarks())
     if (where instanceof Element) where.classList.remove("lf-mark-el");
@@ -5174,7 +5576,7 @@ function paintAnchors() {
   const text = pageText(); // read once, for every anchor this pass places
   const posted = [];
   const noted = new Map(); // element -> ordered thread ids marking something inside it
-  for (const t of buildThreads()) {
+  for (const t of threads) {
     if (t.resolved || !t.root.anchor) continue;
     const found = resolveAnchor(t.root.anchor, text);
     if (!found) continue;
@@ -6245,13 +6647,13 @@ const saveComposerDraft = () =>
 // that still holds words.
 function pendingComposer() {
   let best = null;
-  for (const key of draftStore.keys()) {
-    if (!key.startsWith(DRAFT + COMPOSER_KEY)) continue;
+  for (const ctx of draftContexts()) {
+    if (!ctx.startsWith(COMPOSER_KEY)) continue;
     let record;
     // Parsed under its own guard: a record that no longer parses costs the reader that
     // one draft, where throwing would cost them the page, at module top level.
     try {
-      record = JSON.parse(draftStore.get(key));
+      record = JSON.parse(loadDraft(ctx));
     } catch {
       continue;
     }
@@ -6269,13 +6671,25 @@ const syncComposer = wireInput(composerInput, {
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
   save: saveComposerDraft,
-  send: async (text) => {
-    const event = { kind: "comment", version: VNUM, anchor: pendingAnchor, text };
-    if (suggestCheck.checked) event.suggestion = true;
-    if (pendingAbout) event.about = pendingAbout;
-    const sent = await post(event);
+  send: async (text, raw) => {
+    const anchor = structuredClone(pendingAnchor);
+    const ctx = composerCtx(anchor);
+    const suggestion = suggestCheck.checked;
+    const about = pendingAbout;
+    const sent = await sendDraft(
+      ctx,
+      () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
+      (attempt) => {
+        const event = { kind: "comment", version: VNUM, anchor, text, attempt };
+        if (suggestion) event.suggestion = true;
+        if (about) event.about = about;
+        return post(event);
+      },
+    );
     if (!sent) return;
-    closeComposer();
+    // A later edit is still the reader's standing gesture. The earlier comment may
+    // render in the panel, but it may not close or move the composer holding that edit.
+    if (loadDraft(ctx) !== null) return;
     revealThread(sent.id);
     // The composer this was sent from is gone with the send; the thread it became
     // carries the same conversation, so its reply box is where typing continues.
@@ -6430,13 +6844,15 @@ const syncGeneral = wireInput(generalInput, {
   sends: "send",
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
-  send: async (text) => {
+  send: async (text, raw) => {
     const event = { kind: "comment", version: VNUM, text };
     if (designOn) event.about = "layer";
-    const sent = await post(event);
+    const sent = await sendDraft(
+      "general",
+      () => generalInput.value === raw,
+      (attempt) => post({ ...event, attempt }),
+    );
     if (!sent) return;
-    generalInput.value = "";
-    clearDraft("general");
     revealThread(sent.id);
     generalInput.focus({ preventScroll: true }); // both send routes end where typing was
   },
@@ -7425,14 +7841,6 @@ function toggleHelp() {
 const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
 // Every declared attribute holding one of the values that ask — a flag's two values
 // being its presence and its absence, since it carries none of its own.
-const asking = (el, when) =>
-  Object.entries(when ?? {}).every(([attr, values]) =>
-    values.some((value) =>
-      typeof value === "boolean"
-        ? el.hasAttribute(attr) === value
-        : el.getAttribute(attr) === value,
-    ),
-  );
 function answeredAsk(el, fold) {
   const specs = Object.entries(registry[el.tagName.toLowerCase()]["x-state"] ?? {});
   // The fold holds one entry per unit whatever the verb, so a recordless verb is
@@ -7471,7 +7879,8 @@ function openAsks() {
     // settledAway: an ask inside a slot the log retired left the page with it —
     // a group in a rejected suggestion's lf-new counted on, and the walk
     // stepped the reader to a hidden element.
-    if (quoted(el) || settledAway(el) || !asking(el, askEntry(el).when)) return false;
+    if (quoted(el) || settledAway(el) || !matchesWhen(el, askEntry(el).when))
+      return false;
     const thread = closestAcross(el, ".lf-thread, .lf-going");
     if (thread && settled.has(thread.dataset.id)) return false;
     return !(inChrome(el) ? answeredThreadAsk(el, fold) : answeredAsk(el, fold));
@@ -7486,7 +7895,7 @@ function answeredThreadAsk(el, fold) {
   const entry = registry[el.tagName.toLowerCase()];
   if (!Object.keys(entry["x-state"] ?? {}).length) return true;
   const until = entry["x-awaits"].until;
-  if (until && asking(el, until.when))
+  if (until && matchesWhen(el, until.when))
     return events.some(
       (e) => e.kind === "action" && e.widget === el.id && e.action === until.verb,
     );
@@ -8761,6 +9170,7 @@ async function poll() {
   if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
     await loadMarked();
   events = nextEvents;
+  settleAcceptedDrafts();
   agent = state.agent || "Claude";
   renderStatus(state);
   renderVersions(state);

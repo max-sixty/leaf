@@ -43,8 +43,9 @@
  * not this widget's exception to it. One edit has one copy across the reader's tabs
  * (watchDraft): an open box follows the words being typed in another, a settled draft
  * closes the box it left behind, and a closed one stays closed.
- * A send owns the widget until its response, as a composer does; otherwise a second save
- * can overtake the first on the network and the earlier response can clear newer text.
+ * A send owns the shared draft generation until its response, as every composer does:
+ * the log attempt makes two tabs' Save presses one action, while the instance flag closes
+ * this tab's other edit doors during the request.
  *
  * Once an edit exists, a native disclosure compares the authored body with the
  * standing one and lists the widget's absolute edit actions in log order. The runtime
@@ -81,6 +82,7 @@ import {
   paintKeys,
   quoted,
   sendAction,
+  sendDraft,
   toast,
   keys,
   saveDraft,
@@ -439,18 +441,26 @@ customElements.define(
       this.#close(false);
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
-      const ok = await sendAction(this, "edit", { text });
+      const ok = await sendDraft(
+        ctx(this.id),
+        () => true,
+        (attempt) => sendAction(this, "edit", { text }, attempt),
+      );
       this.#sending = false;
       this.removeAttribute("aria-busy");
       if (ok) {
-        clearEdit(this.id);
         toast(`Edited “${this.id}” — sent to ${agentName()}`);
       } else {
-        // Unsent means unrecorded. Put the words back on screen and keep the
-        // user's text in storage so nothing they typed is lost.
-        this.#body.textContent = previous;
-        saveEdit(this.id, text);
-        this.#open(text);
+        const standing = loadEdit(this.id);
+        // Null means the same shared generation was settled by the other tab while
+        // this one waited to send. Its action will replay this body, so do
+        // not resurrect the editor as if a network failure had occurred. A standing
+        // generation is either the failed send itself or newer shared text; both stay
+        // editable, and the latter is the value this tab must reveal.
+        if (standing !== null) {
+          this.#body.textContent = previous;
+          this.#open(standing);
+        }
       }
     }
 

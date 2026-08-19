@@ -31,17 +31,14 @@
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
  * to follow — belongs to what it landed on (`worksInside`).
  *
- * A choose group also carries a box for words (the runtime's `sayBox`). A question can
- * always be answered off its own menu — "none of these", or a pick's why — and without
- * a box that answer costs the reader a hunt for some passage to select. What they type
- * goes back as a comment anchored on the group, so it is a thread beside the question
- * rather than a channel of its own. In a thread the runtime returns no box (the
- * thread's reply box is already the words' home), and a `multiple` group grows a Done
- * press instead: every toggle reaches the agent as it lands, so the press is the one
- * statement that the set is whole, posted as an `answer` action and held as the
- * thread ask's closing condition (x-awaits.until). Answered is paint on the press,
- * never a wider word, and the set can still change after — each later toggle still
- * reaches the agent, who reads the log rather than the moment.
+ * A choose group also owns the runtime's conversation (x-conversation) for an answer
+ * outside the menu. This module places it; the runtime owns its messages, drafts and
+ * sends. In a thread the existing reply box already owns those words, so a `multiple`
+ * group grows a Done press instead: every toggle reaches
+ * the agent as it lands, so the press is the one statement that the set is whole,
+ * posted as an `answer` action and held as the thread ask's closing condition
+ * (x-awaits.until). Answered is paint on the press, never a wider word, and the set can
+ * still change after — each later toggle still reaches the agent, who reads the log.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -93,6 +90,7 @@
 import {
   HIDDEN,
   agentName,
+  conversationBox,
   inChrome,
   keys,
   offer,
@@ -101,7 +99,6 @@ import {
   quoted,
   relabel,
   reserve,
-  sayBox,
   sendAction,
   tabStore,
   toast,
@@ -154,8 +151,8 @@ customElements.define(
         if (choosable || this.#authored.has(option.id)) this.#mark(option, choosable);
       this.#holdWordRoom();
       if (choosable) {
-        this.#say = sayBox(this, "Say something");
-        if (this.#say) this.append(this.#say);
+        this.#conversation = conversationBox(this, "Say something");
+        if (this.#conversation) this.append(this.#conversation);
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
       }
@@ -213,7 +210,7 @@ customElements.define(
     }
 
     #authored = new Set(); // ids the document arrived carrying, so a mark words itself honestly
-    #say = null; // the box for words, hidden with the options when the group is settled
+    #conversation = null; // the inline thread, hidden with the settled options
     #done = null; // the thread multi-question's submit; null everywhere else
 
     #options() {
@@ -473,13 +470,13 @@ customElements.define(
 
     #open(open, remember) {
       this.#isOpen = open;
-      // The box for words and the Done press go behind the collapse with the options:
+      // The conversation and the Done press go behind the collapse with the options:
       // both belong to the question, and a settled group asks nothing until the
       // reader opens it again — a Done left standing was a button under a summary
       // with nothing above it to be done with.
       for (const el of [
         ...this.#options(),
-        ...(this.#say ? [this.#say] : []),
+        ...(this.#conversation ? [this.#conversation] : []),
         ...(this.#done ? [this.#done] : []),
       ])
         if (open) el.removeAttribute("hidden");

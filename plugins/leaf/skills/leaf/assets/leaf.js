@@ -1620,6 +1620,16 @@ style.textContent = `
       overflow: hidden;
       body { height: 100%; overflow-y: auto; scrollbar-gutter: stable;
              scroll-padding-top: calc(var(--lf-banner-h) + 12px); }
+      /* The banner stands over the head of the document, so the page's first lines get
+         room rather than starting under it, and the key line reserves the same at the
+         foot (syncLayout). Both are boxes in the flow rather than padding on body, which
+         is the box the room a wide widget spends is measured from — CLAUDE.md's "The one
+         writer may not write the box the layout is measured from" carries why. A box also
+         adds to whatever padding the page declares at this edge, where a rule here would
+         replace it, and it is withheld from paper by the block it sits in: written as
+         padding it stayed behind, holding 42px of blank over the first line of every
+         printed page for a bar that was not on it. */
+      body::before { content: ""; display: block; height: var(--lf-head, 0px); }
     }
   }
   /* position: relative makes body — the scroll container — the containing block for
@@ -1628,8 +1638,8 @@ style.textContent = `
   /* The banner's height, said once. Everything at the top edge derives from it — the
      bar itself, the panel starting under it, the focus-revealed mark note, the
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
-     the body's own top padding is measured off the rendered bar (see the append
-     below) rather than restated. */
+     the room the document leaves for it is measured off the rendered bar (see the
+     append below) rather than restated. */
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
@@ -2799,15 +2809,14 @@ reserve(versionBtn, [versionLabel(false), versionLabel(true)]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
 reserve(othersBtn, ["All leaves (999)"]);
-const basePaddingTop = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
-document.body.style.paddingTop = basePaddingTop + banner.offsetHeight + "px";
-// The banner's reservation at the other edge: the key line stands for the page's
-// life, so the document's last lines get room rather than ending under it. The
-// amount is measured off the rendered line in syncLayout rather than stated here —
-// a number alone stops being true silently, which is the press-sweep norm's whole
-// subject.
-const basePaddingBottom =
-  parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+// The room the head of the document leaves for the bar, measured off the bar as
+// rendered rather than stated as a number — --lf-banner-h is what the bar is drawn to
+// and a second copy of it here would be a release behind it the day either moved. What
+// spends this, and why it is spent as a box rather than as body's own padding, is the
+// rule above that reads it. The key line's reservation at the foot is the same
+// arrangement, written by syncLayout because it is the same measurement every time the
+// line's height changes.
+document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 
 // ---------- state ----------
 let events = [];
@@ -3031,10 +3040,11 @@ function syncLayout() {
   // that posture: both open a 1200px window with no panel in it.
   //
   // Stated from the write above rather than measured off body, whose clientWidth is the
-  // box itself and would otherwise be the natural reading. The margin transitions, so a
-  // measurement taken here is of the width the page is leaving — 1024 on the very
-  // resize that costs it the room — and the strip would stand or fall a posture late,
-  // this function running once per change and not once per frame.
+  // box itself and would otherwise be the natural reading. The margin transitions, and
+  // the box is watched, so a measurement taken here would be taken at every frame of the
+  // slide — the posture flipping and flipping back across a fifth of a second, which is
+  // a page rewrapping its notes into the margin and out of it while the panel opens. The
+  // write above is the width being arrived at, stated once.
   document.body.toggleAttribute(
     "data-lf-cramped",
     document.documentElement.clientWidth - (panelBeside ? PANEL_W : 0) < STRIP_MIN,
@@ -3047,27 +3057,36 @@ function syncLayout() {
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
   keylineEl.style.bottom = (panelCovers ? generalRow.offsetHeight + 14 : 14) + "px";
-  document.body.style.paddingBottom =
-    basePaddingBottom + keylineEl.offsetHeight + 20 + "px";
-  // The board is the page's other scroll region, in the corner the line is written
-  // into, so it reserves the same room the document does — and states it twice,
-  // because its list reaches the bottom two ways that take their room from different
-  // places. A wheel to the end reads the padding. A walk's own scroll reads none of
-  // it: scroll-padding is what a scroll-into-view stops short of, and without it the
-  // last row's clearance is however far Chrome happens to overshoot, which is a fact
-  // about row height and not about the line standing there. Stepping the line clear
-  // instead was the other answer, and it takes the board's width off the line's: a
-  // busy scope already fills a laptop's, so the room it gives up is chips clipped
-  // off the right-hand end.
+  // One line stands over two scroll regions, so one measurement is what they both
+  // reserve — off the rendered line rather than stated as a number, which is what
+  // keeps it true when the line's face or its padding moves.
   const clear = keylineEl.offsetHeight + 20 + "px";
+  // The document's, taken as the chrome container's own box rather than as padding on
+  // body: body's padding comes out of the box the room is measured from (stateRoom), so
+  // writing it here made this function a writer of the box it reads, and every page that
+  // watched that box — three do — was one change in the line's height from a
+  // ResizeObserver loop on the window's error channel. CLAUDE.md's "The one writer may not
+  // write the box the layout is measured from" carries the whole of it. The container is
+  // in the flow, holds nothing but out-of-flow chrome, and is watched by nobody, so what
+  // it takes is room the document has and no measurement's business.
+  chromeRoot.style.paddingBottom = clear;
+  // The board is the page's other scroll region, in the corner the line is written
+  // into, so it reserves the same room — and states it twice, because its list reaches
+  // the bottom two ways that take their room from different places. A wheel to the end
+  // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
+  // scroll-into-view stops short of, and without it the last row's clearance is however
+  // far Chrome happens to overshoot, which is a fact about row height and not about the
+  // line standing there. Stepping the line clear instead was the other answer, and it
+  // takes the board's width off the line's: a busy scope already fills a laptop's, so
+  // the room it gives up is chips clipped off the right-hand end.
   othersPanel.style.paddingBottom = clear;
   othersPanel.style.scrollPaddingBottom = clear;
   stateRoom(panelStrip());
   syncFloats();
 }
 // The strip the panel holds, which is the panel's width until the window is too narrow
-// to give one up — one expression, because the margin below, the room beside it and the
-// transition's end all have to mean the same thing by it.
+// to give one up — one expression, because the margin written above and the room measured
+// beside it have to mean the same thing by it.
 const panelStrip = () => (panelOpen && !panelCovers ? PANEL_W : 0);
 // The room a widget declared wide may take: the document's own content box, less the
 // gutter the column already gives its prose, so a breakout is centred on the column's
@@ -3076,9 +3095,9 @@ const panelStrip = () => (panelOpen && !panelCovers ? PANEL_W : 0);
 // Measured, and measured here, because the panel is the thing no stylesheet can see: it
 // is 420px of the window while it is open and nothing in CSS says so, and a rule written
 // against 100vw would also spend the rail a suggestion hangs in and the classic scrollbar
-// this platform doesn't draw. The three of them come off body's own box for free. This is
-// the layout's one writer, so the room is restated wherever that box changes shape — the
-// panel taking its strip, a resize — for the same reason the floats are placed again.
+// this platform doesn't draw. The three of them come off body's own box for free. That box
+// is watched (layoutSizes), so the room is restated whenever it changes shape whatever
+// changed it, for the same reason the floats are placed again.
 //
 // The gutter is read off the column rather than stated, since 24px is theme.css's number
 // and a second copy here would be a release behind it. Below the column's own width the
@@ -3096,8 +3115,8 @@ const panelStrip = () => (panelOpen && !panelCovers ? PANEL_W : 0);
 // of us: the strip is coming back, and an exhibit that took it before the page had it
 // scrolled sideways for a fifth of a second every time the panel was dismissed — which
 // is what the suggestion sweep caught, on a window narrow enough for the returning strip
-// to matter. What is given back is picked up at the transition's end, the same fact the
-// float placement below consumes, so the growth lands the frame the room is real.
+// to matter. What is given back is picked up as it is given: the box is watched, so every
+// frame of the slide is a reading of it, and the growth lands the frame the room is real.
 function stateRoom(strip) {
   const main = document.querySelector("main");
   if (!main) return;
@@ -3135,17 +3154,6 @@ function syncFloats() {
     placeClear(fab, box.left, box.top);
   }
 }
-// The strip's hand-over is motion (body's own margin transition), so the reflow the
-// floats must answer finishes long after syncLayout's write. The transition's end is
-// the fact to consume — reduced motion still fires it, at .01ms — and syncLayout's
-// own call covers the pre-stamp loads that run untransitioned.
-document.body.addEventListener("transitionend", (ev) => {
-  if (ev.propertyName !== "margin-right") return;
-  // The room a returning strip gives back, which stateRoom withheld until the page
-  // actually had it.
-  stateRoom(panelStrip());
-  syncFloats();
-});
 function setPanel(open) {
   // Closing while focus is inside would drop it on body, the user's place
   // lost silently; it lands on the one control that reopens what just closed.
@@ -3166,8 +3174,18 @@ toggleBtn.onclick = () => setPanel(!panelOpen);
 addEventListener("resize", syncLayout);
 addEventListener("resize", pageShifted);
 // field-sizing and every other rendered-size change feed the one geometry writer —
-// the key line included, whose height sets the body's bottom reservation.
+// the key line included, whose height is the room the chrome reserves under it.
 const layoutSizes = new ResizeObserver(syncLayout);
+// The page's own box, which is what the room is measured from and what the floats hang
+// in. Watched rather than derived, so a widget that takes a margin after the handover is
+// answered by the taking: the room used to follow a list of the ways the box was known to
+// move — the panel, the window, the one call at the end of upgrade — and a widget that
+// moved it any other way got no restatement at all. The panel's own strip was in that
+// list twice, being motion: read once at the write and again at the transition's end,
+// with a slide the reader interrupted answered by neither. Watching the box is every
+// frame of the slide, the last frame included. Nothing this observer calls may write this
+// box, which is what reserving the key line's room elsewhere is about.
+layoutSizes.observe(document.body);
 layoutSizes.observe(generalRow);
 layoutSizes.observe(keylineEl);
 // The composer grows under typing (field-sizing), and a box placed above its passage
@@ -8808,31 +8826,12 @@ Promise.all([
   // spends was the one that noticed, standing a diagram out over the rail on the first
   // shipped page to carry both.
   //
-  // The observer above covers this too, today and by accident: the key line gains its
-  // rows after upgrade, which resizes it, which calls this. That is a fact about what
-  // the chrome happens to do rather than about when the box settles, so it is not the
-  // ordering to rest on — and its answer lands a frame later, which is a frame past the
-  // stamp below. What holds this line is therefore a reading taken at the stamp itself
-  // (test_the_room_is_measured_after_a_late_rail); the settled page is right without it.
-  //
-  // Observing the box the room is measured from is how that accident would stop being
-  // one, and it is closed. Body is a border-box scroller of the window's height, so this
-  // function writing its padding-bottom is a resize of body — and an observation of body
-  // is then broken from inside a round it was answered in, at a depth Chrome will not
-  // re-deliver at, which it reports as "ResizeObserver loop completed with undelivered
-  // notifications" on the window's error channel. Registering it after the observations
-  // that feed this function only lengthens the odds: every load reported one before them,
-  // and after them three runs in ten of a single test still did, on a loaded machine. What would open
-  // it is reserving the key line's clearance somewhere other than body's own padding, and
-  // nothing needs that: every widget that moves the page's box moves it while upgrading,
-  // in front of this call, and one that moved it later would say so the way lf-suggestion
-  // says its rail.
-  //
-  // The legend observes body too (paintLegend) and reports nothing, which is not the
-  // counter-example it reads as: it starts observing on the gesture that turns design
-  // mode on, by which time the key line has its rows and the padding write above has
-  // stopped moving anything. What is unsafe is observing the box while it is still
-  // settling, which is the whole of the window this call exists to close.
+  // The observer watches that box now, so the standing answer is not this line's. What
+  // is this line's is the timing: an observation is answered at the next rendering
+  // update, which is a frame past the stamp below, and the stamp is where `version check
+  // --render` and an exported copy read the page. So the observer keeps the room true for
+  // the page's life and this makes it true at the moment the page is called finished,
+  // which is what test_the_room_is_measured_after_a_late_rail holds it to.
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

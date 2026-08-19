@@ -19,6 +19,31 @@ drifting apart.
 When you find yourself writing a guard that reads state another function wrote, the fix is to
 merge the writers, not to add the guard.
 
+## The one writer may not write the box the layout is measured from
+
+The room a wide widget spends is measured off `document.body` — the window, less the strip an
+open comment panel holds, less every margin a widget has claimed. So that box is the one thing
+the layout has to be able to watch, and watching it is the only answer that survives the widget
+list being open: the room used to follow a list of the ways the box was known to move, and a
+widget that moved it any other way got no restatement at all.
+
+Watching was impossible while the writer wrote that box. Body is a border-box scroller of the
+window's height, so `syncLayout` writing its `padding-bottom` to hold the key line's room was a
+resize of the box it had just been called about. Chrome will not re-deliver an observation
+broken from inside a round it was already answered in, and reports that as "ResizeObserver loop
+completed with undelivered notifications" on the window's `error` channel, which nothing was
+reading (`tests/CLAUDE.md`). Three observers watch body, and a single change in the key line's
+height would have put that report on the console of a page that had done nothing wrong.
+
+So the chrome's reservations are boxes in the document's flow: `body::before` for the banner at
+the head, the chrome container's own padding at the foot. Nothing measures either, so the writer
+is clear of the box it reads. That fixed paper as well, a box going where the chrome goes where
+a padding on the scroll container stays behind: 42px of blank stood over the first line of every
+printed page for a bar that was not on it.
+
+The general form is that a fact derived from a box is not derived by a writer of that box. Where
+one function has to be both, the write moves to a box nobody is measuring.
+
 ## A gesture the log has not taken outranks everything the page has read
 
 A widget paints the user's gesture before the log has taken it, so until the poll reads the

@@ -17549,12 +17549,16 @@ RAIL_AND_WIDE_PAGE = """<!doctype html>
 
 # How far the exhibit stands outside the page's own box, and the rail it was supposed to
 # leave — both edges, since a room read too wide spends itself on whichever side is free.
-# One reading for the live page and for a copy of it, the fault being the same fault.
+# One reading for the live page and for a copy of it, the fault being the same fault. The
+# room the page states comes with it, so a test waiting for the box to be read again has
+# the reading it is waiting to see changed.
 RAIL_FIT = """() => {
     const b = document.body, s = getComputedStyle(b);
     const box = b.getBoundingClientRect();
     const r = document.getElementById('plan').getBoundingClientRect();
     return { rail: s.paddingRight, widget: r.width,
+             room: getComputedStyle(document.documentElement)
+                     .getPropertyValue('--lf-room'),
              past: Math.max(r.right - (box.right - parseFloat(s.paddingRight)),
                             (box.left + parseFloat(s.paddingLeft)) - r.left),
              content: box.width - parseFloat(s.paddingLeft)
@@ -17592,6 +17596,61 @@ def test_paper_keeps_the_column(browser, serve):
     assert abs(printed - column) <= 1, (
         f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
         "has no window to take the room from, so what runs past it is off the page"
+    )
+    assert errors == []
+    page.close()
+
+
+# The room the document leaves at each end for a bar standing over it. Both are boxes in
+# the flow, so the reading is the flow's own: what stands above the page's first block and
+# what is left under its last.
+CHROME_ROOM = """() => {
+    const body = document.body;
+    const box = document.querySelector('main').getBoundingClientRect();
+    return { head: box.top + body.scrollTop,
+             foot: body.scrollHeight - (box.bottom + body.scrollTop),
+             banner: document.querySelector('.lf-banner').offsetHeight,
+             line: document.querySelector('.lf-keyline').offsetHeight };
+}"""
+
+
+def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
+    """The banner stands over the head of the document and the key line over its foot, so
+    the document leaves each of them room. Neither bar is on a sheet — the runtime's whole
+    layer is withheld from print — and the room went to paper anyway: written as body's
+    own padding it printed as a blank strip at each end, the banner's height over the
+    first line and the key line's under the last.
+
+    Boxes in the document's flow fixed that, and the reason they are boxes is the other
+    one: body's padding comes out of the box the room a wide widget spends is measured
+    off, so the writer of that padding could not also be a reader of that box (the skill's
+    CLAUDE.md). A box goes where the chrome goes; a padding on the scroll container stays
+    behind.
+
+    The screen half is read as room rather than as a covered last line, which is where a
+    reader would meet it, because the column's own bottom padding is taller than the line:
+    nothing is covered either way today, so an assertion about the last block would pass
+    with the reservation deleted. The room is what the runtime answers for; the column's
+    padding is the theme's to change."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    room = page.evaluate(CHROME_ROOM)
+    assert room["banner"] > 0 and room["line"] > 0, (
+        f"neither bar is standing, so there is nothing here to reserve for: {room}"
+    )
+    assert abs(room["head"] - room["banner"]) <= 1, (
+        f"the document starts {room['head']:.0f}px down, under a "
+        f"{room['banner']:.0f}px banner"
+    )
+    assert room["foot"] >= room["line"], (
+        f"the document ends {room['foot']:.0f}px short of its own end, under a "
+        f"{room['line']:.0f}px key line"
+    )
+
+    page.emulate_media(media="print")
+    printed = page.evaluate(CHROME_ROOM)
+    assert printed["head"] <= 1 and printed["foot"] <= 1, (
+        f"a sheet held {printed['head']:.0f}px over the first line and "
+        f"{printed['foot']:.0f}px under the last, for chrome it does not print"
     )
     assert errors == []
     page.close()
@@ -17676,12 +17735,12 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     request still to come, and the release reached for a request nobody had made.
 
     The reading is taken at the stamp, because a settled page is right either way: the
-    same block paints the key line, which resizes it, which restates the room a frame
-    later, and every reading taken through the browser arrives after that frame. A
-    MutationObserver on the stamp lands ahead of it. What the injection buys is the
-    record and not the wait — the stamp is the runtime's own statement that the
-    geometry it hands over is final, so this asks the page at the moment it makes the
-    claim."""
+    rail is a claim on the page's own box and that box is watched, so the room is restated
+    a frame later whatever the runtime's own call does, and every reading through the
+    browser arrives after that frame. A MutationObserver on the stamp lands ahead of it.
+    What the injection buys is the record and not the wait — the stamp is the runtime's
+    own statement that the geometry it hands over is final, so this asks the page at the
+    moment it makes the claim."""
     url = serve(RAIL_AND_WIDE_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -17719,6 +17778,133 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
         f"the page says it is done, laid out to the width of a page 189px wider than "
         f"the one it is on: {fit['widget']:.0f}px of widget in {fit['content']:.0f}px "
         "of page"
+    )
+    assert errors == []
+    page.close()
+
+
+LATE_MARGIN_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>late margin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+<main>
+<h1 id="t">Release</h1>
+<lf-callout id="marginal"><strong>Note</strong> Its controls hang in the margin.</lf-callout>
+<lf-board id="plan">
+  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong></lf-card></lf-column>
+  <lf-column id="r2" label="Doing"></lf-column>
+  <lf-column id="r3" label="Done"></lf-column>
+</lf-board>
+</main>
+<script type="module" src="/leaf.js"></script>
+</body>
+</html>
+"""
+
+# A widget that hangs its controls in the page margin, and can only say how wide a margin
+# once it has heard what they will say — so the claim rides an answer rather than the
+# upgrade that asked for it. lf-suggestion is the same widget with a measurement it
+# happens to be able to take on the spot, which is why the moment a claim lands was never
+# anybody's subject. The request is answered by the test, which is what puts the claim
+# after the handover on every machine rather than on a fast one.
+LATE_MARGIN_WIDGET = """\
+import { once } from "/leaf.js";
+
+customElements.define(
+  "lf-callout",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      fetch("/margin-width").then(() =>
+        document.body.style.setProperty("--strip-r", "160px"),
+      );
+    }
+  },
+);
+"""
+
+
+def test_the_room_follows_a_margin_taken_after_the_handover(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A wide widget spends the room, the room is measured off the page's own box, and a
+    widget may take a strip of that box at any moment at all. The one above takes it while
+    upgrading, and the call at the end of the upgrade chain is what answers that; a widget
+    that takes one a frame later was answered by nothing, and the page went on stating the
+    room of a box 160px wider than the one its exhibit was standing in — silently, since a
+    room too wide is a board that fits everywhere except the page it is on.
+
+    The list of the ways the box was known to move is what made that possible, and a list
+    of the ways a widget may behave is the closed list the norms are about. So the box is
+    watched instead, and what a widget does to it needs no entry anywhere.
+
+    The fixture is the case in its smallest honest form — a project-layer widget claiming
+    the margin theme.css already reserves for one. What holds it to the case is that the
+    claim waits on a request this test answers, and answers only once the page has said it
+    is done: a claim landing any earlier is the one the call at the end of upgrade already
+    covers, and on a fast machine that is where an unheld one would land."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(AT_THE_HANDOVER)
+    answered = []
+
+    def answer_after_the_handover(route):
+        # Both stamps, not the first alone: what makes a claim late is not the handover
+        # by itself but everything the page finishes around it, since the panel's first
+        # render resizes a box this layout writer watches and would restate the room by
+        # accident. The second stamp is the replay that render waits on.
+        page.wait_for_function(BOTH_STAMPS)
+        answered.append(True)
+        route.fulfill(status=204)
+
+    page.route("**/margin-width", answer_after_the_handover)
+    page.goto(serve(LATE_MARGIN_PAGE))
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    at_stamp = page.evaluate("() => window.__handover")
+    assert at_stamp["rail"] == "0px", (
+        "the margin was taken before the page was handed over, which is the case the "
+        f"call at the end of upgrade already covers: {at_stamp['rail']}"
+    )
+    # On the room being read again, not on the margin that prompts it: the claim lands a
+    # frame ahead of the reading, and a wait on the padding would arrive in between. The
+    # timeout is left to fall through because the geometry below is the verdict and says
+    # what a timeout cannot — how far out the exhibit stood, and on what room.
+    try:
+        page.wait_for_function(
+            "(was) => getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--lf-room') !== was",
+            arg=at_stamp["room"],
+            timeout=5000,
+        )
+    except PlaywrightTimeout:
+        pass
+
+    assert answered == [True], (
+        "the widget never asked, so its claim rode nothing this test controls and the "
+        f"moment it landed was the machine's: {answered}"
+    )
+    fit = page.evaluate(RAIL_FIT)
+    assert fit["rail"] == "160px", (
+        f"the widget never took its margin, so nothing here is tested: {fit['rail']}"
+    )
+    assert fit["past"] <= 1, (
+        f"the board stands {fit['past']:.0f}px outside the page's own box, holding the "
+        f"room of the box the widget then took 160px out of ({at_stamp['room']} at the "
+        f"handover, {fit['room']} now): {fit['widget']:.0f}px of widget in "
+        f"{fit['content']:.0f}px of page"
     )
     assert errors == []
     page.close()

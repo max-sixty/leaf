@@ -7410,6 +7410,10 @@ MISPLACED_BOXES = """async () => {
     };
     for (const el of main.querySelectorAll('*')) {
         if (!el.checkVisibility()) continue;
+        // Nothing inside an <svg> is the page's flow: a foreignObject clips by its
+        // nature, and mermaid's label boxes run an even 8px outside theirs on an
+        // ordinary graph — the drawing's own accounting, not the page losing words.
+        if (el.closest('svg')) continue;
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
         let a = holder(el), band = null;

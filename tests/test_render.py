@@ -1377,6 +1377,10 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "overflow: hidden'>"
     "<div id='under-border' style='margin-left: -20px; width: 300px'>The first 20px of "
     "this are behind the border.</div></div>"
+    "<svg id='drawn' width='300' height='60' xmlns='http://www.w3.org/2000/svg'>"
+    "<foreignObject width='120' height='40'>"
+    "<div xmlns='http://www.w3.org/1999/xhtml' style='width: 128px'>The drawing's own "
+    "accounting.</div></foreignObject></svg>"
     "<div id='barely' style='width: 300px; overflow: hidden'>"
     "<div id='over-by-three' style='width: 303px'>Three pixels over this one."
     "<div id='inner-box' style='position: relative; width: 200px; height: 40px; "
@@ -1414,6 +1418,9 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     )
     assert not [f for f in failures if "id=told>" in f], (
         "a box that marks its own cut was refused for making it"
+    )
+    assert not [f for f in failures if "foreignobject" in f], (
+        "a drawing's own accounting inside its svg read as the page losing words"
     )
     assert [
         f
@@ -17427,6 +17434,20 @@ graph LR
   </lf-option>
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
 </lf-options>
+<lf-options id="row-pick" choose>
+  <lf-option id="row-a">Along the fence line
+    <lf-diagram id="in-row"><pre>
+graph LR
+  A[house] --> B[shed]
+  B --> C[feeder]
+  C --> D[bath]
+  D --> E[gate]
+  E --> F[pole]
+  F --> G[box]
+</pre></lf-diagram>
+  </lf-option>
+  <lf-option id="row-b">Under the lawn in a trench</lf-option>
+</lf-options>
 <lf-board id="evidence">
   <lf-column id="e1" label="Todo"><lf-card id="ek1"><strong>With evidence</strong>
     <lf-diagram id="in-board-card"><pre>
@@ -17891,7 +17912,19 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     principle. A task's rail is drawn by `lf-task > lf-task`, so a task frames what it
     holds only where it is nested, and a note's box is `.lf-code-note`, built by the code
     block's module and worn by no tag at all. Each let a diagram out ~245px over the
-    column until the rule that draws it declared the frame."""
+    column until the rule that draws it declared the frame.
+
+    The row form is the declaration's limit, and the reason the sizing is asserted
+    too. A row option is a table hugging its words, and legacy table sizing answers
+    to content where every modern layout clamps a scroll container — so with the
+    frame declared all along, a diagram in a row grew the row, the row grew the
+    shared track, and the group's clip cut the evidence off at its border. And a
+    separated table adds its padding outside the width it is given, so every row on
+    every joined group stood 30px past its group, diagram or no diagram, the clip
+    spending the overhang out of the pick's word-room. The box a wide widget gets
+    answers to the room and never to its content (contain: inline-size, theme.css),
+    and the row keeps its reservation inside the width it states (box-sizing:
+    border-box, bundled/theme.css)."""
     page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
     boxes = page.evaluate("""() => {
         const box = (sel) => {
@@ -17909,6 +17942,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
                  metric: box('#me1'), inMetric: box('#in-metric'),
                  task: box('#t-inner'), inTask: box('#in-task'),
                  note: box('.lf-code-note'), inNote: box('#in-note'),
+                 rowGroup: box('#row-pick'), rowCell: box('#row-a'),
+                 inRow: box('#in-row'), rowPick: box('#row-a .lf-pick'),
                  ownBox: box('#own-box'), inOwnBox: box('#in-own-box') };
     }""")
 
@@ -17930,6 +17965,22 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "the diagram crossed the card's right edge, where the group's clip cuts it off: "
         f"diagram out to {boxes['diagram']['right']:.0f}, card ends at "
         f"{boxes['card']['right']:.0f}"
+    )
+    assert boxes["rowCell"]["right"] <= boxes["rowGroup"]["right"] + 1, (
+        "the row grew past the group that clips it: row out to "
+        f"{boxes['rowCell']['right']:.0f}, group ends at {boxes['rowGroup']['right']:.0f}"
+    )
+    assert boxes["inRow"]["left"] >= boxes["rowCell"]["left"] - 1, (
+        "the diagram crossed the row's left edge"
+    )
+    assert boxes["inRow"]["right"] <= boxes["rowCell"]["right"] + 1, (
+        "the diagram crossed the row's right edge, where the group's clip cuts it off: "
+        f"diagram out to {boxes['inRow']['right']:.0f}, row ends at "
+        f"{boxes['rowCell']['right']:.0f}"
+    )
+    assert boxes["rowPick"]["right"] <= boxes["rowGroup"]["right"] + 1, (
+        "the pick's word-room runs past the group and the clip spends it: pick out to "
+        f"{boxes['rowPick']['right']:.0f}, group ends at {boxes['rowGroup']['right']:.0f}"
     )
     # A board's own card is the same box asked from inside a scroller, which is where the
     # gate below had been blind: this diagram stood 332px past its card and across the

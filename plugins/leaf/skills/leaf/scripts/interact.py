@@ -7782,6 +7782,20 @@ def previous_version(url: str, versions: list) -> int | None:
     return max(earlier) if earlier else None
 
 
+# The window's third error channel, which neither of the two below carries: an `error`
+# event with no exception behind it reaches `pageerror` on nobody's account and was never
+# written to the console either. Chrome reports a ResizeObserver loop that way — a page
+# saying on every load that a piece of its own layout is going undelivered, and every
+# reader of it calling the page clean. Routed into the console, which both callers already
+# collect, and only for the events with no exception, since the rest arrive as exceptions
+# already and one fault should not be two strings.
+WINDOW_ERRORS = (
+    "addEventListener('error', (e) => {\n"
+    "  if (!e.error) console.error('window error: ' + e.message);\n"
+    "});"
+)
+
+
 def render_version(browser, url: str) -> list:
     """Everything wrong with a served version that only a browser can see: a
     console or page error, a request that 404s, a fail-soft error box, an upgrade
@@ -7821,6 +7835,7 @@ def render_version(browser, url: str) -> list:
             "response",
             lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
         )
+        page.add_init_script(WINDOW_ERRORS)
         try:
             page.goto(url, wait_until="networkidle")
             page.wait_for_function(

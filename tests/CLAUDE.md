@@ -287,6 +287,24 @@ under `sends` for the rest of that page's life and every wait after it ran its t
 the counters from both ends of the wait into the failure now, which is what tells a fact stuck while polls keep
 arriving from a page that has stopped talking at all.
 
+## An error channel nothing reads is a page that passes while reporting a fault
+
+Two channels carried what a page said had gone wrong — `pageerror` for an uncaught exception, the console for
+what the page wrote itself — and a third went unread between them. An `error` event with no exception behind
+it reaches neither, and it is not an exotic case: Chrome reports a ResizeObserver loop that way, so a page can
+say on every single load that a piece of its layout is not being delivered, with the whole suite green. A
+runtime change that put the layout's own writer inside an observation of the box that writer resizes did
+exactly that, and 754 tests had nothing to say about it; found by hand, it turned 77 of the 112 render tests
+it was first put to red the moment the channel was read. `interact.WINDOW_ERRORS` is what reads it now — the product's own string, laid in by
+`watched` here and by `render_version` there, because a channel read on one side only is the drift between the
+suite and `version check --render` in its quietest form. It routes those events into the console, which every
+reader already collects, and only the events with no exception, since the rest arrive on `pageerror` already
+and one fault should not be two strings.
+
+That the fault was in the runtime and the blindness was in the suite is the part worth keeping. A channel the
+tests do not read is not a quiet channel; it is a channel whose contents are someone else's problem, and the
+someone else is the reader of the page.
+
 ## Reloading is not resetting
 
 The panel's open state and every unsent draft are in `localStorage` and the reading position is in

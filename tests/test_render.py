@@ -678,6 +678,31 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     round_trip(page)
 
 
+def watched(page):
+    """Everything a page says went wrong, on every channel that carries it.
+
+    `pageerror` is an uncaught exception and the console is what the page itself wrote,
+    and between them a whole channel goes unread: an `error` event with no exception
+    behind it reaches neither. Chrome reports a ResizeObserver loop that way. A runtime
+    change that put the layout writer inside an observation of the box that writer
+    resizes made every load report one, and the suite called it clean — 754 tests, no
+    console output, nothing on `pageerror`. Routed into the console here, which is the
+    one channel every reader in this file already has, and only for the events with no
+    exception, since the rest arrive on `pageerror` already.
+
+    The script is `interact.WINDOW_ERRORS`, which `render_version` lays in for the same
+    reason: one implementation with two callers is what keeps `version check --render`
+    and this suite holding the same invariants, and a channel read on one side only is
+    that drift in its quietest form.
+
+    Must be called before the page navigates, the init script being what carries it."""
+    errors = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.add_init_script(interact.WINDOW_ERRORS)
+    return errors
+
+
 def open_page(
     browser,
     url,
@@ -714,9 +739,7 @@ def open_page(
     )
     # Before the first navigation, so the count is of everything this page ever asked for.
     page.lf_traffic = Traffic(page)
-    errors = []
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    errors = watched(page)
     # The console's own word for a bad response is "Failed to load resource", which
     # names nothing; carry the status and URL so a failure says what went missing.
     page.on(
@@ -17076,10 +17099,8 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     out = tmp_path / "decided.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))
 
-    errors = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     fit = page.evaluate(RAIL_FIT)
@@ -17130,10 +17151,8 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     geometry it hands over is final, so this asks the page at the moment it makes the
     claim."""
     url = serve(RAIL_AND_WIDE_PAGE)
-    errors = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    errors = watched(page)
     page.add_init_script(AT_THE_HANDOVER)
 
     laid_out = []
@@ -17545,10 +17564,8 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     out = tmp_path / "standalone.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))
 
-    errors = []
     page = browser.new_page(viewport={"width": 1400, "height": 900})
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     assert "--lf-room" not in page.evaluate(
@@ -17731,10 +17748,8 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     out = tmp_path / "standalone.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))
 
-    errors = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    errors = watched(page)
     page.on("requestfailed", lambda r: errors.append(f"unfetched {r.url}"))
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({

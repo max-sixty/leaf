@@ -8961,6 +8961,50 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     page.close()
 
 
+def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
+    """A version arriving is a navigation, and the reader's place has to ride across it.
+    The passage they were reading does; the walk's mark is paint on the document, so it
+    did not, and the reader was demoted without a word from the most exact reading of
+    where they stand to the coarsest. Standing on the third of four asks when v2
+    landed, they pressed `n` and were handed the third again — the block at the top of
+    the window is above the ask they were centred on, so the walk measured from
+    somewhere they had already walked past.
+
+    So the mark travels in the same record as the passage, and the press after the
+    version lands is the press they would have made before it."""
+    url = serve(ASKS_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    # Short enough that an ask in the middle of the window has page text above it,
+    # which is the whole of what makes the coarse reading the wrong one.
+    resized(page, 900, 400)
+
+    for ask in ASKS_IN_ORDER[:3]:
+        page.keyboard.press("n")
+        expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
+
+    (d / "versions" / "v2.html").write_text(ASKS_PAGE)
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
+    )
+    page.wait_for_url("**/v2.html*")
+    page.wait_for_function(BOTH_STAMPS)
+
+    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    # The condition the restore is for, stated rather than assumed: an earlier ask's own
+    # prose is on screen above the one the reader is standing on, so a walk reading the
+    # page alone starts behind them and steps forward onto the ask they just left.
+    assert page.evaluate("""() => {
+        const ask = document.getElementById('t-baffles').getBoundingClientRect();
+        const earlier = document.getElementById('refill-now').getBoundingClientRect();
+        return earlier.bottom > 42 && earlier.bottom <= ask.top;
+    }"""), "the reader is at the top of the window, where either reading would do"
+    page.keyboard.press("n")
+    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    assert errors == []
+    page.close()
+
+
 # One target of ordinary height and one taller than any viewport, both far enough down
 # that arriving at either is a real scroll.
 TRAVEL_PAGE = f"""<!doctype html>

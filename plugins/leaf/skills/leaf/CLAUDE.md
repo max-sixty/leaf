@@ -951,6 +951,20 @@ have no page position to measure from, and the head of the list is the right
 answer there. The tell is not "does this walk carry state" but "is where the
 reader is a position in what this walk walks".
 
+A version arriving is a navigation, and it takes the three most direct of those
+readings with it: focus, the selection and the walk's mark are all paint on a
+document that has just been replaced. Only the reading position rode across (view
+continuity), so the reader kept their place on the page and lost their place in
+the walk, and nothing said so. Standing on the third of four asks when the version
+landed, they pressed `n` and were handed the third again — the block at the top of
+the window is above an ask the walk had centred, so the walk measured from
+somewhere they had already walked past. The mark travels in the same record as the
+passage now: one place, both readings of it. Focus and the selection get no such
+record and are not owed one. A focus put back would leave the reader's next Space
+pressing a control rather than scrolling the page, which is what "the reader has
+to be standing somewhere" is about, and the words a selection covered are not
+promised to survive the revision.
+
 ## A widget's chrome outlives its handlers
 
 `lf-shot` flips between two screenshots with a checkbox, a label over the image

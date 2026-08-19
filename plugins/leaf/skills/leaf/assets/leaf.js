@@ -5156,13 +5156,16 @@ function findQuote(text, quote, anchor, within) {
 
 // ---------- view continuity ----------
 // Following a new version is a navigation, so without help the reader lands at the top
-// of a fresh document mid-session. The passage they were reading rides across in
-// tabStore — per-tab like unsent drafts, because a reading position belongs to a
-// tab and shouldn't outlive it. It travels as a landmark rather than a pixel offset,
-// since content moves between versions: re-find the passage by its text within its
-// section, then the section alone, and only fall back to the raw offset when neither
-// survived the revision. The panel's own open state is restored separately (PANEL_KEY);
-// because that runs first, the column is already reflowed by the time we scroll.
+// of a fresh document mid-session, standing nowhere in the walk they were making. Where
+// they are rides across in tabStore — per-tab like unsent drafts, because a place in a
+// page belongs to a tab and shouldn't outlive it. Two things are recorded, because
+// askPosition reads two the runtime can write down: the passage they were reading, and
+// the ask the n/p walk had stepped them to. The passage travels as a landmark rather
+// than a pixel offset, since content moves between versions: re-find it by its text
+// within its section, then the section alone, and only fall back to the raw offset when
+// neither survived the revision. The panel's own open state is restored separately
+// (PANEL_KEY); because that runs first, the column is already reflowed by the time we
+// scroll.
 const VIEW_KEY = "lf-view";
 
 // The page's own text blocks the reader can see, in document order, with the rect of each
@@ -5188,6 +5191,11 @@ function* blocksOnScreen() {
 // to the section, which doesn't absorb content added above the reader inside it.
 function captureView() {
   const view = { v: VNUM, y: pageScroller.scrollTop };
+  // Where the ask walk is standing, which is the reader's place stated more exactly than
+  // any block can state it — the walk put them there on purpose. The mark is the walk's
+  // whole memory, and it is paint on the document, so this is the only way it survives
+  // the document being replaced.
+  view.ask = document.querySelector(`[${PAGE_PAINT_ATTRIBUTE.ask}]`)?.id;
   for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
     if (!view.section && section) {
@@ -5219,6 +5227,17 @@ function captureView() {
 const jumpBy = (dy, behavior = "instant") =>
   pageScroller.scrollBy({ top: dy, behavior });
 function restoreView(view) {
+  // The walk's standing, put back before the scroll below restores the coarser reading of
+  // the same fact — and put back whether or not this version answered the ask, since an
+  // ask the reader has not stepped off is still where they are standing. The document's
+  // own lookup rather than elementById: the ask list is the document's (openAsks), so a
+  // mark written into a shadow tree is one neither askPosition nor stepAsk's clear could
+  // ever see again. A thread's ask is not here yet — the panel is rebuilt from the log on
+  // the first poll, which is behind this — so the record answers for the page's asks and
+  // says nothing about the panel's, rather than restoring a second time later over a mark
+  // the reader has made since.
+  const standing = view.ask && document.getElementById(view.ask);
+  if (standing) standing.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   if (found?.segments) {

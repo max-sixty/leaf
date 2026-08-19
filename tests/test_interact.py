@@ -3328,6 +3328,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     a table) already gives the aim something to hold."""
     blocks = (
         "<pre><code>uv run backfill --check</code></pre>"
+        '<aside class="sidenote">The retry path is deliberately separate.</aside>'
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
     )
     (page_dir / "versions" / "v1.html").write_text(
@@ -3338,8 +3339,9 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     advice = [line for line in result.output.splitlines() if "unpointable" in line]
-    assert len(advice) == 2, result.output
+    assert len(advice) == 3, result.output
     assert any("<pre>" in line and "#plan" in line for line in advice)
+    assert any("<aside>" in line and "#plan" in line for line in advice)
     assert any("<section>" in line for line in advice)
     assert not any(
         "<table>" in line for line in advice
@@ -3349,7 +3351,9 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>',
+            '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
+            '<aside class="sidenote" id="retry-note">The retry path is deliberately '
+            "separate.</aside>",
         )
     )
     result = check(page_dir)

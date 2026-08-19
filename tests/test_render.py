@@ -2166,6 +2166,33 @@ PAGE_MARKUP = """() => [...document.body.children]
     .join("").replaceAll(' class=""', "")"""
 
 
+def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
+    """The sidenote authors copy carries the identity its advertised aim needs.
+
+    A handwritten fixture would prove the runtime and leave the catalog free to
+    regress to an id-less note that renders normally but gives Alt nothing to outline.
+    Drive that example itself through the whole gesture, from outline to anchored
+    composer."""
+    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    sidenote = registry["$idioms"]["aside.sidenote"]["example"]
+    html = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
+    )
+    page, errors = open_page(browser, serve(html))
+    note = page.locator("#logout-frequency")
+
+    note.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "logout-frequency")
+    note.click()
+    page.keyboard.up("Alt")
+
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(DRAFT_MARK) == "logout-frequency"
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, example):
     """⌥-click takes the item under the pointer, and that is the whole of what it does.

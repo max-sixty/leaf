@@ -16316,6 +16316,11 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     newer = "The newer shared generation."
     stale_say.locator("textarea").fill(old)
     expect(current_say.locator("textarea")).to_have_value(old)
+    # A suppressed storage event holds a tab stale for one poll interval and no longer:
+    # every poll reconciles the draft store against storage before settling anything
+    # (settleAcceptedDrafts), so the staleness the send is tested against is a window a
+    # loaded runner closes before the click. Refusing the poll states it instead.
+    stale.route("**/api/state*", refuse)
     current_say.locator("textarea").fill(newer)
     expect(stale_say.locator("textarea")).to_have_value(old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
@@ -16354,6 +16359,9 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     newer = "The newer edit now owned by shared storage."
     stale_draft.locator("textarea").fill(old)
     expect(current_draft.locator("textarea")).to_have_value(old)
+    # As above: the stale tab's own poll would reconcile the store and end the
+    # staleness the cancel is tested against, so the poll is stopped rather than raced.
+    stale.route("**/api/state*", refuse)
     current_draft.locator("textarea").fill(newer)
     expect(stale_draft.locator("textarea")).to_have_value(old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
@@ -16390,6 +16398,11 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     old_attempt = stale.evaluate(
         "() => JSON.parse(localStorage.getItem('lf-draft:say:jobs')).attempt"
     )
+    # The poll released below is the subject, so every poll before it is stopped: a
+    # reconciliation that lands early leaves the stale tab holding the newer generation
+    # already, and settlement then has nothing older to be tempted by — the test passes
+    # having asked nothing.
+    stale.route("**/api/state*", refuse)
     current_say.locator("textarea").fill(newer)
     expect(stale_say.locator("textarea")).to_have_value(old)
 
@@ -16404,6 +16417,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
             "attempt": old_attempt,
         },
     )
+    stale.unroute("**/api/state*")
     told(stale)
     assert current.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     expect(stale_say.locator("textarea")).to_have_value(newer)

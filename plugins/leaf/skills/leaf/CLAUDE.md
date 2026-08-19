@@ -41,8 +41,24 @@ is clear of the box it reads. That fixed paper as well, a box going where the ch
 a padding on the scroll container stays behind: 42px of blank stood over the first line of every
 printed page for a bar that was not on it.
 
+Two more writes were hiding behind that one. `syncLayout` set body's `margin-right` to the strip
+an open panel holds, and it toggled `data-lf-cramped`, which is body's own padding on the theme's
+side (`theme.css`). Neither was ever punished, and for two different reasons: the margin
+transitions, so its used value did not move until the frame after the write and the round the
+write landed in closed intact; the veto was reached from a `resize` listener that ran ahead of
+the observation, so its resize was never inside a round at all. Correctness resting on an easing
+curve is not correctness, and a second trigger for one writer is what the other kind looks like
+from outside.
+
+The strip is a media query's now, on an attribute `setPanel` states on body, and the veto is a
+function of its own on the two occasions that decide it — the window and the panel — neither of
+which is a reading of the box. What is left in `syncLayout` writes only chrome, and the `resize`
+listener went with the writes: body is the window's own height and width, so the window is one
+more way that box moves.
+
 The general form is that a fact derived from a box is not derived by a writer of that box. Where
-one function has to be both, the write moves to a box nobody is measuring.
+one function has to be both, the write moves to a box nobody is measuring, or to the cascade,
+which is not that function.
 
 ## A gesture the log has not taken outranks everything the page has read
 

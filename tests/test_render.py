@@ -837,7 +837,7 @@ def panel_settled(page, open=True):
     one is about a layout that exists for a sixth of a second and then doesn't.
 
     Ask the transition itself, via getAnimations(): the call flushes pending style, so
-    the transition the margin write just armed is visible to the very first read, a
+    the transition the class just brought into play is visible to the very first read, a
     finished one has left the list, and a change that runs untransitioned — the
     covering sheet, a pre-stamp load, reduced motion — reports empty and returns at
     once. Waiting a duration instead would encode a number the stylesheet is free to
@@ -854,18 +854,21 @@ def resized(page, width, height):
     """Resize the window, and wait for the page to have handled it.
 
     `set_viewport_size` returns once the browser is the new size, which is a fact about
-    the browser and not about the page: the runtime's own resize listener may not have
-    run yet, so syncLayout's layout — the margin, the covering sheet, and with it which
-    region a half-page key moves — can still be the old window's. A test that reads
-    layout on that frame reads the width it just left, and only on a machine loaded
-    enough to fit the read in first, which is the shape of every wait this suite has
-    had to learn (`tests/CLAUDE.md`, "A wait consumes a fact the system states").
+    the browser and not about the page: the page may not have been told yet, so its
+    layout — the strip the panel holds, the covering sheet, and with it which region a
+    half-page key moves — can still be the old window's. A test that reads layout on
+    that frame reads the width it just left, and only on a machine loaded enough to fit
+    the read in first, which is the shape of every wait this suite has had to learn
+    (`tests/CLAUDE.md`, "A wait consumes a fact the system states").
 
-    The fact the page states here is the event reaching its listeners. The runtime
-    registered its own when it loaded, so one added now runs after it on the same
-    event, and a count of those is the page saying it has caught up. What syncLayout
-    then wrote is a separate question, and a test whose subject is the new layout still
-    waits for the piece of it that it is about.
+    The fact the page states here is the event reaching its listeners, counted by one
+    added now: the runtime registered its own when it loaded, so this one runs after
+    them. The rest of the page's answer lands in the same rendering update — the strip
+    the panel holds is the stylesheet's, and syncLayout runs from an observation of the
+    box, which Chrome delivers before that update ends — so the whole of it is behind
+    us by the time the next command reaches the page at all. What the answer moved is a
+    separate question, and a test whose subject is the new layout still waits for the
+    piece of it that it is about; a margin easing into place is the ordinary case.
 
     A window already the size asked for fires nothing, so waiting on it would hang out
     a whole timeout rather than return at once. The sweep that walks each example at
@@ -4573,8 +4576,8 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     covered page gives up scrolling with its width: a wheel moves the sheet's
     thread list and never the page behind it. The page still follows navigation —
     a quote click positions it behind the sheet — and closing hands scrolling
-    back right there. The resize path reaches the same states, since the layout's
-    one writer runs from resize too."""
+    back right there. The resize path reaches the same states, the posture being a
+    media query's and the panel stating only that it is open."""
     page, _ = open_page(
         browser, serve(LONG_PAGE, comments=12, anchored=[("p40", "Paragraph 40.")])
     )
@@ -4643,11 +4646,11 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     panel_settled(page)
     resized(page, 1000, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.body).overflowY !== 'hidden' && document.body.style.marginRight !== ''"
+        "() => getComputedStyle(document.body).overflowY !== 'hidden' && getComputedStyle(document.body).marginRight !== '0px'"
     )
     resized(page, 500, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.body).overflowY === 'hidden' && document.body.style.marginRight === ''"
+        "() => getComputedStyle(document.body).overflowY === 'hidden' && getComputedStyle(document.body).marginRight === '0px'"
     )
     page.close()
 

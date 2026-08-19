@@ -335,6 +335,14 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
     max-width: none;
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
+    /* The box's width is the room's and never its content's — that is the whole
+     * contract above — and this is where layout is told so. Without it the content's
+     * minimum is what every shrink-to-fit holder is floored at, and the row-form
+     * option is one: a table box hugging its label hugged a 985px graph instead,
+     * grew past the joined group's border, and the group's clip cut the exhibit off
+     * with nothing reported. Size containment zeroes the box's say in any ancestor's
+     * intrinsic width; what it holds already scrolls. */
+    contain: inline-size;
   }
   /* The two kinds of wide widget differ in one thing, how far the box may reach, and that
    * follows from what decides their width. A box (a board) lays its columns out into

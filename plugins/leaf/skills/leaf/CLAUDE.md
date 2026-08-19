@@ -414,6 +414,28 @@ built by the module and worn by no tag at all. Neither said so, and a diagram in
 column. What found them was the gate, put to a page that stood an exhibit in each; going down the stylesheet tag by
 tag is what had missed them.
 
+Which boxes owe the declaration is a line the registry already draws. The declaration is for the page's own flow,
+and an entry says whether flow can land in a widget: `x-content: prose` or `items` admits it, `data` and `none` do
+not, and `x-inline` stands a widget among the words around it, where there is no block flow to frame. So a chip's
+tint declares nothing — a pill over a run of the author's words is not a frame, and `x-inline` is it saying so —
+and the boxes a data widget builds inside its own rendering (a highlighted code line, a tree's guides, a shot's
+frame) are the module's own inset, spaced by the module that draws them. What holds those honest is not a list but
+the gates: a drawn box that reserves a child's margin reports as a trapped margin, and content across a clip
+reports as a cut, so a missing declaration is caught on the page where it costs.
+
+A declaration cannot hold room inside a box whose own sizing answers to its content. A row-form option is a table
+hugging its words, and legacy table sizing takes a drawing at its drawn width where every modern layout clamps a
+scroll container — so with the frame declared all along, a diagram in a row option grew the row past its joined
+group, and the group's clip cut the evidence off at the border. A separated table also adds its padding outside
+the width it is given, so every row on every joined group stood 30px past it with no diagram anywhere, the clip
+spending the overhang out of the pick's word-room. Both were invisible because the gate excused whatever stood
+inside any container that took its overflow, and that excuse is worth only what the reader can tell from the
+container. So a wide widget's box states that its width is the room's and never its content's
+(`contain: inline-size`, theme.css), the row keeps its reservation inside the width it states
+(`box-sizing: border-box`, bundled/theme.css), and the gate asks the container's kind (`PAST_THE_COLUMN`): a
+scroller reaches what ran out on the side it scrolls toward, a marked cut (`text-overflow`) says there is a rest,
+and a box that only clips shows nothing past its edge — so a box drawn outside one is reported.
+
 Which child is at that edge is a question about the page's own blocks, and `:first-child` is the DOM's answer
 to it. The two agree only where no module has written anything — a pick mark is appended and positioned out of
 the flow, a quiet word is clipped and inserted after the title, and each takes the trim off the block the reader

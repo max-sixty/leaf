@@ -410,6 +410,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
   lf-options[choose]:not([settled]):not(lf-specimen *) {
     display: grid; gap: 1px; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
+    /* The joined group draws a frame, so it says so, like every box that draws one
+     * (--lf-frame, theme.css). Its cells declare their own; this covers what stands
+     * beside them. */
+    --lf-frame: 1;
     /* The hairline is the cell's own outer shadow rather than the gap showing a colour
      * behind it. Not every child is a cell — the thread multi-question's Done press sits
      * here with a margin of its own — and a colour behind would band whatever room a

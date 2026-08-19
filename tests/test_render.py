@@ -620,10 +620,9 @@ def refuse(route):
     route.abort("aborted")
 
 
-# Both stamps a page earns by finishing, which is what anything meaning "this page is
-# ready" wants. `lf-upgraded` is the document's — widgets upgraded, the anchor pass run,
-# the geometry final — and `lf-applied` is the log's, written at the end of every replay
-# pass, so its presence is the page saying a poll has landed and been rendered in full.
+# The two state-readiness stamps: `lf-upgraded` is the document's — widgets upgraded and
+# the anchor pass run — and `lf-applied` is the log's, written at the end of every replay
+# pass. They say the poll's state was applied, not that later layout work has settled.
 # The runtime stamps the document in the same breath as it starts that first poll and
 # never awaits it, so a page can be done becoming itself while knowing nothing of what
 # the reader has decided or which version is newest.
@@ -668,7 +667,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
         "request", predicate=lambda r: "/api/event" in r.url, timeout=5000
     )
     page.unroute("**/api/event")
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
     t = _traffic(page)
     assert t.acked >= t.sends, (
@@ -709,11 +708,11 @@ def open_page(
     *,
     pin=False,
     init_script=None,
-    wait_until="networkidle",
+    wait_until="load",
     context=None,
     upgraded=True,
 ):
-    """A page with its console errors collected, done becoming itself.
+    """A page with its console errors collected and its document and log state applied.
 
     `pin` asks for the version the URL names rather than the newest, and is a keyword
     because the URL a handover carries already has a query holding the page's key: a
@@ -722,6 +721,10 @@ def open_page(
     `upgraded` takes the page's own two stamps for having finished, `BOTH_STAMPS` above
     saying what each of them answers for. Twenty-two tests stood on the pair the day it
     was written here, and a dockerised Linux runner had named three.
+
+    Navigation waits for `load`, so the stylesheet and media that determine layout have
+    arrived. Network silence is not a readiness fact; the stamps state that the document
+    and its log finished applying.
 
     False is for the one test whose subject is the interval between them, which holds the
     registry fetch open and so never earns either. It waits on the banner instead, which
@@ -771,9 +774,9 @@ def primed(browser, prepare):
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
     that has earned its keep: the runtime stamps `lf-upgraded` in the same breath as it
-    starts that poll, never awaiting it, so a refusal puts replay on the far side of both
-    the stamp and networkidle — where a slow machine would have put it — deterministically
-    and in a second."""
+    starts that poll, never awaiting it, so a refusal puts replay on the far side of the
+    document's stamp — where a slow machine would have put it — deterministically and in
+    a second."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)
@@ -14866,7 +14869,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     expect(page.locator(".lf-latest-chip")).to_be_visible()
     assert "/v1.html" in page.url, "an empty live edit was mistaken for no composition"
 
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
     expect(draft.locator("textarea")).to_be_visible()
     expect(draft.locator("textarea")).to_have_value("")
@@ -15831,9 +15834,9 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     """`open_page` promises a page that has finished becoming itself, and the log is half
     of what that means. The instrument is a refusal of the first `/api/state`. Replay then
-    lands on the 2s retry, past both the document's stamp and networkidle, which is where
-    a loaded Linux runner put it — so this press meets the same page those runs handed the
-    test above, on any machine and in a second.
+    lands on the 2s retry, past the document's stamp, which is where a loaded Linux runner
+    put it — so this press meets the same page those runs handed the test above, on any
+    machine and in a second.
 
     Only a press can state it. A read lives through the interval, since `expect` re-asks
     for five seconds and the retry lands in two; a keystroke into a page that has no

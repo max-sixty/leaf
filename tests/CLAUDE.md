@@ -161,10 +161,12 @@ So a wait that is missing now passes on every machine quick enough to hide it, a
 shape arrives by luck on a genuinely busy one rather than on demand.
 
 The luck came, and it found the front door. `open_page` waited for the document's stamp and not the log's,
-so the page it handed over had heard nothing the log says. This machine closes that gap inside
-`networkidle`; a dockerised Linux runner did not, and three tests lost a keypress into a page with nothing
+so the page it handed over had heard nothing the log says. Network quiet happened to close that gap on
+this machine; a dockerised Linux runner did not, and three tests lost a keypress into a page with nothing
 yet to answer it. All three were presses, since a press is the read with no second chance — `expect`
-re-asks for five seconds, a keystroke is gone. So `open_page` waits for `lf-applied` as well.
+re-asks for five seconds, a keystroke is gone. So navigation waits for the load event, which says the
+resources shaping the page have arrived, and `open_page` waits for `lf-applied`, which says the log has;
+the two stated facts replace a quiet window for state readiness.
 
 ## A race this machine won't lose is stated rather than run for
 
@@ -190,7 +192,7 @@ what precedes the reach is `Traffic` counting the request out.
 
 A refusal states the other timing a busy machine supplies: where the send race needs one request held in the
 wire, a page that has not heard the log needs the first `/api/state` stopped, so replay lands on the 2s retry
-past both the upgrade stamp and networkidle (`test_a_page_the_suite_opens_has_read_the_log`). Refusals are
+past the upgrade stamp (`test_a_page_the_suite_opens_has_read_the_log`). Refusals are
 cheap enough to run over everything, which is worth doing when the fix is at the front door rather than in
 one test: refuse the first poll of every page `open_page` makes, throw it away afterwards, and the suite says
 how far the fault reached — twenty-two tests failed without the log's stamp waited for and passed with it,

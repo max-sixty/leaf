@@ -434,6 +434,13 @@ def test_the_launcher_starts_where_the_locks_own_urls_cannot_be_served(tmp_path)
         "Build and run interactive pages a session shares with its user."
         in result.stdout
     )
+    # The fallback re-resolves a header with no upper bounds and writes the result
+    # over the pins, and the run behind it succeeds — so it says so on stderr,
+    # which is the only account anyone gets of a moved pin.
+    assert "resolving the header against this host's index" in result.stderr
+    # The resolve is paid once: it rewrites the lock to what this host's index
+    # served, so the next run is pinned again rather than resolving afresh.
+    assert "127.0.0.1:1" not in lock.read_text()
 
 
 def case_alias(path):

@@ -38,10 +38,15 @@ fi
 # mirror host pays that resolve once and pins again afterwards.
 #
 # The ask costs a few milliseconds where the wheels are already there, which is
-# every host that was working before, and it is silent because the run behind it
-# reports whatever it hits.
+# every host that was working before. The fallback says so on the way past,
+# because the run behind it succeeds and so reports nothing: any failed ask
+# reaches it, a blip as much as a mirror, and what follows re-resolves a header
+# with no upper bound and writes the result over the pins.
 resolve=
-uv sync --script "$script" >/dev/null 2>&1 || resolve=--upgrade
+if ! uv sync --script "$script" >/dev/null 2>&1; then
+  resolve=--upgrade
+  echo "leaf: the lock's own URLs cannot be served here; resolving the header against this host's index and rewriting the lock." >&2
+fi
 
 if [ "${1-}" = "version" ] && [ "${2-}" = "export" ]; then
   exec uv run $resolve --with playwright "$script" "$@"

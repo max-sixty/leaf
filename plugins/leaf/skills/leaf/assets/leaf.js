@@ -7191,10 +7191,17 @@ function stepPage(fraction) {
       glide = null; // the box moved under another hand; theirs wins
       return;
     }
-    const t = Math.min(1, (now - t0) / PAGE_MS);
-    const top = goal - (goal - start) * (1 - t) ** 3;
-    box.scrollTo({ top, behavior: "instant" });
-    glide.wrote = top;
+    // Floored as well as capped: a rAF timestamp is its frame's start, which can precede
+    // the press that scheduled the tick, and an unfloored t walks the ease out past the
+    // start — to a write the box clamps, which the next tick then read as another hand.
+    const t = Math.max(0, Math.min(1, (now - t0) / PAGE_MS));
+    box.scrollTo({
+      top: goal - (goal - start) * (1 - t) ** 3,
+      behavior: "instant",
+    });
+    // Where the write left the box, not what it asked for: the box clamps at its ends
+    // and snaps to pixels, and the claim the next tick tests is about the box.
+    glide.wrote = box.scrollTop;
     if (t < 1) glide.raf = requestAnimationFrame(tick);
     else glide = null;
   };

@@ -5444,10 +5444,14 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
         return real_socket(family, *args, **kwargs)
 
     monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError) as refused:
         interact.server_at(
             "fd7a:115c:a1e0::1", 0, interact.handler_for(page_dir, TOKEN)
         )
+    # Name the errno, or the assertion is satisfied on a v6-capable machine by
+    # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
+    # nothing about whether the family refusal under test was ever reached.
+    assert refused.value.errno == errno.EAFNOSUPPORT
 
     httpd = interact.server_at("::", 0, interact.handler_for(page_dir, TOKEN))
     assert httpd.socket.family == socket.AF_INET

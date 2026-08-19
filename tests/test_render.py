@@ -16240,15 +16240,6 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",
     )
-    # Part of what "stale tab" means here, rather than a step timed against the other
-    # tab's write. A suppressed storage event holds a tab stale for one poll interval and
-    # no longer: every poll reconciles the draft store against shared storage before
-    # settling anything (settleAcceptedDrafts), which is the window a loaded runner
-    # closes. `page.route` reaches no request already in the wire, so the refusal is
-    # registered here — before this tab has typed anything and while storage holds
-    # nothing newer than it does — and a poll in flight at this moment can only
-    # reconcile it to what it already holds.
-    stale.route("**/api/state*", refuse)
     current, current_errors = open_page(browser, url, context=one_reader)
     stale_say = stale.locator("#jobs > .lf-conversation > .lf-say")
     current_say = current.locator("#jobs > .lf-conversation > .lf-say")
@@ -16285,9 +16276,6 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
             event.stopImmediatePropagation();
         }, true);""",
     )
-    # As above: the poll is stopped from this tab's first breath, so the staleness the
-    # cancel is tested against is stated rather than raced.
-    stale.route("**/api/state*", refuse)
     current, current_errors = open_page(browser, url, context=one_reader)
     stale_draft = stale.locator("#draft-ops")
     current_draft = current.locator("#draft-ops")
@@ -16315,6 +16303,10 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
 ):
     """Log reconciliation settles only the generation still shared by storage."""
     url = serve(ASK_PAGE)
+    # The hold costs the most here, where the poll released at the end is the subject
+    # rather than an interruption: an earlier poll reconciling this tab onto the newer
+    # generation leaves settlement nothing older to be tempted by, so the assertions
+    # below would pass while asking nothing rather than fail.
     stale, stale_errors = open_page(
         browser,
         url,
@@ -16323,10 +16315,6 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",
     )
-    # As above, and here the poll released at the end is the subject rather than an
-    # interruption: it has to meet the log holding the old attempt while this tab's cache
-    # still holds it, so no earlier poll may reconcile the tab onto the newer generation.
-    stale.route("**/api/state*", refuse)
     current, current_errors = open_page(browser, url, context=one_reader)
     stale_say = stale.locator("#jobs > .lf-conversation > .lf-say")
     current_say = current.locator("#jobs > .lf-conversation > .lf-say")
@@ -16352,8 +16340,9 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
         },
     )
     # Settlement reconciles before it claims, so this poll adopts the newer generation
-    # and leaves it standing. Released with the older attempt in the log and the older
-    # generation still cached, which is the only arrangement that asks anything.
+    # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
+    # with the older attempt in the log and the older generation still cached, which is
+    # the only arrangement that asks anything.
     stale.unroute("**/api/state*")
     told(stale)
     assert current.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer

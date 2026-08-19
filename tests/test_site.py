@@ -43,6 +43,10 @@ _spec.loader.exec_module(site_build)
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
 
+# The module-scoped build and host are one shared setup, so they belong to one
+# xdist work unit rather than being rebuilt independently on every worker.
+pytestmark = pytest.mark.xdist_group(name="site")
+
 
 def pages_under(directory):
     """The pages a sweep walks, proved to exist before it walks them. Four of the
@@ -85,7 +89,7 @@ def opened(page, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
     banner the reader would not recognize (tests/CLAUDE.md)."""
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
 
 
@@ -369,7 +373,7 @@ def test_a_decision_holds_across_a_reload(site, hosted, browser):
         )
         assert "opt-jwt" in page.evaluate(chosen)
 
-        page.reload(wait_until="networkidle")
+        page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#session-options")).to_have_attribute(
             "data-lf-pending", "1"

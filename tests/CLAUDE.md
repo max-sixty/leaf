@@ -46,6 +46,31 @@ already fetched can answer in its place, and `UV_FROZEN` keeps that same dead UR
 Blocking the route instead — a dead `HTTPS_PROXY` — leaves the key alone, so an entry still inside pypi's
 ten-minute cache header answers without asking and the run passes though it was never offline.
 
+## A process the suite starts ends with the run
+
+No cleanup the suite runs can be the guarantee. A page's server is spawned into a session of its own — that is
+what lets it outlive the command that starts it — so a killed run reaches neither a `finally` nor the process,
+and what stays behind serves a pytest tmp directory until the machine restarts. Three were doing that when these
+fixtures were written, the oldest four hours old. The kills were not out of the blue either: a wait ends on a
+comment or on the leaf ending, the helper posting that comment gave up after ten seconds, and `cmd_wait` then
+held until somebody killed the run. Whatever a test arranges to end a blocking call has to end it on the failing
+path too, or the failure arrives as a hang.
+
+Only leaf's own reaper reaches such a process: a claimed page's server stops once the claimant pid is gone. So
+the run claims as a session of its own under the worker's pid (`isolated_session`), and a server any test causes
+leaf to spawn goes when its worker does, killed or not. That is also why a test about a command run from outside
+a host session says so — `sessionless`, or `codex_env` for one run under Codex — rather than relying on there
+being no identity around.
+
+The fixtures then handle the ordinary end of a test: `_no_page_outlives_its_test` stops any page still being
+served, and `spawn` ends a process the test started itself. A new test wants those rather than a `finally`,
+which runs on the failure and not on the kill. The sweep walks for pages rather than reading a list the tests
+append to, because the serve nobody remembered is the one it is there for.
+
+A standing serve declines the claim and so has no reaper at all, which is the arrangement under test rather than
+a gap in the fixtures. Those tests are the one place a killed run can still strand a server; they hold one up
+for a second or two and stop it as they end.
+
 ## A round trip is not over when its response lands
 
 The runtime answers a post by polling, so what the page does about a send arrives with that

@@ -5276,20 +5276,13 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     assert interact.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
 
-def test_the_stated_host_wildcard_serves_both_families(page_dir):
+def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
     """The URL promises whatever the stated name resolves to, so the socket must
     answer both: "::" with V6ONLY off reaches IPv4 as ::ffff:... — an AF_INET
     0.0.0.0 would leave an IPv6-only user a URL nothing listens on."""
-    httpd = interact.DualStackHTTPServer(
-        ("::", 0), interact.handler_for(page_dir, TOKEN)
-    )
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    port = httpd.server_address[1]
-    try:
-        for loopback in ("127.0.0.1", "[::1]"):
-            assert fetch(f"http://{loopback}:{port}/api/state")[0] == 200, loopback
-    finally:
-        httpd.shutdown()
+    port = urllib.parse.urlsplit(wildcard_server).port
+    for loopback in ("127.0.0.1", "[::1]"):
+        assert fetch(f"http://{loopback}:{port}/api/state")[0] == 200, loopback
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(
@@ -5358,12 +5351,31 @@ def serving(directory, record: dict) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _release_held_records():
-    """Every lock a test took, dropped with it — a held record outliving its
-    test would make the next one read a page as served."""
+def _no_page_outlives_its_test(tmp_path):
+    """Nothing the suite put up is still up when the test that put it there ends.
+
+    The suite's own pretend servers go first. `serving` holds a record open under
+    this process's pid, and a stop read off one would send SIGTERM to the worker,
+    so dropping those locks is what makes the sweep below safe: what still reads
+    as served afterwards is a process leaf really spawned.
+
+    Then every page under the directories a test can write to. A server `server
+    start` or a revival puts up is spawned into a session of its own, so no Popen
+    handle reaches it and `leaf server stop` is the door; and the sweep walks for
+    them rather than reading a list the tests append to, since the serve nobody
+    remembered is the one this is here for.
+
+    Both roots are read before the test rather than after, because the override
+    that puts the state home somewhere temporary is another fixture's to undo,
+    and the home derived without it is the developer's own."""
+    state = interact.state_home()
     yield
     while HELD_RECORDS:
         HELD_RECORDS.pop().close()
+    for root in (tmp_path, state):
+        for record in root.rglob("server.json"):
+            if interact.running_server(record.parent):
+                interact.cmd_stop(record.parent)
 
 
 def neighbour_page(directory, title=None, dead=False, published=True):
@@ -5643,46 +5655,70 @@ def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     assert status_path.read_bytes() == before
 
 
-def comment_once_served(page_dir):
+@pytest.fixture
+def comment_once_served():
     """Post a user comment as soon as a server answers for the page, so a wait
     that had to revive one has something to return on: the revival is the fact
-    under test and the comment is only what ends the wait."""
+    under test and the comment is only what ends the wait.
 
-    def post():
-        for _ in range(100):
-            time.sleep(0.1)
-            if interact.running_server(page_dir):
-                interact.append_event(
-                    page_dir, {"kind": "comment", "author": "user", "text": "hi"}
-                )
-                return
+    A wait ends on someone speaking or on the leaf ending, and this owes the test
+    one of the two. With neither, `cmd_wait` holds forever and the run has to be
+    killed — which is how a revived server got stranded, the kill reaching
+    neither the wait's own stop nor a page that had declined the claim."""
+    stopped = threading.Event()
+    posting = []
 
-    threading.Thread(target=post, daemon=True).start()
+    def watch(page_dir):
+        deadline = time.monotonic() + 30
+
+        def post():
+            while not stopped.wait(0.1):
+                if interact.running_server(page_dir):
+                    interact.append_event(
+                        page_dir, {"kind": "comment", "author": "user", "text": "hi"}
+                    )
+                    return
+                if time.monotonic() > deadline:
+                    interact.cmd_status(page_dir, "idle", "no server came up")
+                    return
+
+        thread = threading.Thread(target=post, daemon=True)
+        thread.start()
+        posting.append(thread)
+
+    yield watch
+    stopped.set()
+    for thread in posting:
+        thread.join(timeout=5)
 
 
-def test_wait_restarts_a_server_that_died_under_it(page_dir, capsys):
+def test_wait_restarts_a_server_that_died_under_it(
+    page_dir, comment_once_served, capsys
+):
     """A page whose server died is offline in the user's browser and nowhere
     else — so `leaf wait`, the one thing positioned to notice, brings it back
     rather than exiting and leaving the discovery to the user."""
 
     comment_once_served(page_dir)
-    try:
-        assert interact.cmd_wait(page_dir) == 0  # no server.json at all when it starts
-        info = interact.running_server(page_dir)
-        # The revived server has to answer on the URL it published, key included:
-        # the user's browser has been polling that address since it died.
-        assert info
-        state = urllib.parse.urlsplit(info["url"])
-        assert (
-            urllib.request.urlopen(state._replace(path="/api/state").geturl()).status
-            == 200
-        )
-        assert "server had died; restarted" in capsys.readouterr().err
-    finally:
-        interact.cmd_stop(page_dir)
+    assert interact.cmd_wait(page_dir) == 0  # no server.json at all when it starts
+    info = interact.running_server(page_dir)
+    # The revived server has to answer on the URL it published, key included:
+    # the user's browser has been polling that address since it died.
+    assert info
+    state = urllib.parse.urlsplit(info["url"])
+    assert (
+        urllib.request.urlopen(state._replace(path="/api/state").geturl()).status == 200
+    )
+    assert "server had died; restarted" in capsys.readouterr().err
+    # A wait claims the page it names, so what it revives is the claiming
+    # session's server and dies with that session. Here the session is the
+    # worker (conftest), which is what keeps a killed run from stranding this.
+    assert not interact.standing_server(page_dir)
 
 
-def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(claimed):
+def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
+    claimed, comment_once_served
+):
     """A standing page comes back standing. The lifetime is the page's record
     rather than the reviving process's, so the restarts a page doesn't choose —
     a crash, the revival a `leaf wait` makes under it — leave it as the serve
@@ -5695,15 +5731,12 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(claimed):
         {"host": "127.0.0.1", "bind": "127.0.0.1", "lifetime": "standing"},
     )
     comment_once_served(claimed)
-    try:
-        assert interact.cmd_wait(claimed) == 0
-        # The reviving session did claim the page, so a lifetime read off this
-        # launch would have said "session" — the claim is what the standing
-        # record has to outrank.
-        assert interact.read_json(claimed / "session.json")["id"] == "s1"
-        assert interact.standing_server(claimed)
-    finally:
-        interact.cmd_stop(claimed)
+    assert interact.cmd_wait(claimed) == 0
+    # The reviving session did claim the page, so a lifetime read off this
+    # launch would have said "session" — the claim is what the standing
+    # record has to outrank.
+    assert interact.read_json(claimed / "session.json")["id"] == "s1"
+    assert interact.standing_server(claimed)
 
 
 def test_wait_ends_when_the_leaf_does(page_dir):
@@ -5854,8 +5887,9 @@ def codex_program(tmp_path_factory):
     return program
 
 
-def under_codex(codex_program, command, env, **kwargs) -> subprocess.Popen:
-    """`command` run the way Codex runs one: a session process that stays for the
+@pytest.fixture
+def under_codex(spawn, codex_program):
+    """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what
     a pipeline leaves there, and what the launcher's `$PPID` used to record.
 
@@ -5869,18 +5903,22 @@ def under_codex(codex_program, command, env, **kwargs) -> subprocess.Popen:
         "import subprocess, sys; "
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[1]]).returncode)"
     )
-    return subprocess.Popen(
-        [str(codex_program), "-c", runner, f"{command}; exit"],
-        env={**env, "PYTHONHOME": sys.base_prefix},
-        **kwargs,
-    )
+
+    def start(command, env, **kwargs) -> subprocess.Popen:
+        return spawn(
+            [str(codex_program), "-c", runner, f"{command}; exit"],
+            env={**env, "PYTHONHOME": sys.base_prefix},
+            **kwargs,
+        )
+
+    return start
 
 
 @pytest.fixture
-def codex_claimed_page(tmp_path, request, codex_program):
+def codex_claimed_page(tmp_path, under_codex, codex_env):
     page = tmp_path / "codex-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    env = os.environ | {"CODEX_THREAD_ID": "codex-thread"}
+    env = codex_env | {"CODEX_THREAD_ID": "codex-thread"}
 
     # Uncaptured, so `check=True` reports something: a CalledProcessError over
     # captured streams names the command and the exit status and takes leaf's
@@ -5894,7 +5932,6 @@ def codex_claimed_page(tmp_path, request, codex_program):
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
     started = under_codex(
-        codex_program,
         shlex.join([str(launcher), "server", "start", str(page)]),
         env,
         stdout=subprocess.PIPE,
@@ -5903,9 +5940,6 @@ def codex_claimed_page(tmp_path, request, codex_program):
     )
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
-    request.addfinalizer(
-        lambda: subprocess.run([launcher, "server", "stop", page], env=env, check=True)
-    )
     assert out.startswith("http://127.0.0.1:")
     return page
 
@@ -5918,7 +5952,7 @@ def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
 
 
 def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
-    tmp_path, codex_program
+    tmp_path, under_codex, codex_env
 ):
     """The claim's pid is the one two reapers read as the session's life, and
     `$PPID` is not it: it is a fact about the shape of the command. Measured
@@ -5931,19 +5965,17 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     match."""
     page = tmp_path / "codex-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    env = os.environ | {"CODEX_THREAD_ID": "thread-shape"}
+    env = codex_env | {"CODEX_THREAD_ID": "thread-shape"}
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    session_process = under_codex(
-        codex_program, shlex.join([str(launcher), "wait", str(page)]), env
-    )
-    assert session_process.wait(timeout=60) == 0
-    assert interact.read_json(page / "session.json")["pid"] == session_process.pid
+    session = under_codex(shlex.join([str(launcher), "wait", str(page)]), env)
+    assert session.wait(timeout=60) == 0
+    assert interact.read_json(page / "session.json")["pid"] == session.pid
     registry = interact.state_home() / "sessions" / "thread-shape.json"
-    assert interact.read_json(registry)["pid"] == session_process.pid
+    assert interact.read_json(registry)["pid"] == session.pid
 
 
-def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path):
+def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_env):
     """A hand-built environment: LEAF_SESSION_ID states a Codex session and
     nothing running Codex is above this process, so there is no process whose
     life is that session's. Nothing to fall back on either — a pid guessed here
@@ -5958,7 +5990,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path):
         pytest.skip("run from inside Codex, which is the codex above this one")
     page = tmp_path / "handmade-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    env = os.environ | {"CODEX_THREAD_ID": "thread-nobody"}
+    env = codex_env | {"CODEX_THREAD_ID": "thread-nobody"}
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     refused = subprocess.run(
@@ -5992,18 +6024,16 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
 
 
 def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(
-    tmp_path, codex_program
+    tmp_path, under_codex, codex_env
 ):
     """A Codex worker launched with LEAF_AGENT set keeps that voice: the
     launcher's Codex branch supplies the default name, not the last word."""
     page = tmp_path / "worker-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    env = os.environ | {"CODEX_THREAD_ID": "thread-9", "LEAF_AGENT": "Indexer"}
+    env = codex_env | {"CODEX_THREAD_ID": "thread-9", "LEAF_AGENT": "Indexer"}
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    waited = under_codex(
-        codex_program, shlex.join([str(launcher), "wait", str(page)]), env
-    )
+    waited = under_codex(shlex.join([str(launcher), "wait", str(page)]), env)
     assert waited.wait(timeout=60) == 0
     session = interact.read_json(page / "session.json")
     assert session["id"] == "thread-9"
@@ -6011,19 +6041,17 @@ def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(
 
 
 def test_hook_remedies_follow_the_host_not_the_display_name(
-    tmp_path, codex_program, capsys
+    tmp_path, under_codex, codex_env, capsys
 ):
     """LEAF_AGENT names the voice the banner and threads show; which
     machinery the hook prescribes (unified exec vs background tasks) keys on the
     recorded host, so a renamed Codex worker still gets Codex remedies."""
     page = tmp_path / "worker-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    env = os.environ | {"CODEX_THREAD_ID": "w1", "LEAF_AGENT": "Indexer"}
+    env = codex_env | {"CODEX_THREAD_ID": "w1", "LEAF_AGENT": "Indexer"}
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    waited = under_codex(
-        codex_program, shlex.join([str(launcher), "wait", str(page)]), env
-    )
+    waited = under_codex(shlex.join([str(launcher), "wait", str(page)]), env)
     assert waited.wait(timeout=60) == 0
     interact.cmd_status(page, "waiting", "")
 
@@ -6240,36 +6268,56 @@ def test_session_end_idles_the_page_and_stops_its_server(claimed):
     assert interact.session_pages("s1") == []
 
 
-def start_managed_server(page_dir, session_id, session_pid):
+@pytest.fixture
+def session_process(spawn):
+    """A process for a session to be, so a test can end that session on purpose
+    without ending its own.
+
+    It reads a pipe this worker holds, and so ends when the worker does however
+    the worker ends: the write end closing is EOF, and a killed run would
+    otherwise leave both this and the server watching it running."""
+    return lambda: spawn(
+        [sys.executable, "-c", "import sys; sys.stdin.read()"], stdin=subprocess.PIPE
+    )
+
+
+@pytest.fixture
+def managed_server(spawn):
     """A server whose lifetime is a session the test can end on purpose. Claude
     Code's door, because that host states its session's pid outright and the
     test wants a process of its own in that role; which host claimed the page is
     nothing to the watcher that reads the claim."""
-    env = os.environ | {
-        "CLAUDE_CODE_SESSION_ID": session_id,
-        "CLAUDE_PID": str(session_pid),
-    }
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            str(interact.__file__),
-            "server",
-            "run",
-            str(page_dir),
-        ],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    assert process.stdout.readline().startswith("http://127.0.0.1:")
-    assert "session server" in process.stderr.readline()
-    return process
+
+    def start(page_dir, session_id, session_pid):
+        process = spawn(
+            [
+                sys.executable,
+                str(interact.__file__),
+                "server",
+                "run",
+                str(page_dir),
+            ],
+            env=os.environ
+            | {
+                "CLAUDE_CODE_SESSION_ID": session_id,
+                "CLAUDE_PID": str(session_pid),
+            },
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert process.stdout.readline().startswith("http://127.0.0.1:")
+        assert "session server" in process.stderr.readline()
+        return process
+
+    return start
 
 
-def test_a_server_exits_when_its_session_is_hard_killed(page_dir):
-    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-    server = start_managed_server(page_dir, "abandoned", owner.pid)
+def test_a_server_exits_when_its_session_is_hard_killed(
+    page_dir, session_process, managed_server
+):
+    owner = session_process()
+    server = managed_server(page_dir, "abandoned", owner.pid)
     owner.terminate()
     owner.wait(timeout=5)
 
@@ -6278,28 +6326,23 @@ def test_a_server_exits_when_its_session_is_hard_killed(page_dir):
     assert not (page_dir / "server.json").exists()
 
 
-def test_a_live_session_can_take_over_an_existing_server(page_dir):
-    first = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-    second = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-    server = start_managed_server(page_dir, "first", first.pid)
-    try:
-        interact.write_json(
-            page_dir / "session.json",
-            {"id": "second", "pid": second.pid, "agent": "Codex", "ts": "t"},
-        )
-        first.terminate()
-        first.wait(timeout=5)
-        assert server.poll() is None
+def test_a_live_session_can_take_over_an_existing_server(
+    page_dir, session_process, managed_server
+):
+    first, second = session_process(), session_process()
+    server = managed_server(page_dir, "first", first.pid)
+    interact.write_json(
+        page_dir / "session.json",
+        {"id": "second", "pid": second.pid, "agent": "Codex", "ts": "t"},
+    )
+    first.terminate()
+    first.wait(timeout=5)
+    assert server.poll() is None
 
-        second.terminate()
-        second.wait(timeout=5)
-        server.wait(timeout=5)
-        assert server.returncode == 0, server.stderr.read()
-    finally:
-        for process in (first, second, server):
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=5)
+    second.terminate()
+    second.wait(timeout=5)
+    server.wait(timeout=5)
+    assert server.returncode == 0, server.stderr.read()
 
 
 def start_through_the_launcher(page_dir, *flags):
@@ -6333,23 +6376,20 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     started = start_through_the_launcher(page_dir)
     assert started.returncode == 0, started.stderr
     url = started.stdout.strip()
-    try:
-        assert url.startswith("http://127.0.0.1:")
-        assert "session server" in started.stderr
-        info = interact.running_server(page_dir)
-        assert info and info["url"] == url
-        # The child claims the page from the environment `server start` handed
-        # it, which is what the loop's hooks find the session's pages through —
-        # and records the lifetime the note is read back out of.
-        assert interact.read_json(page_dir / "session.json")["id"] == "starter"
-        assert interact.read_json(page_dir / "access.json")["lifetime"] == "session"
-        # A session of its own is the fact that says no shell holds this: nothing
-        # reaping the process group the launcher ran in reaches the server.
-        assert os.getsid(info["pid"]) != os.getsid(os.getpid())
-        state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
-        assert urllib.request.urlopen(state).status == 200
-    finally:
-        interact.cmd_stop(page_dir)
+    assert url.startswith("http://127.0.0.1:")
+    assert "session server" in started.stderr
+    info = interact.running_server(page_dir)
+    assert info and info["url"] == url
+    # The child claims the page from the environment `server start` handed
+    # it, which is what the loop's hooks find the session's pages through —
+    # and records the lifetime the note is read back out of.
+    assert interact.read_json(page_dir / "session.json")["id"] == "starter"
+    assert interact.read_json(page_dir / "access.json")["lifetime"] == "session"
+    # A session of its own is the fact that says no shell holds this: nothing
+    # reaping the process group the launcher ran in reaches the server.
+    assert os.getsid(info["pid"]) != os.getsid(os.getpid())
+    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+    assert urllib.request.urlopen(state).status == 200
 
 
 def test_server_start_forwards_its_flags_and_relays_the_serves_own_words(page_dir):
@@ -6359,89 +6399,74 @@ def test_server_start_forwards_its_flags_and_relays_the_serves_own_words(page_di
     process's own words, carried out with its exit status."""
     standing = start_through_the_launcher(page_dir, "--standing")
     assert standing.returncode == 0, standing.stderr
-    try:
-        assert "standing server" in standing.stderr
-        assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
-        assert not (page_dir / "session.json").exists()
+    assert "standing server" in standing.stderr
+    assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
+    assert not (page_dir / "session.json").exists()
 
-        refused = start_through_the_launcher(page_dir, "--host", "devbox.corp.example")
-        assert refused.returncode != 0
-        assert "already serving at" in refused.stderr
-        assert "server stop" in refused.stderr
-        # Nothing on stdout, so a caller reading the URL there reads no URL.
-        assert not refused.stdout.strip()
-    finally:
-        interact.cmd_stop(page_dir)
+    refused = start_through_the_launcher(page_dir, "--host", "devbox.corp.example")
+    assert refused.returncode != 0
+    assert "already serving at" in refused.stderr
+    assert "server stop" in refused.stderr
+    # Nothing on stdout, so a caller reading the URL there reads no URL.
+    assert not refused.stdout.strip()
 
 
-def start_standing_server(page_dir):
-    """`server run` from a bare shell — a terminal, a login item. The host session
-    variables are stripped here rather than left to the caller's environment,
-    because the tests that use this go on to claim the page from one."""
-    env = os.environ.copy()
-    for name in (
-        "CLAUDE_CODE_SESSION_ID",
-        "CLAUDE_PID",
-        "CODEX_THREAD_ID",
-        "LEAF_SESSION_ID",
-        "LEAF_AGENT",
-    ):
-        env.pop(name, None)
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            str(interact.__file__),
-            "server",
-            "run",
-            str(page_dir),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=env,
-    )
-    assert process.stdout.readline().startswith("http://127.0.0.1:")
-    assert "standing server" in process.stderr.readline()
-    return process
+@pytest.fixture
+def standing_server(spawn, sessionless):
+    """`server run` from a bare shell — a terminal, a login item — held to the
+    two lines it prints, the URL and the lifetime it recorded.
+
+    Standing is the serve nothing reaps: it declines the claim, so no watcher
+    starts, and a run killed while one is up leaves a process only a person can
+    stop (tests/CLAUDE.md, "A process the suite starts ends with the run"). A
+    child of the worker is as close as the suite gets."""
+
+    def start(page_dir):
+        process = spawn(
+            [
+                sys.executable,
+                str(interact.__file__),
+                "server",
+                "run",
+                str(page_dir),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert process.stdout.readline().startswith("http://127.0.0.1:")
+        assert "standing server" in process.stderr.readline()
+        return process
+
+    return start
 
 
 def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
-    page_dir,
+    page_dir, dead_pid, standing_server
 ):
-    dead = subprocess.Popen([sys.executable, "-c", ""])
-    dead.wait(timeout=5)
     interact.write_json(
         page_dir / "session.json",
-        {"id": "old-session", "pid": dead.pid, "agent": "Codex", "ts": "t"},
+        {"id": "old-session", "pid": dead_pid, "agent": "Codex", "ts": "t"},
     )
-    server = start_standing_server(page_dir)
-    try:
-        # The only held window in the suite, because it is the only assertion with nothing
-        # to consume: a watcher that never starts states nothing, and the server going on
-        # living is not an event to wait for (tests/CLAUDE.md, "A wait consumes a fact the
-        # system states"). So the window is the grace a watcher would have acted after,
-        # plus room to act — long enough that the bug, had it been here, would have shown.
-        time.sleep(interact.ORPHAN_GRACE_SECS + 0.5)
-        assert server.poll() is None, (
-            "a manual server inherited the stale session claim"
-        )
-        assert "stopped server" in interact.cmd_stop(page_dir)
-        server.wait(timeout=5)
-    finally:
-        if server.poll() is None:
-            server.terminate()
-            server.wait(timeout=5)
+    server = standing_server(page_dir)
+    # The only held window in the suite, because it is the only assertion with nothing
+    # to consume: a watcher that never starts states nothing, and the server going on
+    # living is not an event to wait for (tests/CLAUDE.md, "A wait consumes a fact the
+    # system states"). So the window is the grace a watcher would have acted after,
+    # plus room to act — long enough that the bug, had it been here, would have shown.
+    time.sleep(interact.ORPHAN_GRACE_SECS + 0.5)
+    assert server.poll() is None, "a manual server inherited the stale session claim"
+    assert "stopped server" in interact.cmd_stop(page_dir)
+    server.wait(timeout=5)
 
 
-def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir):
+def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, spawn):
     """`--standing` from inside a host is the bare-shell statement made
     explicit: the launch declines the claim it could have made, so the server
     records the standing lifetime and the page stays nobody's — no watcher
-    thread to stop it when the host pid goes, no SessionEnd reaper."""
-    env = os.environ.copy()
-    env["CLAUDE_CODE_SESSION_ID"] = "host-session"
-    env["CLAUDE_PID"] = str(os.getpid())
-    process = subprocess.Popen(
+    thread to stop it when the host pid goes, no SessionEnd reaper. The host is
+    the suite's own session, which every command here already runs under."""
+    process = spawn(
         [
             sys.executable,
             str(interact.__file__),
@@ -6453,17 +6478,11 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env=env,
     )
-    try:
-        assert process.stdout.readline().startswith("http://127.0.0.1:")
-        assert "standing server" in process.stderr.readline()
-        assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
-        assert not (page_dir / "session.json").exists()
-    finally:
-        if process.poll() is None:
-            process.terminate()
-            process.wait(timeout=5)
+    assert process.stdout.readline().startswith("http://127.0.0.1:")
+    assert "standing server" in process.stderr.readline()
+    assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
+    assert not (page_dir / "session.json").exists()
 
 
 def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):
@@ -6478,58 +6497,51 @@ def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):
 
 
 def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
-    page_dir, monkeypatch, capsys
+    page_dir, standing_server, monkeypatch, capsys
 ):
     """The standing serve, the whole way round: a page kept up across sessions, and a
     session that works on it for an afternoon and goes. Picking a page up earns the
     watch obligation and nothing else, so the session's end must take down neither the
     process it didn't start nor a leaf that outlives it."""
-    server = start_standing_server(page_dir)
-    try:
-        launched = interact.read_json(page_dir / "server.json")
-        assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
+    server = standing_server(page_dir)
+    launched = interact.read_json(page_dir / "server.json")
+    assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
 
-        # A session picks the page up, the way `leaf wait` does.
-        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
-        monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-        assert interact.claim_page(page_dir)
-        interact.cmd_status(page_dir, "waiting", "")
-        # Without this the hook would skip the page for the wrong reason and the test
-        # would pass with the bug in: the standing check has to be what spares it.
-        assert page_dir in interact.owned_pages("later")
+    # A session picks the page up, the way `leaf wait` does.
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert interact.claim_page(page_dir)
+    interact.cmd_status(page_dir, "waiting", "")
+    # Without this the hook would skip the page for the wrong reason and the test
+    # would pass with the bug in: the standing check has to be what spares it.
+    assert page_dir in interact.owned_pages("later")
 
-        # A `server run` of its own finds this one up and reports the lifetime the
-        # running server has, not the one this claiming launch would have given it.
-        interact.cmd_serve(page_dir)
-        served = capsys.readouterr()
-        assert served.out.strip() == launched["url"]
-        assert "standing server" in served.err
+    # A `server run` of its own finds this one up and reports the lifetime the
+    # running server has, not the one this claiming launch would have given it.
+    interact.cmd_serve(page_dir)
+    served = capsys.readouterr()
+    assert served.out.strip() == launched["url"]
+    assert "standing server" in served.err
 
-        interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
+    interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
 
-        # The hook is synchronous, so its declining to act is complete when it returns
-        # and there is no window to hold: `cmd_stop` unlinks server.json whether or not
-        # its kill lands, so the record standing is a stop never attempted.
-        assert interact.read_json(page_dir / "server.json") == launched
-        assert interact.read_json(page_dir / "status.json")["state"] == "waiting"
-        # And `cmd_stop` reports a stop only for a pid it finds alive, so this reads
-        # twice: the server was still running, and this is the one thing that ends it.
-        assert "stopped server" in interact.cmd_stop(page_dir)
-        server.wait(timeout=5)
-    finally:
-        if server.poll() is None:
-            server.terminate()
-            server.wait(timeout=5)
+    # The hook is synchronous, so its declining to act is complete when it returns
+    # and there is no window to hold: `cmd_stop` unlinks server.json whether or not
+    # its kill lands, so the record standing is a stop never attempted.
+    assert interact.read_json(page_dir / "server.json") == launched
+    assert interact.read_json(page_dir / "status.json")["state"] == "waiting"
+    # And `cmd_stop` reports a stop only for a pid it finds alive, so this reads
+    # twice: the server was still running, and this is the one thing that ends it.
+    assert "stopped server" in interact.cmd_stop(page_dir)
+    server.wait(timeout=5)
 
 
-def test_state_reports_whether_the_owning_session_still_exists(claimed):
+def test_state_reports_whether_the_owning_session_still_exists(claimed, dead_pid):
     """The banner's one hard fact: a status.json claim outlives its session, the
     owning pid doesn't."""
     assert page_state(claimed)["session_alive"] is True
-    dead = subprocess.Popen([sys.executable, "-c", ""])
-    dead.wait()
     interact.write_json(
-        claimed / "session.json", {"id": "s1", "pid": dead.pid, "ts": "t"}
+        claimed / "session.json", {"id": "s1", "pid": dead_pid, "ts": "t"}
     )
     assert page_state(claimed)["session_alive"] is False
 
@@ -7232,7 +7244,7 @@ def comment(page_dir, *args):
     return CliRunner().invoke(interact.cli, ["comment", str(page_dir), *args])
 
 
-def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir):
+def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):
     result = comment(
         published(page_dir), "--quote", "Ship dark", "--text", "dark for how long?"
     )

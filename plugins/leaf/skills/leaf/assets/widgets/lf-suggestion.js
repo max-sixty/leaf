@@ -480,7 +480,8 @@ customElements.define(
     // The words that moved, as ranges over both slots' own text nodes. Which words
     // those are, and whether the pair shares enough ink to be worth marking at all,
     // is `movedWords` — one answer for every widget that deepens a change, since
-    // lf-diff asks the same question of a paired diff line.
+    // lf-diff asks the same question of every diff line it might pair, and settles the
+    // pairing on the same reading (blockPairs).
     #emphasize() {
       if (this.dataset.lfState) return;
       const oldSlot = this.querySelector(":scope > lf-old");

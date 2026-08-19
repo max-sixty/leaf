@@ -4358,12 +4358,23 @@ export function alignText(before, after) {
   return runs;
 }
 
-// The words that moved between two texts: `{del, ins}` as [from, to) spans into `before`
-// and into `after`, or null where the pair shares too little ink to be worth marking. A
-// wholesale swap is a replacement rather than an edit, and emphasis over everything says
-// nothing the change's own tint already did — the similarity gate every mature diff view
-// applies. Whitespace-only runs advance the cursors and mark nothing: reformatted markup
-// is not a changed word.
+// The words that moved between two texts: `{del, ins, shared}` — spans as [from, to) into
+// `before` and into `after`, and the ink the two hold in common — or null where the pair
+// shares too little of it to be worth marking. A wholesale swap is a replacement rather
+// than an edit, and emphasis over everything says nothing the change's own tint already
+// did — the similarity gate every mature diff view applies. Whitespace-only runs advance
+// the cursors and mark nothing: reformatted markup is not a changed word.
+//
+// Sharing nothing is a replacement whatever the lengths are, and the ratio cannot say so
+// on its own: where one side has no ink the smaller side is zero, so every pair clears a
+// bar standing at zero. A deletion over an added blank line went through with its whole
+// body marked as words that had moved — the one shape the gate exists to refuse.
+//
+// `shared` is the gate's own reading of how much of the pair stood still. lf-diff has a
+// second question to put to it — of the additions in a change block, which one does this
+// deletion answer — and settles it by comparing candidates on this number. Unsaid, it would
+// have been recovered downstream from the spans, and that is a second definition of the
+// same ink, one edit from disagreeing with this one.
 //
 // The alignment is taken here rather than passed in, because both consumers ask the same
 // question and only the painting differs — lf-suggestion paints ranges through the
@@ -4376,7 +4387,7 @@ export function movedWords(before, after) {
   const shared = runs
     .filter((run) => run.kind === "same")
     .reduce((n, run) => n + ink(run.text), 0);
-  if (shared * 3 < Math.min(ink(before), ink(after))) return null;
+  if (!shared || shared * 3 < Math.min(ink(before), ink(after))) return null;
   const del = [];
   const ins = [];
   let o = 0;
@@ -4392,7 +4403,7 @@ export function movedWords(before, after) {
       n += len;
     }
   }
-  return { del, ins };
+  return { del, ins, shared };
 }
 
 // What an element says, read the way this file reads the page everywhere else. A widget

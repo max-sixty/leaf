@@ -12752,7 +12752,12 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     doc = [l for l in py if "Called on logout" in l["text"]]
     assert len(doc) == 2, [l["text"] for l in py]
     for line in doc:
-        assert [r for r, _ in line["roles"]] == ["st"], line
+        # How many spans carry it is the word marks' business — a mark re-cuts the tokens
+        # it covers, and this pair's closing `\"\"\"` moved to a line of its own — so what
+        # is asserted is the role and the text those spans hold between them, sign column
+        # and trailing newline off, neither of which any re-cutting may change.
+        assert {r for r, _ in line["roles"]} == {"st"}, line
+        assert "".join(t for _, t in line["roles"]) == line["text"][1:-1], line
 
     # yaml, the grammar that would have eaten the prefix: with the column left on, the
     # `-` came back a bullet in keyword ink and the `+` a string. No span opens a line
@@ -12795,8 +12800,11 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 # a deletion under it answers the addition under it and not the leftover above; a pair
 # that swapped wholesale, which shares no words to mark; two pairs written one under the
 # other, where a deletion following an addition is what ends the block with nothing else
-# to say so; and a file whose path names no language, where the same marks have to land
-# on a line no tokenizer ever touched.
+# to say so; a block that grew by two lines, so the addition answering the deletion is
+# three lines under it rather than beside it; a block that reordered without growing, so
+# there is no answer the count difference allows the search to reach; and a file whose
+# path names no language, where the same marks have to land on a line no tokenizer ever
+# touched.
 #
 # `limit = 3` is the leftover and `limit = 8` opens the block after the context line, so
 # a walk that ran the two blocks together would pair the leftover against `limit = 9` and
@@ -12840,12 +12848,29 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 +        window = 90
 -        burst = 20
 +        burst = 40
+@@ -80,2 +79,4 @@ class Limiter:
+-        return self.tokens[key].take()
++        if key not in self.tokens:
++            self.tokens[key] = Bucket()
++        return self.tokens[key].fill(rate)
+@@ -100,4 +99,4 @@ class Limiter:
+-        return None
+-        soft = 60
+-        hard = 20
++
++        soft = 90
++        hard = 40
 diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 --- a/deploy/Dockerfile
 +++ b/deploy/Dockerfile
 @@ -9,2 +9,2 @@ COPY gateway /srv/gateway
 -RUN pip install -r requirements.txt
 +RUN pip install -r reqs.txt
+@@ -20,2 +20,2 @@ WORKDIR /srv
+-EXPOSE 8080
+-CMD ["gunicorn", "gateway:app"]
++CMD ["gunicorn", "gateway:app", "-w", "4"]
++EXPOSE 9090
 </pre></lf-diff>
 </main>
 </body>
@@ -12858,15 +12883,25 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
     asked the reader to eyeball-diff it against the line above.
 
     Which line answers which is the whole of what had to be settled: a word-level mark
-    compares one deletion against one addition and a hunk offers a block of each. The
-    i-th deletion of a change block against the i-th addition is the pairing a reader's
-    eye makes and the only one a unified diff supports — it records no correspondence
-    between its two sides — so a block with more deletions than additions leaves the
-    last of them unmarked rather than guessing at a partner.
+    compares one deletion against one addition and a hunk offers a block of each, and a
+    unified diff records no correspondence between its two sides. Reading straight down
+    — the i-th deletion against the i-th addition — is the pairing a reader's eye makes,
+    and it is right until a line is added. The last Python block grows by two, standing
+    the addition that answers `return self.tokens[key].take()` three lines under it, and
+    read straight down that deletion met `if key not in self.tokens:` — a pair sharing
+    eleven characters of ink where the real answer shares twenty-five, and one the gate
+    passes, so `return` and `[key].take()` were ruled as words that had moved.
+
+    So the correspondence is worked out from the ink the lines hold in common, which is
+    the number the gate already reads, and the search slides by the block's own count
+    difference and no further. The Dockerfile's second block is that bound: it reorders
+    without growing, so nothing the search may reach answers either deletion, and the
+    tint stands as the whole statement.
 
     The gate is the layer's own (`movedWords`, which lf-suggestion asks the same
     question of): a pair sharing too little ink swapped wholesale rather than being
-    edited, and marking every word of both says nothing the tint already did.
+    edited, and marking every word of both says nothing the tint already did. A pair it
+    refuses is no candidate either, so a deletion left without one is unmarked.
 
     The marks are spans here where the document paints Ranges, ::highlight() reaching no
     shadow tree — so what they must not do is move a character. Each line's text is
@@ -12922,6 +12957,18 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         "+        window = 90\n",
         "-        burst = 20\n",
         "+        burst = 40\n",
+        "@@ -80,2 +79,4 @@ class Limiter:\n",
+        "-        return self.tokens[key].take()\n",
+        "+        if key not in self.tokens:\n",
+        "+            self.tokens[key] = Bucket()\n",
+        "+        return self.tokens[key].fill(rate)\n",
+        "@@ -100,4 +99,4 @@ class Limiter:\n",
+        "-        return None\n",
+        "-        soft = 60\n",
+        "-        hard = 20\n",
+        "+\n",
+        "+        soft = 90\n",
+        "+        hard = 40\n",
     ]
 
     assert [(line["kind"], line["marks"]) for line in py] == [
@@ -12960,6 +13007,28 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         ("add", [["add", "90"]]),
         ("del", [["del", "20"]]),
         ("add", [["add", "40"]]),
+        ("hunk", []),
+        # Two lines added, so the answer is three lines down rather than beside it. The
+        # two additions the block grew by are compared against nothing and marked with
+        # nothing, exactly as a leftover deletion is.
+        ("del", [["del", "take"]]),
+        ("add", []),
+        ("add", []),
+        ("add", [["add", "fill"], ["add", "rate"]]),
+        ("hunk", []),
+        # A line answered by a blank one shares no ink at all, and a ratio taken against
+        # the smaller side cannot say so — with nothing on one side the bar stands at zero
+        # and any pair clears it. Refused, so the deleted body is not ruled a set of words
+        # that moved into a line holding none of them.
+        ("del", []),
+        # And the pairs under it are still found, though reaching them means stepping off
+        # the diagonal in a block whose counts match: the deletion above answers nothing,
+        # so the walk leaves the band by a column and comes back to `soft` and `hard`.
+        ("del", [["del", "60"]]),
+        ("del", [["del", "20"]]),
+        ("add", []),
+        ("add", [["add", "90"]]),
+        ("add", [["add", "40"]]),
     ]
     # The marked words keep the file's ink, which is what nesting the marks inside the
     # token spans is for: `None` is still a keyword and `0` still a number under the
@@ -12979,6 +13048,12 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         ("+        window = 90", [["nu", "90"]]),
         ("-        burst = 20", [["nu", "20"]]),
         ("+        burst = 40", [["nu", "40"]]),
+        ("-        return self.tokens[key].take()", []),
+        ("+        return self.tokens[key].fill(rate)", []),
+        ("-        soft = 60", [["nu", "60"]]),
+        ("-        hard = 20", [["nu", "20"]]),
+        ("+        soft = 90", [["nu", "90"]]),
+        ("+        hard = 40", [["nu", "40"]]),
     ]
 
     # A path naming no language: nothing tokenizes the line, and the marks land on it
@@ -12989,11 +13064,26 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         "@@ -9,2 +9,2 @@ COPY gateway /srv/gateway\n",
         "-RUN pip install -r requirements.txt\n",
         "+RUN pip install -r reqs.txt\n",
+        "@@ -20,2 +20,2 @@ WORKDIR /srv\n",
+        "-EXPOSE 8080\n",
+        '-CMD ["gunicorn", "gateway:app"]\n',
+        '+CMD ["gunicorn", "gateway:app", "-w", "4"]\n',
+        "+EXPOSE 9090\n",
     ]
     assert [line["marks"] for line in docker] == [
         [],
         [["del", "requirements"]],
         [["add", "reqs"]],
+        [],
+        # The block reorders and does not grow, so the search slides nowhere: read
+        # straight down, `CMD …` answers `EXPOSE 8080` and `EXPOSE 9090` answers
+        # `CMD …`, the gate refuses both, and the line each addition really came from is
+        # a step off a line the counts give it no room to take. Unmarked is the honest
+        # end of that, since a mark would be saying the line above is this line's before.
+        [],
+        [],
+        [],
+        [],
     ]
     assert all(line["inked"] == [] for line in docker), docker
 

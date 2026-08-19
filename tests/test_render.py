@@ -15912,6 +15912,57 @@ def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
     page.close()
 
 
+def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve):
+    """The step's own frames, read at real speed from the middle of the page where the
+    box clamps nothing: d may not paint the page above where the press found it. A rAF
+    tick carries its frame's own start, so a press handled inside a frame already under
+    way is stamped after the tick it schedules, and an ease reading that as elapsed time
+    walks back out through its own start (stepPage says the rest). At the ends of the box
+    that write is one the box clamps, and what the clamp does to the press is a resting
+    position the test above reads; in the middle every write lands, the glide arrives
+    exactly where it promised, and the reader is thrown up to most of a page the wrong
+    way on the route — which no resting position can see.
+
+    Whether a press loses that race is the platform's to say, so the window is stated
+    rather than run for: a throttled CPU is a longer frame, and a longer frame is a wider
+    gap between its start and the press dispatched inside it. Unfloored, this machine
+    flicked on one press in ten at its own speed and on eight in ten throttled, where a
+    floored clock flicks on none of either. The injection buys the record, not the wait,
+    which is still the destination's."""
+    page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 20}
+    )
+    half = page.evaluate(
+        "() => (document.body.clientHeight"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+    )
+    start = round(half * 2)
+    page.evaluate("""() => {
+        window.lfFrames = [];
+        const sample = () => {
+            window.lfFrames.push(document.body.scrollTop);
+            requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+    }""")
+    for _ in range(5):
+        page.evaluate(
+            "at => document.body.scrollTo({top: at, behavior: 'instant'})", start
+        )
+        page.wait_for_function("at => document.body.scrollTop === at", arg=start)
+        page.evaluate("() => (window.lfFrames = [])")
+        page.keyboard.press("d")
+        page.wait_for_function(
+            "e => Math.abs(document.body.scrollTop - e) < 1", arg=start + half
+        )
+        assert min(page.evaluate("() => window.lfFrames")) >= start - 1, (
+            "the step painted the page above where the press found it"
+        )
+    assert errors == []
+    page.close()
+
+
 def test_the_half_page_keys_jump_under_reduced_motion(browser, serve):
     """Under reduced motion the step forgoes its glide and jumps, like every other
     motion here (SCROLL) — read straight after the press, since a jump leaves nothing
@@ -15960,8 +16011,10 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     def press_d():
         """Both offsets once a region answers the press — the glide's first write is
         already the answer to which region moved, and movement is the fact waited on
-        because it is the one both platforms state: Linux Chromium fires no scrollend
-        for the step's frame-at-a-time writes, where macOS Chrome answers every one.
+        because movement is the question. Scrollend was the wait here while a press
+        could die outright, which read as the platform withholding the event; it
+        withholds nothing, answering the step's frame-at-a-time writes seven times to
+        the press on Linux, and a press that moves no region states neither fact.
         Waiting on whichever region speaks makes the wrong one answering two numbers
         to compare rather than half a minute of silence and a timeout."""
         was = offsets()

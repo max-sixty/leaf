@@ -8637,6 +8637,25 @@ Promise.all([
   // ordering to rest on — and its answer lands a frame later, which is a frame past the
   // stamp below. What holds this line is therefore a reading taken at the stamp itself
   // (test_the_room_is_measured_after_a_late_rail); the settled page is right without it.
+  //
+  // Observing the box the room is measured from is how that accident would stop being
+  // one, and it is closed. Body is a border-box scroller of the window's height, so this
+  // function writing its padding-bottom is a resize of body — and an observation of body
+  // is then broken from inside a round it was answered in, at a depth Chrome will not
+  // re-deliver at, which it reports as "ResizeObserver loop completed with undelivered
+  // notifications" on the window's error channel. Registering it after the observations
+  // that feed this function only lengthens the odds: every load reported one before them,
+  // and after them three runs in ten of a single test still did, on a loaded machine. What would open
+  // it is reserving the key line's clearance somewhere other than body's own padding, and
+  // nothing needs that: every widget that moves the page's box moves it while upgrading,
+  // in front of this call, and one that moved it later would say so the way lf-suggestion
+  // says its rail.
+  //
+  // The legend observes body too (paintLegend) and reports nothing, which is not the
+  // counter-example it reads as: it starts observing on the gesture that turns design
+  // mode on, by which time the key line has its rows and the padding write above has
+  // stopped moving anything. What is unsafe is observing the box while it is still
+  // settling, which is the whole of the window this call exists to close.
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

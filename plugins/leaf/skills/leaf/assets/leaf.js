@@ -6460,8 +6460,8 @@ const takesLetters = (node) =>
 // The last rung leaves the chrome, because closing the panel does not put the reader back
 // on the page: it lands them on the control that closes it, deliberately (setPanel says
 // why), and the closing keypress rings a button a pointer-borne reader never chose. Their
-// next Space is then that button rather than the page's scroll. CLAUDE.md's "The ladder
-// ends on the page" holds the rest.
+// next Space is then that button rather than the page's scroll. CLAUDE.md's "The reader has to
+// be standing somewhere" holds the rest.
 //
 // Focus rather than blur, because the two differ in what Space does next: `html` is
 // `overflow: hidden` here so the document scrolls in `body`, and the browser scrolls
@@ -8685,6 +8685,19 @@ async function poll() {
 generalInput.value = loadDraft("general") ?? "";
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
+// Where the reader stands, which is the half of an arrival the browser cannot answer on
+// a page that moves its own scrolling: `html` is `overflow: hidden` so the document
+// scrolls in `body`, and the browser scrolls whichever box it last saw the reader put
+// themselves in — on a fresh load, none of them, so Space, PageDown and the arrows did
+// nothing at all until the reader happened to click somewhere in the page. The same
+// move the Escape ladder's last rung makes, and a focus for the same reason a blur is
+// not one there (panelsRung says it); CLAUDE.md's "The reader has to be standing
+// somewhere" holds the rest.
+//
+// Here rather than in the start block below, which runs a mermaid render later with the
+// chrome clickable throughout: a reader who took a control in that window would have had
+// it taken back off them, and this placement is what makes the guard unnecessary.
+document.body.focus({ preventScroll: true });
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
 // panel is restored just above, so the column is already reflowed). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:

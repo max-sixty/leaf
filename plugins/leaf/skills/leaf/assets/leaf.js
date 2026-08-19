@@ -2824,33 +2824,87 @@ let panelCovers = false;
 let pendingAnchor = null;
 
 // The fold answers where state stands; this answers how it got there. Widgets receive
-// their own absolute actions in log order, bounded by the version being viewed. A reply
+// their own absolute events in log order, bounded by the version being viewed. A reply
 // widget lives in the chrome rather than in a version, so its frozen log markup sees the
 // whole sequence. Returning fresh event copies keeps the private event store private.
-export function actionSequence(widget, action) {
+//
+// One walk, two channels. A widget with an agent channel (x-report) asks the same
+// question of the log a widget with a reviewer channel (x-state) does, and the only
+// difference is which kind it reads and what ends an entry: an action is settled once
+// replay has applied it, a report once no note has answered it. Written twice, the two
+// would be a near-copy that has to change together — and the report half is the one
+// carrying a timestamp anybody renders, so it is the half that would drift.
+function sequence(widget, verb, kind, live) {
   return events
     .filter(
       (event) =>
-        event.kind === "action" &&
+        event.kind === kind &&
         event.widget === widget.id &&
-        (!action || event.action === action) &&
+        (!verb || event.action === verb) &&
         (inChrome(widget) || event.version <= VNUM) &&
-        appliedActions.has(event.seq),
+        live(event),
     )
     .map((event) => structuredClone(event));
 }
 
-// Subscribe after replay has had the last word for a poll. actionSequence exposes only
-// actions replay has settled, so a widget that deferred under live input never narrates
+export const actionSequence = (widget, action) =>
+  sequence(widget, action, "action", (e) => appliedActions.has(e.seq));
+
+// Every report a worker has made about this widget, newest last. `ts` is what a module
+// usually wants here: when the log heard from that worker, which is the one statement
+// about freshness no author can write down, because a version states it once and the
+// page then stands for hours saying so.
+//
+// Unfiltered, where the action half takes only what replay has settled, and the two
+// asymmetries are the same rule read in each channel. An action's liveness is replay's,
+// because a widget that deferred one under live input has a body that does not hold it
+// yet and must not narrate it. A report's liveness is the *fold's* — answered by a
+// version, and `reportFold` is what asks that — while a consumer asking when the log
+// last heard from this worker is asking about the log and not about the fold.
+//
+// Filtering the answered ones out here was the same words meaning two things, and it
+// broke on the system's own happy path. Publishing absorbs reports by id, so an
+// orchestrator that adjudicates diligently blanked every row's elapsed line at every
+// publish — and disarmed the call-out with it. The reader needs it most in exactly the
+// case that then became unreachable: a worker that claimed work, had that claim written
+// into a version, and died silently after.
+export const reportSequence = (widget, verb) =>
+  sequence(widget, verb, "report", () => true);
+
+// When the version being read was published — the floor under any statement about how
+// fresh what the page says is. A row nobody has reported on is not a row of unknown age:
+// its words were asserted when this version landed, and are exactly that old.
+//
+// Without the floor, silence renders as nothing at all, which is the one direction a
+// freshness line must never fail in. A fleet whose workers all died at six in the
+// evening, on a page republished at six, shows five rows claiming work and no elapsed
+// line anywhere at eight the next morning — a dead fleet reading healthy, which is the
+// claim-nobody-revises failure the banner's own judgment exists to answer, reintroduced
+// one section below the banner.
+export const publishedAt = () => {
+  let ts = null;
+  for (const e of events) if (e.kind === "note" && e.version === VNUM) ts = e.ts;
+  return ts;
+};
+
+// Subscribe after replay has had the last word for a poll. The sequences expose only
+// what replay has settled, so a widget that deferred under live input never narrates
 // a state its body does not hold. The callback also runs immediately, so a module owns
 // its complete rendering in one function whether the first state arrived before or
-// after it connected.
-export function watchActions(widget, action, callback) {
-  const update = () => callback(actionSequence(widget, action));
+// after it connected — and again on every poll, whether or not the log grew, which is
+// what lets a rendering of elapsed time stay true without a timer of its own.
+const watch = (read, callback) => {
+  const update = () => callback(read());
   document.addEventListener("lf-actions", update);
   update();
   return () => document.removeEventListener("lf-actions", update);
-}
+};
+
+export const watchActions = (widget, action, callback) =>
+  watch(() => actionSequence(widget, action), callback);
+
+export const watchReports = (widget, verb, callback) =>
+  watch(() => reportSequence(widget, verb), callback);
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -3266,7 +3320,14 @@ function wireInput(ta, { hint, address, save, send, sendBtn, sends }) {
 }
 
 // ---------- time ----------
-const ago = (ts) => {
+// Elapsed, in the page's one wording. Exported for the same reason quietSince is: a
+// widget rendering how long since it heard from someone is saying the sentence the
+// banner and the leaves panel already say, and a second spelling of it — "12 min ago"
+// against "12m ago", or a different rounding at the hour — would read as two clocks on
+// one page. The coarseness is the point: elapsed time is a fact the reader acts on at a
+// glance, and a ticking second hand is precision nobody asked for over a number nobody
+// can trust to the second anyway.
+export const ago = (ts) => {
   if (!ts) return "";
   const secs = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
   if (secs < 45) return "just now";
@@ -7722,6 +7783,15 @@ const pressComparison = (base) =>
 // to look for, and nothing coming that would change the answer.
 const HANDOFF_GRACE_MS = 2 * 60 * 1000;
 const WORKING_GRACE_MS = 15 * 60 * 1000;
+// How long a claim of work may go unrefreshed before the page stops taking its word for
+// it. Exported, because the banner is not the only thing that judges one: a page running
+// a fleet says the same sentence per row, and a second threshold spelled in a widget
+// would be a second answer to "how long is too long" — free to disagree with the banner
+// directly above it about the very same silence. The caller supplies the rope where its
+// claim has a shorter one; the constant is the default because that is the case there is
+// only one of.
+export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
+  Boolean(ts) && Date.now() - new Date(ts).getTime() > grace;
 // Which claim each kind reads out, and so whose detail it may speak. A `working`
 // claim gone quiet under a live watcher is judged `listening` too, and that detail
 // names what the agent was doing rather than what it wants back — the wrong half of
@@ -7743,9 +7813,10 @@ function presented(state) {
   // `leaf wait` writes as it prints a batch, because the agent writes its own
   // `leaf status` after acknowledgement — that mark outliving minutes is a dropped
   // pickup, not a long turn.
-  const grace = status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS;
-  const quiet =
-    Boolean(status.ts) && Date.now() - new Date(status.ts).getTime() > grace;
+  const quiet = quietSince(
+    status.ts,
+    status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
+  );
   // Nothing is behind the claim. The claimant pid settles it where there is one: gone
   // is gone, whatever the claim says and however lately a stray `leaf wait` bumped
   // the heartbeat for a session that can no longer read it. Where nothing claimed the
@@ -8516,6 +8587,14 @@ async function poll() {
   }
   if (!state) {
     renderStatus(null);
+    // The sequence consumers still hear the tick. A poll that brought nothing changes
+    // no history, so they re-render what they already held — but anything of theirs
+    // that reads a clock rather than the log has to keep moving, and a dead server is
+    // exactly when it matters: the banner says the server is gone while a roster row
+    // froze its "last heard 4m ago" at the moment the answers stopped, which is the
+    // authored freshness this widget layer exists to replace, produced by the layer
+    // itself. Replay is deliberately not run — there is nothing new to apply.
+    document.dispatchEvent(new Event("lf-actions"));
     return;
   }
   const nextEvents = state.events;

@@ -1964,9 +1964,21 @@ FOCUS_IN_PAGE = """() => {
 # Except for an emptied class attribute, which is the outline coming off an element that
 # had no class of its own: DOMTokenList leaves `class=""` behind, and that is a residue of
 # the runtime's paint rather than anything the page says.
+# Generated text is blanked before the compare, because a widget may render a clock
+# and a clock is not a press: lf-agent's elapsed line re-renders on every poll, so the
+# minute turning during a long sweep read as a press that had reached a widget. What the
+# check is for survives untouched — a stray pick writes `chosen` on the option and a
+# stray tab switch moves the panels' attributes, both of them authored rather than
+# generated, and structure is compared either way.
 PAGE_MARKUP = """() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
-    .map((n) => n.outerHTML).join("").replaceAll(' class=""', "")"""
+    .map((n) => {
+        const c = n.cloneNode(true);
+        for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
+        if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
+        return c.outerHTML;
+    })
+    .join("").replaceAll(' class=""', "")"""
 
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
@@ -8480,6 +8492,295 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.close()
 
 
+# Two workers, one claiming work and one idle, because silence is only news against a
+# claim: the elapsed line is about what a row said it was doing, not about the clock.
+ROSTER_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>fleet</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="h">The aviary crew</h1>
+<lf-roster id="crew">
+  <lf-agent id="ag-wren" state="working" doing="drilling the north post" branch="mounts">
+    <strong>wren</strong> The feeders.</lf-agent>
+  <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
+  <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
+</lf-roster>
+</main>
+</body>
+</html>
+"""
+
+
+def stale_report(page_dir, widget, doing, hours, state="working"):
+    """A report the log took `hours` ago. The grace this is written against is a
+    quarter of an hour, so nothing that waits can reach it and nothing that sleeps
+    should: the fact under test is what the row does with a timestamp, and the log
+    is where a timestamp comes from."""
+    return interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "wren",
+            "widget": widget,
+            "action": "state",
+            "detail": {"state": state, "doing": doing},
+            "version": 1,
+            "ts": (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(
+                timespec="seconds"
+            ),
+        },
+    )
+
+
+def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
+    """The half of a roster no version can write down. A published page states what
+    each worker is doing; only the log knows when it last said so, and a page that
+    keeps a fleet is at its least trustworthy exactly when the reader has been away
+    longest. So the row renders elapsed time from the newest standing report and
+    re-renders on every poll — and says nothing at all where nothing has been heard,
+    an empty log behind a fresh version being no fault to report.
+
+    Then the case the line exists for: a claim of work nobody has refreshed. It is
+    called out in words rather than in the tint alone, on the rope the banner already
+    gives a page's one agent (quietSince), and only against a claim — an idle worker
+    that has said nothing all day is idle, which is what it said."""
+    url = serve(ROSTER_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    wren, finch = page.locator("#ag-wren"), page.locator("#ag-finch")
+    # Before any worker has spoken, the row dates from the version that asserted it —
+    # not from nothing, which would leave a fleet dead since last night reading exactly
+    # like one published a minute ago.
+    expect(wren.locator(".lf-heard")).to_have_text("last heard just now")
+    # The state is a word this module writes rather than paint the runtime speaks, so
+    # a reader listening gets it from the row itself.
+    assert "working" in wren.aria_snapshot()
+
+    sent = CliRunner().invoke(
+        interact.cli,
+        # A state the markup does not already hold, or there is no news to paint: a
+        # report saying what the page says is blessed silence, not provisional state.
+        [
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=waiting",
+            "doing=rebasing onto main",
+        ],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    expect(wren).to_have_attribute("doing", "rebasing onto main")
+    expect(wren).to_have_attribute("data-lf-reported", "1")
+    expect(wren.locator(".lf-heard")).to_have_text("last heard just now")
+    expect(wren.locator(".lf-cold")).to_have_count(0)
+
+    stale_report(d, "ag-wren", "still rebasing", 3)
+    told(page)
+    expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
+    expect(wren.locator(".lf-cold")).to_have_text("quiet")
+
+    # The same silence against no claim of work says nothing beyond its own age.
+    stale_report(d, "ag-finch", "nothing", 3, state="idle")
+    told(page)
+    expect(finch.locator(".lf-heard")).to_have_text("last heard 3h ago")
+    expect(finch.locator(".lf-cold")).to_have_count(0)
+
+    # And it survives the version that answers the report, which is the case the whole
+    # line exists for and the one an earlier build could never reach. Publishing absorbs
+    # a report by id, so a roster reading standing reports blanked every row at every
+    # publish — and the reader most needs this exactly where that left nothing: a worker
+    # that claimed work, had the claim written into the document, and then died. The
+    # provisional mark goes, because the document speaks again; the log's memory of who
+    # last said anything does not, because no version can speak for that.
+    (d / "versions" / "v2.html").write_text(
+        ROSTER_PAGE.replace(
+            'doing="drilling the north post"', 'doing="still rebasing"'
+        ).replace(
+            'id="ag-finch" state="idle"', 'id="ag-finch" state="idle" doing="nothing"'
+        )
+    )
+    published = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "2", "--text", "absorbing"],
+    )
+    assert published.exit_code == 0, published.output
+    page.wait_for_url("**/versions/v2.html")
+    page.wait_for_function(BOTH_STAMPS)
+    wren = page.locator("#ag-wren")
+    expect(wren).not_to_have_attribute("data-lf-reported", "1")
+    expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
+    expect(wren.locator(".lf-cold")).to_have_text("quiet")
+    assert errors == []
+    page.close()
+
+
+def backdate_note(page_dir, version, hours):
+    """Age the version's own publish note. The floor under a row's freshness is when
+    the version asserting it landed, and a version minted seconds ago cannot exercise
+    it — so the log, which is a plain file the writer owns, is rewritten rather than
+    waited out."""
+    path = page_dir / "comments.jsonl"
+    when = (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(
+        timespec="seconds"
+    )
+    out = []
+    for line in path.read_text(encoding="utf-8").split("\n"):
+        if line:
+            event = json.loads(line)
+            if event["kind"] == "note" and event["version"] == version:
+                event["ts"] = when
+            line = json.dumps(event, ensure_ascii=False)
+        out.append(line)
+    path.write_text("\n".join(out), encoding="utf-8")
+
+
+def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
+    """The direction a freshness line must never fail in. A row nobody has reported on
+    is not of unknown age: its words were asserted when the version landed, and are
+    exactly that old. Rendering nothing there was the first build's answer, and it hides
+    the case the reader is most exposed to — a fleet published at six in the evening,
+    every worker dead by seven, read at eight the next morning. Every row claims work,
+    and with no report behind any of them there is no elapsed line to contradict it and
+    no call-out: a dead fleet drawn exactly like a fresh one, one section under a banner
+    whose whole design is that a claim nobody revises must not be repeated as fact."""
+    url = serve(ROSTER_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    siskin = page.locator("#ag-siskin")
+    expect(siskin.locator(".lf-heard")).to_have_text("last heard just now")
+    expect(siskin.locator(".lf-cold")).to_have_count(0)
+
+    backdate_note(d, 1, 3)
+    told(page)
+    expect(siskin.locator(".lf-heard")).to_have_text("last heard 3h ago")
+    expect(siskin.locator(".lf-cold")).to_have_text("quiet")
+    # An idle worker is not called out for the same silence: it claimed nothing.
+    expect(page.locator("#ag-finch .lf-heard")).to_have_text("last heard 3h ago")
+    expect(page.locator("#ag-finch .lf-cold")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, serve):
+    """Elapsed time is rendered on the poll, and the poll is the one thing a dead server
+    takes away. `poll()` returns early when the fetch brings nothing, so the sequence
+    consumers heard no tick and every row froze the words it last drew — the banner
+    saying the server is gone while the roster beside it went on reporting a four-minute
+    silence for the rest of the afternoon. That is precisely the authored freshness this
+    widget exists to replace, produced by the widget.
+
+    The tick is what is asserted, and it is sampled from inside the page — the one
+    licensed reason, that the fact is not one the browser reports from out here. Reading
+    it through the words instead would mean waiting out a boundary `ago` crosses, whose
+    only sub-minute one is a second wide; the words are then a pure function of this
+    tick and a clock the platform owns."""
+    url = serve(ROSTER_PAGE)
+    page, errors = open_page(browser, url)
+    page.evaluate(
+        "() => { window.__ticks = 0;"
+        " document.addEventListener('lf-actions', () => window.__ticks++); }"
+    )
+    page.route("**/api/state*", refuse)
+    page.wait_for_function("() => window.__ticks >= 2")
+    assert errors == []
+    page.close()
+
+
+def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
+    """A row is a thing the reader is invited to select and point at, and it is also
+    the one widget with a reason to touch itself every two seconds. Those pull against
+    each other, and the first build lost: the clock re-rendered the whole row, so the
+    words under a pointer were a different node on every poll — a selection collapsing
+    mid-drag, focus dropped off the reference beside it, a click that straddles the
+    swap landing on nothing. It is "Paint; don't wrap" reached by rebuilding instead of
+    by wrapping, and it fails the same way: nothing errors, the page just stops taking
+    the gesture.
+
+    So the clock touches one text node and the structure is rebuilt only where an
+    attribute moved. Asserted as node identity rather than as a selection, because
+    identity is the property the rendering owes and a selection is one thing that rests
+    on it."""
+    url = serve(ROSTER_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    page.evaluate(
+        "() => { window.__kept = [...document.querySelectorAll('#ag-wren .lf-doing,"
+        " #ag-wren .lf-branch, #ag-wren .lf-state')].map(e => e.firstChild); }"
+    )
+    sent = CliRunner().invoke(
+        interact.cli,
+        ["report", str(d), "ag-finch", "state", "state=idle", "doing=picking up"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    told(page)
+    # wren heard nothing in either poll, so nothing of wren's may have moved.
+    assert page.evaluate(
+        "() => window.__kept.every((n, i) => n === [...document.querySelectorAll("
+        "'#ag-wren .lf-doing, #ag-wren .lf-branch, #ag-wren .lf-state')][i]?.firstChild)"
+    )
+    # And a report for this row does rebuild it, or the row would never move at all.
+    sent = CliRunner().invoke(
+        interact.cli,
+        [
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=working",
+            "doing=on to the baffles",
+        ],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    expect(page.locator("#ag-wren .lf-doing")).to_have_text("on to the baffles")
+    assert errors == []
+    page.close()
+
+
+def test_a_rosters_state_column_is_measured_from_the_words_it_holds(browser, serve):
+    """The gutter every row hangs its state in is the widest of the five words, in the
+    face this page is set in — the rule the pick column learned on a Linux runner,
+    where DejaVu set "your pick" two pixels wider than the number a stylesheet had
+    stated. So the column is asked of the rendered page here rather than pinned to a
+    number: what a test can hold is that every row shares one column and that the
+    column clears the widest word, which is what a stated number stopped doing
+    silently."""
+    url = serve(ROSTER_PAGE)
+    page, errors = open_page(browser, url)
+    pills = page.locator("#crew > lf-agent > .lf-state")
+    expect(pills).to_have_count(3)
+    lefts, widest = page.evaluate(
+        "() => { const p = [...document.querySelectorAll('#crew > lf-agent > .lf-state')];"
+        " return [p.map(e => Math.round(e.getBoundingClientRect().left)),"
+        "         Math.max(...p.map(e => e.getBoundingClientRect().width))]; }"
+    )
+    assert len(set(lefts)) == 1, lefts
+    room = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.getElementById('crew'))"
+        ".getPropertyValue('--lf-state-room'))"
+    )
+    assert room >= widest, (room, widest)
+    # And the row's own words start clear of it, or the column is decoration.
+    assert page.evaluate(
+        "() => { const g = document.querySelector('#ag-wren'), p = g.querySelector('.lf-state');"
+        " return g.querySelector('strong').getBoundingClientRect().left"
+        "      >= p.getBoundingClientRect().right; }"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     """A number the page rewrites unasked must not resize as it does.
 
@@ -8666,6 +8967,9 @@ STANDING_PAGE = """<!doctype html>
 <lf-tasks id="ab-plan">
   <lf-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-task>
 </lf-tasks>
+<lf-roster id="ab-crew">
+  <lf-agent id="ab-wren" state="working" doing="wiring the importer"><strong>wren</strong> The importer.</lf-agent>
+</lf-roster>
 <lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
 <lf-suggestion id="ab-sug-410">
   <lf-old><p id="ab-404">The retired response is a plain 404.</p></lf-old>
@@ -8728,12 +9032,18 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
             },
         )
     # The agent channel through its own door, which is the only way a report is
-    # written: both channels replay, so both rest on the same contract.
-    sent = CliRunner().invoke(
-        interact.cli,
-        ["report", str(serve.page_dir), "ab-baffles", "status", "status=done"],
-    )
-    assert sent.exit_code == 0, sent.output
+    # written: both channels replay, so both rest on the same contract. A roster row
+    # moves two attributes under one verb, so re-applying has to leave both where they
+    # stand — the case a verb per attribute could not even reach, two of them on one
+    # widget being two entries competing for one fold key.
+    for widget, verb, fields in [
+        ("ab-baffles", "status", ["status=done"]),
+        ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
+    ]:
+        sent = CliRunner().invoke(
+            interact.cli, ["report", str(serve.page_dir), widget, verb, *fields]
+        )
+        assert sent.exit_code == 0, sent.output
 
     page, errors = open_page(browser, url)
     standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()

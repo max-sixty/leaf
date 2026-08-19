@@ -6925,6 +6925,91 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # resolves to content-visibility, which checkVisibility reports as visible while the
 # box measures zero. That collapse is the point of a closed tab; the collapse being
 # hunted here is the one nothing asked for.
+# A control drawn where no reader can reach it. `TINY_BOXES` asks whether a widget got a
+# box at all; this asks the question one level down, of the chrome inside it, and the
+# difference is which failure each catches: a widget with no box is a widget that didn't
+# render, and a control with a box its own container clips away is a widget that rendered
+# and then hid its offer behind the frame it drew.
+#
+# It is the failure with no witness. Nothing overflows the page, so the sideways-scroll
+# check is quiet; nothing is past the column, so that gate is quiet; the words are in a
+# text node and technically selectable, so the unreachable-words gate is quiet. What the
+# reader gets is a question with no visible way to answer it — which is exactly what
+# shipped: a `choose` group in its row form states `width: 100%` on options that a
+# live-page rule gives a 30px keyboard-address rail, and under the default box-sizing
+# those are the row's width *plus* its padding, so every row ran 28px wider than the
+# group whose `overflow: hidden` keeps its cells' hairlines square. The last cell is the
+# pick mark, so all of it went over the edge: every row-form decision on every live page
+# drew no dot, no "chosen", nothing. Paper and an exported copy were right throughout,
+# the rail being live-pages-only, so no medium outside a browser could see it.
+#
+# Only where the clip cannot be scrolled away. A board's columns run past the board and
+# are reached by scrolling, which is the arrangement rather than a fault, so an ancestor
+# with something to scroll answers for what it holds. And only for controls the page
+# offers (data-lf-offer), which keeps it clear of everything deliberately clipped to
+# nothing — the paint pass's quiet words, the line counting a block's comments — whose
+# whole point is to be read and not seen.
+CLIPPED_CONTROLS = """() => {
+    const out = [];
+    for (const el of document.querySelectorAll('[data-lf-offer]')) {
+        // checkOpacity too: a control faded to nothing is as unreachable as one clipped
+        // away, and reporting it against a box it is inside would name the wrong fault.
+        if (!el.checkVisibility({ checkOpacity: true }) || el.closest('[hidden]'))
+            continue;
+        const b = el.getBoundingClientRect();
+        if (b.width < 1 && b.height < 1) continue;
+        // Where the clip is escaped rather than suffered. An absolutely-positioned
+        // control whose containing block is above the clipping ancestor is painted
+        // outside it on purpose, exactly as MISPLACED_BOXES' own resident is.
+        if (getComputedStyle(el).position === 'absolute') continue;
+        // Up to the body and no further: the document's own scrolling arrangement is
+        // the page's, not a widget's. The runtime scrolls body rather than the
+        // viewport so the panel has room beside it, which leaves <html> clipping and
+        // with nothing of its own to scroll — so a walk that ran to the root reported
+        // every control below the fold as hidden by the page it is on.
+        for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+            const s = getComputedStyle(a);
+            // Asked of the overflow value, per axis, and not of the scroll extent. A
+            // box that clips always has something to scroll — that is what clipping
+            // means — so `scrollWidth > clientWidth` is true of exactly the boxes this
+            // is about and would wave every one of them through. What separates a
+            // board, whose columns run past it and are reached by dragging, from a
+            // group that swallowed its own pick marks is whether the box offers the
+            // reader a way in: auto and scroll do, hidden and clip do not. Paint
+            // containment clips both axes while `overflow` computes `visible`
+            // (MISPLACED_BOXES reads the same fact for its ancestors), and it denies
+            // the way in exactly where the axis has no scroller of its own.
+            const contained = /paint|strict|content/.test(s.contain);
+            const scrollX = s.overflowX === 'auto' || s.overflowX === 'scroll';
+            const scrollY = s.overflowY === 'auto' || s.overflowY === 'scroll';
+            const across = s.overflowX === 'hidden' || s.overflowX === 'clip'
+                || (contained && !scrollX);
+            const down = s.overflowY === 'hidden' || s.overflowY === 'clip'
+                || (contained && !scrollY);
+            if (across || down) {
+                const f = a.getBoundingClientRect();
+                const lost = Math.round(Math.max(
+                    across ? Math.max(b.right - f.right, f.left - b.left) : 0,
+                    down ? Math.max(b.bottom - f.bottom, f.top - b.top) : 0));
+                if (lost > 1) {
+                    out.push({ ctrl: el.className, id: el.id,
+                               by: `<${a.tagName.toLowerCase()}${a.id ? ' id=' + a.id : ''}>`,
+                               lost });
+                    break;
+                }
+            }
+            // And the walk stops at the first box the reader can move. Above a
+            // scroller, a control outside an ancestor's rect is a control that ancestor
+            // will show once the scroller is dragged, so measuring it there would
+            // report a press that is one gesture away as one drawn nowhere.
+            if ((s.overflowX !== 'visible' && !across)
+                || (s.overflowY !== 'visible' && !down)) break;
+        }
+    }
+    return out;
+}"""
+
+
 TINY_BOXES = """(widgets) => {
     const inline = new Set(Object.entries(widgets)
         .filter(([tag, entry]) => entry['x-inline'])
@@ -7114,6 +7199,18 @@ MISPLACED_BOXES = """() => {
         }
         return false;
     };
+    // The bound a descendant of a wide widget is held to. The column is the wrong one —
+    // the room is exactly what the declaration granted, and a roster of prose rows had
+    // all five reported as standing out in the margin — but "answered for" is wrong too,
+    // and wrong in the direction that costs: a child that paints past its own widget's
+    // box does not grow that box, so exempting the subtree makes the widget's rect prove
+    // something about itself alone. This read as answered while both wide widgets also
+    // scrolled, `overflow-x: auto` having caught every descendant a line above.
+    const insideWide = (el) => {
+        for (let a = el.parentElement; a && a !== main; a = a.parentElement)
+            if (a.hasAttribute('data-lf-wide')) return a;
+        return null;
+    };
     // What a wide widget may not escape, whatever the page has room for: the nearest
     // thing between it and the column that draws a box of its own. Asked of the drawing
     // rather than of a list of tags, because the fault is visual and so is the property
@@ -7151,17 +7248,20 @@ MISPLACED_BOXES = """() => {
         const b = el.getBoundingClientRect();
         if (b.width < 1) continue;
         const frame = wide ? framing(el) : null;
-        const bound = frame ? frame.getBoundingClientRect() : null;
-        const past = wide
+        const host = wide ? null : insideWide(el);
+        const bound = (frame || host)?.getBoundingClientRect() ?? null;
+        const past = wide || host
             ? Math.round(Math.max(b.right - (bound ? bound.right : roomRight),
                                   (bound ? bound.left : roomLeft) - b.left))
             : Math.round(Math.max(b.right - right, left - b.left));
-        if (past > 1) over.set(el, [past, wide, frame]);
+        if (past > 1) over.set(el, [past, wide, frame, host]);
     }
     const found = [];
-    for (const [el, [past, wide, frame]] of over) {
+    for (const [el, [past, wide, frame, host]] of over) {
         if ([...over.keys()].some(other => other !== el && other.contains(el))) continue;
-        found.push(!wide
+        found.push(host
+            ? `${at(el)} stands ${past}px outside the ${at(host)} it is part of`
+            : !wide
             ? `${at(el)} is set ${past}px past the column, out in the margin`
             : frame
             ? `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — `
@@ -7988,6 +8088,7 @@ def render_version(browser, url: str) -> list:
             "document.body.scrollWidth - document.body.clientWidth"
         )
         misplaced = page.evaluate(MISPLACED_BOXES)
+        clipped = page.evaluate(CLIPPED_CONTROLS)
         unreachable = page.evaluate(UNREACHABLE_WORDS)
         covered = page.evaluate(COVERED_WORDS)
         unread = page.evaluate(UNREAD_SYNTAX)
@@ -8110,6 +8211,13 @@ def render_version(browser, url: str) -> list:
         if overflow > 0:
             found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
         found += [f"[{scheme}] {s}" for s in misplaced]
+        found += [
+            f"[{scheme}] the control .{c['ctrl'].split()[0]}"
+            + (f" (#{c['id']})" if c["id"] else "")
+            + f" is drawn {c['lost']}px outside the {c['by']} that clips it, where"
+            " nothing can scroll to reach it — the page offers a press it does not show"
+            for c in clipped
+        ]
         found += [f"[{scheme}] {w}" for w in unreachable]
         found += [f"[{scheme}] {c}" for c in covered]
         found += [f"[{scheme}] {u}" for u in unread]

@@ -471,12 +471,20 @@ customElements.define(
           version-bounded action history, and
           <code>watchActions(this, "verb", render)</code> reruns a renderer after
           replay; use them when a widget needs to explain how its folded state was
-          reached rather than copying or retaining the event log itself. The shipped
-          <a href="../plugins/leaf/skills/leaf/assets/widgets/lf-options.js"
+          reached rather than copying or retaining the event log itself.
+          <code>reportSequence</code> and <code>watchReports</code> are their twins on
+          the agent channel, returning the standing reports a version has not yet
+          answered — reach for them when a row has to say <em>when</em> the log last
+          heard something, which no version can write down and stay true to.
+          <code>ago(ts)</code> is the page's one wording for elapsed time and
+          <code>quietSince(ts)</code> its one judgment about a claim gone unrefreshed;
+          use both rather than spelling either again, or one page ends up with two
+          clocks on it. The shipped
+          <a href="../plugins/leaf/skills/leaf/bundled/widgets/lf-options.js"
             >options module</a
           >
           and its
-          <a href="../plugins/leaf/skills/leaf/assets/registry.json">registry entry</a>
+          <a href="../plugins/leaf/skills/leaf/bundled/registry.json">registry entry</a>
           form a complete action-backed example: the registry validates each action and
           records its absolute state, while <code>applyAction</code> makes replay
           idempotent.

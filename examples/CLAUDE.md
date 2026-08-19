@@ -72,6 +72,20 @@ The attribute would have to go in the markup, `scripts/gallery.py` embeds each e
 Seeding a log costs the example nothing; hanging markup off that log couples it to
 every page built from it.
 
+A seed reaches one thing further than a thread, and stops one short of the rest. A widget
+whose payload only exists once the log holds something has a live half the eight sweeps
+otherwise never see — a `lf-agent` row renders how long since that worker was heard from,
+so on a page with no reports every sweep passes over a roster that has never once said the
+thing it is for, which is `lf-shot`'s gap arrived at from the other side: the widget stands
+in an example and the corpus still reads only its static half. A seeded report is what puts
+that line on the page. What the seed cannot do is hold a clock still. Its `ts` is a fixed
+instant and the line renders against now, so the words drift with the calendar — fine for
+a thread, where "3d ago" is colour, and useless as an assertion. So a seed is what makes
+the rendering *visible*, and what it says is pinned in fixtures that mint their own
+timestamps (`test_a_rosters_row_says_when_the_log_last_heard_from_that_worker`,
+`test_a_worker_that_has_never_reported_dates_from_its_version`). The next widget with a
+live half owes both halves.
+
 ## A page's connective prose is its own
 
 The gesture vocabulary repeats and is meant to — every board takes a drag, every group

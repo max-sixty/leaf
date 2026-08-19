@@ -4902,6 +4902,37 @@ function aimTarget() {
     return designTarget(document.elementFromPoint(pointer.x, pointer.y));
   return null;
 }
+// What a container lets the reader see of what it holds, or null where it shows all of
+// it. Overflow is one of three ways to draw nothing past an edge: paint containment and
+// content-visibility both clip while overflow computes `visible`, and a box under either
+// would be drawn at a rect the reader never sees. The band itself is the padding box less
+// whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
+// nothing about either, and a box drawn under a border is drawn nowhere as surely as one
+// past the edge.
+//
+// `version check --render` imports this to ask which container cut a box away, so the
+// band a handover is refused against and the band the page paints to are one reading.
+// Written twice they disagreed twice, each copy right about one of the two things above
+// and wrong about the other.
+export function shownBand(el) {
+  const s = getComputedStyle(el);
+  if (
+    s.overflowX === "visible" &&
+    s.overflowY === "visible" &&
+    !/paint|strict|content/.test(s.contain) &&
+    s.contentVisibility === "visible"
+  )
+    return null;
+  const b = el.getBoundingClientRect();
+  const left = b.left + el.clientLeft,
+    top = b.top + el.clientTop;
+  return {
+    left,
+    top,
+    right: left + el.clientWidth,
+    bottom: top + el.clientHeight,
+  };
+}
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an
@@ -4930,19 +4961,7 @@ function shownRect(item, clips) {
   let { left, top, right, bottom } = r;
   for (let a = item.parentElement; a; a = a.parentElement) {
     let c = clips.get(a);
-    if (c === undefined) {
-      const s = getComputedStyle(a);
-      // Overflow is one of three ways to draw nothing past an edge: paint containment
-      // and content-visibility do it while overflow computes `visible`, and an item
-      // under one of those would take its aim at a rect the reader never sees.
-      c =
-        /hidden|clip|auto|scroll/.test(s.overflowX + s.overflowY) ||
-        /paint|strict|content/.test(s.contain) ||
-        s.contentVisibility !== "visible"
-          ? a.getBoundingClientRect()
-          : null;
-      clips.set(a, c);
-    }
+    if (c === undefined) clips.set(a, (c = shownBand(a)));
     if (!c) continue;
     left = Math.max(left, c.left);
     top = Math.max(top, c.top);

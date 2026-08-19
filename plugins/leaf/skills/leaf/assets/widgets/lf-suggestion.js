@@ -58,9 +58,9 @@
  * each other, which a translate nudges apart without touching layout. */
 import {
   agentName,
-  alignText,
   FOLD_MS,
   motion,
+  movedWords,
   offer,
   once,
   quietWord,
@@ -101,8 +101,9 @@ const column = () => document.querySelector("main") || document.body;
 // that moved. The slots' whole tints stay — they are what a dead copy keeps — and on
 // the live page the words that differ deepen, painted through the highlight registry
 // so no node is wrapped (Paint; don't wrap) and cleared when the suggestion settles.
-// alignText is the layer's one text alignment (lf-draft's Changes reads through it),
-// so a second differ here would be a second answer to one question.
+// movedWords is the layer's one answer to which words differ (lf-diff marks a paired
+// diff line through it), so a second differ here would be a second answer to one
+// question — and a second threshold to tune.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
 const emphasized = new Map(); // suggestion element → {del: Range[], ins: Range[]}
 
@@ -476,12 +477,10 @@ customElements.define(
           quietWord(slot, decided ? "" : word);
     }
 
-    // The words that moved, as ranges over both slots' own text nodes. Skipped
-    // where the alignment shares too little ink — a whole-widget swap is a
-    // replacement, not an edit, and emphasis over everything says nothing (the
-    // similarity gate every mature diff view applies). Whitespace-only runs
-    // advance the cursors and paint nothing: reformatted markup is not a changed
-    // word.
+    // The words that moved, as ranges over both slots' own text nodes. Which words
+    // those are, and whether the pair shares enough ink to be worth marking at all,
+    // is `movedWords` — one answer for every widget that deepens a change, since
+    // lf-diff asks the same question of a paired diff line.
     #emphasize() {
       if (this.dataset.lfState) return;
       const oldSlot = this.querySelector(":scope > lf-old");
@@ -490,31 +489,11 @@ customElements.define(
       const [oldSegs, newSegs] = [oldSlot, newSlot].map((slot) => textNodesUnder(slot));
       const read = (segs) =>
         segs.map((s) => s.node.data.slice(s.start, s.end)).join("");
-      const [oldText, newText] = [read(oldSegs), read(newSegs)];
-      const runs = alignText(oldText, newText);
-      const ink = (text) => text.replace(/\s+/g, "").length;
-      const shared = runs
-        .filter((run) => run.kind === "same")
-        .reduce((n, run) => n + ink(run.text), 0);
-      if (shared * 3 < Math.min(ink(oldText), ink(newText))) return;
-      const del = [];
-      const ins = [];
-      let o = 0;
-      let n = 0;
-      for (const run of runs) {
-        const len = run.text.length;
-        if (run.kind !== "insert") {
-          if (run.kind === "delete" && run.text.trim()) del.push([o, o + len]);
-          o += len;
-        }
-        if (run.kind !== "delete") {
-          if (run.kind === "insert" && run.text.trim()) ins.push([n, n + len]);
-          n += len;
-        }
-      }
+      const moved = movedWords(read(oldSegs), read(newSegs));
+      if (!moved) return;
       emphasized.set(this, {
-        del: toRanges(oldSegs, del),
-        ins: toRanges(newSegs, ins),
+        del: toRanges(oldSegs, moved.del),
+        ins: toRanges(newSegs, moved.ins),
       });
       repaintEmphasis();
     }

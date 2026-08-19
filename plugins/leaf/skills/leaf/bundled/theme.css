@@ -724,9 +724,21 @@ lf-event[at]::before { content: attr(at); }
 lf-event:has(> [data-lf-said="at"])::before { content: none; }
 lf-event > strong { margin-right: 6px; }
 
-/* lf-compare / lf-variant: labeled columns; exhibition, not decision. */
+/* lf-compare / lf-variant: labeled columns; exhibition, not decision.
+ *
+ * A cell takes its width from the group and its height from what it holds. Stretch is
+ * the grid's own default and it draws empty boxes: out of 720px of column a one-sentence
+ * variant beside a six-line one came out 278px tall, 190 of that blank under a single
+ * line, which reads as a card whose words failed to arrive.
+ *
+ * That leaves a last row with room to spare — four terse variants come out three across
+ * and one under them at a third of the row, seven as 3, 3 and 1. The two ways of filling
+ * it both pay in cell width: a wrapped flex line grows its items, and a column count read
+ * off the child count is a different width per count. An exhibition is read down its
+ * columns as much as across its rows, and a card wider than its peers because it happened
+ * to be last says something about that variant that isn't true. So the room stays. */
 lf-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-             gap: var(--sp-3); margin: 14px 0; }
+             align-items: start; gap: var(--sp-3); margin: 14px 0; }
 lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(--r);
              padding: var(--sp-3); background: var(--card); --lf-frame: 1; }
 lf-variant > strong { display: block; margin: 0 0 4px; }
@@ -1119,6 +1131,20 @@ pre .add  { background: var(--add-tint); }
 pre .del  { background: var(--del-tint); }
 pre .hunk { color: var(--accent); background: var(--pre-bg); }
 pre .note { color: var(--muted); } /* git's remark on the line above, not a line */
+/* The words that moved between a paired deletion and the addition answering it, ruled
+   underneath in the side's own hue (lf-diff.js bodyNodes) — --danger and --ok, the two
+   colours the document's own emphasis is mixed from, so the mark says the same thing in
+   the medium a shadow tree leaves it.
+   A rule, where that emphasis deepens the wash (::highlight(lf-sug-del) and (lf-sug-ins)
+   in theme.css): a suggestion's ink is prose ink, and a diff line's is the file's syntax
+   colour over a tint that has already spent most of the contrast there was. Measured in
+   both schemes over every role, --syn-comment reads 4.73:1 on the deletion tint — so a
+   deepening light enough to keep the 4.5 the render gate holds every word of code to is
+   too light to see at all: 6% --danger already reads 4.4. A rule spends no luminance. */
+pre [data-lf-diff] { text-decoration-line: underline; text-decoration-thickness: 2px;
+                     text-underline-offset: 2px; text-decoration-skip-ink: none; }
+pre [data-lf-diff="del"] { text-decoration-color: var(--danger); }
+pre [data-lf-diff="add"] { text-decoration-color: var(--ok); }
 /* Syntax colour is the same statement the document makes, and the tokens are in here
    rather than out there, so the rules come too. The custom properties they read inherit
    through the boundary, which is why only the selectors need repeating. */

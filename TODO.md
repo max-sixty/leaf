@@ -48,10 +48,29 @@
     with the registry's `x-inline` tags as the one declared residue, pinned by test
     (lf-compare's stacked-variant trigger shares the list and the pin).
   - (done 2026-08-14) `_PassageParser.close()` unwinds the stack at EOF.
-  - `bin/leaf` records `$PPID` as the long-lived Codex process; if Codex execs the
-    shim through an intermediate shell, that PID dies with the command and
-    `claim_page`'s stale-session sweep deletes a live session's entry. Needs a real
-    Codex invocation to settle.
+  - (done 2026-08-18) `bin/leaf` recorded `$PPID` as the Codex process, and it is
+    that process for some command shapes and a shell of the moment for others.
+    Measured against codex-cli 0.147.0, which runs each shell tool call as
+    `/bin/zsh -lc '…'`: a bare command, a `cd … && …` chain and a `bash -lc "…"`
+    all reported the codex process, the wrapping shell having exec'd the command
+    in place, while `leaf … | cat` reported the wrapping shell itself — a pipeline
+    is what stops that exec. So the pid was right by accident and wrong by
+    accident, and the wrong one exits with the command: the sweep in `claim_page`
+    drops a live session's entry, `stop_when_session_ends` takes the page's server
+    down `ORPHAN_GRACE_SECS` after the command that started it, and the banner
+    tells the reader no session holds the page while the session sits there
+    working. A launcher can't know it, so the launcher no longer states it:
+    `session_pid` reads `CLAUDE_PID` for Claude Code (measured to be the session
+    process, where that shell's `$PPID` is an ephemeral `zsh`) and walks to the
+    nearest ancestor running `codex` otherwise, failing loudly where none is —
+    that environment is hand-built, and a guessed pid is a claim that expires on
+    its own. The walk is libproc on macOS and `/proc` on Linux rather than `ps`,
+    which is the one door that looks portable and is refused (`/bin/ps: Operation
+    not permitted`, setuid root) inside exactly the seatbelt sandbox Codex runs
+    its shell tool under. All of it read off one `codex exec`, the last of its
+    five commands being the real shim claiming a page through a pipeline: the
+    shell it ran under was pid 93641 and the claim recorded 87087, the codex
+    process itself.
   - (done 2026-08-15) lf-options wrote `answered` and `open` onto the group in the
     author's namespace, which its entry closes. Neither was state to declare: the
     `answer` verb is a thread's, and no version can carry a thread's markup to honor a
@@ -98,12 +117,30 @@
     and `retractionFloors` memoizes on the log's identity, which is what
     `buildThreads` walked per call.)
 
-- (2026-08-08) lf-compare's terse variants keep the auto-fit grid the options gave up,
-  and with it the geometry the options were complained about: equal-height cells and an
-  orphaned last row once a group holds more than the columns take. It stayed by
-  argument — an exhibition is looked across, and shipped compares are pairs — not
-  because the failure was verified unreachable, so the day a page holds four terse
-  variants, this is that report.
+- (done 2026-08-18 — verified, changed) lf-compare's terse variants keep the auto-fit
+  grid the options gave up, and with it the geometry the options were complained about:
+  equal-height cells and an orphaned last row once a group holds more than the columns
+  take. It stayed by argument — an exhibition is looked across, and shipped compares are
+  pairs — not because the failure was verified unreachable, so the day a page holds four
+  terse variants, this is that report. The page was built: groups of four, five and seven
+  terse variants and one of three unequal lengths, served and read in both palettes at
+  the suite's width and at 460px. Half of it reads wrong.
+
+  The stretch does. Out of 720px of column a one-sentence variant beside a six-line one
+  came out 278px tall with 190 of that blank under a single line, which reads as a card
+  whose words never arrived — and a group's geometry moved with content that was not in
+  it. `align-items: start` is the whole fix, and a cell is the height of what it holds
+  now.
+
+  The trailing room does not. Four come out three across with the fourth under them, and
+  that fourth is a card the size of its peers on a row with space left rather than the
+  demoted case the option's orphan was. Both ways of closing it pay in cell width: a
+  wrapped flex line grows whatever lands on the last line, and measured worse than that
+  here — two per row, the basis being content-box against a padded card — while a column
+  count read off the child count is a different width per count. An exhibition is read
+  down its columns as much as across its rows, so the room stays.
+  `test_a_terse_variant_is_the_height_of_its_own_words` measures the two readings against
+  each other. Narrow, a group is one column and none of it arises.
 
 - (2026-07-30) The g leader shipped with digits only (`g 1` reaches the nth open
   thread's reply box) and the namespace open. Settle its shape before growing it:
@@ -135,40 +172,42 @@
   ⌥-click on the item as the one way to say something about it, which opens the
   composer where the words will be anchored.
 
-- (2026-07-31) An unsent draft dies with the tab. sessionStorage carries one through a
-  reload, a version navigation, and a server restart — the port is derived from the page
-  directory, so a re-serve lands on the same origin — and a closed tab is the one case
-  it doesn't cover. That is the ordinary case here rather than a rare one: each round's
-  reply hands the URL over again and the user opens the page from the turn in front
-  of them, so a page's tabs accumulate. Swapping the store for localStorage trades the
-  gap for a worse failure, since one store shared across those tabs means a send or a
-  Cancel in an old tab clears text being typed in the new one. The build that avoids
-  both is localStorage for durability plus a channel (`BroadcastChannel`) that says what
-  happened, so every tab renders one copy and a cleared draft arrives as "sent" rather
-  than as words going missing — a value diff cannot tell those apart. What it costs is
-  an index from a draft's context to the box showing it, which nothing needs today: each
-  box closes over its own context where it is built, and the reconciled panel keeps
-  that box for its thread's life, so the index would be one more store to hold in step
-  with the list. The server is where Slack keeps drafts and the one place
-  these cannot go: here the server is the agent, and an unsent draft would be words the
-  user has not decided to say, sitting where the next `leaf wait` can read them.
+- (done 2026-08-18) An unsent draft died with the tab, which is the ordinary end of a
+  tab here rather than a rare one. Drafts are the reader's now (`draftStore`,
+  localStorage under `PAGE_SCOPE`; `tabStore` keeps the reading position and the
+  widgets' working state), and every tab renders one copy: `watchDraft` routes the
+  store's own `storage` event to the box on that context. The index the item priced is
+  the document's listener list rather than a store of our own, so a box out of the
+  document drops its view and nothing has to be held in step with the panel.
 
-- (2026-08-07) A changed line in `lf-diff` says only that the line changed. (The
-  suggestion half of this landed 2026-08-14: lf-suggestion's slots deepen the words
-  that moved, through `alignText` and the highlight registry — no vendoring, cleared
-  on decide, gated on shared ink so a swap paints nothing. `alignText` may make the
-  jsdiff vendoring below unnecessary for the diff too; ::highlight cannot reach the
-  diff's shadow tree, so its emphasis would be module-built spans instead.) jsdiff's
-  `diffWordsWithSpace` narrows it to the words that moved, and bundles to 6 KB on its
-  own, vendored beside the tokenizer the way `highlight.esm.js` already is. Pairing is
-  what has to be settled first: a word-level mark compares one deletion against one
-  addition, and a hunk offers a block of each, so something has to say which line
-  answers which. Pierre walks the change block and pairs a deletion row with the
-  addition row opposite it. The spans can be built in the pass that already colours
-  each side, and they nest inside the token spans the way `synNodes` nests now, so no
-  text moves and neither reading changes.
+  The channel is not there. Once an emptied box stores `""` and only a settlement
+  removes the key, `newValue` tells an edit from a send-or-Cancel by itself — and
+  *which* settlement it was is a question nothing asks, both leaving the same box to
+  render and the log carrying what was sent. That rule also retires lf-draft's JSON
+  wrapper, which existed to keep an empty edit distinct from absence. What a settlement
+  does is the box's own — a reply or general box empties, the composer on that anchor
+  closes, a draft editor closes so replay can paint the body — while a mirrored edit
+  opens nothing that was not already open. The composer's key is its anchor, since one
+  key shared across tabs is two passages overwriting each other; its record carries the
+  anchor, the mode and a touch time, which is what the load reopens the most recent of.
 
-  This came out of measuring `@pierre/diffs` rather than adopting it. Pierre divides at
+  The alternative that stays unbuilt: the server is where Slack keeps drafts and the one
+  place these cannot go, since here the server is the agent and an unsent draft would be
+  words the user has not decided to say, sitting where the next `leaf wait` can read
+  them.
+
+- (done 2026-08-18) A changed line in `lf-diff` marks the words that moved. Within a
+  change block the i-th deletion answers the i-th addition, leftovers unmarked; the marks
+  are spans nested inside the token spans, `::highlight()` reaching no shadow tree. What
+  ends a block and why each mark is built where it is are `movedInFile` and `bodyNodes`.
+
+  Nothing was vendored. `alignText` was already the layer's alignment, and the gate it
+  needed was lf-suggestion's, written inline there — `movedWords` in leaf.js is that gate
+  lifted out, and both widgets read it. The marks are ruled underneath rather than
+  deepened the way a suggestion's are, because a diff line's tint has already spent the
+  contrast the render gate holds code to; `bundled/theme.css` carries the measurement.
+
+  The pairing came out of measuring `@pierre/diffs` rather than adopting it. Pierre divides at
   Shiki. Its diff model — parsing, hunks, patches, accept/reject, conflict detection —
   is 34 KB and never touches a highlighter, but it does what `parseDiff` already does
   here. The renderer is what carries split view, and it reaches its highlighter through

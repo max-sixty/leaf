@@ -51,10 +51,12 @@
  * searched and paintAnchors the only place it is marked; CLAUDE.md carries why.
  *
  * Never lose user text (CLAUDE.md): every unsent draft — the general box, each per-thread
- * reply, the selection composer (text + its anchor), and an in-place draft edit —
- * persists to the tab's own store (tabStore) on input. It survives reload and version
- * navigation but is owned by one tab, so a send or Cancel in another tab cannot erase
- * newer unsent words.
+ * reply, the selection composer (text + its anchor), a widget's box for words, and an
+ * in-place draft edit — persists to the reader's own store (draftStore) on input. It
+ * survives reload, version navigation and the close of the tab it was typed in, and every
+ * tab open on the page shows one copy of it: a keystroke lands in the store and the
+ * store's own event carries it to the rest (watchDraft), so a draft cleared by a send in
+ * one tab arrives in the others as a box that has sent rather than as words gone missing.
  *
  * Versions: an unpinned page follows the newest version, navigating to each revision as
  * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
@@ -270,11 +272,14 @@ const PAGE_SCOPE = location.pathname.replace(VERSION_PATH, "");
 // runtime and two widget modules.
 //
 // Which store is the part worth reading at a call site, and naming them is what puts it
-// there. `tabStore` is this tab's working state and dies with the tab — unsent drafts,
-// the reading position, whether a widget stands open — because another tab's gesture
-// must never reach it (see the draft section below). `readerStore` is this reader's
-// standing preference across tabs, which is the chrome they arrange and expect to find
-// arranged. Anything two tabs must agree about is neither: it goes in the log.
+// there. `tabStore` is this window's working state and dies with the tab — the reading
+// position, which panel of a widget stands open, whether design mode is on — because each
+// of those is about the window rather than about the page. `draftStore` is what the user
+// typed and hasn't sent: it outlives the tab, because closing one is the ordinary end of
+// a tab here, and every tab shows one live copy of it (see the draft section below).
+// `readerStore` is this reader's standing preference across pages, which is the chrome
+// they arrange and expect to find arranged. Anything two tabs must *agree* about is none
+// of the three: it goes in the log.
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
@@ -294,14 +299,28 @@ const stored = (backing, scope = "") => ({
       /* a page that cannot remember still renders */
     }
   },
+  // What this scope holds, spelled as the callers spell it. The drafts are what needs
+  // it: a composer's key is the passage it is on, so which draft to reopen at load is a
+  // question about the set rather than about a key someone already knows.
+  keys() {
+    try {
+      return Object.keys(backing)
+        .filter((key) => key.startsWith(scope))
+        .map((key) => key.slice(scope.length));
+    } catch {
+      return [];
+    }
+  },
 });
-// The tab's store is the one scoped to the page (PAGE_SCOPE): what the reader arranges is
-// theirs wherever they are reading, which is the distinction that put the two in
-// different backings to begin with. It is also the only one on the helper surface,
-// because only widgets keep working state (lf-tabs' open panel, lf-options' collapsed
-// group) — the chrome the reader arranges is the runtime's own, and an export nothing
-// imports is a promise nobody asked for.
+// Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
+// there are three backings: what the reader arranges is theirs wherever they are reading,
+// while what they typed here belongs to this page. tabStore is the only one on the helper
+// surface, because only widgets keep working state (lf-tabs' open panel, lf-options'
+// collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
+// the reader arranges is the runtime's own, and an export nothing imports is a promise
+// nobody asked for.
 export const tabStore = stored(sessionStorage, PAGE_SCOPE);
+const draftStore = stored(localStorage, PAGE_SCOPE);
 const readerStore = stored(localStorage);
 
 // ---------- syntax ----------
@@ -797,7 +816,7 @@ export function sayBox(el, hint) {
   const ta = offer("textarea");
   const send = offer("button", "lf-btn primary", "Send");
   const ctx = "say:" + el.id;
-  ta.value = loadDraft(ctx);
+  ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
   row.append(ta, send);
   const sync = wireInput(ta, {
@@ -815,13 +834,14 @@ export function sayBox(el, hint) {
         }))
       )
         return;
-      saveDraft(ctx, "");
+      clearDraft(ctx);
       ta.value = "";
       sync();
       showToast(`Sent to ${agent}`);
     },
   });
   sync();
+  mirrorDraft(ta, sync, ctx);
   return row;
 }
 
@@ -2834,25 +2854,94 @@ export function watchActions(widget, action, callback) {
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
-// and server death; only a successful send clears it. It is working state of this tab,
-// not shared page state: tabStore keeps another tab's send or Cancel from clearing
-// a newer local edit. Recorded actions in the log are what converge across tabs.
-// Surviving the tab's own close is the open question (TODO.md), and it is a question
-// about what a second tab then sees rather than about where a draft lives. Storage
-// failures never break typing (tabStore). Still a pair of its own rather than callers
-// spelling tabStore themselves, because a textarea and a store disagree about nothing:
-// one place turns the store's null into the "" a value wants, and an emptied box into a
-// removed key. A widget that means to keep an emptied draft says so by storing something
-// (lf-draft wraps its text in JSON), which is the same discipline in the same store.
+// server death — and the tab itself. That last one is where this store came from: each
+// round's reply hands the URL over again and the user opens the page from the turn in
+// front of them, so a page's tabs accumulate and the one holding a half-written sentence
+// is as likely to be closed as any other. Tab-local storage carried a draft through
+// everything but the one gesture nobody thinks of as destructive.
+//
+// So the store is the reader's, and one draft has one copy: every box showing it, in
+// every tab, is a view of the store, and the store's own `storage` event carries a
+// keystroke from the tab that made it to the rest (watchDraft). A copy per tab was the
+// alternative and it fails in the direction that loses words — two tabs each holding a
+// different half of one thought, and whichever is closed takes its half.
+//
+// Presence and value are different, and that is what says why a draft cleared. A box the
+// reader emptied stores "" and is still a draft they are holding; only a settlement — a
+// successful send, or Cancel — removes the key. So the event's newValue tells an edit
+// from a settlement on its own, and no channel beside the store is needed to carry the
+// reason. *Which* settlement it was, nothing here asks: a send and a discard leave the
+// same box for the other tab to render, and what was sent arrives there through the log.
+// Nor is there a toast — it would be news about a gesture made in another tab, seen only
+// if this one happens to be on screen at that moment, and where it is on screen the panel
+// beside the emptied box is already showing the thread the send became.
+//
+// Storage failures never break typing (`stored`). Still a trio of its own rather than
+// callers spelling draftStore themselves, because a textarea and a store disagree about
+// nothing: one place holds the key spelling, and the store's null reads as "nothing
+// pending" — which is lf-draft's whole question, and why its edits need no wrapper.
 const DRAFT = "lf-draft:";
-export const saveDraft = (ctx, val) => tabStore.set(DRAFT + ctx, val || null);
-export const loadDraft = (ctx) => tabStore.get(DRAFT + ctx) || "";
+export const saveDraft = (ctx, val) => draftStore.set(DRAFT + ctx, val);
+export const clearDraft = (ctx) => draftStore.set(DRAFT + ctx, null);
+export const loadDraft = (ctx) => draftStore.get(DRAFT + ctx);
+
+// A draft written in another tab, routed to whatever is showing it here. The document is
+// the bus, as it is for replayed actions (watchActions), and that is what supplies the
+// index this needs — from a draft's context to the box on screen — without a map of our
+// own to hold in step with the panel: a box that has left the document takes its view off
+// with it (mirrorDraft). The callback takes the store's vocabulary, so the words now
+// standing arrive as a string and a settlement as null.
+//
+// It does not run on subscribe, which is where this parts company with watchActions. The
+// draft a box opens with and the news that another tab changed one are different facts,
+// and the boxes answer them differently: a draft editor opens on recovery at load and
+// stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
+// it and so may move nothing.
+const DRAFT_NEWS = "lf-drafts";
+export function watchDraft(ctx, callback) {
+  const update = (ev) => ev.detail.ctx === ctx && callback(ev.detail.value);
+  document.addEventListener(DRAFT_NEWS, update);
+  return () => document.removeEventListener(DRAFT_NEWS, update);
+}
+addEventListener("storage", (ev) => {
+  const prefix = PAGE_SCOPE + DRAFT;
+  // Null where the whole store was cleared, and every key of another page on this origin
+  // besides — a published site serves each example from one root.
+  if (!ev.key?.startsWith(prefix)) return;
+  document.dispatchEvent(
+    new CustomEvent(DRAFT_NEWS, {
+      detail: { ctx: ev.key.slice(prefix.length), value: ev.newValue },
+    }),
+  );
+});
+
+// One box's view of one draft: the plain boxes, which have nothing to render about a
+// draft but its words, so a settlement and an emptying leave the same empty box. The
+// value is written only where it differs, because writing .value on a focused box moves
+// the caret to the end of it; the box grows to fit either way, sizing being the
+// stylesheet's (wireInput). sync() is what makes the Send button agree with what is now
+// in the box.
+//
+// A box out of the document drops its view at the next word it would have shown, rather
+// than at the moment it leaves — the one box that ever leaves is a reply box going with
+// its resolved thread, and asking the panel to say so would be the index this design is
+// for not keeping. What the check has to hold is that such a box never renders and never
+// doubles the live one: a thread a retraction reopens is a second box on the same
+// context, and the one that is still in the document is the one that paints.
+function mirrorDraft(ta, sync, ctx) {
+  const off = watchDraft(ctx, (value) => {
+    if (!ta.isConnected) return off();
+    const text = value ?? "";
+    if (ta.value === text) return;
+    ta.value = text;
+    sync();
+  });
+}
 // Reply drafts are never pruned. A thread resolving is not a discard: another
 // tab's Resolve, or this tab accepting a suggestion whose action `resolves`,
-// used to sweep an unsent reply out of sessionStorage — words going missing,
-// where the norm is that Cancel is the only discard. The store is tab-local and
-// dies with the tab, so what pruning saved was bounded by the tab's own life;
-// a thread a retraction reopens finds the draft where it was left.
+// used to sweep an unsent reply out of storage — words going missing, where the
+// norm is that Cancel is the only discard. A thread a retraction reopens finds
+// the draft where it was left.
 
 // Panel open/closed is remembered too: a version switch reloads the document, and
 // reopening the panel by hand after every revision gets old fast.
@@ -3452,7 +3541,7 @@ function threadNode(t, grow) {
     row.append(badge);
     const input = document.createElement("textarea");
     const draftCtx = "reply:" + t.root.id;
-    input.value = loadDraft(draftCtx);
+    input.value = loadDraft(draftCtx) ?? "";
     const send = el("button", "lf-btn", "Reply");
     row.append(input, send);
     div.lfSync = wireInput(input, {
@@ -3475,13 +3564,17 @@ function threadNode(t, grow) {
         // post() polled, so the reconcile has already appended the message — and kept
         // this very box, which empties for the next thought and holds focus whichever
         // control sent it.
-        saveDraft(draftCtx, "");
+        clearDraft(draftCtx);
         input.value = "";
         revealThread(sent.id);
         input.focus({ preventScroll: true });
       },
     });
     div.lfSync(); // a restored reply draft enables its Reply button
+    // This box is a view of that draft wherever it is being typed. The node is kept for
+    // the thread's life and rebuilt when it resolves, and the view goes with the box it
+    // was on: nothing here has to say so, since a box out of the document drops it.
+    mirrorDraft(input, div.lfSync, draftCtx);
     const actions = el("div", "lf-thread-actions");
     const resolve = el("button", "lf-resolve", "✓ Resolve");
     // Resolving takes this node out of the open list and focus with it — the blind
@@ -4168,6 +4261,43 @@ export function alignText(before, after) {
   push("insert", right.slice(j, rightEnd).join(""));
   push("same", left.slice(leftEnd).join(""));
   return runs;
+}
+
+// The words that moved between two texts: `{del, ins}` as [from, to) spans into `before`
+// and into `after`, or null where the pair shares too little ink to be worth marking. A
+// wholesale swap is a replacement rather than an edit, and emphasis over everything says
+// nothing the change's own tint already did — the similarity gate every mature diff view
+// applies. Whitespace-only runs advance the cursors and mark nothing: reformatted markup
+// is not a changed word.
+//
+// The alignment is taken here rather than passed in, because both consumers ask the same
+// question and only the painting differs — lf-suggestion paints ranges through the
+// highlight registry, lf-diff wraps spans, ::highlight() not reaching into a shadow tree.
+// Written twice it would be two thresholds, and the reader would meet whichever was tuned
+// last.
+export function movedWords(before, after) {
+  const runs = alignText(before, after);
+  const ink = (text) => text.replace(/\s+/g, "").length;
+  const shared = runs
+    .filter((run) => run.kind === "same")
+    .reduce((n, run) => n + ink(run.text), 0);
+  if (shared * 3 < Math.min(ink(before), ink(after))) return null;
+  const del = [];
+  const ins = [];
+  let o = 0;
+  let n = 0;
+  for (const run of runs) {
+    const len = run.text.length;
+    if (run.kind !== "insert") {
+      if (run.kind === "delete" && run.text.trim()) del.push([o, o + len]);
+      o += len;
+    }
+    if (run.kind !== "delete") {
+      if (run.kind === "insert" && run.text.trim()) ins.push([n, n + len]);
+      n += len;
+    }
+  }
+  return { del, ins };
 }
 
 // What an element says, read the way this file reads the page everywhere else. A widget
@@ -5893,18 +6023,49 @@ document.addEventListener("click", (ev) => {
 // that says so. Decided at the open, where the anchor is, and carried with the draft: a
 // draft on the banner is about the layer however the mode stands by the time it is sent.
 let pendingAbout = null;
+// The composer's draft is keyed by the passage it is on. Under one key — which is what it
+// was while a draft lived and died in one tab — two tabs composing on different passages
+// would each overwrite the other's words, so the key says which passage and the record
+// says the rest: the anchor itself (a version that drops the passage still has to say
+// what the draft was about), the mode it was written in, and when it was last touched,
+// which is what picks the one to reopen at load.
+const COMPOSER_KEY = "composer:";
+const composerCtx = (anchor) =>
+  COMPOSER_KEY +
+  JSON.stringify(
+    ["section", "quote", "prefix", "suffix", "part"].map((key) => anchor?.[key] ?? ""),
+  );
 const saveComposerDraft = () =>
   saveDraft(
-    "composer",
-    composerInput.value
-      ? JSON.stringify({
-          text: composerInput.value,
-          anchor: pendingAnchor,
-          suggest: suggestCheck.checked,
-          about: pendingAbout,
-        })
-      : "",
+    composerCtx(pendingAnchor),
+    JSON.stringify({
+      text: composerInput.value,
+      anchor: pendingAnchor,
+      suggest: suggestCheck.checked,
+      about: pendingAbout,
+      touched: Date.now(),
+    }),
   );
+// An open box the reader emptied keeps its record, which is what tells another tab's
+// composer on that passage that this one is merely empty rather than settled — and leaves
+// nothing to reopen on. So the draft to come back to is the most recently touched one
+// that still holds words.
+function pendingComposer() {
+  let best = null;
+  for (const key of draftStore.keys()) {
+    if (!key.startsWith(DRAFT + COMPOSER_KEY)) continue;
+    let record;
+    // Parsed under its own guard: a record that no longer parses costs the reader that
+    // one draft, where throwing would cost them the page, at module top level.
+    try {
+      record = JSON.parse(draftStore.get(key));
+    } catch {
+      continue;
+    }
+    if (record?.text && (!best || record.touched > best.touched)) best = record;
+  }
+  return best;
+}
 const syncComposer = wireInput(composerInput, {
   hint: () =>
     suggestCheck.checked
@@ -5930,11 +6091,15 @@ const syncComposer = wireInput(composerInput, {
       ?.focus({ preventScroll: true });
   },
 });
-// The composer's suggest-mode rendering — button label and placeholder — derived
-// from the checkbox in one place, so the three paths that set the checkbox
-// (toggle, open, close) can't each restate half of it. The placeholder itself is
-// wireInput's to write; syncComposer repaints it from the hint above.
+// The composer's suggest-mode rendering — the offer of it, the button label and the
+// placeholder — derived from the standing state in one place, so the four paths that
+// set that state (toggle, open, close, another tab's keystroke) can't each restate
+// half of it. The placeholder itself is wireInput's to write; syncComposer repaints it
+// from the hint above.
 function syncSuggestMode() {
+  // A suggestion is replacement text for a passage of the page; a remark about the
+  // layer proposes no words, whatever it quotes.
+  suggestRow.style.display = pendingAnchor?.quote && !pendingAbout ? "flex" : "none";
   composerSend.textContent = suggestCheck.checked ? "Suggest" : "Comment";
   syncComposer();
   paintLine(); // the line's send row says which of the two the box will do
@@ -5978,16 +6143,24 @@ function openComposer(
   suggest = false,
   about = designOn ? "layer" : null,
 ) {
-  pendingAnchor = anchor || null;
-  pendingAbout = about;
   if (composerInput.value === seededQuote) composerInput.value = "";
   seededQuote = "";
+  const ctx = composerCtx(anchor || null);
+  // A draft already standing on this passage is what the box opens with — one left hidden
+  // here, or one being typed in another tab — unless the caller brought words of its own
+  // or the box is already carrying some.
+  const held = text || composerInput.value ? null : loadDraft(ctx);
+  if (held) ({ text, suggest, about } = JSON.parse(held));
+  // The draft moves with the box, and one draft is one record: the passage the words were
+  // on lets go of them as they arrive on the next one. A press that re-anchors an open
+  // draft is where this lands, and a key left standing there would hand the same words
+  // back on the old passage at the next load.
+  if (composerCtx(pendingAnchor) !== ctx) clearDraft(composerCtx(pendingAnchor));
+  pendingAnchor = anchor || null;
+  pendingAbout = about;
   composerInput.value = text || composerInput.value;
-  suggestCheck.checked = suggest;
+  suggestCheck.checked = Boolean(suggest);
   syncSuggestMode();
-  // A suggestion is replacement text for a passage of the page; a remark about the
-  // layer proposes no words, whatever it quotes.
-  suggestRow.style.display = anchor?.quote && !about ? "flex" : "none";
   // before placing: a hidden box has no height to fit, and the pass inside this call is
   // both what decides whether the quote takes up some of that height and what records
   // where the passage is that the box has to stay off.
@@ -5995,23 +6168,49 @@ function openComposer(
   syncComposer();
   placeComposer(left, top);
   composerInput.focus();
+  watchComposer();
   // The store hears about the anchor now, not at the next keystroke: saving only on
   // input left a re-anchored draft stored against the anchor the press had just moved
   // it off, and a reload between the press and the next character quietly un-made the
   // move.
   saveComposerDraft();
 }
+// The box is one view of the draft standing on this passage, and it follows the plain
+// boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
+// draft settled in another tab — sent, or discarded — leaves it nothing to be open about
+// and it goes down. The subscription moves with the anchor, because the key does.
+let composerWatch = null;
+function watchComposer() {
+  composerWatch?.();
+  composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
+    if (value === null) return closeComposer();
+    const { text, suggest, about } = JSON.parse(value);
+    if (composerInput.value !== text) {
+      composerInput.value = text;
+      // Whatever stood here is another tab's words now, not this box's machine seed.
+      seededQuote = "";
+    }
+    // The whole record, not the words alone: the mode a draft was written in rides with
+    // it (pendingAbout, above), so a box taking up those words sends them under the word
+    // they were written with. Design mode is this tab's and the draft's about is not.
+    pendingAbout = about;
+    suggestCheck.checked = Boolean(suggest);
+    syncSuggestMode();
+  });
+}
 // Hiding keeps the draft and closing discards it, but the mark goes down with the box
 // either way: a marked passage with no composer on screen points at nothing.
 const hideComposer = () => showComposer(false);
 function closeComposer() {
+  clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
+  composerWatch?.();
+  composerWatch = null;
   composerInput.value = "";
   seededQuote = "";
   suggestCheck.checked = false;
-  syncSuggestMode();
   pendingAnchor = null;
   pendingAbout = null;
-  saveDraft("composer", "");
+  syncSuggestMode(); // after the state it renders, which is now all of it
   hideComposer();
 }
 
@@ -6044,11 +6243,12 @@ const syncGeneral = wireInput(generalInput, {
     const sent = await post(event);
     if (!sent) return;
     generalInput.value = "";
-    saveDraft("general", "");
+    clearDraft("general");
     revealThread(sent.id);
     generalInput.focus({ preventScroll: true }); // both send routes end where typing was
   },
 });
+mirrorDraft(generalInput, syncGeneral, "general");
 
 approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good" });
 
@@ -8363,7 +8563,7 @@ async function poll() {
 // ---------- restore ----------
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
-generalInput.value = loadDraft("general");
+generalInput.value = loadDraft("general") ?? "";
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
@@ -8406,7 +8606,7 @@ function landArrival() {
   if (aimed) scrollToElement(aimed, "instant");
   else if (savedView) restoreView(savedView);
 }
-const savedComposer = loadDraft("composer");
+const savedComposer = pendingComposer();
 
 // ---------- start ----------
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
@@ -8450,18 +8650,14 @@ Promise.all([
   landArrival();
   if (savedView && savedView.v < VNUM) showToast(`Updated to v${VNUM}`);
   if (savedComposer)
-    try {
-      const { text, anchor, suggest, about } = JSON.parse(savedComposer);
-      if (text)
-        openComposer(
-          anchor,
-          text,
-          (innerWidth - 320) / 2,
-          64,
-          Boolean(suggest),
-          about ?? null,
-        );
-    } catch {}
+    openComposer(
+      savedComposer.anchor,
+      savedComposer.text,
+      (innerWidth - 320) / 2,
+      64,
+      Boolean(savedComposer.suggest),
+      savedComposer.about ?? null,
+    );
   poll();
   setInterval(poll, POLL_MS);
   // Every widget has upgraded and every async one has settled, so the geometry and

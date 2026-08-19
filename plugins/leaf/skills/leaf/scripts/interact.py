@@ -111,11 +111,12 @@ Stop, UserPromptSubmit and SessionEnd, it refuses to let a turn end with one of
 this session's pages unwatched, surfaces unacknowledged user events at the next
 prompt, and idles the pages and stops their servers when the session exits. It
 finds them through ~/.local/state/leaf/sessions/<session id>.json, which
-`server run` and `leaf wait` write the host session identity supplied by the
-launcher — absent that (interact.py run outside an agent host), nothing is claimed
-and the hooks stand down. Unacknowledged events are the one thing
-`leaf status <page> idle` can't close over: idling is how a leaf ends,
-and one can't end on comments nobody read.
+`server run` and `leaf wait` write the host session identity the environment
+carries — absent that (interact.py run outside an agent host), nothing is claimed
+and the hooks stand down. What the environment cannot carry is the session's own
+lifetime, and `session_pid` says where each host's comes from. Unacknowledged
+events are the one thing `leaf status <page> idle` can't close over: idling is
+how a leaf ends, and one can't end on comments nobody read.
 
 Whether a session's end reaches a server is decided once, by the launch, and
 written down in server.json as its lifetime. `server run` from an agent host
@@ -987,6 +988,82 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+def process_info(pid: int) -> tuple[int, str] | None:
+    """Two facts about a live process — the pid above it, and the name of the
+    program it is itself running — or None once it is gone.
+
+    The name is the executable's own, not the words the command was written
+    with: a process launched through a symlink or a `#!` script reports what the
+    kernel loaded. That is the point — it answers which program a process *is*,
+    which is what `session_pid` asks of an ancestor.
+
+    Two platform doors because there is no portable one. `ps` reads this on
+    both, and macOS ships it setuid root, which the seatbelt sandbox Codex runs
+    its shell tool under refuses to exec — so the one door that looks portable
+    is the one that fails exactly where this is needed (measured inside
+    `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
+    permitted`)."""
+    if sys.platform == "darwin":
+        # proc_pidinfo's PROC_PIDT_SHORTBSDINFO, whose whole struct is the two
+        # facts wanted; pbsi_comm is the executable's name, truncated to 16.
+        class ProcBSDShortInfo(ctypes.Structure):
+            _fields_ = [
+                ("pbsi_pid", ctypes.c_uint32),
+                ("pbsi_ppid", ctypes.c_uint32),
+                ("pbsi_pgid", ctypes.c_uint32),
+                ("pbsi_status", ctypes.c_uint32),
+                ("pbsi_comm", ctypes.c_char * 16),
+                ("pbsi_flags", ctypes.c_uint32),
+                ("pbsi_uid", ctypes.c_uint32),
+                ("pbsi_gid", ctypes.c_uint32),
+                ("pbsi_ruid", ctypes.c_uint32),
+                ("pbsi_rgid", ctypes.c_uint32),
+                ("pbsi_svuid", ctypes.c_uint32),
+                ("pbsi_svgid", ctypes.c_uint32),
+                ("pbsi_rfu", ctypes.c_uint32),
+            ]
+
+        proc_pidt_shortbsdinfo = 13
+        info = ProcBSDShortInfo()
+        proc_pidinfo = ctypes.CDLL(None).proc_pidinfo
+        if proc_pidinfo(
+            ctypes.c_int(pid),
+            ctypes.c_int(proc_pidt_shortbsdinfo),
+            ctypes.c_uint64(0),
+            ctypes.byref(info),
+            ctypes.c_int(ctypes.sizeof(info)),
+        ) != ctypes.sizeof(info):
+            return None
+        return info.pbsi_ppid, info.pbsi_comm.decode()
+
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None
+    # The program's name is parenthesised and may hold spaces and parens of its
+    # own, so the fields after it are read from past the last ')': state, ppid.
+    program = stat[stat.index("(") + 1 : stat.rindex(")")]
+    return int(stat[stat.rindex(")") + 1 :].split()[1]), program
+
+
+def ancestry() -> list[tuple[int, str]]:
+    """This process and every process above it, nearest first: (pid, program).
+
+    The walk ends at init, or at whichever ancestor exited while it ran — a
+    parent that goes takes the rest of the chain with it, since what is left
+    above a reparented process is init's."""
+    walked = []
+    pid = os.getpid()
+    while pid > 1:
+        info = process_info(pid)
+        if info is None:
+            break
+        parent, program = info
+        walked.append((pid, program))
+        pid = parent
+    return walked
+
+
 def held_by_a_live_server(path: Path) -> bool:
     """Whether some process is still holding the server record open.
 
@@ -1225,7 +1302,9 @@ def host_identity() -> dict | None:
     separate fact because behavior keys on it (unattended_pages prescribes
     unified exec or background tasks by host) and a display name is anyone's to
     choose. The LEAF_* door is the launcher's mapping of Codex today; a
-    third host earns its own value when one arrives."""
+    third host earns its own value when one arrives — the id and the name, which
+    are the whole of what a launcher can state. What outlives the command is
+    `session_pid`'s to find."""
     if sid := os.environ.get("CLAUDE_CODE_SESSION_ID"):
         agent = os.environ.get("LEAF_AGENT") or "Claude"
         return {"id": sid, "host": "claude-code", "agent": agent}
@@ -1249,6 +1328,40 @@ def message_identity() -> dict:
     return {"agent": identity["agent"], "session": identity["id"]}
 
 
+def session_pid(identity: dict) -> int:
+    """The process whose lifetime is the agent session's, which is what the
+    claim records and two reapers act on: the registry sweep below drops a
+    session whose pid has gone, and a session-managed server stops
+    ORPHAN_GRACE_SECS after it (`stop_when_session_ends`).
+
+    Claude Code states it outright and Codex states nothing, so the Codex half
+    is discovered: the nearest ancestor running the `codex` program. The
+    launcher cannot hand it over, because a shell tool's $PPID is a fact about
+    the *shape* of the command rather than about the session. Measured through
+    `codex exec` at 0.147.0: a bare command, an `&&` chain and a `bash -lc` all
+    reported the codex process, because the shell it wraps them in can exec a
+    last simple command in place; `leaf … | cat` reported the wrapping shell
+    itself, which exits with the pipeline. Recording that one would have taken
+    the page's server down a second after the command that started it, and the
+    page would have told its reader no session holds it while the session sat
+    there working."""
+    if identity["host"] == "claude-code":
+        return int(os.environ["CLAUDE_PID"])
+    walked = ancestry()
+    for pid, program in walked:
+        if program == "codex":
+            return pid
+    # Nothing to fall back to: any pid guessed here is a claim that expires on
+    # its own, and the states that follow from one are silent. LEAF_SESSION_ID
+    # with no codex above it is a hand-built environment, the same missing half
+    # host_identity fails on, so say what was walked.
+    chain = " → ".join(program for _, program in walked)
+    sys.exit(
+        "LEAF_SESSION_ID names a Codex session but no codex process runs above "
+        f"this one ({chain}); leaf takes the session's lifetime from it"
+    )
+
+
 def claim_page(page_dir: Path) -> bool:
     """Record that this agent session is the one working on the page, in
     both directions: the page names its session (so the server can see when that
@@ -1264,9 +1377,9 @@ def claim_page(page_dir: Path) -> bool:
     owes nobody a watcher. Return whether this invocation made a claim, so a
     bare-shell server never inherits a stale claim's lifetime."""
     identity = host_identity()
-    pid = os.environ.get("CLAUDE_PID") or os.environ.get("LEAF_SESSION_PID")
-    if not identity or not pid:
+    if not identity:
         return False
+    pid = session_pid(identity)
     sid = identity["id"]
     write_json(
         page_dir / "session.json",
@@ -1275,7 +1388,7 @@ def claim_page(page_dir: Path) -> bool:
         # state directory nobody chose, and neither says which project it came out of.
         # The claiming command runs from the session's own directory, the same reading
         # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
-        {**identity, "pid": int(pid), "cwd": os.getcwd(), "ts": now_iso()},
+        {**identity, "pid": pid, "cwd": os.getcwd(), "ts": now_iso()},
     )
     sessions = state_home() / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
@@ -1292,7 +1405,7 @@ def claim_page(page_dir: Path) -> bool:
         entry = read_json(sessions / f"{sid}.json") or {"pages": []}
         pages = sorted({*entry["pages"], str(page_dir)})
         write_json(
-            sessions / f"{sid}.json", {"pid": int(pid), "pages": pages, "ts": now_iso()}
+            sessions / f"{sid}.json", {"pid": pid, "pages": pages, "ts": now_iso()}
         )
     return True
 

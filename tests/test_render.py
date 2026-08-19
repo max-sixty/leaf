@@ -1832,8 +1832,9 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
     for i in range(total):
         if dirty:  # only a press dirties the page, and most of these indices skip
             # Reloading is not on its own a reset: the panel remembers whether it was
-            # open (localStorage) and the reading position and drafts ride in
-            # sessionStorage, all of them deliberately. Left standing they decide what
+            # open and every unsent draft is the reader's (localStorage), while the
+            # reading position is this tab's (sessionStorage) — all of them
+            # deliberately. Left standing they decide what
             # the next press proves — an open panel crowds the banner enough that the
             # status text takes up a shrinking button's slack instead of the buttons, so
             # the sign-off regression this test was written for passed or failed
@@ -5107,6 +5108,15 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
   <lf-variant id="cv-oiled"><strong>Oiled</strong> Darker, and a spring job.</lf-variant>
   <lf-variant id="cv-bare"><strong>Bare</strong> Silver by June.</lf-variant>
 </lf-compare>
+<lf-compare id="spread">
+  <lf-variant id="cv-oak"><strong>Oak</strong> Heavy.</lf-variant>
+  <lf-variant id="cv-ash"><strong>Ash</strong> Pale, and it moves in damp, so a board
+    laid in March stands proud of the one beside it by June and the fixings work
+    loose over the winter after that.</lf-variant>
+  <lf-variant id="cv-elm"><strong>Elm</strong> Scarce.</lf-variant>
+  <lf-variant id="cv-yew"><strong>Yew</strong> Slow.</lf-variant>
+  <lf-variant id="cv-fir"><strong>Fir</strong> Cheap, and it rots at the ground.</lf-variant>
+</lf-compare>
 </main>
 </body>
 </html>
@@ -5186,8 +5196,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     assert gps["width"] > terse["width"] * 0.95, "a terse card takes the whole column"
 
     # lf-compare is the same shape without the decision, and follows it for block
-    # content; an exhibition is looked across, so its terse form keeps the grid —
-    # the one side-by-side layout left, asserted here or nowhere.
+    # content; an exhibition is looked across, so its terse form keeps the grid.
     cedar = page.locator("#cv-cedar").bounding_box()
     pine = page.locator("#cv-pine").bounding_box()
     assert cedar["y"] + cedar["height"] <= pine["y"], "substantial variants stack too"
@@ -5214,6 +5223,51 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     for chip in wrapped:
         assert chip["x"] + chip["width"] <= gps["x"] + gps["width"], (
             "no chip the author wrote may cross the card's edge"
+        )
+    page.close()
+
+
+def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
+    """A group of five comes out three across and two under them, so the last row has
+    room to spare. A cell may not take its height from that row: stretch is the grid's
+    default and it drew a one-sentence variant as tall as the six-line one beside it,
+    190px of blank under a single line, which reads as a card whose words never arrived.
+
+    The widths are the other half of the same reading, because the room stays only while
+    nothing grows into it — a wrapped flex line and a column count read off the child
+    count both give the last row a cell width the first row hasn't got.
+
+    So the two are measured against each other, and each row's own tallest is asserted
+    first: two cells of one height prove nothing about stretch unless something in their
+    rows was taller."""
+    page, errors = open_page(browser, serve(STACKED_OPTIONS_PAGE))
+    assert errors == []
+    boxes = {
+        name: page.locator(f"#{name}").bounding_box()
+        for name in ("cv-oak", "cv-ash", "cv-elm", "cv-yew", "cv-fir")
+    }
+    rows = {}
+    for name, box in boxes.items():
+        rows.setdefault(round(box["y"]), []).append(name)
+    assert [len(row) for row in rows.values()] == [3, 2], (
+        f"five terse variants come out three across at this width: {rows}"
+    )
+    widths = [box["width"] for box in boxes.values()]
+    assert max(widths) - min(widths) < 1, (
+        f"a cell is one width whichever row it falls on: {widths}"
+    )
+    tall, short = boxes["cv-ash"]["height"], boxes["cv-oak"]["height"]
+    assert tall > short + 60, (
+        f"cv-oak says one word and cv-ash six lines, so nothing but the row can be "
+        f"setting a height they share: {short} vs {tall}"
+    )
+    assert boxes["cv-fir"]["height"] > boxes["cv-yew"]["height"] + 10, (
+        "the second row the same, cv-fir taking two lines to cv-yew's one"
+    )
+    for name in ("cv-elm", "cv-yew"):
+        assert abs(boxes[name]["height"] - short) < 1, (
+            f"{name} says as much as cv-oak and is the same box: "
+            f"{boxes[name]['height']} vs {short}"
         )
     page.close()
 
@@ -12281,6 +12335,219 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     page.close()
 
 
+# One change block per thing the word marks have to get right, and nothing else in the
+# diff. A pair that edited one argument, with git's `\\ No newline` remark standing
+# between the two lines; a block of three deletions under two additions, so the third has
+# nothing to be compared against; a context line separating that block from the next, so
+# a deletion under it answers the addition under it and not the leftover above; a pair
+# that swapped wholesale, which shares no words to mark; two pairs written one under the
+# other, where a deletion following an addition is what ends the block with nothing else
+# to say so; and a file whose path names no language, where the same marks have to land
+# on a line no tokenizer ever touched.
+#
+# `limit = 3` is the leftover and `limit = 8` opens the block after the context line, so
+# a walk that ran the two blocks together would pair the leftover against `limit = 9` and
+# mark it — the fault that reads as one mark too many rather than as none at all.
+MOVED_WORDS_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>moved words</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Moved words</h1>
+<lf-diff id="patch"><pre>
+diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -3,4 +3,4 @@ class Limiter:
+     def reset(self, key):
+-        self.buckets.pop(key, None)
+\\ No newline at end of file
++        self.buckets.pop(key, 0)
+         return None
+@@ -20,8 +20,7 @@ class Limiter:
+-        alpha = compute(one, two)
+-        beta = compute(three, four)
+-        limit = 3
++        alpha = compute(one, five)
++        beta = compute(nine, four)
+         self.reset(key)
+-        limit = 8
++        limit = 9
+@@ -40,3 +39,3 @@ class Limiter:
+-        return self.buckets[key].take()
++        raise RuntimeError("no such thing")
+@@ -60,4 +59,4 @@ class Limiter:
+-        window = 60
++        window = 90
+-        burst = 20
++        burst = 40
+diff --git a/deploy/Dockerfile b/deploy/Dockerfile
+--- a/deploy/Dockerfile
++++ b/deploy/Dockerfile
+@@ -9,2 +9,2 @@ COPY gateway /srv/gateway
+-RUN pip install -r requirements.txt
++RUN pip install -r reqs.txt
+</pre></lf-diff>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
+    """A tint says a line changed and stops there, so a line that changed by one argument
+    asked the reader to eyeball-diff it against the line above.
+
+    Which line answers which is the whole of what had to be settled: a word-level mark
+    compares one deletion against one addition and a hunk offers a block of each. The
+    i-th deletion of a change block against the i-th addition is the pairing a reader's
+    eye makes and the only one a unified diff supports — it records no correspondence
+    between its two sides — so a block with more deletions than additions leaves the
+    last of them unmarked rather than guessing at a partner.
+
+    The gate is the layer's own (`movedWords`, which lf-suggestion asks the same
+    question of): a pair sharing too little ink swapped wholesale rather than being
+    edited, and marking every word of both says nothing the tint already did.
+
+    The marks are spans here where the document paints Ranges, ::highlight() reaching no
+    shadow tree — so what they must not do is move a character. Each line's text is
+    asserted whole, coloured and uncoloured alike, because a mark nested wrongly into
+    the token spans would still look right on screen while every quote into that file
+    stopped resolving."""
+    page, errors = open_page(browser, serve(MOVED_WORDS_PAGE))
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+
+    # Through the shadow root, as the colour test above reaches for the same lines.
+    files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
+      .querySelectorAll('details')].map(d => ({
+      path: d.querySelector('summary code').textContent,
+      lines: [...d.querySelectorAll('pre > span')].map(l => ({
+        kind: l.className,
+        text: l.textContent,
+        marks: [...l.querySelectorAll('[data-lf-diff]')]
+                 .map(s => [s.dataset.lfDiff, s.textContent]),
+        // A marked word on a coloured line keeps the file's own ink: the mark wraps
+        // the token spans rather than replacing them.
+        inked: [...l.querySelectorAll('[data-lf-diff] [data-lf-syn]')]
+                 .map(s => [s.dataset.lfSyn, s.textContent]),
+      })),
+    }))""")
+    by_path = {f["path"]: f["lines"] for f in files}
+    assert set(by_path) == {"gateway/limits.py", "deploy/Dockerfile"}
+
+    py = by_path["gateway/limits.py"]
+    # Every line as authored, sign column and all — the reading the page hands a quote.
+    assert [line["text"] for line in py] == [
+        "@@ -3,4 +3,4 @@ class Limiter:\n",
+        "     def reset(self, key):\n",
+        "-        self.buckets.pop(key, None)\n",
+        "\\ No newline at end of file\n",
+        "+        self.buckets.pop(key, 0)\n",
+        "         return None\n",
+        "@@ -20,8 +20,7 @@ class Limiter:\n",
+        "-        alpha = compute(one, two)\n",
+        "-        beta = compute(three, four)\n",
+        "-        limit = 3\n",
+        "+        alpha = compute(one, five)\n",
+        "+        beta = compute(nine, four)\n",
+        "         self.reset(key)\n",
+        "-        limit = 8\n",
+        "+        limit = 9\n",
+        "@@ -40,3 +39,3 @@ class Limiter:\n",
+        "-        return self.buckets[key].take()\n",
+        '+        raise RuntimeError("no such thing")\n',
+        "@@ -60,4 +59,4 @@ class Limiter:\n",
+        "-        window = 60\n",
+        "+        window = 90\n",
+        "-        burst = 20\n",
+        "+        burst = 40\n",
+    ]
+
+    assert [(line["kind"], line["marks"]) for line in py] == [
+        ("hunk", []),
+        ("ctx", []),
+        # The one argument that moved, and git's remark between the pair changed
+        # nothing: a note is no line of the file, so it neither closes the block nor
+        # takes a place in it.
+        ("del", [["del", "None"]]),
+        ("note", []),
+        ("add", [["add", "0"]]),
+        ("ctx", []),
+        ("hunk", []),
+        # Three deletions under two additions: the first two are answered, and the
+        # third is compared against nothing and so marked with nothing.
+        ("del", [["del", "two"]]),
+        ("del", [["del", "three"]]),
+        ("del", []),
+        ("add", [["add", "five"]]),
+        ("add", [["add", "nine"]]),
+        # A context line ends the block, so what follows it is a pair of its own and
+        # the leftover deletion above stays unanswered.
+        ("ctx", []),
+        ("del", [["del", "8"]]),
+        ("add", [["add", "9"]]),
+        ("hunk", []),
+        # A wholesale swap: the tint is the whole statement, and marking every word of
+        # both lines would be the same statement made twice and no more precise.
+        ("del", []),
+        ("add", []),
+        ("hunk", []),
+        # Two pairs written one under the other, with nothing between them: the
+        # deletion after an addition is what ends the block, so `burst` answers `burst`
+        # and not the `window` two lines above it.
+        ("del", [["del", "60"]]),
+        ("add", [["add", "90"]]),
+        ("del", [["del", "20"]]),
+        ("add", [["add", "40"]]),
+    ]
+    # The marked words keep the file's ink, which is what nesting the marks inside the
+    # token spans is for: `None` is still a keyword and `0` still a number under the
+    # mark. An identifier the tokenizer gives no role of its own carries none here
+    # either, which is the same statement from the other side — the mark is not painting
+    # over the colouring, it is standing around it.
+    assert [(line["text"].strip(), line["inked"]) for line in py if line["marks"]] == [
+        ("-        self.buckets.pop(key, None)", [["kw", "None"]]),
+        ("+        self.buckets.pop(key, 0)", [["nu", "0"]]),
+        ("-        alpha = compute(one, two)", []),
+        ("-        beta = compute(three, four)", []),
+        ("+        alpha = compute(one, five)", []),
+        ("+        beta = compute(nine, four)", []),
+        ("-        limit = 8", [["nu", "8"]]),
+        ("+        limit = 9", [["nu", "9"]]),
+        ("-        window = 60", [["nu", "60"]]),
+        ("+        window = 90", [["nu", "90"]]),
+        ("-        burst = 20", [["nu", "20"]]),
+        ("+        burst = 40", [["nu", "40"]]),
+    ]
+
+    # A path naming no language: nothing tokenizes the line, and the marks land on it
+    # the same way — one branch here, not two, so a plain file cannot go quietly
+    # unmarked while a coloured one works.
+    docker = by_path["deploy/Dockerfile"]
+    assert [line["text"] for line in docker] == [
+        "@@ -9,2 +9,2 @@ COPY gateway /srv/gateway\n",
+        "-RUN pip install -r requirements.txt\n",
+        "+RUN pip install -r reqs.txt\n",
+    ]
+    assert [line["marks"] for line in docker] == [
+        [],
+        [["del", "requirements"]],
+        [["add", "reqs"]],
+    ]
+    assert all(line["inked"] == [] for line in docker), docker
+
+    assert errors == []
+    page.close()
+
+
 # A page carrying both kinds of native control a widget injects: a checkbox in the light
 # DOM and a <summary> the widget staged in a shadow tree.
 NATIVE_CONTROL_PAGE = DIFF_PAGE.replace(
@@ -14038,14 +14305,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill("")
-    assert (
-        page.evaluate(
-            """() => JSON.parse(
-          sessionStorage.getItem('lf-draft:edit:draft-ops')
-        ).text"""
-        )
-        == ""
-    )
+    assert page.evaluate("() => localStorage.getItem('lf-draft:edit:draft-ops')") == ""
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
@@ -14078,21 +14338,14 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     draft.get_by_role("button", name="Save").click()
     expect(draft.locator("textarea")).to_be_focused()
     expect(draft.locator("textarea")).to_have_value("")
-    assert (
-        page.evaluate(
-            """() => JSON.parse(
-          sessionStorage.getItem('lf-draft:edit:draft-ops')
-        ).text"""
-        )
-        == ""
-    )
+    assert page.evaluate("() => localStorage.getItem('lf-draft:edit:draft-ops')") == ""
 
     page.evaluate("window.lfFailDraft = false")
     draft.get_by_role("button", name="Save").click()
     page.wait_for_url("**/v2.html")
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text("")
     page.wait_for_function(
-        "() => sessionStorage.getItem('lf-draft:edit:draft-ops') === null"
+        "() => localStorage.getItem('lf-draft:edit:draft-ops') === null"
     )
     events = [
         json.loads(line)
@@ -14136,12 +14389,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     draft.get_by_role("button", name="Save").click()
     expect(draft).to_have_attribute("aria-busy", "true")
     assert (
-        page.evaluate(
-            """() => JSON.parse(
-          sessionStorage.getItem('lf-draft:edit:draft-ops')
-        ).text"""
-        )
-        == sent
+        page.evaluate("() => localStorage.getItem('lf-draft:edit:draft-ops')") == sent
     )
 
     draft.locator(".lf-draft-pencil").click()
@@ -14151,7 +14399,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     page.evaluate("window.releaseDraftSend()")
     page.wait_for_function(
         """() => !document.getElementById('draft-ops').hasAttribute('aria-busy')
-          && sessionStorage.getItem('lf-draft:edit:draft-ops') === null"""
+          && localStorage.getItem('lf-draft:edit:draft-ops') === null"""
     )
     events = [
         json.loads(line)
@@ -14167,72 +14415,237 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     page.close()
 
 
-def test_unsent_draft_recovery_belongs_to_its_tab(browser, serve):
-    """Recorded edits converge through the log; unsent words do not. Two pages in
-    one BrowserContext are real same-origin tabs, unlike Browser.new_page's isolated
-    contexts. A send and a Cancel in one must leave the other's newer empty edit
-    recoverable through a reload."""
+@pytest.fixture
+def one_reader(browser):
+    """A browser context two pages can share, which is what makes them tabs.
+
+    `Browser.new_page` opens each page in a context of its own, so two of them are two
+    readers with no storage between them — and a draft lives in the reader's store now,
+    which is the whole of what these tests are about."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
-    try:
-        url = serve(JOURNEY_V1)
-        first, first_errors = open_page(browser, url, context=context)
-        second, second_errors = open_page(browser, url, context=context)
-        first_draft = first.locator("#draft-ops")
-        second_draft = second.locator("#draft-ops")
+    yield context
+    context.close()
 
-        sent = "The first tab submits this body."
-        first_draft.locator(".lf-draft-body").dblclick()
-        first_draft.locator("textarea").fill(sent)
-        second_draft.locator(".lf-draft-body").dblclick()
-        second_draft.locator("textarea").fill("")
 
-        first_draft.get_by_role("button", name="Save").click()
-        # The history summary arrives with the poll that answers the save, not with the
-        # save, so asserting straight after the click spends expect's own budget on the
-        # trip — which is a pass on a fast machine and a red on a loaded one, saying
-        # nothing either way about the page.
-        round_trip(first)
-        expect(first_draft.locator(".lf-draft-history > summary")).to_have_text(
-            "Changes · 1 edit"
-        )
-        expect(second_draft.locator("textarea")).to_have_value("")
-        assert (
-            second.evaluate(
-                """() => JSON.parse(
-              sessionStorage.getItem('lf-draft:edit:draft-ops')
-            ).text"""
-            )
-            == ""
-        )
+def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_reader):
+    """An edit is one set of words wherever the reader typed them, and the two halves
+    of that fail in opposite directions. A keystroke has to reach the box the other tab
+    has open, or two tabs hold two halves of one thought and whichever is closed takes
+    its half with it. A settlement has to empty the other box, rather than leave it
+    holding words the log already has — standing over a body replay is about to paint.
 
-        first_draft.locator(".lf-draft-body").dblclick()
-        first_draft.locator("textarea").fill("This tab discards these words.")
-        first.keyboard.press("Escape")
-        assert (
-            second.evaluate(
-                """() => JSON.parse(
-              sessionStorage.getItem('lf-draft:edit:draft-ops')
-            ).text"""
-            )
-            == ""
-        )
+    A closed box stays closed for a keystroke made elsewhere: news arriving has no
+    gesture behind it, and the words are there at the next opening either way."""
+    url = serve(JOURNEY_V1)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+    first_draft = first.locator("#draft-ops")
+    second_draft = second.locator("#draft-ops")
 
-        second.reload(wait_until="networkidle")
-        second.wait_for_function(BOTH_STAMPS)
-        expect(second_draft.locator("textarea")).to_be_visible()
-        expect(second_draft.locator("textarea")).to_have_value("")
-        events = [
-            json.loads(line)
-            for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
-            if '"kind": "action"' in line
-        ]
-        assert [event["detail"]["text"] for event in events] == [sent]
-        assert first_errors == []
-        assert second_errors == []
-    finally:
-        context.close()
+    edited = "Run the migration after the backup."
+    first_draft.locator(".lf-draft-body").dblclick()
+    second_draft.locator(".lf-draft-body").dblclick()
+    first_draft.locator("textarea").fill(edited)
+    expect(second_draft.locator("textarea")).to_have_value(edited)
+
+    first_draft.get_by_role("button", name="Save").click()
+    round_trip(first)
+    expect(second_draft.locator("textarea")).to_have_count(0)
+    # The body the other tab is left looking at is the log's, which is what closing the
+    # box in front of it was for: applyAction defers while an editor stands open.
+    expect(second_draft.locator(".lf-draft-body")).to_have_text(edited)
+    assert (
+        second.evaluate("() => localStorage.getItem('lf-draft:edit:draft-ops')") is None
+    )
+
+    # A second edit, with only the first tab's box open. The store's value arriving is
+    # the fact to consume before reading an absence: the storage event carrying it is
+    # the same task that would have opened a box here.
+    discarded = "This tab discards these words."
+    first_draft.locator(".lf-draft-body").dblclick()
+    first_draft.locator("textarea").fill(discarded)
+    second.wait_for_function(
+        "text => localStorage.getItem('lf-draft:edit:draft-ops') === text",
+        arg=discarded,
+    )
+    assert second_draft.locator("textarea").count() == 0, (
+        "the second tab opened an editor for a keystroke nobody made there"
+    )
+    first_draft.get_by_role("button", name="Cancel").click()
+    second.wait_for_function(
+        "() => localStorage.getItem('lf-draft:edit:draft-ops') === null"
+    )
+    second_draft.locator(".lf-draft-body").dblclick()
+    expect(second_draft.locator("textarea")).to_have_value(edited)
+
+    events = [
+        json.loads(line)
+        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        if '"kind": "action"' in line
+    ]
+    assert [event["detail"]["text"] for event in events] == [edited]
+    assert first_errors == []
+    assert second_errors == []
+
+
+def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_reader):
+    """The general box and a thread's reply box are each one draft with a view in every
+    tab. Both directions of the loop are here: words typed in one tab arrive in the
+    other's box live, and a send there empties it — the distinction the store's own
+    vocabulary carries, an emptied box being a value and a settled draft an absent key.
+    The Send button is read with the value, since a mirrored draft the box cannot send
+    is words arriving dead."""
+    url = serve(LONG_PAGE, comments=1)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+    for page in (first, second):
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+
+    typed = "The page is missing the migration step."
+    first.locator(".lf-general textarea").fill(typed)
+    expect(second.locator(".lf-general textarea")).to_have_value(typed)
+    expect(second.locator(".lf-general button")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+
+    # The tab doing the typing is the one tab the store says nothing to, which is what
+    # leaves the caret where the reader put it: writing .value on a focused box sends
+    # the caret to the end of it, and a reader typing into the middle of a sentence
+    # would watch every keystroke jump there.
+    first.locator(".lf-general textarea").click()
+    first.keyboard.press("Home")
+    first.keyboard.type("Late: ")
+    expect(second.locator(".lf-general textarea")).to_have_value("Late: " + typed)
+    assert (
+        first.locator(".lf-general textarea").evaluate("ta => ta.selectionStart") == 6
+    ), "the caret moved in the tab that did the typing"
+    typed = "Late: " + typed
+
+    reply = "Typed into the reply box of the other tab."
+    second.locator(".lf-thread textarea").first.fill(reply)
+    expect(first.locator(".lf-thread textarea").first).to_have_value(reply)
+    second.locator(".lf-thread").first.get_by_role("button", name="Reply").click()
+    round_trip(second)
+    expect(first.locator(".lf-thread textarea").first).to_have_value("")
+
+    first.locator(".lf-general button").click()
+    round_trip(first)
+    expect(second.locator(".lf-general textarea")).to_have_value("")
+    expect(second.locator(".lf-general button")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+    said = [e["text"] for e in interact.read_events(serve.page_dir) if "text" in e]
+    assert said[-2:] == [reply, typed]
+    assert first_errors == []
+    assert second_errors == []
+
+
+def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_reader):
+    """The one gesture the tab-local store lost a draft to, and it is the ordinary one:
+    every round's reply hands the URL over again, so a page's tabs accumulate and the
+    one holding a half-written sentence is as likely to be shut as any other."""
+    url = serve(LONG_PAGE)
+    page, errors = open_page(browser, url, context=one_reader)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    typed = "Half a thought, and then the tab went."
+    page.locator(".lf-general textarea").fill(typed)
+    assert errors == []
+    page.close()
+
+    again, again_errors = open_page(browser, url, context=one_reader)
+    expect(again.locator(".lf-general textarea")).to_have_value(typed)
+    assert again_errors == []
+
+
+def compose(page, passage, text=None):
+    """Open the composer on a passage the way a reader does, and type into it.
+
+    Without text it only opens, which is how a second tab meets a draft already
+    standing on that passage: the two gestures are the same one, so the anchor the
+    key is built from is the same in both tabs."""
+    page.locator(passage).scroll_into_view_if_needed()
+    page.locator(passage).click(click_count=3)
+    page.wait_for_selector(".lf-fab", state="visible")
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer textarea")).to_be_focused()
+    if text is not None:
+        page.locator(".lf-composer textarea").fill(text)
+
+
+def test_two_passages_hold_two_composer_drafts(browser, serve, one_reader):
+    """One key for the composer was enough while a draft died with its tab; shared, it
+    is a draft on one passage overwriting the words being typed on another. The key is
+    the anchor, so the two coexist — and the record says when it was touched, which is
+    what a tab arriving to both of them reopens on."""
+    url = serve(LONG_PAGE)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+
+    early = "This paragraph buries the point."
+    late = "And this one repeats it."
+    compose(first, "#p3", early)
+    compose(second, "#p9", late)
+    expect(first.locator(".lf-composer textarea")).to_have_value(early)
+    expect(second.locator(".lf-composer textarea")).to_have_value(late)
+
+    # A tab arriving now: one composer, on the passage touched last.
+    third, third_errors = open_page(browser, url, context=one_reader)
+    expect(third.locator(".lf-composer textarea")).to_have_value(late)
+    assert first_errors == []
+    assert second_errors == []
+    assert third_errors == []
+
+
+def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_reader):
+    """The composer is a box and a piece of chrome at once, so a second tab owes it
+    more than the words. An emptied box is a box the reader is still holding open and
+    must stay up; a settled one has nothing left to be open about and goes down, or the
+    other tab is left offering to send words the log already carries.
+
+    The mirrored value is read for its height as well, because a box that took another
+    tab's words and did not grow to them is one whose text is out of sight — the shape
+    of bug a script sizing the box on `input` alone would reintroduce."""
+    url = serve(LONG_PAGE)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+
+    opened = "This paragraph buries the point."
+    compose(first, "#p3", opened)
+    compose(second, "#p3")
+    expect(second.locator(".lf-composer textarea")).to_have_value(opened)
+
+    grown = opened + "\n\n" + "And the one after it says the same thing again. " * 4
+    first.locator(".lf-composer textarea").fill(grown)
+    expect(second.locator(".lf-composer textarea")).to_have_value(grown)
+    height = "ta => Math.round(ta.getBoundingClientRect().height)"
+    assert second.locator(".lf-composer textarea").evaluate(height) == first.locator(
+        ".lf-composer textarea"
+    ).evaluate(height), (
+        "a box grown from another tab's keystrokes must be laid out like a typed one"
+    )
+
+    # Emptying is an edit and not a settlement: the box stays up, holding nothing.
+    first.locator(".lf-composer textarea").fill("")
+    expect(second.locator(".lf-composer textarea")).to_have_value("")
+    expect(second.locator(".lf-composer")).to_be_visible()
+
+    sent = "The point is buried, and the paragraph after it repeats it."
+    first.locator(".lf-composer textarea").fill(sent)
+    first.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    round_trip(first)
+    expect(second.locator(".lf-composer")).to_be_hidden()
+    said = [
+        e["text"]
+        for e in interact.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    assert said == [sent], "one box, and so one comment however many tabs showed it"
+    assert first_errors == []
+    assert second_errors == []
 
 
 def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):

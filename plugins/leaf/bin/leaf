@@ -11,13 +11,19 @@
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 script=$root/skills/leaf/scripts/interact.py
 
-# Codex exposes the thread id to shell tools. Carry it and the long-lived Codex
-# process into the same session record Claude Code supplies directly. The name is
-# a default, not the last word: a worker session launched with its own
-# LEAF_AGENT keeps that voice.
+# Codex exposes the thread id to shell tools. Carry it into the same session
+# record Claude Code supplies directly. The name is a default, not the last word:
+# a worker session launched with its own LEAF_AGENT keeps that voice.
+#
+# The id and the name are the whole of it, because they are the whole of what a
+# launcher knows. Which process the session *is* — the one whose death stops the
+# page's server — is not $PPID: that is whatever the shape of the command left
+# above leaf, the codex process where the wrapping shell could exec leaf in its
+# place and a shell of the moment where a pipeline stopped it. The second exits
+# with the command and the page's server goes down behind it, so `session_pid`
+# walks for the process from inside the script instead.
 if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && [ -n "${CODEX_THREAD_ID:-}" ]; then
   export LEAF_SESSION_ID=$CODEX_THREAD_ID
-  export LEAF_SESSION_PID=$PPID
   export LEAF_AGENT=${LEAF_AGENT:-Codex}
 fi
 

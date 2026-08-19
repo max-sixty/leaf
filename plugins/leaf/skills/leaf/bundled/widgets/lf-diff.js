@@ -11,13 +11,23 @@
  * evidence is not code.
  *
  * What gets tokenized is a hunk, one side at a time, with the +/−/space column
- * cut off. Each of those is load-bearing; see colorHunks. */
+ * cut off. Each of those is load-bearing; see colorHunks.
+ *
+ * A tint says a line changed and stops there, which on a line that changed by one
+ * word leaves the reader to eyeball-diff it against the line above. So a deletion
+ * paired with the addition answering it marks the words that moved — the layer's own
+ * answer to which words differ, gated on shared ink (movedWords) — and the marks nest
+ * inside the token spans the colouring already built. Which line answers which is
+ * movedInFile; what a mark is made of, and why it is a wrapper here where the document
+ * paints, is bodyNodes; why it is ruled rather than tinted deeper is the theme's own
+ * comment, and the answer is that the tint spent the contrast. */
 import {
   PRESS,
   dataBody,
   failSoft,
   keys,
   langForPath,
+  movedWords,
   once,
   paintKeys,
   settle,
@@ -183,6 +193,105 @@ async function colorHunks(file, lang) {
   return colored;
 }
 
+// The words that moved, per line: index into file.lines → [from, to) spans into that
+// line's text with its +/−/space column off, the same slice colorHunks tokenizes and for
+// the same reason — the prefix is the diff's word about the line rather than the file's,
+// so an alignment that keeps it aligns a `-` with a `+` and marks the marker as a word
+// that moved.
+//
+// A word-level mark compares one deletion against one addition and a hunk offers a block
+// of each, so something has to say which line answers which. A change block is a run of
+// deletions and the run of additions under it; the i-th of one answers the i-th of the
+// other, which is the pairing a reader's eye makes and the only one the format supports —
+// a unified diff records no correspondence between the two sides. A block of three
+// deletions under one addition leaves two unpaired, and unpaired is unmarked: the tint is
+// the whole statement about a line nothing was compared against.
+//
+// A note is transparent here, exactly as it is to colorHunks. `\ No newline at end of
+// file` is git remarking on the line above rather than a line of the file, and it stands
+// between a deletion and the addition answering it whenever the old file ended without
+// one — read as a line it would close the block and cost that pair its marks.
+function movedInFile(file) {
+  const marks = new Map();
+  let dels = [];
+  let adds = [];
+  const close = () => {
+    for (let n = 0; n < Math.min(dels.length, adds.length); n++) {
+      const [before, after] = [dels[n], adds[n]].map((i) =>
+        file.lines[i].text.slice(1),
+      );
+      const moved = movedWords(before, after);
+      // A replacement rather than an edit: the tint said that, and marking every
+      // word of both lines would say no more.
+      if (!moved) continue;
+      marks.set(dels[n], moved.del);
+      marks.set(adds[n], moved.ins);
+    }
+    dels = [];
+    adds = [];
+  };
+  file.lines.forEach((line, i) => {
+    if (line.kind === "note") return;
+    if (line.kind === "add") adds.push(i);
+    else if (line.kind === "del" && !adds.length) dels.push(i);
+    else {
+      // A context or hunk line ends the block; so does a deletion after an addition,
+      // which opens the next one.
+      close();
+      if (line.kind === "del") dels.push(i);
+    }
+  });
+  close();
+  return marks;
+}
+
+// Tokens re-cut so none crosses `from`..`to`, the way tokenLines re-cuts so none crosses a
+// newline: a token's run and a moved word are two different spans of the same characters,
+// and this is where they are reconciled. Cutting is what keeps synNodes the one thing that
+// turns a token into a node — the alternative is a second place building a role span, and
+// a second place to forget the attribute.
+const tokensIn = (tokens, from, to) => {
+  const cut = [];
+  let at = 0;
+  for (const { text, role } of tokens) {
+    const start = Math.max(from, at);
+    const end = Math.min(to, at + text.length);
+    if (end > start) cut.push({ text: text.slice(start - at, end - at), role });
+    at += text.length;
+  }
+  return cut;
+};
+
+// One line's body as nodes: the moved words wrapped, everything else as it was. The
+// wrapper is the module's own chrome and wears the module's own attribute (data-lf-diff,
+// valued with the side it marks), the author's namespace on a widget being the registry's
+// to state and nothing else being a module's to write in.
+//
+// Wrapping, where the document's own emphasis paints (Paint; don't wrap): ::highlight()
+// takes Ranges the document can reach and a shadow tree is not one of them. What that norm
+// is about is a redraw swapping the node under a pointer between a mousedown and its
+// mouseup — these are built once, in the pass that builds the line, before any of it is
+// staged, and nothing repaints them after.
+//
+// The text is untouched either way. A <span> is no text block, so both readings of the
+// page (says/wrote) return exactly the characters they did before the marks went in, and
+// an uncoloured line takes the same path with its whole body as one roleless token.
+function bodyNodes(tokens, spans, side) {
+  const nodes = [];
+  const total = tokens.reduce((n, token) => n + token.text.length, 0);
+  let at = 0;
+  for (const [from, to] of spans) {
+    nodes.push(...synNodes(tokensIn(tokens, at, from)));
+    const mark = document.createElement("span");
+    mark.dataset.lfDiff = side;
+    mark.append(...synNodes(tokensIn(tokens, from, to)));
+    nodes.push(mark);
+    at = to;
+  }
+  nodes.push(...synNodes(tokensIn(tokens, at, total)));
+  return nodes;
+}
+
 function fileNode(file, colored) {
   const details = document.createElement("details");
   details.open = true;
@@ -217,16 +326,21 @@ function fileNode(file, colored) {
   pre.tabIndex = 0;
   pre.setAttribute("role", "region");
   pre.setAttribute("aria-label", file.path || "diff");
+  const moved = movedInFile(file);
   file.lines.forEach(({ kind, text }, i) => {
     const line = Object.assign(document.createElement("span"), { className: kind });
-    const tokens = colored.get(i);
-    if (tokens) {
-      // The prefix goes back exactly as it came, at full ink: where a rendering drops
-      // backgrounds it is the only thing left saying the line changed. Colour adds no
-      // characters and moves none, so what the page says here is what the file says.
-      if (text) line.append(text.slice(0, 1));
-      line.append(...synNodes(tokens), "\n");
-    } else line.textContent = text + "\n";
+    // The prefix goes back exactly as it came, at full ink: where a rendering drops
+    // backgrounds it is the only thing left saying the line changed, and it is outside
+    // every mark for the same reason — the marks are about the line's words. Neither
+    // colour nor emphasis adds a character or moves one, so what the page says here is
+    // what the file says.
+    if (text) line.append(text.slice(0, 1));
+    // An uncoloured line is its own body as one roleless token, so both take the same
+    // path: a path with no language, a hunk the tokenizer refused, and a coloured line
+    // are one case here rather than a branch that only one of them ever marks.
+    const body = text.slice(1);
+    const tokens = colored.get(i) ?? (body ? [{ text: body }] : []);
+    line.append(...bodyNodes(tokens, moved.get(i) ?? [], kind), "\n");
     pre.append(line);
   });
   details.append(summary, pre);

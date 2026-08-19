@@ -289,7 +289,12 @@ arriving from a page that has stopped talking at all.
 
 ## Reloading is not resetting
 
-The panel's open state is in `localStorage` and the reading position and drafts are in `sessionStorage`,
-all deliberately, so a fresh `goto` restores the state the last gesture left. Clear both where a test means
-the page as published — an open panel crowds the banner enough to absorb a shrinking button, and that alone
-decided whether a real regression reproduced.
+The panel's open state and every unsent draft are in `localStorage` and the reading position is in
+`sessionStorage`, all deliberately, so a fresh `goto` restores the state the last gesture left. Clear both
+where a test means the page as published — an open panel crowds the banner enough to absorb a shrinking
+button, and that alone decided whether a real regression reproduced.
+
+A second page is not a second reader unless it is a second context, and for drafts it is the other way
+round: `Browser.new_page` opens each page in a context of its own, so two of them share no storage and
+nothing about a draft reaching another tab can be seen from them. `one_reader` is one context two pages
+open in, which is what makes them tabs.

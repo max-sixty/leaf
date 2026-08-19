@@ -60,8 +60,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
     monkeypatch.delenv("LEAF_SESSION_ID", raising=False)
-    monkeypatch.delenv("LEAF_SESSION_PID", raising=False)
     monkeypatch.delenv("LEAF_AGENT", raising=False)
 
 

@@ -19,7 +19,7 @@ falls through silently and the turn proceeds. A Stop hook is the worst possible
 place for a leaf bug to strand the user.
 
 The sessions path assumes the hook's environment and the Bash tool's agree on
-XDG_STATE_HOME: `server run` and `leaf wait` write the registry from a shell
+XDG_STATE_HOME: the serve and `leaf wait` write the registry from a shell
 initialized by the user's profile, while this script reads it from the agent
 host's process environment.
 A value set only in the shell profile makes the guard silently stand down —

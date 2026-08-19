@@ -5,8 +5,9 @@ An example is a page body, not a page directory: it links /theme.css and
 /leaf.js at the server root, which is where `page init` vendors them. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
 origin — nothing upgrades, and a tabbed page renders as every tab at once. So
-this builds the directory the runtime expects and hands it to `server run`, the same
-path a session takes.
+this builds the directory the runtime expects and hands it to `server run`, which
+serves in the foreground so Ctrl-C ends the preview. A session runs `server start`
+instead, and gets the same server in a process of its own.
 
 The result is a page, not a picture of one: it takes comments. Served from an
 agent session, `leaf wait` on the same directory carries them to the agent and the

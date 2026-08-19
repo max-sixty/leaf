@@ -1484,65 +1484,256 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
 <lf-tab id="gal-command-hub" label="Command hub">
 <h1>Atlas importer rewrite</h1>
       <p class="lede" id="hub-lede">
-        The standing view of the rewrite: what each agent holds, where every task
-        stands, and the decisions waiting on you. The orchestrator republishes as work
-        moves, so the page keeps up on its own — what it needs from you is the one
-        section below the numbers.
+        Five sessions are on this rewrite and this page is where they report. What is
+        yours right now: finch's schema migration is written, tested and holding for
+        your word, and junco is stopped on a fixture only your credentials reach. Below
+        those, the fleet says where each session stands, the tree what is left, and the
+        board what they pick up next.
       </p>
 
-      <lf-metrics id="hub-metrics">
-        <lf-metric id="hub-k-done" value="4 of 10" delta="+2" direction="up-good"
-          >tasks done</lf-metric
-        >
-        <lf-metric id="hub-k-agents" value="3">agents live</lf-metric>
-        <lf-metric id="hub-k-you" value="2">decisions waiting</lf-metric>
-        <lf-metric id="hub-k-reverts" value="0">reverts this week</lf-metric>
-      </lf-metrics>
+      <section id="hub-asks">
+        <h2>Waiting on you</h2>
+        <p id="hub-asks-intro">
+          Each of these is one decision, with what it turns on beside it. Click an
+          option to decide — the pick reaches me as you make it, and the box under each
+          group takes words where none of the options is right. The banner counts these
+          too, and <kbd>n</kbd> / <kbd>p</kbd> step through them, so nothing here is a
+          list you have to keep in your head.
+        </p>
 
-      <section id="hub-attention">
-        <h2>Needs you</h2>
-        <p id="hub-att-intro">
-          Two items, one decision each. The tree's ambers are the milder tier — work
-          finished and readable whenever you sit down; they queue, they don't interrupt.
-          Everything else on the page is news, not a request.
+        <h3 id="hub-ask-schema">Land the schema migration?</h3>
+        <p id="hub-ask-schema-why">
+          finch has written and tested the two nullable columns the reconciliation work
+          writes into. It is green, and it holds anyway: it touches
+          <code>schema/atlas.sql</code>, which the standing policy below reserves for
+          your word however green the tests are. Landing it unblocks the variance report
+          and frees junco after today; holding it leaves <code>main</code> untouched and
+          idles two of the five.
         </p>
-        <h3 id="hub-att-schema">Land the schema migration?</h3>
-        <p id="hub-att-schema-why">
-          The migration adds the two nullable columns the reconciliation work writes
-          into. It touches <code>schema/atlas.sql</code>, which is in the overlap zone,
-          so it holds for your word rather than landing on green tests — file-disjoint
-          tasks still meet in this schema, which is why it is listed. Landing it
-          unblocks the variance report; holding it keeps main untouched but idles finch
-          after today. Click an option to decide.
-        </p>
+        <lf-tree id="hub-schema-files">
+          <pre>
+schema/
+  atlas.sql  +14
+  migrations/
+    0042_reconciliation_columns.sql  +31
+atlas/
+  models.py  +6 -2
+tests/
+  test_migrations.py  +48
+</pre>
+        </lf-tree>
+        <details id="hub-schema-diff-box">
+          <summary>
+            The whole of <code>atlas-schema</code> at <code>9f3c2a1</code> — the four
+            files above, and what Land it now lands
+          </summary>
+          <lf-diff id="hub-schema-diff">
+            <pre>
+diff --git a/schema/atlas.sql b/schema/atlas.sql
+--- a/schema/atlas.sql
++++ b/schema/atlas.sql
+@@ -18,6 +18,8 @@ CREATE TABLE ledger_entry (
+   amount_minor   BIGINT      NOT NULL,
+   currency       CHAR(3)     NOT NULL,
+   booked_at      TIMESTAMPTZ NOT NULL,
++  refunded_minor BIGINT      NULL,
++  reconciled_at  TIMESTAMPTZ NULL,
+   source_ref     TEXT        NOT NULL
+ );
+diff --git a/atlas/models.py b/atlas/models.py
+--- a/atlas/models.py
++++ b/atlas/models.py
+@@ -61,8 +61,12 @@ class LedgerEntry:
+     amount_minor: int
+     currency: str
+     booked_at: datetime
+-    source_ref: str
++    refunded_minor: int | None = None
++    reconciled_at: datetime | None = None
++    source_ref: str = ""
+
+     @property
+     def is_reconciled(self) -&gt; bool:
+-        return False
++        return self.reconciled_at is not None
+diff --git a/schema/migrations/0042_reconciliation_columns.sql b/schema/migrations/0042_reconciliation_columns.sql
+new file mode 100644
+--- /dev/null
++++ b/schema/migrations/0042_reconciliation_columns.sql
+@@ -0,0 +1,9 @@
++-- Additive and nullable, so the shadow run reads the old path unchanged.
++ALTER TABLE ledger_entry
++  ADD COLUMN refunded_minor BIGINT     NULL,
++  ADD COLUMN reconciled_at  TIMESTAMPTZ NULL;
++
++CREATE INDEX CONCURRENTLY ledger_entry_unreconciled
++  ON ledger_entry (booked_at)
++  WHERE reconciled_at IS NULL;
+diff --git a/tests/test_migrations.py b/tests/test_migrations.py
+--- a/tests/test_migrations.py
++++ b/tests/test_migrations.py
+@@ -12,6 +12,20 @@ def test_migration_is_reversible(db):
+     assert columns(db, "ledger_entry") == BASELINE
+
++def test_partial_refund_reconciles_once(db):
++    entry = insert_entry(db, amount_minor=4200, refunded_minor=1500)
++    reconcile(db, entry.source_ref)
++    assert entry.reload(db).is_reconciled
++    reconcile(db, entry.source_ref)
++    assert count_reconciliations(db, entry.source_ref) == 1
++
++def test_unreconciled_index_is_used(db):
++    plan = explain(db, "select * from ledger_entry where reconciled_at is null")
++    assert "ledger_entry_unreconciled" in plan
+</pre>
+          </lf-diff>
+        </details>
         <lf-options id="hub-gate-schema" choose>
-          <lf-option id="hub-gs-land">Land it now</lf-option>
-          <lf-option id="hub-gs-hold">Hold until the backfill is written</lf-option>
-          <lf-option id="hub-gs-look" for="t-schema"
-            >Walk me through it first</lf-option
-          >
+          <lf-option id="hub-gs-land">
+            <lf-chip tone="ok">tests green</lf-chip><lf-chip>4 files</lf-chip>
+            <strong>Land it now</strong>
+            <dl class="facts">
+              <dt>Unblocks</dt>
+              <dd>the variance report, and junco after today</dd>
+              <dt>Reversible</dt>
+              <dd>both columns are nullable; the revert is one migration</dd>
+            </dl>
+            <p>
+              The columns are additive and nothing reads them yet, so the shadow run
+              tonight exercises the new path against the old one before anything depends
+              on it.
+            </p>
+          </lf-option>
+          <lf-option id="hub-gs-hold">
+            <lf-chip>effort: none</lf-chip><lf-chip tone="warn">idles two</lf-chip>
+            <strong>Hold until the backfill is written</strong>
+            <dl class="facts">
+              <dt>Unblocks</dt>
+              <dd>nothing</dd>
+              <dt>Costs</dt>
+              <dd>junco and siskin have nothing else scoped this week</dd>
+            </dl>
+            <p>
+              Worth it if you would rather see the backfill and the schema land in one
+              piece, which is one review instead of two.
+            </p>
+          </lf-option>
         </lf-options>
-        <h3 id="hub-att-fixture">The reconciliation fixture is yours</h3>
-        <p id="hub-att-fixture-why">
-          <strong>Reconcile ledger exports</strong> is blocked on a fixture with a
-          partially refunded order, which only you can pull from the production replica.
-          One command, pasted in a comment here, unblocks it.
+        <p id="hub-gate-schema-ask">
+          Neither of those yet? Say so in the box under the options — a question for
+          finch goes to finch, and the gate stays open until you answer it.
         </p>
+
+        <h3 id="hub-ask-fixture">The reconciliation fixture is yours to pull</h3>
+        <p id="hub-ask-fixture-why">
+          junco is stopped on <a href="#t-ledger-export">reconcile ledger exports</a>,
+          which needs one real order that was partially refunded and then re-exported.
+          The production replica is the only place one exists and your credentials are
+          the only ones that reach it. Paste the row, or the command that produced it,
+          in a comment on this paragraph and junco picks it up on its next wake.
+        </p>
+        <pre
+          id="hub-fixture-cmd"
+        ><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
+  where refunded_minor is not null and source_ref like 'EXP-%' limit 1)
+  to stdout with csv header"</code></pre>
+      </section>
+
+      <section id="hub-landed">
+        <h2>What landed without you</h2>
+        <p id="hub-landed-intro">
+          The other half of the grant below: everything that merged since you last
+          answered anything here, and which of them went in on your standing word rather
+          than a decision. This is the list to read if you are deciding whether to widen
+          that grant or take it back — it is the only evidence either way, and a change
+          that landed without you is the one you may most want to look at afterwards.
+          Each is a revert away.
+        </p>
+        <ul id="hub-landed-list">
+          <li id="hub-landed-cdata">
+            <strong>CDATA edge cases</strong> — on the standing grant. Eleven exports
+            whose CDATA sections carry escaped markup; touched
+            <code>atlas/parse/</code> only, merged after its test run.
+          </li>
+          <li id="hub-landed-bench">
+            <strong>Throughput bench</strong> — on the standing grant. Test-only, so
+            nothing it did can reach the nightly.
+          </li>
+          <li id="hub-landed-stream">
+            <strong>Streaming core</strong> — you landed this one, on Tuesday.
+          </li>
+        </ul>
+      </section>
+
+      <section id="hub-fleet">
+        <h2>The fleet</h2>
+        <p id="hub-fleet-intro">
+          Where each session stands, reported by the session itself rather than written
+          down here — the state and the clause after it move between versions, and the
+          line at the right is how long since that session last moved its own row, or
+          since I published the row where one never has. It is the one thing on this
+          page I could not write down and have still be true by the time you read it.
+          <em>quiet</em> is a session that claimed work and then stopped saying
+          anything, which is the shape a dead worker makes. Select a row and comment on
+          it to address that session; I relay it to whoever holds the row, and the
+          answer comes back in the thread you opened.
+        </p>
+        <lf-roster id="hub-roster">
+          <lf-agent
+            id="hub-agent-wren"
+            state="working"
+            doing="running the encoding-declaration cases against the 4 GB export"
+            on="t-parser-decl"
+            branch="atlas-parser"
+          >
+            <strong>wren</strong> The XML parser, end to end.
+          </lf-agent>
+          <lf-agent
+            id="hub-agent-finch"
+            state="waiting"
+            doing="holding at the schema gate"
+            on="t-schema"
+            branch="atlas-schema"
+          >
+            <strong>finch</strong> Schema, migrations, and the backfills that go with
+            them.
+          </lf-agent>
+          <lf-agent
+            id="hub-agent-junco"
+            state="blocked"
+            doing="stopped for the partially-refunded fixture"
+            on="t-ledger-export"
+            branch="atlas-ledger"
+          >
+            <strong>junco</strong> Ledger reconciliation and the nightly variance report
+            after it.
+          </lf-agent>
+          <lf-agent id="hub-agent-siskin" state="idle" branch="atlas-cutover">
+            <strong>siskin</strong> The cutover: the shadow week, then the swap.
+          </lf-agent>
+          <lf-agent id="hub-agent-merle" state="done" on="t-ground-harness">
+            <strong>merle</strong> Built the replay harness and handed it over.
+          </lf-agent>
+        </lf-roster>
       </section>
 
       <section id="hub-work">
-        <h2>Work</h2>
+        <h2>The work</h2>
         <p id="hub-work-intro">
-          The plan as it stands, counted by its leaves. Amber means finished by its
-          agent and waiting on your review; red is stuck, and says on what.
+          The plan as it stands, counted by its leaves. Amber is finished by whoever
+          held it and waiting on your read; red is stuck, and the line says on what.
+          Statuses here move the same way the roster's do — a worker reports its own —
+          so the tree is current between versions rather than as of the last one I
+          published.
         </p>
         <lf-tasks id="hub-plan">
           <lf-task id="t-ground" status="done" when="weeks 1-2">
             <strong>Groundwork</strong>
             <lf-task id="t-ground-corpus" status="done" owner="wren">
-              <strong>Snapshot the import corpus</strong>
+              <strong>Snapshot the import corpus</strong> Nine months of nightly
+              exports, pinned by content hash.
             </lf-task>
-            <lf-task id="t-ground-harness" status="done" owner="junco">
+            <lf-task id="t-ground-harness" status="done" owner="merle">
               <strong>Replay harness</strong> Old and new importer over the same corpus,
               diffed.
             </lf-task>
@@ -1551,113 +1742,150 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
             </lf-task>
           </lf-task>
           <lf-task id="t-parser" status="active" owner="wren" when="week 3">
-            <strong>Replace the XML parser</strong> The streaming parser is in; the two
-            format edge cases remain.
+            <strong>Replace the XML parser</strong> The streaming core is in; the two
+            format edge cases are what is left.
             <lf-task id="t-parser-stream" status="done" owner="wren">
-              <strong>Streaming core</strong> Constant-memory parse of the 4&nbsp;GB
-              nightly export.
+              <strong>Streaming core</strong>
+              <lf-task id="t-parser-stream-read" status="done" owner="wren">
+                <strong>Constant-memory reader</strong> The 4&nbsp;GB nightly export in
+                a 90&nbsp;MB working set.
+              </lf-task>
+              <lf-task id="t-parser-stream-bench" status="done" owner="merle">
+                <strong>Throughput bench against the old path</strong> 2.4× on the
+                nightly, 6× on the month-end.
+              </lf-task>
             </lf-task>
-            <lf-task
-              id="t-parser-cdata"
-              status="review"
-              owner="wren"
-              tags="atlas-cdata"
-            >
-              <strong>CDATA edge cases</strong> Diff is small and green; awaiting your
-              read.
+            <lf-task id="t-parser-cdata" status="done" owner="wren" tags="atlas-parser">
+              <strong>CDATA edge cases</strong> Landed on green under the standing grant
+              below, without stopping here.
             </lf-task>
-            <lf-task id="t-parser-decl" status="planned">
-              <strong>Encoding declarations</strong> Starts once CDATA lands.
+            <lf-task id="t-parser-decl" status="active" owner="wren">
+              <strong>Encoding declarations</strong> Nine of the corpus's exports
+              declare an encoding their bytes contradict.
             </lf-task>
           </lf-task>
-          <lf-task id="t-schema" status="review" owner="finch" tags="atlas-schema">
-            <strong>Schema migration</strong> Written and tested; gated above because it
-            touches the overlap zone.
+          <lf-task id="t-schema" status="active" owner="finch" tags="atlas-schema">
+            <strong>Schema migration</strong> Written, tested and green. finch still
+            holds the branch: the one thing between it and <code>main</code> is
+            <a href="#hub-ask-schema">the gate above</a>, which is where that decision
+            is counted — a task at <em>review</em> here would put the same interruption
+            in front of you twice.
           </lf-task>
-          <lf-task id="t-ledger" status="active" owner="junco" when="week 3-4">
+          <lf-task id="t-ledger" status="active" owner="junco" when="weeks 3-4">
             <strong>Ledger reconciliation</strong>
             <lf-task id="t-ledger-export" status="blocked" owner="junco">
-              <strong>Reconcile ledger exports</strong> Needs the fixture named above.
+              <strong>Reconcile ledger exports</strong> Needs the fixture above.
             </lf-task>
-            <lf-task id="t-ledger-report" status="planned">
+            <lf-task id="t-ledger-report" status="planned" owner="junco">
               <strong>Nightly variance report</strong> Needs the schema migration
               landed.
             </lf-task>
           </lf-task>
-          <lf-task id="t-cutover" status="planned" when="week 5">
-            <strong>Cut over the nightly job</strong> Shadow first, then swap.
+          <lf-task id="t-cutover" status="planned" owner="siskin" when="week 5">
+            <strong>Cut over the nightly job</strong>
+            <lf-task id="t-cutover-shadow" status="planned" owner="siskin">
+              <strong>Shadow the nightly for a week</strong> Both importers, output
+              diffed, nothing downstream reading the new one.
+            </lf-task>
+            <lf-task id="t-cutover-swap" status="planned" owner="siskin">
+              <strong>Swap and keep the old path behind a flag</strong>
+            </lf-task>
           </lf-task>
         </lf-tasks>
       </section>
 
-      <section id="hub-agents">
-        <h2>Agents</h2>
-        <table id="hub-roster">
-          <caption>
-            Where each agent is working, and its last report's age — read from the log,
-            never from the agent.
-          </caption>
-          <thead>
-            <tr>
-              <th>Agent</th>
-              <th>Task</th>
-              <th>Branch</th>
-              <th>Last report</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">wren</th>
-              <td>CDATA edge cases</td>
-              <td><code>atlas-cdata</code></td>
-              <td>12 min ago</td>
-            </tr>
-            <tr>
-              <th scope="row">finch</th>
-              <td>Schema migration</td>
-              <td><code>atlas-schema</code></td>
-              <td>1 h ago</td>
-            </tr>
-            <tr>
-              <th scope="row">junco</th>
-              <td>Ledger reconciliation</td>
-              <td><code>atlas-ledger</code></td>
-              <td>3 h ago</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section id="hub-feed">
-        <h2>Feed</h2>
-        <lf-timeline id="hub-timeline">
-          <lf-event id="hub-e-cdata" at="thu 14:12" kind="info">
-            <strong>CDATA branch went green</strong> wren moved the task to review.
-          </lf-event>
-          <lf-event id="hub-e-schema" at="thu 13:40" kind="warning">
-            <strong>Schema migration held at the gate</strong> Overlap-zone file;
-            waiting on you above.
-          </lf-event>
-          <lf-event id="hub-e-stream" at="thu 11:03" kind="action">
-            <strong>Streaming core merged</strong> Serialized onto main after the
-            merge-slot test run.
-          </lf-event>
-        </lf-timeline>
+      <section id="hub-next">
+        <h2>What they pick up next</h2>
+        <p id="hub-next-intro">
+          The tree above is committed work. This is everything else the rewrite has
+          turned up and nobody has been given yet — drag a card to say what happens to
+          it, and the move reaches me as you make it. A card in
+          <strong>next up</strong> goes to the first session that frees up; one in
+          <strong>not doing</strong> is closed, and I stop bringing it back. Nothing
+          here is scheduled until you move it, so the pile is honest about what is being
+          ignored.
+        </p>
+        <lf-board id="hub-backlog">
+          <lf-column id="hub-col-next" label="Next up">
+            <lf-card id="hub-card-idempotent">
+              <strong>Make the nightly re-runnable</strong> A failed import currently
+              has to be cleaned up by hand before the next one will start.
+            </lf-card>
+          </lf-column>
+          <lf-column id="hub-col-later" label="Someday">
+            <lf-card id="hub-card-metrics">
+              <strong>Per-file import timings</strong> The one number we have is
+              wall-clock for the whole run, so a slow file is invisible.
+            </lf-card>
+            <lf-card id="hub-card-dedupe">
+              <strong>Deduplicate the corpus snapshot</strong> Nine months of exports at
+              40&nbsp;GB, most of it the same rows re-exported.
+            </lf-card>
+            <lf-card id="hub-card-alert">
+              <strong>Alert on a silent zero-row import</strong> Twice in the old
+              importer's life it succeeded and imported nothing.
+            </lf-card>
+          </lf-column>
+          <lf-column id="hub-col-no" label="Not doing"></lf-column>
+        </lf-board>
       </section>
 
       <section id="hub-policy">
-        <h2>Standing policy</h2>
+        <h2>What may land without you</h2>
         <p id="hub-policy-copy">
           Tasks are scoped not to share files, branch from the same base commit, and
-          merge one at a time after a test run against current main. Mechanical changes
-          land on green; anything touching <code>schema/</code>, <code>auth/</code>, or
-          a public contract holds for your word, however green the tests. The grant is
-          yours, recorded below — click to tighten or revoke it any time — and any
-          landed change is a revert away for as long as you care to look.
+          merge one at a time after a test run against current <code>main</code>.
+          Mechanical changes land on green; anything touching <code>schema/</code>,
+          <code>auth/</code>, or a public contract holds for your word however green the
+          tests. That is the grant as it stands, and it is yours to change here — click
+          to tighten or widen it. What it has actually done is
+          <a href="#hub-landed">the list above</a>, which is the evidence to read before
+          deciding either way; any landed change there is a revert away for as long as
+          you care to look.
         </p>
         <lf-options id="hub-policy-grant" choose>
-          <lf-option id="hub-pg-tiers" chosen> Two-tier gates as stated </lf-option>
+          <lf-option id="hub-pg-tiers" chosen
+            >Two-tier gates, as stated above</lf-option
+          >
           <lf-option id="hub-pg-all">Everything waits for my word</lf-option>
+          <lf-option id="hub-pg-green" for="hub-work">Anything green lands</lf-option>
+        </lf-options>
+      </section>
+
+      <section id="hub-settled">
+        <h2>Settled</h2>
+        <p id="hub-settled-intro">
+          Decisions this page has moved past, kept where the argument behind them can be
+          reopened. Nothing here is live; reopen one and pick again if you have changed
+          your mind.
+        </p>
+        <lf-options id="hub-merge-model" choose settled>
+          <lf-option id="hub-mm-serial" chosen>
+            <lf-chip tone="ok">no shared branch</lf-chip
+            ><lf-chip tone="warn">merges queue behind each other</lf-chip>
+            <strong>A branch each, merged one at a time</strong>
+            <p>
+              Every session branches from the same base and merges alone after a test
+              run against current <code>main</code>. Two sessions never hold the same
+              file, so a conflict is a scoping mistake rather than a routine cost.
+            </p>
+          </lf-option>
+          <lf-option id="hub-mm-shared">
+            <lf-chip tone="danger">conflicts are the norm</lf-chip>
+            <strong>One shared branch</strong>
+            <p>
+              Cheapest to set up and it puts five writers on one history; the week-one
+              trial produced four conflicts in two days.
+            </p>
+          </lf-option>
+          <lf-option id="hub-mm-queue">
+            <lf-chip>needs CI we do not have</lf-chip>
+            <strong>A merge queue</strong>
+            <p>
+              The right answer at ten sessions and more machinery than five needs; worth
+              revisiting if this project grows.
+            </p>
+          </lf-option>
         </lf-options>
       </section>
 </lf-tab>

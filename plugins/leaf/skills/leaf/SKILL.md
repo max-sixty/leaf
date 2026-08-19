@@ -70,6 +70,22 @@ id; keep your own state by marking the element `overruled` (why in the note); le
 markup unchanged and the report keeps painting. `version check` refuses a version that
 contradicts a standing report it never names — `page catalog`'s `$report` has the rest.
 
+Such a page usually carries a `lf-roster` beside its work: one `lf-agent` per worker,
+whose `state` and `doing` that worker moves itself, so the tree says where the work
+stands and the roster says who is holding it and what that one is on this minute. Each
+row also says how long since the log heard from that worker, and that line is computed
+rather than authored — elapsed time is the one fact a version cannot state and still be
+true an hour later. Never write "12 min ago", "just now", or a wall-clock time into
+markup on any page: give the worker the id of its own row, let it report there, and the
+row keeps itself honest.
+
+A worker on a roster owes that row a report while it is working — whenever what it is
+doing changes, and in any case often enough that going quiet means something, which is
+within about the quarter of an hour the page gives a claim of work before it says so on
+the row. One verb carries both halves and both are required
+(`leaf report <page> ag-finch state state=working doing="rebasing onto main"`), because
+where a worker stands and what it is on are one sentence about it.
+
 ## Setup
 
 The page lives in its own directory, conventionally
@@ -668,7 +684,8 @@ It loads the version in the machine's installed Chrome (a couple of seconds, and
 before the version is published) and fails, in both color schemes, on what a static lint
 cannot see: a console error, a widget upgraded into a box of no size, a page that
 scrolls sideways, a `lf-diagram` whose mermaid source doesn't parse, words on screen
-that no selection can reach, code set in an ink the reader can't tell from the block it
+that no selection can reach, a control drawn outside the box that clips it (an offer the
+page makes and doesn't show), code set in an ink the reader can't tell from the block it
 is on, words the screen shows and a printout drops, a version
 that authors widget state the log replays over
 (a different option `chosen`, a card in a column the user dragged it out of — the

@@ -5,7 +5,7 @@
 # ///
 """Serve and mediate an interactive leaf page.
 
-A `uv` script: the PEP 723 header above declares the dependencies and
+A `uv` script: the PEP 723 header above declares the dependencies, and
 `interact.py.lock` beside it pins them, so every install runs the same versions;
 editing the header re-resolves the lock on the next run. `uv` is the one
 prerequisite for the whole plugin — no venv to create, no build step.
@@ -33,17 +33,18 @@ A page directory holds:
     vendor/              vendored third-party assets (mermaid.min.js, sortable.esm.js)
     media/               images the page shows, each named by the hash of its bytes
                          (`page media`). Not vendored — this is the page's content,
-                         not the layer's — but served the same way, and
-                         content-addressing is what lets content live here at all: a
-                         name means one set of bytes forever, so a version the
+                         not the layer's — but served the same way.
+                         Content-addressing is what lets content live here at all:
+                         a name means one set of bytes forever, so a version the
                          user approved cannot show them different pixels later,
-                         and two versions showing the same screenshot share the one
-                         file rather than a copy each. It is also the only door an
-                         image has: the page's author is a language model, and a
-                         screenshot is a megabyte of base64 it cannot type — nor
-                         should each version carry a copy of one that `version check`
-                         walks and a browser reloads. The transport was never an
-                         optimisation over inlining; inlining was never available
+                         and two versions showing the same screenshot share one
+                         file rather than carrying a copy each. It is also the
+                         only door an image has into a page: the page's author is
+                         a language model, and a screenshot is a megabyte of
+                         base64 it cannot type — nor should each version carry a
+                         copy that `version check` walks and a browser reloads.
+                         So the transport was never an optimisation over
+                         inlining; inlining was never available
     comments.jsonl       append-only event log; an event's seq is its line number (1-based)
     status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
                          detail is the finer grain the banner reads out after the
@@ -81,8 +82,9 @@ A page directory holds:
     session.json         {"id", "host", "pid", "agent", "cwd"} of the agent
                          session last working on the page — the watcher the
                          banner names, not necessarily the author of any given
-                         message, and the directory it was working in, which is
-                         what the leaves board tells one page from another by
+                         message — and the directory that session was working
+                         in, which is how the leaves board tells one page from
+                         another
 
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
@@ -90,65 +92,67 @@ say, so a comment can sit unread with the page still reading "Claude is
 working". The directory therefore also carries what it can prove — a heartbeat
 only a live `leaf wait` bumps, the acknowledgement cursor, and the owning
 session's pid — and `/api/state` ships those beside the claim, so the banner can
-say when the claim has outlived them. When a wait prints for a non-working page, it
-marks the status it writes "handoff", which dates it: after acknowledgement the agent
-writes its own `leaf status`, so the mark surviving is a dropped pickup rather than a
-long turn, and the banner gives it a much shorter rope. Wait output that lands
-while the agent is already working leaves that claim untouched; there is no pickup
-gap to date.
+say when the claim has outlived its evidence. When a wait prints for a
+non-working page, it marks the status it writes "handoff", which dates that
+claim: after acknowledgement the agent writes its own `leaf status`, so a
+handoff mark that survives means a dropped pickup rather than a long turn, and
+the banner gives it a much shorter rope. Wait output that lands while the agent
+is already working leaves the existing claim untouched; there is no pickup gap
+to date.
 
-Where nothing answers for the claim at all, the banner drops it rather than
-repeating it: a claimant pid that has exited settles the question outright, and a
-page nothing ever claimed has only the claim's own age to go on, so it falls to
-the same grace. Either way the page is unheld, and the banner says that instead —
-"no session holds this page" is a fact it computed, where "Claude is working"
-would be a fortnight-old sentence someone else wrote. It is also not a fault: a
-page that stands for weeks (below) spends most of its life unheld, and picks up
-again the moment a session does.
+Where nothing answers for the claim at all, the banner drops the claim rather
+than repeating it. A claimant pid that has exited settles the question outright;
+a page nothing ever claimed has only the claim's own age to go on, so it falls
+to the same grace period. Either way the page is unheld, and the banner says
+that instead — "no session holds this page" is a fact the banner computed, where
+"Claude is working" would be a fortnight-old sentence someone else wrote. Unheld
+is also not a fault: a page that stands for weeks (below) spends most of its
+life unheld, and picks up again the moment a session takes it.
 
 The `hook` command closes the same gap from the agent's side. Registered on
 Stop, UserPromptSubmit and SessionEnd, it refuses to let a turn end with one of
 this session's pages unwatched, surfaces unacknowledged user events at the next
 prompt, and idles the pages and stops their servers when the session exits. It
-finds them through ~/.local/state/leaf/sessions/<session id>.json, which the
-serve and `leaf wait` write the host session identity the environment
-carries — absent that (interact.py run outside an agent host), nothing is claimed
-and the hooks stand down. What the environment cannot carry is the session's own
-lifetime, and `session_pid` says where each host's comes from. Unacknowledged
-events are the one thing `leaf status <page> idle` can't close over: idling is
-how a leaf ends, and one can't end on comments nobody read.
+finds the session's pages through ~/.local/state/leaf/sessions/<session id>.json,
+where the serve and `leaf wait` write the host session identity the environment
+carries; absent that identity (interact.py run outside an agent host), nothing
+is claimed and the hooks stand down. What the environment cannot carry is the
+session's own lifetime, and `session_pid` says where each host's lifetime comes
+from. Unacknowledged events are the one thing `leaf status <page> idle` can't
+close over: idling is how a leaf ends, and one can't end on comments nobody
+read.
 
 A session's leaves cost it one long-running command between them, and that
 command is the watcher. The two jobs end in opposite ways: `leaf wait` has to
-exit, because its exit is how what the user said reaches the agent, and the
-server has to not exit at all, since the browser polls it between turns and
-straight across every wait. So no one process does both — but only the watcher
-is the session's, and one is enough: it watches every page the session holds,
-re-reading the set each pass, and delivers one page's batch under a first line
-naming the page. `server start` spawns `server run` into a session of its own
-and hands back the URL that process printed and the lifetime it recorded, so a
-killed background task costs the watcher and leaves every page up, and recovery
-is one `leaf wait`.
+exit, because its exit is how what the user said reaches the agent; the server
+has to not exit at all, because the browser polls it between turns and straight
+across every wait. So no single process does both. Only the watcher belongs to
+the session, and one watcher is enough: it watches every page the session
+holds, re-reading the set on each pass, and delivers one page's batch under a
+first line naming the page. `server start` spawns `server run` into a session of
+its own and hands back the URL that process printed and the lifetime it
+recorded — so a killed background task costs only the watcher and leaves every
+page up, and recovery is one `leaf wait`.
 
-Whether a session's end reaches a server is decided once, by the launch, and
-written down in access.json as its lifetime. A serve from an agent host
-claims the page, and that claim is what two reapers act on: a watcher thread
-stops the process when the claimant pid goes, and SessionEnd idles the page and
-stops the server. A serve from a bare shell — a terminal, a launchd job —
-claims nothing, and that is the standing serve: a page kept up across sessions,
-for a command hub or a dashboard someone leaves open for weeks.
-`server start --standing` makes the same statement from inside a host: the launch
-declines the claim, for a page meant to outlive the session that starts it —
-under a harness that restarts mid-session the claimant pid churns, and a claimed
-server reads the old pid's death as the session ending. No daemon is involved,
-and a `leaf wait` watching the page revives one that dies under it as standing —
-the lifetime being the record's. `leaf server stop` is its one reaper, which
-is the whole of what "standing" means. A session that picks the page up later
-owes it a watcher while it lives, exactly as it would any page, and takes
-nothing down when it ends: no watcher was ever started for a server it didn't
-launch, and SessionEnd leaves a standing one alone rather than adopting it —
-including the page's status, since the leaf outlives the session that
-answered on it for an afternoon.
+Whether a session's end reaches a server is decided once, at launch, and written
+down in access.json as the lifetime. A serve from an agent host claims the page,
+and that claim is what two reapers act on: a watcher thread stops the process
+when the claimant pid goes, and SessionEnd idles the page and stops the server.
+A serve from a bare shell — a terminal, a launchd job — claims nothing, and that
+is the standing serve: a page kept up across sessions, for a command hub or a
+dashboard someone leaves open for weeks. `server start --standing` makes the
+same statement from inside a host: the launch declines the claim, for a page
+meant to outlive the session that starts it: under a harness that restarts
+mid-session, the claimant pid churns, and a claimed server reads the old pid's
+death as the session ending. No daemon is involved, and a server that dies under
+a `leaf wait` watching the page is revived by that wait — as standing, because
+the lifetime comes from the record. `leaf server stop` is a standing
+server's one reaper, and that is the whole of what "standing" means. A session
+that picks the page up later owes it a watcher while the session lives, exactly
+as it would any page, and takes nothing down when it ends: no watcher was ever
+started for a server the session didn't launch, and SessionEnd leaves a standing
+server alone rather than adopting it — the page's status included, since the
+leaf outlives the session that answered on it for an afternoon.
 
 `page init` vendors the runtime, theme, registry, widgets, and vendor assets into the
 page directory, overlaying by precedence: leaf's integrated layer (the runtime,
@@ -176,43 +180,45 @@ vocabulary for rides in the custom keywords below:
                 "items" (element children only, no loose text), "data" (one <pre>
                 holding text in the notation the description names), "none"
                 (empty). <pre> because a data body's whitespace is load-bearing
-                and that tag is HTML's only way to say so — otherwise it is a CSS
-                fact, and a tool reading the markup alone collapses what it
-                cannot see the rule for.
-                Children that name this tag in x-parent are admissible under
-                any model — that is what x-parent means. A list because one
-                element can belong to two holders: a chip is written in a
+                and that tag is HTML's only way to say so — anywhere else,
+                whitespace survival is a CSS fact, and a tool reading the markup
+                alone collapses what it cannot see the rule for.
+                Children that name this tag in x-parent are admissible under any
+                model — that is what x-parent means. x-parent is a list because
+                one element can belong to two holders: a chip is written in a
                 lf-option and in a lf-variant, which are the same shape either
                 side of the decision.
     x-inline    true when the element is set among the words around it rather
                 than laid out as a region of its own. The render gate floors a
                 widget's box to catch one that upgraded into nothing, and an
-                inline element's box is the words in it: so it keeps the height
-                floor and takes no width floor at all, a chip reading `£9` being
-                31px wide and correct. Declared rather than read off the
-                rendered display, which answers "inline" for a widget whose
-                theme rule went missing too.
+                inline element's box is just the words in it — so an inline
+                widget keeps the height floor and takes no width floor at all; a
+                chip reading `£9` is 31px wide and correct. Declared rather than
+                read off the rendered display, because the rendered display also
+                answers "inline" for a widget whose theme rule went missing.
     x-says      attributes whose values are words the reader sees, mapped to the
                 edge they render at ("before" = first child, "after" = last).
-                The runtime renders them as real text there, because a user
-                can only quote what a text node holds — the theme's matching
-                `content: attr()` is the same words for a page with no script.
+                The runtime renders them as real text there, because a user can
+                only quote what a text node holds — and the theme's matching
+                `content: attr()` puts the same words on a page with no script.
     x-paints    attributes whose value the theme renders as paint and no words — a
                 task's status marker, an event's kind, the ring on a recommended
-                option. The runtime speaks each as a word clipped to nothing
-                (renderQuiet), the value itself or, for a flag attribute carrying
-                none, the attribute's own name. Declared per attribute rather than
-                taken for every painted one, because paint that merely emphasises
-                the words beside it — a chip's tone — would be the same fact said
-                twice to whoever is listening.
-                What it cannot reach is a painted fact whose meaning is computed
-                rather than stated: lf-metric's `direction` means better or worse
-                only crossed with the sign of `delta`, and "up-good" said aloud is
-                nothing. Declaring that would be a rule in the registry rather than
-                a name, and buying it with a module would cost lf-metric more than
-                it bought — an upgraded element with no x-verbatim is opaque to
-                quoting, so the caption would stop being something the reader can
-                point at to gain a word they can already infer from the number.
+                option. The runtime speaks each one as a word clipped to nothing
+                (renderQuiet): the value itself, or, for a flag attribute that
+                carries no value, the attribute's own name. Declared per
+                attribute rather than assumed for every painted one, because
+                paint that merely emphasises the words beside it — a chip's
+                tone — would be the same fact said twice to whoever is
+                listening.
+                What the key cannot reach is a painted fact whose meaning is
+                computed rather than stated: lf-metric's `direction` means
+                better or worse only when crossed with the sign of `delta`, and
+                "up-good" said aloud means nothing. Declaring that would put a
+                rule in the registry rather than a name, and buying it with a
+                module would cost lf-metric more than it bought: an upgraded
+                element with no x-verbatim is opaque to quoting, so the caption
+                would stop being something the reader can point at — to gain a
+                word they can already infer from the number.
     x-refers    attributes whose values name another element on the page. The
                 reader follows one, so `version check` holds each to an id the
                 version actually carries; a reply's fragment is exempt, having no
@@ -224,14 +230,15 @@ vocabulary for rides in the custom keywords below:
                 rather than any one widget's.
     x-language  the attribute whose value names a code language. The layer colors
                 what $languages.names holds, so a widget taking one declares which
-                attribute carries it and `version check` validates every such
+                attribute carries it, and `version check` validates every such
                 attribute against that list — the same list a plain <pre><code
                 class="language-*"> is held to.
     x-lines     attributes holding 1-based line references into the nearest data
                 body — the element's own <pre>, or its holder's (lf-note's `at`
                 names a line of its lf-code). `version check` refuses a reference
                 outside the body or a range running backwards (line_ref_errors);
-                the modules render the miss silently, which is why the door owns it.
+                the modules render a miss silently, which is why the door owns
+                the check.
     x-upgrade   true when the runtime imports /widgets/<tag>.js for it
     x-verbatim  true when an upgraded element's body reaches the reader as its own
                 words. Otherwise a module may render anything in place of them, so
@@ -241,7 +248,7 @@ vocabulary for rides in the custom keywords below:
                 The passage walk, the selection capture and the id lookups cross
                 exactly the declared roots — an undeclared root's words are
                 invisible to every one of them, so a widget that attaches one
-                declares it or its quotes anchor beside the reader's selection.
+                declares it, or its quotes anchor beside the reader's selection.
     x-exhibit   true when everything inside this element is quoted material — a
                 specimen, not the page speaking. Interactive widgets inside take
                 no input: modules consult `quoted()` before wiring affordances,
@@ -249,17 +256,17 @@ vocabulary for rides in the custom keywords below:
     x-visual    true when the element renders as a picture: a click anchors on
                 the element whole, there being no text in it to select — the
                 same anchor a click on an <svg> or <img> makes.
-    x-wide      the width model, for evidence set to its content rather than to
-                the measure prose is read at: "box" (the widget lays its
-                content out into whatever width it is given, a board's columns,
-                so it stands at the one width the whole vocabulary shares),
-                "drawing" (the widget renders one thing drawn at a size of its
-                own, a diagram's graph, so its box is the clip around it — the
-                room the page has, with the drawing as near the column's axis
-                as the claimed margins allow, and scrolling where even the room
-                is short). The runtime marks what this declares and theme.css
-                spends the room the layout measured, so a page's shape follows
-                what it holds and no page states a width.
+    x-wide      the width model, for evidence whose size follows its content
+                rather than the measure prose is read at. "box": the widget lays
+                its content out into whatever width it is given — a board's
+                columns — so it stands at the one width the whole vocabulary
+                shares. "drawing": the widget renders one thing drawn at a size
+                of its own — a diagram's graph — so its box is the clip around
+                that drawing: the room the page has, with the drawing as near
+                the column's axis as the claimed margins allow, and scrolling
+                where even the room is short. The runtime marks what this key
+                declares and theme.css spends the room the layout measured, so a
+                page's shape follows what it holds and no page states a width.
     x-state     the widget's action verbs: each verb's detail schema, its fold
                 unit, and the record form its state takes in markup. Every
                 applyAction is absolute, so the user's standing state is a
@@ -270,32 +277,34 @@ vocabulary for rides in the custom keywords below:
     x-report    the widget's agent channel: report verbs a worker folds onto the
                 page through `leaf report`, each with a detail schema, fold
                 unit, and *required* record form — declared state only, never
-                body words, so the passage reading is untouched by one. The
+                body words, so a report never touches the passage reading. The
                 precedence is opposite to x-state's: an action outranks every
                 later version until `restated` retracts it, while a report is
                 provisional and stands only until a version answers it by id —
                 `reports` on the note, written by `version publish`; `overruled`
                 on the element is how a version keeps its own state over one.
                 See $report in the registry.
-    x-retired-when  the outcome under which this element leaves the page: the
-                slot a decision retires, and x-parent the widgets whose decision
-                reaches it. That one relation is the whole of what a decision
-                settles — the anchor pass's skip list on both sides, and which
-                ids a version honoring the decision may drop (retirable_ids).
+    x-retired-when  the outcome under which this element leaves the page — the
+                slot a decision retires — with x-parent naming the widgets whose
+                decision reaches it. That one holder/slot relation is the whole
+                of what a decision settles: the anchor pass's skip list on both
+                sides, and which ids a version honoring the decision may drop
+                (retirable_ids).
     x-withdrawn-as  the outcome an unanswered instance stands as when the author
                 takes it back: a withdrawn suggestion leaves the page where a
                 `reject` would. Without it a question, once asked, stays until
                 the reader answers it — nothing else says which slots were the
                 author's to take back and which hold the page's own words.
-    x-awaits    an instance of this tag is a standing request to the reader:
+    x-awaits    an instance of this tag is a standing request to the reader.
                 `when` says which instances ask (attribute values, a flag's
-                being true and false), `all` names the verb one press answers
-                every one with. What counts as answered is no new bookkeeping —
-                a verb recording as an attribute answers on the record the
-                replayed page carries, and every other verb, whatever else it
-                records, through its own surviving fold entry — so the banner's
-                count, the key that steps them and the `?` overlay read one list
-                (see $awaits).
+                being true and false); `all` names the verb one press answers
+                every one
+                with. What counts as answered needs no new bookkeeping: a verb
+                that records as an attribute answers on the record the replayed
+                page carries, and every other verb answers through its own
+                surviving fold entry, whatever else it records — so the banner's
+                count, the key that steps through open asks, and the `?` overlay
+                all read one list (see $awaits).
     x-example   one authored example, printed by `page catalog`
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
@@ -323,32 +332,34 @@ and `session`, its host session id. Several agent sessions can write to one page
 so the voice is read from the poster's environment rather than from session.json,
 which names only the watcher — and identity is the session id, because a display
 name is anyone's to choose and two workers may share one.
-A message body is Markdown, stored as typed and
-rendered by the page's own vendored runtime — the browser is where the page's other
-rendering already lives, and vendoring the renderer beside the panel's styles is what
-keeps the two versioning together. A fragment link in a body — `[the group](#d-channel)`,
-either author's — points at an element of the page, and the browser's own navigation
-carries the reader there, opening whatever tab or settled group hides it. Two things are
-the runtime's: an arrival aimed by such a link (⌘-click opens a tab the browser answers
-before any widget has upgraded), and marking one this version can't follow, since a
-message outlives the version it was written on. Raw HTML in a body renders as its characters there,
-so text cannot inject markup; a widget rides the event's `markup` field instead, whose
-one door is `leaf comment`/`leaf reply`, where it is validated against the
-vendored registry — the discussion-side analog of `version check`. The browser door refuses the
-field, so everything in the log under that name has been through the gate.
+A message body is Markdown, stored as typed and rendered by the page's own
+vendored runtime — the browser is where the page's other rendering already
+lives, and vendoring the renderer beside the panel's styles keeps the two
+versioning together. A fragment link in a body — `[the group](#d-channel)`,
+written by either author — points at an element of the page, and the browser's
+own navigation carries the reader there, opening whatever tab or settled group
+hides it. Two parts of that are the runtime's: handling an arrival aimed by such
+a link (a ⌘-click opens a tab the browser answers before any widget has
+upgraded), and marking a link this version can't follow, since a message
+outlives the version it was written on. Raw HTML in a body renders as its own
+characters, so text cannot inject markup. A widget in a message rides the
+event's `markup` field instead, whose one door is `leaf comment`/`leaf reply`,
+where it is validated against the vendored registry — the discussion-side analog
+of `version check`. The browser door refuses the field, so everything in the log
+under that name has been through the gate.
 
-Either side can open a thread and either can close one, and `author` is the whole
-difference between them. The user selects a passage and the browser writes the anchor
-from the selection; `leaf comment` writes the same anchor from a quote, reading the
-version the way the anchor pass reads the DOM (see "passages" below).
-Everything downstream already turns on `author`: `leaf wait` prints user
-events and the banner counts them, so Claude's own comment neither wakes its
-watcher nor reads as unanswered. Closing runs the other way round, because a note's
-purpose is discharged by being read and only the reader knows that happened. So
-`leaf resolve` is the agent's door onto it, and the reader is still the one who
-ordinarily closes a thread. A thread the reader did not close is the one settlement
-they cannot watch happen, so the panel and the transcript both name the agent that
-did it.
+Either side can open a thread and either side can close one, and `author` is the
+whole difference between them. The user selects a passage and the browser writes
+the anchor from the selection; `leaf comment` writes the same anchor from a
+quote, reading the version the way the anchor pass reads the DOM (see
+"passages" below). Everything downstream already turns on `author`: `leaf wait`
+prints user events and the banner counts them, so Claude's own comment neither
+wakes its own watcher nor reads as unanswered. Closing runs the other way round,
+because a note's purpose is discharged by being read, and only the reader knows
+that happened. So `leaf resolve` is the agent's door onto closing, and the
+reader is still the one who ordinarily closes a thread. A thread the reader did
+not close is the one settlement they cannot watch happen, so the panel and the
+transcript both name the agent that did it.
 
 Commands:
     status, wait, ack, comment, reply, resolve, report, events, transcript
@@ -382,24 +393,25 @@ The invariants live in render_version, which tests/test_render.py drives over
 the shipped examples, so the gate and the suite cannot drift apart.
 
 Passages: an anchor is resolved in the browser and written down here, so
-`leaf comment` reads a version the way the anchor pass reads the DOM — text
-in document order, minus the runtime's own words, plus the words a widget says
-through an x-says attribute, one space wherever the enclosing text block
-changes, whitespace collapsed. What the file cannot know is what a widget's
-module will write, so the reading stops where the registry stops telling it:
-an upgraded element is opaque unless x-verbatim says its body reaches the
-reader as its own words, and an opaque element and each of its children is
-fenced. A quote never spans a fence, so "the page has words here that the file
-doesn't" is a refusal when the comment is written rather than an anchor that
-detaches later in the user's browser. Element-anchor an opaque widget
-instead (`--section`), which is the anchor a click on a diagram makes.
+`leaf comment` reads a version the way the anchor pass reads the DOM — text in
+document order, minus the runtime's own words, plus the words a widget says
+through an x-says attribute, with one space wherever the enclosing text block
+changes and whitespace collapsed. What the file cannot know is what a widget's
+module will write, so the reading stops where the registry stops telling it: an
+upgraded element is opaque unless x-verbatim says its body reaches the reader as
+its own words, and an opaque element and each of its children is fenced. A quote
+never spans a fence, so "the page has words here that the file doesn't" becomes
+a refusal when the comment is written, rather than an anchor that detaches later
+in the user's browser. Anchor on an opaque widget's element instead
+(`--section`), which is the same anchor a click on a diagram makes.
 
-A version is written in more than one language, and each is read by a parser for
-that language: _StructParser for what the markup declares, page_passages for what
-it says, tinycss2 for the CSS a <style> block holds. A
-new question about a version is a field on one of those readings rather than a
-pattern over the file's text, because a pattern answers something adjacent to the
-question asked — the readable-column check below carries what that cost.
+A version is written in more than one language, and each language is read by a
+parser for that language: _StructParser for what the markup declares,
+page_passages for what it says, tinycss2 for the CSS a <style> block holds. A
+new question about a version becomes a field on one of those readings rather
+than a pattern over the file's text, because a pattern answers something
+adjacent to the question asked — the readable-column check below carries what
+that cost.
 """
 
 import base64

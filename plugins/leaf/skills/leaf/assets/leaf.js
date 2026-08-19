@@ -83,8 +83,8 @@
  * inside its own region — a viewport-scrolled document would paint its scrollbar over
  * the panel, stacked on the panel's own. Reading position goes through pageScroller.
  * The browser's own scroll keys are left alone (Space, arrows, Home/End, PageUp/Down);
- * d and u are the runtime's, stepping half a page through whichever of the two regions
- * the reader's own scrolling moves, and carrying a destination so repeats add up.
+ * d and u are the runtime's, stepping half the visible page at the browser's own paging
+ * pace through whichever of the two regions the reader's own scrolling moves.
  *
  * Keyboard: one register, and every surface is a projection of it. A row binds keys and
  * says what pressing one does; a scope is where the keyboard means something particular,
@@ -6881,26 +6881,63 @@ function stepThread(dir) {
 // the wheel, and a key is no different. Scrolling a page nobody can see reads to the user
 // as the key doing nothing, and then the document is somewhere else when the sheet closes.
 //
-// The destination is carried rather than measured afresh, because scrollBy measures from
-// where the glide has got to and not from where it is going: two presses 40ms apart move
-// 461px of a 900px page, so the half the reader believes they passed is still ahead of
-// them, with nothing on screen to say it was skipped. scrollend hands the destination back
-// whenever the region comes to rest, whoever moved it, so a press only ever extends a move
-// still in flight and one made after the reader took the page somewhere themselves starts
-// from where they left it. It is clamped, so pressing on at the foot of the page banks no
-// debt for u to press back through.
-let scrollGoal = null;
-for (const region of [pageScroller, threadsBox])
-  region.addEventListener("scrollend", () => (scrollGoal = null));
+// The step moves at the pace of the browser's own paging keys. Native paging is a quick
+// glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same
+// animator — but that animator is the compositor's and JS cannot ask for it, while
+// scrollTo's smooth takes three times as long over the same distance and has no dial,
+// which is what read as gradual when the step rode it. So the runtime drives the step
+// itself: PAGE_MS of easing out, each write `instant` rather than `auto` since a page is
+// free to set `scroll-behavior: smooth` on the box it scrolls (jumpBy says the same) and
+// a glide built from smooth writes would never land. A press mid-flight retargets from
+// the goal, so two quick presses move exactly a page; the goal is clamped, so pressing on
+// at the foot banks no debt for u to press back through; and the step stands down the
+// moment the box moves under another hand — a wheel, a centering — because the reader's
+// own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
+// rest of the runtime's motion already gives (SCROLL).
+//
+// The page the step halves is the one the reader can see. The document's box lends its
+// top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
+// exactly so by scrollToElement — is where the box already says how much of itself stands
+// covered; the thread list declares none and subtracts nothing.
+const PAGE_MS = 140;
+let glide = null; // {box, goal, wrote, raf}
+// The glide's claim on the box: it holds only while the box is where the glide last
+// wrote it. The tick asks before every write, and a press asks the same question before
+// trusting the goal — the reader can take the box between frames, and a press landing
+// in that gap otherwise measures from a goal the box has already left.
+const holding = (box) =>
+  glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
 function stepPage(fraction) {
   const box = panelCovers ? threadsBox : pageScroller;
-  const from = scrollGoal?.box === box ? scrollGoal.top : box.scrollTop;
-  const top = Math.max(
+  const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+  const from = holding(box) ? glide.goal : box.scrollTop;
+  const goal = Math.max(
     0,
-    Math.min(box.scrollHeight - box.clientHeight, from + fraction * box.clientHeight),
+    Math.min(
+      box.scrollHeight - box.clientHeight,
+      from + fraction * (box.clientHeight - clear),
+    ),
   );
-  scrollGoal = { box, top };
-  box.scrollTo({ top, behavior: SCROLL });
+  if (REDUCED) {
+    box.scrollTo({ top: goal, behavior: "instant" });
+    return;
+  }
+  cancelAnimationFrame(glide?.raf);
+  const start = box.scrollTop;
+  const t0 = performance.now();
+  const tick = (now) => {
+    if (!holding(box)) {
+      glide = null; // the box moved under another hand; theirs wins
+      return;
+    }
+    const t = Math.min(1, (now - t0) / PAGE_MS);
+    const top = goal - (goal - start) * (1 - t) ** 3;
+    box.scrollTo({ top, behavior: "instant" });
+    glide.wrote = top;
+    if (t < 1) glide.raf = requestAnimationFrame(tick);
+    else glide = null;
+  };
+  glide = { box, goal, wrote: start, raf: requestAnimationFrame(tick) };
 }
 
 // ---------- the reference ----------

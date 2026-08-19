@@ -16143,14 +16143,6 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page.close()
 
 
-@pytest.fixture(scope="module")
-def dead_pid():
-    """A pid that is certainly not running, for a page whose session has exited."""
-    spent = subprocess.Popen([sys.executable, "-c", ""])
-    spent.wait()
-    return spent.pid
-
-
 @contextmanager
 def live_watcher(page_dir, page):
     """Bump heartbeat.json for the duration of the block, as `leaf wait` does.

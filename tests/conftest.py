@@ -2,6 +2,9 @@
 not an installed module."""
 
 import importlib.util
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -38,14 +41,22 @@ def pytest_runtest_setup(item):
         pytest.skip(f"--run-nightly not passed — skipping {item}")
 
 
+# A host session states its identity in the environment, under names of its own.
+# The suite is a Claude Code session, and `host_identity` reads that set first, so
+# a test about a Codex session, or about no session at all, takes it away.
+CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID")
+CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
+
+
 @pytest.fixture(autouse=True)
 def isolated_session(tmp_path_factory, monkeypatch):
-    """Keep the developer's session out of every fixture. Their real
+    """The run is an agent session of its own, in state directories of its own.
+
+    Keep the developer's session out of every fixture. Their real
     ~/.config/leaf overlay would otherwise change what init vendors and check
     measures, and a page tagged with the session running the tests is a page the
     loop-guard hook reports as an unattended page at the end of every turn —
-    a dozen throwaway fixtures per run. An untagged page is nobody's, which is
-    what a fixture should be.
+    a dozen throwaway fixtures per run.
 
     Move what leaf reads and nothing else. `config_home` and `state_home` are
     the whole of what it takes from the developer's home, so the two XDG
@@ -55,14 +66,65 @@ def isolated_session(tmp_path_factory, monkeypatch):
     minutes each fetching a Playwright the developer already had. What that bought
     back was a pair of env overrides, UV_CACHE_DIR handing the cache back and
     UV_OFFLINE forbidding the index it no longer needed to ask; scripts/site.py
-    had already found the shorter way, and says so where it builds its env."""
+    had already found the shorter way, and says so where it builds its env.
+
+    The session the tests run as is this worker: a synthetic id, so nothing of
+    the developer's answers for it, and the worker's own pid. Every page a test
+    serves is claimed under that pid, and leaf stops a claimed page's server once
+    its claimant is gone — the one reaper that reaches a server spawned into a
+    session of its own, and so the only thing that ends one when a run is killed
+    outright (tests/CLAUDE.md, "A process the suite starts ends with the run"). A
+    test about a command run from outside a host session strips the identity:
+    `sessionless`."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
-    monkeypatch.delenv("CLAUDE_PID", raising=False)
-    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
-    monkeypatch.delenv("LEAF_SESSION_ID", raising=False)
-    monkeypatch.delenv("LEAF_AGENT", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    for name in CODEX_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture
+def sessionless(monkeypatch):
+    """A command run from outside any host session: a terminal, a login item."""
+    for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture
+def codex_env():
+    """The environment a Codex session's commands run in, for the tests that put
+    a real one above a leaf: everything this process holds but the Claude Code
+    identity, which `host_identity` would answer with instead."""
+    return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
+
+
+@pytest.fixture
+def spawn():
+    """A process the test starts, ended when the test ends — the ones it expects
+    to have exited already included, since a run that fails before its own
+    assertion is exactly the one that would leave a process behind."""
+    started = []
+
+    def start(*args, **kwargs) -> subprocess.Popen:
+        process = subprocess.Popen(*args, **kwargs)
+        started.append(process)
+        return process
+
+    yield start
+    for process in reversed(started):
+        if process.poll() is None:
+            process.terminate()
+        process.wait(timeout=5)
+
+
+@pytest.fixture
+def dead_pid(spawn):
+    """A pid that is certainly not running, for a record whose writer — a
+    session, a server — has gone."""
+    spent = spawn([sys.executable, "-c", ""])
+    spent.wait(timeout=5)
+    return spent.pid
 
 
 @pytest.fixture(scope="session")

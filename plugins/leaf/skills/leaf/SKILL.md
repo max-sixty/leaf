@@ -693,8 +693,9 @@ the page's whole browser budget; a screenshot after it reads neither the console
 the second scheme.
 
 **Then read the page yourself.** Neither pass above has an opinion about any of what
-follows. The skills you wrote the page under — the user's own on prose, on how they
-want to be addressed — judge it here too, and beyond those:
+follows. Load any skills the user has for writing — prose, tone, how they want to be
+addressed — if they are not already in context, and review the page against them.
+Beyond those:
 
 - **Referents introduced.** Read each paragraph with only what the reader has seen —
   the conversation, and the page so far. Every other term, name, and back-reference is

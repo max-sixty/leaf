@@ -3872,10 +3872,10 @@ COLUMN_FALLBACK = 780
 PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
 
 # Blocks a user predictably points at whole rather than quoting: a run of code,
-# a table, a figure — and the sections SKILL.md already holds to "give every section
-# an id". Widgets aren't listed because the registry's schemas already demand ids
-# wherever pointing at one matters.
-POINTABLE_TAGS = {"section", "article", "pre", "table", "figure"}
+# a table, a figure, an aside set off from the prose — and the sections SKILL.md
+# already holds to "give every section an id". Widgets aren't listed because the
+# registry's schemas already demand ids wherever pointing at one matters.
+POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}

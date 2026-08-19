@@ -66,12 +66,12 @@
   "$events": {
     "description": "The vocabulary stamp: the event kinds this layer's runtime and CLI read, and the fields each carries beyond id/ts/author/kind/seq. Vendored with the page, it is the one statement of what that page's runtime speaks. `page init` refuses to re-vendor over a log recorded in kinds or verbs (x-state, per widget) the incoming layer no longer speaks, because those events would never replay again.",
     "kinds": {
-      "comment": ["version", "text", "anchor", "suggestion", "about", "agent", "session", "markup"],
-      "reply": ["parent", "version", "text", "agent", "session", "markup"],
+      "comment": ["version", "text", "anchor", "suggestion", "about", "agent", "session", "markup", "attempt"],
+      "reply": ["parent", "version", "text", "agent", "session", "markup", "attempt"],
       "resolve": ["parent", "agent", "session"],
       "unresolve": ["parent"],
       "done": ["version", "text"],
-      "action": ["widget", "action", "detail", "version"],
+      "action": ["widget", "action", "detail", "version", "attempt"],
       "report": ["widget", "action", "detail", "version", "agent", "session"],
       "note": ["version", "text", "restated", "reports", "agent", "session"],
       "error": ["version", "text"]
@@ -80,6 +80,7 @@
   "$keys": {
     "description": "What each x- key an entry may declare means, one member per key. The keys are the layer's and the lint closes the set, so a layer overriding a member here documents its own reading of that key and declares no new one; a member for a key the lint doesn't admit, or a key with no member, refuses the registry. `page catalog` prints this beside the entries, and the site's table of keys is generated from it, so an author, the lint and the documentation read one thing.",
     "x-awaits": "What x-awaits declares: an instance of this tag is a standing request to the reader — a question with no pick, a change nobody has decided, a piece of work the page says is waiting on them. One declaration is the whole of it. The banner's count, the `n`/`p` walk that steps them, and the `?` overlay's row are three readings of one list, so nothing counts asks by naming a tag and the twelfth widget joins by declaring rather than by being taught to three consumers. Quoted material asks nothing — an exhibited decision is a mention (x-exhibit). A widget inside a thread asks like one on the page — a question is a request to the reader wherever it stands, and the walk opens the panel to reach it — with one bound set by what a thread is: its markup is frozen, so no version can answer there, and only a widget with an action channel (x-state) asks in a thread at all. Its fields — `when`, `until`, `all` — are $awaits'.",
+    "x-conversation": "The module places a conversationBox in each page instance matching `when`. It projects exact-section threads textually from the whole log; Comments keeps the complete view and is the only place interactive reply markup renders. Both views share the reply draft. Thread markup and quoted material take no second view. Dropping the widget drops only the inline view.",
     "x-content": "The content model: `prose` (children are the author's markup), `items` (children are this widget's own item elements and nothing else), `data` (one <pre> holding text in the notation the description names, < > escaped — <pre> because it is the only thing in HTML that says whitespace is load-bearing without a stylesheet to read), or `none`. Required.",
     "x-example": "Authored markup exhibiting the widget, valid against the merged registry: `page catalog` shows it, it is what an agent writes from, and the lint refuses one that does not validate.",
     "x-exhibit": "The element quotes what it holds rather than speaking it — a mention, not a use: interactive widgets inside take no input (a choose group no clicks, a board no drags, a suggestion no decision), and an ask inside it counts for nothing. A module asks `quoted(el)` before wiring any input.",

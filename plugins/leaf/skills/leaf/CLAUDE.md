@@ -132,6 +132,13 @@ one thing they most need to hear. Unscope replay and decisions made after a
 version are painted onto the markup the page had before them — a page that never
 existed.
 
+A registry-declared widget conversation is the same whole-log reading in a second place, not a
+third reading or a store: while the current document holds its owner, the runtime projects the
+owner's exact-section threads textually inside it. Pinning a version that still holds the owner
+therefore shows the current conversation; a version that drops the owner drops only this page
+view, while Comments keeps the thread. Interactive reply markup stays in Comments, so one event's
+widget ids are instantiated once even while both places show its words.
+
 ## Derive rendering from state; never read it back
 
 `composerOpen`, `fabAnchor` and `diffBase` are the state; `style.display` is a
@@ -284,10 +291,10 @@ g addresses, out of r's press, and out of the panel's repaint in one stroke.
 
 The runtime requires ES modules, custom elements, `field-sizing`, `color-mix`,
 `:has()`, `@scope`, anchor positioning, `caretPositionFromPoint`,
-`Intl.Segmenter`, scroll anchoring, and the highlight registry. Guarding one of
-those while assuming the rest buys nothing, and it reads as if the others were
-checked. Add a feature guard only where there is a real fallback to take, and cut
-a stale entry the moment nothing uses it.
+`Intl.Segmenter`, scroll anchoring, and the highlight registry.
+Guarding one of those while assuming the rest buys nothing, and it reads as if
+the others were checked. Add a feature guard only where there is a real fallback
+to take, and cut a stale entry the moment nothing uses it.
 
 Nothing in the code names scroll anchoring, so it is the one entry a reader can't
 find by grepping — which is why it is worth spelling out. The panel reconciles
@@ -1058,11 +1065,46 @@ carrying an id (`[id]:not(.lf-ui)`), and `data-lf-offer` for a thing to work.
 ## Never lose user text
 
 Every draft persists on input: the general box, each thread's reply, the
-selection composer, a widget's box for words, an `lf-draft` edit. Only a
-successful send (or finding the same value already authored) clears one; Escape
-and outside clicks hide rather than discard, and Cancel is the only discard. A
-send owns its input until its response arrives, so an earlier response can never
-clear or overtake newer text.
+selection composer, a widget conversation's first message and reply, and an
+`lf-draft` edit. Only a successful send (or finding the same value already
+authored) clears one; Escape and outside clicks hide rather than discard, and
+Cancel is the only discard. A send owns its input until its response arrives, so
+an earlier response can never clear or overtake newer text.
+
+That ownership is the reader's, not the tab's. Each edit stores one active
+generation, `{text, attempt, base}`; even the same words typed later mint a fresh
+attempt. `base` names the durable shared generation the edit supersedes, or
+absence. A chain of failed local writes keeps that base. It may therefore replace
+its predecessor or the predecessor's settlement, but never an unrelated attempt
+another tab durably wrote later. Without the provenance, an old failed-write
+cache that missed storage news could become writable after its held POST and
+tombstone the newer shared words.
+
+Two tabs can press Send or Save on that generation before either sees the
+other's result, and both may POST it. Every sendable draft context uses the same
+protocol: the general and selection composers, question first messages and
+replies, and `lf-draft` edits. Under the log's append lock, an exact retry
+returns the event already accepted, the same attempt with a different payload
+is refused, and a new attempt with identical words is a new event. This also
+covers a sender that dies after the append.
+
+The browser rechecks the attempt and exact untrimmed text immediately before
+POST. A successful send replaces that exact active generation with
+`{attempt, settled: true}`; it never removes the key.
+Words or spaces typed while the request was in flight have a fresh attempt and
+therefore survive its response. Send, Cancel, and log reconciliation all refresh
+the shared generation before writing a tombstone, so a stale tab cannot settle a
+newer durable edit.
+
+Storage failures still cost recovery, never the live Send action. Every edit
+updates a document cache and then attempts the single record write. A failed
+write leaves a nondurable branch which news from its base cannot erase; unrelated
+shared news retires it. A failed tombstone keeps the same lineage for the next
+local edit, while a successful write makes that attempt the next base. A
+successful write followed by a refused read remains sendable from the cache. A
+readable shared generation still outranks a stale durable cache. The event log
+outranks both: an accepted attempt is treated as settled even if stale storage
+returns its active record after reload.
 
 The store is the reader's (`localStorage`), because the ordinary end of a tab
 here is being closed. Each round's reply hands the URL over again and the user
@@ -1081,18 +1123,18 @@ reply box gone with its resolved thread, renders nothing and drops its view at
 the next word it would have shown. Nothing tells the box that it went, because
 the alternative is the panel keeping this design's index up to date on the side.
 
-Presence and value are different things, and the difference is what says *why* a
-draft cleared. A box the reader emptied stores `""` and is still a draft they are
-holding; only a settlement removes the key. So the storage event's `newValue`
-tells an edit from a send-or-Cancel on its own, and no channel beside the store
-has to carry the reason — a value diff alone could not have told the two apart,
-which is what a `BroadcastChannel` was going to be for. Which settlement it was,
-nothing asks: both leave the same box for the other tab to render, and what was
-sent arrives there through the log. What a settlement does is each box's own
-business — a reply box and the general box empty themselves, the composer on
-that anchor closes, a draft editor closes and lets replay paint the body — while
-a mirrored *edit* moves nothing that was not already showing, news arriving
-having no gesture behind it.
+Active and settled are different records, and the difference is what says *why*
+a draft cleared. A box the reader emptied stores an active generation whose text
+is `""`; Send or Cancel stores a tombstone for that generation. The storage event
+therefore tells an edit from a settlement without key removal — important because
+`removeItem` can fail independently of `setItem` and otherwise resurrect sent
+words on reload. No channel beside the store has to carry the reason. Which
+settlement it was, nothing asks: both leave the same box for the other tab to
+render, and what was sent arrives there through the log. What a settlement does
+is each box's own business — a reply box and the general box empty themselves,
+the composer on that anchor closes, a draft editor closes and lets replay paint
+the body — while a mirrored *edit* moves nothing that was not already showing,
+news arriving having no gesture behind it.
 
 The composer's draft is keyed by the passage it is on. One key was enough while a
 draft died with its tab; shared, one key is two tabs on two passages overwriting

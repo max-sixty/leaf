@@ -447,12 +447,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[recommended] { --stripe: var(--accent); }
     & > lf-option[chosen] { --stripe: var(--ok); --fill: var(--ok-tint); }
-    /* The box for words is the group's own child, so joining the group takes it inside the
-     * border too — and butted against the last cell with the same hairline, it reads as one
-     * more option rather than as the way past them. It is apparatus, so it wears the tint
-     * apparatus wears here and sits as the control's footer, which is what it is: the answer
-     * for a reader whom none of the cells above fits. */
-    & > .lf-say { margin-top: 0; padding: 10px 12px; background: var(--field);
+    /* The conversation is the group's own child, so joining the group takes it inside the
+     * border too. It is apparatus, and sits as the control's footer: first as the answer
+     * for a reader whom none of the cells fits, then as the thread that answer opened. */
+    & > .lf-conversation { margin-top: 0; padding: 10px 12px; background: var(--field);
                      box-shadow: 0 0 0 1px var(--rule); }
     /* On a single-pick card the mark keeps its box and stops drawing. The room stays
      * reserved, so a pick still moves nothing; the ring is the weaker of two ways to say
@@ -602,9 +600,8 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-address {
 .lf-ref { font-size: var(--t-6); color: var(--muted); text-decoration: none;
           white-space: nowrap; }
 .lf-ref:hover { color: var(--accent); text-decoration: underline; }
-/* The box for words a choose group carries is the runtime's sayBox; its rules live
- * with the integrated theme. The group's own placement of it is stated above, in
- * the choose-group block. */
+/* The conversation's shared rules live with the integrated theme. The group's own
+ * placement of it is stated above, in the choose-group block. */
 /* Paper takes no input, so the group prints as one that was never choosable: the
  * marks offering a pick go with the rest of the UI, and the one on the card that
  * carries it stays to say which option the page holds. That needs no rule here —

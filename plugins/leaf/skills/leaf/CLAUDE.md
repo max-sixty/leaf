@@ -498,7 +498,7 @@ its order from it: the dispatcher and the line walk it forwards, the reference b
 the third the reference's own — and a mode left out of that one is a mode the reference never names. Gathering the
 rows into sections is one function (`merge`) for the same reason.
 
-## The ladder ends on the page
+## The reader has to be standing somewhere
 
 Escape unwinds what the chrome opened, and for a long time it stopped there: with the composer, the menu, the board
 and the panel all closed, it had nothing to say and the line said nothing. That reads as complete and isn't,
@@ -519,8 +519,21 @@ either. `html` is `overflow: hidden` here, so the document scrolls in `body` and
 region, and Space scrolls whichever box the browser last saw the reader put themselves in. A blur names no box.
 `document.activeElement` reads as `body` either way, so from the page the two look identical, and Space goes on
 doing nothing until the next click in the document. Only the focus hands the scroll back, which is what makes "back
-to the page" the whole sentence. It is also why the test presses Space from a click in the page rather than from a
-fresh load, where there would have been nothing to hand back.
+to the page" the whole sentence.
+
+Which leaves the beginning of the page, where the same fact was doing the same damage — and this section had
+already written it down, as a remark about the rung's test pressing Space from a click in the document rather than
+from a fresh load, "where there would have been nothing to hand back". That is not a property of the test. A page
+nobody has clicked in is a page the browser has put in no box, so Space, PageDown and the arrows scrolled nothing
+whatever until the reader's first click landed somewhere in it. `d` and `u` are the runtime's own rows and worked
+from the first frame, which is what kept it standing: the keys leaf names were live and the keys every reader
+already knows were dead, which reads as a page with no keyboard scrolling rather than as a page with a bug.
+
+So the runtime makes the rung's move as it evaluates
+(`test_a_page_nobody_has_touched_scrolls_from_the_keyboard`), which is a placement rather than a guard — the start
+block below runs a mermaid render later than that, with the chrome clickable throughout, so a reader who took a
+control in the meantime would have had it taken back off them. A sentence explaining why a test sets something up
+is a claim about the product, and this one was a bug report.
 
 ## A scope names what it takes, and takes no more
 

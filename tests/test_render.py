@@ -3448,6 +3448,41 @@ SCROLL_STILL = """(hold) => {
 }"""
 
 
+def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
+    """`html` is `overflow: hidden` here so the document scrolls in `body`, and the
+    browser scrolls whichever box it last saw the reader put themselves in. On a fresh
+    load that is none of them, so Space, PageDown and the arrows did nothing whatever
+    until the reader happened to click somewhere in the page — while the runtime's own
+    d and u worked from the first frame, which is what kept it hidden: the keys leaf
+    names were live and the keys every reader already knows were dead, which reads as a
+    page that has no keyboard scrolling rather than as a page with a bug.
+
+    All three keys, because they are one fact about which box the browser is scrolling
+    rather than three rows in a table — a fix that reached only the key this test named
+    would read as a working page here and a dead one to the reader. The somewhere is
+    asserted as well as the scrolling, and `body` is where focus sits by default: what
+    that pins is the page itself as the place to stand, rather than a box built to hold
+    the reader, which would have a ring to draw and a Tab stop to spend."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    top = "() => document.body.scrollTop"
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert (
+        page.evaluate("() => getComputedStyle(document.body).outlineStyle") == "none"
+    ), "the page wears a focus ring before the reader has pressed anything"
+
+    for key in ("Space", "PageDown", "ArrowDown"):
+        # Programmatic, so the page is still one nobody has put themselves in: a click
+        # to get back to the top would be the very thing this test says is not needed.
+        page.evaluate("() => { document.body.scrollTop = 0; }")
+        page.keyboard.press(key)
+        page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
+        assert page.evaluate(top) > 0, (
+            f"{key} moved nothing on a page nobody had clicked in"
+        )
+    assert errors == []
+    page.close()
+
+
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
     """Closing the panel lands focus on the toggle on purpose, since dropping it on
     `<body>` loses a keyboard reader's place with nothing said. The bill for that lands
@@ -3461,20 +3496,20 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     reader is already holding it: the same key that unwound the chrome takes them out
     of it.
 
-    The scroll is asserted from a click in the page, which is where the browser gets its
-    answer to "which box does Space scroll" — the document scrolling in `body` rather
-    than in the viewport is what makes that a real question here, and what makes the
-    rung a focus rather than a blur."""
+    The scroll is what the rung has to hand back, and handing it back means naming a
+    box again: the document scrolls in `body` rather than in the viewport here, so the
+    browser needs to have seen the reader put themselves somewhere. A blur names
+    nowhere, and from `document.activeElement` the two are the same answer. The page
+    names one at load, which is the test above, and this one is about losing it to the
+    chrome and getting it back."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     toggle = page.locator(".lf-comments")
     panel = page.locator(".lf-panel")
     ringed = "() => document.querySelector('.lf-comments').matches(':focus-visible')"
     top = "() => document.body.scrollTop"
 
-    # A reader reading: a click in the page — outside the column, so it raises no 💬 —
-    # and Space is the page's own scroll, which is the browser's rather than the
-    # runtime's (`d`/`u` are the rows; this key has none).
-    page.mouse.click(30, 700)
+    # A reader reading: Space is the page's own scroll, which is the browser's rather
+    # than the runtime's (`d`/`u` are the rows; this key has none).
     page.keyboard.press("Space")
     page.wait_for_function("() => document.body.scrollTop > 0")
     page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)

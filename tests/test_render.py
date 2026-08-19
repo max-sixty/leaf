@@ -620,6 +620,32 @@ def refuse(route):
     route.abort("aborted")
 
 
+# A tab a test holds stale is stale for one poll interval and no longer: every poll
+# reconciles the draft store against shared storage before it settles anything
+# (settleAcceptedDrafts), so a stale view the assertions take their time reaching is a
+# race a loaded runner loses. Refusing the polls states it — but only from before the
+# page exists. `page.route` reaches no request already in the wire, and a poll
+# reconciles when its response lands rather than when its request went out, so a
+# refusal registered on a live page leaves whatever is outstanding free to arrive
+# later, against storage the test has moved in the meantime. Registered through
+# `primed`, the route is on the page before it navigates and no poll is ever unrouted.
+#
+# The first is let through because `open_page` waits for `lf-applied`, which rides on
+# it — and that same wait is what leaves nothing outstanding when the page is handed
+# over. Where the tab has to hear the log again, the test lifts the refusal itself.
+def held_stale(context):
+    """A context whose next page is refused every poll after the one that stamps it."""
+
+    def hold(page):
+        polls = itertools.count()
+        page.route(
+            "**/api/state*",
+            lambda route: route.continue_() if next(polls) == 0 else refuse(route),
+        )
+
+    return primed(context, hold)
+
+
 # The two state-readiness stamps: `lf-upgraded` is the document's — widgets upgraded and
 # the anchor pass run — and `lf-applied` is the log's, written at the end of every replay
 # pass. They say the poll's state was applied, not that later layout work has settled.
@@ -16304,7 +16330,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     stale, stale_errors = open_page(
         browser,
         url,
-        context=one_reader,
+        context=held_stale(one_reader),
         init_script="""addEventListener('storage', event => {
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",
@@ -16348,7 +16374,7 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     stale, stale_errors = open_page(
         browser,
         url,
-        context=one_reader,
+        context=held_stale(one_reader),
         init_script="""addEventListener('storage', event => {
           if (event.key === 'lf-draft:edit:draft-ops')
             event.stopImmediatePropagation();
@@ -16387,7 +16413,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     stale, stale_errors = open_page(
         browser,
         url,
-        context=one_reader,
+        context=held_stale(one_reader),
         init_script="""addEventListener('storage', event => {
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",

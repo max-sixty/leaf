@@ -300,6 +300,15 @@ to click belongs on a page you are going to serve.
   `<lf-specimen>` — its gutter marks the region as quoted rather than spoken, and
   interactive widgets inside take no input — with visibly fictional content: real
   project content in an example gets read as a live proposal.
+- **Write in the reader's context.** The reader has seen the conversation and the
+  page. They have not seen the code, the tool output, or the session's own reading, so
+  a term from any of those says nothing until the page says in plain words what it is.
+  Cut a name the decision does not turn on; introduce the ones it does. A link or a
+  code block can be the introduction for a thing the reader would open. Register
+  drifts too: most of what a session holds is written compressed — this skill
+  included — and prose comes out sounding like what it sat among. Write the page in
+  sentences you would say aloud, one claim each. The user's skills for writing prose govern a page
+  exactly as they govern chat; write with them loaded.
 - **Show the destination, not the journey.** Explain the concept as it stands — total
   cut-over. Don't spend content on what was considered before or how you got here.
 
@@ -707,16 +716,21 @@ the page's whole browser budget; a screenshot after it reads neither the console
 the second scheme.
 
 **Then read the page yourself.** Neither pass above has an opinion about any of what
-follows. A page stands in for what you would otherwise have written in chat, so the
-user's own skills for that hold here too — anything on writing prose, anything on how
-they want to be addressed — and beyond those:
+follows. Load any skills the user has for writing — prose, tone, how they want to be
+addressed — if they are not already in context, and review the page against them.
+Beyond those:
 
+- **Referents introduced.** Read each paragraph with only what the reader has seen —
+  the conversation, and the page so far. Every other term, name, and back-reference is
+  introduced before it is relied on, or cut. You can't feel the gap from inside the
+  session, where every name already means something; find the introduction — the
+  sentence, the link, the code block — rather than judging that it reads clearly.
 - **Claims backed.** Every assertion the reader would question is traceable to real
   evidence on the page — a command, a diff, a linked source, output behind `<details>` —
   not asserted bare.
 - **Excess pruned.** No paragraph restates another; nothing explains what the reader
-  already knows. If a version has been patched several times, rewrite the section clean
-  rather than layering another note. Anything the topic has moved past is excess at full
-  height — "Keeping the page current" says where it goes.
+  already knows, from the page or from before it. If a version has been patched several
+  times, rewrite the section clean rather than layering another note. Anything the topic
+  has moved past is excess at full height — "Keeping the page current" says where it goes.
 - **Diagrams read.** Each diagram earns its place and says something the prose doesn't.
 - **References clickable.** Tickets, PRs, and URLs are real links.

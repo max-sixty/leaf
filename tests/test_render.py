@@ -4772,6 +4772,41 @@ LIST_STATE = """() => {
 }"""
 
 
+def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
+    """Either side can close a thread and the reader watches only one of them happen.
+    Their own press folds the thread under their hand and leaves the outcome on the
+    control they pressed, so the disclosure it lands in needs to say nothing more. An
+    agent's resolve arrives on a poll with no gesture behind it, and that thread says
+    who closed it — in the row the control stood in, at the end it stood at."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    c1, c2 = [
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
+
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "claude", "agent": "Indexer", "parent": c1},
+    )
+    told(page)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(
+        page.locator(f'.lf-details .lf-thread[data-id="{c1}"] .lf-resolved-by')
+    ).to_have_text("✓ Resolved by Indexer")
+
+    page.locator(f'.lf-thread[data-id="{c2}"] .lf-resolve').click()
+    round_trip(page)
+    # The disclosure holding the node is what says the fold is over, so the line's
+    # absence is read from a thread that has arrived rather than one still on its way.
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{c2}"]')).to_have_count(1)
+    expect(
+        page.locator(f'.lf-details .lf-thread[data-id="{c2}"] .lf-resolved-by')
+    ).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     """Resolving a thread empties its place in the list over a fifth of a second,
     not in the frame of the press.
@@ -9948,6 +9983,28 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert sent[-1]["action"] == "answer", "the leader's digit must not pick"
+    assert errors == []
+    page.close()
+
+
+def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
+    """A question in a thread is the thread's, so closing the thread takes the ask
+    with it. The group is still there to read in the disclosure, and still holds no
+    answer — what went is the page's claim on the reader, who would otherwise carry a
+    standing ask for the life of the page and have `n` step them into a closed
+    disclosure to reach it."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[0])
+    page, errors = open_page(browser, url)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
+
+    interact.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "claude", "parent": "c-which"}
+    )
+    told(page)
+    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect(page.locator(".lf-details #tq-one")).to_have_count(1)
+    expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
     assert errors == []
     page.close()
 

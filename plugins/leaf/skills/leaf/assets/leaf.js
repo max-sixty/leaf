@@ -2108,6 +2108,7 @@ ${MARK_RULES}
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-resolve { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-resolve:hover { color: var(--ok); }
+    .lf-resolved-by { color: var(--muted); }
     .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
     .lf-details { margin-top: 6px; color: var(--muted); background: none; border: none; padding: 0; }
     .lf-system { color: var(--ok); margin: 8px 0; }
@@ -3350,7 +3351,10 @@ function buildThreads() {
   const floors = retractionFloors(Infinity);
   for (const e of events) {
     if (e.kind === "comment") {
-      const thread = { root: e, msgs: [e], resolved: false };
+      // `resolved` is the event that settled the thread, or null. Either side can
+      // close one, so a flag beside a second field naming who would be two readings
+      // of one fact; the settling event answers both and carries its own author.
+      const thread = { root: e, msgs: [e], resolved: null };
       threads.set(e.id, thread);
       threadFor.set(e.id, thread);
       continue;
@@ -3375,7 +3379,7 @@ function buildThreads() {
       // resolved here would be the one reading the log said nothing about, exactly the
       // second store this design has none of.
       if (answered && !retractedIds(e, floors, elementById(e.widget)).length)
-        answered.resolved = true;
+        answered.resolved = e;
       continue;
     }
     if (e.kind === "reply") {
@@ -3383,7 +3387,7 @@ function buildThreads() {
       thread.msgs.push(e);
       threadFor.set(e.id, thread);
     } else if (e.kind === "resolve") {
-      threadFor.get(e.parent).resolved = true;
+      threadFor.get(e.parent).resolved = e;
     }
   }
   return [...threads.values()];
@@ -3561,7 +3565,7 @@ let resolvedBox = null;
 function threadNode(t, grow) {
   const existing = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
-  if (existing && existingResolved === t.resolved) {
+  if (existing && existingResolved === Boolean(t.resolved)) {
     const compose = existing.querySelector(":scope > .lf-compose");
     for (const m of t.msgs) {
       let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
@@ -3663,6 +3667,20 @@ function threadNode(t, grow) {
     };
     actions.append(el("span"), resolve);
     div.append(row, actions);
+  } else if (t.resolved.author === "claude") {
+    // Said only where the reader was not the one who closed it. Their own resolve
+    // needs no telling: they pressed it, and the disclosure they find it under is
+    // already headed "Resolved". A thread closed from the other side settles with
+    // nothing in this tab to watch it happen, so the page is the only thing that can
+    // say who did.
+    //
+    // In the row the control stood in, at the end the control stood at, wearing the
+    // words the control wore as the thread folded: the settlement is said in one place
+    // whether there is anything left to press or not.
+    const actions = el("div", "lf-thread-actions");
+    const by = t.resolved.agent || "Agent";
+    actions.append(el("span"), el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
+    div.append(actions);
   }
   return div;
 }
@@ -3675,8 +3693,9 @@ function threadNode(t, grow) {
 // whole way through.
 //
 // Driven from the reconcile rather than from the press, because the log is what
-// resolves a thread and a second tab's resolve takes the same room out of the same
-// list — with no gesture behind it, which is the case that needs the motion more.
+// resolves a thread and a resolve with no gesture behind it — a second tab's, or the
+// agent's — takes the same room out of the same list. That is the case that needs the
+// motion more: nothing in this tab moved, so the fold is the only thing saying so.
 //
 // Everything that walks the list asks for .lf-thread, so the one rename takes the
 // node out of j/k, out of the g addresses, out of r's press and out of what the panel
@@ -7323,11 +7342,25 @@ function openAsks() {
   const tags = askTags();
   if (!tags.length) return [];
   const fold = stateFold(VNUM);
+  // A question in a thread is the thread's, so a thread the log has settled asks
+  // nothing more — the same reading paintAnchors makes when it takes a resolved
+  // thread's mark off the page. Settlement comes from the log and placement from the
+  // DOM, and the node keeps its id while it folds out of the open list, so the count
+  // drops in the frame the resolve lands, whoever posted it. Without this, a question
+  // the agent asked and then withdrew by resolving would stand in the banner's count
+  // for the life of the page, and n would step the reader into a shut disclosure.
+  const settled = new Set(
+    buildThreads()
+      .filter((t) => t.resolved)
+      .map((t) => t.root.id),
+  );
   return [...document.querySelectorAll(tags.join(","))].filter((el) => {
     // settledAway: an ask inside a slot the log retired left the page with it —
     // a group in a rejected suggestion's lf-new counted on, and the walk
     // stepped the reader to a hidden element.
     if (quoted(el) || settledAway(el) || !asking(el, askEntry(el).when)) return false;
+    const thread = closestAcross(el, ".lf-thread, .lf-going");
+    if (thread && settled.has(thread.dataset.id)) return false;
     return !(inChrome(el) ? answeredThreadAsk(el, fold) : answeredAsk(el, fold));
   });
 }

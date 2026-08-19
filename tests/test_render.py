@@ -14654,68 +14654,99 @@ def test_global_shortcuts_leave_browser_navigation_keys_alone(browser, serve):
     page.close()
 
 
-def test_repeated_half_page_keys_add_up(browser, serve):
-    """The runtime's own pair, beside the browser's above: d and u step half a page, and
-    a reader who presses twice inside one glide has to land a whole one. scrollBy
-    measures from where the glide has got to rather than from where it is going, so two
-    presses covered 461px of a 900px page and the half in between went past unread —
-    with nothing on screen to say it had been skipped. The destination is carried
-    instead, and clamped, so pressing on at the foot banks no debt for u to press back
-    through.
+SMOOTH_LONG_PAGE = LONG_PAGE.replace(
+    "</head>", "<style>body { scroll-behavior: smooth; }</style>\n</head>"
+)
 
-    The second press is timed against the first glide rather than fired after it. An
-    overlap that merely happens to occur is one that stops occurring on a loaded
-    machine, and this test would then sail past the bug it exists for."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
-    half = page.evaluate("() => document.body.clientHeight / 2")
+
+def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
+    """d and u move exactly half the visible page — clientHeight less what
+    scroll-padding-top declares covered by the fixed banner — at the pace of the
+    browser's own paging keys, the runtime driving the motion itself (stepPage says
+    why). The page sets scroll-behavior: smooth on the box, as an authored page may —
+    a step whose writes ride that rule instead of stating `instant` never lands.
+
+    Every phase waits on its destination, never on scrollend or a timer: the glide
+    writes a frame at a time and Chrome answers each write with a scrollend, so
+    "scrolling ended" is a fact about a frame, while the destination is the one
+    position a glide approaching it never passes through early. A wrong step then
+    reads as the wrong number, which says what happened.
+
+    The second press follows the first with no wait between them, landing inside the
+    first glide, so presses have to add up from the goal rather than from wherever
+    the glide has got to. Taking the box mid-glide — programmatically, because the
+    cancel reads positions and any hand looks the same to it, and this one lands at
+    a number the assertion can hold — must stand the step down: the next press
+    measures from where the reader left the box, not from the goal it dropped, and a
+    glide that ignored the taking presses on to that goal and fails both reads.
+    Pressing on at the foot moves nothing and banks nothing, so u from there is one
+    half back."""
+    page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
+    half = page.evaluate(
+        "() => (document.body.clientHeight"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+    )
     assert page.evaluate(
         "() => document.body.scrollHeight > document.body.clientHeight * 3"
     ), "the page is too short for these steps to be told apart"
-    page.evaluate("""() => {
-        window.lfScrollEnds = 0;
-        document.body.addEventListener('scrollend', () => window.lfScrollEnds++);
-    }""")
 
-    def landed(act):
-        """Where the scroller came to rest after `act`. A scroll states its own end, so
-        that is what this waits on: a duration would be a guess, and stillness sampled
-        before the glide starts reads exactly like stillness after it.
-
-        Not moving at all is one of the outcomes under test — a destination run past the
-        foot spends a press paying itself back — and a scroll that never happens states
-        no end, so the wait is bounded and hands the position to the assertion instead.
-        A press that moves nothing then reads as the wrong number, which says what
-        happened; thirty seconds of silence and a timeout do not."""
-        ends = page.evaluate("() => window.lfScrollEnds")
+    def rests_at(act, expected):
+        """Position after `act`, awaited at `expected` and handed to the assertion:
+        the bounded wait consumes the arrival, and the assert is what speaks when
+        the step went somewhere else instead."""
         act()
         try:
             page.wait_for_function(
-                "n => window.lfScrollEnds > n", arg=ends, timeout=5000
+                "e => Math.abs(document.body.scrollTop - e) < 1",
+                arg=expected,
+                timeout=5000,
             )
         except PlaywrightTimeout:
             pass
         return page.evaluate("() => document.body.scrollTop")
 
-    page.keyboard.press("d")
-    # Early in the glide, so the second press cannot arrive after the first has landed
-    # however slow the round trip turns out to be.
-    page.wait_for_function(
-        "h => document.body.scrollTop > 0 && document.body.scrollTop < h / 2", arg=half
+    assert rests_at(lambda: page.keyboard.press("d"), half) == pytest.approx(
+        half, abs=1
     )
-    assert landed(lambda: page.keyboard.press("d")) == pytest.approx(half * 2, abs=1), (
-        "the second press measured from the glide in flight, so the two together moved "
-        "less than the page they promised"
-    )
-    assert landed(lambda: page.keyboard.press("u")) == pytest.approx(half, abs=1)
 
-    foot = landed(
-        lambda: page.evaluate(
-            "() => document.body.scrollTop = document.body.scrollHeight"
-        )
+    def twice():
+        page.keyboard.press("d")
+        page.keyboard.press("d")
+
+    assert rests_at(twice, half * 3) == pytest.approx(half * 3, abs=1), (
+        "the second press measured from the glide in flight, so the two together "
+        "moved less than the page they promised"
     )
+    assert rests_at(lambda: page.keyboard.press("u"), half * 2) == pytest.approx(
+        half * 2, abs=1
+    )
+
+    def taken():
+        page.keyboard.press("d")
+        page.evaluate("() => document.body.scrollTo({top: 400, behavior: 'instant'})")
+
+    assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
+        "the glide pressed on to its goal after the reader took the box"
+    )
+    assert rests_at(lambda: page.keyboard.press("d"), 400 + half) == pytest.approx(
+        400 + half, abs=1
+    ), (
+        "the press after the reader took the box measured from the goal the taking "
+        "had cancelled rather than from where they left it"
+    )
+
+    foot = page.evaluate(
+        "() => document.body.scrollHeight - document.body.clientHeight"
+    )
+    assert rests_at(
+        lambda: page.evaluate(
+            "() => document.body.scrollTo({top: 1e9, behavior: 'instant'})"
+        ),
+        foot,
+    ) == pytest.approx(foot, abs=1)
     for _ in range(4):
         page.keyboard.press("d")  # nothing left to move, and nothing banked either
-    assert landed(lambda: page.keyboard.press("u")) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press("u"), foot - half) == pytest.approx(
         foot - half, abs=1
     ), (
         "presses at the foot of the page ran the destination past it, and u spent "
@@ -14723,6 +14754,29 @@ def test_repeated_half_page_keys_add_up(browser, serve):
     )
     assert errors == []
     page.close()
+
+
+def test_the_half_page_keys_jump_under_reduced_motion(browser, serve):
+    """Under reduced motion the step forgoes its glide and jumps, like every other
+    motion here (SCROLL) — read straight after the press, since a jump leaves nothing
+    to wait for and a glide would read as wherever its first frame had got to."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        color_scheme="light",
+        reduced_motion="reduce",
+    )
+    page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
+    half = page.evaluate(
+        "() => (document.body.clientHeight"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+    )
+    page.keyboard.press("d")
+    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(
+        half, abs=1
+    ), "d had not moved half a page by the time the press returned"
+    assert errors == []
+    page.close()
+    context.close()
 
 
 def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, serve):
@@ -14754,11 +14808,10 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
         )
 
     def press_d():
-        """Both offsets before and after a d that has come to rest. It waits on
-        whichever region answers, so the wrong one answering is two numbers to compare
-        rather than half a minute of silence and a timeout — and on the glide's end
-        rather than its first frame, since a document still moving when the sheet
-        arrives would carry the rest of that move into the phase below."""
+        """Both offsets once a region answers the press — the glide's first write is
+        already the answer to which region moved. Waiting on whichever region speaks
+        makes the wrong one answering two numbers to compare rather than half a
+        minute of silence and a timeout."""
         was = offsets()
         page.evaluate("() => window.lfScrollEnds = 0")
         page.keyboard.press("d")

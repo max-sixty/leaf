@@ -195,7 +195,7 @@ of j/k, out of the g addresses, out of r's press and out of the panel's repaint 
 ## Assume the browser it already assumes
 
 The runtime requires ES modules, custom elements, `field-sizing`, `color-mix`, `:has()`, `@scope`,
-anchor positioning, `caretPositionFromPoint`, `Intl.Segmenter`, `scrollend`, scroll anchoring, and
+anchor positioning, `caretPositionFromPoint`, `Intl.Segmenter`, scroll anchoring, and
 the highlight registry. Guarding one of those while assuming the rest buys nothing and reads as if
 the others were checked. Add a feature guard only where there is a real fallback to take, and cut a
 stale entry the moment nothing uses it.

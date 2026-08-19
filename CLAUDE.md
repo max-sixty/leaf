@@ -416,7 +416,7 @@ scripts/linux-suite.sh
 each time; `examples/CLAUDE.md` covers what it lays in and why. For a page of your own,
 run `page init` for the directory and serve it from `interact.handler_for(page_dir,
 token)` in-process as the fixtures do, opening the page with that key in the query
-(`?t=…`). `server run` instead puts a live page behind the session, and the loop's hooks
+(`?t=…`). `server start` instead puts a live page behind the session, and the loop's hooks
 then hold it to watching that page.
 
 ### The website

@@ -56,7 +56,7 @@ follows each new version by itself, deferring only while they are mid-comment or
 mid-drag, so a version costs them nothing. Ship one when an item's state actually
 changes rather than at every step it took, and let
 `leaf status <page> working "<detail>"` carry the finer grain in between. Keep
-`leaf wait <page>` running while you work, in the host-specific loop below: a comment
+`leaf wait` running while you work, in the host-specific loop below: a comment
 that lands mid-flight ("skip that one") then reaches you at the next step rather than at
 the end, and the banner reads as working throughout.
 
@@ -92,11 +92,11 @@ leaf page state <page>                   # where the page stands, as JSON
 leaf version check <page> --render       # browser gate, once per page
 leaf version publish <page> --version 1 --text "<changelog>"
 leaf version export <page> -o <file>     # standalone HTML copy
-leaf server run <page> [--host NAME]     # long-running; prints the URL
+leaf server start <page> [--host NAME]   # starts the server; prints the URL
 leaf status <page> working "<detail>"    # or: waiting "<what you want back>", idle
 leaf report <page> <widget> <verb> name=value…  # a worker's state change, e.g.
                                              #   report <page> t-parser status status=review
-leaf wait <page>                         # prints unacknowledged user events and reports
+leaf wait [<page>]                       # prints one page's events; line 1 names it
 leaf ack <page> <seq>                    # complete, untruncated output reached context
 leaf comment <page> --quote "<passage>" --text "…"
 leaf reply <page> --to <id> --text "…"
@@ -111,10 +111,12 @@ repository checkout it lives at `plugins/leaf/bin/leaf`.
    registry (widget schemas with examples) and the theme's class idioms, which vary per
    project.
 2. Write the page as `<page>/versions/v1.html` (conventions below).
-3. Start `server run <page>` as a long-running background command: a background task in
-   Claude Code, or a unified-exec session in Codex. Hand over the URL it prints exactly
-   as printed: the key in it is what opens the page. Address, key and port are all stable
-   per directory, so the URL survives a restart.
+3. Run `server start <page>`. It returns as soon as the server is up; the server
+   itself runs in a process of its own, so all your leaves together cost you one
+   long-running command: the wait below. Hand over the URL it prints exactly as
+   printed: the key in
+   it is what opens the page. Address, key and port are all stable per directory, so
+   the URL survives a restart.
 4. Run `version publish <page> --version 1 --text "<changelog>"`. Publishing checks
    the version first and refuses a failure, so a half-written or broken file is never
    live in the user's browser. Before the URL first goes out, run the browser gate
@@ -126,7 +128,7 @@ repository checkout it lives at `plugins/leaf/bin/leaf`.
 
 `--export` in the argument asks for the file rather than the live page: steps 1, 2 and 4
 as above, then `version export <page> -o <file>` and hand back the `file://` URL. No
-`server run`, no `leaf wait`, no loop — the page directory is still built, so the
+`server start`, no `leaf wait`, no loop — the page directory is still built, so the
 same page can be served later without being rewritten, and the Stop hook covers only
 pages that were served or waited on, so it has nothing to say about this one. Write the
 file wherever the project puts things for the user to open.
@@ -325,17 +327,23 @@ current host:
 Every handover message carries the page's URL again, so the user can open the page
 from the turn in front of them.
 
-- **Claude Code:** start `leaf wait <page>` as a background task and end the turn.
-  Its completion returns as host input: an idle session starts a turn, while a working
+- **Claude Code:** start `leaf wait` as a background task and end the turn. Its
+  completion returns as host input: an idle session starts a turn, while a working
   session receives it between tool calls. Restart the background wait after each batch.
 - **Codex:** send the URL to the user in an intermediate update before waiting. Start
-  `leaf wait <page>` in unified exec, retain the returned session id, and keep the
+  `leaf wait` in unified exec, retain the returned session id, and keep the
   current turn active. Where the user owns the next move, poll that exact session
   with empty `write_stdin` calls and long yields until it returns. Where you are working,
   leave the same waiter running, continue the work, and poll it between tool calls or
   milestones so a comment can change the next decision. Never detach the wait and never
   end the turn expecting its completion to start another one: Codex has no unprompted
   completion delivery. Start a fresh wait session after each batch and retain its new id.
+
+One wait watches every page this session holds, so serving another leaf mid-wait
+needs no second watcher, and the batch it returns may be any watched page's: its
+first line names the page (`{"page": …}`), and the events after it are that page's.
+Name a page — `leaf wait <page>` — only to pick up a leaf this session didn't
+serve; naming it is what claims it.
 
 While `leaf wait` runs, the banner reads "<agent> awaits" and puts the `waiting`
 detail after it — the page's own line about what it needs from the reader. Write the
@@ -351,10 +359,11 @@ gives them.
 The wait can stay open as long as the user takes, and exits when they comment, reply,
 resolve, approve the page or end the leaf, or edit an interactive widget (a drag on
 a `lf-board` arrives as an `action` event) — or when a worker session posts a
-`leaf report`, which joins the same batch — printing the unacknowledged events
-as JSON lines. Printing is deliberately not receipt: a
+`leaf report`, which joins the same batch — printing one page's unacknowledged
+events as JSON lines. Printing is deliberately not receipt: a
 detached process can finish without its output ever entering model context. As soon as
-a complete wait result enters context, run `leaf ack <page> <highest-seq>` before
+a complete wait result enters context, run `leaf ack <page> <highest-seq>` — for the
+page the batch's first line names — before
 interpreting or handling it. If the wait output was truncated at all, acknowledge
 nothing: run a new wait with enough output capacity to receive the whole batch. A scalar
 cursor cannot represent a missing line in the middle. Acknowledgement is monotonic and
@@ -490,7 +499,7 @@ still lets a turn it has already blocked proceed once.
 
 The invariant is what the user is owed — from the browser, a page nobody is listening
 to looks exactly like a page whose user simply has not commented yet, so without it
-they find out by asking. It covers the pages you run `server run` or `leaf wait`
+they find out by asking. It covers the pages you run `server start` or `leaf wait`
 on, the two acts that put a user on the other end, so a directory you only built or
 linted is outside it. `leaf status <page> idle` refuses while events remain
 unacknowledged: run `leaf wait`, which returns at once when they are already there.
@@ -498,7 +507,10 @@ If its output is truncated, acknowledge nothing and rerun with enough output cap
 for the whole batch. After a complete batch enters context, run `leaf ack` through
 its highest sequence.
 `leaf wait` also restarts a server that died under it and reports the restart on
-stderr; exit 2 means it couldn't, and the page stays down until `server run`.
+stderr; exit 2 means it couldn't, and the page stays down until `server start`. An
+idled page just leaves the watch, and the wait returns 2 once every watched page is
+idle — so `leaf status <page> idle` on the last live leaf ends the watcher along with
+it, and every server is left up for a reader still on its page.
 
 ## Pointing at a passage yourself
 
@@ -576,7 +588,7 @@ stop replaying.
 
 ## Where the page is served
 
-`server run` serves a page on the address its session arrived on: for an SSH session, the
+A serve puts a page on the address its session arrived on: for an SSH session, the
 one the client reached this machine on; otherwise loopback. The URL therefore opens as
 printed whether the user's browser is here or on the machine they SSH'd from.
 
@@ -608,29 +620,28 @@ one page's URL hands out every page on this machine.
 
 ## A page that outlives the session
 
-`server run` from your session claims the page, and the server goes down when the
+`server start` from your session claims the page, and the server goes down when the
 session ends. Two launches decline that claim and stay up instead:
-`server run --standing`, and a run from a shell of the user's own — a terminal, a login
-item. Either is a **standing page**, the arrangement for a command hub or a dashboard
-they keep open for weeks. `server run` says which lifetime it started on the line after
-the URL. Nothing revives a standing server and no session's end reaches it;
-`leaf server stop <page>` is the only thing that ends one. Start one with
-`--standing` when the page is meant to outlive your session — and say so when you do,
-since the user inherits a process only that command stops.
+`server start --standing`, and a serve from a shell of the user's own — a terminal, a
+login item. Either is a **standing page**, the arrangement for a command hub or a
+dashboard they keep open for weeks. The serve says which lifetime it started on the line
+after the URL. Start one with `--standing` when the page is meant to outlive your
+session, and say so when you do, since the user inherits a process only that command
+stops.
 
-A lifetime belongs to the process, so a crash ends it along with the server. The one
-restart in leaf is `leaf wait`'s, and it starts a server of the session running
-the wait — so a standing server that died and came back that way now goes down with that
-session. Say so when it happens, and re-establish it with `server run --standing` (a
-`server stop` first, if the wait's revival is still up).
+Nothing supervises a standing server and no session's end reaches it; `leaf server stop
+<page>` is the only thing that ends one. A `leaf wait` watching the page brings one back
+if it dies underneath, standing as it was — the lifetime is recorded beside the
+address rather than held by the process — so there is nothing to re-establish.
 
 Working on a standing page changes nothing in the loop, and adds one step before it:
 the page carries weeks of decisions your session never saw, so read
 `leaf page state <page>` first — the standing state the log has folded onto the page,
 the asks still open, and where the markup lags a decision, as one JSON object. Then
-pick it up with `leaf wait` as usual, publish versions as usual, and expect the same
+pick it up with `leaf wait <page>` — naming the page is what claims it for this
+session — publish versions as usual, and expect the same
 loop while your session lasts — a
-`server run` of your own finds the standing server already up, prints its URL, and
+`server start` of your own finds the standing server already up, prints its URL, and
 leaves it running. What changes is the ending: don't stop the server, and use
 `leaf status <page> idle` only when the *page* is finished, not when your work on it
 is. A session that just ends leaves the page up and unheld, which is what the user sees

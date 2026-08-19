@@ -13,14 +13,12 @@ re-run."""
 from __future__ import annotations
 
 import argparse
-import http.cookiejar
 import io
 import json
 import os
 import shutil
 import subprocess
 import time
-import urllib.request
 from pathlib import Path
 
 from PIL import Image
@@ -130,8 +128,8 @@ new version as the checks finish.</p>
 """
 
 
-def run_leaf(*args: str) -> None:
-    """A leaf command, or a failure carrying what it said.
+def run_leaf(*args: str) -> str:
+    """A leaf command's own stdout, or a failure carrying what it said.
 
     Not `check=True`: the CalledProcessError it raises names the command and the
     exit status, and the streams it captured — the only thing that says what went
@@ -145,6 +143,7 @@ def run_leaf(*args: str) -> None:
             f"leaf {' '.join(args)} exited {done.returncode}\n"
             f"{done.stdout}{done.stderr}".rstrip()
         )
+    return done.stdout.strip()
 
 
 def stop_server(page_dir: Path) -> None:
@@ -160,34 +159,6 @@ def stop_server(page_dir: Path) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-
-
-def wait_for_server(server: subprocess.Popen[str], page_dir: Path) -> str:
-    """The page's URL, once it answers on it. Probed the way the browser about to
-    open it will: the key rides in the query, and a jar carries it through the
-    redirect to the latest version, which drops one.
-
-    A server that never answers is diagnosed from its own streams, not from the
-    silence: `server run` refuses an address it can't bind by printing why and
-    exiting, so waiting the deadline out and reporting "did not start" describes
-    the symptom over an explanation already written."""
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        try:
-            info = json.loads((page_dir / "server.json").read_text())
-            opener = urllib.request.build_opener(
-                urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-            )
-            opener.open(info["url"], timeout=1).close()
-            return info["url"]
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            if server.poll() is not None:
-                out, err = server.communicate()
-                raise RuntimeError(
-                    f"leaf server run exited {server.returncode}\n{out}{err}".rstrip()
-                ) from None
-            time.sleep(0.05)
-    raise RuntimeError(f"the demo server never answered for {page_dir}")
 
 
 def wait_for_comment(page_dir: Path) -> str:
@@ -521,19 +492,12 @@ def main() -> None:
             "Migration rehearsal started; 2 of 4 checks complete",
         )
         run_leaf("status", str(page_dir), "waiting")
-        # Piped rather than discarded, so `wait_for_server` has the server's own
-        # account of a start that didn't take. Nothing drains these while it
-        # serves, which is safe only because the handler logs nothing: the URL is
-        # the one line it writes.
-        server = subprocess.Popen(
-            [str(LEAF), "server", "run", str(page_dir)],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        # `server start` returns once the server holds its port and has printed
+        # the URL, so there is nothing to poll for here and no second child to
+        # hold: the recording's one long-running process is the waiter.
+        url = run_leaf("server", "start", str(page_dir))
         waiters: list[subprocess.Popen[str]] = []
         try:
-            url = wait_for_server(server, page_dir)
             waiters.append(start_waiter(page_dir))
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(channel="chrome")
@@ -557,11 +521,6 @@ def main() -> None:
                     waiter.terminate()
                     waiter.wait(timeout=5)
             stop_server(page_dir)
-            try:
-                server.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                server.terminate()
-                server.wait(timeout=5)
     finally:
         shutil.rmtree(page_dir)
         shutil.rmtree(state_dir)

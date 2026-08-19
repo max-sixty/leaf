@@ -91,11 +91,11 @@ Commands:
   page        Create pages and add media.
   reply       Reply to a thread as the agent.
   report      Report a state change onto a page widget, as a worker.
-  server      Run or stop the local server.
+  server      Start, run, or stop the local server.
   status      Set the agent's banner state.
   transcript  Print the page's exchange as Markdown.
   version     Check, publish, and export versions.
-  wait        Print unacknowledged user events and reports, then exit.
+  wait        Print one page's unacknowledged events and reports, then exit.
 """,
             id="root",
         ),
@@ -151,14 +151,15 @@ Commands:
             ["server", "--help"],
             """Usage: leaf server [OPTIONS] COMMAND [ARGS]...
 
-  Run or stop the local server.
+  Start, run, or stop the local server.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  run   Serve a page and print its URL.
-  stop  Stop a page's server.
+  run    Serve a page in the foreground until stopped.
+  start  Start a page's server and print its URL.
+  stop   Stop a page's server.
 """,
             id="server",
         ),
@@ -194,7 +195,7 @@ def test_ack_batch_instruction_preserves_scalar_cursor_safety():
     assert interact.ACK_BATCH_INSTRUCTION == (
         "If wait output is truncated, acknowledge nothing and rerun with enough output "
         "capacity for the whole batch. After a complete batch enters context, run "
-        "`leaf ack <page> <highest-seq>`."
+        "`leaf ack <page> <highest-seq>` for the page the batch's first line names."
     )
 
 
@@ -5249,7 +5250,7 @@ def test_a_stated_host_binds_every_interface_and_is_recorded(page_dir, monkeypat
     """The name a user routes to need not resolve to an address this machine
     could bind — a jump host or NAT is the case `--host` exists for — nor say
     which family they reach it by, so a stated name binds the wildcard of both
-    families and goes in the URL as given. A bare re-serve (`revive_server`)
+    families and goes in the URL as given. A bare re-serve (`start_server`)
     reads the stated record back unchanged, so the URL a browser already holds
     keeps answering."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
@@ -5293,7 +5294,7 @@ def test_the_stated_host_wildcard_serves_both_families(page_dir):
 def test_the_address_and_key_outlive_the_session_that_first_served(
     page_dir, monkeypatch
 ):
-    """`revive_server` restarts a dead server by re-running `server run`. The
+    """`start_server` restarts a dead server by re-running `server run`. The
     user's browser has been polling one URL since it died, so a fresh address or
     key there would leave the page it reopens talking to nothing."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
@@ -5517,7 +5518,10 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
         },
     )
     assert interact.cmd_wait(page_dir) == 0
-    shown = [json.loads(line) for line in capsys.readouterr().out.strip().splitlines()]
+    header, *shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    assert header == {"page": str(page_dir)}
     assert [e["kind"] for e in shown] == ["comment", "action"]
     assert shown[1]["detail"]["to"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
@@ -5537,7 +5541,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
 
     assert interact.cmd_wait(page_dir) == 0
     assert [
-        json.loads(line)["id"] for line in capsys.readouterr().out.splitlines()
+        json.loads(line)["id"] for line in capsys.readouterr().out.splitlines()[1:]
     ] == ["c2"]
     interact.cmd_ack(page_dir, 3)
     assert page_state(page_dir)["pending"] == 0
@@ -5567,7 +5571,9 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     )
     assert page_state(page_dir)["pending"] == 0
     assert interact.cmd_wait(page_dir) == 0
-    shown = [json.loads(line) for line in capsys.readouterr().out.strip().splitlines()]
+    shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()[1:]
+    ]
     assert [(e["kind"], e.get("agent")) for e in shown] == [("report", "Indexer")]
     interact.cmd_ack(page_dir, 4)
     assert interact.read_json(page_dir / "cursor.json")["seq"] == 4
@@ -5631,17 +5637,17 @@ def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
 
     assert interact.cmd_wait(page_dir) == 0
     assert [
-        json.loads(line)["id"] for line in capsys.readouterr().out.splitlines()
+        json.loads(line)["id"] for line in capsys.readouterr().out.splitlines()[1:]
     ] == ["c1"]
     assert status_path.read_bytes() == before
 
 
-def test_wait_restarts_a_server_that_died_under_it(page_dir, capsys):
-    """A page whose server died is offline in the user's browser and nowhere
-    else — so `leaf wait`, the one thing positioned to notice, brings it back
-    rather than exiting and leaving the discovery to the user."""
+def comment_once_served(page_dir):
+    """Post a user comment as soon as a server answers for the page, so a wait
+    that had to revive one has something to return on: the revival is the fact
+    under test and the comment is only what ends the wait."""
 
-    def comment_once_served():
+    def post():
         for _ in range(100):
             time.sleep(0.1)
             if interact.running_server(page_dir):
@@ -5650,7 +5656,15 @@ def test_wait_restarts_a_server_that_died_under_it(page_dir, capsys):
                 )
                 return
 
-    threading.Thread(target=comment_once_served, daemon=True).start()
+    threading.Thread(target=post, daemon=True).start()
+
+
+def test_wait_restarts_a_server_that_died_under_it(page_dir, capsys):
+    """A page whose server died is offline in the user's browser and nowhere
+    else — so `leaf wait`, the one thing positioned to notice, brings it back
+    rather than exiting and leaving the discovery to the user."""
+
+    comment_once_served(page_dir)
     try:
         assert interact.cmd_wait(page_dir) == 0  # no server.json at all when it starts
         info = interact.running_server(page_dir)
@@ -5667,12 +5681,132 @@ def test_wait_restarts_a_server_that_died_under_it(page_dir, capsys):
         interact.cmd_stop(page_dir)
 
 
-def test_wait_leaves_a_closed_page_down(page_dir):
-    """SessionEnd idles the page and stops its server, so a watcher still winding
-    down must not put it straight back up."""
-    interact.cmd_status(page_dir, "idle", "the session that opened this page has ended")
+def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(claimed):
+    """A standing page comes back standing. The lifetime is the page's record
+    rather than the reviving process's, so the restarts a page doesn't choose —
+    a crash, the revival a `leaf wait` makes under it — leave it as the serve
+    that started it declared, and `leaf server stop` is still the one thing that
+    ends one. Read off the launch instead, a session that happened to notice the
+    server was down would inherit a dashboard somebody left up for weeks, and
+    take it down when it ended."""
+    interact.write_json(
+        claimed / "access.json",
+        {"host": "127.0.0.1", "bind": "127.0.0.1", "lifetime": "standing"},
+    )
+    comment_once_served(claimed)
+    try:
+        assert interact.cmd_wait(claimed) == 0
+        # The reviving session did claim the page, so a lifetime read off this
+        # launch would have said "session" — the claim is what the standing
+        # record has to outrank.
+        assert interact.read_json(claimed / "session.json")["id"] == "s1"
+        assert interact.standing_server(claimed)
+    finally:
+        interact.cmd_stop(claimed)
+
+
+def test_wait_ends_when_the_leaf_does(page_dir):
+    """Idling is how a leaf ends, and it has to reach the watcher: a wait that
+    held on past it left a long-running command open for a page nobody was going
+    to press, which the session was then left to kill by pid. The server is not
+    the watcher's to end — a reader is free to stay on a page the agent has
+    finished with — so it is left exactly as it stands."""
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    interact.cmd_status(page_dir, "idle", "the page is done")
+    assert interact.cmd_wait(page_dir) == 2
+    assert interact.running_server(page_dir)
+
+    # And where SessionEnd idled the page and stopped its server both, a watcher
+    # still winding down must not put it straight back up. Dropping the lock is
+    # what makes the record read stale; `cmd_stop` would signal this process.
+    HELD_RECORDS.pop().close()
+    (page_dir / "server.json").unlink()
     assert interact.cmd_wait(page_dir) == 2
     assert interact.running_server(page_dir) is None
+
+
+def test_one_wait_watches_every_page_the_session_holds(
+    page_dir, tmp_path, monkeypatch, capsys
+):
+    """A session's leaves share one watcher. The watch set is the session's own
+    pages rather than the argument, so four leaves cost one command between
+    them, and the batch's first line says which page it belongs to — the ack
+    has to go back to the right log."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    second = tmp_path / "second"
+    second.mkdir()
+    interact.cmd_status(second, "waiting", "")
+    interact.cmd_status(page_dir, "waiting", "")
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    serving(second, {"port": 2, "pid": os.getpid(), "url": "y"})
+    for d in (page_dir, second):
+        assert interact.claim_page(d)
+    interact.append_event(second, {"kind": "comment", "author": "user", "text": "hi"})
+
+    assert interact.cmd_wait() == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert json.loads(lines[0]) == {"page": str(second)}
+    assert [json.loads(line)["text"] for line in lines[1:]] == ["hi"]
+    # The page that spoke picked up the handoff status; the other is untouched.
+    assert interact.read_json(second / "status.json")["state"] == "working"
+    assert interact.read_json(page_dir / "status.json")["state"] == "waiting"
+
+    # Idling one leaf leaves the watch to the others; idling the last ends it.
+    interact.cmd_ack(second, 1)
+    interact.cmd_status(second, "idle", "")
+    interact.cmd_status(page_dir, "idle", "")
+    assert interact.cmd_wait() == 2
+
+
+def test_a_page_served_mid_wait_joins_the_running_watch(
+    page_dir, tmp_path, monkeypatch, capsys
+):
+    """The watch set is re-read every pass, so serving another leaf while the
+    watcher holds needs no second command: the claim the serve makes is what
+    puts the page in front of the running wait."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s10")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    assert interact.claim_page(page_dir)
+    joined = tmp_path / "joined"
+    joined.mkdir()
+    interact.cmd_status(joined, "waiting", "")
+    serving(joined, {"port": 2, "pid": os.getpid(), "url": "y"})
+
+    def join():
+        interact.claim_page(joined)
+        interact.append_event(
+            joined, {"kind": "comment", "author": "user", "text": "hi"}
+        )
+
+    threading.Timer(0.2, join).start()
+    assert interact.cmd_wait() == 0
+    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {"page": str(joined)}
+
+
+def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
+    page_dir, capsys
+):
+    """The batch outranks the page's state: an idled leaf can still hold a
+    comment the reader got in before the end, and a wait that exited on the
+    idle instead would strand it unread until a hook complained."""
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    interact.append_event(page_dir, {"kind": "comment", "author": "user", "text": "hi"})
+    interact.cmd_status(page_dir, "idle", "the page is done")
+    assert interact.cmd_wait(page_dir) == 0
+    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {
+        "page": str(page_dir)
+    }
+
+
+def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys):
+    """A no-argument wait in a session that holds no pages has nothing to hold
+    open — exit rather than sleep forever on an empty set."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-empty")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert interact.cmd_wait() == 2
+    assert "nothing to watch" in capsys.readouterr().err
 
 
 def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
@@ -5691,7 +5825,8 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
 
     assert interact.cmd_wait(page_dir) == 0
     printed = capsys.readouterr()
-    assert [json.loads(line)["id"] for line in printed.out.splitlines()] == ["c1"]
+    assert json.loads(printed.out.splitlines()[0]) == {"page": str(page_dir)}
+    assert [json.loads(line)["id"] for line in printed.out.splitlines()[1:]] == ["c1"]
     assert printed.err == ""
 
 
@@ -5751,21 +5886,26 @@ def codex_claimed_page(tmp_path, request, codex_program):
     # own message down with it, and nothing here reads either stream. Left to
     # pytest, the message is in the failure it belongs to.
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
-    server = under_codex(
+    # Under the fake codex so the claim's ancestry walk finds it, and through
+    # `server start`, which blocks on the URL while the `server run` it spawned
+    # claims — so the chain from that claim up to the codex program is intact.
+    # Captured because the URL is read back; the status is asserted here with
+    # both streams in the message, rather than left to a CalledProcessError
+    # that would take leaf's own account down with it.
+    started = under_codex(
         codex_program,
-        shlex.join([str(launcher), "server", "run", str(page)]),
+        shlex.join([str(launcher), "server", "start", str(page)]),
         env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-
-    def stop():
-        subprocess.run([launcher, "server", "stop", page], env=env, check=True)
-        server.wait(timeout=5)
-
-    request.addfinalizer(stop)
-    assert server.stdout.readline().startswith("http://127.0.0.1:")
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+    request.addfinalizer(
+        lambda: subprocess.run([launcher, "server", "stop", page], env=env, check=True)
+    )
+    assert out.startswith("http://127.0.0.1:")
     return page
 
 
@@ -6091,7 +6231,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
 
 
 def test_session_end_idles_the_page_and_stops_its_server(claimed):
-    assert interact.revive_server(claimed)  # a real detached server to clean up
+    assert interact.start_server(claimed)  # a real detached server to clean up
     interact.cmd_status(claimed, "waiting", "")
     interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
     assert interact.read_json(claimed / "status.json")["state"] == "idle"
@@ -6159,6 +6299,78 @@ def test_a_live_session_can_take_over_an_existing_server(page_dir):
             if process.poll() is None:
                 process.terminate()
                 process.wait(timeout=5)
+
+
+def start_through_the_launcher(page_dir, *flags):
+    """`server start` the way an agent runs it: from a host session, as a command
+    that returns."""
+    return subprocess.run(
+        [
+            sys.executable,
+            str(interact.__file__),
+            "server",
+            "start",
+            *flags,
+            str(page_dir),
+        ],
+        env=os.environ
+        | {"CLAUDE_CODE_SESSION_ID": "starter", "CLAUDE_PID": str(os.getpid())},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
+    """The command returns and the page stays up. Two long-running commands per
+    leaf was one accident: `leaf wait` has to exit, its exit being how a comment
+    reaches the agent, and the server has to not exit at all — so no one process
+    does both, but only the watcher is the session's to hold open. The serve gets
+    a session of its own, which is also what leaves a killed background task
+    costing the watcher alone."""
+    started = start_through_the_launcher(page_dir)
+    assert started.returncode == 0, started.stderr
+    url = started.stdout.strip()
+    try:
+        assert url.startswith("http://127.0.0.1:")
+        assert "session server" in started.stderr
+        info = interact.running_server(page_dir)
+        assert info and info["url"] == url
+        # The child claims the page from the environment `server start` handed
+        # it, which is what the loop's hooks find the session's pages through —
+        # and records the lifetime the note is read back out of.
+        assert interact.read_json(page_dir / "session.json")["id"] == "starter"
+        assert interact.read_json(page_dir / "access.json")["lifetime"] == "session"
+        # A session of its own is the fact that says no shell holds this: nothing
+        # reaping the process group the launcher ran in reaches the server.
+        assert os.getsid(info["pid"]) != os.getsid(os.getpid())
+        state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+        assert urllib.request.urlopen(state).status == 200
+    finally:
+        interact.cmd_stop(page_dir)
+
+
+def test_server_start_forwards_its_flags_and_relays_the_serves_own_words(page_dir):
+    """`server start` states nothing about a serve itself. The flags go verbatim
+    to the `server run` it spawns and the account comes back from there, so the
+    lifetime a flag declared and the refusal a running server earns are both that
+    process's own words, carried out with its exit status."""
+    standing = start_through_the_launcher(page_dir, "--standing")
+    assert standing.returncode == 0, standing.stderr
+    try:
+        assert "standing server" in standing.stderr
+        assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
+        assert not (page_dir / "session.json").exists()
+
+        refused = start_through_the_launcher(page_dir, "--host", "devbox.corp.example")
+        assert refused.returncode != 0
+        assert "already serving at" in refused.stderr
+        assert "server stop" in refused.stderr
+        # Nothing on stdout, so a caller reading the URL there reads no URL.
+        assert not refused.stdout.strip()
+    finally:
+        interact.cmd_stop(page_dir)
 
 
 def start_standing_server(page_dir):

@@ -110,26 +110,39 @@ The `hook` command closes the same gap from the agent's side. Registered on
 Stop, UserPromptSubmit and SessionEnd, it refuses to let a turn end with one of
 this session's pages unwatched, surfaces unacknowledged user events at the next
 prompt, and idles the pages and stops their servers when the session exits. It
-finds them through ~/.local/state/leaf/sessions/<session id>.json, which
-`server run` and `leaf wait` write the host session identity the environment
+finds them through ~/.local/state/leaf/sessions/<session id>.json, which the
+serve and `leaf wait` write the host session identity the environment
 carries — absent that (interact.py run outside an agent host), nothing is claimed
 and the hooks stand down. What the environment cannot carry is the session's own
 lifetime, and `session_pid` says where each host's comes from. Unacknowledged
 events are the one thing `leaf status <page> idle` can't close over: idling is
 how a leaf ends, and one can't end on comments nobody read.
 
+A session's leaves cost it one long-running command between them, and that
+command is the watcher. The two jobs end in opposite ways: `leaf wait` has to
+exit, because its exit is how what the user said reaches the agent, and the
+server has to not exit at all, since the browser polls it between turns and
+straight across every wait. So no one process does both — but only the watcher
+is the session's, and one is enough: it watches every page the session holds,
+re-reading the set each pass, and delivers one page's batch under a first line
+naming the page. `server start` spawns `server run` into a session of its own
+and hands back the URL that process printed and the lifetime it recorded, so a
+killed background task costs the watcher and leaves every page up, and recovery
+is one `leaf wait`.
+
 Whether a session's end reaches a server is decided once, by the launch, and
-written down in server.json as its lifetime. `server run` from an agent host
+written down in access.json as its lifetime. A serve from an agent host
 claims the page, and that claim is what two reapers act on: a watcher thread
 stops the process when the claimant pid goes, and SessionEnd idles the page and
-stops the server. `server run` from a bare shell — a terminal, a launchd job —
+stops the server. A serve from a bare shell — a terminal, a launchd job —
 claims nothing, and that is the standing serve: a page kept up across sessions,
 for a command hub or a dashboard someone leaves open for weeks.
-`server run --standing` makes the same statement from inside a host: the launch
+`server start --standing` makes the same statement from inside a host: the launch
 declines the claim, for a page meant to outlive the session that starts it —
 under a harness that restarts mid-session the claimant pid churns, and a claimed
-server reads the old pid's death as the session ending. No daemon is
-involved and nothing revives it; `leaf server stop` is its one reaper, which
+server reads the old pid's death as the session ending. No daemon is involved,
+and a `leaf wait` watching the page revives one that dies under it as standing —
+the lifetime being the record's. `leaf server stop` is its one reaper, which
 is the whole of what "standing" means. A session that picks the page up later
 owes it a watcher while it lives, exactly as it would any page, and takes
 nothing down when it ends: no watcher was ever started for a server it didn't
@@ -466,7 +479,7 @@ EVENT_VOCABULARY = {
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After a complete batch enters context, run "
-    "`leaf ack <page> <highest-seq>`."
+    "`leaf ack <page> <highest-seq>` for the page the batch's first line names."
 )
 # Fields whose one door is the CLI. The browser door refuses them rather than
 # silently dropping: `markup` enters only through the gate `leaf comment` and
@@ -1118,15 +1131,20 @@ def standing_server(page_dir: Path) -> bool:
     )
 
 
-def lifetime_note(page_dir: Path, lifetime: str) -> str:
+def lifetime_note(page_dir: Path) -> str:
     """What ends this server, said at the moment it starts.
 
     The two lifetimes are indistinguishable from the terminal — same command,
     same URL — and the difference only shows up hours later, when one process is
-    gone and the other isn't. So `server run` states which it is rather than
-    leaving it to be discovered, and names the command where that is the only way
-    out."""
-    if lifetime == "standing":
+    gone and the other isn't. So the serve states which it is rather than
+    leaving it to be discovered, on the line after the URL, and names the command
+    where that is the only way out.
+
+    Read from access.json, the one place a lifetime is written down. The record
+    lands before the URL is printed, so whoever holds the URL can read it, and a
+    page with no lifetime recorded is one `server stop` cleared — which leaves
+    the next serve to decide afresh."""
+    if (read_json(page_dir / "access.json") or {}).get("lifetime") == "standing":
         return (
             "standing server: no agent session claimed this page, so it outlives "
             f"this shell. `leaf server stop {page_dir}` is what stops it."
@@ -1181,7 +1199,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     interface. That widens exposure to the machine's other networks and no
     further — leaf never creates a route that didn't exist.
 
-    Recorded once and kept. `revive_server` restarts a dead server by re-running
+    Recorded once and kept. `start_server` restarts a dead server by re-running
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
     here rather than passed per run."""
@@ -1369,8 +1387,8 @@ def claim_page(page_dir: Path) -> bool:
     wherever they live). The host identity reaches this process through the
     environment, so this needs no cooperation from the agent.
 
-    `server run` and `leaf wait` claim; nothing else does. The claim tracks
-    the watch obligation the hooks enforce: `server run` puts the page in front
+    A serve and `leaf wait` claim; nothing else does. The claim tracks
+    the watch obligation the hooks enforce: a serve puts the page in front
     of a user and incurs it, while `leaf wait` takes it up. Authoring
     commands neither incur the obligation nor discharge it, so a directory a
     session only wrote to, like a throwaway page for testing the widget layer,
@@ -2619,11 +2637,7 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
         print(existing["url"], flush=True)
         # The running server's lifetime, not this invocation's: claiming the page
         # does not adopt a server this launch found already up.
-        print(
-            lifetime_note(page_dir, access.get("lifetime") or "session"),
-            file=sys.stderr,
-            flush=True,
-        )
+        print(lifetime_note(page_dir), file=sys.stderr, flush=True)
         return
     access = page_access(page_dir, host)
     # The recorded lifetime outranks this launch's own shape, because a revive is
@@ -2684,13 +2698,17 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
         if not winner:
             sys.exit(f"another `server run` raced this one on {page_dir}; re-run")
         print(winner["url"], flush=True)
-        print(
-            lifetime_note(page_dir, access.get("lifetime") or "session"),
-            file=sys.stderr,
-            flush=True,
-        )
+        print(lifetime_note(page_dir), file=sys.stderr, flush=True)
         return
     record.truncate(0)
+    # The durable record, only from the winner: written before the link decided
+    # the race, a loser's copy could name a port nothing listens on, and the next
+    # revive would bind exactly that. Ahead of the record's own content, so a
+    # reader that finds a live server finds the lifetime it is running under.
+    write_json(
+        page_dir / "access.json",
+        {**access, "port": httpd.server_address[1], "lifetime": lifetime},
+    )
     # The pid is what `server stop` signals. It is safe to signal now for the
     # same reason the record is trustworthy: the lock says this process is the
     # one that wrote it, so the number cannot have been dealt to a stranger.
@@ -2698,18 +2716,11 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
         json_bytes({"port": httpd.server_address[1], "pid": os.getpid(), "url": url})
     )
     record.flush()
-    # The durable record, only from the winner: written before the link decided
-    # the race, a loser's copy could name a port nothing listens on, and the
-    # next revive would bind exactly that.
-    write_json(
-        page_dir / "access.json",
-        {**access, "port": httpd.server_address[1], "lifetime": lifetime},
-    )
     # The URL is the payload and goes to stdout alone, as everything downstream
     # reads it there; what ends this process is the account beside it, and stderr
     # is where leaf's other accounts of themselves already go.
     print(url, flush=True)
-    print(lifetime_note(page_dir, lifetime), file=sys.stderr, flush=True)
+    print(lifetime_note(page_dir), file=sys.stderr, flush=True)
     if lifetime == "session":
         threading.Thread(
             target=stop_when_session_ends,
@@ -2734,63 +2745,109 @@ def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -
     write_json(page_dir / "status.json", status)
 
 
-def revive_server(page_dir: Path) -> bool:
-    """Bring a page back up after its server died. The user's browser has
-    been showing "Server offline" since it happened, and `leaf wait` is the
-    only thing positioned to notice — so it restarts the server rather than
-    handing the diagnosis to Claude and the discovery to the user.
+def start_server(
+    page_dir: Path, host: str | None = None, standing: bool = False
+) -> tuple[str, str] | None:
+    """Put the page's server up in a session of its own, and report where.
 
-    Detached, because the restarted server has to outlive both this
-    `leaf wait` and the background task that started it, exactly as the
-    original `server run` does. sys.executable is the resolved uv environment,
-    so this skips uv entirely."""
-    (page_dir / "server.json").unlink(missing_ok=True)
+    The serve has to outlive this command — the browser polls it between turns
+    and across every `leaf wait`, which exits to deliver — so it is spawned
+    rather than held, and the one long-running command a leaf costs its session
+    is the watcher. The module docstring carries the rest of that.
+
+    `server run` in a session of its own is the whole mechanism, so `server
+    start` and the revival a `leaf wait` makes when it finds the page down are
+    the same act. sys.executable is the resolved uv environment, so this skips uv.
+
+    Returns where the page is and what ends it — the URL the child minted and
+    the note for the lifetime it recorded — or None, having put the child's
+    reason on stderr.
+    """
     child = subprocess.Popen(
-        [sys.executable, str(Path(__file__).resolve()), "server", "run", str(page_dir)],
-        stdout=subprocess.DEVNULL,
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "server",
+            "run",
+            str(page_dir),
+            *(["--host", host] if host else []),
+            *(["--standing"] if standing else []),
+        ],
+        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         start_new_session=True,
     )
-    deadline = time.time() + 5
-    while time.time() < deadline:
-        time.sleep(0.1)
-        if running_server(page_dir):
-            return True
-    # The child wrote its reason to stderr — a stale bind, a taken port — and
-    # discarding it left the wait reporting a generic sentence about a failure
-    # the child had already named. A child still starting has said nothing yet.
-    if child.poll() is not None and (reason := child.stderr.read().strip()):
-        print(reason, file=sys.stderr)
-    return False
+    # The child's own handshake, rather than a deadline over a file that may or
+    # may not appear inside it: `server run` prints the URL once it holds the
+    # record and the port, and otherwise exits having named its own reason — a
+    # stale bind, a taken port, a flag the running server contradicts.
+    url = child.stdout.readline().strip()
+    if not url:
+        print(
+            child.stderr.read().strip() or f"the server for {page_dir} did not start",
+            file=sys.stderr,
+        )
+        return None
+    # Nothing drains the child's streams from here on, which is safe because the
+    # URL and the note printed beside it are everything a server ever says — the
+    # handler logs nothing (`log_message`) — so there is nothing left to write
+    # into pipes this process closes on its way out.
+    return url, lifetime_note(page_dir)
 
 
-def cmd_wait(page_dir: Path) -> int:
-    """Hold until the user speaks or a worker reports, and deliver what was said.
+def cmd_wait(page_dir: Path | None = None) -> int:
+    """Hold until a user speaks or a worker reports, and deliver what was said.
 
-    A wait ends on them, or on the page's server being down with no restart to
-    make. It puts no clock on how long a user takes, because there is no such
-    measurement to take from this side of the wire: a page whose address their
-    browser can't route to and a page they simply haven't opened yet look
-    identical at every length, so a deadline over it announces the first while
-    describing the second — and the second is the ordinary case. Only their
-    browser can tell them apart, and the user holds the URL from the turn
-    that handed it over, so the report comes from them; SKILL.md's "Where the
-    page is served" carries the recourse."""
-    claim_page(page_dir)
-    cursor = read_cursor(page_dir)
+    One watcher covers the session. The watch set is every page the session
+    holds, re-read each pass, so a page served mid-wait joins the running watch
+    without a second command, and a page another session has since picked up
+    drops out on its own. Naming PAGE claims it first — how a session picks up
+    a leaf it didn't serve — and holds it in the set, which is also the whole
+    set outside a host session (a bare shell, the tests). A batch is one page's
+    events, so its first line names the page, and `leaf ack` goes back to that
+    page.
+
+    A wait ends on someone speaking, on the last watched leaf ending, or on a
+    server being down with no restart to make. It puts no clock on how long a
+    user takes, because there is no such measurement to take from this side of
+    the wire: a page whose address their browser can't route to and one they
+    simply haven't opened yet look identical at every length, so a deadline over
+    it announces the first while describing the second — and the second is the
+    ordinary case. Only their browser can tell them apart, and the user holds
+    the URL from the turn that handed it over, so the report comes from them;
+    SKILL.md's "Where the page is served" carries the recourse."""
+    if page_dir is not None:
+        claim_page(page_dir)
+    identity = host_identity()
+    session_id = identity["id"] if identity else ""
     server_check_at = 0.0
-    revived = False
+    revived = set()
+    bumped = set()
     try:
         while True:
-            write_json(page_dir / "heartbeat.json", {"t": time.time()})
-            events = read_events(page_dir)
-            batch = unacknowledged(events, cursor)
-            if batch:
+            watched = owned_pages(session_id)
+            if page_dir is not None and not any(
+                paths_same(d, page_dir) for d in watched
+            ):
+                watched.append(page_dir)
+            statuses = {
+                d: read_json(d / "status.json") or {"state": "idle"} for d in watched
+            }
+            # The batch outranks the page's state: a wait already holding events
+            # owes them to the agent whatever became of the leaf, so an idled
+            # page still delivers here — it just no longer holds the wait open
+            # below.
+            for d in watched:
+                batch = unacknowledged(read_events(d), read_cursor(d))
+                if not batch:
+                    continue
+                # Whose events follow, said in-band: no event line names its
+                # page, and the ack has to go back to the right one.
+                print(json.dumps({"page": str(d)}), flush=True)
                 for event in batch:
                     print(jsonl_line(event), flush=True)
-                status = read_json(page_dir / "status.json") or {"state": "idle"}
-                if status["state"] != "working":
+                if statuses[d]["state"] != "working":
                     # Flip before the agent handles the batch: the handoff gap between this
                     # exit and pickup must not show "waiting". handoff=True dates
                     # that claim; the agent's own `leaf status` clears it.
@@ -2799,43 +2856,65 @@ def cmd_wait(page_dir: Path) -> int:
                     # "update", not "comment": a batch may mix comments, actions, and reports.
                     n = len(batch)
                     cmd_status(
-                        page_dir,
+                        d,
                         "working",
                         f"picking up {n} update{'s' if n != 1 else ''}",
                         handoff=True,
                     )
                 return 0
+            # A leaf that ended — the agent idled it, or SessionEnd did on its
+            # way out — has nobody left to carry a comment to, so it leaves the
+            # watch, and the last one gone ends the watcher too. `leaf status
+            # <page> idle` used to close the agent's side of a page and leave
+            # the watcher running on it, which is a long-running command with
+            # nothing to notice it by.
+            live = [d for d in watched if statuses[d]["state"] != "idle"]
+            if not live:
+                if not watched:
+                    print(
+                        "nothing to watch: no page named and none claimed by "
+                        "this session",
+                        file=sys.stderr,
+                    )
+                    return 2
+                one = len(watched) == 1
+                names = ", ".join(str(d) for d in watched)
+                print(
+                    f"the {'leaf' if one else 'leaves'} ended; {names} "
+                    f"{'is' if one else 'are'} idle",
+                    file=sys.stderr,
+                )
+                return 2
+            for d in live:
+                write_json(d / "heartbeat.json", {"t": time.time()})
+                bumped.add(d)
             if time.time() > server_check_at:
                 server_check_at = time.time() + 5
-                if not running_server(page_dir):
-                    # An idle page has no user to keep online, and the
-                    # SessionEnd hook idles then stops: without this the watcher
-                    # it raced would put the server straight back up.
-                    if (read_json(page_dir / "status.json") or {"state": "idle"})[
-                        "state"
-                    ] == "idle":
+                # Only live pages: SessionEnd idles a page and stops its server,
+                # and a watcher winding down past that must not put it back up.
+                for d in live:
+                    if running_server(d):
+                        continue
+                    # One revival per page per wait: a server that dies the
+                    # moment it comes up would otherwise respawn every five
+                    # seconds forever.
+                    if d in revived or not (started := start_server(d)):
                         print(
-                            "the leaf ended; not restarting the server",
+                            f"{d}: server is not running; restart it with "
+                            f"`leaf server start {d}`",
                             file=sys.stderr,
                         )
                         return 2
-                    # One revival per wait: a server that dies the moment it comes
-                    # up would otherwise respawn every five seconds forever.
-                    if revived or not revive_server(page_dir):
-                        print(
-                            "server is not running; restart it with `leaf server run`",
-                            file=sys.stderr,
-                        )
-                        return 2
-                    revived = True
+                    revived.add(d)
                     print(
-                        f"server had died; restarted at {running_server(page_dir)['url']}",
+                        f"{d}: server had died; restarted at {started[0]}",
                         file=sys.stderr,
                         flush=True,
                     )
             time.sleep(1)
     finally:
-        (page_dir / "heartbeat.json").unlink(missing_ok=True)
+        for d in bumped:
+            (d / "heartbeat.json").unlink(missing_ok=True)
 
 
 def cmd_ack(page_dir: Path, seq: int) -> None:
@@ -3563,9 +3642,9 @@ def unattended_pages(session_id: str) -> list:
                 )
             else:
                 reasons.append(
-                    f"{page_dir}: no watcher. Start `leaf wait` on it as a "
-                    "background task, or run `leaf status <page> idle` if the "
-                    "page is done."
+                    f"{page_dir}: no watcher. Start `leaf wait` as a background "
+                    "task — one wait covers every page this session holds — or "
+                    "run `leaf status <page> idle` if the page is done."
                 )
     return reasons
 
@@ -8577,30 +8656,61 @@ def export(dir: str, out: Path, version: int) -> None:
     sys.exit(cmd_export(resolve_dir(dir), out, version))
 
 
-@cli.group(short_help="Run or stop the local server.")
+@cli.group(short_help="Start, run, or stop the local server.")
 def server() -> None:
-    """Run or stop the local server."""
+    """Start, run, or stop the local server."""
 
 
-@server.command(short_help="Serve a page and print its URL.")
+def serve_flags(command):
+    """The two statements a serve takes, worn by the launcher and by the process
+    it launches alike: `server start` forwards them verbatim to the `server run`
+    it spawns, so one spelling is what keeps the pair from drifting."""
+    for option in (
+        click.option(
+            "--standing",
+            is_flag=True,
+            help="decline the session claim, so the server outlives this session "
+            "and only `leaf server stop` ends it — for a page kept up across "
+            "sessions",
+        ),
+        click.option(
+            "--host",
+            metavar="NAME",
+            help="bind every interface and put NAME in the URL, for a user the "
+            "derived address can't reach; recorded in access.json",
+        ),
+    ):
+        command = option(command)
+    return command
+
+
+@server.command(short_help="Start a page's server and print its URL.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--host",
-    metavar="NAME",
-    help="bind every interface and put NAME in the URL, for a user the "
-    "derived address can't reach; recorded in access.json",
-)
-@click.option(
-    "--standing",
-    is_flag=True,
-    help="decline the session claim, so the server outlives this session and "
-    "only `leaf server stop` ends it — for a page kept up across sessions",
-)
-def run(dir: str, host: str | None, standing: bool) -> None:
-    """Serve a page and print its URL.
+@serve_flags
+def start(dir: str, host: str | None, standing: bool) -> None:
+    """Start a page's server and print its URL.
 
-    Runs until stopped. If the page already has a live server, prints its URL
-    and exits.
+    Returns as soon as the server is up; the server itself keeps running in a
+    session of its own. `leaf server stop` takes one down, and a session server
+    goes down with the session that claimed it besides. A page already served
+    prints that server's URL and is left alone.
+    """
+    if not (started := start_server(resolve_dir(dir), host, standing)):
+        raise SystemExit(1)
+    url, note = started
+    print(url)
+    print(note, file=sys.stderr)
+
+
+@server.command(short_help="Serve a page in the foreground until stopped.")
+@click.argument("dir", metavar="PAGE")
+@serve_flags
+def run(dir: str, host: str | None, standing: bool) -> None:
+    """Serve a page in the foreground, printing its URL and running until stopped.
+
+    The server itself: what `server start` spawns, and what to run in a terminal
+    of your own to hold a page up where you can watch it. From an agent session
+    use `server start`. A page already served prints that server's URL and exits.
     """
     cmd_serve(resolve_dir(dir), host, standing)
 
@@ -8645,16 +8755,18 @@ def status(dir: str, state: str, detail: str) -> None:
 
 
 @cli.command(
-    short_help="Print unacknowledged user events and reports, then exit.",
+    short_help="Print one page's unacknowledged events and reports, then exit.",
     help=(
-        "Wait for user events and worker reports not yet acknowledged from model "
-        "context and print them as JSON lines.\n\n" + ACK_BATCH_INSTRUCTION
+        "Watch every page this session holds — plus PAGE, claimed first, when "
+        "given — and print one page's unacknowledged user events and worker "
+        "reports as JSON lines under a first line naming the page.\n\n"
+        + ACK_BATCH_INSTRUCTION
     ),
 )
-@click.argument("dir", metavar="PAGE")
-def wait(dir: str) -> None:
-    """Print unacknowledged user events and reports, then exit."""
-    sys.exit(cmd_wait(resolve_dir(dir)))
+@click.argument("dir", metavar="PAGE", required=False)
+def wait(dir: str | None) -> None:
+    """Print one page's unacknowledged events and reports, then exit."""
+    sys.exit(cmd_wait(resolve_dir(dir) if dir else None))
 
 
 @cli.command(

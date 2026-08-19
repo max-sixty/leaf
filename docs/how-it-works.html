@@ -227,6 +227,7 @@ $ leaf version publish ./review --version 1 --text "Two ways to shed load — wh
 
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
+{"page": "/home/you/review"}
 {"kind": "action", "author": "user", "version": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
 {"kind": "comment", "author": "user", "version": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
 
@@ -262,7 +263,7 @@ $ leaf ack ./review 3</code></pre>
         <p id="wait-stateless">
           The server and the wait both go down with the session, and the page directory
           is the whole state. Which is what lets a page outlive every session that works
-          on it: start <code>server run</code> from a shell of your own and it belongs
+          on it: run <code>server start</code> from a shell of your own and it belongs
           to no session, so nothing takes it down but <code>leaf server stop</code>.
           Sessions then come and go around a page that stays up, and between them the
           banner says so — no session holds this page, and it picks up again when one
@@ -525,9 +526,9 @@ $ leaf ack ./review 3</code></pre>
         <p>
           When a jump host or NAT leaves that address unroutable from your browser, say
           so and the agent re-serves the page with
-          <code>server run --host NAME</code> on a hostname you do reach (a tailnet name
-          works). The key still gates every request, and leaf serves only networks the
-          machine is already on: there is no public tunnel.
+          <code>server start --host NAME</code> on a hostname you do reach (a tailnet
+          name works). The key still gates every request, and leaf serves only networks
+          the machine is already on: there is no public tunnel.
         </p>
       </section>
 

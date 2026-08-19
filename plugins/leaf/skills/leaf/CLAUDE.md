@@ -187,8 +187,8 @@ Resolving a thread is the same pair in the panel, with one difference deciding i
 cannot stay, a resolved thread belonging in the disclosure at the foot of the list. What can be held
 is its place — the node stays where it stood, says on the pressed control what was done to it, and
 folds over the same fifth of a second, the disclosure taking the thread once the fold is over. The
-fold is the reconcile's and not the press's, because the log is what resolves a thread, and a second
-tab's resolve is the case that needs the motion more. What is left standing must then not still be a
+fold is the reconcile's and not the press's, because the log is what resolves a thread, and a resolve
+with no gesture behind it — a second tab's, or the agent's — is the case that needs the motion more. What is left standing must then not still be a
 thread: everything that walks the list asks for `.lf-thread`, so renaming the node once takes it out
 of j/k, out of the g addresses, out of r's press and out of the panel's repaint in a stroke.
 

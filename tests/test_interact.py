@@ -91,6 +91,7 @@ Commands:
   page        Create pages and add media.
   reply       Reply to a thread as the agent.
   report      Report a state change onto a page widget, as a worker.
+  resolve     Close a thread as the agent.
   server      Start, run, or stop the local server.
   status      Set the agent's banner state.
   transcript  Print the page's exchange as Markdown.
@@ -3402,8 +3403,8 @@ def test_an_accept_carries_its_thread_resolution(page_dir):
             interact.require_registry(page_dir),
         ),
     )
-    assert threads["c1"]["resolved"] is True
-    assert threads["c2"]["resolved"] is False
+    assert threads["c1"]["resolved"]["widget"] == "sug-a"
+    assert threads["c2"]["resolved"] is None
 
 
 def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
@@ -7777,6 +7778,84 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
     assert interact.unattended_pages("") == []
+
+
+def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
+    """The agent's ✓ Resolve: the same event the panel's control posts, named by any
+    message in the thread the way `leaf reply --to` is, and carrying the posting
+    session's voice — which is the whole of how a reader learns a thread they did not
+    close was closed."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
+    monkeypatch.setenv("LEAF_AGENT", "Indexer")
+    published(page_dir)
+    root = interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "cameras are flaky",
+        },
+    )
+    answer = json.loads(
+        CliRunner()
+        .invoke(
+            interact.cli,
+            ["reply", str(page_dir), "--to", root["id"], "--text", "fixed in v2"],
+        )
+        .output
+    )
+
+    result = CliRunner().invoke(
+        interact.cli, ["resolve", str(page_dir), "--to", answer["id"]]
+    )
+    assert result.exit_code == 0, result.output
+    event = json.loads(result.output)
+    assert event["kind"] == "resolve" and event["author"] == "claude"
+    assert event["parent"] == answer["id"]
+    assert event["agent"] == "Indexer" and event["session"] == "s-7"
+
+    threads = state_json(page_dir)["threads"]
+    assert [t["resolved"] for t in threads] == ["claude"]
+
+    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert "resolved by Indexer" in transcript.output
+
+
+def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
+    """The parent rule is the reply door's, so a thread can't be closed by naming
+    something outside the conversation."""
+    result = CliRunner().invoke(interact.cli, ["resolve", str(page_dir), "--to", "c9"])
+    assert result.exit_code != 0
+    assert "unknown comment id" in result.output
+
+
+def test_a_closed_thread_stops_asking(page_dir):
+    """A question in a thread is the thread's, so closing the thread withdraws it.
+    Otherwise an agent that asked and then answered the question for itself leaves
+    the reader a standing ask for the life of the page, pointing into the disclosure
+    closed threads live in."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    root = interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "Which mitigations?",
+            "markup": '<lf-options id="gm" choose>'
+            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+    ]
+    interact.append_event(
+        page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}
+    )
+    assert state_json(page_dir)["asks"] == []
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

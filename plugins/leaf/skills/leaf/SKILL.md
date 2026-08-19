@@ -116,6 +116,7 @@ leaf wait [<page>]                       # prints one page's events; line 1 name
 leaf ack <page> <seq>                    # complete, untruncated output reached context
 leaf comment <page> --quote "<passage>" --text "…"
 leaf reply <page> --to <id> --text "…"
+leaf resolve <page> --to <id>            # close a thread; see the loop for when
 leaf events <page>                       # full event log
 leaf transcript <page>                   # the exchange as Markdown
 ```
@@ -399,7 +400,13 @@ For each acknowledged batch:
 2. Address every event `leaf wait` printed. Each is JSON carrying the server-minted
    `id` that `leaf reply --to` takes:
    - **A comment**: `leaf reply` in-thread, and change the page where the comment
-     warrants it — usually both. A reply's `--text` is brief Markdown — lists, `code`,
+     warrants it — usually both. Then leave the thread open: the reader closes it,
+     and that is how you learn the answer landed. Close one yourself only where
+     waiting on them says nothing: they asked you to, or the thread is plainly moot —
+     what it was about has left the page, or the work has since answered the question
+     it put. `leaf resolve <page> --to <id>` does it, and the panel tells them who
+     did. Reply first even then; closing is not an answer.
+     A reply's `--text` is brief Markdown — lists, `code`,
      fenced blocks, a table, bare URLs arrive as links — and every raw tag in it
      renders as its characters: write `<T>`, `<div>`, or a `lf-` tag in prose and
      the user reads exactly those words. Point at the page with an ordinary
@@ -582,9 +589,8 @@ A comment's `--text` is the same Markdown a reply's is, fragment links included:
 
 A comment asks; a `lf-suggestion` proposes. Where you have the better sentence, ship it
 as a suggestion in the next version and let them accept it — a comment is for the
-question you can't answer yourself. The user resolves either. There is no CLI that
-resolves a thread: a note's purpose is discharged by being read, and only the reader
-knows that happened.
+question you can't answer yourself. Closing either is the reader's by default: a note's
+purpose is discharged by being read, and only they know that happened.
 
 ## Customizing the layer
 

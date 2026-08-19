@@ -336,18 +336,21 @@ one door is `leaf comment`/`leaf reply`, where it is validated against the
 vendored registry — the discussion-side analog of `version check`. The browser door refuses the
 field, so everything in the log under that name has been through the gate.
 
-Either side can open a thread, and `author` is the whole difference between them. The
-user selects a passage and the browser writes the anchor from the
-selection; `leaf comment` writes the same anchor from a quote, reading the
+Either side can open a thread and either can close one, and `author` is the whole
+difference between them. The user selects a passage and the browser writes the anchor
+from the selection; `leaf comment` writes the same anchor from a quote, reading the
 version the way the anchor pass reads the DOM (see "passages" below).
 Everything downstream already turns on `author`: `leaf wait` prints user
 events and the banner counts them, so Claude's own comment neither wakes its
-watcher nor reads as unanswered. What Claude cannot do is `resolve` — a note's
-purpose is discharged by being read, and only the reader knows that happened;
-closing one from this side would file it away unread.
+watcher nor reads as unanswered. Closing runs the other way round, because a note's
+purpose is discharged by being read and only the reader knows that happened. So
+`leaf resolve` is the agent's door onto it, and the reader is still the one who
+ordinarily closes a thread. A thread the reader did not close is the one settlement
+they cannot watch happen, so the panel and the transcript both name the agent that
+did it.
 
 Commands:
-    status, wait, ack, comment, reply, report, events, transcript
+    status, wait, ack, comment, reply, resolve, report, events, transcript
     page       init catalog media state
     customize  theme widget
     version    check publish export
@@ -469,7 +472,7 @@ EVENT_VOCABULARY = {
         "markup",
     },
     "reply": {"parent", "version", "text", "agent", "session", "markup"},
-    "resolve": {"parent"},
+    "resolve": {"parent", "agent", "session"},
     "done": {"version", "text"},
     "action": {"widget", "action", "detail", "version"},
     "report": {"widget", "action", "detail", "version", "agent", "session"},
@@ -887,6 +890,11 @@ def read_events(page_dir: Path) -> list:
 def build_threads(events: list, spk: dict) -> dict:
     """Fold the chronological log into comment threads by root id.
 
+    `resolved` is the event that settled the thread, or None. Either side can
+    close one, so a bool beside a second field naming who would be two readings
+    of one fact; the settling event answers both questions and carries its own
+    `author`.
+
     An action settles the thread it names only while the log lets it stand. A
     version that rewrites what a decision rested on says `restated`, publishing
     records the floor, and replay drops the action — so the suggestion is pending
@@ -905,7 +913,7 @@ def build_threads(events: list, spk: dict) -> dict:
     thread_for = {}
     for e in events:
         if e["kind"] == "comment":
-            thread = {"root": e, "msgs": [e], "resolved": False}
+            thread = {"root": e, "msgs": [e], "resolved": None}
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
@@ -917,7 +925,7 @@ def build_threads(events: list, spk: dict) -> dict:
         if e["kind"] == "action" and e["detail"].get("resolves"):
             answered = threads.get(e["detail"]["resolves"])
             if answered and not action_retracted(e, floors, spk):
-                answered["resolved"] = True
+                answered["resolved"] = e
             continue
         if e["kind"] == "reply":
             thread = thread_for[e["parent"]]
@@ -925,7 +933,7 @@ def build_threads(events: list, spk: dict) -> dict:
             thread_for[e["id"]] = thread
         elif e["kind"] == "resolve":
             thread = thread_for[e["parent"]]
-            thread["resolved"] = True
+            thread["resolved"] = e
     return threads
 
 
@@ -3205,6 +3213,23 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> None:
     print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
 
 
+def cmd_resolve(page_dir: Path, to: str) -> None:
+    """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
+    `parent` — any message in the thread names it — and `author` the whole
+    difference, which is how the panel can say who closed it."""
+    events = read_events(page_dir)
+    known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+    if to not in known:
+        sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+    event = {
+        "kind": "resolve",
+        "author": "claude",
+        **message_identity(),
+        "parent": to,
+    }
+    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+
+
 def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     """A worker's provisional news: a declared state change folded onto a page
     widget, validated at this door the way the POST door validates an action,
@@ -3384,7 +3409,14 @@ def cmd_transcript(page_dir: Path) -> None:
             head = "> (page-level)"
         if t["root"].get("about") == "layer":
             head += "  — about the layer"
-        print(head + ("  — resolved" if t["resolved"] else ""))
+        closed = t["resolved"]
+        if closed and closed["author"] == "claude":
+            # Named where the reader was not the one who closed it. A transcript is
+            # read away from the page, so the panel's own line saying so is not in it.
+            head += "  — resolved by " + closed.get("agent", "Agent")
+        elif closed:
+            head += "  — resolved"
+        print(head)
         for m in t["msgs"]:
             who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
             body = m["text"] + (f"\n{m['markup']}" if m.get("markup") else "")
@@ -3490,6 +3522,7 @@ def cmd_page_state(page_dir: Path) -> None:
     if published:
         html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
         fold, parser, spk = page_fold(html, events, registry, None)
+    threads = build_threads(events, spk)
     state = {
         "page": str(page_dir),
         "title": "",
@@ -3508,10 +3541,13 @@ def cmd_page_state(page_dir: Path) -> None:
                 "id": t["root"]["id"],
                 "anchor": t["root"].get("anchor"),
                 "text": t["root"]["text"],
-                "resolved": t["resolved"],
+                # Who closed it, or null for a thread still open — the reading a
+                # session picking the page up acts on, since a thread an agent
+                # closed is one the reader may never have answered.
+                "resolved": t["resolved"] and t["resolved"]["author"],
                 "messages": len(t["msgs"]),
             }
-            for t in build_threads(events, spk).values()
+            for t in threads.values()
         ],
         "lag": [],
     }
@@ -3562,7 +3598,9 @@ def cmd_page_state(page_dir: Path) -> None:
         state["lag"] = record_lag_entries(fold, byid, spk, events, registry)
     elif written:
         state["title"] = parse_version(page_dir, written[-1]).title.strip()
-    state["asks"] += thread_asks(events, registry)
+    state["asks"] += thread_asks(
+        events, registry, {rid for rid, t in threads.items() if t["resolved"]}
+    )
     print(json.dumps(state, indent=2, ensure_ascii=False))
 
 
@@ -6338,12 +6376,19 @@ def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) ->
     return asks
 
 
-def thread_asks(events: list, registry: dict) -> list:
+def thread_asks(events: list, registry: dict, settled: set) -> list:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
     Only a widget with an action channel asks in a thread at all, and `until`
-    holds a matching ask open until the reader has posted the verb it names."""
+    holds a matching ask open until the reader has posted the verb it names.
+
+    `settled` is the root ids of the closed threads, whose asks went with them —
+    the question was the thread's, and the panel's own reading takes a closed
+    thread's mark off the page for the same reason. Without it, a question the
+    agent asked and then withdrew by resolving stays on the banner's count for
+    the life of the page, and the walk that steps to it lands in a shut
+    disclosure."""
     asks = []
     thread_of = {}
     for e in events:
@@ -6354,7 +6399,7 @@ def thread_asks(events: list, registry: dict) -> list:
         else:
             continue
         markup = e.get("markup")
-        if not markup:
+        if not markup or thread_of[e["id"]] in settled:
             continue
         frag = parse_structure(markup)
         byid = frag.by_id
@@ -8913,6 +8958,23 @@ def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
 def reply(dir: str, to: str, text: str, markup: str) -> None:
     """Post a threaded reply as the agent (--text or stdin)."""
     cmd_reply(resolve_dir(dir), to, text, markup)
+
+
+@cli.command(short_help="Close a thread as the agent.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--to", required=True, metavar="ID", help="a message in the thread to close"
+)
+def resolve(dir: str, to: str) -> None:
+    """Close a thread as the agent.
+
+    The reader's own ✓ Resolve is the ordinary way a thread closes, so this is for
+    the cases where waiting on them says nothing: they asked for it closed, or the
+    thread is plainly moot — what it was about has left the page, or the work has
+    since answered the question it put. Reply first where the thread asked something —
+    closing is not an answer, and the panel names the agent that did it.
+    """
+    cmd_resolve(resolve_dir(dir), to)
 
 
 @cli.command(short_help="Report a state change onto a page widget, as a worker.")

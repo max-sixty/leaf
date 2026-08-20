@@ -52,4 +52,4 @@ package = false
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 8 --dist loadgroup"
-markers = ["nightly: generated corpus case or online integration; `--run-nightly` runs it"]
+markers = ["nightly: complete browser or site integration; `--run-nightly` runs it"]

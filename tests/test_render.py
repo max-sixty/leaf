@@ -54,14 +54,10 @@ from conftest import interact
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
+pytestmark = pytest.mark.nightly
+
 EXAMPLES = sorted((Path(__file__).parent.parent / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
-EXAMPLE_SWEEP_CASES = [
-    pytest.param(example, marks=pytest.mark.nightly, id=example.stem)
-    if example.stem == "gallery"
-    else pytest.param(example, id=example.stem)
-    for example in EXAMPLES
-]
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -1332,7 +1328,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_example_renders(browser, serve, example):
     """Every shipped example loads clean and lays out, in both color schemes: no
     fail-soft error box, no console error, every visible widget occupies real
@@ -2065,7 +2061,7 @@ def displaced(before, boxes):
     ]
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
     """A press may change the page; it may not move the controls next to the one pressed.
 
@@ -2260,7 +2256,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, example):
     """⌥-click takes the item under the pointer, and that is the whole of what it does.
 
@@ -4108,7 +4104,7 @@ def serious_axe_violations(page):
     return violations, report
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 @pytest.mark.parametrize("width", [1200, 420])
 def test_examples_have_no_serious_wcag_a_or_aa_violations(
@@ -4318,7 +4314,6 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert "scrolls sideways" in broken.stderr
 
 
-@pytest.mark.nightly  # the shim's `--render` resolves a Playwright from the index
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
     """Exercise the copied artifact a host installs, never an import from this checkout."""
     root = Path(__file__).parent.parent
@@ -4605,7 +4600,6 @@ UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
 )
 
 
-@pytest.mark.nightly  # the shim's `--render` resolves a Playwright from the index
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
     """`leaf` is what the skill hands an agent, so the shim's own resolution
     is load-bearing: it finds the script from its location rather than the cwd,
@@ -7483,17 +7477,12 @@ assert SPECIMEN_EXAMPLES, (
     "no shipped example holds a specimen — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
 )
-SPECIMEN_EXAMPLE_CASES = [
-    pytest.param(example.read_text(), marks=pytest.mark.nightly, id=example.stem)
-    if example.stem == "gallery"
-    else pytest.param(example.read_text(), id=example.stem)
-    for example in SPECIMEN_EXAMPLES
-]
 
 
 @pytest.mark.parametrize(
     "html",
-    [pytest.param(SPECIMEN_PAGE, id="fixture"), *SPECIMEN_EXAMPLE_CASES],
+    [SPECIMEN_PAGE, *(p.read_text() for p in SPECIMEN_EXAMPLES)],
+    ids=["fixture", *(p.stem for p in SPECIMEN_EXAMPLES)],
 )
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(html, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
@@ -12476,7 +12465,7 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     """Anchoring has to work on the pages people actually write, not on a fixture built
     to suit it. Every failure here has been a place where what the reader selects and
@@ -18453,7 +18442,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, example):
     """The claim `leaf comment` makes is that a quote read out of the version file
     names the same passage in the browser. Checked on the pages people actually write,
@@ -20300,7 +20289,7 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 # ---------- export: the page as one file ----------
 
 
-@pytest.mark.parametrize("example", EXAMPLE_SWEEP_CASES)
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path):
     """Every shipped example copied to a file and opened from disk, which is the whole
     contract: no server answers, so anything still reaching for one is a hole, and the

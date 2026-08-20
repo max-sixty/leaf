@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import click
+import pytest
 from conftest import interact
 
 ROOT = Path(__file__).parent.parent
@@ -185,6 +186,7 @@ def test_tour_walks_the_interactive_and_live_workflows():
         assert f'status="{status}"' in live
 
 
+@pytest.mark.nightly
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo.gif"
     # Not check=True: with the streams captured, the CalledProcessError it raises

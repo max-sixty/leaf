@@ -32,23 +32,20 @@ hit this. The failure reads as the widget under the pointer refusing the gesture
 and it is neither that nor Playwright's interpolation — plain prose in a bare
 document does it.
 
-## The nightly run carries the generated gallery and online gates
+## The everyday run opens one browser
 
-Seven sweeps walk every authored example every day. The generated gallery embeds all
-nine of those pages, so its parameter carries `pytest.mark.nightly` rather than making
-the everyday run repeat their combined markup. CI and `wt merge` pass `--run-nightly`
-to add it back.
+`test_render.py` and `test_site.py` carry a module-wide `pytest.mark.nightly`. A
+browser change runs its focused test with `--run-nightly`; CI and `wt merge` pass the
+same flag for the complete suite. The everyday run covers the static lint, server,
+vendoring, and product pages, plus one `ship-review` render through the real gate. Its
+worker is the only one that launches Chrome.
 
-The browser is the machine's own and the page it opens is on disk, so the suite
-needs nothing from the network — except where a test drives `bin/leaf` on a
-subcommand that opens Chrome. The launcher supplies Playwright to those
-subcommands from outside the script's lock (`uv run --with playwright`), and an
-unlocked requirement has no recorded resolution to install from, so uv asks pypi
-for one every time its cached answer goes stale. With pypi unreachable, the tests
-that run the shim's own `--render` or `version export` fail on the shim's exit
-status, and a suite of six hundred passing browser tests reports as broken. So
-those tests carry the same marker. A new test that shells out to the launcher's
-browser path wants it too.
+The browser is the machine's own and the page it opens is on disk. Two tests also
+drive `bin/leaf` on a subcommand that opens Chrome. The launcher supplies Playwright
+to those subcommands from outside the script's lock (`uv run --with playwright`), and
+an unlocked requirement has no recorded resolution to install from, so uv asks pypi
+for one every time its cached answer goes stale. Those tests therefore need the
+network available to the nightly run.
 
 To prove a run works offline, give uv an index that isn't there —
 `UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also

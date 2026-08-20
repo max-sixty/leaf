@@ -2,11 +2,10 @@
 
 ## Every widget and idiom in the vocabulary stands here
 
-Everyday runs drive eight sweeps over every authored page in `examples/`, and nightly
-runs add the generated gallery that embeds them all. Each page renders in both
-palettes, holds still under a press, passes axe, gives up every passage to a quote,
-answers an anchor written from its own file, and exports with its scripts gone. So the
-examples are the corpus those sweeps read, and a widget that stands in no authored
+The nightly run drives eight sweeps over every page in `examples/`. Each page renders
+in both palettes, holds still under a press, passes axe, gives up every passage to a
+quote, answers an anchor written from its own file, and exports with its scripts gone.
+So the examples are the corpus those sweeps read, and a widget that stands in no
 example is a widget the sweeps have never seen inside a whole page. That gap is easy
 to miss, because the widget's own tests are green — the missing coverage reads as
 coverage.

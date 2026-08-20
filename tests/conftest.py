@@ -29,15 +29,18 @@ def pytest_addoption(parser):
         "--run-nightly",
         action="store_true",
         default=False,
-        help="Also run generated gallery cases and tests that reach the package index",
+        help="Also run the complete browser and published-site integration suites",
     )
 
 
-def pytest_runtest_setup(item):
-    """Hold back generated repetition and online gates from the everyday run. What
-    earns a test the mark, and what still runs it, is in CLAUDE.md beside this file."""
-    if "nightly" in item.keywords and not item.config.getoption("--run-nightly"):
-        pytest.skip(f"--run-nightly not passed — skipping {item}")
+def pytest_collection_modifyitems(config, items):
+    """Leave browser integration out of the everyday worker queues. What earns the
+    mark, and what still runs it, is in CLAUDE.md beside this file."""
+    if config.getoption("--run-nightly"):
+        return
+    nightly = [item for item in items if "nightly" in item.keywords]
+    items[:] = [item for item in items if "nightly" not in item.keywords]
+    config.hook.pytest_deselected(items=nightly)
 
 
 # A host session states its identity in the environment, under names of its own.
@@ -131,13 +134,15 @@ def browser():
     """The Chrome already on the machine, driven for the tests a static read
     can't answer: what a widget upgrades into, and what the site fits on.
 
-    Session-scoped, which under xdist is one Chrome per worker for the run.
-    Module scope launched a second whenever a worker crossed between the two
-    modules that use this fixture — eleven launches on a two-module slice where
-    eight workers need eight. Launches are all it saves: eight Chromes are alive
-    at the peak either way, each a browser process, a GPU process, and a handful
-    of windows registered with WindowServer, which sat at 130% with five suites
-    running at once.
+    Session-scoped, which under xdist is one Chrome per worker that requests it.
+    The everyday smoke requests one; the complete run can occupy all eight. Module
+    scope launched a second whenever a worker crossed between the two integration
+    modules — eleven launches on a two-module slice where eight workers need eight.
+    Launches are all session scope saves: each Chrome is a browser process, a GPU
+    process, and a handful of windows registered with WindowServer. Five complete
+    suites registered 40 Chromes and drove WindowServer to 130%. The complete gate
+    keeps eight workers for its wall time; the everyday gate avoids that peak by
+    running only the smoke.
 
     The scope does not reach isolation, which is per context: `new_page` opens a
     fresh context per call, and a fresh context has empty `localStorage` and

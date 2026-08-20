@@ -9264,6 +9264,36 @@ def test_a_opens_a_board_of_what_the_page_is_waiting_for(browser, serve):
     page.close()
 
 
+def test_a_board_the_reader_left_standing_comes_back_standing(browser, serve):
+    """Reloading is not resetting: a board someone stood up to watch stays stood, the
+    rule the comment panel already keeps. Which makes the reload the one moment a
+    board is put up by something other than a press, and that is where it broke — the
+    restore ran while the module was still evaluating and filled the board from a
+    reading of the page's open asks declared further down the file, so the reader who
+    had left it open got a ReferenceError instead of a page.
+
+    Nothing static could have caught it and neither could the render gate, which
+    presses no keys and so never has a board to restore. It took a reader with the
+    board open pressing reload, which is what this now is."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.keyboard.press("a")
+    board = page.locator(".lf-asks-panel")
+    expect(board).to_be_visible()
+    expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))
+
+    page.reload(wait_until="networkidle")
+    page.wait_for_function(BOTH_STAMPS)
+    expect(board).to_be_visible()
+    expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))
+    # And the room it takes comes back with it, or the board returns lying over the
+    # column it is meant to stand beside.
+    page.wait_for_function(
+        """() => getComputedStyle(document.body).marginLeft !== '0px'"""
+    )
+    assert errors == [], errors
+    page.close()
+
+
 def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     """Pressing a row does what `n` does — one function does both, so the board can
     never drift into a second way of arriving at an ask. It scrolls there, rings the

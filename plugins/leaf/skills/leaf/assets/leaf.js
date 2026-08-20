@@ -2576,8 +2576,12 @@ function edgeIs(key, panel, btn, paint) {
   edges.set(key, { panel, btn, paint });
   btn.onclick = () => showEdge(openEdge(key) ? null : key);
   btn.setAttribute("aria-expanded", String(openEdge(key)));
+  // A board the reader left standing comes back standing — but it is not filled here.
+  // This runs while the module is still evaluating, and a board's paint reads the page's
+  // open asks, whose own reading is declared far below this line: calling it now throws a
+  // ReferenceError in front of the reader, which is how this was found. The startup pass
+  // fills it (syncAsks, with the rest of the restore), by which point everything exists.
   if (openEdge(key)) {
-    paint?.();
     panel.classList.add("open");
     document.body.dataset.lfEdge = key;
   }

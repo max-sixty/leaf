@@ -13182,6 +13182,473 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.close()
 
 
+UNDO_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>undo</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="h">Undo</h1>
+<lf-draft id="note-cli"><pre>
+First line of the note.
+
+Second paragraph of the note.
+</pre></lf-draft>
+<lf-options id="picks" choose>
+  <lf-option id="opt-a">Keep the mounts</lf-option>
+  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
+</lf-options>
+</main>
+</body>
+</html>
+"""
+
+
+def actions(page_dir):
+    return [e for e in interact.read_events(page_dir) if e["kind"] == "action"]
+
+
+def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
+    """The gesture with no reverse in front of the reader: a resolved thread folds
+    into the disclosure at the foot of the list, so putting it back by hand means
+    opening that, finding it, and pressing Reopen. What `z` writes is a withdrawal
+    naming the resolve — not a second settlement, which would read as the reader
+    deciding to reopen a thread they had only meant not to close."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    comments = [
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
+    comment = comments[0]
+    # The reader has done nothing, so there is nothing to take back — a thread the
+    # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "claude", "agent": "A", "parent": comments[1]},
+    )
+    told(page)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
+    ).to_have_count(1)
+    log = interact.read_events(serve.page_dir)
+    assert log[-1] == {
+        **log[-1],
+        "kind": "undo",
+        "author": "user",
+        "undoes": next(
+            e["id"] for e in log if e["kind"] == "resolve" and e["author"] == "user"
+        ),
+    }
+    assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
+    # The undo is not itself a gesture to take back, so the offer goes with it.
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    page.close()
+
+
+def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
+    """A withdrawal leaves the log holding one gesture and one word taking it back,
+    and the page derives the rest. What it derives here is the placement this
+    version's markup arrived showing, read before replay first touched the page —
+    column *and* index, which is why a position record names the detail field
+    carrying the order. Compared, a column is the whole comparison; stated, it puts
+    a card back on the right list in the wrong place.
+
+    The card is told where it goes rather than the board being rebuilt around it,
+    because that state can be stated: the reader watches it travel back, and the
+    grip they were standing on is still under their hands."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    grip = page.locator("#card-baffle .lf-grip")
+    grip.focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    # Second of the two, as the version wrote it — not merely back on the list.
+    assert page.eval_on_selector_all(
+        "#col-todo > lf-card", "e => e.map(c => c.id)"
+    ) == [
+        "card-heater",
+        "card-baffle",
+    ]
+    expect(grip).to_be_focused()
+    log = interact.read_events(serve.page_dir)
+    (moved,) = actions(serve.page_dir)
+    assert moved["detail"] == {"card": "card-baffle", "to": "col-done", "index": 0}
+    assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
+        ("undo", moved["id"])
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
+    """Where a unit has no earlier action, the state a move is taken back to is what
+    this version's markup arrived showing — and a version written around the
+    decision shows the decision. So on v2 the authored placement of a card moved on
+    v1 is where the move put it, and a press offered there would paint nothing at
+    all. The conversation is not scoped this way and must not be: a thread outlives
+    the version it was opened on, which is why resolve carries no version."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.locator("#card-baffle .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    d = serve.page_dir
+    (d / "versions" / "v2.html").write_text(
+        BOARD_PAGE.replace(
+            '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n', ""
+        ).replace(
+            '<lf-column id="col-done" label="Done">',
+            '<lf-column id="col-done" label="Done">'
+            '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
+        )
+    )
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "carried"}
+    )
+    page.wait_for_url("**/v2.html*")
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    told(page)
+    assert len(actions(d)) == 1
+    assert errors == []
+    page.close()
+
+
+def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
+    """The walk finds the last thing the reader did by reading the log, so while the
+    page holds a gesture the log has not taken it would name the gesture *before*
+    that one — and take the wrong thing back, with the card they had just moved
+    left where it was. A machine quick enough closes that window before the next
+    press can land in it, so the send is stopped in the wire and the press made
+    while it is still there."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    move = ["Enter", "ArrowRight", "Enter"]
+    page.locator("#card-heater .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    held = []
+
+    def hold(route):
+        # The first send only: what follows has to reach the server, or the press
+        # this test is about would be held too and prove nothing.
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/event", hold)
+    page.locator("#card-baffle .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    _until(page, lambda t: t.sends >= 2, "sent the move it was asked for")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    assert _traffic(page).sends == 2, (
+        "the press took back a gesture read off a log missing the one before it"
+    )
+
+    held[0].continue_()
+    round_trip(page)
+    page.keyboard.press("z")
+    round_trip(page)
+    # The newest move, which is the one the reader would have meant — and the older
+    # one still stands, where taking back the wrong gesture would have reversed it.
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
+    """The walk steps past what it has already taken and reaches the gesture before
+    it — the edit here, whose authored text comes back with its paragraphs, where
+    the facet a comparison reads is collapsed. That is what withdrawing buys over
+    stating a counter-gesture: a second press would otherwise land on a statement
+    the first press had just made and put the reader back where they started."""
+    page, errors = open_page(browser, serve(UNDO_PAGE))
+    body = page.locator("lf-draft .lf-draft-body")
+    authored = body.inner_text()
+    assert "\n\n" in authored
+
+    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator("lf-draft textarea").fill("Rewritten.")
+    page.keyboard.press("Meta+Enter")
+    round_trip(page)
+    expect(body).to_have_text("Rewritten.")
+    page.locator("#opt-a").click()
+    round_trip(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    page.keyboard.press("z")
+    round_trip(page)
+    assert body.inner_text() == authored
+    # Two gestures and two words taking them back, newest first: nothing in the log
+    # claims the reader chose opt-b or typed the authored draft, because they did
+    # neither — the page derived both from what still stands.
+    log = interact.read_events(serve.page_dir)
+    edit, choose = actions(serve.page_dir)
+    assert [(e["action"], e["detail"]) for e in (edit, choose)] == [
+        ("edit", {"text": "Rewritten."}),
+        ("choose", {"options": ["opt-a"]}),
+    ]
+    assert [e["undoes"] for e in log if e["kind"] == "undo"] == [
+        choose["id"],
+        edit["id"],
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
+    """A suggestion's accept records nothing and retires the losing half of the
+    page on its way through, so there is no value to state it back to: undecided
+    is not a value any verb carries. Withdrawing needs none — the fold drops the
+    accept, and the widget goes back to the markup this version wrote, with what
+    survives replayed onto it. That is the whole of the rebuild's reason, and why
+    it is chosen by a declaration (no record) rather than by the tag's name.
+
+    The controls come back with it, which is the half a subtree swap could lose:
+    the row hangs in the page margin as the column's child, outside the subtree
+    that was replaced, and it is the widget's own to take away and hang again."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    old = page.locator("#sug-refill lf-old")
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    expect(old).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+
+    accept.click()
+    round_trip(page)
+    expect(old).to_be_hidden()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (2)")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    # Pending again, in every reading of it: the retired half is back on the page,
+    # the control offers the decision rather than recording it, and the banner
+    # counts the question among the ones still waiting on the reader.
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_text(
+        "✓ Accept", use_inner_text=True
+    )
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
+        "the rebuilt change hung a second row beside the one it replaced"
+    )
+    (accepted,) = actions(serve.page_dir)
+    assert accepted["action"] == "accept"
+    assert [
+        e["undoes"] for e in interact.read_events(serve.page_dir) if e["kind"] == "undo"
+    ] == [accepted["id"]]
+    assert errors == []
+    page.close()
+
+
+def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
+    """Two things the rebuild owes beyond the state, and both were missing because a
+    rebuild is the one restore that replaces nodes rather than moving them.
+
+    The marks are painted ranges over text nodes, so the ones on a retired sentence
+    were pointing into a subtree the document no longer had: the sentence came back
+    and the comment on it did not, which reads as a thread detached from a passage
+    that is plainly there. Replay repaints them when it has moved the page's text,
+    and a restore is replay moving it.
+
+    The place is the reader's own. They pressed the key standing on the control
+    that decided the change, and that control went with the subtree — so the press
+    put them on <body> with nothing saying so, which is the silence the ladder's
+    rung exists to avoid. A widget told its state keeps its focus by itself, so only
+    this route ever lost it."""
+    url = serve(SUGGESTION_PAGE)
+    page, errors = open_page(browser, url)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "this one matters",
+            "anchor": {"quote": "Refill every feeder each morning."},
+        },
+    )
+    # Parenthesised, because `??` binds looser than a comparison: written
+    # `size ?? 0 === 0` the predicate is `size ?? true`, which is 0 — falsy — exactly
+    # when the assertion is meant to hold, and the wait runs its timeout out on a
+    # page that is doing the right thing.
+    marks = "() => (CSS.highlights.get('lf-mark')?.size ?? 0)"
+    page.wait_for_function(f"{marks} > 0")
+
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    accept.click()
+    round_trip(page)
+    # The sentence left the page with the decision, so the mark goes with it.
+    page.wait_for_function(f"{marks} === 0")
+    expect(accept).to_be_focused()
+
+    page.keyboard.press("z")
+    round_trip(page)
+    page.wait_for_function(f"{marks} === 1")
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_rebuild_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
+    """The place is handed back only to the reader who was standing in what was
+    replaced. Pressing the key from the page is not a request to be taken to the
+    change it takes back, and a focus move nobody asked for is the page moving
+    under the reader in the one way no geometry reports."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    page.evaluate("() => document.body.focus()")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert errors == []
+    page.close()
+
+
+def test_a_second_tab_takes_the_decision_back_too(browser, serve):
+    """The rebuild happens in every tab off the log, not in the one that pressed off
+    the gesture — so a tab that never saw the press arrives at the same page. That
+    is the difference between taking a decision back and painting over it: this tab
+    applied the accept through replay, and what puts it right is the withdrawal
+    arriving, not anything the other tab did to its own DOM.
+
+    It is also where the reader is left free to decide again, the other way: the
+    accept is withdrawn rather than reversed, so a reject after it is an ordinary
+    first decision and both tabs follow it."""
+    url = serve(SUGGESTION_PAGE)
+    one, errors_one = open_page(browser, url)
+    two, errors_two = open_page(browser, url)
+    marks = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
+        [name, [...(CSS.highlights.get(name) ?? [])]
+            .filter(r => document.getElementById(id).contains(r.startContainer))
+            .length]))"""
+    pending = one.evaluate(marks, "sug-refill")
+    assert pending["lf-sug-del"] and pending["lf-sug-ins"]
+
+    one.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(one)
+    expect(two.locator("#sug-refill lf-old")).to_be_hidden()
+
+    one.keyboard.press("z")
+    round_trip(one)
+    expect(two.locator("#sug-refill lf-old")).to_be_visible()
+    expect(two.locator(".lf-asks")).to_have_text("Asks (3)")
+    # Everything the change had when it was pending, including what the theme paints
+    # from ranges the module registers — a rebuild that dropped those would leave a
+    # proposal on the page with nothing marking what it changes.
+    assert one.evaluate(marks, "sug-refill") == pending
+    assert (
+        one.evaluate("() => document.querySelectorAll('[data-lf-pending]').length") == 0
+    )
+
+    two.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    round_trip(two)
+    expect(one.locator("#sug-refill lf-new")).to_be_hidden()
+    assert [
+        e.get("action", e["kind"])
+        for e in interact.read_events(serve.page_dir)
+        if e["kind"] in ("action", "undo")
+    ] == ["accept", "undo", "reject"]
+    assert errors_one == [] and errors_two == []
+    one.close()
+    two.close()
+
+
+NESTED_SUGGESTION = SUGGESTION_PAGE.replace(
+    "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
+    "<lf-new>Switch the north feeder to thistle in autumn."
+    '<lf-options id="blend" choose>'
+    '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
+    '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
+    "</lf-options></lf-new>",
+)
+
+
+def test_a_rebuild_keeps_what_the_reader_did_inside_the_change(browser, serve):
+    """A change may propose markup that holds a widget — the family's own answer to
+    a widget-state change, there being no separate patch shape — and a pick the
+    reader made inside it is theirs, not part of the decision they took back.
+
+    The rebuild replaces the subtree those actions were applied to, so what this
+    load had already applied inside it has to land again on the new nodes. Counting
+    only the rebuilt widget's own events leaves the nested pick marked as applied to
+    a node the page no longer has, and it comes back authored with the reader's
+    answer silently gone."""
+    page, errors = open_page(browser, serve(NESTED_SUGGESTION))
+    page.locator("#blend-mixed").click()
+    round_trip(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+
+    page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    round_trip(page)
+    page.keyboard.press("z")
+    round_trip(page)
+
+    expect(page.locator("#sug-thistle lf-old, #sug-thistle lf-new")).to_have_count(1)
+    expect(page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")).to_have_text(
+        "✓ Accept", use_inner_text=True
+    )
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+    assert errors == []
+    page.close()
+
+
+def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
+    """The rebuild is how the page in front of the reader catches up; it is not
+    where the outcome lives. A page loaded after the fact never applies the
+    withdrawn accept at all — replay skips it exactly as it skips one a version
+    restated — so the same page comes back without a rebuild having run on it."""
+    url = serve(SUGGESTION_PAGE)
+    page, errors = open_page(browser, url)
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    page.keyboard.press("z")
+    round_trip(page)
+    page.close()
+
+    again, errors = open_page(browser, url)
+    expect(again.locator("#sug-refill lf-old")).to_be_visible()
+    expect(again.locator(".lf-asks")).to_have_text("Asks (3)")
+    assert errors == []
+    again.close()
+
+
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     """The mark is the only thing naming the passage the box is about, so a box covering
     all of it is a box about nothing. That is not hypothetical: a restored draft reappears

@@ -788,7 +788,7 @@ export const pageScroller = document.body;
 // in flight — navigating away could lose the unrecorded edit — and it lives here
 // because every widget's action passes through this door.
 const sending = new Map(); // widget id -> sends in flight for it
-export async function sendAction(el, action, detail, attempt = null) {
+export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
   // mention must not become a decision Claude reads. Failing closed costs a
@@ -1425,6 +1425,7 @@ async function upgradeWidgets() {
   )
     throw new Error("leaf: registry lacks $events, $languages or $tones");
   rememberPassageParts();
+  rememberAuthoredMarkup();
   markWide(document.body);
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
@@ -1436,17 +1437,26 @@ async function upgradeWidgets() {
       ),
     ),
   );
-  renderSaid(document.body);
-  renderQuiet(document.body);
-  // The page's own <pre><code> blocks, alongside the widgets and for the same reason: the
-  // tokenizer is vendored, so a page has it exactly when it has a widget layer at all.
-  settle(highlightBlocks(document.body));
+  settle(dress(document.body));
   // Importing defined the elements and ran their connectedCallbacks; async ones
   // registered their work via settle(). Wait it out so geometry is final.
   await Promise.allSettled(settling);
   // After the wait, because the box a widget scrolls is a box its module built: run this
   // with the rest of the upgrade and a diff's pre and a code block's are half there.
   reachScrollers(document.body);
+}
+
+// What an upgraded subtree owes beyond its module's own work: the words a widget says
+// through an attribute rendered as real text, the facts it paints spoken, and its
+// code — and the page's own <pre><code> blocks, alongside the widgets and for the same
+// reason: the tokenizer is vendored, so a page has it exactly when it has a widget
+// layer at all. Written once because it happens twice, over the page at the upgrade and
+// over a widget rebuilt from the version's markup (rebuild), and a near-copy of it
+// would go stale the day the vocabulary grows a fourth pass.
+function dress(root) {
+  renderSaid(root);
+  renderQuiet(root);
+  return highlightBlocks(root);
 }
 
 // Which widgets may stand wider than the column, from what they declare. Prose is set to
@@ -3870,7 +3880,12 @@ function buildThreads() {
   // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
   // never the conversation".
   const floors = retractionFloors(Infinity);
+  const withdrawn = takenBack();
   for (const e of events) {
+    // A gesture the reader took back settles nothing, whichever way it settled: the
+    // log holds it and no reading of the log stands on it. The same sentence
+    // interact.py's build_threads reads, because it is the same reading.
+    if (withdrawn.has(e.id)) continue;
     if (e.kind === "comment") {
       // `resolved` is the event that settled the thread, or null. Either side can
       // close one, so a flag beside a second field naming who would be two readings
@@ -3898,7 +3913,8 @@ function buildThreads() {
       // Only while the action still stands. A version that rewrote what the decision
       // rested on retracts it (`restated`), and replay drops it — so a thread left
       // resolved here would be the one reading the log said nothing about, exactly the
-      // second store this design has none of.
+      // second store this design has none of. The reader taking the answer back is the
+      // other way one stops standing, and the skip above is where that is read.
       if (answered && !retractedIds(e, floors, elementById(e.widget)).length)
         answered.resolved = e;
       continue;
@@ -8026,6 +8042,24 @@ const PAGE = {
         for (const { btn } of standingAnswers()) btn.click();
       },
     },
+    {
+      // The last thing the reader did to this page, put back. Its own key rather
+      // than the platform's ⌘Z, which belongs to the box a reader is typing in and
+      // is taken by the browser everywhere else: this is a page-level press like
+      // every other letter here, and the typing scope keeps it off a composer's
+      // words by claiming its letters. The word is "undo" and never the verb it is
+      // about to state — `move` is one widget's word, and a line that said it would
+      // be naming a member where the mechanism is what holds.
+      keys: ["z"],
+      does: "Take back the last change you made here",
+      line: "undo",
+      // Dead while the page holds a gesture the log has not taken, this one's own
+      // send included: the walk would name the gesture *before* the one they just
+      // made and take that back instead. The line drops the chip for as long as
+      // that is true rather than promising a press that would undo the wrong thing.
+      when: () => !unrecordedGesture() && Boolean(undoable()),
+      run: undoLast,
+    },
     // Above the page's furniture, because it is the way out of wherever the reader is
     // standing and they are standing somewhere far more often than a panel is open: it
     // ranks with the presses that act on where they are, not with the versions and the
@@ -8911,6 +8945,21 @@ function askStep(asks, dir) {
   });
   return dir > 0 ? (reach[0] ?? asks[0]) : (reach.at(-1) ?? asks.at(-1));
 }
+// Where the reader stands when they are put on an ask: the control that works it —
+// one inside the ask, or one the widget hoisted into the margin and pointed back at
+// it — or the ask itself, lent a tab stop where it holds nothing to work. Named
+// because two presses put a reader on an ask and one of them is not a walk: a widget
+// rebuilt under the reader (rebuild) has to hand back the place they were standing,
+// and a second answer to "where is that" would drift from this one the first time the
+// control rule changed.
+function standOn(el) {
+  const control =
+    el.querySelector(ASK_CONTROL) ??
+    document.querySelector(`[${ASK_ROW}="${el.id}"] ${ASK_CONTROL}`);
+  if (!control) lend(el);
+  (control ?? el).focus({ preventScroll: true });
+}
+
 // Standing on one ask: what n and p do once they have decided which, what a press on a
 // board row does having been told outright, and where `g a` lands a digit. One function
 // because it is one act — a second would be a second answer to "how do I put the reader on
@@ -8925,14 +8974,10 @@ function goToAsk(next, asks) {
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelOpen) setPanel(true);
   reveal(next); // a settled group or an inactive tab has no geometry until it opens
-  const control =
-    next.querySelector(ASK_CONTROL) ??
-    document.querySelector(`[${ASK_ROW}="${next.id}"] ${ASK_CONTROL}`);
-  if (!control) lend(next); // nothing to work: the ask itself takes the focus
   landed = next;
   // The ring follows: the focus move is what paints it, so the walk says where to stand
   // and markHere says where the reader is standing, rather than both saying the second.
-  (control ?? next).focus({ preventScroll: true });
+  standOn(next);
   // Each ask centres in the region it stands in. The banner clearance
   // scrollToElement answers for is the document scroller's alone, and a thread's
   // ask is in the panel's own list, which has none — so that one is the platform's
@@ -9065,7 +9110,7 @@ function applyDiff(doc, baseVersion) {
   // the block keys above own them.
   const baseFold = stateFold(baseVersion);
   const baseReports = reportFold(baseVersion);
-  for (const [tag, spec] of stateSpecs()) {
+  for (const { tag, spec } of stateSpecs()) {
     if (!spec.record || spec.record.kind === "body") continue;
     for (const widget of document.body.querySelectorAll(tag)) {
       if (inChrome(widget) || quoted(widget)) continue;
@@ -9498,16 +9543,26 @@ function renderVersions(state) {
   showNews(latestChip, behind);
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
 }
-// The user is mid-something navigation would destroy, asked of the layer's own
-// signals rather than of any widget by name: a drag wears .lf-dragging (the module
-// sets it), a send in flight is sendAction's own record, and a composition surface is a
-// focused textarea — any holding words, or a widget-built one (data-lf-offer) even
-// empty, because deleting everything is still an edit.
+// A gesture of the reader's that the log has not taken yet, asked of the layer's own
+// signals rather than of any widget by name: a drag wears .lf-dragging (the module sets
+// it), a send in flight is sendAction's own record, and an undo in flight is its own —
+// it belongs to no widget, so `sending` cannot keep it. Two questions want the answer,
+// which is why it has a name of its own: navigating away would destroy such a gesture,
+// and the undo walk reads the log to find the last thing the reader did, so it cannot
+// answer while the page is holding one. Its own press included — a second `z` landing
+// inside the first one's trip would read the log from before it and withdraw the same
+// gesture again, which the door refuses and the reader hears as a page that couldn't
+// reach its server.
+const unrecordedGesture = () =>
+  undoing || sending.size > 0 || Boolean(document.querySelector(".lf-dragging"));
+// The user is mid-something navigation would destroy: the above, and the words they
+// have typed — a composition surface is a focused textarea, any holding words, or a
+// widget-built one (data-lf-offer) even empty, because deleting everything is still an
+// edit.
 const midComposition = () =>
   composerOpen ||
   Boolean(fabAnchor) ||
-  sending.size > 0 ||
-  Boolean(document.querySelector(".lf-dragging")) ||
+  unrecordedGesture() ||
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
       document.activeElement.hasAttribute("data-lf-offer")));
@@ -9648,11 +9703,39 @@ function applyActions() {
   // Never mutate the page under a live gesture — a replayed foreign action could
   // move the nodes a drag preview is holding. Retry next poll.
   if (document.querySelector(".lf-dragging")) return;
-  const takenBack = retractionFloors(VNUM);
+  const floors = retractionFloors(VNUM);
+  const withdrawn = takenBack();
   const answered = answeredReports(VNUM);
   const deferredWidgets = new Set();
   let applied = false;
   const started = [];
+  // Withdrawals this load has not answered for yet. A gesture the page is showing and
+  // the log no longer holds leaves the two disagreeing, and putting that right is the
+  // whole of what an undo does on screen — done here rather than at the press, so the
+  // tab that pressed and the tab that merely heard arrive at one page by one route.
+  //
+  // Only a withdrawal that arrives after the log has been rendered has anything to put
+  // right: one already in the log at load skipped the gesture it names, so the page was
+  // built without it. Asking instead whether *replay* applied that gesture is the
+  // question one tab always answers wrongly — the tab that made it painted it itself
+  // and replay never touched it (sending), so the tab that pressed `z` would be the one
+  // tab the press did nothing in.
+  for (const e of events) {
+    if (e.kind !== "undo" || appliedActions.has(e.seq)) continue;
+    appliedActions.add(e.seq);
+    const target = logRendered && eventById(e.undoes);
+    if (!target || target.kind !== "action") continue;
+    const put = restoreFor(target);
+    if (!put) continue;
+    if (put.state) put.el.applyAction(put.state.action, put.state.detail);
+    else rebuild(put.el);
+    // Counted as replay having moved the page, because it has: a restore puts words
+    // back that a decision had taken off it, and the marks belong on them again. The
+    // rebuild is the sharp case — its nodes are new, so a mark painted over the old
+    // ones is a range on a subtree the document no longer has, and a comment on the
+    // sentence the reader just took back came back unmarked and read as detached.
+    applied = true;
+  }
   // Actions first, then reports, each pass bracketed by its own snapshot so what
   // replay wrote is attributed to the channel that wrote it: version check
   // --render reads the reviewer channel's record (replayWrote) as "state the log
@@ -9702,6 +9785,16 @@ function applyActions() {
         if (document.body.dataset.lfUpgraded === "1") appliedActions.add(e.seq);
         continue;
       }
+      // Withdrawn: the reader took this gesture back, so the log no longer holds it and
+      // replay does not put it on the page. Ahead of the chrome branch below rather
+      // than inside it, because the fold drops a withdrawn action wherever it stands
+      // and a reading of the log that replayed one the fold had dropped would be the
+      // two disagreeing about what the page says. What this load may have painted
+      // before the withdrawal arrived is the pass above's to put right.
+      if (e.kind === "action" && withdrawn.has(e.id)) {
+        appliedActions.add(e.seq);
+        continue;
+      }
       if (e.kind === "report") {
         // A report paints the versions published before it and ends at the one
         // whose note answered it: a pinned older version predates the news, and
@@ -9720,7 +9813,7 @@ function applyActions() {
           appliedActions.add(e.seq);
           continue;
         }
-        const gone = retractedIds(e, takenBack, el);
+        const gone = retractedIds(e, floors, el);
         if (gone.length) {
           // Say so on the page: a decision undone looks exactly like one never
           // made, and the user is owed the difference.
@@ -9802,6 +9895,7 @@ function applyActions() {
   // retired), and the stamp says so — it is what version check --render awaits
   // before reading the replay's record, so the gate never reads a page mid-replay.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.applied, String(appliedActions.size));
+  logRendered = true;
 }
 
 // ---------- decided, awaiting the honoring version ----------
@@ -9816,11 +9910,17 @@ const authoredFacets = new Map(); // unit id -> the facet this version arrived s
 
 // Both channels: a report's record form is a facet exactly as an action's is,
 // so the authored-facet capture and the diff's state half serve the two alike.
+// Named members rather than a tuple, because this list grew one: `verb` arrived for
+// the authored capture, and every consumer destructuring by position bound the verb
+// where it wanted the spec. Nothing threw — the diff's state half simply read
+// `undefined` for every record and marked nothing, which is the silence the render
+// gate caught and no reader would have.
 function stateSpecs() {
   const specs = [];
   for (const [tag, entry] of widgetEntries())
     for (const key of ["x-state", "x-report"])
-      for (const spec of Object.values(entry[key] ?? {})) specs.push([tag, spec]);
+      for (const [verb, spec] of Object.entries(entry[key] ?? {}))
+        specs.push({ tag, verb, spec });
   return specs;
 }
 
@@ -9862,21 +9962,99 @@ function foldedFacet(e, record) {
   return value ?? null;
 }
 
+// The same capture read the other way: the detail that *states* each unit's
+// authored placement, keyed by the verb that would state it. The facet above is
+// what a comparison needs, and it is deliberately lossy — a position collapses to
+// its column, a body to its collapsed words — because the log's own detail is
+// compared collapsed. Taking a gesture back needs a statement rather than a
+// comparison, and the two are different questions about one record: a card put
+// back on the right list in the wrong place is the facet's answer, correct and
+// useless.
+const authoredDetails = new Map(); // "<verb> <unit id>" -> the detail stating it
+const authoredKey = (verb, unit) => `${verb} ${unit}`;
+
+// And the markup itself, for the widgets whose state cannot be stated at all: one whose
+// x-state declares a verb with no record — a settlement, where "undecided" is a value no
+// verb carries. Kept only for those, because a clone is the whole subtree and every
+// other widget can be told its state in a sentence.
+//
+// Taken beside the passage fences and for the same reason, which is that both are
+// readings of what the *version* wrote: the moment after the registry lands and before
+// the modules import is the only one at which the page holds the author's markup and
+// nothing else. A clone taken a moment later is a clone of the upgraded page — the
+// injected controls, the marks, and `once`'s own stamp with them — so putting it back
+// would put back a widget that had already been upgraded and would never upgrade again.
+const authoredMarkup = new Map(); // widget id -> the markup this version wrote
+function rememberAuthoredMarkup() {
+  for (const { tag, spec } of stateSpecs()) {
+    if (spec.record) continue;
+    for (const widget of document.querySelectorAll(tag))
+      if (widget.id && !inChrome(widget))
+        authoredMarkup.set(widget.id, widget.cloneNode(true));
+  }
+}
+
+// Whether this load has rendered the log onto the page yet, which is the whole of what
+// separates the log a page is built from and the news that arrives afterwards.
+let logRendered = false;
+
 function captureAuthoredFacets() {
-  for (const [tag, spec] of stateSpecs()) {
+  for (const { tag, verb, spec } of stateSpecs()) {
     if (!spec.record) continue;
     for (const widget of document.querySelectorAll(tag)) {
       if (spec.unit === "widget" || !spec.unit) {
-        if (widget.id) authoredFacets.set(widget.id, domFacet(widget, spec.record));
+        if (widget.id) rememberAuthored(widget, widget.id, verb, spec);
       } else
         // Per-part units, at the record form's own key: a position facet is
         // carried by the container's direct children (a column's cards), and
         // an id'd element nested inside one — a draft in a card — is not a
         // unit, just a passenger whose `closest()` would echo its carrier's.
         for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
-          authoredFacets.set(part.id, domFacet(part, spec.record));
+          rememberAuthored(part, part.id, verb, spec);
     }
   }
+}
+
+function rememberAuthored(el, unit, verb, spec) {
+  authoredFacets.set(unit, domFacet(el, spec.record));
+  const detail = authoredDetail(el, unit, spec);
+  if (detail) authoredDetails.set(authoredKey(verb, unit), detail);
+}
+
+// Built from the record form alone, so no widget is named here and a twelfth one is
+// covered the day it declares. Null where this version's markup states no placement
+// at all — an unset scalar, a part standing outside the container its record names —
+// and a unit with no authored statement simply has no first gesture to take back.
+function authoredDetail(el, unit, spec) {
+  const record = spec.record;
+  const detail = spec.unit && spec.unit !== "widget" ? { [spec.unit]: unit } : {};
+  if (record.kind === "attribute")
+    detail[record.value] = [...el.querySelectorAll(`[${record.attr}]`)]
+      .map((o) => o.id)
+      .filter(Boolean)
+      .sort();
+  else if (record.kind === "value") {
+    const value = el.getAttribute(record.attr);
+    if (value === null) return null;
+    detail[record.value] = value;
+  } else if (record.kind === "body")
+    // Uncollapsed, where domFacet collapses: what is being reproduced is the
+    // words, and a draft's paragraphs are the whole of the difference. The same
+    // walk either way, so the two readings cannot disagree about *which* words
+    // are the page's — only about the whitespace between them.
+    detail[record.value] = textNodesUnder(el)
+      .map((seg) => seg.node.data.slice(seg.start, seg.end))
+      .join("");
+  else {
+    const within = el.closest(record.within);
+    if (!within?.id) return null;
+    detail[record.value] = within.id;
+    // Among the container's id'd children, which is the same list the capture
+    // above walks — and the same one a board counts, a column admitting nothing
+    // but cards.
+    detail[record.order] = [...within.children].filter((c) => c.id).indexOf(el);
+  }
+  return detail;
 }
 
 // The user's standing state as of `upto`: the last surviving action per
@@ -9907,11 +10085,42 @@ function* foldable(kind, channel, upto, live) {
   }
 }
 
+// Two ways an action stops standing, and the fold owes both the same answer: a version
+// that rewrote what it rested on (`restated`), and the reader taking it back (`undo`).
+// Neither leaves a mark on the action itself — the log is append-only — so both are
+// read from what came after it.
 function stateFold(upto) {
   const floors = retractionFloors(upto);
+  const withdrawn = takenBack();
   return new Map(
-    foldable("action", "x-state", upto, (e, el) => !retractedIds(e, floors, el).length),
+    foldable(
+      "action",
+      "x-state",
+      upto,
+      (e, el) => !withdrawn.has(e.id) && !retractedIds(e, floors, el).length,
+    ),
   );
+}
+
+// What one unit's state was just before `seq`, asked of the same walk the fold takes:
+// every applyAction is absolute, so the last surviving action on a unit *is* that
+// unit's state at any point in the log, and there is no replay to simulate. Verbs that
+// record are the whole of what it considers, because a verb recording nothing says
+// nothing about the unit's markup — a settlement standing between two states is not
+// one of them.
+function priorState(unit, seq) {
+  const floors = retractionFloors(VNUM);
+  const withdrawn = takenBack();
+  let found = null;
+  for (const [at, entry] of foldable(
+    "action",
+    "x-state",
+    VNUM,
+    (e, el) =>
+      e.seq < seq && !withdrawn.has(e.id) && !retractedIds(e, floors, el).length,
+  ))
+    if (at === unit && entry.spec.record) found = entry;
+  return found;
 }
 
 // The agent channel's fold: the last standing report per declared unit as of
@@ -9963,6 +10172,149 @@ export const standingState = () =>
         return el ? domFacet(el, spec.record) : null;
       },
     }));
+
+// ---------- taking a gesture back ----------
+// Undo withdraws; it never deletes. The log is append-only and the page is a fold over
+// it, so `z` posts one event naming the gesture it takes back, and every fold and the
+// thread reading drop that gesture. The page is then the version plus what still
+// stands — the same sentence a reload has always read, and the same one `restated`
+// already writes from the author's side. Nothing states a counter-gesture into the
+// log: a card put back where it came from would read as a decision to move it there,
+// and "undecided" is not a value any verb can carry, so a page whose reader takes back
+// an accept could never have been stated at all.
+//
+// What the reader *sees* is derived from that rather than restated, and by the
+// cheapest faithful means. Where the log still leaves the unit a state that can be
+// stated — a prior action's detail, or the placement this version's markup arrived
+// showing — the widget is told it, so the card travels back under the reader's eye and
+// keeps its focus. Where the verb records nothing, there is no such state, so the
+// widget is rebuilt from the version's own markup and whatever survives is replayed
+// onto it. Both routes are chosen by a declaration and neither knows a widget's name.
+const takenBack = () => new Set(events.filter((e) => e.undoes).map((e) => e.undoes));
+const eventById = (id) => events.find((e) => e.id === id);
+
+// How this action would be taken off the page, or null where it cannot be: the widget
+// has gone, its tag no longer declares the verb, or no module is there to answer for
+// it. `state` is what to tell the widget; its absence means the rebuild, which is the
+// answer for a verb that records nothing — a settlement rather than a state.
+function restoreFor(e) {
+  // On the version it was made against, which is the window replay already reads the
+  // log in. The state being restored is this version's own, and a later version is
+  // free to have been written around the decision — so on v2 the authored placement of
+  // a card moved on v1 is *where the move put it*, and the press would be live and
+  // paint nothing. Threads are not scoped this way and must not be: a conversation
+  // outlives the version it was opened on, which is why resolve carries no version.
+  if (e.version !== VNUM) return null;
+  const el = elementById(e.widget);
+  if (!el || inChrome(el) || !el.applyAction) return null;
+  const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
+  if (!spec) return null;
+  if (!spec.record) return authoredMarkup.has(el.id) ? { el } : null;
+  const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
+  const prior = priorState(unit, e.seq);
+  if (prior) return { el, state: { action: prior.e.action, detail: prior.e.detail } };
+  const detail = authoredDetails.get(authoredKey(e.action, unit));
+  return detail ? { el, state: { action: e.action, detail } } : null;
+}
+
+// The newest gesture of the reader's own that still stands and can still be taken off
+// the page. Newest-first over the whole log rather than a stack this tab keeps,
+// because a stack is a second store: it would die on the reload a new version
+// performs, and a second tab would hold a different one. The reader's own — an agent's
+// `leaf resolve` is not theirs to undo — and never an undo itself, which is what makes
+// repeated presses a walk backwards instead of a toggle.
+function undoable() {
+  const withdrawn = takenBack();
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.author !== "user" || e.kind === "undo" || withdrawn.has(e.id)) continue;
+    if (e.kind === "resolve" || e.kind === "unresolve") return e;
+    if (e.kind === "action" && restoreFor(e)) return e;
+  }
+  return null;
+}
+
+// Said in the kinds this file owns, never in the verb the action carries: `move` and
+// `edit` read as nouns in that sentence and `choose` does not, and which of the two a
+// widget's word is is not core's to know. It is the same rule that keeps "accept" out
+// of the answer-all row's words, met here in its smallest form.
+const UNDO_WORDS = {
+  resolve: "Reopened the thread",
+  unresolve: "Resolved the thread again",
+  action: "Took back your last change",
+};
+
+// This press's own record of being in flight, read by unrecordedGesture with the
+// layer's other two.
+let undoing = false;
+
+// The press posts and nothing else. What the page does about it is applyActions',
+// where it is done once for every tab off the log rather than here for this one off
+// the gesture — the second tab has to arrive at the same page, and a route only this
+// tab took would be a second answer to converge with. The round trip is the cost, and
+// it is the one gesture that can afford it: a drag has to follow the pointer, where a
+// keypress has nothing on screen waiting on the frame.
+async function undoLast() {
+  const e = undoable();
+  if (!e) return;
+  undoing = true;
+  paintKeys();
+  try {
+    if (await post({ kind: "undo", undoes: e.id }))
+      toast(`${UNDO_WORDS[e.kind]} — sent to ${agentName()}`);
+  } finally {
+    undoing = false;
+    paintKeys();
+  }
+}
+
+// The widget put back as the version wrote it, for the withdrawal no state can state.
+// A rebuild rather than an un-apply, because there is no un-apply to call: applyAction
+// states a value, and the value here is "whatever the markup says", which only the
+// markup holds. The clone is this version's, taken before replay first touched the
+// page, so what goes back is exactly what a reload would render before the log is read
+// — and the log is then read onto it, the same pass that reads it onto a fresh load.
+function rebuild(el) {
+  const id = el.id;
+  // Whether the reader is standing in what is about to be replaced — inside it, or on
+  // a control the widget hoisted out of it — because they have to be handed the place
+  // back afterwards. The other route never asks: a widget told its state keeps its own
+  // focus, and it was only the rebuild that dropped a reader onto <body> without a
+  // word, which is the silence the ladder's own rung exists to avoid.
+  const here = focused();
+  const standing =
+    Boolean(here) &&
+    (containsAcross(el, here) || Boolean(here.closest?.(`[${ASK_ROW}="${id}"]`)));
+  // Chrome the widget hoisted out of itself goes with it, and the widget is what takes
+  // it: a control hung in the page margin is outside the subtree being replaced, so
+  // only its owner knows to take it away, and disconnectedCallback is where the
+  // platform already asks. Sweeping `[data-lf-for]` here as well would be a second
+  // writer for one fact — and one that a widget hoisting chrome under some other
+  // marker would silently escape anyway. What holds it is the render gate, where a row
+  // left behind shows as two rows on one change.
+  const fresh = authoredMarkup.get(id).cloneNode(true);
+  el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
+  // What the upgrade gives every subtree beyond its module's own work. Not awaited as
+  // the upgrade awaits it: nothing is holding a first paint here, and a widget with
+  // async work of its own settles it the way it always does.
+  markWide(fresh);
+  dress(fresh);
+  reachScrollers(fresh);
+  // The fences the passage reading walks are node identities, and these are new nodes
+  // holding the same markup — so the index is taken again rather than left naming a
+  // subtree the page no longer has.
+  rememberPassageParts();
+  // Everything this load applied *inside* that widget went with the node, so the
+  // surviving log has to land on the new subtree. Its own events and any nested
+  // widget's alike: a change may propose markup that holds one — which is how the
+  // family says a widget-state change, there being no separate patch shape — and
+  // a pick the reader made inside it is theirs, not part of what they took back.
+  const inside = new Set(
+    [fresh, ...fresh.querySelectorAll("[id]")].map((node) => node.id).filter(Boolean),
+  );
+  for (const e of events) if (inside.has(e.widget)) appliedActions.delete(e.seq);
+  if (standing) standOn(fresh);
+}
 
 // data-lf-pending: this element's decided state differs from what the version's
 // markup arrived showing — the record is behind the log. It clears when a

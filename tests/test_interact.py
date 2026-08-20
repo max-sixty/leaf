@@ -3412,6 +3412,99 @@ def test_an_accept_carries_its_thread_resolution(page_dir):
     assert threads["c2"]["resolved"] is None
 
 
+def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
+    """An action names the thread it settles, and it settles it only while the
+    reader still stands behind it. Withdrawing the answer is the second way an
+    action stops standing — `restated` is the first — and the thread reading owes
+    both the same reply, or a question would read as answered by a gesture the log
+    itself records as taken back."""
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "which mounts?"},
+    )
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "id": "a1",
+            "author": "user",
+            "version": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"], "resolves": "c1"},
+        },
+    )
+    spk = interact.spoken(
+        (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
+        interact.require_registry(page_dir),
+    )
+    threads = interact.build_threads(interact.read_events(page_dir), spk)
+    assert threads["c1"]["resolved"]["id"] == "a1"
+
+    interact.append_event(page_dir, {"kind": "undo", "author": "user", "undoes": "a1"})
+    threads = interact.build_threads(interact.read_events(page_dir), spk)
+    assert threads["c1"]["resolved"] is None
+
+
+def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, page_dir):
+    """`undoes` is checked completely where it enters, so nothing downstream asks a
+    second time whether it points at something real. What an undo may name is one
+    unwithdrawn gesture of the reader's own: an agent's `leaf resolve` is not
+    theirs to take back, a comment is speech rather than state, an undo is not
+    itself undoable (that would be a redo), and one gesture cannot be taken back
+    twice."""
+    publish(page_dir)
+    posted = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "version": 1, "text": "hi"}).encode(),
+        )[1]
+    )["event"]
+    resolved = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
+        )[1]
+    )["event"]
+    agent_closed = interact.append_event(
+        page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
+    )
+
+    for bad, says in [
+        ({"kind": "undo", "undoes": "nope"}, "unknown"),
+        # The reader's own gestures only, and only the kinds that carry state.
+        (
+            {"kind": "undo", "undoes": agent_closed["id"]},
+            "not the reader's own gesture",
+        ),
+        ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
+        # The one field it carries, and the door refuses it in any other shape.
+        ({"kind": "undo"}, "undo events need `undoes` (str)"),
+        (
+            {"kind": "undo", "undoes": resolved["id"], "widget": "x"},
+            "unexpected fields",
+        ),
+    ]:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400, bad
+        assert says in json.loads(body)["error"], body
+
+    undone = {"kind": "undo", "undoes": resolved["id"]}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
+    assert status == 200, body
+    took_back = json.loads(body)["event"]
+
+    # Once, and never the undo itself: repeated presses walk back through the
+    # reader's history rather than toggling the last gesture on and off.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
+    assert status == 400 and "already been taken back" in json.loads(body)["error"]
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
+    )
+    assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+
+
 def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     """The log is append-only and a retired verb has no successor to map to, so
     re-vendoring over one is how recorded decisions fall silent — annabels-drafts
@@ -7331,6 +7424,19 @@ def test_export_prints_threads_and_versions(page_dir):
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
     assert "- `b`: move card=card-x to=col-done index=0 (on v1)" in result.output
+
+    # And one they took back is an outcome under its own name: left out it would
+    # read as never made, and shown plainly it would read as final.
+    moved = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
+    interact.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
+    )
+    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert (
+        "- `b`: move card=card-x to=col-done index=0 (on v1) — taken back"
+        in result.output
+    )
     assert "> “flip reads”  — resolved" in result.output
     assert "- **User**: why?" in result.output
     # The widget rides its message into the transcript, indented under the words.
@@ -7932,6 +8038,52 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
     assert result.exit_code == 0, result.output
+
+
+def test_a_decision_the_reader_took_back_hands_its_slot_back(page_dir):
+    """Withdrawing is the second way a decision stops standing, and the file's
+    reading owes it the same answer as `restated`: the retired half is on the page
+    again, so a quote reaches it. Both are read in the one fold, which is what makes
+    a single clause serve the anchor pass, the lint's state gate, and the ids a
+    version honoring the decision would have been allowed to drop."""
+    suggested(page_dir)
+    decide(page_dir, "accept")
+    retired = ["--quote", "Refill every feeder each morning.", "--text", "x"]
+    assert comment(page_dir, *retired).exit_code != 0
+
+    accepted = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
+    interact.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
+    )
+    result = comment(page_dir, *retired)
+    assert result.exit_code == 0, result.output
+
+
+def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
+    """The sharpest reading of whether a withdrawal actually undid anything, because
+    it is the one the reader never sees: honoring a decision is how a version drops
+    the ids the decision retired, and `version check` licenses that only from the
+    standing fold. The same v2 is therefore accepted while the accept stands and
+    refused the moment it is taken back — which is the file side saying the page is
+    pending again, in the one place it could not be saying it out of politeness."""
+    suggested(page_dir)
+    decide(page_dir, "accept")
+    # What honoring an accept looks like: the surviving half written straight,
+    # keeping its id, and the wrapper and the retired half gone with the decision.
+    honored = SUGGESTED.replace(
+        SUGGESTION,
+        '<p id="refill-camera">Refill when the camera shows it half-empty.</p>\n'
+        "<lf-options>",
+    )
+    assert "sug-refill" not in honored and "refill-rule" not in honored
+    (page_dir / "versions" / "v2.html").write_text(honored)
+    assert interact.cmd_check(page_dir, 2) == 0
+
+    accepted = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
+    interact.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
+    )
+    assert interact.cmd_check(page_dir, 2) == 1
 
 
 def test_what_the_reader_never_sees_is_not_quotable(page_dir):

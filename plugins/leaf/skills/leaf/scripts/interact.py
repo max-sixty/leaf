@@ -331,7 +331,24 @@ shape as an action, validated by the widget's x-report declaration at the
 decisions the publishing version took back, and `reports`: the report event ids
 the version absorbed or overruled), error (the page's own runtime reporting a
 failure in front of the user — author=page, heard by the watcher like a report
-and never counted against the reader). The server stamps every other
+and never counted against the reader).
+
+undo (the reader taking a gesture back, `undoes` naming it — a resolve, an
+unresolve, or an action, per UNDOABLE_KINDS) is the log's one word for that, and
+it names the gesture and nothing else: every other field is the target's to
+state. It withdraws rather than deletes. Nothing is removed from the log; the
+folds and the thread reading simply drop the event, so the page is what the
+version says plus what still stands — the same sentence a reload has always
+read, and the same one `restated` already writes from the author's side. What
+the reader sees follows from that rather than from a second statement: where the
+log still leaves the unit a state that can be stated, the browser states it (a
+prior action's detail, or the placement the version's markup arrived showing) so
+the page moves rather than being rebuilt; where the verb records nothing, and so
+no state can be stated, the browser rebuilds that widget from the version's own
+markup and replays what survives onto it. The door refuses an `undoes` naming
+anything but an unwithdrawn gesture of the reader's own.
+
+The server stamps every other
 browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
 and `version publish` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
@@ -466,6 +483,7 @@ BROWSER_EVENT_FIELDS = {
     "unresolve": {"parent": str},
     "done": {"version": int, "text": str},
     "action": {"widget": str, "action": str, "detail": dict, "version": int},
+    "undo": {"undoes": str},
     # The page's own runtime reporting a failure in front of the user — an
     # uncaught throw, a module that wouldn't load, a contained applyAction
     # fault. Stamped author "page", because it is the machine speaking: the
@@ -512,7 +530,17 @@ EVENT_VOCABULARY = {
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
     "error": {"version", "text"},
+    # The reader taking a gesture back (`z`), naming it and nothing else. Every
+    # other field is the target's to state, and stating it twice is two things to
+    # keep in step. What it takes back it takes back for every reader of the log:
+    # the folds drop the event, so the page is what the version says plus what
+    # still stands, which is the same sentence a reload has always read.
+    "undo": {"undoes"},
 }
+# The kinds a reader can take back. A message is not among them: a comment is
+# speech, and the agent may already have read it — what a reader regrets there
+# they say, rather than unsay. Nor is an undo itself, which would be a redo.
+UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After a complete batch enters context, run "
@@ -545,8 +573,15 @@ _RECORD_POSITION = {
         "kind": {"const": "position"},
         "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
         "value": {"type": "string", "minLength": 1},
+        # Where the unit sits among its siblings. Comparison stays at the
+        # container's granularity (see $state) — but a reader that has to *state*
+        # a position needs both halves, and taking a move back is one: the runtime
+        # reads the authored placement off the page before replay touches it, and
+        # a record naming only the column would put a card back on the right list
+        # in the wrong place.
+        "order": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "within", "value"],
+    "required": ["kind", "within", "value", "order"],
     "additionalProperties": False,
 }
 _RECORD_BODY = {
@@ -979,6 +1014,41 @@ def read_events(page_dir: Path) -> list:
     return events
 
 
+def taken_back(events: list) -> set:
+    """Event ids some later gesture took back (`undoes`).
+
+    The counter-event states the state that stood before, so the folds need none
+    of this — the later absolute value wins on its own. What does need it is
+    every reading of what the earlier event *meant*: the thread an action
+    answered is open again once the answer is withdrawn, and the undo walk steps
+    back past what it has already taken."""
+    return {e["undoes"] for e in events if e.get("undoes")}
+
+
+def undo_error(event: dict, events: list) -> str | None:
+    """Why this undo may not take back the event it names, or None.
+
+    Checked once here, at the door the browser writes through, so nothing
+    downstream asks a second time whether an `undoes` points at something real.
+    Two tabs racing to take back the same event are the one case this refuses
+    that nothing is wrong with: the second is a no-op, and refusing it costs a
+    toast where accepting it would leave two withdrawals of one gesture in a log
+    whose every other line is something the reader did."""
+    target = next((e for e in events if e["id"] == event["undoes"]), None)
+    if target is None:
+        return f"unknown undoes {event['undoes']!r}"
+    if target["author"] != "user":
+        return f"{target['kind']} {target['id']} is not the reader's own gesture"
+    if target["kind"] not in UNDOABLE_KINDS:
+        return (
+            f"{target['kind']} events cannot be taken back (the kinds that can "
+            f"are {', '.join(sorted(UNDOABLE_KINDS))})"
+        )
+    if target["id"] in taken_back(events):
+        return f"{target['id']} has already been taken back"
+    return None
+
+
 def build_threads(events: list, spk: dict) -> dict:
     """Fold the chronological log into comment threads by root id.
 
@@ -1001,9 +1071,14 @@ def build_threads(events: list, spk: dict) -> dict:
     stood down quietly is exactly where a verb naming a part of its own widget
     would have gone unfloored."""
     floors = retractions(events)
+    withdrawn = taken_back(events)
     threads = {}
     thread_for = {}
     for e in events:
+        # A gesture the reader took back settles nothing, whichever way it settled:
+        # the log holds it and no reading of the log stands on it.
+        if e["id"] in withdrawn:
+            continue
         if e["kind"] == "comment":
             thread = {"root": e, "msgs": [e], "resolved": None}
             threads[e["id"]] = thread
@@ -1014,6 +1089,10 @@ def build_threads(events: list, spk: dict) -> dict:
         # a thread joins by declaring the field, not by being read here by name.
         # The sender snapshots the mapping into the action because the honoring
         # version retires the element that held it, so nothing later can look it up.
+        # …and only while the log lets it stand. An answer the reader took back
+        # (above) leaves the question open, the same way a `restated` version
+        # does — two ways for one action to stop standing, and the thread reading
+        # owes both the same reply.
         if e["kind"] == "action" and e["detail"].get("resolves"):
             answered = threads.get(e["detail"]["resolves"])
             if answered and not action_retracted(e, floors, spk):
@@ -2034,6 +2113,9 @@ class Handler(BaseHTTPRequestHandler):
             e["id"] for e in events if e["kind"] in {"comment", "reply"}
         }:
             self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
+            return
+        if kind == "undo" and (error := undo_error(event, events)):
+            self._json({"error": error}, 400)
             return
         event["author"] = "page" if kind == "error" else "user"
         try:
@@ -3512,6 +3594,7 @@ def cmd_transcript(page_dir: Path) -> None:
     # is a version taking one back, which is the same understatement the other
     # way round — an edit shown as final that a later version overruled.
     # Widget-agnostic rendering: verb + detail pairs, against the version edited.
+    withdrawn = taken_back(events)
     edits = [
         e
         for e in events
@@ -3536,7 +3619,11 @@ def cmd_transcript(page_dir: Path) -> None:
                     f"{verb} (on v{e['version']})"
                 )
             else:
-                print(f"- `{e['widget']}`: {verb} (on v{e['version']})")
+                # An edit the reader took back is an outcome too, and the same
+                # understatement the other way round: shown as it stands it reads
+                # as final, and left out it reads as never made.
+                took = " — taken back" if e["id"] in withdrawn else ""
+                print(f"- `{e['widget']}`: {verb} (on v{e['version']}){took}")
 
     # Against the newest published version — the page as it now stands, which is
     # what a transcript is an account of. A page with nothing published yet has no
@@ -5522,11 +5609,13 @@ def validate_registry(registry: dict, source) -> dict:
                 record = spec.get("record")
                 if record:
                     fields.append(record["value"])
-                    if record["kind"] == "position" and record["within"] not in widgets:
-                        raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` records a position "
-                            f"within unknown widget <{record['within']}>"
-                        )
+                    if record["kind"] == "position":
+                        fields.append(record["order"])
+                        if record["within"] not in widgets:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records a "
+                                f"position within unknown widget <{record['within']}>"
+                            )
                     if record["kind"] == "value":
                         attr = record["attr"]
                         if attr not in properties:
@@ -5619,6 +5708,16 @@ def validate_registry(registry: dict, source) -> dict:
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
                             f"value `{value}` must be a string"
                         )
+                    if record["kind"] == "position":
+                        order = detail_properties[record["order"]]
+                        if not (
+                            isinstance(order, dict) and order.get("type") == "integer"
+                        ):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` record "
+                                f"order `{record['order']}` counts the unit's "
+                                "siblings, so its detail field must be an integer"
+                            )
         # Withdrawal is the author taking an unanswered question back, and the
         # entry says which of its own outcomes that leaves the page in
         # (retirable_ids). A verb no slot of this widget retires under would
@@ -6281,6 +6380,7 @@ def state_fold(
     the consumer's window — the gate folds to the last published version (an
     action made later belongs to no comparison of these two files), a lag
     report to everything recorded (None)."""
+    withdrawn = taken_back(events)
     fold = {}
     for e in events:
         if e["kind"] != "action":
@@ -6290,7 +6390,11 @@ def state_fold(
         spec = event_spec(e, byid, registry, "x-state")
         if not spec:
             continue
-        if action_retracted(e, floors, spk):
+        # Two ways an action stops standing, and the fold owes both the same
+        # answer: a version that rewrote what it rested on (`restated`), and the
+        # reader taking it back. Neither leaves a mark on the action itself —
+        # the log is append-only — so both are read from what came after it.
+        if e["id"] in withdrawn or action_retracted(e, floors, spk):
             continue
         unit = fold_unit(e, spec)
         if isinstance(unit, str):

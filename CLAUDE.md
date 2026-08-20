@@ -142,6 +142,42 @@ invalidates a decision, the author says so with `restated` on the rewritten
 element, which retracts what rested on it — and `version check` refuses both a
 bare rewrite and an unearned `restated` (`restatement_errors`).
 
+Taking a gesture back is the same sentence read from the reader's side. `z` posts
+one event — `undo`, naming the gesture it takes back and nothing else — and every
+fold and the thread reading drop the gesture it names, so the page is the version
+plus what still stands. That is what a reload has always rendered, and what
+`restated` already writes from the author's side; the reader now has the same word
+for it. Nothing leaves the log, and nothing states a counter-gesture into it: a
+card put back on the list it came from would read as a decision to move it there,
+and there is no value "undecided" for any verb to carry, so a reader taking back
+an accept could not have been recorded at all.
+
+What the reader sees follows from that rather than being restated into it, and by
+the cheapest faithful means. Where the log still leaves the unit a state that can
+be stated — the detail a prior surviving action carried, or the placement this
+version's markup arrived showing — the widget is told it, so the card travels back
+under the reader's eye and the grip they were holding stays under their hand. That
+is why a position record names the field carrying the order as well as the
+container: a placement stated on the column alone puts a card back on the right
+list in the wrong place. Where the verb records nothing there is no such state, so
+the widget is rebuilt from the markup this version wrote and what survives is
+replayed onto it — a reload, done to one widget. The clone that makes it possible
+is taken beside the passage fences and for the same reason: the moment after the
+registry lands and before the modules import is the only one at which the page
+holds the author's markup and nothing else.
+
+Both routes are chosen by a declaration and neither knows a widget's name, which
+is the whole of why a settlement can be taken back at all. `accept` was final for
+as long as an undo could only state a value — a fact about the mechanism, wearing
+the clothes of a fact about suggestions, and written into that family's own entry
+as though it were one.
+
+One bound is real and stays: an action reaches only the version it was made
+against, a later version being free to have been written around the decision. On
+v2 the authored placement of a card moved on v1 is where the move put it, so the
+press would be live and paint nothing. Threads are not scoped that way and must
+not be, a conversation outliving the version it was opened on.
+
 Both failure modes here are invisible to the user, so the question was never which
 is worse but who can see each one. A dropped decision is visible to nobody. A
 stale decision standing over rewritten content is visible to the author at the

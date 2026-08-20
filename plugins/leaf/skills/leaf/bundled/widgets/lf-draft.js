@@ -444,7 +444,7 @@ customElements.define(
       const ok = await sendDraft(
         ctx(this.id),
         () => true,
-        (attempt) => sendAction(this, "edit", { text }, attempt),
+        (attempt) => sendAction(this, "edit", { text }, { attempt }),
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");

@@ -6078,6 +6078,13 @@ const pageSelection = () => {
 // nothing re-decides the 💬 until the reader gestures again, so the words in front of
 // them stop being something to comment on, and no surface says why. Stated once, for
 // the three boxes a send can land in, because it is one fact about a send landing.
+//
+// A box is the whole of it, which is why this is named for typing rather than for
+// focus. The panel's other two landings — a resolve and a reopen, each behind a round
+// trip of its own — put the reader on a thread node instead, and Chrome collapses the
+// selection for a form control while leaving it alone for a `tabindex="-1"` div. Same
+// shape, then, and not the same steal: those two keep the standing place a control
+// that folds away with its thread owes the reader.
 function landTyping(box) {
   if (!pageSelection()) box?.focus({ preventScroll: true });
 }

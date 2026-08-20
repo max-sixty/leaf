@@ -8511,9 +8511,11 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     below = after.evaluate("el => el.getBoundingClientRect().top")
 
     page.locator("[data-lf-for='sug'] .lf-sug-accept").click()
-    # The state is true from the first frame — the log carries it, the banner counts it,
-    # a second tab converging reads it — while the pixels are still catching up.
-    assert page.locator("#sug[data-lf-state='accept']").count() == 1
+    # Awaited, because the state lands when the log takes the decision rather than in
+    # the frame of the press. From that frame it is true everywhere at once — the log
+    # carries it, the banner counts it, a second tab converging reads it — and the
+    # pixels are the only thing still catching up, which is what the rest measures.
+    expect(page.locator("#sug[data-lf-state='accept']")).to_have_count(1)
     held = page.evaluate(
         """() => window.__lfHeld.map((m) => [m.effect.target.tagName.toLowerCase(),
                                              m.effect.getTiming().duration])"""
@@ -8691,17 +8693,33 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
     page.close()
 
 
-def test_a_decision_the_server_never_took_goes_back_to_pending(browser, serve):
-    """The page settles a decision before the server has taken it, so the user
-    sees their own click land. That optimism is only honest if a send that fails
-    puts it back: a suggestion that reads as settled while the log has nothing is
-    a change the next version won't carry and the user won't know to repeat."""
+def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
+    """A decision is painted when the log takes it, never before, so a send the
+    server refuses leaves the page exactly as it was. Settling first and putting it
+    back on failure said the same thing in the end and flickered on the way: the
+    press against a closed session painted one frame of "✓ Accepted" over a folding
+    slot before rewinding it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     page.route("**/api/event", lambda route: route.abort())
+    # Watch the attribute across every frame, not just after: a rewind is only
+    # visible while it is happening, and the end state is the same either way.
+    page.evaluate(
+        """() => {
+          window.__settled = [];
+          new MutationObserver(() => {
+            window.__settled.push(
+              document.getElementById('sug-refill').dataset.lfState ?? null);
+          }).observe(document.getElementById('sug-refill'),
+                     {attributes: true, attributeFilter: ['data-lf-state']});
+        }"""
+    )
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
 
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.locator("#sug-refill").get_attribute("data-lf-state") is None
+    assert page.evaluate("() => window.__settled") == [], (
+        "the refused decision must never have been on the element at all"
+    )
     # The row is the record of a decision, so a decision that was never taken must not
     # be standing in it: both controls offering again, neither of them past tense.
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
@@ -8724,6 +8742,95 @@ def test_a_decision_the_server_never_took_goes_back_to_pending(browser, serve):
     # test's own doing — anything else means the page broke on the way back to
     # pending.
     assert errors == ["Failed to load resource: net::ERR_FAILED"]
+    page.close()
+
+
+def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, serve):
+    """One press, one decision — and the element's own state is no longer what makes
+    that true. The decided state used to be written in the frame of the press, so a
+    control pressed twice refused itself on the second; it now lands with the log's
+    answer, leaving a whole round trip in which both controls are still offering.
+    Presses made in that gap would each be a line in the log for one act, and an
+    accept followed by a reject would resolve the thread the accept answers and then
+    record the opposite outcome over it."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    row = page.locator("[data-lf-for='sug-refill']")
+    row.locator(".lf-sug-accept").click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
+    row.locator(".lf-sug-accept").click()
+    row.locator(".lf-sug-reject").click()
+    assert len(held) == 1, "a press while the decision was in flight sent a second one"
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
+    assert [
+        (e["widget"], e["action"])
+        for e in interact.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [("sug-refill", "accept")]
+    assert errors == []
+    page.close()
+
+
+def test_a_wait_the_reader_would_notice_says_so_and_a_short_one_says_nothing(
+    browser, serve
+):
+    """The press paints nothing until the log answers, so a wait long enough to
+    notice has to say it is waiting — and a wait too short to notice must not, or the
+    look would flash on and off exactly where the settle-then-rewind flicker used to
+    be. One delayed rule covers both, and it is keyed on aria-busy rather than on any
+    tag, so lf-draft's own busy word is painted by it too.
+
+    Held in the wire rather than timed against a real answer: the delay is measured
+    from the press either way, and a send that never lands is the only way to read
+    both sides of it without racing the machine the suite is on."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    resting = page.locator("[data-lf-for='sug-refill']").bounding_box()
+    # Pressed and sampled inside the page, on the browser's own clock: what painted
+    # and when is not a fact the browser reports outward, and a reading taken over a
+    # CDP round trip would be racing the delay rather than measuring it. The window is
+    # the rule's own — 200ms of delay and 140ms of fade — with room after it, since a
+    # send held in the wire states no fact to wait on.
+    frames = page.evaluate(
+        """async () => {
+          const el = document.getElementById('sug-refill');
+          const out = [];
+          const t0 = performance.now();
+          let stop = false;
+          const tick = (t) => {
+            out.push([t - t0, Number(getComputedStyle(el).opacity)]);
+            if (!stop) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          document.querySelector("[data-lf-for='sug-refill'] .lf-sug-accept").click();
+          await new Promise((r) => setTimeout(r, 500));
+          stop = true;
+          return out;
+        }"""
+    )
+    early = [o for t, o in frames if t < 150]
+    late = [o for t, o in frames if t > 400]
+    assert early and set(early) == {1}, (
+        f"the wait was announced before it was one: {early}"
+    )
+    assert late and set(late) == {0.5}, f"a wait worth noticing said nothing: {late}"
+    expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
+    # And it says it without moving the line the press was made on: the row the reader
+    # just pressed stands where it stood, so a second press has the same target.
+    assert page.locator("[data-lf-for='sug-refill']").bounding_box() == resting
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    assert errors == []
     page.close()
 
 

@@ -70,22 +70,76 @@ The general form is that a fact derived from a box is not derived by a writer of
 that box. Where one function has to be both reader and writer, the write moves
 to a box nobody is measuring — or to the cascade, which is not that function.
 
+## A press waits for the log; a gesture that already moved something puts it back
+
+Two kinds of gesture reach the action channel and they owe the reader different
+things. A drag has already put the card where the hand let go, and an edit holds
+words only the open box ever had: the page cannot un-show either, so those paint
+themselves and restore the old state when the send fails (`lf-board`'s `#place`,
+`lf-draft`'s `#restore`). A press has shown nothing yet. It asks for a decision,
+the decision is the log's to make, and no decision is painted until the log has
+made it.
+
+What decides which kind a gesture is: whether the reader's next gesture computes
+from the paint. A toggle's does — the next press on an `lf-options` mark reads the
+picks the last one left, so a `multiple` group that deferred its paint would send
+the second pick as a set missing the first. A suggestion's decision has no next
+gesture at all: the slot retires and the controls stop offering. So
+`lf-suggestion` and `lf-options`' `Done` wait for the answer, and `choose` does
+not.
+
+Painting first and rewinding on refusal reaches the same end state and flickers on
+the way. Against a closed session the whole round trip is one frame wide, so a
+press painted "✓ Accepted" over a folding slot and took both back in the next
+frame. The rewind was not free to write either: it had to cancel a fold in flight,
+and read the change's words on the far side of the state move, because deciding
+retires the slot those words live in. None of that exists once the paint waits.
+
+Waiting to paint the decision is not the same as leaving the press unanswered, and
+the difference is where this nearly went wrong. Nothing acknowledged a press at
+all — no `:active` rule anywhere, and a `span[role="button"]` gets none from the
+browser, so the paint had been doing that job as a side effect of claiming the
+outcome. The two are separate promises: that the press landed, which is the page's
+to make immediately, and that the decision stands, which is the log's. So a widget
+mid-send says `aria-busy` — the platform's own word, which `lf-draft` was already
+saying to screen readers alone — and the layer paints it for every widget that
+does, keyed on the attribute rather than on any tag.
+
+That look is delayed by 200ms on purpose. A local answer lands in about 40ms, and
+a look that appeared and left inside that window would be a second flicker put
+exactly where the first was removed; past the delay there is a real wait, and the
+reader is owed it. Which is also the answer to how far this design stretches:
+`--host` publishes a page to a reader on another machine, where the wait is a
+network round trip rather than a local one, and it is the delayed acknowledgment
+rather than the deferred paint that carries that case.
+
+What waiting costs is a local round trip: 40–55ms from press to paint on an
+ordinary page, ~90ms on `gallery.html`, which is every widget in the vocabulary at
+once. Most of that is the POST rather than the poll after it, and what makes an
+action's POST cost 17ms where a comment's costs 1ms is the door checking the
+action against the version — `action_contract_error` parses the version's markup
+three times over and the registry once, every time. So the wait scales with the
+page's own size and barely notices the conversation's: the gallery's 90KB of
+markup takes that POST to 69ms, while 600 comments in the log cost 15ms more than
+none.
+
 ## A gesture the log has not taken outranks everything the page has read
 
-A widget paints the user's gesture before the log has taken it, so until the poll
-reads the action back, the page holds state no log accounts for. Replay leaves
-the widget alone for exactly that long. Every `applyAction` states the widget
-whole, so replaying an action from before the gesture hands the reader their
-older state back — and the next gesture then computes from what that replay
-painted. A `multiple` group two picks in, repainted holding one, sends the next
-toggle as a set the reader never chose. Applying each action exactly once is what
-makes replay converge, and "exactly once" says nothing about *when*.
+A widget that paints its own gesture holds state no log accounts for until the
+poll reads the action back. Replay leaves the widget alone for exactly that long.
+Every `applyAction` states the widget whole, so replaying an action from before
+the gesture hands the reader their older state back — and the next gesture then
+computes from what that replay painted. A `multiple` group two picks in,
+repainted holding one, sends the next toggle as a set the reader never chose.
+Applying each action exactly once is what makes replay converge, and "exactly
+once" says nothing about *when*.
 
 All of that rests on the log holding the gestures in the order they were made,
 and the wire does not give that order: the server answers each request on a
 thread of its own, so a pick overtaken by the pick after it leaves a decision the
 reader never made standing as their state. So `post` sends one action at a
-time — and the wait costs nothing, because the page has already painted. No
+time — a wait that costs a gesture which painted itself nothing at all, and costs
+a press the difference between its own round trip and the queue's (above). No
 machine here reproduced the race in two dozen tries, so the gate states the
 condition rather than running for it: the first send is stopped in the wire, and
 the second click is made while it is still there.

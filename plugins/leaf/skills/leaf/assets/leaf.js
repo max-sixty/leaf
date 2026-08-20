@@ -1849,6 +1849,25 @@ style.textContent = `
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
+  /* A gesture the log has not answered yet, in the platform's own word for it, which
+     is why no tag is named here: any widget that says aria-busy is painted, and
+     lf-draft was saying it to screen readers alone before this rule existed.
+
+     Delayed, and that is the whole design. A press paints nothing until the log
+     takes it, which locally is about 40ms — a look that appeared and left inside
+     that window would be a second flicker put where the first one was removed. Past
+     the delay there is something to say, and the cases where there is are the ones
+     that need it: a heavy page, or a reader who reached a --host page across a
+     network. So the surface goes quiet only once the wait has run long enough to
+     notice, and a fast answer never shows this rule at all. The reduced-motion guard
+     (theme.css) zeroes the duration and leaves the delay standing, which is the right
+     reading of it: the fade is what a reader asked not to have, the waiting is not.
+
+     Opacity and the cursor, never geometry: the line a press is made on holds still
+     (lf-suggestion.js), and a busy surface that reflowed would move the control out
+     from under the pointer that just pressed it. */
+  [aria-busy="true"] { animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both; }
+  [aria-busy="true"], [aria-busy="true"] :is(button, [role="button"]) { cursor: progress; }
   /* Standing on a press, in the band everything else the reader stands on is drawn in
      (--here-ring). The two shapes were the last places on the product still wearing the
      browser's own ring: a reader who backed out of the panel landed on Comments in
@@ -2005,6 +2024,7 @@ ${MARK_RULES}
   /* Keyframe names are document-global even beside an @scope block. The stable salt
      makes this runtime-private in the one CSS namespace scoping cannot protect. */
   @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
+  @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
   @keyframes lf-runtime-4f3c2a8d-flash {
     0% { background: var(--hi-tint); } 100% { background: var(--card); }
   }
@@ -3654,15 +3674,16 @@ function showToast(msg, onClick) {
 // three lines apart in a test reached the log reversed on a loaded runner, where two
 // dozen tries under the dockerised Linux suite never once managed it.
 //
-// The page has already painted the gesture (sendAction), so nothing the reader is
-// looking at waits on this — what waits is the next event's request, until this one has
-// been taken. A failed send is not a queue that stops: the turn passes on whatever the
-// fetch did. And only the send is ordered; the poll each one ends with is a read, and no
-// fact about the log turns on when a read lands.
+// A gesture that painted itself has nothing the reader is looking at waiting on this;
+// a press has its own paint waiting, since it shows the decision only once the log has
+// taken it (see CLAUDE.md). Either way what waits behind is the next event's request,
+// until this one has been taken. A failed send is not a queue that stops: the turn
+// passes on whatever the fetch did. And only the send is ordered; the poll each one
+// ends with is a read, and no fact about the log turns on when a read lands.
 let taken = Promise.resolve();
 async function post(event) {
-  // One attempt. A send the server never took changes nothing — the page
-  // rewinds the gesture it had painted and says so — and a send it took whose
+  // One attempt. A send the server never took changes nothing — the page says so,
+  // and puts back whatever the gesture had painted — and a send it took whose
   // response was lost is put back by the next poll, the log being what the page
   // renders from. Retrying instead would need the sender to mint the id (a
   // second send is only safe if the door can tell it from a second decision),
@@ -3684,9 +3705,9 @@ async function post(event) {
   }
   // The send succeeded the moment the server minted the event. The poll only
   // brings the panel up to date, so a fault in its render pipeline is its own
-  // news and must not claim the send failed — a caller told null rewinds a pick
-  // the log already holds, and the next timer poll paints it back two seconds
-  // later.
+  // news and must not claim the send failed — a caller told null takes back a pick
+  // the log already holds, or withholds a decision the log already holds, and the
+  // next timer poll paints it back two seconds later either way.
   await poll().catch((error) => console.error("leaf: poll after send", error));
   return minted;
 }

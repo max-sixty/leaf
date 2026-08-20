@@ -368,6 +368,15 @@ merely out of view. A change that alters which way a fault can point owes its
 existing tests a bug-back, not only its new ones — and the question to put to
 each test is which edge the fault lands on now.
 
+A gate can also be born vacuous, when a layer below it already prevents what the
+assertion names. `post` sends one action at a time, so a second gesture made
+while the first is held in the wire never reaches `page.route`: counting the held
+requests reads one whether or not the widget refuses that second press, and an
+assertion saying a press in flight had sent a second one could never have failed
+for the reason it gave. What the second press would leave is a line in the log
+once the queue drains, which is where a gate on it reads. Before asserting that a
+gesture did not travel, ask what would have stopped it anyway.
+
 ## An assertion that nothing moved must straddle the change that could move it
 
 A geometry assertion is worth only as much as the transition it is measured

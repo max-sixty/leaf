@@ -836,6 +836,19 @@ def read_json(path: Path):
         return None
 
 
+def file_stamp(path: Path):
+    """What the filesystem says a file is: which file, when it was last written,
+    and how big it is. A page directory holds files that are written once and read
+    on every request, so what each one says is worked out once and kept under this
+    stamp, and a file rewritten since wears a different one. A path with nothing
+    there stamps as None, which keeps nothing and reads every time."""
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+
+
 def read_cursor(page_dir: Path) -> int:
     """The seq the agent has acknowledged through (`leaf ack`); 0 before any."""
     return (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
@@ -1639,9 +1652,9 @@ def other_leaves(page_dir: Path) -> list:
     newest published version's — the version that page's own root URL answers
     with — read the way `transcript` reads it.
 
-    Uncached, on every /api/state: the whole scan, presence reads included,
-    measured ~1.4ms against a state home holding forty pages, three of them
-    live."""
+    The whole scan runs on every /api/state; what it reads of each neighbour is
+    kept per file, so a poll costs the scan and the presence reads rather than a
+    parse of every live neighbour's page (`parse_version`)."""
     candidates = []
     pages = state_home() / "pages"
     if pages.is_dir():
@@ -3210,22 +3223,23 @@ def thread_widget_ids(events: list) -> set:
     return ids
 
 
-def action_widget_tags(page_dir: Path, version: int, events: list) -> dict:
+def action_widget_tags(byid: dict, events: list) -> dict:
     """Widget id → tag in the document that sent an action.
 
     Page widgets come from the action's own published version, not whichever
-    version is newest now. Thread widgets are the other live document the runtime
-    renders, so each message's `markup` joins this map — text never carries a
-    widget, in the panel or here. Both readings use _StructParser, the same
-    structure reading `version check` and markup validation already trust.
+    version is newest now. `byid` is that version's structural reading; the caller
+    takes it, having a second question for the same reading. Thread widgets are
+    the other live document the runtime renders, so each message's `markup` joins
+    this map — text never carries a widget, in the panel or here. Both readings
+    use _StructParser, the same structure reading `version check` and markup
+    validation already trust.
     """
-    sources = [version_path(page_dir, version).read_text(encoding="utf-8")]
-    sources.extend(e["markup"] for e in events if e.get("markup"))
-    widgets = {}
-    for source in sources:
-        widgets.update(
-            (wid, rec["tag"]) for wid, rec in parse_structure(source).by_id.items()
-        )
+    widgets = {wid: rec["tag"] for wid, rec in byid.items()}
+    for event in events:
+        if markup := event.get("markup"):
+            widgets.update(
+                (wid, rec["tag"]) for wid, rec in parse_structure(markup).by_id.items()
+            )
     return widgets
 
 
@@ -3238,7 +3252,10 @@ def detail_error(schema: dict, detail: dict):
 
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
     """Why a structurally complete action violates its sending widget's contract."""
-    tag = action_widget_tags(page_dir, event["version"], events).get(event["widget"])
+    # One structural reading of the version, for both questions this door asks of
+    # it: which tag the widget is, and whether it stands inside an exhibit.
+    byid = parse_version(page_dir, event["version"]).by_id
+    tag = action_widget_tags(byid, events).get(event["widget"])
     if tag is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
@@ -3257,11 +3274,10 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
-    # made on quoted material. Any sender the key admits reaches this door.
-    html = version_path(page_dir, event["version"]).read_text(encoding="utf-8")
-    if quoted_in(
-        event["widget"], parse_structure(html).by_id, spoken(html, registry), registry
-    ):
+    # made on quoted material. Any sender the key admits reaches this door. The
+    # page's own markup answers it, a thread's widgets standing in the document
+    # the panel renders rather than this one.
+    if (rec := byid.get(event["widget"])) and quoted_in(rec, registry):
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
@@ -4446,8 +4462,27 @@ def parse_structure(markup: str) -> _StructParser:
     return parser
 
 
+_versions = {}  # version file -> (its stamp, the structural reading of it)
+
+
 def parse_version(page_dir: Path, version: int) -> _StructParser:
-    return parse_structure(version_path(page_dir, version).read_text(encoding="utf-8"))
+    """One structural reading per published version file.
+
+    `version publish` writes a version and nothing writes it again, while the
+    readings that cost most are the ones a reader waits through: the action door
+    checks a press against the version it was made on, and every poll reads each
+    live neighbour's newest version for the one string the board shows of it. That
+    last one made a title cost a parse of the whole page, once a second, per
+    neighbour — seven neighbours put more time between a press and its paint than
+    everything else the server did for it put together."""
+    path = version_path(page_dir, version)
+    stamp = file_stamp(path)
+    if stamp and (held := _versions.get(path)) and held[0] == stamp:
+        return held[1]
+    parser = parse_structure(path.read_text(encoding="utf-8"))
+    if stamp:
+        _versions[path] = (stamp, parser)
+    return parser
 
 
 def version_review_mode(page_dir: Path, version: int):
@@ -5762,10 +5797,24 @@ def validate_registry_examples(registry: dict, source) -> dict:
     return registry
 
 
+_registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
+
+
 def read_registry(path: Path):
-    """Read and validate one complete registry vocabulary."""
-    registry = read_registry_entries(path)
-    return None if registry is None else validate_registry(registry, path)
+    """Read and validate one complete registry vocabulary, once per vendored file.
+
+    `page init` writes a page's registry.json and nothing writes it again, while an
+    action POST asks for the whole vocabulary before it can check a single press —
+    so every press re-linted forty frozen entries, an order of magnitude more work
+    than the contract check it was preparing for."""
+    stamp = file_stamp(path)
+    if stamp and (held := _registries.get(path)) and held[0] == stamp:
+        return held[1]
+    entries = read_registry_entries(path)
+    registry = None if entries is None else validate_registry(entries, path)
+    if stamp:
+        _registries[path] = (stamp, registry)
+    return registry
 
 
 def load_registry(page_dir: Path):
@@ -6616,12 +6665,20 @@ def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> b
     return False
 
 
-def quoted_in(unit: str, byid: dict, spk: dict, registry: dict) -> bool:
+def quoted_in(rec: dict, registry: dict) -> bool:
     """The runtime's `quoted`: inside an element the registry marks x-exhibit,
-    a widget is a mention rather than a use, and asks nothing."""
+    a widget is a mention rather than a use, and asks nothing.
+
+    The holder chain answers it, which is the walk `enclosing_slot` makes and the
+    one the runtime makes over the DOM. Asked of `spoken` instead, containment
+    became a question about the page's words: the reading that says what stands
+    around one widget walks every character of the version to do it, so an action
+    POST on a 90KB page spent forty milliseconds finding out what a single id sat
+    in. It reads a record rather than an id for the same reason the runtime takes
+    an element — an element the author left unnamed stands where it stands."""
     return any(
-        registry.get(byid.get(a, {}).get("tag"), {}).get("x-exhibit")
-        for a in spk.get(unit, EMPTY).within[:-1]
+        (registry.get(node["tag"]) or {}).get("x-exhibit")
+        for node in enclosing_widgets(rec)
     )
 
 
@@ -6643,7 +6700,7 @@ def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) ->
         unit = rec["attrs"].get("id")
         if unit and unit in dropped:
             continue
-        if unit and quoted_in(unit, byid, spk, registry):
+        if quoted_in(rec, registry):
             continue
         if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
             continue
@@ -6689,7 +6746,7 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
             if not awaits or not entry.get("x-state"):
                 continue
             unit = rec["attrs"].get("id")
-            if unit and quoted_in(unit, byid, spk, registry):
+            if quoted_in(rec, registry):
                 continue
             attrs = replayed_attrs(rec, fold, reports)
             if not asking(attrs, awaits.get("when")):

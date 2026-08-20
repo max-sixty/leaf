@@ -8859,7 +8859,12 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     answer, leaving a whole round trip in which both controls are still offering.
     Presses made in that gap would each be a line in the log for one act, and an
     accept followed by a reject would resolve the thread the accept answers and then
-    record the opposite outcome over it."""
+    record the opposite outcome over it.
+
+    Neither of those presses can be caught in the wire: `post` sends one action at a
+    time, so they queue behind the held one instead of reaching the route. What they
+    would leave is a line each in the log once the queue drains, and that is where
+    this reads them."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -8868,7 +8873,6 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
     row.locator(".lf-sug-accept").click()
     row.locator(".lf-sug-reject").click()
-    assert len(held) == 1, "a press while the decision was in flight sent a second one"
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -11576,8 +11580,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     home, so the group brings no box of its own — and an armed g chord keeps its
     digits even from a mark, because the chord promised a comment.
 
-    The answer is said once, on the press. The log is where it is recorded, and the
-    group's own markup stays the author's: a module writes there only where the
+    The answer is said once, when the log takes it. The log is where it is recorded,
+    and the group's own markup stays the author's: a module writes there only where the
     registry declares the attribute as a record form, which a thread verb can never
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
@@ -11611,10 +11615,11 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.locator("#tq-set .lf-done").click()
     expect(asks).to_be_hidden()
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    # Said once, on the press. An `answered` attribute on the group said it again in
-    # the author's namespace, where the entry admits nothing undeclared and no version
-    # could ever have carried a record of a thread verb — invisible to every consumer
-    # but shallowSigs, which reads what no version can assert as state one authored.
+    # Said once, by the log's answer. An `answered` attribute on the group said it
+    # again in the author's namespace, where the entry admits nothing undeclared and no
+    # version could ever have carried a record of a thread verb — invisible to every
+    # consumer but shallowSigs, which reads what no version can assert as state one
+    # authored.
     assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
         "the Done press left an attribute on a widget its entry never declared"
     )
@@ -11645,6 +11650,51 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert sent[-1]["action"] == "answer", "the chord's digit must not pick"
+    assert errors == []
+    page.close()
+
+
+def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
+    """The Done press waits for the log the way a suggestion's decision does, so it
+    owes the reader what every waiting press owes: `aria-busy` while the answer is in
+    the wire, and the pressed state only once the log has taken it. Nothing said the
+    press had landed before this, and a `button` styled by the theme gets no `:active`
+    of its own, so the reader had the round trip with no answer of any kind.
+
+    One press is one `answer` action, which this group's own comment has always
+    claimed and nothing checked. A second press cannot be caught in the wire — `post`
+    sends one action at a time, so it never reaches the route — so what it would leave
+    is a second line in the log once the queue drains, and that is where this reads it.
+    """
+    url = serve(REPLY_HOST_PAGE)
+    for event in THREAD_ASKS:
+        interact.append_event(serve.page_dir, event)
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    done = page.locator("#tq-set .lf-done")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    done.click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the answer in the wire")
+
+    expect(done).to_have_attribute("aria-busy", "true")
+    # The press is acknowledged; the answer it asks for is not painted, the log not
+    # having taken it yet.
+    expect(done).to_have_attribute("aria-pressed", "false")
+    done.click()
+    done.click()
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    assert [
+        (e["widget"], e["action"])
+        for e in interact.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [("tq-set", "answer")]
     assert errors == []
     page.close()
 

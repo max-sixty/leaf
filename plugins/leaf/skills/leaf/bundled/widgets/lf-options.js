@@ -212,6 +212,7 @@ customElements.define(
     #authored = new Set(); // ids the document arrived carrying, so a mark words itself honestly
     #conversation = null; // the inline thread, hidden with the settled options
     #done = null; // the thread multi-question's submit; null everywhere else
+    #answering = null; // the answer in flight, so a second press joins it
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
@@ -228,24 +229,49 @@ customElements.define(
     // The one statement a live channel can't derive: the set is whole. One press,
     // one `answer` action, and the ask this group stands as is discharged
     // (x-awaits.until). One-way — a later toggle still reaches the agent, so there
-    // is nothing to take back — and its state is paint on the press, so the
-    // pressed control's own line holds still.
+    // is nothing to take back — and the answer is paint rather than a fold, so
+    // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer("button", "lf-btn lf-done", "Done");
       this.#done.setAttribute("aria-label", "Done: my picks here are complete");
       this.#done.setAttribute("aria-pressed", "false");
-      this.#done.onclick = () =>
-        sendAction(this, "answer", {}).then((ok) => {
-          if (!ok) return;
-          this.#answered(true);
-          toast(`Marked answered — sent to ${agentName()}`);
-        });
+      this.#done.onclick = () => this.#answer();
       this.append(this.#done);
     }
 
+    // The press is answered at once and the answer waits for the log, which is the
+    // rule a decision follows (CLAUDE.md): nothing here has moved yet, so there is
+    // nothing to un-show, and what the reader is owed meanwhile is that the press
+    // landed. `aria-busy` says exactly that, and the promise beside it is what makes
+    // the sentence above true — one press, one `answer` action, however many times
+    // the button is hit while the first is still in the wire.
+    #answer() {
+      if (this.#answering) return this.#answering;
+      const sent = sendAction(this, "answer", {}).then((ok) => {
+        this.#sending(null);
+        if (!ok) return false; // unsent means unrecorded, and nothing was painted
+        this.#answered(true);
+        toast(`Marked answered — sent to ${agentName()}`);
+        return true;
+      });
+      this.#sending(sent);
+      return sent;
+    }
+
+    // One fact said twice, and said here so the two cannot come apart: the field
+    // refuses the second press, and the attribute is what the layer paints and a
+    // screen reader holds its announcements through. On the button rather than the
+    // group, because the button's own state is the one in flight — the options are
+    // still the reader's to work.
+    #sending(answer) {
+      this.#answering = answer;
+      if (answer) this.#done.setAttribute("aria-busy", "true");
+      else this.#done.removeAttribute("aria-busy");
+    }
+
     // Absolute: answered is the whole statement, so replaying this tab's own press
-    // is the same call again. Said once, on the press: the log holds the answer and
-    // the pressed state is what the page shows for it (see the header).
+    // is the same call again. Painted when the log takes the answer: the log holds
+    // it, and the pressed state is what the page shows for it (see the header).
     #answered(on) {
       this.#done?.setAttribute("aria-pressed", String(on));
       document.dispatchEvent(new CustomEvent("lf-answered"));

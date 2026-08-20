@@ -105,23 +105,21 @@ mid-send says `aria-busy` — the platform's own word, which `lf-draft` was alre
 saying to screen readers alone — and the layer paints it for every widget that
 does, keyed on the attribute rather than on any tag.
 
-That look is delayed by 200ms on purpose. A local answer lands in about 40ms, and
-a look that appeared and left inside that window would be a second flicker put
-exactly where the first was removed; past the delay there is a real wait, and the
+That look is delayed by 200ms on purpose. A local answer lands inside 20ms, and a
+look that appeared and left inside the delay would be a second flicker put exactly
+where the first was removed; past the delay there is a real wait, and the
 reader is owed it. Which is also the answer to how far this design stretches:
 `--host` publishes a page to a reader on another machine, where the wait is a
 network round trip rather than a local one, and it is the delayed acknowledgment
 rather than the deferred paint that carries that case.
 
-What waiting costs is a local round trip: 40–55ms from press to paint on an
-ordinary page, ~90ms on `gallery.html`, which is every widget in the vocabulary at
-once. Most of that is the POST rather than the poll after it, and what makes an
-action's POST cost 17ms where a comment's costs 1ms is the door checking the
-action against the version — `action_contract_error` parses the version's markup
-three times over and the registry once, every time. So the wait scales with the
-page's own size and barely notices the conversation's: the gallery's 90KB of
-markup takes that POST to 69ms, while 600 comments in the log cost 15ms more than
-none.
+What waiting costs is a local round trip: 10–15ms from press to paint on an
+ordinary page, and 25–40ms on `gallery.html`, which is every widget in the
+vocabulary at once. The POST is a small part of that, within a millisecond of a
+comment's, because what a page directory holds is worked out once per file rather
+than once per request (`parse_version`, `read_registry`). Most of the wait is the
+poll the send awaits. What still grows is the log it appends to, at about a
+millisecond per six hundred comments.
 
 ## A gesture the log has not taken outranks everything the page has read
 

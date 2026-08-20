@@ -146,12 +146,16 @@ export const agentName = () => agent;
 // Attributes the runtime itself may paint onto elements the page owns. This is the
 // replay signature's one exclusion vocabulary as well as the source each writer uses:
 // a new kind of paint therefore has one place to join. The rest of data-lf-* is not
-// implicitly ours — a widget can carry real state there, and replay must see it.
+// implicitly ours — a widget can carry real state there, and replay must see it. The
+// settlement mark (data-lf-state) is deliberately in that rest: the layer paints it
+// (markSettled), but a module may paint it too as its own gesture's state, and the
+// replay signature must keep seeing it — its own gate is RETIRED_SLOTS, not the sigs.
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
   ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",
+  retired: "data-lf-retired",
   replayWrote: "data-lf-replay-wrote",
   reportWrote: "data-lf-report-wrote",
   applied: "data-lf-applied",
@@ -4749,6 +4753,40 @@ function retiredSlots() {
   if (Object.keys(registry).length) retiredSlotsMemo = value;
   return value;
 }
+// The same relation read the other way: holder tag → each settling outcome and the
+// slot tags that leave the page under it. Replay reads it to paint the settlement
+// (markSettled, renderRetired), so which verbs settle a holder is the registry's fact
+// here exactly as it is in the selector above. Same registry-loaded guard, for the
+// same aim-window reason.
+let settlementSlotsMemo;
+function settlementSlots() {
+  if (settlementSlotsMemo != null) return settlementSlotsMemo;
+  const value = {};
+  for (const [tag, entry] of widgetEntries().filter(([, e]) => e["x-retired-when"]))
+    for (const parent of entry["x-parent"])
+      ((value[parent] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
+  if (Object.keys(registry).length) settlementSlotsMemo = value;
+  return value;
+}
+
+// The rendering of a settlement, in one place for the two occasions that paint it —
+// replay (markSettled) and a module saying its own gesture (lf-suggestion's #settle):
+// reads the holder's mark and paints data-lf-retired onto the slots the standing
+// outcome retires, clearing it from the rest. One static theme rule hides the marked
+// slots, so a family a project declares hides what a settlement removes the day it
+// declares it — by-name rules in theme.css were the closed list wearing CSS's
+// clothes — and the same pair of marker and rule is what carries the disappearance
+// into an exported copy, which keeps markup and stylesheet and drops every module.
+export function renderRetired(el) {
+  const outcomes = settlementSlots()[el.localName];
+  if (!outcomes) return;
+  const mark = el.getAttribute("data-lf-state");
+  for (const [outcome, tags] of Object.entries(outcomes))
+    for (const tag of tags)
+      for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
+        for (const slot of root.querySelectorAll(`:scope > ${tag}`))
+          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, outcome === mark);
+}
 // What no label can speak through, however it is marked: an inline script, the
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
 // decision took off the page. Chrome is the rest of what the anchor pass skips and
@@ -4795,7 +4833,7 @@ const SAID = "[data-lf-said]";
 // control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
 // the answer once, and it is a look — which is how a user ended up reading a heading
 // they could not point at, twice.
-const inUi = (node) => {
+export const inUi = (node) => {
   const near = (node?.nodeType === 1 ? node : node?.parentElement)?.closest(
     `.lf-ui, ${SAID}`,
   );
@@ -9845,6 +9883,46 @@ export function shallowSigs(root) {
   }
   return sigs;
 }
+// The settlement mark is the layer's paint of a logged decision, never a module
+// obligation: x-retired-when and x-parent already state which verbs settle a holder,
+// so the writer with the registry and the log both in hand is this replay. It used to
+// be each holder module's duty, documented in the scaffold and enforced nowhere — the
+// suggestion remembered, and the first module that forgot would have silently split
+// the page's reading from the file's, with `leaf comment` refusing quotes as the only
+// symptom. A module is still free to say the mark sooner as its own gesture's paint
+// (lf-suggestion does, choreographing its fold around it); this write is then the
+// no-op that makes the guarantee unconditional. Written only where an action retires
+// behind the version and retraction gates — applied, thrown, or with no applyAction
+// to call — so a pinned older page and a restated decision stay unmarked. The mark
+// follows the fold both ways: the file's standing state is the last surviving action
+// per unit, so a widget-unit verb that doesn't settle displaces the decision there,
+// and the mark goes with it — left standing, the page would silence slots the log had
+// handed back. Returns whether it wrote, for the one caller that would otherwise
+// report nothing written.
+function markSettled(el, action) {
+  const outcomes = settlementSlots()[el.localName];
+  if (!outcomes) return false;
+  if (outcomes[action]) {
+    el.setAttribute("data-lf-state", action);
+    renderRetired(el);
+    return true;
+  }
+  const unit = registry[el.localName]?.["x-state"]?.[action]?.unit ?? "widget";
+  if (unit === "widget" && el.hasAttribute("data-lf-state")) {
+    el.removeAttribute("data-lf-state");
+    renderRetired(el);
+    return true;
+  }
+  return false;
+}
+// One act for the three ways an action ends behind the gates — applied, thrown, or
+// with no applyAction to call: retired for this load, with the settlement mark
+// brought up to date in the same stroke, so a new terminal path cannot retire
+// without marking.
+function retire(el, e) {
+  appliedActions.add(e.seq);
+  return e.kind === "action" && markSettled(el, e.action);
+}
 function applyActions() {
   // Never mutate the page under a live gesture — a replayed foreign action could
   // move the nodes a drag preview is holding. Retry next poll.
@@ -9873,8 +9951,14 @@ function applyActions() {
     if (!target || target.kind !== "action") continue;
     const put = restoreFor(target);
     if (!put) continue;
-    if (put.state) put.el.applyAction(put.state.action, put.state.detail);
-    else rebuild(put.el);
+    if (put.state) {
+      put.el.applyAction(put.state.action, put.state.detail);
+      // The restored action is the unit's standing state again, so the settlement
+      // mark follows it here exactly as it follows an applied one (retire): a
+      // prior settlement a recorded verb had displaced comes back marked, or the
+      // page would show words its own reading had retired.
+      markSettled(put.el, put.state.action);
+    } else rebuild(put.el);
     // Counted as replay having moved the page, because it has: a restore puts words
     // back that a decision had taken off it, and the marks belong on them again. The
     // rebuild is the sharp case — its nodes are new, so a mark painted over the old
@@ -9919,18 +10003,6 @@ function applyActions() {
         appliedActions.add(e.seq);
         continue;
       }
-      // Present but never upgraded is a different fact from absent: the module
-      // failed, its own fail-soft box says so, and retiring the decision here
-      // would silently drop what the user recorded. The events wait while the
-      // upgrade pass may still deliver the module; once it has finished, no
-      // import retries this load, and holding them forever stalls the
-      // caught-up stamp the export and render gates wait on. Retiring is this
-      // load's memory alone (appliedActions), so a later load with the module
-      // healthy replays them.
-      if (!el.applyAction) {
-        if (document.body.dataset.lfUpgraded === "1") appliedActions.add(e.seq);
-        continue;
-      }
       // Withdrawn: the reader took this gesture back, so the log no longer holds it and
       // replay does not put it on the page. Ahead of the chrome branch below rather
       // than inside it, because the fold drops a withdrawn action wherever it stands
@@ -9971,6 +10043,21 @@ function applyActions() {
           continue;
         }
       }
+      // Present but never upgraded is a different fact from absent: the module
+      // failed, its own fail-soft box says so, and retiring the decision here
+      // would silently drop what the user recorded. The events wait while the
+      // upgrade pass may still deliver the module; once it has finished, no
+      // import retries this load, and holding them forever stalls the
+      // caught-up stamp the export and render gates wait on. Retiring is this
+      // load's memory alone (appliedActions), so a later load with the module
+      // healthy replays them. It stands behind the version and retraction gates
+      // above — they read the log alone, never the method — so the settlement
+      // mark can land here too: the mark is the layer's, and a holder whose
+      // module supplies no applyAction at all still owes the page nothing.
+      if (!el.applyAction) {
+        if (document.body.dataset.lfUpgraded === "1" && retire(el, e)) wrote = true;
+        continue;
+      }
       // A widget may briefly own live local input. `false` asks replay to leave this
       // action and later actions for the same widget in order for the next poll.
       // A throw is contained to the event that threw: unretired, it re-throws on
@@ -9986,7 +10073,7 @@ function applyActions() {
           `<${el.tagName.toLowerCase()}> applyAction(${e.action}) threw: ${error?.message ?? error}`,
         );
         failSoft(el, error);
-        appliedActions.add(e.seq);
+        retire(el, e);
         wrote = true;
         continue;
       }
@@ -9994,7 +10081,7 @@ function applyActions() {
         deferredWidgets.add(e.widget);
         continue;
       }
-      appliedActions.add(e.seq);
+      retire(el, e);
       wrote = true;
     }
     if (!wrote) continue;

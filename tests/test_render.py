@@ -11173,23 +11173,15 @@ TWO_HOLDER_PAGE = """<!doctype html>
 """
 
 
-def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
-    browser, serve, tmp_path, monkeypatch
-):
-    """`x-parent` is a list, and the retired-slot selector is built from it. Written
-    `${entry["x-parent"]}` the list interpolates comma-joined, so a slot naming two
-    holders wrote a selector *list* whose first member was the bare holder tag: every
-    instance of it read as a retired slot however the log stood, its words silenced
-    from the anchor pass, while the pair that was meant matched nothing at all.
-
-    Unreachable until this layer's licensing opened `x-retired-when` past the
-    suggestion family, which is why the shipped vocabulary — every slot of it naming
-    one holder — could never have said so. The page holds an undecided trial, so
-    nothing here is retired and a quote inside it must anchor like any other."""
-    monkeypatch.chdir(tmp_path)
+def trial_family(tmp_path):
+    """A third-party settlement family in the project layer, built the way a project
+    builds one: `leaf customize widget` scaffolds each tag, and the registry edit
+    relates them — x-state verbs on the holders, x-parent/x-retired-when on the
+    slots. The holders upgrade, because a tag declaring x-state needs a module to
+    define its element; the scaffold module is all they get, so anything a test sees
+    settle is the layer's doing, not a module's. Only lf-proposed names two holders,
+    for the selector case the two-holder test is about."""
     runner = CliRunner()
-    # The holders upgrade, because a tag declaring x-state must have a handler to
-    # replay one; the slots are markup and need none.
     for tag, upgrade in (
         ("lf-trial", True),
         ("lf-pilot", True),
@@ -11213,15 +11205,16 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
         "</lf-proposed></lf-pilot>",
     }
+    # `pause` settles nothing: the widget-unit verb that displaces a decision in
+    # the fold, there for the test that holds the mark to following it out.
     for tag, state in (
-        ("lf-trial", ("adopt", "shelve")),
+        ("lf-trial", ("adopt", "shelve", "pause")),
         ("lf-pilot", ("run", "shelve")),
     ):
         entries[tag]["x-state"] = {name: dict(verb) for name in state}
         entries[tag]["properties"]["restated"] = {"type": "boolean"}
         entries[tag]["x-content"] = "items"
         entries[tag]["x-example"] = example[tag]
-    # Only lf-proposed names two, which is the whole of what this is for.
     for tag, holders, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
@@ -11230,6 +11223,32 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         entries[tag].pop("x-example", None)
         entries[tag].pop("required", None)
     source.write_text(json.dumps(entries))
+    # The scaffold styles every tag as a card; a slot is a slot, the way the shipped
+    # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
+    # margins that stand trapped under the holder's frame once a settled sibling is
+    # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.
+    theme = tmp_path / ".leaf" / "theme.css"
+    theme.write_text(
+        theme.read_text() + "\nlf-current, lf-proposed "
+        "{ display: block; margin: 0; padding: 0; border: none; --lf-frame: initial; }\n"
+    )
+
+
+def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
+    browser, serve, tmp_path, monkeypatch
+):
+    """`x-parent` is a list, and the retired-slot selector is built from it. Written
+    `${entry["x-parent"]}` the list interpolates comma-joined, so a slot naming two
+    holders wrote a selector *list* whose first member was the bare holder tag: every
+    instance of it read as a retired slot however the log stood, its words silenced
+    from the anchor pass, while the pair that was meant matched nothing at all.
+
+    Unreachable until this layer's licensing opened `x-retired-when` past the
+    suggestion family, which is why the shipped vocabulary — every slot of it naming
+    one holder — could never have said so. The page holds an undecided trial, so
+    nothing here is retired and a quote inside it must anchor like any other."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_PAGE, anchored=[("th-now", "warmed on every deploy")])
     page, errors = open_page(browser, url)
@@ -11243,6 +11262,153 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     )
     assert errors == []
     page.close()
+
+
+def test_a_settled_third_party_holder_wears_the_layers_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A settlement is the layer's rendering of the log's decision, never a module
+    obligation: the trial's module is the bare scaffold — it defines the element and
+    supplies no applyAction at all — and once its decision replays the holder wears
+    data-lf-state, the retired slot is marked and hidden by the theme's one generic
+    rule, and the quote anchored in it detaches instead of pointing at words the
+    page's reading has dropped. The mark and the hide used to be each holder
+    module's own duty, stated in the scaffold comment and the key table and enforced
+    nowhere, and the first family that forgot would have split the page's reading
+    from the file's in silence. The second half drives it all back out: the fold
+    keeps the last surviving action per unit, so a widget-unit verb that settles
+    nothing displaces the decision, and the mark, the marker and the hide follow
+    it."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+
+    url = serve(TWO_HOLDER_PAGE, anchored=[("th-next", "warmed on the first request")])
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") == "", (
+        "the quote matched inside a slot the logged decision retired: nothing wrote "
+        "the settlement mark for a module that doesn't"
+    )
+    assert errors == []
+    page.close()
+
+    # The mark follows the fold out as well as in: the file's standing state is the
+    # last surviving action per unit, so a widget-unit verb that settles nothing
+    # displaces the decision, and a mark left standing would silence a slot the log
+    # has handed back.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "pause",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
+    assert page.locator("#th-cache").get_attribute("data-lf-state") is None
+    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
+    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") != "", (
+        "the displaced decision's slot is back on the page, so its quote must "
+        "anchor again"
+    )
+    assert errors == []
+    page.close()
+
+
+# The two-holder page with a second, undecided trial beside the first: the instance a
+# module that invents settlement gets caught on, since on the decided one its mark
+# only repeats the log.
+TWO_HOLDER_SPARE_PAGE = TWO_HOLDER_PAGE.replace(
+    "</main>",
+    """<lf-trial id="th-spare">
+  <lf-current><p id="sp-now">The spare stands as it is.</p></lf-current>
+  <lf-proposed><p id="sp-next">The spare would move.</p></lf-proposed>
+</lf-trial>
+</main>""",
+)
+
+
+def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for the settlement reading, in both directions. The bare family first
+    proves the gate accepts a holder that brings nothing of its own — the layer's
+    default hide is the whole of its disappearance. Then the one generic hide rule is
+    stripped from the vendored theme, standing in for whatever re-shows a retired
+    slot (a later layer's rule outranking the default, a module re-showing what it
+    folded): the words stay on screen where the reader can select what no comment
+    can anchor to, and the gate must say so. Then the theme goes back and the
+    vendored module is rewritten to mark every trial at upgrade: on the undecided
+    spare that is a settlement the log never decided, silencing words the reader can
+    still see, and the gate must say that too. Both failures render perfectly, which
+    is why each is put back deliberately."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+
+    url = serve(TWO_HOLDER_SPARE_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+    assert interact.render_version(browser, url) == []
+
+    hide = "[data-lf-retired] { display: none; }"
+    vendored = serve.page_dir / "theme.css"
+    css = vendored.read_text()
+    assert css.count(hide) == 1
+    vendored.write_text(css.replace(hide, ""))
+    failures = interact.render_version(browser, url)
+    assert any(
+        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
+        in failure
+        for failure in failures
+    ), failures
+
+    vendored.write_text(css)
+    module = serve.page_dir / "widgets" / "lf-trial.js"
+    source = module.read_text()
+    upgrade_line = "if (!once(this)) return;"
+    assert source.count(upgrade_line) == 1
+    module.write_text(
+        source.replace(
+            upgrade_line,
+            upgrade_line + '\n      this.setAttribute("data-lf-state", "shelve");',
+        )
+    )
+    failures = interact.render_version(browser, url)
+    assert any(
+        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
+        "records no decision" in failure
+        for failure in failures
+    ), failures
 
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):

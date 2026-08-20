@@ -289,6 +289,25 @@ member's, not the mechanism's: `suggestion_errors` holds the family's markup to
 one slot of each kind, at least one, and no nesting — cardinality being the one
 thing no key states, and those sentences meaning nothing for the twelfth widget.
 
+Opening the pair to any family carried an obligation along with it. The
+settlement mark (`data-lf-state`) was the suggestion module's own write, so
+generalizing the relation turned it into a duty every holder module had to
+remember — stated in the scaffold and the key table, enforced nowhere — and a
+module that forgot would split the page's reading from the file's, with
+`leaf comment`'s refusal as the only symptom, versions later and nowhere near
+the mistake. Nothing about the mark ever needed a module: the relation and the
+log both sit in the layer's hands, so replay paints it (`markSettled`,
+leaf.js), and a scaffold module that does nothing on settle still yields a page
+whose readings agree. The visible half followed once the same question was put
+to it: hiding the retired slot needs only the relation too, so the layer marks
+the slot (`renderRetired`) and one theme rule hides it, where the shipped
+family's by-name rules had been the closed list wearing CSS's clothes. What is
+left to a module is its own choreography, and the render gate reads the result
+(`RETIRED_SLOTS`), comparing mark and shown words against the log's decision —
+the check for what no default can see. Before gating an obligation every
+adopter must remember, ask whether the declaration already states enough for
+the layer to do it once.
+
 Which kind a widget is has one question behind it: is this one of the ways leaf
 works, or one of the things a page can hold? Convenience is not an answer; a
 widget joins the first set only when the loop is written in terms of it. The

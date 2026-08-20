@@ -963,8 +963,14 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
 lf-old, lf-new { transition: padding .22s ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
-lf-suggestion[data-lf-state="accept"] > lf-old,
-lf-suggestion[data-lf-state="reject"] > lf-new { display: none; }
+/* A slot the standing decision retired, marked by the runtime from the registry's own
+ * relation (data-lf-retired, leaf.js renderRetired). One rule for every family, so a
+ * holder a project declares hides what a settlement removes the day it declares it —
+ * the by-name pair that stood here was the closed list wearing CSS's clothes. A
+ * module's fold outranks this with its inline display for the length of the motion,
+ * and an exported copy keeps marker and rule with no module behind them. What no
+ * relation can say stays the family's own, like the emptied wrapper below. */
+[data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* Whose job it is to say the change is only proposed, in each medium. On screen the

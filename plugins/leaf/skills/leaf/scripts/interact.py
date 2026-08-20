@@ -296,7 +296,12 @@ vocabulary for rides in the custom keywords below:
                 decision reaches it. That one holder/slot relation is the whole
                 of what a decision settles: the anchor pass's skip list on both
                 sides, and which ids a version honoring the decision may drop
-                (retirable_ids).
+                (retirable_ids). The browser's half of the skip keys on
+                data-lf-state, which the layer itself paints onto the holder as
+                replay applies the decision — with data-lf-retired painted onto
+                the retired slots, which one theme rule hides — never a module
+                obligation; the render gate compares both halves back against
+                the log (RETIRED_SLOTS).
     x-withdrawn-as  the outcome an unanswered instance stands as when the author
                 takes it back: a withdrawn suggestion leaves the page where a
                 `reject` would. Without it a question, once asked, stays until
@@ -2691,11 +2696,13 @@ def custom_widget_module(tag: str) -> str:
 //   replay applies it on every later version, and the sender's own action
 //   must be a no-op. `version check --render` re-applies the standing state and
 //   reports a widget that moves under it.
-// - A holder whose slots declare x-retired-when writes data-lf-state="<outcome>"
-//   on itself as it settles. That attribute is what the page reads to know a slot
-//   has left it — the file's reading takes the same fact from the log — so a module
-//   that settles without writing it leaves `leaf comment` refusing a quote into
-//   words the reader can still see and select.
+// - A slot that declares x-retired-when leaves the page when its holder settles,
+//   and the layer renders the whole settlement: replay paints data-lf-state on the
+//   holder and data-lf-retired on the retired slots, and one theme rule hides
+//   them. This module owes only its own choreography — a fold, a control saying
+//   what was decided (renderRetired paints the same state sooner on the sender's
+//   own gesture). `version check --render` reads the result, and reports a settled
+//   slot that shows words anyway, or a mark the log never decided.
 // - Read your own slot with says(el), never textContent: the runtime's hidden
 //   comment line lands inside widgets legitimately.
 // - Anything you inject is chrome only if marked: offer() for a control,
@@ -8394,6 +8401,92 @@ UNDECLARED_ATTRS = (
 )
 
 
+# The two sides of the settlement contract, compared on the rendered page. The mark —
+# data-lf-state on a holder — is the layer's paint of a logged decision (applyActions
+# in leaf.js), and the anchor pass retires slots by it, so whatever it says, the page's
+# reading obeys. What can still go wrong is a family's, and both failures render
+# perfectly: a module that writes the mark where the log decided nothing silences words
+# the reader can still see and select, and a settled slot can show its words anyway — a
+# later layer's rule outranking the default hide, a module re-showing what it folded —
+# leaving the reader selecting words no comment can anchor to, with the refusal
+# arriving later, at `leaf comment`, nowhere near the mistake. So the expected outcome
+# comes from the file's reading (`decisions`, folded over this version's log), never
+# from the page, and the page answers only for what it shows.
+#
+# The words walk is textNodesUnder with an accepts of its own, on purpose: the anchor
+# pass's default accepts already skips a marked holder's slots, so asking it whether
+# the retired words are gone would let the mark answer for the screen. What it keeps
+# of that reading is the boundary — declared shadow roots, the same trees replay's
+# elementById marks across, which is why the holders are found through OPEN_ROOTS
+# too — and the chrome test (inUi): a declared label is the page's words, so a
+# settled slot still showing one is still showing words. The visibility guards are
+# COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes
+# report as last laid out, and visibility and opacity hide with layout intact. One
+# scheme, on the trapped-margin reading's premise — the palettes carry no geometry
+# between them — with the fold a replayed decision plays awaited first, finite
+# animations only, because a slot mid-fold still paints words it has already retired.
+RETIRED_SLOTS = (
+    """async (holders) => {"""
+    + OPEN_ROOTS
+    + """
+    const leaf = await import('/leaf.js');
+    const all = roots(document);
+    const find = (id) => {
+        for (const r of all) {
+            const el = r.getElementById(id);
+            if (el) return el;
+        }
+        return null;
+    };
+    const found = [];
+    const showing = (slot) => {
+        for (const seg of leaf.textNodesUnder(slot, (n) => !leaf.inUi(n))) {
+            const n = seg.node, el = n.parentElement;
+            if (!n.data.trim()) continue;
+            if (el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
+            if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+                continue;
+            const range = document.createRange();
+            range.selectNodeContents(n);
+            for (const box of range.getClientRects())
+                if (box.width > 1 && box.height > 1) return n.data.trim().slice(0, 40);
+        }
+        return null;
+    };
+    for (const h of holders) {
+        const el = find(h.id);
+        if (!el || leaf.inChrome(el) || leaf.quoted(el)) continue;
+        await Promise.allSettled(
+            el.getAnimations({subtree: true})
+                .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+                .map((a) => a.finished));
+        const mark = el.getAttribute('data-lf-state');
+        const at = `<${h.tag} id='${h.id}'>`;
+        if (mark !== (h.outcome ?? null)) {
+            const log = h.outcome ? '`' + h.outcome + '`' : 'no decision';
+            found.push(`${at} wears data-lf-state=${JSON.stringify(mark)} where the `
+                + `log records ${log} — the mark is the layer's paint of a logged `
+                + `decision, and the anchor pass retires slots by it, so a module may `
+                + `say only what the log decided`);
+            continue;
+        }
+        for (const tag of h.slots)
+            for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
+                for (const slot of root.querySelectorAll(`:scope > ${tag}`)) {
+                    const words = showing(slot);
+                    if (words === null) continue;
+                    found.push(`${at} settled \\`${h.outcome}\\` and its <${tag}> still `
+                        + `shows ${JSON.stringify(words)} — those words have left the `
+                        + `page's reading, so the reader can select what no comment can `
+                        + `anchor to; the layer hides a retired slot by default, so `
+                        + `something in this family is showing it anyway`);
+                }
+    }
+    return found;
+}"""
+)
+
+
 # A box that draws an inset and shows a different one. A child's outer margin normally
 # collapses through its parent and is spent between blocks; where the parent draws
 # something at that edge, or holds a formatting context of its own, it cannot get out and
@@ -8501,14 +8594,11 @@ def served(page, url: str, path: str):
     return page.request.get(urljoin(url, path), timeout=SERVED_TIMEOUT_MS)
 
 
-def previous_version(url: str, versions: list) -> int | None:
-    """The newest version this server lists before the one the URL names, or None
-    where there is none — a first version, or one the server does not list at all,
-    which is the same answer for the same reason: the conflict reading compares this
-    file against what a reader could have seen before it. The gate is always pointed
-    at a version file, so the path stating which one is a fact to read rather than
-    something to test for."""
-    here = int(re.search(r"/versions/v([1-9]\d*)\.html$", urlsplit(url).path).group(1))
+def previous_version(here: int, versions: list) -> int | None:
+    """The newest version this server lists before this one, or None where there is
+    none — a first version, or one the server does not list at all, which is the
+    same answer for the same reason: the conflict reading compares this file against
+    what a reader could have seen before it."""
     earlier = [version for version in versions if version < here]
     return max(earlier) if earlier else None
 
@@ -8552,7 +8642,10 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     applyAction is relative, so the poll's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a box drawing one inset and showing another,
+    page again (none of the three is CSS), a settled holder whose mark or still-showing
+    slot words disagree with the log's decision (read once, on the premise the
+    trapped-margin reading shares: the palettes carry no geometry between them), a box
+    drawing one inset and showing another,
     and, on paper, words the page drops that it says on screen, or draws over each other
     (print is scheme-blind). Returns human-readable failures; [] is a pass.
 
@@ -8632,11 +8725,15 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
             state = served(page, url, "/api/state").json()
             markup = served(page, url, urlsplit(url).path).text()
+            # Which version this is, parsed once for every reading that needs it:
+            # the gate is always pointed at a version file, so the path stating
+            # which one is a fact to read rather than something to test for.
+            here = version_num(Path(urlsplit(url).path).name)
             # The version before this one, for the conflict reading below: which
             # pair it compares is a question about the log and the URL, both of
             # which are held out here. A first version has no predecessor to have
             # authored anything against.
-            before = previous_version(url, state["versions"])
+            before = previous_version(here, state["versions"])
             earlier = (
                 served(page, url, f"/versions/v{before}.html").text()
                 if before
@@ -8702,6 +8799,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         missing_conversations = []
         replayed = True
         undeclared_attrs = []
+        retired = []
         if scheme == "light":
             # x-conversation promises one page view per matching instance. A widget in
             # thread chrome already has the thread's reply surface and conversationBox
@@ -8779,6 +8877,36 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 # an applyAction states its widget whole, and a record form is
                 # exactly the attribute it is allowed to state it in.
                 undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, widgets)
+                # Behind it too: the settlement mark is replay's own write, so a
+                # reading taken earlier asks after paint the page has not been
+                # asked to make yet. The expected outcomes are the file's, scoped
+                # to each holder's own relation: `decisions` folds any verb that
+                # retires somewhere in the vocabulary, so a verb of that name on
+                # a family it settles nothing of decides nothing here — the
+                # browser's write reads the per-holder relation, and a comparison
+                # against anything wider would fail a page both sides are right
+                # about.
+                if slots := retirement_slots(registry):
+                    fold, vparser, _ = page_fold(
+                        markup, state["events"], registry, here
+                    )
+                    outcomes = decisions(fold, registry)
+                    holders = []
+                    for h in retirement_holders(vparser, registry):
+                        declared = slots[h["tag"]]
+                        outcome = outcomes.get(h["id"])
+                        if outcome not in declared:
+                            outcome = None
+                        holders.append(
+                            {
+                                "tag": h["tag"],
+                                "id": h["id"],
+                                "outcome": outcome,
+                                "slots": sorted(declared.get(outcome, ())),
+                            }
+                        )
+                    if holders:
+                        retired = page.evaluate(RETIRED_SLOTS, holders)
         # One scheme, the palettes carrying no geometry between them, and before the
         # medium moves: a box's inset is what it declared in either.
         trapped = page.evaluate(TRAPPED_MARGINS) if scheme == "light" else []
@@ -8879,6 +9007,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
                 f"in theme.css reaches it"
             )
+        found += [f"[{scheme}] {r}" for r in retired]
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += [f"[{scheme}] {r}" for r in relative]
         found += on_paper

@@ -74,6 +74,7 @@ import {
   quietWord,
   quoted,
   relabel,
+  renderRetired,
   reserve,
   says,
   sendAction,
@@ -394,6 +395,10 @@ customElements.define(
       const change = this.#label();
       const fold = this.#fold(outcome);
       this.dataset.lfState = outcome;
+      // The retired slot's marker is the layer's rendering of that state, and the
+      // theme's one hide rule reads it; painted here as well as at replay so the
+      // gesture's own tab hides the slot in the frame the decision lands.
+      renderRetired(this);
       if (this.#row) {
         // The row stays; what changes is which of the two controls is speaking. A
         // quoted one grew none.

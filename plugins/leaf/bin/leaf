@@ -41,11 +41,15 @@ fi
 # every host that was working before. The fallback says so on the way past,
 # because the run behind it succeeds and so reports nothing: any failed ask
 # reaches it, a blip as much as a mirror, and what follows re-resolves a header
-# with no upper bound and writes the result over the pins.
+# with no upper bound and writes the result over the pins. Which one it was is
+# the ask's to say and not this line's, so the ask's own words come with it —
+# a missing `uv` reads nothing like a refused connection. Only stderr is kept,
+# so the fast path stays as silent as it was.
 resolve=
-if ! uv sync --script "$script" >/dev/null 2>&1; then
+if ! sync_report=$(uv sync --script "$script" 2>&1 >/dev/null); then
   resolve=--upgrade
-  echo "leaf: the lock's own URLs cannot be served here; resolving the header against this host's index and rewriting the lock." >&2
+  echo "leaf: the locked install failed here; resolving the header against this host's index and rewriting the lock. It failed with:" >&2
+  echo "$sync_report" >&2
 fi
 
 if [ "${1-}" = "version" ] && [ "${2-}" = "export" ]; then

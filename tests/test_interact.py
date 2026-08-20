@@ -438,6 +438,10 @@ def test_the_launcher_starts_where_the_locks_own_urls_cannot_be_served(tmp_path)
     # over the pins, and the run behind it succeeds — so it says so on stderr,
     # which is the only account anyone gets of a moved pin.
     assert "resolving the header against this host's index" in result.stderr
+    # Which failure it was is the ask's to say and not the announcement's — an
+    # unservable lock reads nothing like a 503 or a host with no `uv` at all — so
+    # the ask's own words come with it rather than dying with its exit status.
+    assert "127.0.0.1:1" in result.stderr
     # The resolve is paid once: it rewrites the lock to what this host's index
     # served, so the next run is pinned again rather than resolving afresh.
     assert "127.0.0.1:1" not in lock.read_text()

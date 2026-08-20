@@ -45,6 +45,15 @@
  * both riding along. Hoisted, the row still meets the reader and the tab order
  * beside the change it decides, because it follows that change's own block.
  *
+ * The span was there first because the wrapper generated no box to anchor from, and
+ * it stays now that the wrapper has one. Which form the wrapper takes is a
+ * stylesheet's to say, and a project layer says it again; a span the widget builds
+ * for itself is the one thing it can anchor from whatever a layer decides. Anchoring
+ * off the wrapper reads correctly on the shipped theme and takes the controls off the
+ * page entirely under a layer that makes it `display: contents`, because
+ * `checkVisibility()` is false for an element with no box: every row goes to
+ * `lf-waiting`, and a change nobody can accept is worse than one with no ring.
+ *
  * That margin is the theme's rail, reserved by a page that carries a row at all;
  * measuring is what finds it, not what makes it. Three things are measured, all by
  * one observer serving every suggestion on the page: whether the change is on
@@ -157,9 +166,9 @@ function relayout() {
   const measured = [...rows].map(([row, anchor]) => ({
     row,
     rect: row.getBoundingClientRect(),
-    // Whether the change is on screen, asked of the anchor rather than measured:
-    // lf-suggestion has a box of no size (display: contents), and a collapsed
-    // container reports its content's last rendered geometry rather than nothing.
+    // Whether the change is rendered at all, asked rather than measured: the anchor
+    // is an empty span with nothing to measure, and a collapsed container reports its
+    // content's last rendered geometry rather than nothing, so a rect could not say.
     shown: anchor.checkVisibility(),
   }));
   const inMargin = [];

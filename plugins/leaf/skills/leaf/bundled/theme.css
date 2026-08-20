@@ -161,7 +161,8 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
     label, link, map, mark, math, meta, meter, noscript, object, output, picture,
     progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
+    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip,
+    lf-suggestion)) {
   display: block;
   & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
   & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }

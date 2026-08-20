@@ -10,6 +10,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "items",
+    "x-inline": true,
     "x-upgrade": true,
     "x-awaits": {"all": "accept"},
     "x-withdrawn-as": "reject",

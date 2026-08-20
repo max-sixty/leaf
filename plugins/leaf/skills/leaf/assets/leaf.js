@@ -2002,11 +2002,13 @@ ${MARK_RULES}
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
   /* The open ask the reader is standing in (markHere), worn by the ask rather than by
      whichever of its controls holds the focus — they are standing in the whole thing,
-     however they got there. Exactly one ask wears it at a time, on however many boxes
-     it shows through: a wrapper that generates no box draws no outline, so an ask that
-     is one hangs the ring on the boxes its contents make (shownParts). It is an outline
-     like every other mark the runtime paints on the page's own elements, so arriving
-     moves nothing. */
+     however they got there. Exactly one ask wears it at a time: every shipped widget
+     draws one box for it to paint on, and one a page styles boxless hangs it on the
+     boxes its contents make (shownParts). While the asks board is open, its row mirrors
+     the same fact on the second surface. It is an outline like every other mark the
+     runtime paints on the page's own elements: it moves nothing on arriving, and it
+     keeps its place for nothing, being the element's own paint rather than a box in
+     the chrome that would have to chase it down every scroll, reflow and drag. */
   [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
@@ -5610,20 +5612,18 @@ export function shownBand(el) {
   };
 }
 // The box an element shows as. An element that generates none of its own — a
-// display: contents wrapper, which is how a suggestion sits mid-sentence or around whole
-// sections without disturbing either flow — shows as what its contents paint, so its
-// bounds are theirs, and a range asks the platform for that union in one read. Its own
-// rect is (0,0) at the document's origin, which is not a degenerate box but a wrong one:
-// it reads as a real place at the top of the page, so whatever measured it travelled
-// there.
+// display: contents wrapper — shows as what its contents paint, so its bounds are
+// theirs, and a range asks the platform for that union in one read. Its own rect is
+// (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
+// reads as a real place at the top of the page, so whatever measured it travelled there.
 //
-// This lived inside the legend's own reading, which is where the case was first met, and
-// that is what left it a fact about one consumer rather than about elements. The other
-// two went on asking the element directly and got the wrong place each in the shape of
-// its own job: scrollToElement centred the top of the document, and the ask walk's ring
-// painted nothing, so a page whose open asks were all suggestions answered n by appearing
-// to do nothing at all. One answer to "where is this element", so there is no second way
-// to ask.
+// No widget in the vocabulary is one now — lf-suggestion was, and its theme comment
+// carries what that cost — but the wrong answer is the platform's rather than that
+// widget's: a page or a project layer styles any wrapper this way in a line. This
+// lived inside the legend's own reading once, where it stood as a fact about the
+// legend rather than about elements, which is exactly why the travel went on asking
+// the element directly and centred the top of the document. One answer to "where is
+// this element", so there is no second way to ask.
 export function shownBox(el) {
   const r = el.getBoundingClientRect();
   if (r.width || r.height) return r;
@@ -8377,9 +8377,8 @@ function renderAsks(asks) {
 //
 // A press this control belongs to: one inside the ask, or one hoisted out of it and
 // pointing back (a suggestion's row is the column's child, so that it can hang in the
-// page margin). Landing on it rather than on the ask means Tab walks the rest of that
-// ask's own controls from there, and it is the only landing available where the
-// element has no box of its own to hold focus (a suggestion renders display: contents).
+// page margin). Landing on it rather than on the ask puts the reader on the press that
+// answers it, and Tab walks the rest of that ask's own controls from there.
 const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).
@@ -8453,12 +8452,15 @@ function standingIn() {
 // than about where the reader is: the Asks button's own press lands the focus by script
 // after a click, and the ask it brought the reader to would wear nothing at all.
 //
-// The ask wears it, and so does every box the ask shows through: the ask is what the
-// readers of the mark ask after, since it carries the id captureView writes down and the
-// place askStep measures from, while an outline needs a box to hang on. For nearly every
-// ask those are one element. Where they differ the mark is still a single answer, because
-// an ask precedes what it renders, so the querySelector asking which ask the reader is on
-// still names the ask.
+// The ask wears it, and so does every box it shows through (shownParts): the ask is
+// what carries the id captureView writes down and the place askStep measures from,
+// while an outline needs a box to hang on. Every widget in the vocabulary draws one
+// box now — the wrapper that declined to took a form instead, in its own stylesheet,
+// after the ring went out over its pieces and read as two boxes touching rather than
+// as the one ask the reader is standing in — so on shipped pages the parts are the
+// ask itself, and the fallback answers the wrapper any page can still style boxless
+// in a line, the same way the thread's mark does (paintAnchors).
+//
 // The board's row for the ask is a second surface showing this one fact, so it is
 // painted from this one reading rather than from a mark the board keeps for itself —
 // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
@@ -8477,7 +8479,7 @@ function markHere() {
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent !== here) lend(null);
-  for (const el of wearing) el.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
+  for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
 }
 const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // Where the walk measures from: where the reader is standing, rather than where the walk

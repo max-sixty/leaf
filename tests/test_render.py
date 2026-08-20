@@ -1473,10 +1473,10 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
 
 
 # Two wrappers that generate no box, differing only in whether anything inside them does.
-# `#veiled` is the shape the vocabulary already ships — a suggestion is display: contents,
-# and its slots are what the reader sees — and it is the control: the gate must not report
-# it, or it reports every suggestion on every page. `#ghost` is the same wrapper with its
-# words loose inside it, where there is nothing at all for a mark to hang on.
+# `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,
+# and any page can still write in a line — it is the control: the gate must not report
+# it, or it reports every page that styles a wrapper away. `#ghost` is the same wrapper
+# with its words loose inside it, where there is nothing at all for a mark to hang on.
 UNMARKABLE_PAGE = LONG_PAGE.replace(
     "</main>",
     "<div id='veiled' style='display: contents'>"
@@ -2327,8 +2327,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         target = page.locator(targets).nth(i)
         if not target.is_visible():
             continue
-        # A wrapper with no box of its own — a display: contents suggestion — is
-        # nowhere a user can aim (AIM_POINT finds no point in it either), and
+        # A wrapper with no box of its own — one a page's style leaves
+        # display: contents — is nowhere a user can aim (AIM_POINT finds no point
+        # in it either), and
         # scroll_into_view can wait on its stability forever when it stands inside
         # a table box (a specimen). Its slots are their own targets.
         if not target.evaluate("el => el.getClientRects().length"):
@@ -2667,9 +2668,9 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
 # Every legend box stands on its item: same corner, one pixel out, for every item wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
 # compared, and items off it have no box shown at all. An item with no box of its own —
-# a display: contents suggestion — reads as what its contents paint, mirroring
+# one a page styles display: contents — reads as what its contents paint, mirroring
 # shownRect's fallback: its host rect is 0×0 at the origin, which would otherwise count
-# as "wholly on screen" and fail every off-screen suggestion for its rightly hidden box.
+# as "wholly on screen" and fail every off-screen one for its rightly hidden box.
 LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
   const it = document.getElementById(b.dataset.for);
   let r = it.getBoundingClientRect();
@@ -4273,8 +4274,9 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
 
 
 # Chips whose words are a price and nothing else, which is two or three characters and
-# about 30px. Nothing else on the page is unusual, so the chips are the only thing on it
-# that a floor written for widgets laying out a region could catch.
+# about 30px — and an inline suggestion swapping one letter for another, about the same.
+# Nothing else on the page is unusual, so these are the only things on it that a floor
+# written for widgets laying out a region could catch.
 SHORT_CHIP_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -4287,7 +4289,9 @@ SHORT_CHIP_PAGE = """<!doctype html>
 <body>
 <main>
 <h1 id="t">Feeder extras</h1>
-<p id="p">The bracket order goes in on Friday and there is room in it.</p>
+<p id="p">The bracket order goes in on Friday and there is room in it. Change the
+rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
+before it ships.</p>
 <lf-options id="extras" choose multiple>
 <lf-option id="x-tray"><lf-chip>£9</lf-chip>
 <strong>Seed tray</strong> Catches the spill under the south pair.
@@ -4307,7 +4311,9 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     no width it was ever going to reach. Held to the floor written for a widget that lays
     out a region, a chip saying `£9` reads as a collapse, and the gate refuses a page with
     nothing wrong with it — for a price, which is the shortest thing an author is likely to
-    put in one.
+    put in one. A suggestion swapping one short word is the same case in a second tag,
+    there because the gate dispatches on the declaration: the day the wrapper took a box
+    it stood in front of this floor, and only x-inline says whose floor is whose.
 
     The floor a chip does keep is the height, since a line of words is a line tall under
     any layout. Both halves are asserted, because a floor deleted outright passes the
@@ -4320,6 +4326,24 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert errors == []
     assert widths and max(widths) < 40, (
         f"these chips are {widths}px, so they clear the floor and prove nothing"
+    )
+    sug_width = page.locator("#sug-flag").evaluate(
+        "el => Math.round(el.getBoundingClientRect().width)"
+    )
+    assert sug_width < 40, (
+        f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
+    )
+
+    # Asked without the declaration, the same floor flags it — so what passes the page
+    # is the declaration, not a floor gone missing.
+    undeclared = json.loads(json.dumps(page_registry(page)))
+    del undeclared["lf-suggestion"]["x-inline"]
+    assert [
+        box
+        for box in page.evaluate(interact.TINY_BOXES, undeclared)
+        if box["tag"] == "lf-suggestion"
+    ], (
+        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
     )
 
     # Flattened, the same chips are a collapse and the gate says so — the reading the
@@ -7509,9 +7533,9 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
 
 
 # Where an exhibit's own boxes begin and end, which is what the marking beside them has
-# to meet. A widget that generates no box hands its boxes to the flow — a suggestion is
-# `display: contents` — so a child with no rect is walked through rather than skipped,
-# and that is the case no selector in the theme can reach for itself. The runtime's own
+# to meet. A widget that generates no box hands its boxes to the flow — any wrapper a
+# style leaves `display: contents` — so a child with no rect is walked through rather
+# than skipped, and that is the case no selector in the theme can reach for itself. The runtime's own
 # layer is not the exhibit: `.lf-ui` is chrome standing in the page's blocks, and a
 # marking drawn around it would be marking the reading rather than the page.
 EXHIBIT_EXTENT = """
@@ -8996,11 +9020,12 @@ ASKS_PAGE = """<!doctype html>
 </html>
 """
 ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
-# The ask the walk is standing on. One ask wears the mark, on however many boxes it shows
-# through — a wrapper that generates none of its own hangs the ring on the boxes its
-# contents make — so what says the walk is in one place is the outermost element wearing
-# it, never the count of elements that do.
-STANDING_ASK = "[data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+# The ask the walk is standing on. One ask wears the mark, on however many boxes it
+# shows through — every shipped widget draws one, and a wrapper a page styles boxless
+# hangs it on the boxes its contents make — so what says the walk is in one place is
+# the outermost page element wearing it, never the count of elements that do. Scoped to
+# main because the asks board's row mirrors the same fact in the chrome.
+STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The document's scroll once it has stopped moving. A leaf's travel is a glide, so any
 # reading taken while it runs is of a place the gesture passes through rather than of
 # where it went — and "the ask is on screen" is one of those places, true for a moment
@@ -9069,8 +9094,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
 
     The landing is marked on the ask and focused on the control that answers it, so
     the reader can see what they were brought to and Tab straight into working it —
-    which is also the only landing available on a suggestion, whose element is
-    display: contents and can hold no focus of its own."""
+    on a suggestion that control is the ✓ Accept hoisted into the page margin, and
+    the walk follows it out there."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
     for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:  # one past the end: it wraps
@@ -9417,19 +9442,20 @@ def test_one_board_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf)
     page.close()
 
 
-def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
-    """A suggestion's wrapper generates no box — that is what lets it sit mid-sentence or
-    around whole sections without disturbing either flow — and an element with no box
-    measures (0,0) at the document's origin. That is not a degenerate answer but a wrong
-    one, so everything that asked the wrapper where it was believed it: the ring painted
-    nothing, and the travel centred the top of the document. A page whose open asks were
-    all suggestions therefore answered `n` by appearing to do nothing at all, which is
-    how it was found — every earlier press had landed on a group or a task, which have
-    boxes, so the walk looked right for as long as something else was open.
+def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
+    """A suggestion is one ask, so it wears one ring, whatever its slots are made of.
 
-    The mark names the ask and hangs on the boxes the ask shows through, and the two
-    readings are asserted apart here: the wrapper is what the walk is standing on, and
-    the slots are what the reader can see it on."""
+    The wrapper generated no box once — the same "take the form your content takes" with
+    the box left out — and an element with none measures (0,0) at the document's origin,
+    which is not a degenerate answer but a wrong one. Everything that asked the wrapper
+    where it was believed it, so the travel centred the top of the document and a page
+    whose open asks were all suggestions answered `n` by appearing to do nothing at all.
+
+    Hanging the ring on the pieces instead covered that and said the wrong thing about
+    the change: two outlines meeting down the middle of a sentence, or stacked across
+    two block slots, read as two boxes touching rather than as the one ask the reader is
+    standing in. So what is asserted here is that the reader is taken to the change, and
+    that the wrapper alone wears the mark, in one box reaching round both slots."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
 
     # Short enough that reaching the change is travel rather than a press with the
@@ -9461,13 +9487,14 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     page.keyboard.press("n")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
-    # The condition the rest of the test is about, stated rather than assumed: with a box
-    # of its own on the wrapper there is nothing here to get wrong, and every assertion
-    # below would hold for the wrong reason.
-    assert page.evaluate(
+    # The condition everything below rests on, stated rather than assumed: put
+    # display: contents back on the wrapper and it measures (0,0), the mark paints
+    # nothing, and the count further down passes on an element no reader can see.
+    box = page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
-    ) == [0, 0]
+    )
+    assert box[0] > 40 and box[1] > 10, f"the wrapper drew no box to ring: {box}"
 
     # The travel is a glide, so the fact to wait on is that it has finished. Both
     # assertions are then about the landing: measured from the wrapper's own rect the
@@ -9479,18 +9506,86 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     )
     assert page.evaluate(fully_shown), "the walk left the change out of the window"
 
-    # What wears the mark: the ask, which carries the id every reader of the mark asks
-    # after, and the slots, which are the only things here a ring can be seen on. Nothing
-    # else — the widget hangs its controls off an empty span inside the wrapper, which has
-    # a rect and no area, and a 2px mark of its own beside the change is not the promise.
-    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')].map(e => {
-      const r = e.getBoundingClientRect();
-      return { what: e.id || e.tagName, area: r.width > 0 && r.height > 0,
+    # What wears the mark: the wrapper, which carries the id every reader of the mark
+    # asks after. Not the slots, and not the empty span the widget prepends to itself to
+    # anchor its controls from — a 2px mark of its own beside the change is not the
+    # promise.
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')].map(e => {
+      return { what: e.id || e.tagName, fragments: e.getClientRects().length,
                ring: getComputedStyle(e).outlineStyle !== 'none' };
     })""")
-    assert [m["what"] for m in marks] == ["sug-refill", "LF-OLD", "LF-NEW"]
-    assert all(m["ring"] for m in marks)
-    assert [m["area"] for m in marks] == [False, True, True]
+    assert [m["what"] for m in marks] == ["sug-refill"]
+    assert marks[0]["ring"]
+    # One fragment, so the outline closes round the change once. An inline box broken
+    # around block children has three and draws no visible edge on any of them, which is
+    # what a wrapper that only says `inline` gets for a change made of paragraphs.
+    assert marks[0]["fragments"] == 1, marks
+
+    # And the box reaches round both slots, which a ring on the pieces could not promise:
+    # the reader is standing in the change, not in half of it.
+    assert page.evaluate("""() => {
+      const w = document.getElementById('sug-refill').getBoundingClientRect();
+      return ['refill-was', 'refill-now'].every(id => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return r.top >= w.top - 1 && r.bottom <= w.bottom + 1
+            && r.left >= w.left - 1 && r.right <= w.right + 1; });
+    }"""), "the wrapper's box does not reach round both slots"
+
+    assert errors == []
+    page.close()
+
+
+def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
+    """`display: contents` is one line of CSS, and a page or a project layer can put it
+    on anything. Nothing in the shipped vocabulary carries it now, so this case only
+    reaches the runtime from outside — which is where the reading has to hold, because
+    an element generating no box measures (0,0) at the document's origin and every
+    consumer that believes it travels to the top of the page.
+
+    The travel reads where the content paints (shownBox), and the ring hangs on the
+    boxes the ask shows through (shownParts) — the same answer an element-anchored
+    comment's outline gives, so the walk's mark and the thread's cannot disagree about
+    where a boxless ask is. The outermost mark still names the ask, one place for the
+    reader to be standing."""
+    styled = ASKS_PAGE.replace(
+        "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+    )
+    page, errors = open_page(browser, serve(styled))
+    resized(page, 900, 400)
+
+    # Asked of what the change paints, since the wrapper itself no longer says: this is
+    # the reading the runtime has to take for the travel to land anywhere real. Whole in
+    # the window because merely overlapping it is a state the glide passes through.
+    fully_shown = """() => { const r = document.createRange();
+      r.selectNodeContents(document.getElementById('sug-refill'));
+      const box = r.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= innerHeight; }"""
+
+    page.keyboard.press("n")
+    expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
+    was = page.evaluate("() => document.body.scrollTop")
+    assert was > 0, "the reader must have somewhere to have come from"
+
+    page.keyboard.press("n")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+    assert page.evaluate(
+        "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
+        " return [r.width, r.height]; }"
+    ) == [0, 0], "the page's own style no longer takes the wrapper's box away"
+    page.wait_for_function(SCROLL_SETTLED, arg=SETTLE_MS)
+    assert page.evaluate("() => document.body.scrollTop") > was, (
+        "the walk went up rather than down, which is where the document's origin is"
+    )
+    assert page.evaluate(fully_shown), "the walk left the change out of the window"
+
+    # The ask and the boxes it shows through wear the mark, the ask outermost — one
+    # place to stand, painted where the reader can see it.
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')]
+      .map(e => e.id || e.tagName)""")
+    assert marks == ["sug-refill", "LF-OLD", "LF-NEW"], (
+        f"the mark went somewhere else than the ask and its shown boxes: {marks}"
+    )
+    expect(page.locator(STANDING_ASK)).to_have_count(1)
 
     assert errors == []
     page.close()
@@ -9512,8 +9607,15 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     so the first paint of a page sees no note and the ring is right; it moves onto the
     pixel on the next pass — which the ask walk always is, the reader having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
-    ring beside the change instead of on it."""
-    url = serve(ASKS_PAGE)
+    ring beside the change instead of on it.
+
+    The shipped wrapper draws a box of its own now, so the page supplies the boxless
+    one here — the line of CSS any page can write is what keeps this reachable."""
+    url = serve(
+        ASKS_PAGE.replace(
+            "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+        )
+    )
     interact.append_event(
         serve.page_dir,
         {
@@ -9725,12 +9827,12 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         f"the ask is not ringed in the page's own band: {ask_ring}"
     )
 
-    # A suggestion hangs its ✓ Accept out in the page margin, and that control is the
-    # whole of the band the reader sees there: lf-suggestion is display: contents, so
-    # the ring it wears is an outline on a 0x0 box and paints nothing. The band comes
-    # from the runtime's own .lf-pill rule, which every press in that margin wears —
-    # the suggestion family spelled its own once, which is a family stating a fact
-    # about a shape the runtime owns.
+    # A suggestion hangs its ✓ Accept out in the page margin and the focus lands on
+    # it, so this arrival paints two marks for one fact — the ring on the change, the
+    # focus band on the pill deciding it — and they had better be one band. The pill's
+    # comes from the runtime's own .lf-pill rule, which every press in that margin
+    # wears: the suggestion family spelled its own once, which is a family stating a
+    # fact about a shape the runtime owns.
     page.keyboard.press("n")
     accept = page.locator(".lf-sug-accept")
     expect(accept).to_be_focused()
@@ -11112,11 +11214,12 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     page, errors = open_page(browser, url)
     thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
-    # Pending, the outline hangs on the slot the wrapper shows through, and it is read as
-    # a box rather than as a class: the class sat on the wrapper for as long as this test
-    # existed, and a display: contents wrapper paints no outline, so the half of this
-    # docstring about drawing nothing was true of the attached case too.
-    shown = page.locator("#sug-thistle .lf-mark-el")
+    # Pending, the outline hangs on a box the reader can see, and it is read as a box
+    # rather than as a class: the class sat on the wrapper while the wrapper was
+    # display: contents and painted no outline, so the half of this docstring about
+    # drawing nothing was true of the attached case too. The wrapper draws its own box
+    # now, so the mark is the wrapper itself rather than the slot it showed through.
+    shown = page.locator("#sug-thistle.lf-mark-el")
     expect(shown).to_have_count(1)
     box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")
     assert box["width"] > 0 and box["height"] > 0, (
@@ -11125,7 +11228,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
 
     page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
-    expect(page.locator("#sug-thistle .lf-mark-el")).to_have_count(0)
+    expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     assert errors == []
     page.close()
 

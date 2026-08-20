@@ -687,8 +687,7 @@ box is generated is the layer's own paint.
 ## An element that draws no box says it is at the top of the page
 
 `display: contents` is how a wrapper holds content without standing between it and
-the flow, and it is what lets a suggestion sit mid-sentence or wrap whole sections
-alike. An element with no box measures `(0, 0)` — not a flat box, but a box at the
+the flow. An element with no box measures `(0, 0)` — not a flat box, but a box at the
 document's origin — so every question put to the element directly comes back with a
 real-looking answer naming a place the element is not.
 
@@ -741,6 +740,21 @@ put back — the correction came out 0, and a restore with somewhere to land did
 leaving the reader at the top of a page they were thirty paragraphs into. Only a reader
 whose quote the new version had rewritten ever reached that branch, which is how a
 consumer stays wrong through three releases of the one beside it.
+
+No shipped widget exercises any of this any more, and that is the deeper fix standing
+behind the readings: the suggestion's wrapper was the boxless element they were all
+written against, and it takes a form now — `inline` among the words for a change of a
+phrase, `block` around its slots for one of paragraphs ("A widget's form follows its
+content", below). Painted on the pieces, the shipped suggestion wore two outlines
+meeting down the middle of a sentence — two boxes touching where the reader is
+standing in one ask — and boxed, it wears one ring, its parts being the wrapper
+itself. Of the four workarounds that had grown around the missing box, the legend's
+union and the travel's became `shownBox`, the marks' became `shownParts`, and the
+empty span the widget prepends to itself stays on a reason of its own: which form the
+wrapper takes is a stylesheet's to say and a project layer says it again, so the span
+is the one anchor its controls keep whatever a layer decides (lf-suggestion.js). What
+the readings defend now is the line of CSS any page can still write, and there the
+parts are the whole of the paint's answer.
 
 ## A widget's form follows its content, and each form states its own rules
 
@@ -922,14 +936,15 @@ which is a claim about the last input rather than about where the reader is: the
 Asks button lands the focus by script after a pointer click, and the ask it
 brought them to would wear nothing.
 
-The ring lands on the ask, and on the boxes the ask shows through where it draws
-none of its own: `lf-suggestion` is `display: contents`, so an outline on the
-wrapper paints nothing at 0x0, and the band goes on the slots the reader is
-looking at (`shownParts`, and the norm above it). A widget that draws a box of
-its own gets the ring around the whole ask, as `lf-task` and `lf-options` do. And
-a reader who came by the ✓ Accept the family hangs in the page margin — the press
-they came for — is standing on that control, which draws the same band from the
-runtime's own `.lf-pill` rule, so a widget hanging a control out there gets it
+The ring lands on the ask, one outline the element's own paint carries, which is why
+it costs nothing to keep in place: a box in the chrome's layer would have to chase the
+ask down every scroll, reflow and drag. Every ask in the vocabulary draws a box for it
+to paint on — the one that did not now takes a form rather than declining to have one
+— and an ask a page styles boxless hangs it on the boxes it shows through
+(`shownParts`, and the norm above), the same answer an element-anchored comment's
+outline gives. A reader who came by the ✓ Accept the family hangs in the page margin —
+the press they came for — is standing on that control, which draws the same band from
+the runtime's own `.lf-pill` rule, so a widget hanging a control out there gets it
 without asking.
 
 What the walk keeps instead is its own place (`landed`), which is a different

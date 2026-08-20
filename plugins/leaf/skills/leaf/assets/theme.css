@@ -782,12 +782,32 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 }
 
 /* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
- * wrapper generates no box, so a suggestion sits inline mid-sentence or wraps
- * whole sections without disturbing either flow; the slots carry the marks,
- * inline by default and block when they hold block content. A decision is the
- * end of the matter visually: the settled slot loses every mark and reads as
- * ordinary prose, and a suggestion with nothing left to show disappears. */
-lf-suggestion { display: contents; }
+ * wrapper takes the form its content takes — inline among the words for a change of a
+ * phrase, block around the slots for one of whole paragraphs — so a suggestion sits
+ * mid-sentence or wraps whole sections without disturbing either flow, and either way
+ * the change is one box. The slots carry the marks. A decision is the end of the matter
+ * visually: the settled slot loses every mark and reads as ordinary prose, and a
+ * suggestion with nothing left to show disappears.
+ *
+ * It generated no box at all once (display: contents), which is this same reading of
+ * "follow the content" with the box left out — and a box is what anything asking where
+ * the change is has to have. An element generating none measures (0,0) at the document's
+ * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
+ * Four consumers met that separately and each worked around it where it stood: the ring
+ * had nothing to hang on, the ask walk's travel centred the document, a container's edge
+ * rule reached past the wrapper to the slots, and the widget prepends a span to itself
+ * for its controls to anchor from. None of the first three arises here now. The fourth
+ * outlived the reason it was written for and earns its place on another: what a widget
+ * builds for itself is what it can rely on, and which form this wrapper takes is a
+ * stylesheet's to say — a layer restyling it boxless would take the controls off the
+ * page altogether (see lf-suggestion.js). A wrapper that draws nothing still has to be
+ * somewhere.
+ *
+ * Having a box also puts the wrapper in front of the render gate's floors, and the
+ * width floor is written for widgets that reserve a region. This one's box is its
+ * content's in both forms, words included — a one-word swap is ~30px and correct — so
+ * the entry declares x-inline, which is the key that names whose floor is whose. */
+lf-suggestion { display: inline; }
 lf-old, lf-new { border-radius: 3px; padding: 0 3px; }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
@@ -819,27 +839,36 @@ lf-new { background: var(--add-tint); }
  * other, and it cannot see a name dropped from both.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
- * reads as a stack. A suggestion generates no box, so these slots are the flow's own
- * boxes and their outer margins are what a container reads at its own edge — which is
- * how a quoted change came to stand 10px inside the gutter marking it, with nothing
- * able to reach it: a rule for the specimen's last child finds the suggestion, and the
- * suggestion is boxless. Asking for the room on one side is what a box in a stack can
- * say without claiming a container's edge, and it costs the pair nothing, since the
- * gap between two slots and between two suggestions is the second one's either way.
- * Nor does it cost the prose around a change: collapsing already took the larger of
- * this 10px and the 13px a paragraph reserves, so the side that went was one no reader
- * ever saw. The inline form needs no guard here — a vertical margin on a non-replaced
- * inline box lays nothing out.
+ * reads as a stack. That was once the only room the slots could ask for: while the
+ * wrapper was boxless they were the flow's own boxes, their outer margins were what a
+ * container read at its own edge, and a quoted change stood 10px inside the gutter
+ * marking it with nothing able to reach it — a rule for the specimen's last child found
+ * the suggestion, and the suggestion had no box. The wrapper is that box now, and the
+ * room stays on one side because it is the better answer anyway: it costs the pair
+ * nothing, the gap between two slots and between two suggestions being the second one's
+ * either way. Nor does it cost the prose around a change: collapsing already took the
+ * larger of this 10px and the 13px a paragraph reserves, so the side that went was one
+ * no reader ever saw.
+ *
+ * Both slots take the block form together, the wrapper being what asks the question:
+ * what the reader is deciding is one change, not two halves with their own layouts. A
+ * paragraph replaced by a phrase used to render as a full-width struck field with a
+ * three-word pill under it, which is what a suggestion looks like when each slot
+ * answers for itself.
  *
  * The padding then frames what the slot holds, so the slot says so: a block change is a
  * whole paragraph in a tinted field, and the 2px it states came out 15 at each end on
  * every one in the corpus. */
-:is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
-    cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
-    label, link, map, mark, math, meta, meter, noscript, object, output, picture,
-    progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
-  display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
+lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo, br,
+    button, canvas, cite, code, data, datalist, del, dfn, em, embed, i, iframe, img,
+    input, ins, kbd, label, link, map, mark, math, meta, meter, noscript, object,
+    output, picture, progress, q, ruby, s, samp, script, select, slot, small, span,
+    strong, sub, sup, svg, template, textarea, time, u, var, video, wbr, lf-old,
+    lf-new, lf-chip, lf-suggestion)) {
+  display: block;
+  & > :is(lf-old, lf-new) {
+    display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
+}
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence

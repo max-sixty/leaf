@@ -9946,19 +9946,35 @@ function applyActions() {
   // tab the press did nothing in.
   for (const e of events) {
     if (e.kind !== "undo" || appliedActions.has(e.seq)) continue;
-    appliedActions.add(e.seq);
     const target = logRendered && eventById(e.undoes);
-    if (!target || target.kind !== "action") continue;
-    const put = restoreFor(target);
-    if (!put) continue;
+    const put = target && target.kind === "action" && restoreFor(target);
+    if (!put) {
+      appliedActions.add(e.seq); // nothing to put right, now or ever
+      continue;
+    }
+    // The holds the loop below keeps, kept here too, because this is replay. A widget
+    // the page has painted ahead of the log has its events reconsidered on the poll
+    // that reads its own gesture back (sending), and one that asks for time gets the
+    // next poll — an `lf-draft` with an editor standing answers false rather than let
+    // the log pull words out from under the reader. So the withdrawal is marked
+    // answered only once it has been, or it is spent on a widget that never took it
+    // and that tab holds the withdrawn words for the rest of its life, with the
+    // pending mark cleared because the fold agrees the gesture is gone.
+    if (sending.has(target.widget) || deferredWidgets.has(target.widget)) continue;
     if (put.state) {
-      put.el.applyAction(put.state.action, put.state.detail);
+      if (put.el.applyAction(put.state.action, put.state.detail) === false) {
+        deferredWidgets.add(target.widget);
+        continue;
+      }
       // The restored action is the unit's standing state again, so the settlement
-      // mark follows it here exactly as it follows an applied one (retire): a
-      // prior settlement a recorded verb had displaced comes back marked, or the
-      // page would show words its own reading had retired.
+      // mark follows it here exactly as it follows an applied one (retire): a prior
+      // settlement a recorded verb had displaced comes back marked, or the page would
+      // show words its own reading had retired. After the apply rather than beside
+      // it, because a widget that asked for time has not taken the restore yet and
+      // must not be marked as having settled on it.
       markSettled(put.el, put.state.action);
     } else rebuild(put.el);
+    appliedActions.add(e.seq);
     // Counted as replay having moved the page, because it has: a restore puts words
     // back that a decision had taken off it, and the marks belong on them again. The
     // rebuild is the sharp case — its nodes are new, so a mark painted over the old
@@ -10151,9 +10167,9 @@ const authoredFacets = new Map(); // unit id -> the facet this version arrived s
 function stateSpecs() {
   const specs = [];
   for (const [tag, entry] of widgetEntries())
-    for (const key of ["x-state", "x-report"])
-      for (const [verb, spec] of Object.entries(entry[key] ?? {}))
-        specs.push({ tag, verb, spec });
+    for (const channel of ["x-state", "x-report"])
+      for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
+        specs.push({ tag, channel, verb, spec });
   return specs;
 }
 
@@ -10218,13 +10234,18 @@ const authoredKey = (verb, unit) => `${verb} ${unit}`;
 // injected controls, the marks, and `once`'s own stamp with them — so putting it back
 // would put back a widget that had already been upgraded and would never upgrade again.
 const authoredMarkup = new Map(); // widget id -> the markup this version wrote
+// By tag rather than by verb, because a family declaring two record-less verbs — a
+// suggestion's accept and its reject — would otherwise clone every one of its
+// instances once per verb and keep the last.
 function rememberAuthoredMarkup() {
-  for (const { tag, spec } of stateSpecs()) {
-    if (spec.record) continue;
+  const settlements = new Set(
+    stateSpecs()
+      .filter(({ channel, spec }) => channel === "x-state" && !spec.record)
+      .map(({ tag }) => tag),
+  );
+  for (const tag of settlements)
     for (const widget of document.querySelectorAll(tag))
-      if (widget.id && !inChrome(widget))
-        authoredMarkup.set(widget.id, widget.cloneNode(true));
-  }
+      if (widget.id) authoredMarkup.set(widget.id, widget.cloneNode(true));
 }
 
 // Whether this load has rendered the log onto the page yet, which is the whole of what
@@ -10232,24 +10253,30 @@ function rememberAuthoredMarkup() {
 let logRendered = false;
 
 function captureAuthoredFacets() {
-  for (const { tag, verb, spec } of stateSpecs()) {
+  for (const { tag, channel, verb, spec } of stateSpecs()) {
     if (!spec.record) continue;
     for (const widget of document.querySelectorAll(tag)) {
       if (spec.unit === "widget" || !spec.unit) {
-        if (widget.id) rememberAuthored(widget, widget.id, verb, spec);
+        if (widget.id) rememberAuthored(widget, widget.id, channel, verb, spec);
       } else
         // Per-part units, at the record form's own key: a position facet is
         // carried by the container's direct children (a column's cards), and
         // an id'd element nested inside one — a draft in a card — is not a
         // unit, just a passenger whose `closest()` would echo its carrier's.
         for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
-          rememberAuthored(part, part.id, verb, spec);
+          rememberAuthored(part, part.id, channel, verb, spec);
     }
   }
 }
 
-function rememberAuthored(el, unit, verb, spec) {
+// The facet for both channels, because both fold and both are compared against the
+// markup (paintPending reads the report fold too). The detail for the reviewer's
+// channel alone: it exists to state a gesture back, and a report is not the reader's
+// to take back — captured for both, a report verb sharing a name with a state verb
+// would take that key from under it.
+function rememberAuthored(el, unit, channel, verb, spec) {
   authoredFacets.set(unit, domFacet(el, spec.record));
+  if (channel !== "x-state") return;
   const detail = authoredDetail(el, unit, spec);
   if (detail) authoredDetails.set(authoredKey(verb, unit), detail);
 }
@@ -10303,6 +10330,13 @@ function authoredDetail(el, unit, spec) {
 // the reviewer's, a note's answer for the agent's — so that is the caller's
 // `live` predicate and nothing else is duplicated. Named for interact.py's
 // `event_spec`/`fold_unit`, the same seam on the file side.
+// Which element one event states, per the verb's declared fold unit: the widget itself
+// where the verb is absolute across the group, and the element its detail names where
+// it is absolute per part. One sentence, because two copies of it are two readings of
+// the registry free to disagree about what an event is about.
+const unitOf = (e, spec) =>
+  spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
+
 function* foldable(kind, channel, upto, live) {
   for (const e of events) {
     if (e.kind !== kind || e.version > upto) continue;
@@ -10313,7 +10347,7 @@ function* foldable(kind, channel, upto, live) {
     if (!el || inChrome(el)) continue;
     const spec = registry[el.tagName.toLowerCase()]?.[channel]?.[e.action];
     if (!spec || !live(e, el)) continue;
-    const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
+    const unit = unitOf(e, spec);
     if (typeof unit === "string") yield [unit, { e, spec }];
   }
 }
@@ -10335,13 +10369,22 @@ function stateFold(upto) {
   );
 }
 
-// What one unit's state was just before `seq`, asked of the same walk the fold takes:
-// every applyAction is absolute, so the last surviving action on a unit *is* that
-// unit's state at any point in the log, and there is no replay to simulate. Verbs that
-// record are the whole of what it considers, because a verb recording nothing says
-// nothing about the unit's markup — a settlement standing between two states is not
-// one of them.
-function priorState(unit, seq) {
+// What stands for one unit with one event left out of the reckoning — the fold, minus
+// that event. Every applyAction is absolute, so the last surviving action on a unit
+// *is* that unit's state, and there is no replay to simulate. Verbs that record are
+// the whole of what it considers, because a verb recording nothing says nothing about
+// the unit's markup — a settlement standing between two states is not one of them.
+//
+// The exclusion is the event's id and not a bound on its seq, because what a page owes
+// after a withdrawal is the unit's state *now*, and the two are the same answer only
+// while the withdrawn action is still the unit's last word. It need not be: a reader
+// presses `z` on the move their tab knows about while another tab has moved the same
+// card past it, and nothing at the door can refuse that — recency is not a property an
+// event has. Answering with what stood before it *then* paints over the move that
+// still stands, in every tab that hears it, and a tab that took that move from replay
+// has it marked applied and never lays it down again. By id, the same press replays
+// the standing action instead, which is a no-op, as an absolute value always is.
+function standingFor(unit, without) {
   const floors = retractionFloors(VNUM);
   const withdrawn = takenBack();
   let found = null;
@@ -10350,7 +10393,7 @@ function priorState(unit, seq) {
     "x-state",
     VNUM,
     (e, el) =>
-      e.seq < seq && !withdrawn.has(e.id) && !retractedIds(e, floors, el).length,
+      e.id !== without && !withdrawn.has(e.id) && !retractedIds(e, floors, el).length,
   ))
     if (at === unit && entry.spec.record) found = entry;
   return found;
@@ -10430,22 +10473,29 @@ const eventById = (id) => events.find((e) => e.id === id);
 // has gone, its tag no longer declares the verb, or no module is there to answer for
 // it. `state` is what to tell the widget; its absence means the rebuild, which is the
 // answer for a verb that records nothing — a settlement rather than a state.
+// Which version the gesture was made against is not asked here, and that is the whole
+// of the difference between offering an undo and hearing one. Offering is the walk's
+// (undoable): a later version is free to have been written around the decision, so on
+// v2 the authored placement of a card moved on v1 is *where the move put it*, and the
+// press would be live and paint nothing. Hearing has no such choice — a tab pinned to
+// v1 can still gesture, and its undo reaches a tab reading v2, which applied that
+// action and must now take it off. What this load's markup says is the right answer
+// there either way: a version written around the decision states the same placement,
+// so the restore is a no-op, and one that had not catches up.
 function restoreFor(e) {
-  // On the version it was made against, which is the window replay already reads the
-  // log in. The state being restored is this version's own, and a later version is
-  // free to have been written around the decision — so on v2 the authored placement of
-  // a card moved on v1 is *where the move put it*, and the press would be live and
-  // paint nothing. Threads are not scoped this way and must not be: a conversation
-  // outlives the version it was opened on, which is why resolve carries no version.
-  if (e.version !== VNUM) return null;
   const el = elementById(e.widget);
   if (!el || inChrome(el) || !el.applyAction) return null;
   const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
   if (!spec) return null;
-  if (!spec.record) return authoredMarkup.has(el.id) ? { el } : null;
-  const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
-  const prior = priorState(unit, e.seq);
-  if (prior) return { el, state: { action: prior.e.action, detail: prior.e.detail } };
+  // Every id'd instance of a record-less tag outside the chrome was cloned before the
+  // modules imported, and the three refusals above cover the rest, so the clone is
+  // there. A widget minted after that capture would throw in `rebuild` rather than
+  // reporting itself as a gesture that cannot be taken back.
+  if (!spec.record) return { el };
+  const unit = unitOf(e, spec);
+  const stands = standingFor(unit, e.id);
+  if (stands)
+    return { el, state: { action: stands.e.action, detail: stands.e.detail } };
   const detail = authoredDetails.get(authoredKey(e.action, unit));
   return detail ? { el, state: { action: e.action, detail } } : null;
 }
@@ -10462,7 +10512,10 @@ function undoable() {
     const e = events[i];
     if (e.author !== "user" || e.kind === "undo" || withdrawn.has(e.id)) continue;
     if (e.kind === "resolve" || e.kind === "unresolve") return e;
-    if (e.kind === "action" && restoreFor(e)) return e;
+    // On the version it was made against: a later version may have been written
+    // around the decision, and a press that paints nothing is not one to offer. What
+    // *hearing* such an undo owes is restoreFor's, and is not the same answer.
+    if (e.kind === "action" && e.version === VNUM && restoreFor(e)) return e;
   }
   return null;
 }
@@ -10526,11 +10579,14 @@ function rebuild(el) {
   // marker would silently escape anyway. What holds it is the render gate, where a row
   // left behind shows as two rows on one change.
   const fresh = authoredMarkup.get(id).cloneNode(true);
-  el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
-  // What the upgrade gives every subtree beyond its module's own work. Not awaited as
-  // the upgrade awaits it: nothing is holding a first paint here, and a widget with
-  // async work of its own settles it the way it always does.
+  // Before the insertion, as the load writes it before the modules import: a widget
+  // that declares a width model asks for it on its first render, and connectedCallback
+  // is that render.
   markWide(fresh);
+  el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
+  // The rest of what the upgrade gives every subtree beyond its module's own work. Not
+  // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
+  // widget with async work of its own settles it the way it always does.
   dress(fresh);
   reachScrollers(fresh);
   // The fences the passage reading walks are node identities, and these are new nodes

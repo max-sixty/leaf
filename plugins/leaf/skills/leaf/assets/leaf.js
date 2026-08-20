@@ -6082,7 +6082,8 @@ const pageSelection = () => {
 // A box is the whole of it, which is why this is named for typing rather than for
 // focus. The panel's other two landings — a resolve and a reopen, each behind a round
 // trip of its own — put the reader on a thread node instead, and Chrome collapses the
-// selection for a form control while leaving it alone for a `tabindex="-1"` div. Same
+// selection for a landing that takes a caret, not a control as such — a button and a
+// select leave it standing, and so does a `tabindex="-1"` div. Same
 // shape, then, and not the same steal: those two keep the standing place a control
 // that folds away with its thread owes the reader.
 function landTyping(box) {

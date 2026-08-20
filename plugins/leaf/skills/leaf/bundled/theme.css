@@ -95,6 +95,23 @@ lf-chip, .lf-chips span {
  * and no width to reserve: they wrap along the band like the words they are.
  * `recommended` is the accent ring, or a row's outline. */
 lf-options { display: block; margin: 14px 0; }
+/* The question the group asks, carried on the group rather than in a heading beside it.
+   Written twice for the reason this file's head gives — the pseudo is the rendering a
+   page with no script still gets, and stands down where the runtime wrote real text.
+   It leads in both forms, because a question is read before its alternatives, and
+   leading is also what makes the screen agree with the file: x-says puts it at the same
+   edge in the reading a comment anchors on. The page's own voice and not the apparatus
+   face, so it is absent from the rule above that sets this layer's labels in the sans —
+   these are the page's words in a way a task's done-fraction never is. */
+/* Both halves name the attribute. A group without one asks its question in the prose
+   above it, and `content: attr(label)` on such a group is the empty string — which is
+   still a box, and still the margin under it, so every unlabelled group on every page
+   grew a gap for a word it did not have. */
+lf-options[label]::before,
+lf-options > [data-lf-said="label"] { display: block; margin: 0 0 var(--sp-2);
+            font-weight: 600; }
+lf-options[label]::before { content: attr(label); }
+lf-options[label]:has(> [data-lf-said="label"])::before { content: none; }
 lf-option { display: block; position: relative; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
@@ -319,14 +336,17 @@ lf-option .lf-pick[role="button"] { cursor: pointer; }
  * The room the word will need is held either way (each form's own rules below), so the
  * mark grows into space already reserved and a pick moves nothing. */
 lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
-/* Warming the ring under the pointer, wherever the ring is drawn — a row, a card under
+/* Warming the ring under the aim, wherever the ring is drawn — a row, a card under
  * `multiple`, and a card in a settled group. A live single-pick card group draws none, so
- * this reaches nothing there and the cell's own hover is the answer instead. Guarded with
- * the group's other answers to the pointer, and free of specificity for the same reason
- * they are. */
+ * this reaches nothing there and the cell's own hover is the answer instead. The keyboard
+ * is an aim like the pointer: inside a joined group the mark's own focus ring is withheld
+ * (the group's is the ring, below), so the warmed tick and the wash are what say which
+ * mark ⏎ will take. Guarded with the group's other answers to the pointer, and free of
+ * specificity for the same reason they are. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(lf-specimen *) > lf-option:not([chosen]):hover > .lf-pick::before {
+  lf-options[choose]:not(lf-specimen *) > lf-option:not([chosen]):is(:hover,
+                     :has(> .lf-pick:focus-visible)) > .lf-pick::before {
                      border-color: var(--muted); }
  }
 }
@@ -336,15 +356,15 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
 lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
-lf-option .lf-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px;
-                     border-radius: 4px; }
+lf-option .lf-pick:focus-visible { outline: var(--here-ring);
+                     outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
  * (.lf-address) — the g leader's thread chips are that same fact and wear the same chip.
  * Two things are this rule's: where it sits and when it shows.
  *
  * Where: in the column the option reserves for it (the joined control's rules above).
  * It sat on the option's outer corner once, which is half outside a group that clips
- * itself — that is how the hairlines its cells draw stop at its edge — so no address the
+ * itself — that is how its cells' fills stop at its rounded corners — so no address the
  * page ever painted was whole, and a first row's was a sliver.
  *
  * How far down the column it stands is each form's own answer, and each states it — the
@@ -383,8 +403,8 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
  * form's cards and the question form's list alike become cells of the same control, one
  * per row, and neither states its own answer to "is this answerable". Hence
  * `display: grid` over forms the theme otherwise lays out as blocks — one column, no
- * template stated — so each option is a cell and the 1px gap is where the hairline
- * lives.
+ * template stated — so each option is a cell, with the hairline between neighbours
+ * drawn below.
  *
  * The list form was left out of this at first, on the reading that a bare-label row is a
  * quiet thing and a border around it would be shouting. What that actually shipped was a
@@ -408,30 +428,35 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
 @media screen {
  html:not(.lf-copy) {
   lf-options[choose]:not([settled]):not(lf-specimen *) {
-    display: grid; gap: 1px; background: var(--card);
+    display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
     /* The joined group draws a frame, so it says so, like every box that draws one
      * (--lf-frame, theme.css). Its cells declare their own; this covers what stands
      * beside them. */
     --lf-frame: 1;
-    /* The hairline is the cell's own outer shadow rather than the gap showing a colour
-     * behind it. Not every child is a cell — the thread multi-question's Done press sits
-     * here with a margin of its own — and a colour behind would band whatever room a
-     * non-cell keeps around itself. Drawn by the cells, only the cells draw it, and
-     * the group's clip takes the overhang at its edges.
-     *
-     * Both statuses then move inside, since a cell has no border of its own left to colour:
-     * each is a stripe on the leading edge, paint within the box it belongs to, which is
-     * what holding still asks for anyway. Held in `--stripe` and `--fill` so a state names
-     * its colour and the composite is written once — the alternative is every state
-     * restating the hairline beside its own stripe, and the day one of them forgets, a
-     * cell loses the line that made the group one thing. (Not named --rail: that token is
-     * the page's comment margin, and a cell redefining it for a different fact was one
-     * name meaning two things.) */
+    /* The hairline between neighbours: one line, stated once, on the upper of the
+     * two — so a child no rule here names arrives already separated, and a child
+     * that floats inside the group on a margin of its own (the thread question's
+     * Done press, a button with its own frame) is never handed a recolored top
+     * edge: the seam stays at the edge of what stands above it. `:not(:last-child)`
+     * outranks the cell reset below (a pseudo-class counts above a tag), which is
+     * what lets that reset stay a plain `border: 0`. The line used to be each
+     * cell's own outer shadow, cast into a 1px grid gap: three declarations for
+     * one line, every interior line painted twice, and the edges leaning on the
+     * group's clip to take the overhang. */
+    & > :not(:last-child) { border-bottom: 1px solid var(--rule); }
+    /* A cell has no border of its own, so both statuses are paint within its box:
+     * a stripe on the leading edge, which is what holding still asks for anyway.
+     * Held in `--stripe` and `--fill` so a state names its colour and the composite
+     * is written once. (Not named --rail: that token is the page's comment margin,
+     * and a cell redefining it for a different fact was one name meaning two
+     * things.) */
     & > lf-option { --stripe: transparent; --fill: var(--card);
                      margin: 0; border: 0; border-radius: 0; background: var(--fill);
-                     box-shadow: 0 0 0 1px var(--rule), inset 3px 0 0 var(--stripe); }
-    /* Hover deepens whatever the cell is filled with, rather than lifting it: a cell that
+                     box-shadow: inset 3px 0 0 var(--stripe); }
+    /* The aim wash. The cell under the pointer and the cell under the keyboard are the
+     * same fact to the reader — this one is being weighed — so both wear one paint. It
+     * deepens whatever the cell is filled with, rather than lifting it: a cell that
      * rose would pull away from the hairlines that are the whole of what joins the group.
      * One rule for every state, the pick included — clicking that one clears it, so it has
      * to keep answering the pointer. Toward the ink rather than toward black, so the same
@@ -443,17 +468,15 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * to the other — a page repainting itself over a tenth of a second for a change nobody
      * on it made. It is also how the contrast sweep found this, by reading a cell mid-flip
      * and getting a grey that belongs to neither palette. */
-    & > lf-option:hover { transform: none;
+    & > lf-option:is(:hover, :has(> .lf-pick:focus-visible)) { transform: none;
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[recommended] { --stripe: var(--accent); }
     & > lf-option[chosen] { --stripe: var(--ok); --fill: var(--ok-tint); }
-    /* The box for words is the group's own child, so joining the group takes it inside the
-     * border too — and butted against the last cell with the same hairline, it reads as one
-     * more option rather than as the way past them. It is apparatus, so it wears the tint
-     * apparatus wears here and sits as the control's footer, which is what it is: the answer
-     * for a reader whom none of the cells above fits. */
-    & > .lf-say { margin-top: 0; padding: 10px 12px; background: var(--field);
-                     box-shadow: 0 0 0 1px var(--rule); }
+    /* The conversation is the group's own child, so joining the group takes it inside the
+     * border too, butted against the last cell by the hairline every child shares. It is
+     * apparatus, and sits as the control's footer: first as the answer for a reader whom
+     * none of the cells fits, then as the thread that answer opened. */
+    & > .lf-conversation { margin-top: 0; padding: 10px 12px; background: var(--field); }
     /* On a single-pick card the mark keeps its box and stops drawing. The room stays
      * reserved, so a pick still moves nothing; the ring is the weaker of two ways to say
      * the same thing now that the group's shape says it, and one mechanism per guarantee
@@ -475,8 +498,18 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * the reader nothing to count. */
     &:not([multiple]) > lf-option:has(> strong) > .lf-pick:not([data-lf-said])::before {
                      visibility: hidden; }
-    & > lf-option:has(> .lf-pick:focus-visible) { outline: 2px solid var(--accent);
-                     outline-offset: -2px; }
+    /* The group is one control, so it is focused as one: the ring keyboard focus earns
+     * is the group's, in the ask mark's own band — both read the --here-ring pair
+     * (theme.css) — because the two facts coincide whenever `n` lands here, and
+     * they must draw one ring. They drew two: the focused cell wore an inset accent
+     * ring of its own, so stepping to a group framed its first option twice over — the
+     * mark outside the border, the cell's ring inside it — and the first option read as
+     * singled out, an emphasis nobody had put there. Which cell holds the keyboard is
+     * the wash (above) and the digit chips that show while a mark holds focus. The
+     * mark's own generic ring stays off in here: on a single-pick card the mark draws
+     * nothing, so its ring would hang around an invisible box in the card's foot. */
+    &:has(> lf-option > .lf-pick:focus-visible) { outline: var(--here-ring);
+                     outline-offset: var(--here-ring-gap); }
     & > lf-option > .lf-pick:focus-visible { outline: none; }
   }
   /* The column an option's keyboard address stands in: 17px of chip and a margin either
@@ -602,9 +635,8 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-address {
 .lf-ref { font-size: var(--t-6); color: var(--muted); text-decoration: none;
           white-space: nowrap; }
 .lf-ref:hover { color: var(--accent); text-decoration: underline; }
-/* The box for words a choose group carries is the runtime's sayBox; its rules live
- * with the integrated theme. The group's own placement of it is stated above, in
- * the choose-group block. */
+/* The conversation's shared rules live with the integrated theme. The group's own
+ * placement of it is stated above, in the choose-group block. */
 /* Paper takes no input, so the group prints as one that was never choosable: the
  * marks offering a pick go with the rest of the UI, and the one on the card that
  * carries it stays to say which option the page holds. That needs no rule here —
@@ -630,7 +662,7 @@ lf-options[settled] > .lf-settled {
  * is authored namespace for a fact no version carries (lf-options.js). */
 lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
-lf-options[settled] > .lf-settled:focus-visible { outline: 2px solid var(--accent);
+lf-options[settled] > .lf-settled:focus-visible { outline: var(--here-ring);
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
@@ -893,7 +925,7 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
-lf-card .lf-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px;
+lf-card .lf-grip:focus-visible { outline: var(--here-ring); outline-offset: 1px;
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
@@ -984,7 +1016,7 @@ lf-shot .lf-shotpick { grid-area: 2 / 1; display: flex;
     color: var(--muted); }
 lf-shot .lf-shotpick label { display: inline-flex; gap: 5px; align-items: center;
     cursor: pointer; }
-lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
+lf-shot .lf-shotpick input:focus-visible { outline: var(--here-ring);
     outline-offset: 1px; }
 
 @media print {
@@ -1183,7 +1215,7 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
                           line-height: 1.55; color: var(--ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) pre:focus-visible { outline: 2px solid var(--accent);
+:host(.lf-rendered) pre:focus-visible { outline: var(--here-ring);
                           outline-offset: -2px; }
 /* A child selector, because a line's own span is not the only one in here any more:
    syntax colour puts one around each token, and as a descendant rule this laid every
@@ -1244,7 +1276,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 
 /* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
-lf-code.lf-rendered pre:focus-visible { outline: 2px solid var(--accent);
+lf-code.lf-rendered pre:focus-visible { outline: var(--here-ring);
              outline-offset: -2px; }
 /* The same max-content floor as the shadow slice's line spans: an hi range's tint has
    to run the whole scrolled line, not stop at the fold. */

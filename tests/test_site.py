@@ -45,7 +45,7 @@ PHONE = {"width": 390, "height": 844}
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
-pytestmark = pytest.mark.xdist_group(name="site")
+pytestmark = [pytest.mark.nightly, pytest.mark.xdist_group(name="site")]
 
 
 def pages_under(directory):

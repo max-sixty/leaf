@@ -7,6 +7,7 @@ Run from the repo root:
     uv run pytest tests
 """
 
+import errno
 import fcntl
 import http.cookiejar
 import importlib.util
@@ -3328,6 +3329,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     a table) already gives the aim something to hold."""
     blocks = (
         "<pre><code>uv run backfill --check</code></pre>"
+        '<aside class="sidenote">The retry path is deliberately separate.</aside>'
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
     )
     (page_dir / "versions" / "v1.html").write_text(
@@ -3338,8 +3340,9 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     advice = [line for line in result.output.splitlines() if "unpointable" in line]
-    assert len(advice) == 2, result.output
+    assert len(advice) == 3, result.output
     assert any("<pre>" in line and "#plan" in line for line in advice)
+    assert any("<aside>" in line and "#plan" in line for line in advice)
     assert any("<section>" in line for line in advice)
     assert not any(
         "<table>" in line for line in advice
@@ -3349,7 +3352,9 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>',
+            '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
+            '<aside class="sidenote" id="retry-note">The retry path is deliberately '
+            "separate.</aside>",
         )
     )
     result = check(page_dir)
@@ -3701,6 +3706,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     [
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
+        ("x-conversation", False),
         ("x-content", "words"),
         ("x-parent", []),
         # Each of these names attributes, so an empty one declares nothing while
@@ -3920,14 +3926,24 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     assert "<lf-suggestion> registry extensions are invalid" in result.output
 
 
-def test_state_requires_an_upgraded_widget(page_dir):
+@pytest.mark.parametrize(
+    ("tag", "key", "fallback"),
+    [
+        ("lf-options", "x-state", None),
+        ("lf-note", "x-conversation", {"when": {"id": ["note"]}}),
+    ],
+)
+def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallback):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-upgrade"] = False
+    registry[tag][key] = registry[tag].get(key, fallback)
+    registry[tag]["x-upgrade"] = False
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<lf-options> declares x-state but has no upgraded handler" in result.output
+    assert f"<{tag}> declares" in result.output
+    assert key in result.output
+    assert "but has no upgraded handler" in result.output
 
 
 def test_retirement_requires_a_parent(page_dir):
@@ -4147,44 +4163,81 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
 
 
 @pytest.mark.parametrize(
-    ("tag", "awaits", "message"),
+    ("tag", "key", "declaration", "message"),
     [
-        ("lf-options", {"when": {"pick": [True]}}, "names undeclared attribute `pick`"),
-        ("lf-options", {"when": {"choose": ["yes"]}}, "a flag is there or it isn't"),
-        ("lf-task", {"when": {"status": [True]}}, "that attribute is not a flag"),
-        ("lf-task", {"when": {"status": ["reviewing"]}}, "its own enum does not admit"),
+        (
+            "lf-options",
+            "x-awaits",
+            {"when": {"pick": [True]}},
+            "names undeclared attribute `pick`",
+        ),
+        (
+            "lf-options",
+            "x-conversation",
+            {"when": {"pick": [True]}},
+            "names undeclared attribute `pick`",
+        ),
+        (
+            "lf-options",
+            "x-awaits",
+            {"when": {"choose": ["yes"]}},
+            "a flag is there or it isn't",
+        ),
+        (
+            "lf-task",
+            "x-awaits",
+            {"when": {"status": [True]}},
+            "that attribute is not a flag",
+        ),
+        (
+            "lf-task",
+            "x-awaits",
+            {"when": {"status": ["reviewing"]}},
+            "its own enum does not admit",
+        ),
+        (
+            "lf-options",
+            "x-conversation",
+            {"when": {"id": ["NOT-VALID"]}},
+            "its own schema does not admit",
+        ),
         (
             "lf-suggestion",
+            "x-awaits",
             {"all": "approve"},
             "does not declare as an x-state verb",
         ),
         (
             "lf-options",
+            "x-awaits",
             {"until": {"verb": "submit", "when": {"multiple": [True]}}},
             "does not declare as an x-state verb",
         ),
         (
             "lf-options",
+            "x-awaits",
             {"until": {"verb": "answer", "when": {"batch": [True]}}},
             "names undeclared attribute `batch`",
         ),
     ],
 )
-def test_check_refuses_an_ask_no_page_could_carry(page_dir, tag, awaits, message):
-    """An ask waits on an attribute value, so a declaration naming one the widget
-    cannot hold asks on nothing — and does it silently, which is the failure a
-    never-closed vocabulary is worst at showing: the widget is simply absent from
-    every count and every step, exactly as if the feature had never been wired up.
+def test_check_refuses_a_predicate_no_page_could_carry(
+    page_dir, tag, key, declaration, message
+):
+    """A predicate naming a value the widget cannot hold applies to nothing silently.
+
+    The widget is simply absent from every consumer, exactly as if the feature had
+    never been wired up.
     Same for a blanket answer naming a verb the widget does not speak, whose button
     would call a method nothing implements — and for an until verb, which would
     hold a thread ask open for a press no widget renders."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry[tag]["x-awaits"] = awaits
+    registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"<{tag}> x-awaits" in result.output and message in result.output
+    assert f"<{tag}> {key}" in result.output and message in result.output
 
 
 @pytest.mark.parametrize(
@@ -4768,6 +4821,7 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"quote": "x", "extra": "y"},
         },
         {"kind": "comment", "version": 1, "text": "x", "suggestion": "yes"},
+        {"kind": "comment", "version": 1, "text": "x", "attempt": "short"},
         # A design comment is about the layer, and that is the one word the field
         # takes: a browser inventing a second subject is refused at the door.
         {"kind": "comment", "version": 1, "text": "x", "about": "page"},
@@ -4826,6 +4880,92 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 200, body
     assert interact.read_events(page_dir)[-1]["kind"] == "done"
+
+
+def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
+    server, page_dir
+):
+    """One attempt returns one durable event; equal words under a new attempt are new."""
+    publish(page_dir)
+    first = {
+        "kind": "comment",
+        "version": 1,
+        "text": "The same words can be intentional later.",
+        "attempt": "attempt-00000001",
+    }
+    results = []
+
+    def post_first():
+        results.append(fetch(f"{server}/api/event", data=json.dumps(first).encode()))
+
+    threads = [threading.Thread(target=post_first) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(results) == 8 and {status for status, _ in results} == {200}
+    accepted_events = [json.loads(body)["event"] for _, body in results]
+    assert len({event["id"] for event in accepted_events}) == 1
+    accepted = accepted_events[0]
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
+    assert status == 200
+    assert json.loads(body)["event"]["id"] == accepted["id"]
+    comments = [
+        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+    ]
+    assert [event["id"] for event in comments] == [accepted["id"]]
+
+    changed = {**first, "text": "Different payload under the same attempt."}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(changed).encode())
+    assert status == 409
+    assert "already belongs to another event" in json.loads(body)["error"]
+
+    later = {**first, "attempt": "attempt-00000002"}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(later).encode())
+    assert status == 200
+    comments = [
+        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+    ]
+    assert [event["text"] for event in comments] == [first["text"], first["text"]]
+    assert [event["attempt"] for event in comments] == [
+        "attempt-00000001",
+        "attempt-00000002",
+    ]
+
+    # Mutable validation may have changed before a replacement tab retries. The
+    # accepted record is authoritative even after its version is no longer live.
+    (page_dir / "versions" / "v1.html").unlink()
+    status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
+    assert status == 200
+    assert json.loads(body)["event"]["id"] == accepted["id"]
+
+
+def test_flocked_refuses_a_platform_without_cross_process_locking(
+    page_dir, monkeypatch
+):
+    """A no-op lock cannot honestly promise one append for one attempt."""
+    monkeypatch.setattr(interact, "fcntl", None)
+    with (
+        pytest.raises(RuntimeError, match="cross-process file locking"),
+        interact.flocked(page_dir / ".lock"),
+    ):
+        pass
+
+
+def test_server_startup_refuses_a_platform_without_cross_process_locking(
+    page_dir, monkeypatch
+):
+    """Standing startup must fail before it opens a socket or records a URL."""
+    monkeypatch.setattr(interact, "fcntl", None)
+    with pytest.raises(RuntimeError, match="cross-process file locking"):
+        interact.cmd_serve(page_dir, standing=True)
+    with pytest.raises(RuntimeError, match="cross-process file locking"):
+        interact.start_server(page_dir, standing=True)
+    with pytest.raises(RuntimeError, match="cross-process file locking"):
+        interact.held_by_a_live_server(page_dir / "server.json")
+    assert not (page_dir / "server.json").exists()
+    assert not (page_dir / "access.json").exists()
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
@@ -5283,6 +5423,46 @@ def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
     port = urllib.parse.urlsplit(wildcard_server).port
     for loopback in ("127.0.0.1", "[::1]"):
         assert fetch(f"http://{loopback}:{port}/api/state")[0] == 200, loopback
+
+
+def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
+    page_dir, monkeypatch
+):
+    """A kernel with IPv6 switched off refuses AF_INET6 at the constructor, and
+    the reader who most needs `--host` is on exactly such a box — headless, where
+    the derived address is loopback and no browser is local. So the wildcard is
+    restated as 0.0.0.0, which says the same thing in the family that is left,
+    and the page serves. A literal v6 address keeps its refusal: every interface
+    is not what that record chose."""
+    real_socket = socket.socket
+
+    def kernel_without_ipv6(family=socket.AF_INET, *args, **kwargs):
+        if family == socket.AF_INET6:
+            raise OSError(
+                errno.EAFNOSUPPORT, "Address family not supported by protocol"
+            )
+        return real_socket(family, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
+    with pytest.raises(OSError) as refused:
+        interact.server_at(
+            "fd7a:115c:a1e0::1", 0, interact.handler_for(page_dir, TOKEN)
+        )
+    # Name the errno, or the assertion is satisfied on a v6-capable machine by
+    # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
+    # nothing about whether the family refusal under test was ever reached.
+    assert refused.value.errno == errno.EAFNOSUPPORT
+
+    httpd = interact.server_at("::", 0, interact.handler_for(page_dir, TOKEN))
+    assert httpd.socket.family == socket.AF_INET
+    assert httpd.server_address[0] == "0.0.0.0"
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(

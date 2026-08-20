@@ -132,6 +132,13 @@ one thing they most need to hear. Unscope replay and decisions made after a
 version are painted onto the markup the page had before them — a page that never
 existed.
 
+A registry-declared widget conversation is the same whole-log reading in a second place, not a
+third reading or a store: while the current document holds its owner, the runtime projects the
+owner's exact-section threads textually inside it. Pinning a version that still holds the owner
+therefore shows the current conversation; a version that drops the owner drops only this page
+view, while Comments keeps the thread. Interactive reply markup stays in Comments, so one event's
+widget ids are instantiated once even while both places show its words.
+
 ## Derive rendering from state; never read it back
 
 `composerOpen`, `fabAnchor` and `diffBase` are the state; `style.display` is a
@@ -284,10 +291,10 @@ g addresses, out of r's press, and out of the panel's repaint in one stroke.
 
 The runtime requires ES modules, custom elements, `field-sizing`, `color-mix`,
 `:has()`, `@scope`, anchor positioning, `caretPositionFromPoint`,
-`Intl.Segmenter`, scroll anchoring, and the highlight registry. Guarding one of
-those while assuming the rest buys nothing, and it reads as if the others were
-checked. Add a feature guard only where there is a real fallback to take, and cut
-a stale entry the moment nothing uses it.
+`Intl.Segmenter`, scroll anchoring, and the highlight registry.
+Guarding one of those while assuming the rest buys nothing, and it reads as if
+the others were checked. Add a feature guard only where there is a real fallback
+to take, and cut a stale entry the moment nothing uses it.
 
 Nothing in the code names scroll anchoring, so it is the one entry a reader can't
 find by grepping — which is why it is worth spelling out. The panel reconciles
@@ -623,6 +630,38 @@ excludes two things on purpose: a flex or grid container collapses no margin
 anywhere, so a margin on an item at its edge is a placement; and an edge whose
 box is generated is the layer's own paint.
 
+## An element that draws no box says it is at the top of the page
+
+`display: contents` is how a wrapper holds content without standing between it and
+the flow, and it is what lets a suggestion sit mid-sentence or wrap whole sections
+alike. An element with no box measures `(0, 0)` — not a flat box, but a box at the
+document's origin — so every question put to the element directly comes back with a
+real-looking answer naming a place the element is not.
+
+The case had been met once already and answered in the wrong place. The legend hit it
+first and took the union of what the element's contents paint — inside its own
+reading, where it stood as a fact about the legend rather than about elements. So the
+two consumers that came after asked the element directly and got that wrong place,
+each failing in the shape its own job takes: the travel centred the top of the
+document, and the ask walk's ring painted nothing, there being nothing to hang it on.
+Neither errored, and the walk looked correct for as long as a group or a task was
+also open, since those have boxes — so what surfaced it was a page whose remaining
+asks were all suggestions, answering `n` by appearing to do nothing at all. It
+reached its author as "the link is broken", which is what a fix written one consumer
+wide eventually costs.
+
+So where an element is, is one answer (`shownBox`): its own box, or, where it has
+none, the union its contents paint, which a range asks the platform for in one read.
+Marks take the same reading in elements rather than pixels (`shownParts`), since an
+outline needs a box to hang on — the ask is what names the place, and the boxes it
+shows through are what the reader sees it on. Both read the platform rather than the
+registry: generating no box is not a fact about which widget this is, any layer's
+wrapper can do it, and CSS has no selector that says so. The parts ask for area where
+the bounds ask only for a box, because a ring is worth hanging only where it can be
+seen — which is also what keeps a module's own apparatus out of it without a marker
+to read, a suggestion hanging its controls off an empty span that has a rect and
+nothing in it.
+
 ## A widget's form follows its content, and each form states its own rules
 
 `lf-options` renders as stacked cards or as a list of rows, and nothing declares
@@ -728,10 +767,20 @@ Looking selected is the small half. Standing there, the reader's next Space is
 that button's press rather than the page's scroll, so the panel they just
 dismissed comes back and nothing says why. That is a page-level key silently
 answered by a control — the failure the whole scope stack exists to prevent —
-arriving through focus instead of through a binding. So the last rung leaves the
-chrome (`panelsRung`), on the same key as every rung above it: a reader pressing
-Escape until nothing happens ends up on the page. Losing a place is a fault only
-when the reader did not ask for it, and the rung is the asking.
+arriving through focus instead of through a binding. So the ladder ends by
+leaving the chrome (`rung`), on the same key as every rung above it: a reader
+pressing Escape until nothing happens ends up on the page. Losing a place is a
+fault only when the reader did not ask for it, and the rung is the asking.
+
+Out on the page that same act comes first instead of last, because the ladder
+unwinds from where the reader is standing and a panel behind them is a layer they
+are not in. That end of it was missing altogether: `n` brought a reader to an
+ask, ringed it, and no key took them out again — the one place in the runtime
+where a press put the reader somewhere and nothing undid it, with the line
+offering no Escape at all while they stood there. One act, two rungs, and a
+different word for each. Leaving the chrome names where the reader lands, since
+that is the whole of what the rung is for. Letting go of an ask names the act,
+since they were on the page all along.
 
 The rung lands focus on `body` rather than blurring, and the difference is a
 browser fact worth having before writing either. `html` is `overflow: hidden`
@@ -741,6 +790,17 @@ themselves in. A blur names no box. `document.activeElement` reads as `body`
 either way, so from the page the two look identical — but after a blur, Space
 goes on doing nothing until the next click in the document. Only the focus hands
 the scroll back, which is what makes "back to the page" the whole sentence.
+
+`body` then has to be somewhere a reader can be put, and it is not one by
+default. Chrome makes a scroll container focusable so the keyboard can scroll it,
+and that was the entirety of what made this call work: on a page long enough to
+scroll, focus landed on `body`; on a page that fits the window, `body.focus()`
+moved nothing and the reader stayed on the control the line had just promised to
+take them off — measured both ways on one page, by shrinking its content until it
+fit. So the rung failed exactly where its own reason is strongest, a short page
+having no scroll to hand back and every bit as much of a Space that presses
+whatever the reader was left holding. The runtime gives `body` a tab stop, which
+is what makes the landing a fact rather than a favour.
 
 Which leaves the beginning of the page, where the same browser fact was doing the
 same damage — and this section had already written that down, as a remark about
@@ -755,12 +815,46 @@ were dead, and that reads as a page with no keyboard scrolling rather than as a
 page with a bug.
 
 So the runtime makes the rung's move as it evaluates
-(`test_a_page_nobody_has_touched_scrolls_from_the_keyboard`). That is a placement
-rather than a guard: the start block below runs a mermaid render later than
-module evaluation, with the chrome clickable throughout, so making the move any
-later would take a control back off a reader who had taken one in the meantime. A
-sentence explaining why a test sets something up is a claim about the product,
-and this one turned out to be a bug report.
+(`test_a_page_nobody_has_touched_scrolls_from_the_keyboard`) — the same call, an
+arrival and a reader who has just put something down being in the same place.
+That is a placement rather than a guard: the start block below runs a mermaid
+render later than module evaluation, with the chrome clickable throughout, so
+making the move any later would take a control back off a reader who had taken
+one in the meantime. A sentence explaining why a test sets something up is a
+claim about the product, and this one turned out to be a bug report.
+
+## Where the reader is standing is painted, never remembered
+
+One ring means one thing: this is where the reader is. The open ask holding their
+focus wears it, a control focused as one thing — a joined choose group — draws
+its own in the same band, and so does a control in the chrome, where a reader who
+has backed out of the panel is standing on a button. The band is one pair of
+tokens (`--here-ring`), because stated apart it was one ring free to become
+three, with the browser's own blue on the banner a few inches from an ask in the
+page's accent and nothing saying the two rectangles meant the same thing.
+
+It is painted from the focus (`markHere`). The walk used to write it, so it said
+where the walk had left the reader rather than where they were: press `n`, click
+away, work in the panel for ten minutes, and an ask nobody was standing in went
+on wearing "you are here" — while a reader who reached that same ask by Tab or by
+clicking one of its controls got no ring at all. Focus and not `:focus-visible`,
+which is a claim about the last input rather than about where the reader is: the
+Asks button lands the focus by script after a pointer click, and the ask it
+brought them to would wear nothing.
+
+The ring lands on the ask, and an ask that draws no box draws no ring:
+`lf-suggestion` is `display: contents`, so its outline paints nothing at 0x0. The
+reader standing there sees the band on the ✓ Accept the family hangs in the page
+margin, which is the press they came for. The runtime's own `.lf-pill` rule draws
+that one, so a widget hanging a control out there gets the band without asking,
+and a widget that draws a box of its own gets the ring around the whole ask, as
+`lf-task` and `lf-options` do.
+
+What the walk keeps instead is its own place (`landed`), which is a different
+question and had been sharing the ring's answer. A reader stepping the asks from
+the banner's button is standing in the banner, so the ring is rightly off the
+page — and the walk still has to know which ask it stepped to last, or the second
+press on that button starts again from whatever is on screen.
 
 ## A scope names what it takes, and takes no more
 
@@ -886,7 +980,7 @@ turns on a fact about the page rather than about the key, the reader can already
 see which branch they are in, so the word has to agree with them. A row's cells
 are therefore computed where they are painted (`word`): `c` names what it would
 comment on, `l` says whether the press shows or hides. Keeping the words true
-costs a repaint wherever the state a word reads changes — and `paintLine`
+costs a repaint wherever the state a word reads changes — and `paintHere`
 coalesces to a frame, so painting from each writer costs nothing.
 
 ## One door to a place, and it is the one that shows it
@@ -918,6 +1012,67 @@ moved the base on the reader's first arrow press, with the marks redrawn to matc
 and nothing saying so. So an open lands on the standing base, which puts the
 reader at one end of the span the rail draws, with the way off at the other end.
 
+## An edge holds one board, and a board stands while the work is done
+
+The banner counted what the page was waiting for and its press stepped to the
+next one — the defect the norm above names, seen from the other side: a door
+that travels without showing what it travels through. A reader could learn
+there were five things waiting and reach the fourth only by visiting three,
+and `stepAsk` announced "2 of 5 waiting on you" into the live region, which is
+a screen reader's alone. Nothing on screen said where in the list they were.
+So the count opens a board of them now, and `a` opens the same board: two ways
+in to one place, both of which show what is there.
+
+The board has to stay up while the ask is answered, because answering happens
+in the document — press a row and the page scrolls to the ask and stands you
+on the control that decides it. A list that closed on the way to the thing it
+listed would be a menu, and the reader would reopen it once per ask. That is
+what an edge is for, and the edge already held the machine's leaves. Two
+boards over one edge is one slot, so which of them is up is one fact in one
+place (`showEdge`). A boolean per board is one guarantee written twice, and
+the two would first disagree on the day a third surface opened one without
+closing the other — leaving two boards stacked on one edge with the lower
+unreachable, which no reader could report as anything but the board being
+broken.
+
+What the two do not share is the document's box: the leaves board lies over
+the page and the asks board takes a strip out of it. That is not an
+inconsistency waiting to be tidied. A leaf's row is a way out of this page and
+an ask's row is a way around it, so a board lying over the document would be
+hiding the thing it just sent the reader to — and with a 300px board beside a
+720px column the two overlap on every window under about 1320px, which is most
+of them. The strip is the arrangement the comment panel already had on the
+other side, taken at the same ratio, so a reader who has learned one edge has
+learned the other.
+
+## A view of an element shows what the element says, and nothing standing near it
+
+`itemSays` reads an element's own opening words — the reading the comment
+panel labels an anchor with — and a row on the asks board is that reading with
+the rest of the page taken away. Four questions on one page all came out as
+their first option's chip band, `1 effort: med room: none new stands while…`,
+because the question each group asked was written in the heading beside it and
+the group held no part of it.
+
+Reaching for that heading is the tempting fix and the wrong one: what an `h2`
+is to an ask standing under it is a guess. It may head a section holding a
+dozen other blocks, so a row that took it would be reading the page's shape as
+if it were a declaration — the same mistake as a consumer branching on a tag
+name, made against layout instead of against the registry.
+
+So a view may show only what the element itself carries, and an element that
+wants to be nameable says its name. `label` is the question, on the group,
+declared with `x-says` — already the key meaning "this attribute's value is
+words the reader sees, at a stated edge" — so the runtime renders it as
+selectable text, the anchor label reads it, the version diff sees it, and a
+reader can quote the question the way they quote an answer. Nothing learned
+about `lf-options` to make that work, and the twelfth widget gets a row that
+reads properly on the day it declares `x-awaits`.
+
+The authoring half of this is in SKILL.md, and it is one sentence because the
+board makes it obvious: whatever an ask's own words open with is the whole of
+what a reader choosing among five of them has to go on.
+
 ## A walk starts where the reader is standing
 
 A key that steps through the page answers "from here, what is next", and the
@@ -928,10 +1083,10 @@ reader who scrolled halfway down and pressed it for the first time was taken to
 the top of the page, past everything they had just read.
 
 Where the reader is, is read from what they have done, most direct first — focus,
-then the selection, then the walk's own mark, then the block they are reading —
-because each of those is a thing they did, and the later ones are older news. A
-caret counts here even where a quote wouldn't: this reading asks where the reader
-is, not what they meant to quote, which is why it is its own reading and not
+then the selection, then where the walk last left off, then the block they are
+reading — because each of those is a thing they did, and the later ones are older
+news. A caret counts here even where a quote wouldn't: this reading asks where the
+reader is, not what they meant to quote, which is why it is its own reading and not
 `pageSelection`. The banner is the one place that is no place: its controls are
 addresses held from wherever the reader stands, and the Asks button focuses
 itself on the way to running the walk.
@@ -943,6 +1098,24 @@ not the one they step to. The panel's threads are in the log's order, so `j`/`k`
 have no page position to measure from, and the head of the list is the right
 answer there. The tell is not "does this walk carry state" but "is where the
 reader is a position in what this walk walks".
+
+A version arriving is a navigation, and it takes the most direct of those
+readings with it: focus and the selection are paint on a document that has just
+been replaced. Only the reading position rode across (view continuity), so the
+reader kept their place on the page and lost their place in the walk, and nothing
+said so. Standing on the third of four asks when the version landed, they pressed
+`n` and were handed the third again — the block at the top of the window is above
+an ask the walk had centred, so the walk measured from somewhere they had already
+walked past. Where the walk left off travels in the same record as the passage
+now: one place, both readings of it.
+
+Focus and the selection get no such record and are not owed one. A focus put back
+would leave the reader's next Space pressing a control rather than scrolling the
+page, which is what "the reader has to be standing somewhere" is about, and the
+words a selection covered are not promised to survive the revision. The ring is
+not owed one either, for the reason it is painted rather than stored: nobody is
+standing anywhere on a document that has just loaded, so it comes back when the
+reader does.
 
 ## A widget's chrome outlives its handlers
 
@@ -1040,8 +1213,8 @@ pair was a dozen declarations kept level by hand. So the shared half moves into
 the vocabulary, and each wearer keeps only what is its own — where the thing sits
 and when it shows. The split earns its keep the moment those differ: a reply box
 has padding to hang a chip over, and an option had none, its group being a
-control whose box is spent on its cells and clipped so their hairlines stop at
-its edge — so a chip on a cell's corner came out cut in half. The option reserves
+control whose box is spent on its cells and clipped so their fills stop at its
+rounded corners — so a chip on a cell's corner came out cut in half. The option reserves
 a column for its digit and holds it whether or not one is showing; a shared rule
 that had placed as well as dressed would have had to grow a case for that.
 
@@ -1058,11 +1231,46 @@ carrying an id (`[id]:not(.lf-ui)`), and `data-lf-offer` for a thing to work.
 ## Never lose user text
 
 Every draft persists on input: the general box, each thread's reply, the
-selection composer, a widget's box for words, an `lf-draft` edit. Only a
-successful send (or finding the same value already authored) clears one; Escape
-and outside clicks hide rather than discard, and Cancel is the only discard. A
-send owns its input until its response arrives, so an earlier response can never
-clear or overtake newer text.
+selection composer, a widget conversation's first message and reply, and an
+`lf-draft` edit. Only a successful send (or finding the same value already
+authored) clears one; Escape and outside clicks hide rather than discard, and
+Cancel is the only discard. A send owns its input until its response arrives, so
+an earlier response can never clear or overtake newer text.
+
+That ownership is the reader's, not the tab's. Each edit stores one active
+generation, `{text, attempt, base}`; even the same words typed later mint a fresh
+attempt. `base` names the durable shared generation the edit supersedes, or
+absence. A chain of failed local writes keeps that base. It may therefore replace
+its predecessor or the predecessor's settlement, but never an unrelated attempt
+another tab durably wrote later. Without the provenance, an old failed-write
+cache that missed storage news could become writable after its held POST and
+tombstone the newer shared words.
+
+Two tabs can press Send or Save on that generation before either sees the
+other's result, and both may POST it. Every sendable draft context uses the same
+protocol: the general and selection composers, question first messages and
+replies, and `lf-draft` edits. Under the log's append lock, an exact retry
+returns the event already accepted, the same attempt with a different payload
+is refused, and a new attempt with identical words is a new event. This also
+covers a sender that dies after the append.
+
+The browser rechecks the attempt and exact untrimmed text immediately before
+POST. A successful send replaces that exact active generation with
+`{attempt, settled: true}`; it never removes the key.
+Words or spaces typed while the request was in flight have a fresh attempt and
+therefore survive its response. Send, Cancel, and log reconciliation all refresh
+the shared generation before writing a tombstone, so a stale tab cannot settle a
+newer durable edit.
+
+Storage failures still cost recovery, never the live Send action. Every edit
+updates a document cache and then attempts the single record write. A failed
+write leaves a nondurable branch which news from its base cannot erase; unrelated
+shared news retires it. A failed tombstone keeps the same lineage for the next
+local edit, while a successful write makes that attempt the next base. A
+successful write followed by a refused read remains sendable from the cache. A
+readable shared generation still outranks a stale durable cache. The event log
+outranks both: an accepted attempt is treated as settled even if stale storage
+returns its active record after reload.
 
 The store is the reader's (`localStorage`), because the ordinary end of a tab
 here is being closed. Each round's reply hands the URL over again and the user
@@ -1081,18 +1289,18 @@ reply box gone with its resolved thread, renders nothing and drops its view at
 the next word it would have shown. Nothing tells the box that it went, because
 the alternative is the panel keeping this design's index up to date on the side.
 
-Presence and value are different things, and the difference is what says *why* a
-draft cleared. A box the reader emptied stores `""` and is still a draft they are
-holding; only a settlement removes the key. So the storage event's `newValue`
-tells an edit from a send-or-Cancel on its own, and no channel beside the store
-has to carry the reason — a value diff alone could not have told the two apart,
-which is what a `BroadcastChannel` was going to be for. Which settlement it was,
-nothing asks: both leave the same box for the other tab to render, and what was
-sent arrives there through the log. What a settlement does is each box's own
-business — a reply box and the general box empty themselves, the composer on
-that anchor closes, a draft editor closes and lets replay paint the body — while
-a mirrored *edit* moves nothing that was not already showing, news arriving
-having no gesture behind it.
+Active and settled are different records, and the difference is what says *why*
+a draft cleared. A box the reader emptied stores an active generation whose text
+is `""`; Send or Cancel stores a tombstone for that generation. The storage event
+therefore tells an edit from a settlement without key removal — important because
+`removeItem` can fail independently of `setItem` and otherwise resurrect sent
+words on reload. No channel beside the store has to carry the reason. Which
+settlement it was, nothing asks: both leave the same box for the other tab to
+render, and what was sent arrives there through the log. What a settlement does
+is each box's own business — a reply box and the general box empty themselves,
+the composer on that anchor closes, a draft editor closes and lets replay paint
+the body — while a mirrored *edit* moves nothing that was not already showing,
+news arriving having no gesture behind it.
 
 The composer's draft is keyed by the passage it is on. One key was enough while a
 draft died with its tab; shared, one key is two tabs on two passages overwriting

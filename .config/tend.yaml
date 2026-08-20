@@ -1,0 +1,19 @@
+bot_name: leaf-agent
+
+# Everything in this repo runs through `uv` (CLAUDE.md): the suite is
+# `uv run pytest tests`, and `leaf` itself is a PEP 723 script that resolves its
+# own dependencies. `setup-uv` is where the agent gets uv, pinned to the version
+# `ci.yaml` already uses; `uv sync --frozen` warms `.venv` so the sandbox
+# inherits it rather than resolving from scratch on every run, and installs the
+# lock as written so a run can't leave lockfile churn in the branch it opens.
+setup:
+  - uses: astral-sh/setup-uv@v7
+  - run: uv sync --frozen
+
+workflows:
+  ci-fix:
+    watched_workflows:
+      - ci
+      # A red `publish-site` leaves <https://leaf.page/> stale on whatever it
+      # last built, which is invisible from the repo — worth a fix PR.
+      - publish-site

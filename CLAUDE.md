@@ -434,21 +434,17 @@ packages anyway, because they load `interact.py` by path.
 uv run pytest tests
 ```
 
-About two minutes rather than eleven, because `pyproject.toml` shards the run
-across eight workers. The command is complete as written: no environment variable
-in front of it, no setup step before it. The fixtures relocate the two XDG
-directories leaf reads (`config_home`, `state_home`) and leave the rest of the
-home alone, so every `leaf` the suite shells out to finds the uv cache the
-developer already has, and a fresh checkout fills that cache the way any other
-run would.
+That everyday command needs no network. It runs one shipped page through the browser
+gate, so one of `pyproject.toml`'s eight workers launches Chrome; the other tests cover
+the static lint, server, vendoring, and product pages. The fixtures relocate the two
+XDG directories leaf reads (`config_home`, `state_home`) and leave the rest of the home
+alone, so every `leaf` the suite shells out to finds the uv cache the developer already
+has.
 
-That command needs no network. One dependency resolution sits outside `uv.lock`:
-the Playwright that `bin/leaf` supplies to `version export` on top of the
-script's header (the code there says why). uv re-asks the package index for it
-whenever the cached answer goes stale, so the tests that shell out to
-`version export` are marked `nightly` and excluded by default. `--run-nightly`
-puts them back, and that is how CI and `wt merge` run the suite — both have a
-network anyway:
+`test_render.py` and `test_site.py` are the browser integration suite. A browser change
+runs its focused test with `--run-nightly`; CI and `wt merge` use the same flag for the
+complete suite. The complete run has a network because the installed launcher's
+browser path may resolve Playwright outside `uv.lock`:
 
 ```sh
 uv run pytest tests --run-nightly

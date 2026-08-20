@@ -219,14 +219,23 @@ to click belongs on a page you are going to serve.
   to propose — and a suggestion carries markup, not a widget's own state: proposing a
   card's column or an option's pick has no form yet.
 - The runtime injects the status banner, comment sidebar, version picker, keyboard
-  shortcuts (`?` in the browser shows the reference), and a left panel listing the
-  machine's live leaves with what each is doing or waiting for; don't build page UI
-  for any of those. It also collects what the page is still waiting on the reader for —
-  an undecided suggestion, a `choose` group with no pick, a task at `review` or `blocked`
-  — into a banner count they can step through with `a`, from the vocabulary's own
-  declarations (`x-awaits`). So write the asks as widgets and let the count find them;
-  a hand-written "still open" list beside them is a second copy that goes stale the
-  moment one is answered.
+  shortcuts (`?` in the browser shows the reference), and two boards that share the
+  left edge — the machine's live leaves with what each is doing or waiting for, and
+  this page's own open asks; don't build page UI for any of those. It collects what
+  the page is still waiting on the reader for — an undecided suggestion, a `choose`
+  group with no pick, a task at `review` or `blocked` — from the vocabulary's own
+  declarations (`x-awaits`), counts it in the banner, steps through it with `n` and
+  `p`, and lists it on the asks board, which `a` opens and so does the count itself.
+  So write the asks as widgets and let the runtime find them; a hand-written "still
+  open" list beside them is a second copy that goes stale the moment one is answered.
+- **An ask has to name itself.** A row on the asks board is one ask with the rest of
+  the page taken away, so whatever its own words open with is what the reader chooses
+  from. A task or a milestone leads with its `<strong>` title and needs nothing more.
+  A `lf-options` group holds no part of the question it asks unless you write one:
+  give it `label="…"`, which is the question in the group's own words, and drop the
+  heading that would have stood over it rather than keeping a second copy of the
+  question beside the thing that asks it. Without a label the row reads as the first
+  option's case, which answers a question it never states.
 - **Sign-off is declared, not assumed.** A page that asks for the user's assent — a
   plan, a design, a proposed change, anything where approval unblocks work — declares
   `<meta name="lf-review" content="sign-off">` in the head, and the

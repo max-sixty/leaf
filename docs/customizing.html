@@ -200,16 +200,16 @@ lf-options {
                 What x-awaits declares: an instance of this tag is a standing request to
                 the reader — a question with no pick, a change nobody has decided, a
                 piece of work the page says is waiting on them. One declaration is the
-                whole of it. The banner's count, the <code>a</code> key that steps them,
-                and the <code>?</code> overlay's row are three readings of one list, so
-                nothing counts asks by naming a tag and the twelfth widget joins by
-                declaring rather than by being taught to three consumers. Quoted
-                material asks nothing — an exhibited decision is a mention (x-exhibit).
-                A widget inside a thread asks like one on the page — a question is a
-                request to the reader wherever it stands, and <code>a</code> opens the
-                panel to reach it — with one bound set by what a thread is: its markup
-                is frozen, so no version can answer there, and only a widget with an
-                action channel (x-state) asks in a thread at all. Its fields —
+                whole of it. The banner's count, the <code>n</code>/<code>p</code> walk
+                that steps them, and the <code>?</code> overlay's row are three readings
+                of one list, so nothing counts asks by naming a tag and the twelfth
+                widget joins by declaring rather than by being taught to three
+                consumers. Quoted material asks nothing — an exhibited decision is a
+                mention (x-exhibit). A widget inside a thread asks like one on the page
+                — a question is a request to the reader wherever it stands, and the walk
+                opens the panel to reach it — with one bound set by what a thread is:
+                its markup is frozen, so no version can answer there, and only a widget
+                with an action channel (x-state) asks in a thread at all. Its fields —
                 <code>when</code>, <code>until</code>, <code>all</code> — are $awaits'.
               </td>
             </tr>
@@ -223,6 +223,17 @@ lf-options {
                 &lt;pre&gt; because it is the only thing in HTML that says whitespace is
                 load-bearing without a stylesheet to read), or <code>none</code>.
                 Required.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-conversation</code></td>
+              <td>
+                The module places a conversationBox in each page instance matching
+                <code>when</code>. It projects exact-section threads textually from the
+                whole log; Comments keeps the complete view and is the only place
+                interactive reply markup renders. Both views share the reply draft.
+                Thread markup and quoted material take no second view. Dropping the
+                widget drops only the inline view.
               </td>
             </tr>
             <tr>

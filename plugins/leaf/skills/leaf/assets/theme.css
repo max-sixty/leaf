@@ -125,6 +125,16 @@
      2.38:1, which is the "the highlighting is gone" report the syntax block below
      was written for. */
   --mark: #dfd1ed66; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+  /* The "you are here" ring: where the reader is standing, wherever they are
+     standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
+     focused as one thing draws its own in the same band (a joined choose group,
+     bundled/theme.css), and so do the runtime's own controls, which is where a
+     reader backing out of the panel lands. One band for one fact — stated apart,
+     the same ring was free to become three, and a reader would have had to learn
+     that a blue rectangle on the banner and a blue rectangle down the page meant
+     the same thing. The gap is what the ring wants outside a box that stands on
+     its own; a control packed into a list states its own inset instead. */
+  --here-ring: 2px solid var(--accent); --here-ring-gap: 3px;
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
@@ -743,21 +753,30 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 [data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 55%, transparent);
                      outline-offset: 3px; border-radius: 2px; }
 
-/* The box for words a widget carries (the runtime's sayBox): an answer the widget's
- * own controls don't cover goes here rather than sending the reader hunting for a
- * passage to select. Withheld rather than undone everywhere it would do nothing — a
- * box with no handler behind it invites the reader to type into a page that cannot
- * send it — so the offer is made once, in the live page, and a copy and a printout
- * get the page without it by never being handed it. Where the box sits in a widget
- * is the widget's own rule; this is only what the box is. */
+/* The shared boxes of a registry-declared widget conversation. The widget places it. */
+.lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
 .lf-say textarea { flex: 1; min-width: 0; }
+.lf-conversation > .lf-say { margin-top: 0; }
+.lf-conversation-thread + .lf-conversation-thread {
+          border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
+.lf-conversation-msg { margin: var(--sp-2) 0; }
+.lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
+          font-size: var(--t-6); }
+.lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
+.lf-conversation-head time { color: var(--muted-2); }
+.lf-conversation-body { margin-top: 2px; }
+.lf-conversation-body > :first-child { margin-top: 0; }
+.lf-conversation-body > :last-child { margin-bottom: 0; }
+.lf-conversation-open { margin-top: var(--sp-2); }
+.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
 @media screen {
   html:not(.lf-copy) {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled
        group takes it with its options) — the display here would outrank the
        attribute's own hiding. */
+    .lf-conversation:not([hidden]) { display: block; }
     .lf-say:not([hidden]) { display: flex; }
   }
 }
@@ -890,9 +909,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-sug-actions.lf-waiting { display: none; }
 .lf-sug-actions.lf-docked { position: static; margin: 2px 0 12px; }
 /* The controls are .lf-pill — the margin's press, stated once in the runtime's
- * document-level vocabulary, where the 💬 that shares this margin wears it too. What
- * is here is only what a suggestion's own states add to it. */
-.lf-sug-actions [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+ * document-level vocabulary, where the 💬 that shares this margin wears it too, and
+ * where the ring that says the reader is standing on one is stated with it. What is
+ * here is only what a suggestion's own states add to it. */
 /* Hover is an offer, so the coloured edge is the pending row's alone: a decided one has
  * nothing left to press and its own colour to keep. Scoped rather than unsaid
  * afterwards — a hover rule undone by a later one is the shape the row form's first

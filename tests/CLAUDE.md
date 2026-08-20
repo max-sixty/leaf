@@ -32,19 +32,20 @@ hit this. The failure reads as the widget under the pointer refusing the gesture
 and it is neither that nor Playwright's interpolation — plain prose in a bare
 document does it.
 
-## The everyday run asks nothing of the network
+## The everyday run opens one browser
 
-The browser is the machine's own and the page it opens is on disk, so the suite
-needs nothing from the network — except where a test drives `bin/leaf` on a
-subcommand that opens Chrome. The launcher supplies Playwright to those
-subcommands from outside the script's lock (`uv run --with playwright`), and an
-unlocked requirement has no recorded resolution to install from, so uv asks pypi
-for one every time its cached answer goes stale. With pypi unreachable, the tests
-that run the shim's own `--render` or `version export` fail on the shim's exit
-status, and a suite of six hundred passing browser tests reports as broken. So
-those tests carry `pytest.mark.nightly`: an everyday run skips them, and CI and
-`wt merge` pass `--run-nightly` to put them back. A new test that shells out to
-the launcher's browser path wants the mark too.
+`test_render.py` and `test_site.py` carry a module-wide `pytest.mark.nightly`. A
+browser change runs its focused test with `--run-nightly`; CI and `wt merge` pass the
+same flag for the complete suite. The everyday run covers the static lint, server,
+vendoring, and product pages, plus one `ship-review` render through the real gate. Its
+worker is the only one that launches Chrome.
+
+The browser is the machine's own and the page it opens is on disk. Two tests also
+drive `bin/leaf` on a subcommand that opens Chrome. The launcher supplies Playwright
+to those subcommands from outside the script's lock (`uv run --with playwright`), and
+an unlocked requirement has no recorded resolution to install from, so uv asks pypi
+for one every time its cached answer goes stale. Those tests therefore need the
+network available to the nightly run.
 
 To prove a run works offline, give uv an index that isn't there —
 `UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also
@@ -147,6 +148,17 @@ genuine statement from the browser, and it is 232 pixels short of where the clic
 was aimed. The fact worth waiting on is the destination itself: the mark reaching
 the middle, which is the position `scrollToThread` computed. A glide approaching
 that position passes through no earlier position that could be mistaken for it.
+
+A destination stated as a region rather than a position is the same mistake in a
+weaker disguise. "Some part of the change is inside the window" is as true where
+the walk starts as where it is going, and the ask the boxless-travel test walks
+to sits a few dozen pixels below the fold — so the predicate went true on the
+focus move that precedes the glide, and the test passed with the travel bug put
+back. It had been passing that way under the suite's own parallel run while
+failing the same bug when run alone, which is the shape of a test measuring the
+machine's load rather than the product's behaviour: the reading it took was
+whichever transient it was quick enough to catch. The scroll stopping is the
+fact to wait on; where it stopped is the assertion.
 
 Where nothing will happen, there is no fact to consume and polling has no end. An
 assertion of absence holds a window instead, and the window's length is derived

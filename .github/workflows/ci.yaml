@@ -24,8 +24,8 @@ jobs:
       # (`channel="chrome"`), the same one `publish-site` draws the examples with,
       # so there is no browser to fetch either.
       #
-      # `--run-nightly` adds back the tests an everyday run skips to stay offline,
-      # a runner having the index they resolve Playwright from.
+      # `--run-nightly` adds the complete browser and published-site integration
+      # suites; the runner has the package index the launcher resolves Playwright from.
       - name: 🧪 Test suite
         run: uv run pytest tests --run-nightly
 

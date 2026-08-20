@@ -5,16 +5,13 @@
 # failed on the runner from the day CI landed and none of them could be reproduced.
 #
 #   scripts/linux-suite.sh
-#   scripts/linux-suite.sh tests/test_render.py -k a_press   # or any pytest arguments
+#   scripts/linux-suite.sh tests/test_render.py -k a_press --run-nightly
 #
 # Needs a Docker daemon that can run linux/amd64 (linux-suite.Dockerfile says why). On
 # Apple silicon that is `colima start --vm-type vz --vz-rosetta`.
 #
-# Size that VM for the suite rather than for a shell. Eight workers each drive a Chrome,
-# and on four emulated CPUs with 8GiB they crash tabs outright (`Target crashed`) and
-# push the heaviest examples past the thirty seconds a wait gives an upgrade — both of
-# which read as the product failing and neither of which is. `--cpu 8 --memory 16` on
-# that same `colima start` is what leaves a red here worth chasing.
+# Size that VM for the suite rather than for a shell. The reproducible Chrome setup is
+# `--cpu 8 --memory 16`; a smaller VM can turn runner pressure into product failures.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

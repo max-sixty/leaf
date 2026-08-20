@@ -156,12 +156,73 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   reportWrote: "data-lf-report-wrote",
   applied: "data-lf-applied",
   pending: "data-lf-pending",
+  presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
   wide: "data-lf-wide",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 
+// A modal is promoted into the top layer and makes the rest of the document inert. Both
+// facts escape an ancestor paint gate: hiding it with CSS alone would still disable the
+// Comments chrome that deliberately remains usable while first replay waits. Custom
+// widgets load after this module, so turn authored-main showModal() calls into measurable,
+// non-modal dialogs until replay has produced the page. A widget can still close one
+// while waiting; only a connected, still-open dialog whose post-replay place is visible
+// is promoted, so replay retiring its authored branch cannot resurrect stale UI on top.
+const nativeDialogShow = HTMLDialogElement.prototype.show;
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+const nativeDialogClose = HTMLDialogElement.prototype.close;
+const deferredModals = new Set();
+const inAuthoredMain = (node) => {
+  const main = document.querySelector("body > main");
+  for (let at = node; at;) {
+    if (at === main) return true;
+    if (at.parentElement) at = at.parentElement;
+    else {
+      const root = at.getRootNode();
+      at = root instanceof ShadowRoot ? root.host : null;
+    }
+  }
+  return false;
+};
+HTMLDialogElement.prototype.showModal = function () {
+  if (
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) &&
+    inAuthoredMain(this)
+  ) {
+    if (!this.open) nativeDialogShow.call(this);
+    deferredModals.add(this);
+    return;
+  }
+  return nativeDialogShowModal.call(this);
+};
+HTMLDialogElement.prototype.show = function () {
+  deferredModals.delete(this);
+  return nativeDialogShow.call(this);
+};
+HTMLDialogElement.prototype.close = function (returnValue) {
+  deferredModals.delete(this);
+  return nativeDialogClose.call(this, returnValue);
+};
+function promoteDeferredModals() {
+  for (const dialog of deferredModals) {
+    if (
+      !dialog.isConnected ||
+      !dialog.open ||
+      !inAuthoredMain(dialog) ||
+      !dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+    ) {
+      dialog.removeAttribute("open");
+      continue;
+    }
+    // Removing the non-modal state directly emits no spurious close event; the widget
+    // asked for one opening, and this is that opening finally becoming modal.
+    dialog.removeAttribute("open");
+    nativeDialogShowModal.call(dialog);
+  }
+  deferredModals.clear();
+}
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless, so upgrade order can't matter.
 export function once(el) {
@@ -504,11 +565,32 @@ export const SCROLL = REDUCED ? "instant" : "smooth";
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Ease, no options — the board's FLIP and the folds (FOLD_MS) are the motions
-// the product makes, and they agree.
+// state. The board's FLIP and the folds (FOLD_MS) are the motions the product makes;
+// they share one ease and one held-end-frame contract.
 export function motion(el, keyframes, ms) {
-  if (REDUCED) return null;
-  return el.animate(keyframes, { duration: ms, easing: "ease" });
+  // First replay happens behind the presentation boundary. Its state should be the
+  // first frame the reader sees, not a motion from authored state they never saw; it
+  // collapses exactly as reduced motion does. This one shared check reaches folds and
+  // FLIP alike without a widget learning whether the page has been presented.
+  if (REDUCED || !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
+    return null;
+  const played = el.animate(keyframes, {
+    duration: ms,
+    easing: "ease",
+    fill: "forwards",
+  });
+  // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
+  // that frame true in DOM/CSS, then release the effect. The extra microtask is the
+  // ordering: our reaction was registered first, so cancelling in it would expose the
+  // unanimated box before the caller removed, hid or restated it. A FLIP has no cleanup
+  // because its underlying placement already is its last frame; it still leaves no
+  // filled animation behind. Cancellation is already the release, and the rejection
+  // arm consumes it so an interrupted move reports no unhandled promise.
+  played.finished.then(
+    () => queueMicrotask(() => played.cancel()),
+    () => {},
+  );
+  return played;
 }
 
 // How long room takes to go back. Long enough that the eye can follow a paragraph's
@@ -1349,6 +1431,22 @@ const pageShadowRoots = () => shadowRootsIn(document);
 // renders, so the stage below can stay synchronous for its callers.
 let shadowRules = "";
 const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//;
+// A top-layer element no longer composites through its light/shadow ancestors, so the
+// document's main gate cannot hide a dialog promoted out of an x-shadow widget. Every
+// legitimate page shadow tree is built here; put the same subtree boundary inside it,
+// in an anonymous first layer so later widget stylesheet rules cannot outrank it.
+const SHADOW_PRESENTATION_CSS = `
+@layer {
+  @media screen {
+    :host-context(body:not([data-lf-presented])) *,
+    :host-context(body:not([data-lf-presented])) *::backdrop {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      interactivity: inert !important;
+      pointer-events: none !important;
+    }
+  }
+}`;
 async function loadShadowRules() {
   const response = await fetch("/theme.css");
   if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
@@ -1397,7 +1495,7 @@ export function shadowStage(host, nodes) {
     host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
   root.adoptedStyleSheets = [markSheet];
   const style = document.createElement("style");
-  style.textContent = shadowRules;
+  style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
   root.replaceChildren(style, ...nodes);
   return root;
 }
@@ -2603,7 +2701,7 @@ function showEdge(key) {
         panel.classList.remove("open");
         paint?.();
       };
-      if (out) out.onfinish = hide;
+      if (out) out.finished.then(hide, () => {});
       else hide();
       if (panel.contains(document.activeElement)) btn.focus();
     }
@@ -2618,26 +2716,43 @@ function showEdge(key) {
 function edgeIs(key, panel, btn, paint) {
   edges.set(key, { panel, btn, paint });
   btn.onclick = () => showEdge(openEdge(key) ? null : key);
-  btn.setAttribute("aria-expanded", String(openEdge(key)));
+  const restored =
+    openEdge(key) && document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+  btn.setAttribute("aria-expanded", String(restored));
   // A board the reader left standing comes back standing — but it is not filled here.
   // This runs while the module is still evaluating, and a board's paint reads the page's
   // open asks, whose own reading is declared far below this line: calling it now throws a
-  // ReferenceError in front of the reader, which is how this was found. The startup pass
-  // fills it (syncAsks, with the rest of the restore), by which point everything exists.
-  if (openEdge(key)) {
+  // ReferenceError in front of the reader, which is how this was found. restoreEdge's
+  // post-replay presentation pass fills it, by which point everything exists.
+  if (restored) {
     panel.classList.add("open");
     document.body.dataset.lfEdge = key;
   }
 }
 edgeIs("leaves", othersPanel, othersBtn);
 edgeIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
+// A persisted board is state-dependent chrome: Asks folds the log and Leaves comes from
+// the first state response. Keep the remembered intent in edgeUp, but restore its pixels
+// only once that response has produced the page's presentation. Unlike showEdge, this
+// first paint does not animate — it is part of the page arriving, not a reader gesture.
+function restoreEdge() {
+  if (!edgeUp) return;
+  const edge = edges.get(edgeUp);
+  if (!edge) return;
+  edge.btn.setAttribute("aria-expanded", "true");
+  edge.paint?.();
+  edge.panel.classList.add("open");
+  document.body.dataset.lfEdge = edgeUp;
+}
 // Each board's one offer: something to show, or the board already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the board's own predicate, so the two surfaces cannot
 // disagree about whether there is a board to open. A leaves board of one — the page the
 // reader is already on — is not worth a control; an asks board of none is the same.
-const boardOffered = () => others.length > 0 || openEdge("leaves");
-const asksOffered = () => openAsks().length > 0 || openEdge("asks");
+const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+const boardOffered = () => pagePresented() && (others.length > 0 || openEdge("leaves"));
+const asksOffered = () =>
+  pagePresented() && (openAsks().length > 0 || openEdge("asks"));
 // The board's own scope. The walk is the board's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
@@ -2967,6 +3082,10 @@ toggleBtn.title = "Show or hide the comment panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 const approveBtn = el("button", "lf-btn primary lf-signoff", "✓ Looks good");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
+// The page's ask is not actionable until the page itself is present. Discussion chrome
+// stays live during replay, but approving hidden authored content would decide a version
+// the reader has not seen yet.
+approveBtn.disabled = true;
 banner.append(
   dot,
   statusText,
@@ -3115,6 +3234,10 @@ document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 
 // ---------- state ----------
 let events = [];
+// Until the first state answer, [] means "not read", not "no comments". Keep that
+// distinction for a Comments panel restored or opened during startup; its General
+// composer stays usable while the log-derived list says what it is waiting for.
+let statePhase = "waiting";
 let lastEventSeq = -1;
 let lastVersionsKey = "";
 let latestVersion = null;
@@ -4078,6 +4201,7 @@ const emptyNote = el(
   "lf-empty",
   "No comments yet. Select any text on the page to comment on it, or use the box below.",
 );
+const waitingNote = el("div", "lf-empty", "Loading current comments…");
 
 // A terminal event's row, keyed like everything else in the list so its clock can
 // refresh in place.
@@ -4436,12 +4560,10 @@ function foldOut(t) {
   // box says on its way out is "Reply" and no promise.
   node.lfSync();
   folding.set(t.root.id, node);
-  // Straight off the promise, and nothing between: the effect stops applying at the
-  // end of its own interval, so from that instant until this runs the node is its
-  // unanimated self — full height, full opacity — and a frame painted in that window
-  // puts the whole thread back before it goes. The microtask beats the paint and one
-  // deferral loses it, which is the distance a `requestAnimationFrame` here would
-  // travel. What holds the line is
+  // Straight off the promise, and nothing between: motion() holds the last keyframe
+  // while this direct reaction makes that frame true by removing the node, then its
+  // shared reaction releases the effect. Deferring this cleanup past that contract
+  // would put the whole thread back before it goes. What holds the line is
   // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
   // see it.
   played.finished.then(() => {
@@ -4538,6 +4660,16 @@ threadsBox.addEventListener("animationend", (ev) => ev.target.classList.remove("
 // The panel and the page marks are two views of the same threads, and the paint pass
 // reports back to the list renderThreads just reconciled — always render them as a pair.
 function renderPanel() {
+  if (statePhase !== "ready") {
+    waitingNote.textContent =
+      statePhase === "offline"
+        ? "Current comments are unavailable while the server is offline."
+        : "Loading current comments…";
+    setChildren(threadsBox, [waitingNote]);
+    toggleBtn.textContent = "Comments";
+    paintHere();
+    return;
+  }
   const threads = buildThreads();
   renderThreads(threads);
   renderConversations(threads);
@@ -7201,6 +7333,12 @@ const syncGeneral = wireInput(generalInput, {
 });
 mirrorDraft(generalInput, syncGeneral, "general");
 
+function paintApproval() {
+  const approved = events.some((e) => e.kind === "done");
+  approveBtn.disabled =
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) || approved;
+  approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
+}
 approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good" });
 
 // ---------- keyboard ----------
@@ -8594,6 +8732,10 @@ const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
 // is a request to the reader wherever it stands, and the panel's count is a different
 // fact — threads open, not answers owed.
 function openAsks() {
+  // Before the first replay, the DOM carries authored initial state while the log may
+  // already answer it. This list drives both pixels and actions, so an empty list is the
+  // only honest answer until the presentation boundary says replay is complete.
+  if (!pagePresented()) return [];
   const tags = askTags();
   if (!tags.length) return [];
   const fold = stateFold(VNUM);
@@ -9404,6 +9546,10 @@ const showStatus = (tone, ...parts) => {
   paintTab();
 };
 function renderStatus(state) {
+  if (state instanceof Error) {
+    showStatus("offline", "Page couldn't apply current state — reload");
+    return;
+  }
   if (state === null) {
     showStatus("offline", "Server offline — comments won't send");
     return;
@@ -10345,19 +10491,23 @@ function paintPending() {
   }
 }
 async function poll() {
-  let state;
+  let res;
   try {
-    const res = await fetch("/api/state");
-    // A refusal is not state: the server answers a missing key with error-shaped
-    // JSON at 403, and indexing that as state threw before the banner could say
-    // anything. A live server refusing the key and a dead one both leave the
-    // page unreachable from here, and the terminal link is the recourse for both.
-    state = res.ok ? await res.json() : null;
+    res = await fetch("/api/state");
   } catch {
-    state = null;
+    // Network absence is a completed answer: there is no log to replay, so the offline
+    // authored page is honest. A successful but malformed response is different — let
+    // JSON or processing errors escape so the caller retains the recovery boundary.
+    res = null;
   }
+  // A refusal is not state: the server answers a missing key with error-shaped JSON at
+  // 403. A live server refusing the key and a dead one both leave the page unreachable
+  // from here, and the terminal link is the recourse for both.
+  const state = res?.ok ? await res.json() : null;
   if (!state) {
+    if (statePhase === "waiting") statePhase = "offline";
     renderStatus(null);
+    if (panelOpen) renderPanel();
     // The sequence consumers still hear the tick. A poll that brought nothing changes
     // no history, so they re-render what they already held — but anything of theirs
     // that reads a clock rather than the log has to keep moving, and a dead server is
@@ -10379,6 +10529,7 @@ async function poll() {
   if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
     await loadMarked();
   events = nextEvents;
+  statePhase = "ready";
   settleAcceptedDrafts();
   agent = state.agent || "Claude";
   renderStatus(state);
@@ -10389,9 +10540,7 @@ async function poll() {
     renderPanel();
     // Sign-off is a fact in the log, not a click this tab happens to remember, so a
     // reload (or the other tab) shows it too.
-    const approved = events.some((e) => e.kind === "done");
-    approveBtn.disabled = approved;
-    approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
+    paintApproval();
     const agentReplies = events.filter(
       (e) => e.author === "claude" && e.kind === "reply",
     );
@@ -10427,9 +10576,10 @@ if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // focus rather than a blur among them, and CLAUDE.md's "The reader has to be standing
 // somewhere" holds the rest.
 //
-// Here rather than in the start block below, which runs a mermaid render later with the
-// chrome clickable throughout: a reader who took a control in that window would have had
-// it taken back off them, and this placement is what makes the guard unnecessary.
+// Here rather than in the start block below, which runs asynchronous upgrades with the
+// chrome clickable throughout: a reader who took a control in that window would have it
+// taken back off them. Main is withheld from paint, but body is the visible scroll box and
+// can name itself to Chrome now.
 letGo();
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
 // panel is restored just above, so the column is already reflowed). The browser answers
@@ -10474,20 +10624,68 @@ function landArrival() {
 const savedComposer = pendingComposer();
 
 // ---------- start ----------
+const PRESENTATION_WAIT_ANIMATION = "lf-presentation-wait";
+const cssMilliseconds = (name) => {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  if (value.endsWith("ms")) return Number(value.slice(0, -2));
+  if (value.endsWith("s")) return Number(value.slice(0, -1)) * 1000;
+  return Number(value);
+};
+
+// One positive fact for the one presentation boundary. Success has applied the log;
+// an unavailable first poll has painted the offline status and deliberately hands the
+// authored page back. A caught startup failure cannot make that promise, so it leaves
+// the fixed recovery surface in place rather than exposing decisions it never read. A
+// fast answer releases before the delayed waiting surface can paint. Once that surface
+// has started, its CSS animation is the clock and the CSS dwell is the budget: the message
+// stays long enough to read instead of becoming the flash it was meant to prevent.
+async function presentPage() {
+  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  const wait = document
+    .getAnimations()
+    .find((animation) => animation.animationName === PRESENTATION_WAIT_ANIMATION);
+  const current = Number(wait?.currentTime);
+  const delay = Number(wait?.effect.getTiming().delay);
+  if (wait && Number.isFinite(current) && current >= delay) {
+    const shownAt = (wait.startTime ?? document.timeline.currentTime - current) + delay;
+    const releaseAt = shownAt + cssMilliseconds("--lf-presentation-dwell");
+    // Timers are a wake-up hint, not the presentation clock: a browser may service one
+    // a few milliseconds before its requested deadline. Re-read the CSS timeline after
+    // every wake so the recovery message never loses the end of its promised dwell.
+    while (document.timeline.currentTime < releaseAt) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, releaseAt - document.timeline.currentTime),
+      );
+    }
+  }
+  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  // Repaint state-dependent chrome in this same task. The presentation attribute opens
+  // the gate, replay is already complete, and no frame can expose the authored count or
+  // an empty persisted board between those facts.
+  restoreEdge();
+  showNews(othersBtn, boardOffered());
+  syncAsks();
+  paintApproval();
+  promoteDeferredModals();
+}
+
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced DOM, not the pre-upgrade one. A .then chain,
-// never a top-level await: widget modules import this module's helpers, and awaiting
-// their import at top level would deadlock the cycle (their evaluation waits on this
-// module's async evaluation completing).
-Promise.all([
-  upgradeWidgets(),
-  // Alongside rather than after, and caught rather than fatal: the tab icon is not
-  // what the page is for, so a layer missing it says so in the console and leaves the
-  // rest working — the same bargain a widget module that fails to import makes. It is
-  // still awaited here, because `version export` copies the page at the stamp below
-  // and a mark that arrived after it would leave the copy's tab to chance.
-  loadIcon().catch((err) => console.error(err)),
-]).then(() => {
+// positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
+// never a top-level await: widget modules import this module's helpers, and awaiting their
+// import at top level would deadlock the cycle (their evaluation waits on this module's
+// async evaluation completing).
+async function startPage() {
+  await Promise.all([
+    upgradeWidgets(),
+    // Alongside rather than after, and caught rather than fatal: the tab icon is not
+    // what the page is for, so a layer missing it says so in the console and leaves the
+    // rest working — the same bargain a widget module that fails to import makes. It is
+    // still awaited here, because `version export` copies the page at the stamp below
+    // and a mark that arrived after it would leave the copy's tab to chance.
+    loadIcon().catch((err) => console.error(err)),
+  ]);
   // The box the page ends up with is not the one it started in, because a module may
   // change it while upgrading: a page with a change to decide gives up a rail of the
   // controls' own width, and lf-suggestion states that from the first row it builds,
@@ -10525,12 +10723,42 @@ Promise.all([
       Boolean(savedComposer.suggest),
       savedComposer.about ?? null,
     );
-  poll();
-  setInterval(poll, POLL_MS);
+  // Start replay before stamping the document, preserving the two readiness facts, but
+  // present neither half on its own. The first completed read — state or offline — is the
+  // presentation boundary; only after it settles does the ordinary polling cadence begin,
+  // so a held first request cannot be overtaken by a second answer and leave presentation
+  // waiting on the wrong call.
+  let presentationAttempt;
+  const ensurePresentation = () => {
+    if (!presentationAttempt)
+      presentationAttempt = presentPage().finally(() => {
+        presentationAttempt = null;
+      });
+    return presentationAttempt;
+  };
+  const pollAndPresent = async () => {
+    try {
+      await poll();
+      if (!document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
+        await ensurePresentation();
+    } catch (error) {
+      reportPageError(`poll failed: ${error?.message ?? error}`);
+      renderStatus(error);
+    }
+  };
+  pollAndPresent().finally(() => setInterval(pollAndPresent, POLL_MS));
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and
   // networkidle only says a bundle finished downloading, not that it finished
   // drawing. The stamp says the document is done becoming itself.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+}
+
+startPage().catch((error) => {
+  // The boundary itself must fail visibly. The fixed recovery surface stays in front:
+  // this failure happened before the log was read, so the authored decisions underneath
+  // are not an honest page to release.
+  reportPageError(`page failed to start: ${error?.message ?? error}`);
+  renderStatus(error);
 });

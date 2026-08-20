@@ -394,9 +394,11 @@ Commands:
 
 `version check` is a deterministic pre-handover lint (no browser, near-free;
 `version publish` re-runs it on every version): the HTML parses with balanced
-tags; the page carries exactly one external script
+tags; one direct `<body><main>` contains all authored content; the page carries
+exactly one external script
 (<script type="module" src="/leaf.js">) and one stylesheet link
-(/theme.css); every lf-* element validates against the vendored registry
+(/theme.css), both directly in `<head>` so the presentation boundary exists before
+body paint; every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -4136,6 +4138,11 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # (scripts stay 'self'-only, which is what matters). Verified over the gallery —
 # every widget, mermaid and the tokenizer included — before it was required.
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+# Non-painting document structure that may stand outside the authored main. Head
+# metadata is allowed only while the parser is actually inside head; the canonical
+# module is also allowed beside main because shipped pages use both placements.
+DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
+HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 
 
 def implicit_closes(open_tags: list, tag: str) -> int:
@@ -4170,10 +4177,21 @@ class _StructParser(HTMLParser):
         self.stack = []  # (tag, lineno, lf_record | None, id | None)
         self.errors = []
         self.all_ids = []
-        self.external_scripts = []  # (src, type)
-        self.stylesheets = []  # hrefs of rel=stylesheet links
+        # {attrs, parent, early_head} per external asset. Applicability and placement
+        # belong to the asset record: parallel lists made one fact several
+        # representations and let a later parser edit silently misalign them.
+        self.external_scripts = []
+        self.stylesheets = []
         self.lf_metas = []  # {"name", "content", "line"} for <meta name="lf-*">
         self.http_equivs = []  # {"equiv", "content", "line"} per http-equiv meta
+        # The authored page lives under one direct body > main because that is the
+        # element the first-replay presentation boundary withholds. Both assets that
+        # establish that boundary belong in head; anything paintable outside main would
+        # stand outside it.
+        self.body_lines = []
+        self.head_elements = []  # (line, direct child of html)
+        self.main_elements = []  # (line, direct child of body)
+        self.outside_main = []  # paintable content with no main ancestor
         # /media/ paths any attribute points at, so the check that the file is
         # there reads references and not mentions: a page documenting leaf
         # writes one of these paths in prose, and a raw scan of the markup
@@ -4272,9 +4290,25 @@ class _StructParser(HTMLParser):
             # handle_starttag writes over this the moment the record exists.
             self.within[attrs_d["id"]] = self._open_widget()
         if tag == "script" and attrs_d.get("src"):
-            self.external_scripts.append((attrs_d["src"], attrs_d.get("type")))
+            self.external_scripts.append(
+                {
+                    "attrs": attrs_d,
+                    "parent": self.stack[-1][0] if self.stack else None,
+                    "early_head": bool(self.head_elements)
+                    and self.head_elements[-1][1]
+                    and not self.body_lines,
+                }
+            )
         if tag == "link" and "stylesheet" in (attrs_d.get("rel") or ""):
-            self.stylesheets.append(attrs_d.get("href"))
+            self.stylesheets.append(
+                {
+                    "attrs": attrs_d,
+                    "parent": self.stack[-1][0] if self.stack else None,
+                    "early_head": bool(self.head_elements)
+                    and self.head_elements[-1][1]
+                    and not self.body_lines,
+                }
+            )
         if tag == "meta" and (attrs_d.get("name") or "").startswith("lf-"):
             self.lf_metas.append(
                 {
@@ -4322,6 +4356,15 @@ class _StructParser(HTMLParser):
             )
         return values
 
+    def _record_outside_main(self, tag):
+        """Record markup Chrome can paint without crossing the authored main."""
+        ancestors = {open_tag for open_tag, *_ in self.stack}
+        if "main" in ancestors or tag in DOCUMENT_WRAPPERS:
+            return
+        if "head" in ancestors and tag in HEAD_METADATA_TAGS:
+            return
+        self.outside_main.append(f"<{tag}> at line {self.getpos()[0]}")
+
     def handle_starttag(self, tag, attrs):
         attrs_d = self._attributes(tag, attrs)
         # The browser renders neither: template content parses into an inert
@@ -4337,6 +4380,7 @@ class _StructParser(HTMLParser):
             )
         self._harvest(tag, attrs_d)
         if tag == "svg":
+            self._record_outside_main(tag)
             self._svg_depth += 1
             self.stack.append((tag, self.getpos()[0], None, attrs_d.get("id")))
             return
@@ -4345,6 +4389,14 @@ class _StructParser(HTMLParser):
         # Before the void check: <hr> is void and closes an open <p>, and a void tag
         # left inside a paragraph it ended puts the rest of the section in it.
         self._implicit_close(tag)
+        parent = self.stack[-1][0] if self.stack else None
+        if tag == "head":
+            self.head_elements.append((self.getpos()[0], parent == "html"))
+        if tag == "body":
+            self.body_lines.append(self.getpos()[0])
+        if tag == "main":
+            self.main_elements.append((self.getpos()[0], parent == "body"))
+        self._record_outside_main(tag)
         # After it, so the parent recorded here is the one the browser will see.
         lang = LANGUAGE_CLASS.search(attrs_d.get("class") or "")
         if lang:
@@ -4399,9 +4451,11 @@ class _StructParser(HTMLParser):
         # open in a browser and swallows the rest of its parent, so from here on
         # this parser's tree and the browser's would diverge. Reject the form
         # outright rather than model a tree the user's page won't have.
-        self._harvest(tag, self._attributes(tag, attrs))
+        attrs_d = self._attributes(tag, attrs)
+        self._harvest(tag, attrs_d)
         if self._svg_depth:  # SVG has real self-closing syntax
             return
+        self._record_outside_main(tag)
         if tag not in VOID_TAGS:
             self.errors.append(
                 f"<{tag}/> at line {self.getpos()[0]} is self-closing: HTML ignores "
@@ -4412,9 +4466,16 @@ class _StructParser(HTMLParser):
             self.stack[-1][2]["children"].append(tag)
 
     def handle_data(self, data):
+        ancestors = {open_tag for open_tag, *_ in self.stack}
+        holder = self.stack[-1][0] if self.stack else None
+        if (
+            data.strip()
+            and "main" not in ancestors
+            and holder not in {"script", "style", "title"}
+        ):
+            self.outside_main.append(f"text at line {self.getpos()[0]}")
         if self.stack and self.stack[-1][2] is not None and data.strip():
             self.stack[-1][2]["text"] = True
-        holder = self.stack[-1][0] if self.stack else None
         if holder == "style":
             self.css += data
         elif holder == "title":
@@ -5298,6 +5359,33 @@ def _overwide_elements(parser: _StructParser, column: int) -> list:
         if px is not None and px > column:
             hits.append(f'<{tag} width="{value}"> exceeds column ({column}px)')
     return hits
+
+
+PRESENTATION_PROPERTIES = {
+    "all",
+    "display",
+    "interactivity",
+    "opacity",
+    "pointer-events",
+    "visibility",
+}
+
+
+def inline_presentation_override_errors(parser: _StructParser) -> list:
+    """Inline importance outranks even the theme's first important cascade layer."""
+    errors = []
+    for number, style in enumerate(parser.inline_styles, 1):
+        for declaration in css_block(style):
+            if (
+                declaration.type == "declaration"
+                and declaration.important
+                and declaration.lower_name in PRESENTATION_PROPERTIES
+            ):
+                errors.append(
+                    f"inline style #{number} makes protected presentation property "
+                    f"{declaration.lower_name} important"
+                )
+    return errors
 
 
 class RegistryError(click.ClickException):
@@ -7052,6 +7140,28 @@ def structure_errors(parser: _StructParser) -> list:
     return errors
 
 
+def page_boundary_errors(parser: _StructParser) -> list:
+    """Authored content lies under the same element the presentation gate owns."""
+    errors = []
+    direct = [line for line, is_direct in parser.main_elements if is_direct]
+    if (
+        len(parser.body_lines) != 1
+        or len(parser.main_elements) != 1
+        or len(direct) != 1
+    ):
+        errors.append(
+            "the page must have one <main> directly under <body>; "
+            f"found {len(parser.body_lines)} bodies, {len(parser.main_elements)} mains, "
+            f"and {len(direct)} direct body mains"
+        )
+    if parser.outside_main:
+        errors.append(
+            "paintable authored content must stay inside the one <main> directly "
+            "under <body>; found " + str(parser.outside_main)
+        )
+    return errors
+
+
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
     carrying widgets): the discussion-side analog of `version check`. The declared-word
@@ -7090,22 +7200,39 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
 
     parser = parse_structure(html)
     errors.extend(structure_errors(parser))
+    errors.extend(page_boundary_errors(parser))
 
     scripts = parser.external_scripts
     if len(scripts) != 1:
         errors.append(
             f"expected exactly one external <script src> tag, found {len(scripts)}"
-            + (f": {[s for s, _ in scripts]}" if scripts else "")
+            + (f": {[s['attrs']['src'] for s in scripts]}" if scripts else "")
         )
-    elif scripts[0] != ("/leaf.js", "module"):
+    elif scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
+        attrs = scripts[0]["attrs"]
         errors.append(
-            'the external script must be <script type="module" src="/leaf.js">, '
-            f"found src={scripts[0][0]!r} type={scripts[0][1]!r}"
+            'the only external script must be exactly <script type="module" '
+            f'src="/leaf.js">, found attributes {attrs}'
         )
-    if parser.stylesheets != ["/theme.css"]:
+    elif scripts[0]["parent"] != "head" or not scripts[0]["early_head"]:
         errors.append(
-            'the page must link exactly one stylesheet, <link rel="stylesheet" '
-            f'href="/theme.css">, found {parser.stylesheets}'
+            "the /leaf.js module must be in <head> before <body> can paint; "
+            "its <head> must be the document's direct, initial head"
+        )
+    stylesheets = parser.stylesheets
+    if len(stylesheets) != 1 or stylesheets[0]["attrs"] != {
+        "rel": "stylesheet",
+        "href": "/theme.css",
+    }:
+        errors.append(
+            "the page must link exactly one stylesheet, always-applicable and exactly "
+            '<link rel="stylesheet" href="/theme.css">, found '
+            f"{[asset['attrs'] for asset in stylesheets]}"
+        )
+    elif stylesheets[0]["parent"] != "head" or not stylesheets[0]["early_head"]:
+        errors.append(
+            "the /theme.css stylesheet must be in <head> before <body> can paint; "
+            "its <head> must be the document's direct, initial head"
         )
     declared_csp = [
         m["content"]
@@ -7247,6 +7374,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
     for number, style in enumerate(parser.inline_styles, 1):
         errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
     errors.extend(css_syntax_errors(theme_css, "theme.css"))
+    errors.extend(inline_presentation_override_errors(parser))
     column = _column_width(parser.css, theme_css)
     errors.extend(_overwide_elements(parser, column))
 

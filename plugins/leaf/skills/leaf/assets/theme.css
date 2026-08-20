@@ -42,6 +42,10 @@
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
+  /* One timing contract for first presentation. leaf.js reads the dwell here,
+     so the paint and release cannot drift into two ideas of "shown". */
+  --lf-presentation-delay: 300ms;
+  --lf-presentation-dwell: 400ms;
   /* --rail, the comment margin, has no value here: it is the widest control row plus
      its gap, which is a fact about the controls' own words and face, so lf-suggestion.js
      measures the first row it builds and states it on the root element. The rule that
@@ -246,6 +250,80 @@
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        padding-left: var(--strip-l, 0px); padding-right: var(--strip-r, 0px); }
+/* The document arrives with authored initial state while the log may already hold
+ * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
+ * after the first poll has either replayed the log or said the server is offline, so a
+ * version navigation never presents the old decision for one fetch-width and then
+ * replaces it. Visibility keeps the ordinary case out of the accessibility and hit-test
+ * trees, opacity closes the paint boundary under descendants that explicitly make
+ * themselves visible, and interactivity makes the whole flat-tree subtree inert even if
+ * one of those descendants opts back into focus or pointer handling. All three preserve
+ * every box: replay measures the page it will reveal rather than a display:none document
+ * with no geometry.
+ *
+ * The hold is opted into by the canonical module tag as soon as the stylesheet can paint.
+ * Waiting to infer it from JavaScript left one paint between HTML parse and module
+ * evaluation. Runtime chrome is deliberately outside main: Comments remains usable while
+ * widgets upgrade, and its panels stand above the waiting surface. A scriptless rendering
+ * therefore stays ordinary prose, while a module that never evaluates or fails before
+ * reading the log leaves a fixed recovery message rather than unread authored decisions.
+ * Screen only: paper and an exported copy carry no live log to wait for. */
+/* The anonymous layer is first in the merged theme, so its important declarations
+   outrank every later layer and unlayered stylesheet declaration without reserving a
+   named layer custom CSS could append to. Inline importance ranks higher still, so the
+   version gate refuses it on the protected properties below. */
+@layer {
+  @media screen {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main,
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main * {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      interactivity: inert !important;
+      pointer-events: none !important;
+    }
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main *::backdrop {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+  }
+}
+@media screen {
+  html:has(script[type="module"][src="/leaf.js"])
+    body:not([data-lf-presented])::after {
+    content: "Applying current decisions\2026  If this stays, reload the page.";
+    visibility: visible;
+    opacity: 0;
+    animation: lf-presentation-wait 1ms step-start
+      var(--lf-presentation-delay) forwards;
+    position: fixed;
+    inset: var(--lf-banner-h, 0px) 0 0;
+    z-index: 8800;
+    /* This fixed sheet is also the pointer boundary. A descendant can override an
+       inherited visibility or pointer-events value; it cannot paint through its
+       ancestor's opacity or receive a pointer through a higher stacking layer. Leaf's
+       banner and panels stand above it, so discussion remains usable while authored
+       content waits. */
+    pointer-events: auto;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 24px;
+    background: var(--paper);
+    color: var(--muted);
+    font: var(--t-5)/1.5 var(--sans);
+    text-align: center;
+  }
+}
+@keyframes lf-presentation-wait {
+  from,
+  to {
+    opacity: 1;
+  }
+}
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.

@@ -462,7 +462,7 @@ customElements.define(
         // runs either way. A reader who asked for less motion gets no animation at
         // all (motion returns null), so the hand-back runs at once and the collapse
         // is the frame the decision lands in.
-        played ? played.finished.catch(() => {}).then(done) : done();
+        played ? played.finished.then(done, done) : done();
       };
     }
 

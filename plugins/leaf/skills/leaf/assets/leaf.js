@@ -5355,7 +5355,7 @@ function captureView() {
       // The first on-screen block's section, kept only until a quotable block supplies
       // its own: a page with nothing quotable on screen still has somewhere to land.
       view.section = section.id;
-      view.sectionTop = section.getBoundingClientRect().top;
+      view.sectionTop = shownBox(section).top;
     }
     // Written down the way a comment's quote is, so the search that re-finds it is
     // looking for a string of the same kind.
@@ -5365,7 +5365,7 @@ function captureView() {
       // Unconditionally, so a quotable block under no section clears the earlier one
       // rather than sending the search into a subtree its text isn't in.
       view.section = section?.id;
-      view.sectionTop = section?.getBoundingClientRect().top;
+      view.sectionTop = section && shownBox(section).top;
       view.quote = text;
       view.quoteTop = rect.top;
       break;
@@ -5400,7 +5400,12 @@ function restoreView(view) {
   const section = resolveAnchor({ section: view.section }, text)?.element;
   if (section) {
     reveal(section);
-    jumpBy(section.getBoundingClientRect().top - view.sectionTop);
+    // The shown reading on both sides of the subtraction, because the landmark is
+    // whatever id stands nearest the block the reader was on, and a section that
+    // generates no box of its own is one a suggestion wrapping whole sections leaves
+    // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
+    // that had somewhere to land did nothing, silently, and left the reader at the top.
+    jumpBy(shownBox(section).top - view.sectionTop);
   } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
 }
 
@@ -5615,7 +5620,7 @@ export function shownBand(el) {
 // painted nothing, so a page whose open asks were all suggestions answered n by appearing
 // to do nothing at all. One answer to "where is this element", so there is no second way
 // to ask.
-function shownBox(el) {
+export function shownBox(el) {
   const r = el.getBoundingClientRect();
   if (r.width || r.height) return r;
   const contents = document.createRange();
@@ -5630,13 +5635,22 @@ function shownBox(el) {
 //
 // Area, where shownBox asks only for a box, because the two want different things of
 // one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
-// where it can be seen. That is also what keeps a module's apparatus out of this without
-// a marker to read — a suggestion hangs its controls off an empty span, which has a rect
-// and nothing in it, and would have worn a 2px mark of its own beside the change.
-function shownParts(el) {
+// where it can be seen.
+//
+// The runtime's own chrome leaves by name rather than on that test. Area read as though
+// it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
+// a span with no width, so the apparatus fell out on its own. The line saying how many
+// comments a block holds is clipped to a pixel and has one — so an ask that had been
+// commented on wore its ring on the runtime's word about the page rather than on the
+// page, and the pixel it hung from moves the first time a comment lands. `inUi` is that
+// question already asked, declared labels and all, and it is the one the anchor pass puts
+// to a text node — so what a mark hangs on and what a quote may name cannot come apart.
+export function shownParts(el) {
   const r = el.getBoundingClientRect();
   if (r.width && r.height) return [el];
-  return [...el.children].flatMap((child) => shownParts(child));
+  return [...el.children]
+    .filter((child) => !inUi(child))
+    .flatMap((child) => shownParts(child));
 }
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
@@ -5779,8 +5793,14 @@ function paintAnchors(threads = buildThreads()) {
     const found = resolveAnchor(t.root.anchor, text);
     if (!found) continue;
     if (found.element) {
-      found.element.classList.add("lf-mark-el");
-      marked.set(t.root.id, [found.element]);
+      // The boxes the element shows through, for the same reason the ask ring hangs on
+      // those: an outline needs a box, and a wrapper that generates none took its ring
+      // to the document's origin and drew nothing there. The record is what the pass
+      // clears, what the pointer hit-tests, and what the composer stands off, so all
+      // three follow the paint by holding the parts rather than the element.
+      const parts = shownParts(found.element);
+      for (const part of parts) part.classList.add("lf-mark-el");
+      marked.set(t.root.id, parts);
     } else {
       const ranges = found.segments.map((seg) => rangeOf([seg]));
       marked.set(t.root.id, ranges);
@@ -5821,13 +5841,21 @@ function paintAnchors(threads = buildThreads()) {
   // in the record too — it is marked, just in the posted colour rather than the accent.
   pendingMarks = draft
     ? draft.element
-      ? [draft.element]
+      ? shownParts(draft.element)
       : draft.segments.map((seg) => rangeOf([seg]))
     : [];
   const pending = [];
-  if (draft?.element && !allMarks().includes(draft.element)) {
-    draft.element.classList.add("lf-mark-el", PENDING);
-    pendingOutline.push(draft.element);
+  if (draft?.element) {
+    // Part by part, because a thread's outline is claimed the same way: the draft takes
+    // whichever boxes are still free and leaves the rest in the posted colour. The record
+    // above is the parts too, so placeComposer stands the box off the passage the reader
+    // can see rather than off a wrapper whose rect sits at the top of the document.
+    const taken = allMarks();
+    for (const part of pendingMarks)
+      if (!taken.includes(part)) {
+        part.classList.add("lf-mark-el", PENDING);
+        pendingOutline.push(part);
+      }
   }
   if (draft?.segments) pending.push(...pendingMarks);
 

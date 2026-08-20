@@ -1472,6 +1472,44 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     )
 
 
+# Two wrappers that generate no box, differing only in whether anything inside them does.
+# `#veiled` is the shape the vocabulary already ships — a suggestion is display: contents,
+# and its slots are what the reader sees — and it is the control: the gate must not report
+# it, or it reports every suggestion on every page. `#ghost` is the same wrapper with its
+# words loose inside it, where there is nothing at all for a mark to hang on.
+UNMARKABLE_PAGE = LONG_PAGE.replace(
+    "</main>",
+    "<div id='veiled' style='display: contents'>"
+    "<p id='seen'>Words in a box of their own.</p></div>"
+    "<div id='ghost' style='display: contents'>Words in no box at all.</div>\n</main>",
+)
+
+
+def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
+    """An element the reader can see and no mark can be drawn on, which the gate reads
+    without pressing a key.
+
+    The marks are the ask walk's ring and an element-anchored comment's outline, and both
+    need a box. An element with `display: contents` generates none, so its own rect is the
+    empty one every rect starts as — zero-sized at the document's origin — and the runtime
+    hangs the mark on the boxes the element shows through instead. `#veiled` has one and
+    is fine. `#ghost` has none, and there the paint has nowhere to land: this is the fault
+    that reached a reader as `n` appearing to do nothing at all, on a page whose remaining
+    asks were all suggestions, while the gate rendered it green.
+
+    TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
+    for an element with no box, so it filters out exactly the elements at issue."""
+    failures = interact.render_version(browser, serve(UNMARKABLE_PAGE))
+
+    assert [f for f in failures if "<div id='ghost'>" in f and "no box to mark" in f], (
+        f"the gate said nothing about words no mark can be shown on: {failures}"
+    )
+    assert not [f for f in failures if "veiled" in f or "seen" in f], (
+        "a wrapper whose words are in a box of their own is what every suggestion is, "
+        f"and the gate reported it: {failures}"
+    )
+
+
 # The shapes a float takes at the column's edge. The first three are laid out from the
 # same left content edge, so the only difference is how far each one's own negative
 # margin carries it: far enough and the whole box is out in the margin, which is what a
@@ -2192,7 +2230,13 @@ AIM_POINT = """(el) => {
 # composer's own mark then stands on that same item once the press is made, so the box's
 # answer before the press and the draft's after it agreeing is the promise being kept.
 AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
-DRAFT_MARK = """() => document.querySelector(".lf-mark-el.lf-pending")?.id ?? null"""
+# The item the draft stands on, which is not always the element wearing the outline: a
+# mark hangs on the boxes its item shows through, and a display: contents wrapper shows
+# through its slots. Reading the raw id said the promise was broken for every suggestion
+# on every example — while the reading that had passed all along was the vacuous one, the
+# outline sitting on a wrapper that draws nothing.
+DRAFT_MARK = """() =>
+  document.querySelector(".lf-mark-el.lf-pending")?.closest("[id]")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
 # the box is read. Asked of body, where the aim declares it and from where it is
 # inherited by everything on the page that doesn't state a cursor of its own.
@@ -2322,6 +2366,22 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
             assert page.evaluate(DRAFT_MARK) == promised, (
                 f"⌥-clicking {label} in {example.name} promised {promised} and commented "
                 f"on {page.evaluate(DRAFT_MARK)}"
+            )
+            # And the promise is kept where the reader can see it kept. An outline needs
+            # a box, and an item that draws none — every suggestion is display: contents —
+            # would take the mark to 0x0 at the document's origin, showing nothing. The
+            # composer places itself off this same record, so it would go to the top of
+            # the window along with it, beside a passage it is no longer beside.
+            unshown = page.evaluate(
+                """() => [...document.querySelectorAll('.lf-mark-el.lf-pending')]
+                   .filter(e => { const b = e.getBoundingClientRect();
+                                  return !(b.width && b.height); })
+                   .map(e => e.tagName.toLowerCase())"""
+            )
+            assert not unshown, (
+                f"⌥-clicking {label} in {example.name} outlined {unshown}, which draws "
+                "no box, so the promise is invisible and the composer stands off a rect "
+                "at the top of the document"
             )
             # Put the composer away before reading the page back: its own passage wears
             # the outline, which is the one mark an aim is supposed to leave.
@@ -9406,6 +9466,57 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     page.close()
 
 
+def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
+    browser, serve
+):
+    """The boxes an ask shows through are the page's, never the runtime's.
+
+    The paint pass writes one hidden line per block holding a comment, saying how many
+    it holds, and for an element anchor that line lands inside the element the anchor
+    names. It is clipped to a pixel, so it has a box — and a wrapper that draws none of
+    its own then had two children with area, its slot and the runtime's word about the
+    page. Area alone kept the wrong ones out only by luck: the family's control line
+    happens to be zero-wide, and this one is not.
+
+    The order is why nothing caught it. The note is written after the marks are placed,
+    so the first paint of a page sees no note and the ring is right; it moves onto the
+    pixel on the next pass — which the ask walk always is, the reader having pressed a
+    key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
+    ring beside the change instead of on it."""
+    url = serve(ASKS_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Does this hold when the camera is offline?",
+            "anchor": {"section": "sug-refill"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    # The note is what this test is about, so its presence is stated rather than assumed:
+    # without it every assertion below holds for the wrong reason.
+    note = page.locator("#sug-refill .lf-mark-note")
+    expect(note).to_have_count(1)
+
+    page.keyboard.press("n")
+    page.keyboard.press("n")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+
+    # By tag rather than by class: the slots are wearing the comment's own outline too,
+    # this ask being the one that carries the comment, and a class would read that back
+    # instead of naming the element.
+    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')]
+      .map(e => e.id || e.tagName)""")
+    assert marks == ["sug-refill", "LF-OLD", "LF-NEW"], (
+        f"the ring reached past the page's own boxes: {marks}"
+    )
+    expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     """A version arriving is a navigation, and the reader's place has to ride across it.
     The passage they were reading does; where the walk had got to is a variable in a
@@ -9448,6 +9559,108 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }"""), "the reader is at the top of the window, where either reading would do"
     page.keyboard.press("n")
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    assert errors == []
+    page.close()
+
+
+# A section that generates no box of its own, holding blocks that carry no id. The
+# reading position's landmark is whichever id stands nearest the block the reader was
+# on, so the wrapper is it — which is what a suggestion around whole sections is, and
+# what any layer's wrapper may be.
+BOXLESS_SECTION_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>boxless section</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Boxless</h1>
+{lead}
+<div id="wrap" style="display: contents">
+{held}
+</div>
+{tail}
+</main>
+</body>
+</html>
+""".format(
+    lead="\n".join(
+        f"<p id='lead{i}'>Lead {i}. " + "Filler. " * 20 + "</p>" for i in range(30)
+    ),
+    held="\n".join(
+        f"<p>Held paragraph {i}, standing under a wrapper with no box of its own. "
+        + "More words. " * 12
+        + "</p>"
+        for i in range(6)
+    ),
+    tail="\n".join(
+        f"<p id='tail{i}'>Tail {i}. " + "Filler. " * 20 + "</p>" for i in range(30)
+    ),
+)
+# The same page with the held blocks' opening word changed, so the quote landmark cannot
+# re-resolve and the restore falls to the section — the only branch that reads the
+# wrapper's own box. The word is the same length, so the two versions lay out
+# identically and whatever moves is the restore's doing.
+KEPT_SECTION_PAGE = BOXLESS_SECTION_PAGE.replace("Held paragraph", "Kept paragraph")
+# Where the wrapper's words are, which is the reading its own rect cannot give.
+WRAP_TOP = """() => { const r = document.createRange();
+  r.selectNodeContents(document.getElementById('wrap'));
+  return Math.round(r.getBoundingClientRect().top); }"""
+
+
+def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser, serve):
+    """The landmark a reading position falls back to is an element like any other, and
+    an element that generates no box measures (0,0) at the document's origin.
+
+    Read raw, that answer arrives on both sides of the subtraction — once when the
+    place is written down and once when it is put back — so the correction came out 0
+    and a restore that had somewhere to land did nothing at all. The reader was left at
+    the top of a page they had been thirty paragraphs into. It is quiet twice over: only
+    a reader whose quote the new version rewrote reaches this branch, and a page whose
+    sections all draw boxes never sees it."""
+    url = serve(BOXLESS_SECTION_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    resized(page, 900, 600)
+
+    # Read from inside the wrapper, so every block on screen is one of its own and the
+    # nearest id above them is the wrapper.
+    page.evaluate("""() => { const r = document.createRange();
+      r.selectNodeContents(document.getElementById('wrap'));
+      document.body.scrollTop += r.getBoundingClientRect().top + 50; }""")
+    before = page.evaluate(WRAP_TOP)
+
+    (d / "versions" / "v2.html").write_text(KEPT_SECTION_PAGE)
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
+    )
+    page.wait_for_url("**/v2.html*")
+    page.wait_for_function(BOTH_STAMPS)
+
+    # The branch under test, stated rather than assumed. The landmark has to be the
+    # wrapper, and its quote has to be words this version no longer holds — with either
+    # of those otherwise, the restore never reads a boxless box and the assertion below
+    # would hold for the wrong reason.
+    view = page.evaluate("""() => {
+      for (const k of Object.keys(sessionStorage))
+        if (k.endsWith('lf-view')) return JSON.parse(sessionStorage[k]);
+      return null; }""")
+    assert view and view["section"] == "wrap", (
+        f"the landmark was not the boxless wrapper: {view}"
+    )
+    assert view["quote"].startswith("Held"), (
+        f"v2 still holds this quote, so the section branch never ran: {view}"
+    )
+
+    after = page.evaluate(WRAP_TOP)
+    assert abs(after - before) <= 4, (
+        f"the reader left the wrapper's words {before}px from the top of the window and "
+        f"was put back at {after}px"
+    )
     assert errors == []
     page.close()
 
@@ -10869,13 +11082,20 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     page, errors = open_page(browser, url)
     thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
-    expect(page.locator("#sug-thistle")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    # Pending, the outline hangs on the slot the wrapper shows through, and it is read as
+    # a box rather than as a class: the class sat on the wrapper for as long as this test
+    # existed, and a display: contents wrapper paints no outline, so the half of this
+    # docstring about drawing nothing was true of the attached case too.
+    shown = page.locator("#sug-thistle .lf-mark-el")
+    expect(shown).to_have_count(1)
+    box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")
+    assert box["width"] > 0 and box["height"] > 0, (
+        f"the attached thread's outline hangs on a box of no size: {box}"
+    )
 
     page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
-    expect(page.locator("#sug-thistle")).not_to_have_class(
-        re.compile(r"\blf-mark-el\b")
-    )
+    expect(page.locator("#sug-thistle .lf-mark-el")).to_have_count(0)
     assert errors == []
     page.close()
 

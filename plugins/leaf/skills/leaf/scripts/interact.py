@@ -7244,6 +7244,50 @@ TINY_BOXES = """(widgets) => {
 }"""
 
 
+# An element the reader can see and no mark can be shown on. The gate presses no keys, so
+# it never watches the ask walk paint a ring or a comment paint an outline. It can still
+# read whether either would have had anywhere to land, which is the same fault one step
+# earlier, before it turns into a mark nobody can see.
+#
+# The fault is a box that isn't there. An element with `display: contents` lays its
+# children out in its parent's flow and generates no box of its own, so its rect is the
+# empty one every rect starts as — zero-sized, at the document's origin, a real-looking
+# answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
+# aimed at it lands at the top of the page: a page whose open asks were all suggestions
+# answered `n` by appearing to do nothing at all, and that reached its reader rather than
+# this gate. The runtime answers it by hanging a mark on the boxes an element shows
+# through (shownParts) — which leaves one case that answer cannot reach, an element whose
+# words are in no child element at all, where there is nothing to hang anything on.
+#
+# TINY_BOXES is next door and cannot see this: `checkVisibility()` is false for an element
+# with no box, so the very elements at issue are the ones it filters out. Both readings are
+# imported rather than restated, so what the gate refuses a handover for and what the page
+# actually paints cannot come apart — the whole point of the pair being that there is one
+# answer to where an element is.
+UNMARKABLE_ITEMS = """async () => {
+    const { shownBox, shownParts } = await import('/leaf.js');
+    const HTML = 'http://www.w3.org/1999/xhtml';
+    const found = [];
+    for (const el of document.querySelectorAll('[id]')) {
+        // The document's own elements, which is what an anchor can name and a walk can
+        // step to. A rendered diagram's insides are none of those — they are one
+        // picture, whose <lf-diagram> is the thing to point at and has a box of its
+        // own — and they are full of shapes with ids and no layout box: every <marker>
+        // in a mermaid flowchart's <defs> read as an item showing 11x11px of words.
+        if (el.namespaceURI !== HTML) continue;
+        if (el.closest('.lf-chrome')) continue;
+        const box = shownBox(el);
+        // Nothing on screen is nothing to mark, and nothing the reader can point at
+        // either: a collapsed tab's contents, a slot a decision retired.
+        if (!(box.width && box.height)) continue;
+        if (shownParts(el).length) continue;
+        found.push({ tag: el.tagName.toLowerCase(), id: el.id,
+                     w: Math.round(box.width), h: Math.round(box.height) });
+    }
+    return found;
+}"""
+
+
 # Words the page shows that no user can select, and so no comment can be
 # anchored on. A widget has two ways to leave them there, neither of which a
 # static lint can see, and a page-local widget is where both keep happening.
@@ -8207,6 +8251,8 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     console or page error, a request that 404s, a fail-soft error box, an upgrade
     module that never defines its declared element, an x-conversation whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
+    an element showing words with no box for a mark to hang on, so a comment anchored
+    there would outline nothing and the ask walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     words the user can read and can't select, words drawn on top of other words, code
     coloured in an ink the reader cannot tell from the code around it — each
@@ -8338,6 +8384,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             widgets,
         )
         tiny = page.evaluate(TINY_BOXES, widgets)
+        unmarkable = page.evaluate(UNMARKABLE_ITEMS)
         overflow = page.evaluate(
             "document.body.scrollWidth - document.body.clientWidth"
         )
@@ -8489,6 +8536,14 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             found.append(
                 f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
             )
+        found += [
+            f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
+            " and offers no box to mark: it draws none of its own and no element inside"
+            " it draws one either, so a comment anchored here would outline nothing and"
+            " the ask walk would travel to the top of the page. Put the words in an"
+            " element that takes a box"
+            for u in unmarkable
+        ]
         if overflow > 0:
             found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
         found += [f"[{scheme}] {s}" for s in misplaced]

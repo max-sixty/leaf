@@ -708,7 +708,9 @@ It loads the version in the machine's installed Chrome (a couple of seconds, and
 before the version is published) and fails, in both color schemes, on what a static lint
 cannot see: a console error, a widget upgraded into a box of no size, a page that
 scrolls sideways, a `lf-diagram` whose mermaid source doesn't parse, words on screen
-that no selection can reach, a control drawn outside the box that clips it (an offer the
+that no selection can reach, an element that shows words and gives a mark no box to hang
+on, so a comment anchored there outlines nothing and `n` travels to the top of the page,
+a control drawn outside the box that clips it (an offer the
 page makes and doesn't show), code set in an ink the reader can't tell from the block it
 is on, words the screen shows and a printout drops, a version
 that authors widget state the log replays over

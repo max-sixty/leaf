@@ -712,9 +712,35 @@ shows through are what the reader sees it on. Both read the platform rather than
 registry: generating no box is not a fact about which widget this is, any layer's
 wrapper can do it, and CSS has no selector that says so. The parts ask for area where
 the bounds ask only for a box, because a ring is worth hanging only where it can be
-seen — which is also what keeps a module's own apparatus out of it without a marker
-to read, a suggestion hanging its controls off an empty span that has a rect and
-nothing in it.
+seen.
+
+The parts must not reach the runtime's own chrome, and area read as though it were
+answering that too: a suggestion hangs its controls off a span with no width, so the
+apparatus fell out on its own. The line the paint pass writes to say how many comments
+a block holds is clipped to a pixel and has one — so an ask that had been commented on
+wore its ring on the runtime's word about the page rather than on the page. The order
+hid it: the note is written after the marks are placed, so a page's first paint is
+right and every one after it is not, and the fault needs a comment *and* a repaint to
+show at all. `inUi` asks that question already, and it is the one the anchor pass puts
+to a text node, so what a mark may hang on and what a quote may name cannot come apart.
+
+Two marks take this reading — the ask walk's ring and an element-anchored comment's
+outline — and for a release only the ring took it. That is the same fault surviving in
+the second of two consumers, which is what this whole norm is about: an element anchor
+on a suggestion drew nothing, and the composer, which stands off that same record,
+stood off a rect at the document's origin. The gate is a third consumer, and the one
+that can watch neither mark land, since it presses no keys. It reads instead whether a
+mark could have landed (`UNMARKABLE_ITEMS` in `interact.py`), which catches the case
+the parts cannot answer for: an element whose words are in no child element at all has
+nothing to hang anything on.
+
+The reading position was the quietest of them, and it wants the bounds rather than the
+parts. Its fallback landmark is whichever id stands nearest the block the reader was
+on, so a boxless one answered 0 when the place was written down and 0 again when it was
+put back — the correction came out 0, and a restore with somewhere to land did nothing,
+leaving the reader at the top of a page they were thirty paragraphs into. Only a reader
+whose quote the new version had rewritten ever reached that branch, which is how a
+consumer stays wrong through three releases of the one beside it.
 
 ## A widget's form follows its content, and each form states its own rules
 
@@ -896,13 +922,15 @@ which is a claim about the last input rather than about where the reader is: the
 Asks button lands the focus by script after a pointer click, and the ask it
 brought them to would wear nothing.
 
-The ring lands on the ask, and an ask that draws no box draws no ring:
-`lf-suggestion` is `display: contents`, so its outline paints nothing at 0x0. The
-reader standing there sees the band on the ✓ Accept the family hangs in the page
-margin, which is the press they came for. The runtime's own `.lf-pill` rule draws
-that one, so a widget hanging a control out there gets the band without asking,
-and a widget that draws a box of its own gets the ring around the whole ask, as
-`lf-task` and `lf-options` do.
+The ring lands on the ask, and on the boxes the ask shows through where it draws
+none of its own: `lf-suggestion` is `display: contents`, so an outline on the
+wrapper paints nothing at 0x0, and the band goes on the slots the reader is
+looking at (`shownParts`, and the norm above it). A widget that draws a box of
+its own gets the ring around the whole ask, as `lf-task` and `lf-options` do. And
+a reader who came by the ✓ Accept the family hangs in the page margin — the press
+they came for — is standing on that control, which draws the same band from the
+runtime's own `.lf-pill` rule, so a widget hanging a control out there gets it
+without asking.
 
 What the walk keeps instead is its own place (`landed`), which is a different
 question and had been sharing the ring's answer. A reader stepping the asks from

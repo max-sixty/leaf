@@ -1943,7 +1943,7 @@ ${MARK_RULES}
      banner's own control landing somewhere unmarked. Exactly one element wears it at a
      time, and it is an outline like every other mark the runtime paints on the page's
      own elements, so arriving moves nothing. */
-  [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: 2px solid var(--accent); outline-offset: 3px; }
+  [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
      the page's own words — a pick mark reading "chosen" is the only place the page

@@ -1047,8 +1047,8 @@ pair was a dozen declarations kept level by hand. So the shared half moves into
 the vocabulary, and each wearer keeps only what is its own — where the thing sits
 and when it shows. The split earns its keep the moment those differ: a reply box
 has padding to hang a chip over, and an option had none, its group being a
-control whose box is spent on its cells and clipped so their hairlines stop at
-its edge — so a chip on a cell's corner came out cut in half. The option reserves
+control whose box is spent on its cells and clipped so their fills stop at its
+rounded corners — so a chip on a cell's corner came out cut in half. The option reserves
 a column for its digit and holds it whether or not one is showing; a shared rule
 that had placed as well as dressed would have had to grow a case for that.
 

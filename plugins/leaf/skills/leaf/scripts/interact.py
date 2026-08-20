@@ -2745,6 +2745,32 @@ class DualStackHTTPServer(LeafHTTPServer):
         super().server_bind()
 
 
+def server_at(bind: str, port: int, handler) -> LeafHTTPServer:
+    """A recorded bind, opened in a family this kernel actually has.
+
+    A kernel with IPv6 switched off refuses AF_INET6 at the socket constructor,
+    and the bind that asks for it is the stated-host wildcard — so `--host`, the
+    one remedy the skill offers a reader who cannot reach the derived address,
+    failed exactly where it is wanted: a headless box is where that address is
+    loopback and no browser is local. `0.0.0.0` says what `::` says, every
+    interface, in the family that is left, so the wildcard is restated rather
+    than refused. Only the wildcard is: a literal v6 address has no reading in
+    the other family, and answering it with every interface would widen the
+    exposure the recorded address chose.
+
+    The record keeps `::` either way. What a restart has to reproduce is the URL
+    an open tab is polling, and that states the host and the port; which family
+    carried it is this kernel's answer, asked again on the next serve."""
+    if ":" not in bind:
+        return LeafHTTPServer((bind, port), handler)
+    try:
+        return DualStackHTTPServer((bind, port), handler)
+    except OSError as e:
+        if e.errno != errno.EAFNOSUPPORT or bind != "::":
+            raise
+        return LeafHTTPServer(("0.0.0.0", port), handler)
+
+
 def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -> None:
     require_cross_process_locking()
     # `--standing` declines the claim rather than adding a second lifetime
@@ -2786,7 +2812,6 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
     )
     token = host_key()
     base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
-    server_cls = DualStackHTTPServer if ":" in access["bind"] else LeafHTTPServer
     httpd = None
     # A recorded port is bound exactly: the contract of access.json is that a
     # restart reproduces the URL an open browser is already polling, and a port
@@ -2795,8 +2820,9 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
     ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
     for port in ports:
         try:
-            httpd = server_cls(
-                (access["bind"], port),
+            httpd = server_at(
+                access["bind"],
+                port,
                 handler_for(page_dir, token, protocol_version="HTTP/1.1"),
             )
             break

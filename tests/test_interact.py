@@ -7,6 +7,7 @@ Run from the repo root:
     uv run pytest tests
 """
 
+import errno
 import fcntl
 import http.cookiejar
 import importlib.util
@@ -5422,6 +5423,46 @@ def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
     port = urllib.parse.urlsplit(wildcard_server).port
     for loopback in ("127.0.0.1", "[::1]"):
         assert fetch(f"http://{loopback}:{port}/api/state")[0] == 200, loopback
+
+
+def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
+    page_dir, monkeypatch
+):
+    """A kernel with IPv6 switched off refuses AF_INET6 at the constructor, and
+    the reader who most needs `--host` is on exactly such a box — headless, where
+    the derived address is loopback and no browser is local. So the wildcard is
+    restated as 0.0.0.0, which says the same thing in the family that is left,
+    and the page serves. A literal v6 address keeps its refusal: every interface
+    is not what that record chose."""
+    real_socket = socket.socket
+
+    def kernel_without_ipv6(family=socket.AF_INET, *args, **kwargs):
+        if family == socket.AF_INET6:
+            raise OSError(
+                errno.EAFNOSUPPORT, "Address family not supported by protocol"
+            )
+        return real_socket(family, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
+    with pytest.raises(OSError) as refused:
+        interact.server_at(
+            "fd7a:115c:a1e0::1", 0, interact.handler_for(page_dir, TOKEN)
+        )
+    # Name the errno, or the assertion is satisfied on a v6-capable machine by
+    # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
+    # nothing about whether the family refusal under test was ever reached.
+    assert refused.value.errno == errno.EAFNOSUPPORT
+
+    httpd = interact.server_at("::", 0, interact.handler_for(page_dir, TOKEN))
+    assert httpd.socket.family == socket.AF_INET
+    assert httpd.server_address[0] == "0.0.0.0"
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(

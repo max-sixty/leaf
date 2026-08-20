@@ -399,13 +399,14 @@ side the second writer shows on.
 - **Tests are integration tests in a real browser.** What a test must assert, and
   the ways one can pass vacuously, are in `tests/CLAUDE.md`; what each file
   covers, and the commands, are under "The suite" below.
-- **A cloud container has none of that, so set it up first.** There is no system
-  Chrome, so every browser test fails at launch — the Chromium preinstalled there
-  is a different build from the one the lockfile expects, and the suite asks for
-  `channel="chrome"`. There is no `pre-commit` either, so the lint cannot run:
+- **A cloud container has none of that, so set it up first.** The suite needs the
+  Chromium headless shell that matches the Playwright version in `uv.lock`. Two
+  end-to-end launcher tests also need installed Chrome. There is no `pre-commit`
+  either, so the lint cannot run:
 
   ```sh
   uv sync --frozen
+  uv run playwright install chromium --only-shell
   uv run playwright install chrome
   uv tool install pre-commit
   ```
@@ -457,8 +458,8 @@ the pages under `docs/` to the shipped theme and widget registry.
 `test_site.py` builds the site and reads it back: the theme it serves is the
 shipped file, each example stands up as a live page that takes a comment and
 holds a decision through a reload, both palettes reach the site's own layer, and
-no page scrolls sideways on a phone. Playwright attaches to the Chrome already on
-the machine, so there is no browser download and still no build step.
+no page scrolls sideways on a phone. Playwright drives the pinned Chromium headless
+shell installed with the developer environment.
 
 The suite runs in the environment `pyproject.toml` names and `uv.lock` pins, and
 that environment is the developer's only. leaf itself declares its dependencies
@@ -470,12 +471,12 @@ packages anyway, because they load `interact.py` by path.
 uv run pytest tests
 ```
 
-That everyday command needs no network. It runs one shipped page through the browser
-gate, so one of `pyproject.toml`'s eight workers launches Chrome; the other tests cover
-the static lint, server, vendoring, and product pages. The fixtures relocate the two
-XDG directories leaf reads (`config_home`, `state_home`) and leave the rest of the home
-alone, so every `leaf` the suite shells out to finds the uv cache the developer already
-has.
+That everyday command needs no network after setup. It runs one shipped page through
+the browser gate, so one of `pyproject.toml`'s eight workers launches Chromium; the
+other tests cover the static lint, server, vendoring, and product pages. The fixtures
+relocate the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
+developer already has.
 
 `test_render.py` and `test_site.py` are the browser integration suite. A browser change
 runs its focused test with `--run-nightly`; CI and `wt merge` use the same flag for the
@@ -499,10 +500,9 @@ pre-commit run --all-files
 CI is also the only place either gate meets a platform other than macOS, and the
 platforms disagree about exactly the things a browser test measures: how wide a
 system font sets a word, whether a scrollbar takes a gutter out of the window.
-`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container
-carrying the runner's Chrome and its fonts, so a CI failure becomes something to
-reproduce rather than something to guess at. It takes pytest's arguments, and
-needs a Docker daemon that can run linux/amd64:
+`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container carrying
+the pinned headless shell, installed Chrome, and the runner's fonts. It takes pytest's
+arguments and needs a Docker daemon that can run linux/amd64:
 
 ```sh
 scripts/linux-suite.sh

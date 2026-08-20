@@ -4,8 +4,8 @@ check is static — it parses the file and validates the vocabulary. Everything
 downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
 there are invisible to a linter. This suite drives the shipped examples through
-the Chrome already on the machine and asserts the handful of things that were
-each, at some point, wrong:
+Playwright's pinned Chromium headless shell and asserts the handful of things
+that were each, at some point, wrong:
 
   - a widget that upgrades into a box of no size (lf-tabs marked itself with a
     class the runtime's chrome had already claimed for its visually-hidden live
@@ -23,8 +23,8 @@ and asserts the event log those gestures leave behind. The log is the trail
 Claude actually reads, so it is the artifact worth pinning; the DOM along the
 way is checked only where a step depends on it.
 
-Chrome is driven through Playwright's `channel="chrome"`, which attaches to the
-installed browser: no download, no build step, `uv` still the one prerequisite.
+Playwright's default Chromium launch selects its separate headless shell. The
+matching build is installed once with `playwright install chromium --only-shell`.
 """
 
 import fcntl

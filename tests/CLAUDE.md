@@ -5,9 +5,9 @@ were a test that passed while proving nothing.
 
 ## They are integration tests in a real browser
 
-`test_render.py` drives the shipped examples through Chrome (`channel="chrome"`,
-so no browser download). Assert what a static lint can't reach. Use real mouse
-input (`page.mouse`, `locator.click()`) when the gesture is the point: a
+`test_render.py` drives the shipped examples through Playwright's pinned Chromium
+headless shell. Assert what a static lint can't reach. Use real mouse input
+(`page.mouse`, `locator.click()`) when the gesture is the point: a
 synthetic `dispatchEvent(new MouseEvent("click"))` skips the mousedown, and the
 runtime is built around what happens on mousedown, so the synthetic click sails
 past a whole class of bug. Assert the outcome with `expect(...)`, never a bare
@@ -17,8 +17,9 @@ is worse than failing outright.
 
 A render invariant belongs in `render_version`, not in a test. That function is
 what `version check --render` runs at handover, and `test_example_renders` drives
-it over the examples — so the gate a user's page passes and the suite the
-examples pass are one implementation, and cannot drift apart.
+it over the examples, so the gate a user's page passes and the suite the examples
+pass share one implementation. The end-to-end render-check tests cover its installed
+Chrome launch path separately.
 
 ## A synthetic drag presses on a whole pixel
 
@@ -38,14 +39,15 @@ document does it.
 browser change runs its focused test with `--run-nightly`; CI and `wt merge` pass the
 same flag for the complete suite. The everyday run covers the static lint, server,
 vendoring, and product pages, plus one `ship-review` render through the real gate. Its
-worker is the only one that launches Chrome.
+worker is the only one that launches Chromium.
 
-The browser is the machine's own and the page it opens is on disk. Two tests also
-drive `bin/leaf` on a subcommand that opens Chrome. The launcher supplies Playwright
-to those subcommands from outside the script's lock (`uv run --with playwright`), and
-an unlocked requirement has no recorded resolution to install from, so uv asks pypi
-for one every time its cached answer goes stale. Those tests therefore need the
-network available to the nightly run.
+The suite browser is the headless shell that matches the Playwright version in
+`uv.lock`, and the page it opens is on disk. Two tests also drive `bin/leaf` on a
+subcommand that opens installed Chrome. The launcher supplies Playwright to those
+subcommands from outside the script's lock (`uv run --with playwright`), and an
+unlocked requirement has no recorded resolution to install from, so uv asks pypi for
+one every time its cached answer goes stale. Those tests therefore need the network
+available to the nightly run.
 
 To prove a run works offline, give uv an index that isn't there —
 `UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also

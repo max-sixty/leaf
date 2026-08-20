@@ -414,7 +414,8 @@ against it — no console or page errors, no fail-soft error box, every visible
 widget occupies real space, code that reads against the block it is set on, no
 sideways scroll, in both color schemes.
 The invariants live in render_version, which tests/test_render.py drives over
-the shipped examples, so the gate and the suite cannot drift apart.
+the shipped examples. The suite uses Chromium's headless shell, while its
+end-to-end render-check tests cover the installed Chrome launch used here.
 
 Passages: an anchor is resolved in the browser and written down here, so
 `leaf comment` reads a version the way the anchor pass reads the DOM — text in
@@ -9070,10 +9071,10 @@ def inline_assets(html: str, page_dir: Path) -> str:
 def export_page(browser, url: str, page_dir: Path) -> str:
     """The served version at `url`, copied as one self-contained document.
 
-    One implementation with two callers, as `render_version` is: `version export`
-    supplies a browser of its own, and the suite drives this over the shipped
-    examples with the one it already has, so the copy a user gets and the copy
-    the suite asserts on cannot drift.
+    One implementation has two callers, as `render_version` does: `version export`
+    supplies installed Chrome, while the suite drives this over the shipped
+    examples with its Chromium headless shell. That keeps the export behavior in
+    one function without claiming that the two browser launch paths are identical.
 
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page

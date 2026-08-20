@@ -16192,7 +16192,13 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     ]
     assert [event["text"] for event in comments] == [first, second]
     assert len({event["attempt"] for event in comments}) == 2
-    assert local.evaluate(STORED_DRAFT_SETTLED, "general")
+    # The tombstone is written where the send reads its own response, one step behind the
+    # response itself: `round_trip` watches the browser's trip, and the page settles the
+    # generation in the continuation after it — so the log holds the send before the store
+    # holds its settlement. Read the store on the fact the page states, the way the tabs
+    # below do; a plain read is the same assertion made a step early, and a loaded runner
+    # lands in that step, which is what CI read here as an unsettled chain.
+    local.wait_for_function(STORED_DRAFT_SETTLED, arg="general")
     assert shared_errors == []
     assert local_errors == []
 

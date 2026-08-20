@@ -16088,6 +16088,53 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.close()
 
 
+def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, serve):
+    """The same reading of a later gesture, for the other gesture a reader can have
+    standing. A comment's send ends by handing typing to the thread it became, and a
+    round trip is how long that step takes to arrive; focusing a box collapses whatever
+    the page had selected. So a reader who picked out their next passage while the send
+    was in the wire had it taken back — silently, because nothing re-decides the 💬
+    until they gesture again, and the words in front of them simply stop being
+    something to comment on.
+
+    Held rather than raced: the window is one request's flight, and a machine quick
+    enough closes it before the next gesture. A loaded CI runner is not, and it said so
+    as a 💬 that never came up for the passage picked out after a send."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    page.locator("#p1").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("The first remark.")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.get_by_role("button", name="Comment", exact=True).click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+
+    # The reader picks out their next passage while the first send is still in the wire.
+    page.locator("#p2").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-thread")).to_have_count(1)
+
+    # The send landed behind them and left the passage picked out. Read as the reader's
+    # own next gesture rather than as the button's rendering: the button is a state that
+    # only a fresh decision repaints, so it stands wherever the last one left it — while
+    # the key that comments on a selection reads the live one, and answers the general
+    # box where there is none.
+    assert page.evaluate("() => getSelection().toString()").strip() == (
+        "A short second passage."
+    ), "the send's landing collapsed the passage the reader had picked out"
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    assert errors == []
+    page.close()
+
+
 def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     browser, serve, one_reader
 ):

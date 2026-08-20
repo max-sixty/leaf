@@ -3971,7 +3971,7 @@ function wireReply(t, input, send, { address, landed } = {}) {
       const sent = await sendReply(t, text, raw, () => input.value === raw);
       if (!sent) return;
       landed?.(sent);
-      input.focus({ preventScroll: true });
+      landTyping(input);
     },
   });
   sync();
@@ -6117,6 +6117,25 @@ const pageSelection = () => {
   const sel = getSelection();
   return sel && !sel.isCollapsed && !inUi(sel.anchorNode) ? sel : null;
 };
+// Where a send ends is where typing continues, and the reader has the last word on it.
+// A send is a round trip, so this step lands whenever the server answers — long after
+// the gesture on a loaded machine — and focusing a box collapses whatever the page had
+// selected. A passage picked out while the send was in the wire is a later gesture and
+// stands, for the same reason a later edit does. It has less recourse than the edit:
+// nothing re-decides the 💬 until the reader gestures again, so the words in front of
+// them stop being something to comment on, and no surface says why. Stated once, for
+// the three boxes a send can land in, because it is one fact about a send landing.
+//
+// A box is the whole of it, which is why this is named for typing rather than for
+// focus. The panel's other two landings — a resolve and a reopen, each behind a round
+// trip of its own — put the reader on a thread node instead, and Chrome collapses the
+// selection for a landing that takes a caret, not a control as such — a button and a
+// select leave it standing, and so does a `tabindex="-1"` div. Same
+// shape, then, and not the same steal: those two keep the standing place a control
+// that folds away with its thread owes the reader.
+function landTyping(box) {
+  if (!pageSelection()) box?.focus({ preventScroll: true });
+}
 // A drag stops where the hand stopped, not where the reader aimed: a release two glyphs
 // short of a word's end meant the word, and the capture would store the fragment as if
 // the fragment were the point. So the pointer path grows a selection outward — never
@@ -6759,9 +6778,7 @@ const syncComposer = wireInput(composerInput, {
     revealThread(sent.id);
     // The composer this was sent from is gone with the send; the thread it became
     // carries the same conversation, so its reply box is where typing continues.
-    threadsBox
-      .querySelector(`.lf-thread[data-id="${sent.id}"] textarea`)
-      ?.focus({ preventScroll: true });
+    landTyping(threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`));
   },
 });
 // The composer's suggest-mode rendering — the offer of it, the button label and the
@@ -6920,7 +6937,7 @@ const syncGeneral = wireInput(generalInput, {
     );
     if (!sent) return;
     revealThread(sent.id);
-    generalInput.focus({ preventScroll: true }); // both send routes end where typing was
+    landTyping(generalInput); // both send routes end where typing was
   },
 });
 mirrorDraft(generalInput, syncGeneral, "general");

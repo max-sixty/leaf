@@ -8835,9 +8835,10 @@ ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
 # it, never the count of elements that do.
 STANDING_ASK = "[data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The same page with room between the first two asks, for the test that a press travels
-# to the second. The corpus puts them next to each other, so centring the first leaves
-# the second fifty pixels below the fold — a gap the reader's own fonts spend, and the
-# whole distance the travel then has to cover. Stated in pixels here, so what the test is
+# to the second. The corpus puts them next to each other, and centring the first brings
+# the change onto the screen rather than leaving it below the fold — measured, it rests
+# at top=348 in a 400px window — so the precondition below could only ever hold on a
+# frame the glide was passing through. Stated in pixels here, so what the test is
 # standing on is a distance rather than whatever the prose above it happened to measure.
 ASKS_APART = ASKS_PAGE.replace(
     '<lf-suggestion id="sug-refill">',

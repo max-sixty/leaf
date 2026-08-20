@@ -19,6 +19,20 @@ Standing exception granted: file directly in agent-equipped targets (per
 asking permission here first. The default rule (open an issue here asking
 permission first) still applies when the target shows no agent signals.
 
+## An outage tracker closes when its rows are drained, not when the outage stops
+
+A `tend-outage` issue's body invites a close ("Close it once the outage is
+resolved"), and `tend-nightly`'s rule for a bot-opened transient condition reads
+that as its cue. Don't take it. Each row on that issue names a trigger the failed
+run stranded, and nothing re-runs those triggers on its own; the sweep that
+drains them is `tend-review-runs`, whose query reads open issues only. So a close
+taken on the outage being over is the last thing that ever touches the record,
+and the stranded work leaves with it.
+
+So enrich a `tend-outage` issue and leave it open, even where the outage is
+plainly over. Say in a comment that it is over if that is worth recording, and
+leave the close to `tend-review-runs`, which reads the rows before it closes.
+
 ## A red `ci` on main is the first signal, not the second
 
 Nothing lands here through a pull request, so no CI run ever gates a change

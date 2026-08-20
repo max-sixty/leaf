@@ -366,6 +366,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
         check=False,
     )
     assert help_result.returncode == 0, help_result.stderr
+    assert help_result.stderr == ""
     assert (
         "Build and run interactive pages a session shares with its user."
         in help_result.stdout

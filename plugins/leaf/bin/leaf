@@ -49,7 +49,7 @@ resolve=
 if ! sync_report=$(uv sync --script "$script" 2>&1 >/dev/null); then
   resolve=--upgrade
   echo "leaf: the locked install failed here; resolving the header against this host's index and rewriting the lock. It failed with:" >&2
-  echo "$sync_report" >&2
+  printf '%s\n' "$sync_report" >&2
 fi
 
 if [ "${1-}" = "version" ] && [ "${2-}" = "export" ]; then

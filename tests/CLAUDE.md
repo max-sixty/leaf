@@ -149,6 +149,17 @@ was aimed. The fact worth waiting on is the destination itself: the mark reachin
 the middle, which is the position `scrollToThread` computed. A glide approaching
 that position passes through no earlier position that could be mistaken for it.
 
+A destination stated as a region rather than a position is the same mistake in a
+weaker disguise. "Some part of the change is inside the window" is as true where
+the walk starts as where it is going, and the ask the boxless-travel test walks
+to sits a few dozen pixels below the fold — so the predicate went true on the
+focus move that precedes the glide, and the test passed with the travel bug put
+back. It had been passing that way under the suite's own parallel run while
+failing the same bug when run alone, which is the shape of a test measuring the
+machine's load rather than the product's behaviour: the reading it took was
+whichever transient it was quick enough to catch. The scroll stopping is the
+fact to wait on; where it stopped is the assertion.
+
 Where nothing will happen, there is no fact to consume and polling has no end. An
 assertion of absence holds a window instead, and the window's length is derived
 from the mechanism rather than picked: a manually launched server must outlive

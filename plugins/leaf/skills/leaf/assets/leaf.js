@@ -1614,6 +1614,11 @@ const PANEL_W = 420;
 // half the runtime asks about; the strip is its complement, spelled `not` where it is
 // taken.
 const COVERING = `(width <= ${PANEL_W * 2}px)`;
+// The left edge's width, and the window below which its board covers the page rather than
+// standing beside it — the same bargain the comment panel makes on the right, struck at
+// the same ratio, so a reader who has learned one edge has learned the other.
+const EDGE_W = 300;
+const EDGE_COVERING = `(width <= ${EDGE_W * 2}px)`;
 // The width the theme wants a page's box to have before it takes a strip of it for the
 // margin (theme.css's --strip-min, stated there because that is where the strips and
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
@@ -1722,7 +1727,8 @@ style.textContent = `
      sliding sideways under a user who asked for a revision and not for motion.
      The stamp lands at the end of the start chain, long after the restore. Reduced
      motion is handled globally by the theme's guard. */
-  body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] { transition: margin-right .18s ease; }
+  body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] {
+    transition: margin-right .18s ease, margin-left .18s ease; }
   /* The strip itself, and — where there is no room to yield one — the page handing
      scrolling over to the sheet that covers it instead. A margin, not padding: body is
      the document's scroll container, so this is what ends its box, and its scrollbar, at
@@ -1753,6 +1759,25 @@ style.textContent = `
   }
   @media screen and ${COVERING} {
     body[data-lf-panel] { overflow-y: hidden; }
+  }
+  /* The asks board takes its room out of the page the same way, and the leaves board
+     beside it does not. That is not an inconsistency between two twins: a leaf's row is
+     a way out of this page and an ask's row is a way around it, so pressing an ask's row
+     scrolls the document to the ask and stands you on the control that answers it — and
+     a board lying over the document would be hiding the very thing it just sent you to.
+     A 300px board and a 720px column overlap on any window under about 1320px, which is
+     most of them, so this is the common case rather than the narrow one.
+
+     The rule names the board and not the edge for that reason, off the one attribute
+     showEdge writes to say which board is up. Everything else about the strip — that it
+     comes out of the page rather than being held aside, that it is carried as motion,
+     what it costs on a window narrow enough to rewrap — is the panel's story above,
+     told once for both sides. */
+  @media screen and (not ${EDGE_COVERING}) {
+    body[data-lf-edge="asks"] { margin-left: ${EDGE_W}px; }
+  }
+  @media screen and ${EDGE_COVERING} {
+    body[data-lf-edge="asks"] { overflow-y: hidden; }
   }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -2124,6 +2149,31 @@ ${MARK_RULES}
        nothing. */
     .lf-others-line { color: var(--ink-2); margin-left: 17px; white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; }
+    /* The asks board: the leaves board's twin, on the same edge and one at a time with it
+       (showEdge), because the two are the same furniture at two scopes. Every metric here
+       is that board's, said once for both — a reader who has both keys should not find
+       two different regions where they learned one. What differs is the row: a leaf's row
+       is a link out to another page, and an ask's is a press that moves this one, so it is
+       a button and takes the button's own reset. */
+    .lf-asks-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0; z-index: 8900;
+      width: min(${EDGE_W}px, 100vw); background: var(--card); border-right: 1px solid var(--rule);
+      display: none; padding: 6px 4px; overflow-y: auto; overscroll-behavior: contain; }
+    .lf-asks-panel.open { display: block; }
+    .lf-asks-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
+      border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
+      cursor: pointer; }
+    .lf-asks-row:hover { background: var(--chip); }
+    .lf-asks-row:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
+    /* What kind of thing is asking, in the apparatus voice, over the ask's own words in
+       the page's. Two lines, because they are two claims: the kind is the runtime's word
+       for the element and the words below it are the page's own. */
+    .lf-asks-kind { display: block; color: var(--muted); font-size: var(--t-6);
+      text-transform: uppercase; letter-spacing: .05em; }
+    /* Three lines at most, then ellipsized: an ask's opening words are a name here, and a
+       name that runs to eight lines stops being one — while a single line would cut most
+       questions off before they said which question they were. */
+    .lf-asks-says { display: -webkit-box; -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3; overflow: hidden; }
     /* The one control on the right of the row that may give, because it is the leftmost
        of them and giving there moves nothing; the status text, off at the other end, is
        the other. The rest are .lf-btn, floored at their own words by nowrap — the chooser
@@ -2435,56 +2485,115 @@ othersBtn.setAttribute("aria-expanded", "false");
 const othersPanel = el("nav", "lf-ui lf-others-panel");
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
 let others = [];
-let othersOpen = false;
-// The board's one offer: neighbours to show, or the board already standing — the
-// key that opened it must still close it, and its button must still be pressable.
-// The button's visibility and the o key both ask this predicate, so the two
-// surfaces cannot disagree about whether there is a board to open. A board of one
-// — the page the reader is already on — is not worth a control.
-const boardOffered = () => others.length > 0 || othersOpen;
-// The panel survives a reload like the comment panel does (see PANEL_KEY):
-// reloading is not resetting, and a board someone stood up to watch stays stood.
-const OTHERS_KEY = "lf-others-open";
-function showOthers(open) {
-  othersOpen = open;
-  if (open) {
-    othersPanel.classList.add("open");
-    motion(
-      othersPanel,
-      [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
-      200,
-    );
-  } else {
-    // Slid out before hidden, and hidden only if still closed on arrival — a
-    // reopen mid-slide leaves the panel standing rather than racing the finish.
-    const out = motion(
-      othersPanel,
-      [{ transform: "translateX(0)" }, { transform: "translateX(-100%)" }],
-      160,
-    );
-    const hide = () => {
-      if (!othersOpen) othersPanel.classList.remove("open");
-    };
-    if (out) out.onfinish = hide;
-    else hide();
-    if (othersPanel.contains(document.activeElement)) othersBtn.focus();
+// A board of the page's own open asks, on the same edge: one row per thing the page is
+// waiting on the reader for, in the order the page asks them. The list is openAsks() and
+// nothing else, so a widget joins the board by declaring x-awaits and no row here knows
+// what kind of thing it is standing for.
+const asksPanel = el("nav", "lf-ui lf-asks-panel");
+asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
+
+// The left edge holds one board at a time. Leaves and asks are the same furniture asking
+// at two scopes — which page needs me, and what this page needs of me — and each has to
+// stand while the reader works, which is the whole reason either is a fixed edge rather
+// than a menu over the page. So which one is up is one fact held in one place. A boolean
+// per board would be one guarantee written twice, and the two would first disagree on the
+// day a third surface opened one without closing the other; the reader would then have
+// two boards over one edge with the lower one unreachable.
+//
+// Registered rather than listed, for the same reason the widgets are: the toggle, the
+// press, the reload and the Escape rung all read this map, so a third board joins by
+// registering and none of them names a board to do its job.
+const edges = new Map();
+const EDGE_KEY = "lf-edge-board";
+// The board survives a reload like the comment panel does (see PANEL_KEY): reloading is
+// not resetting, and a board someone stood up to watch stays stood.
+let edgeUp = readerStore.get(EDGE_KEY) || null;
+const openEdge = (key) => edgeUp === key;
+function showEdge(key) {
+  if (edgeUp === key) return;
+  edgeUp = key;
+  for (const [name, { panel, btn, paint }] of edges) {
+    const open = name === key;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      // Filled before it is shown, so the board is its own list from the first frame of
+      // the slide rather than a blank card that populates a moment later. The way down
+      // is the mirror of it, below: emptied once it is hidden, never before, or the
+      // reader watches the list they just closed blank out and an empty card slide away.
+      paint?.();
+      panel.classList.add("open");
+      motion(
+        panel,
+        [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
+        200,
+      );
+    } else if (panel.classList.contains("open")) {
+      // Slid out before hidden, and hidden only if still closed on arrival — a
+      // reopen mid-slide leaves the panel standing rather than racing the finish.
+      const out = motion(
+        panel,
+        [{ transform: "translateX(0)" }, { transform: "translateX(-100%)" }],
+        160,
+      );
+      const hide = () => {
+        if (edgeUp === name) return; // reopened mid-slide; it stays up, list and all
+        panel.classList.remove("open");
+        paint?.();
+      };
+      if (out) out.onfinish = hide;
+      else hide();
+      if (panel.contains(document.activeElement)) btn.focus();
+    }
   }
-  readerStore.set(OTHERS_KEY, open ? "1" : "");
-  othersBtn.setAttribute("aria-expanded", String(open));
+  readerStore.set(EDGE_KEY, key ?? "");
+  // Which board is up, on the document, so the stylesheet can say what each one costs the
+  // page's own box. One writer for it, here, beside the one variable that holds the fact.
+  if (key) document.body.dataset.lfEdge = key;
+  else delete document.body.dataset.lfEdge;
   paintHere();
 }
-othersBtn.onclick = () => showOthers(!othersOpen);
-if (readerStore.get(OTHERS_KEY) === "1") {
-  othersOpen = true;
-  othersPanel.classList.add("open");
-  othersBtn.setAttribute("aria-expanded", "true");
+function edgeIs(key, panel, btn, paint) {
+  edges.set(key, { panel, btn, paint });
+  btn.onclick = () => showEdge(openEdge(key) ? null : key);
+  btn.setAttribute("aria-expanded", String(openEdge(key)));
+  if (openEdge(key)) {
+    paint?.();
+    panel.classList.add("open");
+    document.body.dataset.lfEdge = key;
+  }
 }
+edgeIs("leaves", othersPanel, othersBtn);
+edgeIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
+// Each board's one offer: something to show, or the board already standing — the key that
+// opened it must still close it, and its button must still be pressable. The button's
+// visibility and the key both ask the board's own predicate, so the two surfaces cannot
+// disagree about whether there is a board to open. A leaves board of one — the page the
+// reader is already on — is not worth a control; an asks board of none is the same.
+const boardOffered = () => others.length > 0 || openEdge("leaves");
+const asksOffered = () => openAsks().length > 0 || openEdge("asks");
 // The board's own scope. The walk is the board's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
 // arrives here by key — `l` lands focus on the first neighbour — so the scope names what
 // activating does rather than leaving it to the platform's own contract.
 const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
+const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
+// The asks board's own walk, the leaves board's twin: ArrowUp and ArrowDown are the page's
+// scroll everywhere else and the board's here, and Enter is the platform's, a row being a
+// button — so the scope names what walking does and leaves the press to the button.
+keys(asksPanel, "In the asks board", [
+  {
+    keys: ["ArrowUp", "ArrowDown"],
+    does: "Walk the asks",
+    line: "walk the asks",
+    repeat: true,
+    run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
+  },
+  {
+    keys: ["Enter"],
+    does: "Go to this ask and stand on the control that answers it",
+  },
+]);
 keys(
   othersPanel,
   "In the leaves panel",
@@ -2883,6 +2992,7 @@ for (const [part, id] of [
   [banner, "lf-banner"],
   [versionMenu, "lf-versions"],
   [othersPanel, "lf-leaves"],
+  [asksPanel, "lf-asks"],
   [panel, "lf-comments"],
   [fab, "lf-comment-button"],
   [composer, "lf-composer"],
@@ -2898,6 +3008,7 @@ chromeRoot.append(
   banner,
   versionMenu,
   othersPanel,
+  asksPanel,
   panel,
   legendRoot,
   aimBox,
@@ -6282,7 +6393,7 @@ document.addEventListener("keyup", (ev) => {
 // the composer that press just opened. Hence one function, called from both.
 // The two side panels are absent from it on purpose. A float answers the press in front
 // of it and stands down behind it; the comment panel and the leaves board are
-// workspaces the reader stood up, kept through a reload (PANEL_KEY, OTHERS_KEY) and so
+// workspaces the reader stood up, kept through a reload (PANEL_KEY, EDGE_KEY) and so
 // through a click all the more — a board any press removes cannot be watched while
 // working, which is the board's point. Each closes by its own button, its key, or Esc.
 function standDown(target) {
@@ -7110,11 +7221,13 @@ function rung() {
   const holding = Boolean(active) && active !== document.body;
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
-  if (othersOpen && !panel.contains(active))
+  // Whichever board holds the edge, named by the rung so the reader is told what the
+  // press will take rather than being told "close the board" over two of them.
+  if (edgeUp && !panel.contains(active))
     return {
-      says: "close leaves",
-      does: "Close the leaves board",
-      out: () => showOthers(false),
+      says: `close ${edgeUp}`,
+      does: `Close the ${edgeUp} board`,
+      out: () => showEdge(null),
     };
   if (panelOpen)
     return {
@@ -7443,9 +7556,27 @@ const PAGE = {
       keys: ["n", "p"],
       does: "Next / previous thing this page is waiting on you for",
       line: "asks",
-      also: asksBtn, // the banner button this key duplicates, which then names it
       when: () => openAsks().length > 0,
       run: (binding) => stepAsk(binding === "n" ? 1 : -1),
+    },
+    {
+      // `a` for the asks — the letter the walk gave up when it moved to naming directions
+      // (n/p above), and the noun every surface names this board by. What it opens is the
+      // list those keys walk, which until now the reader could only reach by walking it:
+      // there was no way to see what was waiting without visiting each one in turn.
+      keys: ["a"],
+      does: () =>
+        `${openEdge("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
+      line: () => `${openEdge("asks") ? "hide" : "show"} asks`,
+      also: asksBtn, // the banner count opens the same board, which then names this key
+      when: asksOffered,
+      run: () => {
+        showEdge(openEdge("asks") ? null : "asks");
+        // Opening lands on the first row, so the board's own keys are the next press
+        // rather than a Tab-hunt across the banner — the move `l` makes into the leaves.
+        // Closing hands focus back, which showEdge owns.
+        if (openEdge("asks")) askRows()[0]?.focus();
+      },
     },
     {
       keys: ["d", "u"],
@@ -7460,17 +7591,17 @@ const PAGE = {
       // it promised — so the key went on spelling a word nothing on screen said, and
       // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
       keys: ["l"],
-      does: () => `${othersOpen ? "Hide" : "Show"} the machine's leaves`,
-      line: () => `${othersOpen ? "hide" : "show"} leaves`,
+      does: () => `${openEdge("leaves") ? "Hide" : "Show"} the machine's leaves`,
+      line: () => `${openEdge("leaves") ? "hide" : "show"} leaves`,
       also: othersBtn,
       when: boardOffered,
       run: () => {
-        showOthers(!othersOpen);
+        showEdge(openEdge("leaves") ? null : "leaves");
         // Opening lands on the first neighbour, so the board's own keys are the next press
         // rather than a Tab-hunt across the banner — the move c makes into the comment
-        // panel's box. Closing hands focus back, which showOthers owns. The key is dead
+        // panel's box. Closing hands focus back, which showEdge owns. The key is dead
         // with nothing to show, so an open always has a row to land on.
-        if (othersOpen) othersLinks()[0].focus();
+        if (openEdge("leaves")) othersLinks()[0].focus();
       },
     },
     {
@@ -7481,8 +7612,8 @@ const PAGE = {
       // and a key that said it in core would be the sentence the banner's count used to
       // be. `a` names the asks it answers and stands for nothing on its own: an
       // unshifted letter that ends the matter for every one of them is a press too
-      // cheap for what it does, and the walk is spelled in directions (n/p) rather than
-      // in the noun, so nothing is waiting for the letter back.
+      // cheap for what it does. The walk is spelled in directions (n/p), so the noun was
+      // free for the board above, which is what it now opens.
       keys: ["Shift+a"],
       does: () =>
         standingAnswers()
@@ -8094,14 +8225,20 @@ function standingAnswers() {
 // send that failed has its optimism taken back.
 function syncAsks() {
   const asks = openAsks();
-  showNews(asksBtn, Boolean(asks.length));
+  // While the board stands its button stands too, whatever the count just did — the
+  // press that opened it has to be able to close it.
+  showNews(asksBtn, asksOffered());
   asksBtn.textContent = `Asks (${asks.length})`;
+  // Only while the board is up: the count above is what a closed board says, and these
+  // rows are what an open one says. A closed board reconciling a list on every poll is
+  // work for a reader who cannot see it, and rows in a document nothing can press.
+  if (openEdge("asks")) renderAsks(asks);
   for (const { btn, label, n } of blanketAnswers(asks)) {
     showNews(btn, Boolean(n));
     btn.textContent = `✓ ${label} all (${n})`;
   }
   // The n/p and A rows stand on this list, so the surfaces reading them are repainted
-  // where it changes — the rule showFab and showOthers already keep for the words
+  // where it changes — the rule showFab and showEdge already keep for the words
   // they write.
   paintHere();
 }
@@ -8114,7 +8251,71 @@ document.addEventListener("lf-answered", () => {
   paintAnchors();
 });
 document.addEventListener("lf-actions", syncAsks);
-asksBtn.onclick = () => stepAsk(1);
+// One row per open ask, reconciled on every signal that moves the list, the way the
+// leaves board reconciles its own — rows kept in place rather than rebuilt, so a
+// repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
+//
+// Keyed by the ask's id and not by the element: a new version replaces every node on the
+// page, and the row for a question that survived the republish is the same row. That is
+// also what a press resolves through — the element this row stood for may be gone, and
+// the ask with that id is the one the reader means.
+//
+// A row says what kind of thing is asking and then the ask's own opening words, which is
+// itemSays — the same reading the comment panel labels an anchor with, so a row and a
+// comment on that ask say the same thing. Nothing here asks which widget it is: the kind
+// is the element's own word and the words are the element's own text, so the twelfth
+// widget gets a row that reads properly on the day it declares x-awaits.
+const askRowsById = new Map();
+function renderAsks(asks) {
+  let anchor = null;
+  if (!openEdge("asks")) {
+    for (const [, row] of askRowsById) row.remove();
+    askRowsById.clear();
+    return;
+  }
+  for (const ask of asks) {
+    let row = askRowsById.get(ask.id);
+    if (!row) {
+      row = el("button", "lf-asks-row");
+      row.type = "button";
+      // The attribute that already means "this chrome belongs to that ask" (askPlace),
+      // so focus landing on a row is the reader standing in the ask it names, and the
+      // ring, the walk's own measuring point and the mark all follow with nothing added.
+      row.setAttribute(ASK_AT, ask.id);
+      row.append(el("span", "lf-asks-kind"), el("span", "lf-asks-says"));
+      row.onclick = () => {
+        const to = openAsks().find((a) => a.id === ask.id);
+        if (to) goToAsk(to, openAsks());
+      };
+      askRowsById.set(ask.id, row);
+    }
+    const [kind, says] = row.querySelectorAll(".lf-asks-kind, .lf-asks-says");
+    const word = itemWord(ask);
+    const said = itemSays(ask) || ask.id;
+    // Written only on change: an unchanged poll must not feed the mutation stream a
+    // screen reader rebuilds its buffer on.
+    if (kind.textContent !== word) kind.textContent = word;
+    if (says.textContent !== said) says.textContent = said;
+    const account = `${word} · ${said}`;
+    if (row.title !== account) row.title = account;
+    const place = anchor ? anchor.nextElementSibling : asksPanel.firstElementChild;
+    if (place !== row) asksPanel.insertBefore(row, place);
+    anchor = row;
+  }
+  const live = new Set(asks.map((a) => a.id));
+  for (const [id, row] of askRowsById)
+    if (!live.has(id)) {
+      // An answered ask takes its row with it, and may take the focus with it too — a
+      // reader who answered from somewhere else while standing on this row. Hand focus
+      // to whatever now stands in its place rather than letting it fall to the body,
+      // which is nowhere and takes the ring with it.
+      const held = row.contains(document.activeElement);
+      const next = row.nextElementSibling ?? row.previousElementSibling;
+      row.remove();
+      askRowsById.delete(id);
+      if (held) (next ?? asksBtn).focus();
+    }
+}
 
 // The walk over what the page is waiting on the reader for. It wraps at both ends,
 // because asks are a worklist rather than a document to read through: answering one takes
@@ -8130,6 +8331,13 @@ const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).
 const ASK_ROW = "data-lf-for";
+// Chrome that stands *at* an ask without deciding it: the asks board's rows. Separate
+// from ASK_ROW above, because the two say different things about the same element and
+// one of them has a consumer that must not confuse them — stepAsk looks through ASK_ROW
+// for the control to put the reader on, and a row that merely points at the ask is not
+// that control. What they share is this: focus on either means the reader is standing at
+// that ask, which is the one question askPlace asks.
+const ASK_AT = "data-lf-at";
 // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
 // in the tab order and the runtime writes it one — which is paint on the author's element,
 // and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
@@ -8163,8 +8371,9 @@ let landed = null;
 // land on the suggestion the reader is already standing on.
 function askPlace(node) {
   const el = node.nodeType === 1 ? node : node.parentElement;
-  const row = el?.closest(`[${ASK_ROW}]`);
-  return (row && elementById(row.getAttribute(ASK_ROW))) ?? node;
+  const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}]`);
+  const at = row?.getAttribute(ASK_ROW) ?? row?.getAttribute(ASK_AT);
+  return (at && elementById(at)) ?? node;
 }
 // The open ask the reader is standing in: the one holding the focus, or the one a control
 // hoisted into the margin decides. The innermost of them, an ask being able to hold
@@ -8197,9 +8406,21 @@ function standingIn() {
 // ask those are one element. Where they differ the mark is still a single answer, because
 // an ask precedes what it renders, so the querySelector asking which ask the reader is on
 // still names the ask.
+// The board's row for the ask is a second surface showing this one fact, so it is
+// painted from this one reading rather than from a mark the board keeps for itself —
+// and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
+// stylesheet is written against the attribute, not against the page), so wearing the
+// attribute is the whole of what the row needs.
 function markHere() {
   const here = standingIn();
-  const wearing = new Set(here ? [here, ...shownParts(here)] : []);
+  const row = here && asksPanel.querySelector(`[${ASK_AT}="${here.id}"]`);
+  const wearing = new Set(
+    here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
+  );
+  // A walk that runs past the foot of an open board leaves its mark off screen, which is
+  // the board saying nothing exactly while the reader is using it. `nearest` so a row
+  // already in view moves nothing.
+  if (row && openEdge("asks")) row.scrollIntoView({ block: "nearest" });
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent !== here) lend(null);
@@ -8253,7 +8474,13 @@ function askStep(asks, dir) {
 function stepAsk(dir) {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
-  const next = askStep(asks, dir);
+  goToAsk(askStep(asks, dir), asks);
+}
+// Standing on one ask: what n and p do once they have decided which, and what a press on
+// a board row does having been told outright. One function because it is one act — the
+// board would otherwise be a second answer to "how do I put the reader on an ask", and
+// the two would drift the first time either the reveal or the focus rule changed.
+function goToAsk(next, asks) {
   // A thread's ask lives in the panel, which has no geometry while closed — the
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelOpen) setPanel(true);

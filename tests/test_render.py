@@ -8790,7 +8790,7 @@ ASKS_PAGE = """<!doctype html>
 <body>
 <main>
 <h1 id="h">What is still open</h1>
-<lf-options id="live-question" choose>
+<lf-options id="live-question" label="Where should sessions live?" choose>
   <lf-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
   <lf-option id="lq-token"><strong>Signed tokens</strong> No store at all.</lf-option>
 </lf-options>
@@ -8834,6 +8834,20 @@ ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
 # contents make — so what says the walk is in one place is the outermost element wearing
 # it, never the count of elements that do.
 STANDING_ASK = "[data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+# The document's scroll once it has stopped moving. A leaf's travel is a glide, so any
+# reading taken while it runs is of a place the gesture passes through rather than of
+# where it went — and "the ask is on screen" is one of those places, true for a moment
+# in the wrong position before the glide has started. A test that waited on that passed
+# with the travel bug put back, which is how this came to be written.
+SCROLL_SETTLED = """(hold) => {
+  const now = document.body.scrollTop;
+  if (now !== window.__lfScroll) {
+    window.__lfScroll = now;
+    window.__lfScrollSince = performance.now();
+    return false;
+  }
+  return performance.now() - window.__lfScrollSince > hold;
+}"""
 
 
 def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
@@ -8879,8 +8893,9 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
     """j/k step the open threads; n/p step the things the page is waiting on the reader
     for. Every walk here is a borrowed pair naming its direction rather than what it
-    walks — vim's list, less's half page, next and previous — which is what leaves `a`
-    to the answer that takes all of them at once.
+    walks — vim's list, less's half page, next and previous — which is what left `a`
+    free for the board that shows the list they walk (⇧A is the answer that takes all of
+    them at once).
     It wraps rather than clamping, because an ask leaves the list as soon as it is
     answered — forward is the direction with somewhere to go, and one key that stopped
     at the last one would strand the reader there.
@@ -8967,8 +8982,8 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     Three readings of where they are, and the page is left in each state in turn: what
     they are reading, when they have pointed at nothing; what they have selected; and
     where the walk itself last left off, once the walk is what last moved them. The
-    banner's button is no place — it focuses itself on the way to running the walk, so
-    a press on it measured from the focus would restart the walk on every click, and
+    banner's button is no place — pressing it opens the board and leaves the focus on
+    itself, so a walk measured from the focus after it would restart on every press, and
     the ring is gone from the page by then, the reader being in the banner."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
 
@@ -8983,9 +8998,11 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     page.keyboard.press("n")
     expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
 
-    # The banner's press is the same walk and steps on from there, though the button
-    # holds the focus by the time it runs.
+    # The banner's press opens the board and keeps the focus, so the walk after it
+    # measures from where the reader stands in the page and steps on rather than
+    # restarting — the button being no place to measure from.
     page.locator(".lf-asks").click()
+    page.keyboard.press("n")
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
 
     # A selection outranks the mark, because it is the reader saying where they are
@@ -9008,6 +9025,201 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     page.close()
 
 
+# Where the board's rows say their ask's own words, which is the half of a row a static
+# lint can never read: the words are whatever the page renders, after every upgrade.
+ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map((r) => ({
+  at: r.getAttribute('data-lf-at'),
+  kind: r.querySelector('.lf-asks-kind').textContent,
+  says: r.querySelector('.lf-asks-says').textContent,
+  w: Math.round(r.getBoundingClientRect().width),
+  h: Math.round(r.getBoundingClientRect().height),
+}))"""
+
+
+def test_a_opens_a_board_of_what_the_page_is_waiting_for(browser, serve):
+    """`a` shows the list n/p walk, which until now the reader could only see by
+    walking it: there was no way to tell what a page wanted without visiting each ask
+    in turn, and no way to take them in any order but the page's.
+
+    The rows are openAsks() and nothing else — the same list the banner counts — so
+    they arrive in document order and a twelfth widget joins the board by declaring
+    x-awaits. Each says what kind of thing is asking and then the ask's own opening
+    words, which is why the question here carries a `label`: without one, a group holds
+    no part of the question it asks and its row reads as its first option instead. That
+    is the whole reason the attribute exists, and this is the surface that shows it.
+
+    A closed board holds no rows at all. That is not tidiness: they are the open
+    board's rendering, the banner's count is the closed board's, and a hidden list of
+    buttons is a set of controls no reader can press — which the press sweep sees as
+    the page's control set changing under it."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 900)
+    board = page.locator(".lf-asks-panel")
+    expect(board).to_be_hidden()
+    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed board holds no rows"
+
+    page.keyboard.press("a")
+    expect(board).to_be_visible()
+    rows = page.evaluate(ASK_ROW_SAYS)
+    assert [r["at"] for r in rows] == ASKS_IN_ORDER, (
+        "the board is openAsks() in document order, the list n/p walk"
+    )
+    for row in rows:
+        assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
+        assert row["kind"], f"{row['at']}'s row does not say what kind of thing asks"
+
+    # The labelled group leads with its question. Before `label` there was nothing on a
+    # group to read, and this row said "Keep the store Sessions stay where they are" —
+    # the first option's case, which answers a question it never states.
+    said = {r["at"]: r["says"] for r in rows}
+    assert said["live-question"].startswith("Where should sessions live?"), said[
+        "live-question"
+    ]
+    # A task's title is its own words already, so it needs no label to read out of
+    # context — which is what says the row reads the element rather than the attribute.
+    assert said["t-baffles"].startswith("Fit squirrel baffles"), said["t-baffles"]
+
+    # Answered, and the row goes with the ask. The board emptying is the progress, so
+    # what is left on it is what is left to do — never a burn-down of everything done.
+    page.locator("#lq-token").click()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+    expect(page.locator("button.lf-asks-row")).to_have_count(3)
+    assert "live-question" not in [r["at"] for r in page.evaluate(ASK_ROW_SAYS)], (
+        "an answered ask keeps a row on the board"
+    )
+
+    # And closing takes the rest with it, for the reason the docstring gives: a board
+    # that is down is not a list, so it holds nothing to reach and nothing to press.
+    page.keyboard.press("a")
+    expect(board).to_be_hidden()
+    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed board keeps its rows"
+    assert errors == []
+    page.close()
+
+
+def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
+    """Pressing a row does what `n` does — one function does both, so the board can
+    never drift into a second way of arriving at an ask. It scrolls there, rings the
+    ask, and puts the focus on the control that answers it, which is what lets the
+    reader answer in the page beside the words arguing for it rather than in the list.
+
+    The ring lands in two places for one reason: the ask on the page and its row on the
+    board are two surfaces showing where the reader is standing, painted from the one
+    reading of it (markHere), so neither can say something the other doesn't."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 620)
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+
+    # The last of the four, which a short window leaves well off screen.
+    on_screen = """() => {
+      const r = document.querySelector('#t-bath').getBoundingClientRect();
+      return r.top >= 0 && r.bottom <= innerHeight;
+    }"""
+    assert not page.evaluate(on_screen), (
+        "the fixture must start with #t-bath off screen"
+    )
+
+    page.locator("button.lf-asks-row[data-lf-at='t-bath']").click()
+    page.wait_for_function(on_screen)
+    # A blocked task has no control of its own to answer it, so the ask itself takes the
+    # focus — the landing is a place to stand either way.
+    expect(page.locator("#t-bath")).to_be_focused()
+    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("button.lf-asks-row[data-lf-at='t-bath']")).to_have_attribute(
+        "data-lf-ask", "1"
+    )
+    # And one ask is standing, not two: the row is another box the same ask shows
+    # through, never a second answer to where the reader is.
+    marked = page.evaluate(
+        """() => [...document.querySelectorAll('[data-lf-ask]')]
+             .map((e) => e.id || e.getAttribute('data-lf-at'))"""
+    )
+    assert sorted(set(marked)) == ["t-bath"], marked
+    assert errors == []
+    page.close()
+
+
+def test_the_asks_board_takes_room_rather_than_covering_the_column(browser, serve):
+    """A leaf's row is a way out of this page and an ask's row is a way around it, so
+    pressing one sends the reader into the document — and a board lying over the
+    document would be hiding the thing it just sent them to. At a 720px column the two
+    overlap on any window under about 1320px, which is most of them, so the strip comes
+    out of the page the way the comment panel's does on the other side.
+
+    Below twice the board's own width there is no strip to take, and it covers instead —
+    the same bargain at the same ratio the panel strikes, so a reader who has learned
+    one edge has learned the other."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    geometry = """() => ({
+      column: Math.round(document.querySelector('main').getBoundingClientRect().left),
+      board: Math.round(
+        document.querySelector('.lf-asks-panel').getBoundingClientRect().right),
+      sideways: document.documentElement.scrollWidth
+                - document.documentElement.clientWidth,
+    })"""
+
+    resized(page, 1200, 800)
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    page.wait_for_function(
+        """() => getComputedStyle(document.body).marginLeft !== '0px'"""
+    )
+    wide = page.evaluate(geometry)
+    assert wide["column"] >= wide["board"], (
+        f"the board covers the column: it ends at {wide['board']} and the column "
+        f"begins at {wide['column']}"
+    )
+    assert wide["sideways"] == 0, "the page scrolls sideways with the board up"
+
+    # Narrow enough and the strip is more than the page can give, so it covers.
+    resized(page, 560, 800)
+    page.wait_for_function(
+        """() => getComputedStyle(document.body).marginLeft === '0px'"""
+    )
+    assert page.evaluate(geometry)["sideways"] == 0
+    assert errors == []
+    page.close()
+
+
+def test_one_board_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
+    """Both boards want the edge, so opening either closes the other. Which one is up
+    is one fact in one place: a boolean per board would be one guarantee written twice,
+    and the two would first disagree the day a third surface opened one without closing
+    the other — leaving two boards over one edge with the lower unreachable.
+
+    Escape names whichever is up rather than saying "close the board" over two of
+    them, which is the rung the reader is actually holding.
+
+    The `other_leaf` fixture is the whole reason the leaves board has anything to show:
+    a board of one — the page the reader is already on — is not worth a control, so
+    without a neighbour `l` is dead and there is no second board to be exclusive with."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    asks, leaves = page.locator(".lf-asks-panel"), page.locator(".lf-others-panel")
+
+    page.keyboard.press("a")
+    expect(asks).to_be_visible()
+    expect(leaves).to_be_hidden()
+
+    page.keyboard.press("l")
+    expect(leaves).to_be_visible()
+    expect(asks).to_be_hidden()
+    # The page has its room back the moment the asks board goes down.
+    page.wait_for_function(
+        """() => getComputedStyle(document.body).marginLeft === '0px'"""
+    )
+
+    page.keyboard.press("a")
+    expect(asks).to_be_visible()
+    expect(leaves).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    expect(asks).to_be_hidden()
+    expect(leaves).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     """A suggestion's wrapper generates no box — that is what lets it sit mid-sentence or
     around whole sections without disturbing either flow — and an element with no box
@@ -9023,22 +9235,31 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     the slots are what the reader can see it on."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
 
-    # Short enough that reaching the change is travel rather than a press with the change
-    # already on screen — the assertion below is that the reader was taken to it.
+    # Short enough that reaching the change is travel rather than a press with the
+    # change already on screen.
     resized(page, 900, 400)
 
-    # What the reader can see of the change, which is what its contents paint — the
-    # wrapper's own rect answers this question wrongly, which is the whole subject here.
-    on_screen = """() => { const r = document.createRange();
+    # Where the change stands, which is where its contents paint — the wrapper's own
+    # rect answers this question wrongly, which is the whole subject here. Whole in the
+    # window rather than merely overlapping it: the bug leaves the change a little below
+    # the fold, so "some part of it showing" is a bar the wrong answer can clear.
+    fully_shown = """() => { const r = document.createRange();
       r.selectNodeContents(document.getElementById('sug-refill'));
       const box = r.getBoundingClientRect();
-      return box.top < innerHeight && box.bottom > 0; }"""
+      return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("n")
     expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
-    # Standing above the change with it off screen, so the press below has somewhere to
-    # travel and arriving is not a press on something the reader could already see.
-    assert page.evaluate(on_screen) is False
+    # Where the reader now stands, which is what the next press is measured against. The
+    # bug takes them to the document's origin, so a scroll that ends *below* where they
+    # started is the whole of what says they were carried to the change instead.
+    #
+    # Said that way rather than as "the change was off screen before the press": that was
+    # true by a few dozen pixels, which made it a fact about how tall the blocks above the
+    # change happened to be. Giving the question above it a label set one more line and
+    # the precondition stopped holding, with nothing wrong anywhere.
+    was = page.evaluate("() => document.body.scrollTop")
+    assert was > 0, "the reader must have somewhere to have come from"
 
     page.keyboard.press("n")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
@@ -9051,9 +9272,15 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
         " return [r.width, r.height]; }"
     ) == [0, 0]
 
-    # The travel is a glide, so the destination is the fact to wait on: a frame taken
-    # while it is still moving is a state this gesture passes through either way.
-    page.wait_for_function(on_screen)
+    # The travel is a glide, so the fact to wait on is that it has finished. Both
+    # assertions are then about the landing: measured from the wrapper's own rect the
+    # change sits at the document's origin, so the reader is carried to the top of the
+    # page — up from where they stood, with the change still below the fold.
+    page.wait_for_function(SCROLL_SETTLED, arg=SETTLE_MS)
+    assert page.evaluate("() => document.body.scrollTop") > was, (
+        "the walk went up rather than down, which is where the document's origin is"
+    )
+    assert page.evaluate(fully_shown), "the walk left the change out of the window"
 
     # What wears the mark: the ask, which carries the id every reader of the mark asks
     # after, and the slots, which are the only things here a ring can be seen on. Nothing

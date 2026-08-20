@@ -1012,6 +1012,67 @@ moved the base on the reader's first arrow press, with the marks redrawn to matc
 and nothing saying so. So an open lands on the standing base, which puts the
 reader at one end of the span the rail draws, with the way off at the other end.
 
+## An edge holds one board, and a board stands while the work is done
+
+The banner counted what the page was waiting for and its press stepped to the
+next one — the defect the norm above names, seen from the other side: a door
+that travels without showing what it travels through. A reader could learn
+there were five things waiting and reach the fourth only by visiting three,
+and `stepAsk` announced "2 of 5 waiting on you" into the live region, which is
+a screen reader's alone. Nothing on screen said where in the list they were.
+So the count opens a board of them now, and `a` opens the same board: two ways
+in to one place, both of which show what is there.
+
+The board has to stay up while the ask is answered, because answering happens
+in the document — press a row and the page scrolls to the ask and stands you
+on the control that decides it. A list that closed on the way to the thing it
+listed would be a menu, and the reader would reopen it once per ask. That is
+what an edge is for, and the edge already held the machine's leaves. Two
+boards over one edge is one slot, so which of them is up is one fact in one
+place (`showEdge`). A boolean per board is one guarantee written twice, and
+the two would first disagree on the day a third surface opened one without
+closing the other — leaving two boards stacked on one edge with the lower
+unreachable, which no reader could report as anything but the board being
+broken.
+
+What the two do not share is the document's box: the leaves board lies over
+the page and the asks board takes a strip out of it. That is not an
+inconsistency waiting to be tidied. A leaf's row is a way out of this page and
+an ask's row is a way around it, so a board lying over the document would be
+hiding the thing it just sent the reader to — and with a 300px board beside a
+720px column the two overlap on every window under about 1320px, which is most
+of them. The strip is the arrangement the comment panel already had on the
+other side, taken at the same ratio, so a reader who has learned one edge has
+learned the other.
+
+## A view of an element shows what the element says, and nothing standing near it
+
+`itemSays` reads an element's own opening words — the reading the comment
+panel labels an anchor with — and a row on the asks board is that reading with
+the rest of the page taken away. Four questions on one page all came out as
+their first option's chip band, `1 effort: med room: none new stands while…`,
+because the question each group asked was written in the heading beside it and
+the group held no part of it.
+
+Reaching for that heading is the tempting fix and the wrong one: what an `h2`
+is to an ask standing under it is a guess. It may head a section holding a
+dozen other blocks, so a row that took it would be reading the page's shape as
+if it were a declaration — the same mistake as a consumer branching on a tag
+name, made against layout instead of against the registry.
+
+So a view may show only what the element itself carries, and an element that
+wants to be nameable says its name. `label` is the question, on the group,
+declared with `x-says` — already the key meaning "this attribute's value is
+words the reader sees, at a stated edge" — so the runtime renders it as
+selectable text, the anchor label reads it, the version diff sees it, and a
+reader can quote the question the way they quote an answer. Nothing learned
+about `lf-options` to make that work, and the twelfth widget gets a row that
+reads properly on the day it declares `x-awaits`.
+
+The authoring half of this is in SKILL.md, and it is one sentence because the
+board makes it obvious: whatever an ask's own words open with is the whole of
+what a reader choosing among five of them has to go on.
+
 ## A walk starts where the reader is standing
 
 A key that steps through the page answers "from here, what is next", and the

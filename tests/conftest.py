@@ -29,14 +29,13 @@ def pytest_addoption(parser):
         "--run-nightly",
         action="store_true",
         default=False,
-        help="Also run the tests that reach the package index",
+        help="Also run generated gallery cases and tests that reach the package index",
     )
 
 
 def pytest_runtest_setup(item):
-    """Hold back the tests that reach the package index, so an everyday run needs
-    no network at all. What earns a test the mark, and what still runs it, is in
-    CLAUDE.md beside this file."""
+    """Hold back generated repetition and online gates from the everyday run. What
+    earns a test the mark, and what still runs it, is in CLAUDE.md beside this file."""
     if "nightly" in item.keywords and not item.config.getoption("--run-nightly"):
         pytest.skip(f"--run-nightly not passed — skipping {item}")
 

@@ -32,7 +32,12 @@ hit this. The failure reads as the widget under the pointer refusing the gesture
 and it is neither that nor Playwright's interpolation — plain prose in a bare
 document does it.
 
-## The everyday run asks nothing of the network
+## The nightly run carries the generated gallery and online gates
+
+Seven sweeps walk every authored example every day. The generated gallery embeds all
+nine of those pages, so its parameter carries `pytest.mark.nightly` rather than making
+the everyday run repeat their combined markup. CI and `wt merge` pass `--run-nightly`
+to add it back.
 
 The browser is the machine's own and the page it opens is on disk, so the suite
 needs nothing from the network — except where a test drives `bin/leaf` on a
@@ -42,9 +47,8 @@ unlocked requirement has no recorded resolution to install from, so uv asks pypi
 for one every time its cached answer goes stale. With pypi unreachable, the tests
 that run the shim's own `--render` or `version export` fail on the shim's exit
 status, and a suite of six hundred passing browser tests reports as broken. So
-those tests carry `pytest.mark.nightly`: an everyday run skips them, and CI and
-`wt merge` pass `--run-nightly` to put them back. A new test that shells out to
-the launcher's browser path wants the mark too.
+those tests carry the same marker. A new test that shells out to the launcher's
+browser path wants it too.
 
 To prove a run works offline, give uv an index that isn't there —
 `UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also

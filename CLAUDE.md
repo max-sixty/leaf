@@ -442,12 +442,12 @@ home alone, so every `leaf` the suite shells out to finds the uv cache the
 developer already has, and a fresh checkout fills that cache the way any other
 run would.
 
-That command needs no network. One dependency resolution sits outside `uv.lock`:
-the Playwright that `bin/leaf` supplies to `version export` on top of the
-script's header (the code there says why). uv re-asks the package index for it
-whenever the cached answer goes stale, so the tests that shell out to
-`version export` are marked `nightly` and excluded by default. `--run-nightly`
-puts them back, and that is how CI and `wt merge` run the suite — both have a
+That everyday command omits the generated gallery cases and needs no network. One
+dependency resolution sits outside `uv.lock`: the Playwright that `bin/leaf` supplies
+to `version export` on top of the script's header (the code there says why). uv re-asks
+the package index for it whenever the cached answer goes stale, so tests that invoke
+the launcher's real browser path carry the same `nightly` mark. `--run-nightly` adds
+both sets back, and that is how CI and `wt merge` run the complete suite — both have a
 network anyway:
 
 ```sh

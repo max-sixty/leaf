@@ -8834,6 +8834,16 @@ ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
 # contents make — so what says the walk is in one place is the outermost element wearing
 # it, never the count of elements that do.
 STANDING_ASK = "[data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+# The same page with room between the first two asks, for the test that a press travels
+# to the second. The corpus puts them next to each other, so centring the first leaves
+# the second fifty pixels below the fold — a gap the reader's own fonts spend, and the
+# whole distance the travel then has to cover. Stated in pixels here, so what the test is
+# standing on is a distance rather than whatever the prose above it happened to measure.
+ASKS_APART = ASKS_PAGE.replace(
+    '<lf-suggestion id="sug-refill">',
+    '<p id="between" style="height:400px">Nothing below this is settled yet.</p>\n'
+    '<lf-suggestion id="sug-refill">',
+)
 
 
 def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
@@ -9021,10 +9031,10 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     The mark names the ask and hangs on the boxes the ask shows through, and the two
     readings are asserted apart here: the wrapper is what the walk is standing on, and
     the slots are what the reader can see it on."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page, errors = open_page(browser, serve(ASKS_APART))
 
-    # Short enough that reaching the change is travel rather than a press with the change
-    # already on screen — the assertion below is that the reader was taken to it.
+    # Short enough that the change is off screen once the walk has centred the ask above
+    # it — the assertion below is that the second press took the reader to it.
     resized(page, 900, 400)
 
     # What the reader can see of the change, which is what its contents paint — the
@@ -9036,6 +9046,12 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
 
     page.keyboard.press("n")
     expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
+    # This landing is a glide too, and where it leaves the reader is the only frame that
+    # says anything about the press below: read while it was still moving, the line after
+    # this asserted a position the page was on its way out of (tests/CLAUDE.md, "A state
+    # the page passes through is not a state to poll for").
+    page.wait_for_function("() => document.body.scrollTop > 0")
+    page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
     # Standing above the change with it off screen, so the press below has somewhere to
     # travel and arriving is not a press on something the reader could already see.
     assert page.evaluate(on_screen) is False

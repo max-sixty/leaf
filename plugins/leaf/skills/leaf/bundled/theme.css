@@ -339,8 +339,8 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
 lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
-lf-option .lf-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px;
-                     border-radius: 4px; }
+lf-option .lf-pick:focus-visible { outline: var(--here-ring);
+                     outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
  * (.lf-address) — the g leader's thread chips are that same fact and wear the same chip.
  * Two things are this rule's: where it sits and when it shows.
@@ -645,7 +645,7 @@ lf-options[settled] > .lf-settled {
  * is authored namespace for a fact no version carries (lf-options.js). */
 lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
-lf-options[settled] > .lf-settled:focus-visible { outline: 2px solid var(--accent);
+lf-options[settled] > .lf-settled:focus-visible { outline: var(--here-ring);
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
@@ -908,7 +908,7 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
-lf-card .lf-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px;
+lf-card .lf-grip:focus-visible { outline: var(--here-ring); outline-offset: 1px;
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
@@ -999,7 +999,7 @@ lf-shot .lf-shotpick { grid-area: 2 / 1; display: flex;
     color: var(--muted); }
 lf-shot .lf-shotpick label { display: inline-flex; gap: 5px; align-items: center;
     cursor: pointer; }
-lf-shot .lf-shotpick input:focus-visible { outline: 2px solid var(--accent);
+lf-shot .lf-shotpick input:focus-visible { outline: var(--here-ring);
     outline-offset: 1px; }
 
 @media print {
@@ -1198,7 +1198,7 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
                           line-height: 1.55; color: var(--ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) pre:focus-visible { outline: 2px solid var(--accent);
+:host(.lf-rendered) pre:focus-visible { outline: var(--here-ring);
                           outline-offset: -2px; }
 /* A child selector, because a line's own span is not the only one in here any more:
    syntax colour puts one around each token, and as a descendant rule this laid every
@@ -1259,7 +1259,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 
 /* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
-lf-code.lf-rendered pre:focus-visible { outline: 2px solid var(--accent);
+lf-code.lf-rendered pre:focus-visible { outline: var(--here-ring);
              outline-offset: -2px; }
 /* The same max-content floor as the shadow slice's line spans: an hi range's tint has
    to run the whole scrolled line, not stop at the fold. */

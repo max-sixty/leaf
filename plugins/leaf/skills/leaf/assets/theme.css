@@ -125,12 +125,15 @@
      2.38:1, which is the "the highlighting is gone" report the syntax block below
      was written for. */
   --mark: #dfd1ed66; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
-  /* The "you are here" ring: the band the ask walk's mark is drawn in
-     ([data-lf-ask], leaf.js), and the band a control focused as one thing draws
-     its own ring in (a joined choose group, bundled/theme.css). Both read these
-     two tokens because the two facts coincide — `n` lands on an ask and hands it
-     the focus in the same move — and stated apart they were one ring free to
-     become two. */
+  /* The "you are here" ring: where the reader is standing, wherever they are
+     standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
+     focused as one thing draws its own in the same band (a joined choose group,
+     bundled/theme.css), and so do the runtime's own controls, which is where a
+     reader backing out of the panel lands. One band for one fact — stated apart,
+     the same ring was free to become three, and a reader would have had to learn
+     that a blue rectangle on the banner and a blue rectangle down the page meant
+     the same thing. The gap is what the ring wants outside a box that stands on
+     its own; a control packed into a list states its own inset instead. */
   --here-ring: 2px solid var(--accent); --here-ring-gap: 3px;
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
@@ -906,9 +909,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-sug-actions.lf-waiting { display: none; }
 .lf-sug-actions.lf-docked { position: static; margin: 2px 0 12px; }
 /* The controls are .lf-pill — the margin's press, stated once in the runtime's
- * document-level vocabulary, where the 💬 that shares this margin wears it too. What
- * is here is only what a suggestion's own states add to it. */
-.lf-sug-actions [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+ * document-level vocabulary, where the 💬 that shares this margin wears it too, and
+ * where the ring that says the reader is standing on one is stated with it. What is
+ * here is only what a suggestion's own states add to it. */
 /* Hover is an offer, so the coloured edge is the pending row's alone: a decided one has
  * nothing left to press and its own colour to keep. Scoped rather than unsaid
  * afterwards — a hover rule undone by a later one is the shape the row form's first

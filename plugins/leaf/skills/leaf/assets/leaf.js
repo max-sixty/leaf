@@ -1155,7 +1155,7 @@ export function keys(where, title, rows, when) {
     when,
   });
   if (title) merge(declaredScopes, { title, when, rows: bySentence(rows) });
-  paintLine();
+  paintHere();
   return rows;
 }
 /** What a scope answers right now, as a listener hears it read out — key names rather than
@@ -1174,19 +1174,25 @@ const spoken = (row) =>
         .map((b) => (b === " " ? "Space" : b))
         .join(" or ");
 /** Repaint the surfaces after a state change no focus event reports. */
-export const paintKeys = () => paintLine();
+export const paintKeys = () => paintHere();
 
-// The line's paint, coalesced to a frame: a focus move is a focusout then a focusin, and
-// painting between them would flash the scope of nowhere. Here rather than beside the
-// render it schedules, because the scopes core declares call it as the module evaluates,
-// which is before the line has an element to draw into — the frame is what puts the first
-// paint after both.
-let linePending = false;
-function paintLine() {
-  if (linePending) return;
-  linePending = true;
+// Where the reader is standing, painted: the ring on the ask they are in, and the line
+// saying what the next press does from there. One repaint, because it is one question —
+// both readings are of the focus and the open-ask list, and every signal that moves either
+// (a focus move, an answer taken, a poll, a widget's own state) moves both.
+//
+// Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
+// them would flash the scope of nowhere and drop the ring for a frame. Here rather than
+// beside the renders it schedules, because the scopes core declares call it as the module
+// evaluates, which is before the line has an element to draw into — the frame is what puts
+// the first paint after both.
+let herePending = false;
+function paintHere() {
+  if (herePending) return;
+  herePending = true;
   requestAnimationFrame(() => {
-    linePending = false;
+    herePending = false;
+    markHere();
     renderLine();
   });
 }
@@ -1818,6 +1824,20 @@ style.textContent = `
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
+  /* Standing on a press, in the band everything else the reader stands on is drawn in
+     (--here-ring). The two shapes were the last places on the product still wearing the
+     browser's own ring: a reader who backed out of the panel landed on Comments in
+     Chrome's blue, beside an ask wearing the page's accent, with nothing saying the two
+     rectangles meant one thing.
+
+     Each states its own gap, because they stand at different densities and the ring may
+     not reach its neighbour: the standing gap is what a box with room around it takes,
+     the composer's row puts 6px between two buttons, and a suggestion's pills sit 4px
+     apart out in the margin. The pill's rule was the suggestion family's, which is a
+     family stating a fact about a shape the runtime owns — its own rules there are for
+     what a decided suggestion adds, and a focus ring is nothing a decision changes. */
+  .lf-btn:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
+  .lf-pill:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
   /* The keyboard address: the digit that reaches this thing right now, worn as a chip
      off its holder's corner so an address arriving moves nothing. The panel's reply box
      wears the one the g leader answers and an option wears the one a pick answers, which
@@ -1936,13 +1956,11 @@ ${MARK_RULES}
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
-  /* Where stepping the page's open asks has put the reader (stepAsk), on the ask
-     rather than on whichever of its controls took the focus — the reader was brought
-     to the whole thing. Not keyed on focus: the same landing is reached two ways and
-     only the key carries keyboard modality, so a :focus-visible ring would leave the
-     banner's own control landing somewhere unmarked. Exactly one element wears it at a
-     time, and it is an outline like every other mark the runtime paints on the page's
-     own elements, so arriving moves nothing. */
+  /* The open ask the reader is standing in (markHere), worn by the ask rather than by
+     whichever of its controls holds the focus — they are standing in the whole thing,
+     however they got there. Exactly one element wears it at a time, and it is an
+     outline like every other mark the runtime paints on the page's own elements, so
+     arriving moves nothing. */
   [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
@@ -2055,7 +2073,7 @@ ${MARK_RULES}
       text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
       background: none; color: inherit; cursor: pointer; width: 100%; }
     .lf-version-row:hover { background: var(--chip); }
-    .lf-version-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .lf-version-row:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
     /* The version being read wears the accent rather than a fill, so the row the
        pointer is over stays the one that looks pressable. */
     .lf-version-row[aria-current] .lf-version-num { color: var(--accent); font-weight: 600; }
@@ -2074,7 +2092,7 @@ ${MARK_RULES}
       border: 1px solid var(--rule); border-radius: 4px; background: none;
       color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
     .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
-    .lf-version-diff:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .lf-version-diff:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
     .lf-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
       background: var(--chip); }
     /* A diff is a span rather than a point — everything that changed across the versions
@@ -2095,7 +2113,7 @@ ${MARK_RULES}
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
     a.lf-others-row:hover { background: var(--chip); }
-    .lf-others-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .lf-others-row:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
     .lf-others-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .lf-others-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
       text-overflow: ellipsis; }
@@ -2121,7 +2139,7 @@ ${MARK_RULES}
        last thread's own 12px having nowhere to collapse to. See theme.css. */
     .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; --lf-frame: 1; }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
-    .lf-threads:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .lf-threads:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
     /* A thread and the room a resolved one is still giving back (foldOut) are the same
        box, so the fold starts from the box the reader was looking at rather than from
@@ -2144,7 +2162,7 @@ ${MARK_RULES}
     /* An arrival the reconcile added while the user was watching. Motion, not a
        jump: nothing above it moves, and the newcomer settles rather than appears. */
     .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
-    .lf-thread:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .lf-thread:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
     /* The g leader's address chip (.lf-address, dressed at document level), worn on the
        reply box it addresses — where the digit lands, not the thread's corner — and
        painted only while the window is armed: the placeholder speaks the address at all
@@ -2451,7 +2469,7 @@ function showOthers(open) {
   }
   readerStore.set(OTHERS_KEY, open ? "1" : "");
   othersBtn.setAttribute("aria-expanded", String(open));
-  paintLine();
+  paintHere();
 }
 othersBtn.onclick = () => showOthers(!othersOpen);
 if (readerStore.get(OTHERS_KEY) === "1") {
@@ -2665,7 +2683,7 @@ function showVersionMenu(open) {
       ) ?? versionRows()[0]
     )?.focus();
   else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
-  paintLine();
+  paintHere();
 }
 versionBtn.onclick = () => showVersionMenu(!versionMenuOpen);
 // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
@@ -3466,7 +3484,7 @@ function setPanel(open) {
     renderPanel();
     syncGeneral(); // a restored draft has to reach the Send button's disabled state
   }
-  paintLine();
+  paintHere();
 }
 toggleBtn.onclick = () => setPanel(!panelOpen);
 addEventListener("resize", pageShifted);
@@ -4328,7 +4346,7 @@ function renderThreads(threads) {
     div.lfSync();
   }
   toggleBtn.textContent = `Comments (${open.length})`;
-  paintLine(); // the key line's j/k and g rows stand only over threads (threadAddress)
+  paintHere(); // the key line's j/k and g rows stand only over threads (threadAddress)
 }
 
 // A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
@@ -5191,11 +5209,12 @@ function* blocksOnScreen() {
 // to the section, which doesn't absorb content added above the reader inside it.
 function captureView() {
   const view = { v: VNUM, y: pageScroller.scrollTop };
-  // Where the ask walk is standing, which is the reader's place stated more exactly than
-  // any block can state it — the walk put them there on purpose. The mark is the walk's
-  // whole memory, and it is paint on the document, so this is the only way it survives
-  // the document being replaced.
-  view.ask = document.querySelector(`[${PAGE_PAINT_ATTRIBUTE.ask}]`)?.id;
+  // Where the ask walk left off, which is the reader's place stated more exactly than
+  // any block can state it — the walk put them there on purpose. It is a variable in a
+  // module the navigation is about to throw away, so this is the only way it survives
+  // the document being replaced. The ring is not recorded beside it: it is painted from
+  // the focus, and a reader arriving at a fresh document is standing on the page.
+  view.ask = landed?.id;
   for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
     if (!view.section && section) {
@@ -5227,17 +5246,16 @@ function captureView() {
 const jumpBy = (dy, behavior = "instant") =>
   pageScroller.scrollBy({ top: dy, behavior });
 function restoreView(view) {
-  // The walk's standing, put back before the scroll below restores the coarser reading of
-  // the same fact — and put back whether or not this version answered the ask, since an
-  // ask the reader has not stepped off is still where they are standing. The document's
-  // own lookup rather than elementById: the ask list is the document's (openAsks), so a
-  // mark written into a shadow tree is one neither askPosition nor stepAsk's clear could
-  // ever see again. A thread's ask is not here yet — the panel is rebuilt from the log on
-  // the first poll, which is behind this — so the record answers for the page's asks and
-  // says nothing about the panel's, rather than restoring a second time later over a mark
-  // the reader has made since.
-  const standing = view.ask && document.getElementById(view.ask);
-  if (standing) standing.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
+  // Where the walk left off, put back before the scroll below restores the coarser
+  // reading of the same fact — and put back whether or not this version answered that
+  // ask, since an ask the reader has not stepped off is still the one they would step
+  // from. The document's own lookup rather than elementById: the ask list is the
+  // document's (openAsks), and a landing inside a shadow tree is one askStep could never
+  // measure against. A thread's ask is not here yet — the panel is rebuilt from the log
+  // on the first poll, which is behind this — so the record answers for the page's asks
+  // and says nothing about the panel's, rather than restoring a second time later over a
+  // walk the reader has made since.
+  landed = (view.ask && document.getElementById(view.ask)) || null;
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   if (found?.segments) {
@@ -6049,7 +6067,7 @@ function showFab(anchor, left, top) {
   fabAnchor = anchor;
   fab.style.display = anchor ? "block" : "none";
   if (anchor) placeClear(fab, left, top);
-  paintLine(); // the c row names this anchor, so the line is one more rendering of it
+  paintHere(); // the c row names this anchor, so the line is one more rendering of it
 }
 // The one way an item under a gesture becomes the composer's anchor, so no two routes
 // can come to write different anchors for the same press.
@@ -6404,7 +6422,7 @@ function setDesign(on, { spoken = true } = {}) {
   syncGeneral(); // the general box's hint says which of the two it posts
   refreshAim(); // the box and the name follow the mode, not only the pointer
   paintLegend(); // and so does the legend — with the class, not a frame behind it
-  paintLine();
+  paintHere();
 }
 
 // The legend: what is on the page, shown while the mode stands rather than found by
@@ -6728,7 +6746,7 @@ function syncSuggestMode() {
   suggestRow.style.display = pendingAnchor?.quote && !pendingAbout ? "flex" : "none";
   composerSend.textContent = suggestCheck.checked ? "Suggest" : "Comment";
   syncComposer();
-  paintLine(); // the line's send row says which of the two the box will do
+  paintHere(); // the line's send row says which of the two the box will do
 }
 suggestCheck.onchange = () => {
   // Entering suggestion mode seeds the box with the passage to edit in place.
@@ -6752,7 +6770,7 @@ function showComposer(open) {
   // The reader's own selection is gone by now — focusing a textarea drops it — so this
   // mark is the only thing left pointing at the passage being quoted.
   paintAnchors();
-  paintLine();
+  paintHere();
 }
 
 // The quote suggestion mode auto-seeded, so reopening on a new anchor can tell
@@ -6928,7 +6946,7 @@ function setLeader(on) {
   // The chips are the eye's copy; the arming itself is spoken, or the mode change is
   // silent to exactly the user who can't see them.
   if (on && !was) announce(`Reply to thread — ${saying(LEADER.rows)}`);
-  paintLine();
+  paintHere();
 }
 // What a digit does with the window: stepThread-to-nth and its Enter in one press.
 function replyTo(n) {
@@ -6996,46 +7014,88 @@ const takesLetters = (node) =>
     node.isContentEditable ||
     (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)));
 
-// The panels' rung, one definition for every scope that reaches past the focused control,
-// so the thread's, the list's and the page's cannot disagree. With both panels standing,
-// Escape takes the leaves board first — it was opened for a glance, where the comment
-// panel is the work itself — unless focus stands inside the comment panel: a reader
-// backing out of its general box is standing on its list, and their next Escape taking a
-// board off the far side of the screen took the key away from the work it was unwinding.
-// Asked of the focus rather than of which thing is open, because "in the panel" is where
-// the reader is, not what stands.
-//
-// The last rung leaves the chrome, because closing the panel does not put the reader back
-// on the page: it lands them on the control that closes it, deliberately (setPanel says
-// why), and the closing keypress rings a button a pointer-borne reader never chose. Their
-// next Space is then that button rather than the page's scroll. CLAUDE.md's "The reader has to
-// be standing somewhere" holds the rest.
+// Letting go of what the reader is standing on. One act at both ends of the ladder, and
+// one line of code, because standing on an ask out on the page and standing on a banner
+// button are the same state — the reader holding something — reached from either side of
+// the chrome. What the two rungs do not share is the word, and neither word is the other's:
+// leaving the chrome names where the reader lands, since that is the whole of what the
+// rung is for, and letting go of an ask names the act, since they were on the page all
+// along.
 //
 // Focus rather than blur, because the two differ in what Space does next: `html` is
 // `overflow: hidden` here so the document scrolls in `body`, and the browser scrolls
 // whichever box it last saw the reader put themselves in. A blur names none —
 // activeElement reads as body either way — and Space goes on doing nothing until the next
 // click in the page.
-function panelsRung() {
+//
+// Which asks that body be somewhere a reader can be put, and it is not one by default.
+// Chrome makes a scroll container focusable so the keyboard can scroll it, and that was
+// the whole of what made this call work: on a page long enough to scroll, focus landed on
+// body; on a page that fits the window, `body.focus()` moved nothing and the reader stayed
+// on the control the line had just promised to take them off — measured both ways on one
+// page, by shrinking its content until it fit. So the rung failed exactly where its own
+// reason for existing is strongest, a short page having no scroll to hand back and every
+// bit as much of a Space that presses whatever the reader was left standing on.
+document.body.tabIndex = -1;
+const letGo = () => document.body.focus({ preventScroll: true });
+// The Escape ladder, one definition for every scope that reaches past the focused control,
+// so the thread's, the list's and the page's cannot disagree. It unwinds from where the
+// reader is standing, not from what happens to be open.
+//
+// So the first rung is theirs: out on the page, the innermost thing they are in is the ask
+// they are standing on, and a panel behind them is a layer they are not in. Nothing said
+// this before — a reader the walk had brought to an ask could press Escape all day and the
+// ring stayed on it, the one place in the runtime a key put the reader somewhere with no
+// key to take them out again.
+//
+// Inside the chrome it is the layers first, in the order the reader is in them: the leaves
+// board goes before the comment panel — it was opened for a glance, where the panel is the
+// work itself — unless focus stands inside the panel, since a reader backing out of its
+// general box is standing on its list, and their next Escape taking a board off the far
+// side of the screen took the key away from the work it was unwinding.
+//
+// Then the last rung leaves the chrome, because closing the panel does not put the reader
+// back on the page: it lands them on the control that closes it, deliberately (setPanel
+// says why), and the closing keypress rings a button a pointer-borne reader never chose.
+// Their next Space is then that button rather than the page's scroll. CLAUDE.md's "The
+// reader has to be standing somewhere" holds the rest.
+function rung() {
   const active = document.activeElement;
+  const holding = Boolean(active) && active !== document.body;
+  if (holding && !inChrome(active))
+    return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   if (othersOpen && !panel.contains(active))
-    return { says: "close leaves", out: () => showOthers(false) };
-  if (panelOpen) return { says: "close comments", out: () => setPanel(false) };
-  if (inChrome(active))
     return {
-      says: "back to the page",
-      out: () => document.body.focus({ preventScroll: true }),
+      says: "close leaves",
+      does: "Close the leaves board",
+      out: () => showOthers(false),
     };
+  if (panelOpen)
+    return {
+      says: "close comments",
+      does: "Close the comment panel",
+      out: () => setPanel(false),
+    };
+  if (holding)
+    return { says: "back to the page", does: "Back out onto the page", out: letGo };
   return null;
 }
-// The page's own Escape, said and run off one object. A row rather than a rung, so the
-// reference names it beside every other key and cannot list a stale half of the ladder.
-const PANELS_ESC = {
+// The page's own Escape, said and run off one object: each rung states the act, the word
+// the line paints over it and the sentence the reference lists. A row rather than a rung,
+// so the reference names it beside every other key and cannot list a stale half of the
+// ladder.
+//
+// The sentence is the rung's for the reason `c`'s is the anchor's: the reader can see
+// which branch they are in, so a word covering all of them tells them nothing. "Back out
+// one layer" was true while every rung took a layer of chrome off the page, and stopped
+// being true the day the first rung became letting go of an ask, which is no layer at
+// all — the line saying "let go" while the reference said "layer" about the same press.
+const BACK_OUT = {
   keys: ["Escape"],
-  does: "Back out one layer",
-  line: () => panelsRung()?.says,
-  when: () => Boolean(panelsRung()),
-  run: () => panelsRung().out(),
+  does: () => rung()?.does,
+  line: () => rung()?.says,
+  when: () => Boolean(rung()),
+  run: () => rung().out(),
 };
 
 // ---------- what a scope takes ----------
@@ -7388,6 +7448,12 @@ const PAGE = {
         for (const { btn } of standingAnswers()) btn.click();
       },
     },
+    // Above the page's furniture, because it is the way out of wherever the reader is
+    // standing and they are standing somewhere far more often than a panel is open: it
+    // ranks with the presses that act on where they are, not with the versions and the
+    // modes. Below it, the line drops chips a window at a time, and this is the one that
+    // says how to undo the press that put them there.
+    BACK_OUT,
     CHOOSER,
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
@@ -7398,7 +7464,6 @@ const PAGE = {
       run: () => setDesign(true),
     },
     REFERENCE,
-    PANELS_ESC,
     // Reference: a real key the browser owns, and one gesture that is not a key at all.
     // Neither says a word for the line, so neither is ever promised as the next press —
     // one rule where the three exemptions this replaced were three.
@@ -7560,19 +7625,20 @@ function run(ev) {
   return false;
 }
 
-// A focus move is the one scope change no state writer sees, so it repaints the line
-// itself; focus entering a box, or a control that claims Escape, also disarms the leader —
-// a digit typed in a box is text, and a chip left blooming would promise a cancel the
-// control would consume.
+// A focus move is the one change in where the reader is standing that no state writer
+// sees, so it asks for the paint itself — the ring and the line both, which is why one
+// call answers for it. Focus entering a box, or a control that claims Escape, also disarms
+// the leader — a digit typed in a box is text, and a chip left blooming would promise a
+// cancel the control would consume.
 document.addEventListener("focusin", () => {
   // The same question `setLeader` asks before arming, so it takes the same answer: two
   // readings of where the reader is standing would refuse to arm somewhere they then
   // failed to disarm.
   const active = focused();
   if (leaderTimer && (takesLetters(active) || claimsEsc(active))) setLeader(false);
-  paintLine();
+  paintHere();
 });
-document.addEventListener("focusout", () => paintLine());
+document.addEventListener("focusout", () => paintHere());
 
 // ---------- the key line ----------
 // What the next press does, walked outward from where the reader stands and cut where the
@@ -7659,11 +7725,11 @@ function renderLine() {
     break;
   }
 }
-paintLine();
+paintHere();
 // The room is the window's, so the window changing is a scope change like any other. It
 // was the one edge no writer reported: a reader who narrowed their window kept the wide
 // selection until they next moved focus, and the CSS clip did the cutting instead.
-addEventListener("resize", paintLine);
+addEventListener("resize", paintHere);
 
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, and otherwise the general box,
@@ -7831,7 +7897,7 @@ function showHelp(open) {
   // out here would be putting focus back for the click to take again.
   else if (helpEl.contains(focused()) && helpFrom?.isConnected)
     helpFrom.focus({ preventScroll: true });
-  paintLine();
+  paintHere();
 }
 function toggleHelp() {
   showHelp(!helpOpen);
@@ -7991,7 +8057,7 @@ function syncAsks() {
   // The n/p and A rows stand on this list, so the surfaces reading them are repainted
   // where it changes — the rule showFab and showOthers already keep for the words
   // they write.
-  paintLine();
+  paintHere();
 }
 // An answer also changes what text the page has — a retired slot leaves it, a pick
 // mark starts saying "your pick" — so the marks are repainted from the same signal,
@@ -8018,13 +8084,33 @@ const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).
 const ASK_ROW = "data-lf-for";
-// The ask this walk lent a tab stop to, so it can take it back. An ask with nothing to
-// work has no box in the tab order and the runtime writes it one — which is paint on the
-// author's element, and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave
-// standing there (a `tabindex` in it would blind the replay signature to an authored
-// one). So the lend lasts exactly as long as the mark it goes with. One at a time,
-// because one element wears the mark at a time.
+// The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
+// in the tab order and the runtime writes it one — which is paint on the author's element,
+// and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
+// `tabindex` in it would blind the replay signature to an authored one). So the lend lasts
+// exactly as long as the ring it goes with: the walk hands the stop over as it moves, and
+// markHere takes it back when the reader leaves.
+//
+// One function for both ends of it, because written as statements at each end the walk's
+// half only ever wrote — it took the last lend's reference with it and left the stop
+// standing. Two control-less asks in a row is all it took, and the walk in the shipped
+// examples goes through two: stepping off a task left it wearing a tab stop that nothing
+// afterwards was ever going to remove.
 let askLent = null;
+function lend(ask) {
+  if (askLent === ask) return;
+  askLent?.removeAttribute("tabindex");
+  askLent = ask;
+  if (ask) ask.tabIndex = -1;
+}
+// Where the walk last left off. Not the same question as where the reader is standing,
+// though one answer used to serve both: the ring said where they were and the walk read
+// its own last landing off it. The Asks button is the walk's own control and focuses
+// itself on the way to running a step, so a reader pressing it is standing in the banner
+// and the ring is rightly gone from the page — leaving the walk with nothing to step from
+// but whatever happens to be on screen, which would send every second press on that
+// button back up the page.
+let landed = null;
 // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
 // control hoisted out of its ask and pointing back at it stands for that ask and not for
 // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
@@ -8033,6 +8119,37 @@ function askPlace(node) {
   const el = node.nodeType === 1 ? node : node.parentElement;
   const row = el?.closest(`[${ASK_ROW}]`);
   return (row && elementById(row.getAttribute(ASK_ROW))) ?? node;
+}
+// The open ask the reader is standing in: the one holding the focus, or the one a control
+// hoisted into the margin decides. The innermost of them, an ask being able to hold
+// another (a question inside a suggestion's lf-new) — openAsks answers in document order,
+// so the last container in the list is the nearest one.
+//
+// document.activeElement rather than focused(), for the reason askPosition gives: a
+// control staged in a shadow tree retargets to its host, and the host is the place in the
+// document this wants.
+function standingIn() {
+  const held = document.activeElement;
+  if (!held || held === document.body) return null;
+  const place = askPlace(held);
+  return openAsks().findLast((ask) => ask === place || ask.contains(place)) ?? null;
+}
+// The ring that says so, painted from the focus rather than written where the reader was
+// put. The walk used to write it, and it then said where the walk had left them rather
+// than where they were: click away, work in the panel, come back tomorrow, and an ask
+// nobody was standing in went on wearing "you are here". Every other way into an ask —
+// Tab, a click on one of its controls — left the ring somewhere else entirely, so the
+// same place was marked or not by how the reader had reached it.
+//
+// Keyed on focus and not on :focus-visible, which is a claim about the last input rather
+// than about where the reader is: the Asks button's own press lands the focus by script
+// after a click, and the ask it brought the reader to would wear nothing at all.
+function markHere() {
+  const here = standingIn();
+  for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
+    if (marked !== here) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+  if (askLent !== here) lend(null);
+  here?.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
 }
 const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // Where the walk measures from: where the reader is standing, rather than where the walk
@@ -8044,9 +8161,9 @@ const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // isn't.
 //
 // Read in the order of how directly each says where they are: what they have focused,
-// what they have selected, where the walk itself last landed (the mark, which is the
-// walk's memory and needs no second copy), and what they are reading. Every one of them
-// can be absent, and then the first ask is the only answer there is.
+// what they have selected, where this walk last left off (`landed`), and what they are
+// reading. Every one of them can be absent, and then the first ask is the only answer
+// there is.
 //
 // document.activeElement rather than focused(): a control staged in a shadow tree
 // retargets to its host, which is exactly what this question wants — a place in the
@@ -8061,7 +8178,9 @@ function askPosition() {
   // A caret counts here, where the composer's reading of the selection (pageSelection)
   // wants words to quote: a click that placed one is the reader saying where they are.
   if (sel?.focusNode && !inChrome(sel.focusNode)) return askPlace(sel.focusNode);
-  return document.querySelector(`[${PAGE_PAINT_ATTRIBUTE.ask}]`) ?? readingBlock();
+  // A landing whose element a later version dropped is no place at all, and
+  // compareDocumentPosition against a detached node answers about no document.
+  return (landed?.isConnected ? landed : null) ?? readingBlock();
 }
 // The ask `dir` steps to from there. Document position rather than an index into the
 // list, because the reader's place is a place and not a row: an ask holding it is the one
@@ -8081,24 +8200,17 @@ function stepAsk(dir) {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
   const next = askStep(asks, dir);
-  for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
-    marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-  if (askLent) {
-    askLent.removeAttribute("tabindex");
-    askLent = null;
-  }
   // A thread's ask lives in the panel, which has no geometry while closed — the
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelOpen) setPanel(true);
   reveal(next); // a settled group or an inactive tab has no geometry until it opens
-  next.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
   const control =
     next.querySelector(ASK_CONTROL) ??
     document.querySelector(`[${ASK_ROW}="${next.id}"] ${ASK_CONTROL}`);
-  if (!control) {
-    next.tabIndex = -1; // nothing to work: the ask itself takes the focus
-    askLent = next;
-  }
+  if (!control) lend(next); // nothing to work: the ask itself takes the focus
+  landed = next;
+  // The ring follows: the focus move is what paints it, so the walk says where to stand
+  // and markHere says where the reader is standing, rather than both saying the second.
   (control ?? next).focus({ preventScroll: true });
   // Each ask centres in the region it stands in. The banner clearance
   // scrollToElement answers for is the document scroller's alone, and a thread's
@@ -9231,15 +9343,16 @@ if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // a page that moves its own scrolling: `html` is `overflow: hidden` so the document
 // scrolls in `body`, and the browser scrolls whichever box it last saw the reader put
 // themselves in — on a fresh load, none of them, so Space, PageDown and the arrows did
-// nothing at all until the reader happened to click somewhere in the page. The same
-// move the Escape ladder's last rung makes, and a focus for the same reason a blur is
-// not one there (panelsRung says it); CLAUDE.md's "The reader has to be standing
+// nothing at all until the reader happened to click somewhere in the page. Literally the
+// move the Escape ladder makes of letting go, since an arrival and a reader who has just
+// put something down are standing in the same place; `letGo` carries the reasons, the
+// focus rather than a blur among them, and CLAUDE.md's "The reader has to be standing
 // somewhere" holds the rest.
 //
 // Here rather than in the start block below, which runs a mermaid render later with the
 // chrome clickable throughout: a reader who took a control in that window would have had
 // it taken back off them, and this placement is what makes the guard unnecessary.
-document.body.focus({ preventScroll: true });
+letGo();
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
 // panel is restored just above, so the column is already reflowed). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:
@@ -9322,7 +9435,7 @@ Promise.all([
   anchoringReady = true;
   paintAnchors(); // an early general post may already have loaded anchored threads
   updateFab(); // an early selection is now read from the fully upgraded page
-  paintLine(); // c is live again, whether or not that selection raised the button
+  paintHere(); // c is live again, whether or not that selection raised the button
   landArrival();
   if (savedView && savedView.v < VNUM) showToast(`Updated to v${VNUM}`);
   if (savedComposer)

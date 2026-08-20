@@ -735,10 +735,20 @@ Looking selected is the small half. Standing there, the reader's next Space is
 that button's press rather than the page's scroll, so the panel they just
 dismissed comes back and nothing says why. That is a page-level key silently
 answered by a control — the failure the whole scope stack exists to prevent —
-arriving through focus instead of through a binding. So the last rung leaves the
-chrome (`panelsRung`), on the same key as every rung above it: a reader pressing
-Escape until nothing happens ends up on the page. Losing a place is a fault only
-when the reader did not ask for it, and the rung is the asking.
+arriving through focus instead of through a binding. So the ladder ends by
+leaving the chrome (`rung`), on the same key as every rung above it: a reader
+pressing Escape until nothing happens ends up on the page. Losing a place is a
+fault only when the reader did not ask for it, and the rung is the asking.
+
+Out on the page that same act comes first instead of last, because the ladder
+unwinds from where the reader is standing and a panel behind them is a layer they
+are not in. That end of it was missing altogether: `n` brought a reader to an
+ask, ringed it, and no key took them out again — the one place in the runtime
+where a press put the reader somewhere and nothing undid it, with the line
+offering no Escape at all while they stood there. One act, two rungs, and a
+different word for each. Leaving the chrome names where the reader lands, since
+that is the whole of what the rung is for. Letting go of an ask names the act,
+since they were on the page all along.
 
 The rung lands focus on `body` rather than blurring, and the difference is a
 browser fact worth having before writing either. `html` is `overflow: hidden`
@@ -748,6 +758,17 @@ themselves in. A blur names no box. `document.activeElement` reads as `body`
 either way, so from the page the two look identical — but after a blur, Space
 goes on doing nothing until the next click in the document. Only the focus hands
 the scroll back, which is what makes "back to the page" the whole sentence.
+
+`body` then has to be somewhere a reader can be put, and it is not one by
+default. Chrome makes a scroll container focusable so the keyboard can scroll it,
+and that was the entirety of what made this call work: on a page long enough to
+scroll, focus landed on `body`; on a page that fits the window, `body.focus()`
+moved nothing and the reader stayed on the control the line had just promised to
+take them off — measured both ways on one page, by shrinking its content until it
+fit. So the rung failed exactly where its own reason is strongest, a short page
+having no scroll to hand back and every bit as much of a Space that presses
+whatever the reader was left holding. The runtime gives `body` a tab stop, which
+is what makes the landing a fact rather than a favour.
 
 Which leaves the beginning of the page, where the same browser fact was doing the
 same damage — and this section had already written that down, as a remark about
@@ -762,12 +783,46 @@ were dead, and that reads as a page with no keyboard scrolling rather than as a
 page with a bug.
 
 So the runtime makes the rung's move as it evaluates
-(`test_a_page_nobody_has_touched_scrolls_from_the_keyboard`). That is a placement
-rather than a guard: the start block below runs a mermaid render later than
-module evaluation, with the chrome clickable throughout, so making the move any
-later would take a control back off a reader who had taken one in the meantime. A
-sentence explaining why a test sets something up is a claim about the product,
-and this one turned out to be a bug report.
+(`test_a_page_nobody_has_touched_scrolls_from_the_keyboard`) — the same call, an
+arrival and a reader who has just put something down being in the same place.
+That is a placement rather than a guard: the start block below runs a mermaid
+render later than module evaluation, with the chrome clickable throughout, so
+making the move any later would take a control back off a reader who had taken
+one in the meantime. A sentence explaining why a test sets something up is a
+claim about the product, and this one turned out to be a bug report.
+
+## Where the reader is standing is painted, never remembered
+
+One ring means one thing: this is where the reader is. The open ask holding their
+focus wears it, a control focused as one thing — a joined choose group — draws
+its own in the same band, and so does a control in the chrome, where a reader who
+has backed out of the panel is standing on a button. The band is one pair of
+tokens (`--here-ring`), because stated apart it was one ring free to become
+three, with the browser's own blue on the banner a few inches from an ask in the
+page's accent and nothing saying the two rectangles meant the same thing.
+
+It is painted from the focus (`markHere`). The walk used to write it, so it said
+where the walk had left the reader rather than where they were: press `n`, click
+away, work in the panel for ten minutes, and an ask nobody was standing in went
+on wearing "you are here" — while a reader who reached that same ask by Tab or by
+clicking one of its controls got no ring at all. Focus and not `:focus-visible`,
+which is a claim about the last input rather than about where the reader is: the
+Asks button lands the focus by script after a pointer click, and the ask it
+brought them to would wear nothing.
+
+The ring lands on the ask, and an ask that draws no box draws no ring:
+`lf-suggestion` is `display: contents`, so its outline paints nothing at 0x0. The
+reader standing there sees the band on the ✓ Accept the family hangs in the page
+margin, which is the press they came for. The runtime's own `.lf-pill` rule draws
+that one, so a widget hanging a control out there gets the band without asking,
+and a widget that draws a box of its own gets the ring around the whole ask, as
+`lf-task` and `lf-options` do.
+
+What the walk keeps instead is its own place (`landed`), which is a different
+question and had been sharing the ring's answer. A reader stepping the asks from
+the banner's button is standing in the banner, so the ring is rightly off the
+page — and the walk still has to know which ask it stepped to last, or the second
+press on that button starts again from whatever is on screen.
 
 ## A scope names what it takes, and takes no more
 
@@ -893,7 +948,7 @@ turns on a fact about the page rather than about the key, the reader can already
 see which branch they are in, so the word has to agree with them. A row's cells
 are therefore computed where they are painted (`word`): `c` names what it would
 comment on, `l` says whether the press shows or hides. Keeping the words true
-costs a repaint wherever the state a word reads changes — and `paintLine`
+costs a repaint wherever the state a word reads changes — and `paintHere`
 coalesces to a frame, so painting from each writer costs nothing.
 
 ## One door to a place, and it is the one that shows it
@@ -935,10 +990,10 @@ reader who scrolled halfway down and pressed it for the first time was taken to
 the top of the page, past everything they had just read.
 
 Where the reader is, is read from what they have done, most direct first — focus,
-then the selection, then the walk's own mark, then the block they are reading —
-because each of those is a thing they did, and the later ones are older news. A
-caret counts here even where a quote wouldn't: this reading asks where the reader
-is, not what they meant to quote, which is why it is its own reading and not
+then the selection, then where the walk last left off, then the block they are
+reading — because each of those is a thing they did, and the later ones are older
+news. A caret counts here even where a quote wouldn't: this reading asks where the
+reader is, not what they meant to quote, which is why it is its own reading and not
 `pageSelection`. The banner is the one place that is no place: its controls are
 addresses held from wherever the reader stands, and the Asks button focuses
 itself on the way to running the walk.
@@ -951,19 +1006,23 @@ have no page position to measure from, and the head of the list is the right
 answer there. The tell is not "does this walk carry state" but "is where the
 reader is a position in what this walk walks".
 
-A version arriving is a navigation, and it takes the three most direct of those
-readings with it: focus, the selection and the walk's mark are all paint on a
-document that has just been replaced. Only the reading position rode across (view
-continuity), so the reader kept their place on the page and lost their place in
-the walk, and nothing said so. Standing on the third of four asks when the version
-landed, they pressed `n` and were handed the third again — the block at the top of
-the window is above an ask the walk had centred, so the walk measured from
-somewhere they had already walked past. The mark travels in the same record as the
-passage now: one place, both readings of it. Focus and the selection get no such
-record and are not owed one. A focus put back would leave the reader's next Space
-pressing a control rather than scrolling the page, which is what "the reader has
-to be standing somewhere" is about, and the words a selection covered are not
-promised to survive the revision.
+A version arriving is a navigation, and it takes the most direct of those
+readings with it: focus and the selection are paint on a document that has just
+been replaced. Only the reading position rode across (view continuity), so the
+reader kept their place on the page and lost their place in the walk, and nothing
+said so. Standing on the third of four asks when the version landed, they pressed
+`n` and were handed the third again — the block at the top of the window is above
+an ask the walk had centred, so the walk measured from somewhere they had already
+walked past. Where the walk left off travels in the same record as the passage
+now: one place, both readings of it.
+
+Focus and the selection get no such record and are not owed one. A focus put back
+would leave the reader's next Space pressing a control rather than scrolling the
+page, which is what "the reader has to be standing somewhere" is about, and the
+words a selection covered are not promised to survive the revision. The ring is
+not owed one either, for the reason it is painted rather than stored: nobody is
+standing anywhere on a document that has just loaded, so it comes back when the
+reader does.
 
 ## A widget's chrome outlives its handlers
 

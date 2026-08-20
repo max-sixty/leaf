@@ -8886,39 +8886,54 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     display: contents and can hold no focus of its own."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
-    for _ in range(len(ASKS_IN_ORDER) + 1):  # one press past the end: it wraps
+    for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:  # one past the end: it wraps
         page.keyboard.press("n")
-        # Exactly one, so the mark says where this press put them rather than where an
-        # earlier one did — and asserting it is also the wait for this press to land.
+        # The ring is painted from the focus, in the frame after the press, so waiting
+        # for it on the ask this press stepped to is both the wait and the assertion —
+        # a bare count would pass on the ring an earlier press left standing.
+        expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
+        # And exactly one wears it, the reader standing in one place at a time.
         expect(page.locator("[data-lf-ask]")).to_have_count(1)
         walked.append(
             page.evaluate(
-                "() => [document.querySelector('[data-lf-ask]').id,"
-                "       document.activeElement.tagName.toLowerCase()"
-                "       + ' ' + document.activeElement.className]"
+                "() => document.activeElement.tagName.toLowerCase()"
+                "      + ' ' + document.activeElement.className"
             )
         )
     assert walked == [
-        ["live-question", "span lf-pick lf-ui"],  # the question: its first pick mark
-        ["sug-refill", "span lf-pill lf-sug-accept lf-ui"],  # ✓ Accept, in the margin
-        ["t-baffles", "lf-task "],  # a task holds no control, so it takes focus itself
-        ["t-bath", "lf-task "],
-        ["live-question", "span lf-pick lf-ui"],
-    ], f"the walk landed somewhere else: {walked}"
+        "span lf-pick lf-ui",  # the question: its first pick mark
+        "span lf-pill lf-sug-accept lf-ui",  # ✓ Accept, in the margin
+        "lf-task ",  # a task holds no control, so it takes the focus itself
+        "lf-task ",
+        "span lf-pick lf-ui",
+    ], f"the walk landed on something else: {walked}"
 
     # And back, from where the last press left them: p wraps at this end too, and the
     # step off a suggestion is measured from the suggestion rather than from the ✓ Accept
     # holding the focus — that row is hoisted out into the page margin as a sibling of the
     # block it decides, so a walk reading it where it hangs would step back onto the
     # change the reader is standing on.
-    back = []
-    for _ in range(len(ASKS_IN_ORDER)):
+    for expected in reversed(ASKS_IN_ORDER):
         page.keyboard.press("p")
+        expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         expect(page.locator("[data-lf-ask]")).to_have_count(1)
-        back.append(page.evaluate("() => document.querySelector('[data-lf-ask]').id"))
-    assert back == ["t-bath", "t-baffles", "sug-refill", "live-question"], (
-        f"the walk back landed somewhere else: {back}"
-    )
+
+    # The stop the walk lends an ask that holds nothing to work goes back when it moves
+    # on. The two tasks here are one after the other, which is what makes the leak
+    # reachable at all: the stop is paint on the author's element, and one left standing
+    # is a tab stop no author wrote in a page the replay signature reads attribute by
+    # attribute.
+    expect(page.locator("[data-lf-ask]")).to_have_count(1)
+    # Asked of the tag's dash, the platform's own mark of a widget element, which is what
+    # the export's own sweep for stray stops asks (BAKE).
+    assert (
+        page.evaluate(
+            "() => [...document.querySelectorAll('main [tabindex]')]"
+            "  .filter(el => el.tagName.includes('-') && !el.hasAttribute('data-lf-ask'))"
+            "  .map(el => el.tagName.toLowerCase() + '#' + el.id)"
+        )
+        == []
+    ), "a lent tab stop was left on an ask the reader has walked off"
 
     # The overlay and the key line offer it because there is something to reach.
     page.keyboard.press("?")
@@ -8946,9 +8961,10 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
 
     Three readings of where they are, and the page is left in each state in turn: what
     they are reading, when they have pointed at nothing; what they have selected; and
-    the walk's own mark, once the walk itself is what last moved them. The banner's
-    button is no place — it focuses itself on the way to running the walk, so a press
-    on it measured from the focus would restart the walk on every click."""
+    where the walk itself last left off, once the walk is what last moved them. The
+    banner's button is no place — it focuses itself on the way to running the walk, so
+    a press on it measured from the focus would restart the walk on every click, and
+    the ring is gone from the page by then, the reader being in the banner."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
@@ -8989,15 +9005,17 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
 
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     """A version arriving is a navigation, and the reader's place has to ride across it.
-    The passage they were reading does; the walk's mark is paint on the document, so it
-    did not, and the reader was demoted without a word from the most exact reading of
-    where they stand to the coarsest. Standing on the third of four asks when v2
-    landed, they pressed `n` and were handed the third again — the block at the top of
-    the window is above the ask they were centred on, so the walk measured from
-    somewhere they had already walked past.
+    The passage they were reading does; where the walk had got to is a variable in a
+    module the navigation throws away, so it did not, and the reader was demoted without
+    a word from the most exact reading of where they stand to the coarsest. Standing on
+    the third of four asks when v2 landed, they pressed `n` and were handed the third
+    again — the block at the top of the window is above the ask they were centred on, so
+    the walk measured from somewhere they had already walked past.
 
-    So the mark travels in the same record as the passage, and the press after the
-    version lands is the press they would have made before it."""
+    So the walk's place travels in the same record as the passage, and the press after
+    the version lands is the press they would have made before it. The ring does not
+    travel and is not owed a record: it is painted from the focus, and a reader arriving
+    at a fresh document is standing on the page rather than in the ask they left."""
     url = serve(ASKS_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -9016,9 +9034,9 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     page.wait_for_url("**/v2.html*")
     page.wait_for_function(BOTH_STAMPS)
 
-    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
     # The condition the restore is for, stated rather than assumed: an earlier ask's own
-    # prose is on screen above the one the reader is standing on, so a walk reading the
+    # prose is on screen above the one the reader was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the ask they just left.
     assert page.evaluate("""() => {
         const ask = document.getElementById('t-baffles').getBoundingClientRect();
@@ -9027,6 +9045,135 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }"""), "the reader is at the top of the window, where either reading would do"
     page.keyboard.press("n")
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    assert errors == []
+    page.close()
+
+
+# The ring, read as a computed style: whether it is drawn, how thick, and in what
+# colour. The band is the fact under test, so the three are taken together — a stroke
+# that matched in width and not in colour would be two rings that look like one.
+RING = """(el) => { const s = getComputedStyle(el);
+    return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
+
+
+def test_the_ring_says_where_the_reader_is_standing(browser, serve):
+    """One ring, meaning one thing: this is where the reader is standing. It is painted
+    from the focus, so every way into an ask paints it and leaving takes it off.
+
+    The walk used to write it, and nothing ever took it off. So it said where the walk
+    had left them rather than where they were: press `n`, click away, work in the panel
+    for ten minutes, and an ask nobody was standing in went on wearing "you are here" —
+    while a reader who had reached the same ask by Tab or by clicking one of its
+    controls got no ring at all. The same place, marked or not by how they arrived.
+
+    The chrome wears the same band, because a reader who has backed out of the panel is
+    standing on a button and that is the same fact about them. It wore the browser's own
+    ring there, in the browser's blue, a few inches from an ask ringed in the page's
+    accent, with nothing saying the two rectangles meant one thing."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    question = page.locator("#live-question")
+    page.keyboard.press("n")
+    expect(question).to_have_attribute("data-lf-ask", "1")
+    ask_ring = question.evaluate(RING)
+    assert ask_ring == ["solid", "2px", token_colour(page, "--accent")], (
+        f"the ask is not ringed in the page's own band: {ask_ring}"
+    )
+
+    # A suggestion hangs its ✓ Accept out in the page margin, and that control is the
+    # whole of the band the reader sees there: lf-suggestion is display: contents, so
+    # the ring it wears is an outline on a 0x0 box and paints nothing. The band comes
+    # from the runtime's own .lf-pill rule, which every press in that margin wears —
+    # the suggestion family spelled its own once, which is a family stating a fact
+    # about a shape the runtime owns.
+    page.keyboard.press("n")
+    accept = page.locator(".lf-sug-accept")
+    expect(accept).to_be_focused()
+    assert accept.evaluate(RING) == ask_ring, (
+        "the control in the margin is drawn in some other band than the ask it decides: "
+        f"{accept.evaluate(RING)} against {ask_ring}"
+    )
+
+    # Standing somewhere that asks nothing takes it off, rather than leaving it behind.
+    page.locator("#h").click()
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+
+    # A pointer landing inside an open ask is standing in it, though no walk brought
+    # them there: the ring renders the focus rather than remembering a press.
+    page.locator("#live-question textarea").click()
+    expect(question).to_have_attribute("data-lf-ask", "1")
+
+    # Answering takes it off with the focus still inside, the ring being for what is
+    # waiting on the reader and that ask no longer being one.
+    page.locator("#lq-token .lf-pick").click()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect(page.locator("#lq-token .lf-pick")).to_be_focused()
+
+    # The chrome's own control, reached the way the ladder lands a reader on it: opened
+    # by pointer, closed by key, which is what earns the ring at all.
+    toggle = page.locator(".lf-comments")
+    toggle.click()
+    page.keyboard.press("Escape")
+    expect(toggle).to_be_focused()
+    assert toggle.evaluate(RING) == ask_ring, (
+        "the reader standing in the chrome is drawn in some other band than the "
+        f"one an ask uses: {toggle.evaluate(RING)} against {ask_ring}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
+    """The ladder unwinds from where the reader is, and out on the page the innermost
+    thing they are in is the ask they are standing on. There was no rung for it: `n`
+    brought them to an ask, ringed it, and no key took them out again — the one place in
+    the runtime where a press put the reader somewhere with nothing to undo it, and the
+    line said nothing about Escape at all while they stood there.
+
+    What letting go is not is the walk forgetting: the ring says where the reader is and
+    the walk keeps its own place, so the next press steps on rather than handing them
+    back the ask they just put down.
+
+    The landing is `body`, and a short page is where that stopped working. Chrome makes
+    a scroll container focusable so the keyboard can scroll it, which is the whole of
+    why `body.focus()` ever moved anything here — on a page that fits the window, the
+    call did nothing and the reader stayed on the control the line had just promised to
+    take them off."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.keyboard.press("n")
+    expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
+    expect(page.locator(".lf-keyline")).to_contain_text("let go")
+    # And the reference says the same press in its own words. It said "Back out one
+    # layer" for every rung, which was true while every rung took a layer of chrome off
+    # the page: standing on an ask is the reader holding something, with no layer over
+    # the page at all, so the two surfaces named one press two ways.
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_contain_text(
+        "Let go of what you are standing on"
+    )
+    page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
+    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
+    expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
+
+    page.keyboard.press("Escape")
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("let go")
+
+    # The worklist keeps its place through that.
+    page.keyboard.press("n")
+    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
+
+    # A window tall enough to hold the whole page, so body is no scroll container and
+    # the browser will not focus it as a favour.
+    resized(page, 1200, 1800)
+    assert not page.evaluate(
+        "() => document.body.scrollHeight > document.body.clientHeight"
+    ), "the page still scrolls, so this proves nothing about a short one"
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body"), (
+        "letting go left the reader holding the control on a page that fits the window"
+    )
     assert errors == []
     page.close()
 
@@ -11645,7 +11792,14 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     types nothing, so the typing scope never stands over it at all; the select's
     letters jump its options, so it stands and takes them — and takes only them,
     which is what leaves this press to the page. Reaching the rung used to be a
-    branch inside the typing scope's own row, restating another scope's word."""
+    branch inside the typing scope's own row, restating another scope's word.
+
+    Which rung the press reaches is the ladder's own business, and it unwinds from
+    where the reader is: standing out on the page, the first thing they are in is
+    the control they are standing on, and the panel behind them is a layer they are
+    not in. So the press takes two — and the panel closing on the second is the
+    whole of what this test is about, the control having had every chance to
+    swallow the first."""
     html = NOTED_PAGE.replace(
         "</main>",
         '<input id="zoom" type="range">'
@@ -11658,6 +11812,9 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         page.get_by_role("button", name=re.compile("^Comments")).click()
         expect(page.locator(".lf-panel")).to_be_visible()
         page.locator(control).focus()
+        expect(page.locator(".lf-keyline")).to_contain_text("let go")
+        page.keyboard.press("Escape")
+        assert page.evaluate("() => document.activeElement === document.body")
         expect(page.locator(".lf-keyline")).to_contain_text("close comments")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-panel")).to_be_hidden()

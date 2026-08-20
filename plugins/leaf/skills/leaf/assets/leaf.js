@@ -1958,9 +1958,11 @@ ${MARK_RULES}
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
   /* The open ask the reader is standing in (markHere), worn by the ask rather than by
      whichever of its controls holds the focus — they are standing in the whole thing,
-     however they got there. Exactly one element wears it at a time, and it is an
-     outline like every other mark the runtime paints on the page's own elements, so
-     arriving moves nothing. */
+     however they got there. Exactly one ask wears it at a time, on however many boxes
+     it shows through: a wrapper that generates no box draws no outline, so an ask that
+     is one hangs the ring on the boxes its contents make (shownParts). It is an outline
+     like every other mark the runtime paints on the page's own elements, so arriving
+     moves nothing. */
   [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
@@ -5466,6 +5468,44 @@ export function shownBand(el) {
     bottom: top + el.clientHeight,
   };
 }
+// The box an element shows as. An element that generates none of its own — a
+// display: contents wrapper, which is how a suggestion sits mid-sentence or around whole
+// sections without disturbing either flow — shows as what its contents paint, so its
+// bounds are theirs, and a range asks the platform for that union in one read. Its own
+// rect is (0,0) at the document's origin, which is not a degenerate box but a wrong one:
+// it reads as a real place at the top of the page, so whatever measured it travelled
+// there.
+//
+// This lived inside the legend's own reading, which is where the case was first met, and
+// that is what left it a fact about one consumer rather than about elements. The other
+// two went on asking the element directly and got the wrong place each in the shape of
+// its own job: scrollToElement centred the top of the document, and the ask walk's ring
+// painted nothing, so a page whose open asks were all suggestions answered n by appearing
+// to do nothing at all. One answer to "where is this element", so there is no second way
+// to ask.
+function shownBox(el) {
+  const r = el.getBoundingClientRect();
+  if (r.width || r.height) return r;
+  const contents = document.createRange();
+  contents.selectNodeContents(el);
+  return contents.getBoundingClientRect();
+}
+// The same reading in elements rather than pixels, for the marks the runtime paints on
+// the page's own elements: an outline needs a box to hang on, so a mark aimed at a
+// boxless element goes to the boxes its contents make. Read from the platform rather
+// than from the registry, because generating no box is not a fact about which widget
+// this is — any wrapper in any layer can do it, and CSS has no selector that says so.
+//
+// Area, where shownBox asks only for a box, because the two want different things of
+// one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
+// where it can be seen. That is also what keeps a module's apparatus out of this without
+// a marker to read — a suggestion hangs its controls off an empty span, which has a rect
+// and nothing in it, and would have worn a 2px mark of its own beside the change.
+function shownParts(el) {
+  const r = el.getBoundingClientRect();
+  if (r.width && r.height) return [el];
+  return [...el.children].flatMap((child) => shownParts(child));
+}
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an
@@ -5476,22 +5516,11 @@ export function shownBand(el) {
 // off screen has no rect, and a legend draws boxes for what is on it and nothing for
 // the rest.
 //
-// An item with no box of its own — a display: contents suggestion — shows as what its
-// contents paint, so its bounds are theirs. A range asks the platform for that union in
-// one read; the outline this box replaced painted nothing at all here, which the suite
-// only learned to see when the promise became pixels.
-//
 // `clips` caches each ancestor's answer for one pass: the legend asks for every item
 // on the page in one breath, and the items share their scrollers, so what a pass spends
 // on the walk is one style read per ancestor rather than one per item per ancestor.
 function shownRect(item, clips) {
-  let r = item.getBoundingClientRect();
-  if (!r.width && !r.height) {
-    const contents = document.createRange();
-    contents.selectNodeContents(item);
-    r = contents.getBoundingClientRect();
-  }
-  let { left, top, right, bottom } = r;
+  let { left, top, right, bottom } = shownBox(item);
   for (let a = item.parentElement; a; a = a.parentElement) {
     let c = clips.get(a);
     if (c === undefined) clips.set(a, (c = shownBand(a)));
@@ -5806,7 +5835,7 @@ function markAt(x, y) {
 function scrollToElement(el, behavior = SCROLL) {
   reveal(el);
   el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  const rect = el.getBoundingClientRect();
+  const rect = shownBox(el);
   const clear = parseFloat(getComputedStyle(pageScroller).scrollPaddingTop) || 0;
   jumpBy(rect.top - Math.max((innerHeight - rect.height) / 2, clear), behavior);
 }
@@ -8144,12 +8173,20 @@ function standingIn() {
 // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
 // than about where the reader is: the Asks button's own press lands the focus by script
 // after a click, and the ask it brought the reader to would wear nothing at all.
+//
+// The ask wears it, and so does every box the ask shows through: the ask is what the
+// readers of the mark ask after, since it carries the id captureView writes down and the
+// place askStep measures from, while an outline needs a box to hang on. For nearly every
+// ask those are one element. Where they differ the mark is still a single answer, because
+// an ask precedes what it renders, so the querySelector asking which ask the reader is on
+// still names the ask.
 function markHere() {
   const here = standingIn();
+  const wearing = new Set(here ? [here, ...shownParts(here)] : []);
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
-    if (marked !== here) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+    if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent !== here) lend(null);
-  here?.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
+  for (const el of wearing) el.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
 }
 const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // Where the walk measures from: where the reader is standing, rather than where the walk

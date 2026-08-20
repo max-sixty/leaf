@@ -8829,6 +8829,11 @@ ASKS_PAGE = """<!doctype html>
 </html>
 """
 ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
+# The ask the walk is standing on. One ask wears the mark, on however many boxes it shows
+# through — a wrapper that generates none of its own hangs the ring on the boxes its
+# contents make — so what says the walk is in one place is the outermost element wearing
+# it, never the count of elements that do.
+STANDING_ASK = "[data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 
 
 def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
@@ -8892,8 +8897,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         # for it on the ask this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
-        # And exactly one wears it, the reader standing in one place at a time.
-        expect(page.locator("[data-lf-ask]")).to_have_count(1)
+        # And exactly one ask wears it, the reader standing in one place at a time.
+        expect(page.locator(STANDING_ASK)).to_have_count(1)
         walked.append(
             page.evaluate(
                 "() => document.activeElement.tagName.toLowerCase()"
@@ -8916,14 +8921,14 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     for expected in reversed(ASKS_IN_ORDER):
         page.keyboard.press("p")
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
-        expect(page.locator("[data-lf-ask]")).to_have_count(1)
+        expect(page.locator(STANDING_ASK)).to_have_count(1)
 
     # The stop the walk lends an ask that holds nothing to work goes back when it moves
     # on. The two tasks here are one after the other, which is what makes the leak
     # reachable at all: the stop is paint on the author's element, and one left standing
     # is a tab stop no author wrote in a page the replay signature reads attribute by
     # attribute.
-    expect(page.locator("[data-lf-ask]")).to_have_count(1)
+    expect(page.locator(STANDING_ASK)).to_have_count(1)
     # Asked of the tag's dash, the platform's own mark of a widget element, which is what
     # the export's own sweep for stray stops asks (BAKE).
     assert (
@@ -8999,6 +9004,70 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     drag_over_the_done_task()
     page.keyboard.press("p")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
+    """A suggestion's wrapper generates no box — that is what lets it sit mid-sentence or
+    around whole sections without disturbing either flow — and an element with no box
+    measures (0,0) at the document's origin. That is not a degenerate answer but a wrong
+    one, so everything that asked the wrapper where it was believed it: the ring painted
+    nothing, and the travel centred the top of the document. A page whose open asks were
+    all suggestions therefore answered `n` by appearing to do nothing at all, which is
+    how it was found — every earlier press had landed on a group or a task, which have
+    boxes, so the walk looked right for as long as something else was open.
+
+    The mark names the ask and hangs on the boxes the ask shows through, and the two
+    readings are asserted apart here: the wrapper is what the walk is standing on, and
+    the slots are what the reader can see it on."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+
+    # Short enough that reaching the change is travel rather than a press with the change
+    # already on screen — the assertion below is that the reader was taken to it.
+    resized(page, 900, 400)
+
+    # What the reader can see of the change, which is what its contents paint — the
+    # wrapper's own rect answers this question wrongly, which is the whole subject here.
+    on_screen = """() => { const r = document.createRange();
+      r.selectNodeContents(document.getElementById('sug-refill'));
+      const box = r.getBoundingClientRect();
+      return box.top < innerHeight && box.bottom > 0; }"""
+
+    page.keyboard.press("n")
+    expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
+    # Standing above the change with it off screen, so the press below has somewhere to
+    # travel and arriving is not a press on something the reader could already see.
+    assert page.evaluate(on_screen) is False
+
+    page.keyboard.press("n")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+
+    # The condition the rest of the test is about, stated rather than assumed: with a box
+    # of its own on the wrapper there is nothing here to get wrong, and every assertion
+    # below would hold for the wrong reason.
+    assert page.evaluate(
+        "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
+        " return [r.width, r.height]; }"
+    ) == [0, 0]
+
+    # The travel is a glide, so the destination is the fact to wait on: a frame taken
+    # while it is still moving is a state this gesture passes through either way.
+    page.wait_for_function(on_screen)
+
+    # What wears the mark: the ask, which carries the id every reader of the mark asks
+    # after, and the slots, which are the only things here a ring can be seen on. Nothing
+    # else — the widget hangs its controls off an empty span inside the wrapper, which has
+    # a rect and no area, and a 2px mark of its own beside the change is not the promise.
+    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')].map(e => {
+      const r = e.getBoundingClientRect();
+      return { what: e.id || e.tagName, area: r.width > 0 && r.height > 0,
+               ring: getComputedStyle(e).outlineStyle !== 'none' };
+    })""")
+    assert [m["what"] for m in marks] == ["sug-refill", "LF-OLD", "LF-NEW"]
+    assert all(m["ring"] for m in marks)
+    assert [m["area"] for m in marks] == [False, True, True]
+
     assert errors == []
     page.close()
 

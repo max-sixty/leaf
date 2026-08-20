@@ -630,6 +630,38 @@ excludes two things on purpose: a flex or grid container collapses no margin
 anywhere, so a margin on an item at its edge is a placement; and an edge whose
 box is generated is the layer's own paint.
 
+## An element that draws no box says it is at the top of the page
+
+`display: contents` is how a wrapper holds content without standing between it and
+the flow, and it is what lets a suggestion sit mid-sentence or wrap whole sections
+alike. An element with no box measures `(0, 0)` — not a flat box, but a box at the
+document's origin — so every question put to the element directly comes back with a
+real-looking answer naming a place the element is not.
+
+The case had been met once already and answered in the wrong place. The legend hit it
+first and took the union of what the element's contents paint — inside its own
+reading, where it stood as a fact about the legend rather than about elements. So the
+two consumers that came after asked the element directly and got that wrong place,
+each failing in the shape its own job takes: the travel centred the top of the
+document, and the ask walk's ring painted nothing, there being nothing to hang it on.
+Neither errored, and the walk looked correct for as long as a group or a task was
+also open, since those have boxes — so what surfaced it was a page whose remaining
+asks were all suggestions, answering `n` by appearing to do nothing at all. It
+reached its author as "the link is broken", which is what a fix written one consumer
+wide eventually costs.
+
+So where an element is, is one answer (`shownBox`): its own box, or, where it has
+none, the union its contents paint, which a range asks the platform for in one read.
+Marks take the same reading in elements rather than pixels (`shownParts`), since an
+outline needs a box to hang on — the ask is what names the place, and the boxes it
+shows through are what the reader sees it on. Both read the platform rather than the
+registry: generating no box is not a fact about which widget this is, any layer's
+wrapper can do it, and CSS has no selector that says so. The parts ask for area where
+the bounds ask only for a box, because a ring is worth hanging only where it can be
+seen — which is also what keeps a module's own apparatus out of it without a marker
+to read, a suggestion hanging its controls off an empty span that has a rect and
+nothing in it.
+
 ## A widget's form follows its content, and each form states its own rules
 
 `lf-options` renders as stacked cards or as a list of rows, and nothing declares

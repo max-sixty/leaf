@@ -2608,6 +2608,33 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     ]
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    page.keyboard.press("Escape")
+
+    # And the comment panel, which is the case where the aim's own geometry had nothing to
+    # say. A fixed box is not clipped by the page's scroller, and body is that scroller
+    # narrowed to the column standing beside the panel — so the panel measured through its
+    # ancestors came back wholly clipped away, and a mode whose row promises a click on the
+    # chrome drew nothing over the chrome. Wide enough for the panel to stand beside the
+    # page, which is where body and the panel part company.
+    resized(page, 1280, 800)
+    page.locator(".lf-banner .lf-comments").click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-panel').getBoundingClientRect().left"
+        " >= document.body.clientWidth"
+    )
+    page.keyboard.press("i")
+    box = page.locator(".lf-panel").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-comments")
+    assert page.evaluate(
+        """() => {
+             const aim = document.querySelector('.lf-aim').getBoundingClientRect();
+             const panel = document.querySelector('.lf-panel').getBoundingClientRect();
+             return Math.abs(aim.width - panel.width) < 3
+                 && Math.abs(aim.left - panel.left) < 3;
+           }"""
+    ), "the aim's box does not stand on the panel it names"
     assert errors == []
     page.close()
 
@@ -5164,9 +5191,8 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
 
 def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     """A thread can move, not just appear: resolving the first one sends it to the
-    resolved disclosure and renumbers every thread after it — the reply box's armed
-    chip and its placeholder address together, on nodes that are kept rather than
-    remade. The
+    resolved disclosure and renumbers every thread after it — the address its reply
+    box speaks moving with it, on nodes that are kept rather than remade. The
     disclosure itself is kept too, so the user's open toggle survives the next
     resolution instead of snapping shut on every arrival, which is what the rebuild
     did."""
@@ -5176,9 +5202,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     c1, c2, c3 = [
         e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
     ]
-    expect(
-        page.locator(f'.lf-thread[data-id="{c2}"] .lf-compose > .lf-address')
-    ).to_have_text("2")
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
+        "placeholder", "Reply · g c 2"
+    )
     page.evaluate(
         """(id) => { window.__second = document.querySelector(`.lf-thread[data-id="${id}"]`); }""",
         c2,
@@ -5194,12 +5220,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
     expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
     # The survivors renumber without being remade: same node, new address, and the
-    # address its placeholder speaks moved with the badge.
-    expect(
-        page.locator(f'.lf-thread[data-id="{c2}"] .lf-compose > .lf-address')
-    ).to_have_text("1")
+    # address its placeholder speaks moved with it.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g 1"
+        "placeholder", "Reply · g c 1"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -5361,7 +5384,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     out of the keys' reach from the same frame, so j/k and the g addresses walk what
     is left rather than a corpse that is about to go. Its own reply box gives up the
     address with them: the box under it has just taken that digit, and two boxes
-    offering g 1 is a key line promising a press that lands on one of them.
+    offering g c 1 is a key line promising a press that lands on one of them.
 
     Held at its first frame rather than sampled mid-flight, the way the suggestion's
     own fold is read: mid-flight is a race with the clock that passes on a fast
@@ -5419,7 +5442,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g 1"
+        "placeholder", "Reply · g c 1"
     )
 
     # Half way down, the outcome is still on screen. A fold from the bottom takes the
@@ -5595,9 +5618,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         collect(sheet.cssRules, global_);
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
-        // (lf-address, worn on a reply box and on an option's corner alike) is named
-        // by the scoped rule that says when to paint it, and it would answer this
-        // question with the reach it was given rather than with a leak.
+        // (lf-address, worn by the chord's own layer and by an option's corner alike)
+        // is named by the scoped rule that says when to paint it, and it would answer
+        // this question with the reach it was given rather than with a leak.
         probe.className = [...scoped].filter(c => !global_.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
         document.getElementById("s").append(plain, probe);
@@ -5614,9 +5637,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         f"scoped chrome rules reached an element in the page: {surface['moved']}"
     )
     # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container, which is exactly why a scoped rule could not reach it —
-    # except the last, which is worn by nothing and is here for the other half of the
-    # sentence. lf-copy is the medium `version export` marks on the root, and the runtime
+    # inside its own container — or, for lf-address, on both sides of that line at once,
+    # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
+    # last, which is worn by nothing and is here for the other half of the sentence. lf-copy is the medium `version export` marks on the root, and the runtime
     # names it under a negation to withhold the live page's scroller from a file that has
     # no panel to scroll beside; a rule that dresses no element can leak onto none, and
     # what the pin is for is the day one of these stops being either kind.
@@ -11550,8 +11573,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
-    home, so the group brings no box of its own — and an armed g leader keeps its
-    digits even from a mark, because the chord promised a thread.
+    home, so the group brings no box of its own — and an armed g chord keeps its
+    digits even from a mark, because the chord promised a comment.
 
     The answer is said once, on the press. The log is where it is recorded, and the
     group's own markup stays the author's: a module writes there only where the
@@ -11613,14 +11636,15 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert other_errors == []
     other.close()
 
-    # The chord's promise holds from a mark: g then 1 reaches the first thread's
-    # reply box, and no pick is sent for the digit.
+    # The chord's promise holds from a mark: g c then 1 reaches the first thread's
+    # reply box, and no pick is sent for the digit the chord took.
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
+    page.keyboard.press("c")
     page.keyboard.press("1")
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
-    assert sent[-1]["action"] == "answer", "the leader's digit must not pick"
+    assert sent[-1]["action"] == "answer", "the chord's digit must not pick"
     assert errors == []
     page.close()
 
@@ -12043,6 +12067,49 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.close()
 
 
+# Every list the g chord addresses, on one page: comments (the test adds them), an ask,
+# links, and a disclosure. The lists have to stand together, because what the chord is for
+# is that one letter chooses between them.
+ADDRESSED_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>addressed</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="t">Addressed</h1>
+<p id="p1">The first passage under discussion, with words
+enough for two separate remarks to land in it.</p>
+<p id="refs">See <a id="lk1" href="#p1">the first passage, whose link text is long
+enough that it runs past the end of one line and carries on onto the next</a>, and then
+<a id="lk2" href="#p2">the second</a>.</p>
+<details id="dsc"><summary id="dsc-head">What the store costs</summary>
+<p id="dsc-body">A replica in each region, and a read on every request that carries a
+session.</p></details>
+<lf-options id="opts" choose>
+  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+  which costs a replica and buys revocation for free.</lf-option>
+  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  quietly puts one back.</lf-option>
+</lf-options>
+<p id="p2">A short second passage.</p>
+{tail}
+</main>
+</body>
+</html>
+""".format(
+    # Enough page below the ask that it can be scrolled up under the banner, which is where
+    # a chip placed from the page's geometry alone lands on the status line.
+    tail="\n".join(
+        f"<p id='t{i}'>Tail {i}. " + "Words. " * 20 + "</p>" for i in range(12)
+    )
+)
+
+
 NOTED_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -12183,13 +12250,19 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.close()
 
 
-def test_the_leader_key_addresses_reply_boxes(browser, serve):
-    """A reply box's send shortcut is focus-scoped, so only the focused box claims it:
-    unfocused, the placeholder carries the box's own address — g plus the digit the
-    armed window paints on the box as a chip — and that sequence reaches the box from
-    anywhere outside a typing context. Inside one, g and digits are just letters; a
-    non-digit after g disarms the leader and keeps its ordinary meaning."""
-    url = serve(NOTED_PAGE)
+def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
+    """g names a list and then a place in it. The letter is what made the chord general:
+    it was one list deep — g then a digit, and the digit meant a reply box — so the one
+    list that asked first held the whole of a leader, and the line advertised a range that
+    only ever counted threads.
+
+    So each list states itself, and every surface reads the table: the letters on the line
+    are the lists the page has, the digits are the members the named one holds, each member
+    wears its own digit while it is aimed at, and a reply box's placeholder speaks the whole
+    address it answers to. What is asserted here is that the lists behave as one
+    mechanism — a comment, an ask, a link and a disclosure reached the same way — rather
+    than that any of them works, which is each list's own business elsewhere."""
+    url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
 
     def comment(anchor, text):
@@ -12206,53 +12279,226 @@ def test_the_leader_key_addresses_reply_boxes(browser, serve):
 
     c1 = comment({"quote": "first passage"}, "Sharpen this.")
     c2 = comment({"quote": "two separate remarks"}, "Second thought.")
-    c3 = comment({"section": "fig"}, "The figure too.")
+    c3 = comment({"section": "p2"}, "The short one too.")  # the third address
     page, errors = open_page(browser, url)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
+    line = page.locator(".lf-keyline")
 
-    # g then a digit lands in that thread's reply box, opening the panel on the way.
+    # The page's own key is the letter alone: what it opens is a table, and a range on the
+    # line here could only ever have counted one of the lists in it.
+    expect(line).to_contain_text("go to")
+    expect(line).not_to_contain_text("1–3")
+
+    # Wide enough that the panel will stand beside the page rather than over it, which is
+    # where a box in the chrome and the page's own scroller part company: body is narrowed
+    # to the column, the panel is fixed and is not inside it, and a chip placed by walking
+    # the page's clips came back with the whole reply box clipped away.
+    resized(page, 1280, 800)
+
+    # Armed, the line is the lists the page has — one chip each, counting what each holds.
     page.keyboard.press("g")
+    expect(line).to_contain_text("c 1–3")
+    expect(line).to_contain_text("comments")
+    expect(line).to_contain_text("a 1")
+    expect(line).to_contain_text("asks")
+    expect(line).to_contain_text("l 1–2")
+    expect(line).to_contain_text("links")
+    expect(line).to_contain_text("d 1")
+    expect(line).to_contain_text("disclosures")
+    # And nothing wears a digit yet: no list is named, so no digit is a promise.
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    # The chips are the eye's copy of a mode; a reader who cannot see them is told the
+    # window opened and what it holds, off the same rows the line just drew — the ranges
+    # among them, where a row whose label counts the page used to be read out key by key
+    # while an option group's, written as a string, was spelled "1–3".
+    expect(page.locator(".lf-live")).to_contain_text("c 1–3 comments")
+
+    # A letter names one, and naming it shows it: the comments live in a panel that draws
+    # nothing while it is shut, so the letter opens it and the members then wear their
+    # addresses — on the box the digit lands in, which for a comment is its reply box
+    # rather than the thread's own corner. Opened on the digit instead, the letter painted
+    # nothing at all and the addresses arrived after the choice they were for.
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    # Waited for rather than read, the strip the panel holds being the layout's answer to
+    # the open and not the open itself.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-thread > .lf-compose')"
+        ".getBoundingClientRect().left > document.body.clientWidth"
+    )
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(3)
+    assert page.evaluate(
+        """() => {
+             const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
+             const boxes = [...document.querySelectorAll('.lf-thread > .lf-compose')];
+             return chips.map((chip, i) => {
+               const c = chip.getBoundingClientRect(), b = boxes[i].getBoundingClientRect();
+               return chip.textContent === String(i + 1)
+                 && Math.abs(c.left + c.width / 2 - b.left) < 2
+                 && Math.abs(c.top + c.height / 2 - b.top) < 2;
+             });
+           }"""
+    ) == [True, True, True], "the chips are not the addresses of the boxes under them"
+    # The chord's own chip says which stage the reader is at, and the digits are now the
+    # whole of what the letter's row promises — spoken as well as drawn.
+    expect(line).to_contain_text("1–3")
+    expect(line).to_contain_text("cancel")
+    expect(page.locator(".lf-live")).to_contain_text("1–3 comments")
+
+    # And the digit arrives, however long the reader took over it: the mode stands until
+    # something ends it, where a clock used to end it at a second and a half — and a letter
+    # arriving after that clock was not a no-op but the page's own key, so a slow reader
+    # pressing `l` got the leaves board rather than the links.
+    page.wait_for_timeout(2000)
+    expect(line).to_contain_text("1–3")
     page.keyboard.press("2")
     ta2 = page.locator(f'.lf-thread[data-id="{c2}"] textarea')
     expect(ta2).to_be_focused()
-    # The focused box claims the send keys; an unfocused one its own address, which
-    # the armed window paints on the box as a chip.
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    # The focused box claims the send keys; an unfocused one speaks its own address, whole
+    # — the chip is the aimed moment's copy of a fact the placeholder states always.
     expect(ta2).to_have_attribute("placeholder", re.compile(r"Reply · (⌘⏎|Ctrl\+⏎)$"))
-    ta1 = page.locator(f'.lf-thread[data-id="{c1}"] textarea')
-    expect(ta1).to_have_attribute("placeholder", "Reply · g 1")
-    expect(
-        page.locator(f'.lf-thread[data-id="{c1}"] .lf-compose > .lf-address')
-    ).to_have_text("1")
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_attribute(
+        "placeholder", "Reply · g c 1"
+    )
 
-    # A digit with no leader is nothing: Esc backs out to the thread, and 3 stays put.
+    # A digit outside the window is nothing: Esc backs out to the thread, and 3 stays put
+    # rather than reaching the third address the window had just been offering.
     page.keyboard.press("Escape")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     page.keyboard.press("3")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
-    # The chip is the armed window's paint, worn on the box the digit lands in:
-    # hidden at rest (the placeholder speaks the standing address), visible while
-    # armed, gone when Esc takes the window down.
-    chip1 = page.locator(f'.lf-thread[data-id="{c1}"] .lf-compose > .lf-address')
-    expect(chip1).to_be_hidden()
+    # The same motion into a different list. An ask is reached by the control that decides
+    # it, wearing the ring that says where the reader is standing.
+    #
+    # Scrolled first so the banner has taken the ask's own corner. The bar stands over the
+    # page and clips none of it, so the reading that says where a member is (shownRect) is
+    # right to ignore it and the chip is the one thing that cannot: placed on that corner it
+    # is a digit floating over the status line, addressing nothing the reader can see there.
+    page.evaluate(
+        """() => { const ask = document.getElementById('opts');
+                   document.body.scrollTo(
+                     0, ask.getBoundingClientRect().top + document.body.scrollTop - 8); }"""
+    )
     page.keyboard.press("g")
-    expect(chip1).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(chip1).to_be_hidden()
-    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(1)
+    assert page.evaluate(
+        """() => document.querySelector('.lf-addresses > .lf-address')
+                   .getBoundingClientRect().top
+                 >= document.querySelector('.lf-banner').getBoundingClientRect().bottom"""
+    ), "the ask's address chip is drawn over the banner"
+    page.keyboard.press("1")
+    expect(page.locator("#opts .lf-pick").first).to_be_focused()
+    expect(page.locator("#opts[data-lf-ask]")).to_have_count(1)
 
-    # A non-digit disarms the leader and keeps its ordinary meaning: g j is a thread step.
+    # The links, from the head of the page where both are on screen. A chip is hung on the
+    # corner a member starts at, which for an inline that wraps is the corner of its first
+    # line and not of its bounding box — those run the width of the column, so a digit
+    # placed there sits a line above the words it addresses, over somebody else's sentence.
+    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    page.keyboard.press("l")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(2)
+    assert page.evaluate(
+        """() => {
+             const links = [...document.querySelectorAll('#refs a[href]')];
+             const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
+             return {wrapped: links[0].getClientRects().length > 1,
+                     on: chips.map((chip, i) => {
+                       const c = chip.getBoundingClientRect();
+                       const first = links[i].getClientRects()[0];
+                       return Math.abs(c.left + c.width / 2 - first.left) < 2
+                           && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                     })};
+           }"""
+    ) == {"wrapped": True, "on": [True, True]}, (
+        "a chip is not on the corner its link starts at"
+    )
+    page.keyboard.press("Escape")
+
+    # And from the foot of the page, where neither of them can be seen.
+    # A list is the document's and not the window's, so an address means the same link at
+    # every scroll position and holds where no chip can be drawn for it — counted what is
+    # in the window, `g l 2` would name a different link each time the reader moved, and
+    # the line would go stale about which digits are live every time the page scrolled.
+    # The arrival is the focus, and the press that finishes the motion is the platform's:
+    # named on the line, or the reader lands with nothing said.
+    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    page.keyboard.press("g")
+    expect(line).to_contain_text("l 1–2")
+    page.keyboard.press("l")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    page.keyboard.press("2")
+    expect(page.locator("#lk2")).to_be_focused()
+    expect(line).to_contain_text("follow")
+
+    # The panel folds its resolved comments into a <details> of its own, and that box is
+    # the chrome's. A list is what the document holds, so it is not addressed: read of the
+    # document at large, `d` would offer a digit for a disclosure the author never wrote
+    # and the reader never sees on the page.
+    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c3})
+    told(page)
+    expect(page.locator("details.lf-details")).to_have_count(1)
+    page.keyboard.press("g")
+    expect(line).to_contain_text("d 1")
+    expect(line).not_to_contain_text("d 1–2")
+    page.keyboard.press("Escape")
+
+    # The disclosures, and the one arrival that changes the page it arrives at. Every
+    # other member is reached through a reveal that opens the collapsed boxes on the way;
+    # here the box is the member, so that same reveal is the whole motion, and the reader
+    # who wanted a section open has it open having asked once.
+    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    page.keyboard.press("d")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(1)
+    assert page.evaluate(
+        """() => {
+             const c = document.querySelector('.lf-addresses > .lf-address')
+                        .getBoundingClientRect();
+             const first = document.getElementById('dsc-head').getClientRects()[0];
+             return Math.abs(c.left + c.width / 2 - first.left) < 2
+                 && Math.abs(c.top + c.height / 2 - first.top) < 2;
+           }"""
+    ), "the chip is not on the corner the summary starts at"
+    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
+    page.keyboard.press("1")
+    expect(page.locator("#dsc-head")).to_be_focused()
+    expect(page.locator("#dsc")).to_have_attribute("open", "")
+
+    # Standing there, the line says which way the next press goes — the platform's press,
+    # which the runtime names rather than binds, and which is Space as well as Enter here
+    # where a link takes Enter alone, Space under one being the page's own scroll. A word
+    # fixed at declaration could say only one of the two directions.
+    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"))
+    page.keyboard.press("Enter")
+    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
+    # Timed out short, because the poll would otherwise answer for the toggle. Opening a
+    # disclosure is the one change in what the next press does that no writer in the
+    # runtime reports, so the word stood at "close" for the three seconds until a poll
+    # came past — and every assertion that waits reads a stale line as an eventually
+    # right one.
+    expect(line).to_contain_text(re.compile(r"⏎ / space\s*open"), timeout=1500)
+    page.keyboard.press(" ")
+    expect(page.locator("#dsc")).to_have_attribute("open", "")
+    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"), timeout=1500)
+
+    # A key naming no list disarms the chord and keeps its ordinary meaning: g j is a
+    # thread step, so a mistyped g costs nothing.
     page.keyboard.press("g")
     page.keyboard.press("j")
-    expect(page.locator(f'.lf-thread[data-id="{c3}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
 
-    # Typing contexts are untouched: in a box, g and 1 are text, and focus stays put.
+    # Typing contexts are untouched: in a box, the whole chord is text.
     page.keyboard.press("Enter")
-    ta3 = page.locator(f'.lf-thread[data-id="{c3}"] textarea')
-    expect(ta3).to_be_focused()
-    page.keyboard.type("g1")
-    expect(ta3).to_have_value("g1")
-    expect(ta3).to_be_focused()
+    ta1 = page.locator(f'.lf-thread[data-id="{c1}"] textarea')
+    expect(ta1).to_be_focused()
+    page.keyboard.type("gc1")
+    expect(ta1).to_have_value("gc1")
+    expect(ta1).to_be_focused()
     assert errors == []
     page.close()
 
@@ -12284,15 +12530,15 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(line).to_contain_text("keys")
     expect(line).not_to_contain_text("esc")
 
-    # Armed with the panel closed: the pending chord and its way out are on screen,
-    # and the digit chip counts the one thread there is rather than promising nine.
+    # Armed with the panel closed: the pending chord and its way out are on screen, and
+    # the letter's chip counts the one thread there is rather than promising nine.
     page.keyboard.press("g")
-    expect(line).to_contain_text("reply to thread")
-    expect(line).to_contain_text("1")
+    expect(line).to_contain_text("comments")
+    expect(line).to_contain_text("c 1")
     expect(line).not_to_contain_text("1–9")
     expect(line).to_contain_text("cancel")
     page.keyboard.press("Escape")
-    expect(line).not_to_contain_text("reply to thread")
+    expect(line).not_to_contain_text("comments")
 
     # c opens the panel into the general box: the line says send, and where Esc goes.
     page.keyboard.press("c")
@@ -12720,7 +12966,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     the ? overlay didn't, and a shortcut could hold its liveness where no surface
     could ask — inside its own run — so the overlay offered g 1–9 with no thread to
     reply to, and named a walk through a list of one. Liveness is one declaration,
-    and the dispatcher, the line, and the overlay all ask it."""
+    and the dispatcher, the line, and the overlay all ask it. The chord's lists are
+    where that division earns its keep twice over: a list the page hasn't got is a
+    scope the reference must not name, and the scopes share a title, so the section
+    they build has to take its rows from the contributors the page actually has."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -12732,7 +12981,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # Nothing is selected, so c's own row says the box it would open — the word is the
     # press's, not the key's (see the row's neighbour test below).
     expect(help_el).to_contain_text("Comment on the page")
-    expect(help_el).not_to_contain_text("Reply to the nth")
+    expect(help_el).not_to_contain_text("With g armed")
+    expect(help_el).not_to_contain_text("open comment's reply box")
+    # And no link scope: this page holds none, while the machine's own board is full of
+    # them — a scope asked about the document at large was had by every page there is.
+    expect(help_el).not_to_contain_text("On a link")
     expect(help_el).not_to_contain_text("Next / previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
@@ -12751,8 +13004,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     line = page.locator(".lf-keyline")
     expect(line).not_to_contain_text("threads")
 
-    # Threads arrive, and the next open holds the rows they make live — the g
-    # range counting the two there are, not the nine there could be.
+    # Threads arrive, and the next open holds the rows they make live — the chord's
+    # comments row counting the two there are, not the nine there could be, and no
+    # row for the lists this page hasn't got.
     for text in ["A thread.", "Another."]:
         interact.append_event(
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
@@ -12763,7 +13017,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # change to lean on, so the repaint is the thread render's own.
     expect(line).to_contain_text("threads")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("g 1–2")
+    expect(help_el).to_contain_text("With g armed")
+    expect(help_el).to_contain_text("c 1–2")
+    expect(help_el).not_to_contain_text("link on screen")
+    expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next / previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("In the versions menu")
@@ -12780,7 +13037,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Walk the versions")
-    expect(help_el).to_contain_text("g 1–2")
+    expect(help_el).to_contain_text("c 1–2")
     page.keyboard.press("Escape")
 
     # A resolved thread stays focusable after the last open one is gone, and the
@@ -12797,6 +13054,16 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(resolved).to_be_focused()
     expect(line).to_contain_text("close comments")
     expect(line).not_to_contain_text("threads")
+
+    # And no disclosure scope, with the panel's own <details> standing open beside the
+    # reader. A capability is what they can reach from where the scope holds, and this box
+    # is the chrome's — it declares the keys it answers itself. Asked of the document at
+    # large, the scope arrives on every page that has ever had a comment resolved.
+    expect(page.locator(".lf-details[open]")).to_have_count(1)
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    expect(help_el).not_to_contain_text("On a disclosure")
+    page.keyboard.press("Escape")
     assert errors == []
     page.close()
 
@@ -12897,11 +13164,11 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     grip.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
-    # The contract's flip side: the leader refuses to arm over a control that has
+    # The contract's flip side: the chord refuses to arm over a control that has
     # claimed Escape, or one press would have two owners — the grip consuming it,
     # the chord promising its cancel.
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("reply to thread")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("comments")
     expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
     page.keyboard.press("Escape")
     # The grab is over (an uncancelled one would also leave the card in Todo),
@@ -13641,30 +13908,31 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
 def test_one_chip_says_every_keyboard_address(browser, serve):
     """A digit that reaches something is drawn one way, on both sides of the scope line.
 
-    The panel's reply box wears the address the g leader answers and an option wears the
-    one a pick answers, and this page shows them at once — a question asked inside a
-    thread, so the two chips stand a couple of centimetres apart in the same panel. They
-    were two hand-matched copies of a dozen declarations, one in the chrome's stylesheet
-    and one in the theme, with nothing to say if either moved; the look is .lf-address in
-    the runtime's document-level vocabulary now, and each wearer states only where its
-    chip sits and when it shows.
+    The g chord's chips answer its digits and an option wears the one a pick answers, and
+    this page shows them at once — a question asked inside a thread, so the two chips
+    stand a couple of centimetres apart in the same panel. They were two hand-matched
+    copies of a dozen declarations, one in the chrome's stylesheet and one in the theme,
+    with nothing to say if either moved; the look is .lf-address in the runtime's
+    document-level vocabulary now, and each wearer states only where its chip sits and
+    when it shows.
 
-    Which is why the look is what this compares and placement is not: the reply box's
-    chip hangs off its own corner, and an option's is anchored from outside the group
-    that would otherwise clip it (see test_a_questions_digits_are_drawn_whole). Same
-    chip, two boxes to hang it from."""
+    Which is why the look is what this compares and placement is not: the chord's chips
+    are placed from the viewport in a layer of their own, and an option's is anchored
+    from outside the group that would otherwise clip it (see
+    test_a_questions_digits_are_drawn_whole). Same chip, two boxes to hang it from."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         interact.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
     # `n` opens the panel on the first ask and lands on its mark, which is what paints
-    # that group's digits; g then arms the leader, which paints the reply boxes'.
+    # that group's digits; g c then aims the chord at the comments, which paints theirs.
     page.keyboard.press("n")
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
-    addressed = page.locator(".lf-thread .lf-compose > .lf-address").first
+    page.keyboard.press("c")
+    addressed = page.locator(".lf-addresses > .lf-address").first
     expect(addressed).to_be_visible()
 
     face = """el => { const s = getComputedStyle(el);

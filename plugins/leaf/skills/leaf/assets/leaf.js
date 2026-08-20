@@ -103,20 +103,22 @@
  * bar the aim chord's modifier latch. The full vocabulary — what a row's cells mean, and
  * how a scope's `when` differs from a row's — is written where the register is defined.
  *
- * One timed sequence exists: g arms a short leader window in which a digit addresses the
- * nth open thread's reply box — the address each box wears as a chip while the window is
- * armed and its placeholder speaks always — and any other key disarms the window and keeps
- * its ordinary meaning, which the dispatcher spells as disarming and walking the stack
- * again. Escape is a binding like any other, and the rung is whichever scope in reach
- * binds it first, so backing out is one layer per press and the promise cannot drift from
- * the press.
+ * One key sequence exists: g arms a mode in which a letter names one of the page's
+ * lists — its comments, its asks, its links — and a digit is a place in that list,
+ * so `g c 2` is the second reply box and `g l 3` the third link on screen. Which lists
+ * there are is one table (ADDRESSES) and no consumer branches on which one is aimed at.
+ * Each member of the named list wears its digit as a chip while the window stands, and any
+ * other key disarms it and keeps its ordinary meaning, which the dispatcher spells as
+ * disarming and walking the stack again. Escape is a binding like any other, and the rung
+ * is whichever scope in reach binds it first, so backing out is one layer per press and
+ * the promise cannot drift from the press.
  *
  * What a key would do right now is state the user can read, not recall. The key line (one
  * quiet fixed line, bottom left) renders the stack outward and drops what the room cannot
  * hold, `?` last and always, so what a narrow window costs is the page's keys and what it
  * keeps is the scope the reader stands in. The "?" overlay names every scope the page has,
  * live rows only. The line is aria-hidden: it is the eye's copy of facts spoken elsewhere
- * — placeholders speak each box's address, announce() speaks the leader arming and a
+ * — placeholders speak each box's address, announce() speaks each stage of the chord and a
  * grabbed card's keys, the overlay speaks the whole reference.
  *
  * A message arrives as logged and renders here, in the same vendored layer that owns
@@ -1096,6 +1098,13 @@ const walkRows = (rows, dir) => {
 // either says so — a `when` or an `at` nobody wrote means always, which is what makes the
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
+// The same or, for a predicate whose silence means no rather than yes: what any contributor
+// claims, the section claims. `either`'s identity is the wrong one here, and using it was
+// this file's own bug one field over — a scope's claim deleted by a contributor that stated
+// none, which is what `In a text box` is, the typing scope claiming the keys that put a
+// character in a box and every wired box contributing a second section under its title
+// claiming nothing. Takes the binding its callers take, where `when` and `at` take none.
+const anyOf = (a, b) => (a && b ? (...args) => a(...args) || b(...args) : (a ?? b));
 const elementScopes = new WeakMap();
 const declaredScopes = new Map(); // title → section
 const sentence = (row) => (typeof row.does === "string" ? row.does : row);
@@ -1106,15 +1115,21 @@ const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
 // core's scopes and the widgets' are gathered into one list of sections. The rules above are
 // this function — rows keyed by sentence, `when` and `at` joined by or — and a near-copy of a
 // merge is a merge that drifts on the day one of the three learns something.
-function merge(sections, { title, when, at, rows }) {
+function merge(sections, { title, when, at, claims, rows }) {
   const seen = sections.get(title);
   if (!seen) {
-    sections.set(title, { title, when, at, rows: new Map(rows) });
+    sections.set(title, { title, when, at, claims, rows: new Map(rows) });
     return;
   }
   for (const [key, row] of rows) seen.rows.set(key, row);
   seen.when = either(seen.when, when);
   seen.at = either(seen.at, at);
+  // The claim travels because the reference reads it: a section that takes the keyboard
+  // whole is one the reader is in or is not near at all, and its rows are then read by
+  // their own liveness (showHelp). Dropped here, the chord's section arrived claiming
+  // nothing, was listed whole, and named a list the page had not got — a fact stated on
+  // the scope and lost on the way to the one surface that asks for it.
+  seen.claims = anyOf(seen.claims, claims);
 }
 
 /** Declare a scope's keys where the code implementing them is.
@@ -1167,12 +1182,17 @@ export const saying = (rows) =>
     .filter(live)
     .map((row) => `${spoken(row)} ${word(row.line)}`)
     .join(", ");
+// A row's own label where it has one, read the way every other surface reads a cell, and
+// the bindings where it has none — which is what keeps a listener hearing "Escape" rather
+// than the line's "esc". Asking whether the label was written as a string made the same fact
+// announce two ways by accident: an option group's digits are spelled "1–3" because its label
+// happens to be a string, while the chord's were read out as "1 or 2 or 3" because its label
+// counts what the page holds and so has to be a function.
 const spoken = (row) =>
-  typeof row.label === "string"
-    ? row.label
-    : bindings(row)
-        .map((b) => (b === " " ? "Space" : b))
-        .join(" or ");
+  word(row.label) ??
+  bindings(row)
+    .map((b) => (b === " " ? "Space" : b))
+    .join(" or ");
 /** Repaint the surfaces after a state change no focus event reports. */
 export const paintKeys = () => paintHere();
 
@@ -1193,6 +1213,12 @@ function paintHere() {
   requestAnimationFrame(() => {
     herePending = false;
     markHere();
+    // The chips are where the reader can go, beside the ring saying where they are and the
+    // line saying what the next press does — one paint, because it is one question, and
+    // because a chip repainted by its own door alone went stale on the door it did not
+    // have: a poll that retires an ask moves the list under an armed window, and only the
+    // panel's own render was calling the chip pass.
+    paintAddresses();
     renderLine();
   });
 }
@@ -1223,7 +1249,7 @@ function scopesFor(node) {
 }
 // Whether the focused control has claimed Escape for itself. Asked of the control's own
 // scopes and not of the stack, because both callers mean "this press already has an owner
-// where the reader is standing": the leader refuses to arm there, and focus entering one
+// where the reader is standing": the chord refuses to arm there, and focus entering one
 // disarms it. Every panel and mode in the runtime carries a rung of some kind, so a
 // question asked of the whole stack would answer yes almost everywhere and the chord would
 // never arm at all.
@@ -1883,14 +1909,14 @@ style.textContent = `
   .lf-btn:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
   .lf-pill:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
   /* The keyboard address: the digit that reaches this thing right now, worn as a chip
-     off its holder's corner so an address arriving moves nothing. The panel's reply box
-     wears the one the g leader answers and an option wears the one a pick answers, which
-     is the same promise made on the two sides of the chrome's scope line — so it is
-     stated here, at the level both can reach, rather than as the twelve declarations
-     each once carried. They had not drifted; nothing was going to say so if they did.
-     What a wearer keeps is where its chip sits and when it shows — a reply box's hangs
-     off the box's own corner while the leader is armed, an option's stands in a column
-     that option holds for it. This rule dresses; theirs place and paint.
+     off its holder's corner so an address arriving moves nothing. The g chord paints one
+     on every member of the list it has aimed at and an option wears the one a pick
+     answers, which is the same promise made on the two sides of the chrome's scope line —
+     so it is stated here, at the level both can reach, rather than as the twelve
+     declarations each once carried. They had not drifted; nothing was going to say so if
+     they did. What a wearer keeps is where its chip sits and when it shows — the chord's
+     stand in a layer of their own, placed on each member's visible corner, an option's in
+     a column that option holds for it. This rule dresses; theirs place and paint.
 
      Its two numbers are off the ladder because they are the disc rather than the type:
      a 17px circle with a 1px ring leaves 15px of interior, which is the line the digit
@@ -2237,17 +2263,6 @@ ${MARK_RULES}
        jump: nothing above it moves, and the newcomer settles rather than appears. */
     .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
     .lf-thread:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
-    /* The g leader's address chip (.lf-address, dressed at document level), worn on the
-       reply box it addresses — where the digit lands, not the thread's corner — and
-       painted only while the window is armed: the placeholder speaks the address at all
-       times, so the chip is the armed moment's paint rather than a standing second copy
-       of the fact. Empty is unaddressed (a thread past the ninth); renderThreads writes
-       the number, it doesn't add or drop the element. Top-anchored: field-sizing grows
-       the box downward, and the chip must not ride the growth. Named through the box it
-       sits on, because a thread can hold a widget wearing an address of its own. */
-    .lf-compose { position: relative; }
-    .lf-compose > .lf-address { position: absolute; top: -8px; left: -8px; }
-    .lf-leader-armed .lf-compose > .lf-address:not(:empty) { display: block; }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
@@ -2427,6 +2442,22 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
+    /* The g chord's addresses: a chip per member of the list it has aimed at, in a layer
+       of the chrome's own so a digit can be hung on a link set mid-sentence without a
+       span being written into the paragraph. Fixed, because the members are in three
+       different scrollers — the document, the comment panel, a board's own overflow — and
+       one layer that follows none of them is what lets a single pass place them all from
+       the viewport rects it just read; the pass runs again when anything scrolls under
+       it. Each chip is centred on the corner its member starts at — the first line of an
+       inline that wraps, not the whole box it spans — half in and half out, the place a
+       reply box's chip has always been drawn. Nothing here is something to press. */
+    .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
+    .lf-addresses > .lf-address { position: absolute; display: block;
+      transform: translate(-50%, -50%); }
+    /* Under the banner there is no room to straddle the corner, so the chip hangs below
+       the covered edge instead — the same step the legend's tag makes, and the same class
+       name, because it is the same fact about the same bar. */
+    .lf-addresses > .lf-address.lf-in { transform: translate(-50%, 0); }
     .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
       box-sizing: border-box;
       border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
@@ -3009,6 +3040,11 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
+// The g chord's addresses: a numbered chip on every member of the list it has aimed at,
+// drawn here for the same reason the legend is (paintAddresses, its one writer). The eye's
+// copy of what the chord announces, so it says nothing to a screen reader.
+const addressBoard = el("div", "lf-ui lf-addresses");
+addressBoard.setAttribute("aria-hidden", "true");
 // The runtime's parts, named: a design comment can point at one, and an anchor names an
 // element by id, so each part that is a thing to point at carries a stable one under the
 // runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
@@ -3037,6 +3073,7 @@ chromeRoot.append(
   asksPanel,
   panel,
   legendRoot,
+  addressBoard,
   aimBox,
   fab,
   composer,
@@ -3740,8 +3777,8 @@ function wireInput(
   // The hint goes in the placeholder, where it's visible exactly while the box is
   // empty and can't be found any other way; the button's tooltip spells the send key
   // out. The send shortcut is focus-scoped, so only the focused box may claim it —
-  // unfocused, the placeholder carries the box's own address instead (the leader
-  // sequence that reaches it), where the box has one. hint is a function where the
+  // unfocused, the placeholder carries the box's own address instead (the chord
+  // that reaches it), where the box has one. hint is a function where the
   // label changes under a live box (the composer's suggest mode); address is always
   // one, because a thread's number renumbers as earlier threads resolve while its box
   // stands.
@@ -3995,12 +4032,13 @@ function anchorLabel(anchor, about) {
   return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
 }
 
-// The thread's address under the g leader: 1–9 by open order, 0 past the ninth. One
-// writer, renderThreads, because the number is the list's and not the thread's —
-// resolving an early thread renumbers every one after it without touching their nodes.
-// The reply box's armed chip and its placeholder are both renderings of this map,
-// repainted after every reconcile; nothing reads either back.
-const threadAddress = new Map();
+// The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
+// children rather than a record kept beside them: a thread the log settles is renamed out
+// of them in that frame (foldOut), which takes it out of the walk, out of the addresses and
+// out of r's press in one stroke. A map of id → address stood here once, written by
+// renderThreads and read back by the chip and the placeholder — one list held twice, and
+// the copy free to be a reconcile behind the panel it described.
+const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
 
 // The reconcile's one mover, shared by the list and the resolved disclosure: make
 // `parent`'s children `nodes`, in that order, touching nothing already in its place.
@@ -4250,22 +4288,18 @@ function threadNode(t, grow) {
   t.msgs.forEach((m) => div.append(msgNode(m)));
   if (!t.resolved) {
     const row = el("div", "lf-compose");
-    // The box's address under the g leader, worn on the box the digit lands in and
-    // painted only while the window is armed. The placeholder speaks the same
-    // address at all times ("Reply · g 2"), which is what a screen reader hears —
-    // the chip is the armed moment's copy for the eye, so it stays out of the tree.
-    // Written by renderThreads, because the number is positional: it changes
-    // without this node changing.
-    const badge = el("span", "lf-address");
-    badge.setAttribute("aria-hidden", "true");
-    row.append(badge);
     const input = document.createElement("textarea");
     const send = el("button", "lf-btn primary lf-thread-send", "Send");
     row.append(input);
     div.lfSync = wireReply(t, input, send, {
+      // The box's address, spoken by its own placeholder at all times ("Reply · g c 2")
+      // — which is what a screen reader hears, the chip the chord paints being the eye's
+      // copy of the same fact. Read off the list rather than off a number written here,
+      // because the address is positional: resolving an early thread renumbers every one
+      // after it without touching their nodes, and renderThreads repaints them all.
       address: () => {
-        const num = threadAddress.get(t.root.id);
-        return num ? `g ${num}` : "";
+        const num = addressed(COMMENTS).indexOf(div) + 1;
+        return num ? addressLabel(COMMENTS, num) : "";
       },
       landed: (sent) => revealThread(sent.id),
     });
@@ -4283,15 +4317,14 @@ function threadNode(t, grow) {
     // send that failed, where the press must stay pressable; where it went through,
     // the fold has made the whole node inert and there is nothing to re-enable into.
     resolve.onclick = async () => {
-      const open = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
-      const at = open.indexOf(div);
+      const at = openThreads().indexOf(div);
       resolve.disabled = true;
       try {
         await post({ kind: "resolve", parent: t.root.id });
       } finally {
         resolve.disabled = false;
       }
-      const kept = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+      const kept = openThreads();
       (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
     };
     actions.append(send, resolve);
@@ -4422,22 +4455,18 @@ function renderThreads(threads) {
 
   const wanted = [];
   if (!threads.length) wanted.push(emptyNote);
-  threadAddress.clear();
   // Walked in the log's order rather than the open list's, because a thread on its way
   // out still stands between its neighbours while it folds (foldOut) and the two
   // orders are the same walk with one of them filtered. The first nine open threads
-  // are addressable (g 1–9), in the order j/k walk; past nine, digits stop and j/k
+  // are addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k
   // still reach everything. A folding thread takes no address and is walked by
   // nothing: the log has already settled it, and only its room is still here.
-  let nth = 0;
   for (const t of threads) {
     if (t.resolved) {
       const going = foldOut(t);
       if (going) wanted.push(going);
       continue;
     }
-    threadAddress.set(t.root.id, nth < 9 ? nth + 1 : 0);
-    nth += 1;
     wanted.push(threadNode(t, grow));
   }
   for (const e of events) {
@@ -4476,17 +4505,12 @@ function renderThreads(threads) {
   // joined: nothing about the page's own first anchor pass waits on a message.
   Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
 
-  // The chip and the reply placeholder both speak the thread's address, repainted
-  // after ordering because resolving an early thread renumbers everything after it.
-  for (const div of threadsBox.querySelectorAll(":scope > .lf-thread")) {
-    const num = threadAddress.get(div.dataset.id);
-    const worn = num ? String(num) : "";
-    const badge = div.querySelector(".lf-compose > .lf-address");
-    if (badge.textContent !== worn) badge.textContent = worn;
-    div.lfSync();
-  }
+  // Each reply box speaks its own address, repainted after ordering because resolving an
+  // early thread renumbers everything after it — and read off the list this reconcile has
+  // just written, which is why the loop is here and not where the boxes were built.
+  for (const div of openThreads()) div.lfSync();
   toggleBtn.textContent = `Comments (${open.length})`;
-  paintHere(); // the key line's j/k and g rows stand only over threads (threadAddress)
+  paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
 }
 
 // A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
@@ -5666,19 +5690,74 @@ export function shownParts(el) {
 // off screen has no rect, and a legend draws boxes for what is on it and nothing for
 // the rest.
 //
+// The walk stops at a box the viewport holds rather than the document: nothing above a
+// `position: fixed` element clips it, so the ancestors past that one are answering about a
+// flow the element left. Every box in the chrome is behind one — the comment panel is
+// fixed, and body is the page's scroller narrowed to the column beside it — so a reply box
+// measured through body's band came back wholly clipped away, at any window wide enough for
+// the panel to stand beside the page rather than over it. The one caller before this asked
+// only about the page's own items, none of which is ever inside a fixed box, which is why
+// the walk could be written as "every ancestor" and read as complete.
+//
+// Which leaves the viewport itself, applied to everything: for a box in the page it is
+// what body's own band already said, and for one in a fixed layer it is the whole of what
+// clips it.
+//
 // `clips` caches each ancestor's answer for one pass: the legend asks for every item
 // on the page in one breath, and the items share their scrollers, so what a pass spends
-// on the walk is one style read per ancestor rather than one per item per ancestor.
+// on the walk is two style reads per ancestor rather than two per item per ancestor.
 function shownRect(item, clips) {
-  let { left, top, right, bottom } = shownBox(item);
-  for (let a = item.parentElement; a; a = a.parentElement) {
+  return clipped(shownBox(item), item, clips);
+}
+// Where a member begins, as the reader sees it: the first of the boxes it paints that
+// survives the clips, rather than the bounds of all of them. They are the same box for
+// anything in flow and different for an inline that wraps, whose bounds run from the
+// column's left margin to its right — so a digit placed on that corner sat four hundred
+// pixels from the link it addressed, a line above it, on top of somebody else's sentence.
+// `shownBox`'s union answers "how much room does this take", which is what a legend box and
+// an aim outline want; this answers "where does it start", which is what anything hung on a
+// corner wants. The first that survives rather than the first outright, since a link whose
+// opening line has scrolled away still has a corner on the line below it.
+const startsAt = (item, clips) => {
+  const fragments = item.getClientRects();
+  return (fragments.length ? [...fragments] : [shownBox(item)])
+    .map((box) => clipped(box, item, clips))
+    .find(Boolean);
+};
+// The clips standing over a box, applied to it. Taken apart from shownRect because the two
+// readings above want the same walk over different boxes.
+function clipped(box, item, clips) {
+  let left = Math.max(box.left, 0),
+    top = Math.max(box.top, 0),
+    right = Math.min(box.right, innerWidth),
+    bottom = Math.min(box.bottom, innerHeight);
+  // From the box itself, not from its parent: an element is not clipped by its own
+  // overflow — that clips what it holds — so its band is skipped and only its position is
+  // read. Starting at the parent instead asked the question of every ancestor of a fixed
+  // box and never of the box, which is the same bug one level up: in design mode the aim
+  // resolves the comment panel itself, and the panel measured through body's band came
+  // back wholly clipped away, so a mode whose row promises a click on the chrome drew
+  // nothing over the chrome.
+  for (let a = item; a; a = a.parentElement) {
     let c = clips.get(a);
-    if (c === undefined) clips.set(a, (c = shownBand(a)));
-    if (!c) continue;
-    left = Math.max(left, c.left);
-    top = Math.max(top, c.top);
-    right = Math.min(right, c.right);
-    bottom = Math.min(bottom, c.bottom);
+    if (c === undefined)
+      clips.set(
+        a,
+        (c = {
+          band: shownBand(a),
+          // Read here rather than out of shownBand, whose answer is a band and is the
+          // render gate's too: what clips a box and what a box is positioned against are
+          // two facts, and one of them is this walk's alone.
+          fixed: getComputedStyle(a).position === "fixed",
+        }),
+      );
+    if (a !== item && c.band) {
+      left = Math.max(left, c.band.left);
+      top = Math.max(top, c.band.top);
+      right = Math.min(right, c.band.right);
+      bottom = Math.min(bottom, c.band.bottom);
+    }
+    if (c.fixed) break;
   }
   return right > left && bottom > top ? { left, top, right, bottom } : null;
 }
@@ -5902,7 +5981,7 @@ function paintAnchors(threads = buildThreads()) {
   // The panel's side of the same fact, read off the pass's own record so the two views
   // can't disagree: a passage rewritten in a later version has no home to jump to, and a
   // dead-looking link is worse than one that says so.
-  for (const div of threadsBox.querySelectorAll(":scope > .lf-thread")) {
+  for (const div of openThreads()) {
     const quote = div.querySelector(".lf-quote");
     if (!quote) continue;
     const found = marked.has(div.dataset.id);
@@ -7112,7 +7191,7 @@ approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good
 // The register's scopes, and the one dispatcher that walks them. What a row and a scope
 // are is written where the vocabulary is defined (the key register, above).
 //
-// The stack is innermost-first: the leader and the help overlay above everything, then
+// The stack is innermost-first: the g chord and the help overlay above everything, then
 // whatever element scopes focus stands inside, then the page's own modes and the page. The
 // line walks it outward, the dispatcher matches down it, and a row sharing any binding with
 // one already named is skipped — so a focused control's keys shadow the page's without
@@ -7129,48 +7208,244 @@ approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good
 // action. The dispatcher runs the innermost rung and no other, so the promise is
 // structural.
 
-// ---------- the leader ----------
-// g arms a short window in which a digit is an address — the nth open thread's reply box,
-// in the order j/k walk. While armed each addressable box wears its digit as a chip and
-// the line shows the chord, so the window is visible wherever the user is looking, panel
-// open or closed. A digit consumes it; any other key disarms and keeps its ordinary
-// meaning, which the dispatcher spells as disarming and walking again rather than as a
-// rule of its own, so a mistyped g costs nothing. Escape, the timeout, and focus entering
-// a box disarm too.
-const LEADER_MS = 1500;
-let leaderTimer = null;
+// ---------- the g chord: the page's addresses ----------
+// g arms a mode in which a letter names one of the page's lists and a digit is a place in
+// it: `g c 2` is the second open comment's reply box, `g a 1` the first thing the page is
+// waiting on, `g l 3` the third link. Naming a list shows it — the panel opens for the
+// comments — and each of its addressable members then wears its digit as a chip, so the
+// addresses are on screen wherever the reader is looking. A digit consumes the mode; so
+// does Escape, and so does focus entering a box. Any other key disarms and then runs with
+// its ordinary meaning, which the dispatcher spells as disarming and walking the stack
+// again rather than as a rule of its own — a mistyped g therefore costs the reader nothing
+// beyond the press their next key was going to make anyway.
+//
+// The chord was one list deep once — g then a digit, and the digit meant a reply box —
+// which spent the whole of a leader on the one list that had asked for it first. The letter
+// is what opens that: a second list costs a letter rather than a second chord, and the line
+// says `g` alone rather than a range that only ever counted threads.
+//
+// Which lists there are is this table and nothing else. The chord's scope, the chips, the
+// line's words and the reference are all readings of it, so a fourth list is an entry here
+// rather than an edit to four consumers, and nothing that reads the table asks which list
+// it is holding. One place names a list at all, and it is not a reader of the table: a
+// member with a surface of its own has to say which list that surface belongs to, which is
+// the reply box's placeholder (COMMENTS, below). An entry says its letter, the word every surface calls the list by, the sentence
+// the reference reads, its members in address order, and how to arrive at one. `spot` is
+// where the chip hangs when that is not the member itself — a comment's address belongs on
+// the box the digit lands in, not on the thread's far corner.
+// What the document holds, in reading order, as against what the chrome holds: the banner,
+// the versions and the leaves board have keys of their own, and a comment's message is the
+// panel's rather than the page's. The addresses and the scopes that name a platform key
+// read the page through here alike, so a part `g` sends the reader to is exactly a part the
+// reference says they can stand on.
+//
+// The whole document and not the parts on screen, which is the tempting reading and the
+// wrong one twice over. An address that counted what is in the window is an address that
+// means a different link at every scroll position, so a reader who has just learnt that the
+// PR is `g l 2` is wrong a moment later; and it would put the key line's own truth on the
+// scroll, since a row that goes dead as the page moves is a row the line has to be
+// repainted to stop promising — a paint measured at 1.3ms on the gallery, on every scroll
+// frame of every page, for one row. Document order costs the pages holding more than nine
+// links their tail, which is the bound every list here has.
+//
+// Above the table rather than beside the other readings below it, because an entry
+// holds the function itself and the array literal reads it as the module evaluates.
+const pageParts = (sel) =>
+  [...document.querySelectorAll(sel)].filter((el) => !inChrome(el));
+const pageLinks = () => pageParts("a[href]");
+// The summaries rather than the boxes they head: a summary is what the reader stands on,
+// what a chip sits beside, and the only part of a disclosure the platform gives a key to —
+// so a <details> whose author wrote no summary has nothing here to address. Every
+// disclosure and not the shut ones, for the reason above: a list counting what is shut
+// means a different section the moment one of them opens.
+const pageDisclosures = () => pageParts("details > summary");
+
+// How many members of a list a digit can reach. The bound is the keyboard's — ten digits,
+// one of them no ordinal — and not any list's, so it is stated once here rather than in
+// each entry.
+const ADDRESS_CAP = 9;
+// The one entry with a name of its own, because one of its members has a standing
+// surface to speak its address on: a reply box's placeholder says "Reply · g c 2" at
+// all times, and the panel builds that box (threadNode). Every other list is reached
+// through the table.
+const COMMENTS = {
+  key: "c",
+  word: "comments",
+  does: "Go to the nth open comment's reply box",
+  list: openThreads,
+  spot: (thread) => thread.querySelector(":scope > .lf-compose"),
+  // What it takes to show this list: the panel holds it and draws nothing while closed, so
+  // a letter that named it and left the panel shut painted no chip at all. An entry whose
+  // members are on the page states none.
+  reveal: () => setPanel(true),
+  // stepThread-to-nth and its Enter in one press. The box by its place in the thread and
+  // not the first textarea inside it, a message being free to carry a widget with one of
+  // its own — a draft's open editor stands before the reply box in the DOM.
+  go: (thread) => {
+    thread
+      .querySelector(":scope > .lf-compose textarea")
+      .focus({ preventScroll: true });
+    thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    scrollToThread(thread.dataset.id);
+  },
+};
+const ADDRESSES = [
+  COMMENTS,
+  {
+    key: "a",
+    word: "asks",
+    does: "Go to the nth thing this page is waiting on you for",
+    // The list n/p walk, addressed rather than stepped: one reading, so the digit and the
+    // walk cannot disagree about which ask is the third one. The arrival is handed that
+    // whole list and not the nine a digit can spell, so what it announces is the ask's
+    // place among everything the page is waiting on.
+    list: openAsks,
+    go: (ask) => goToAsk(ask, openAsks()),
+  },
+  {
+    key: "l",
+    word: "links",
+    does: "Go to the nth link",
+    list: pageLinks,
+    // Focus, not a follow: g says go, and what a focused link then answers is the
+    // platform's Enter, which the link scope names on the line. A press that navigated
+    // would be a door with no landing to look at first.
+    go: (link) => {
+      scrollToElement(link);
+      link.focus({ preventScroll: true });
+    },
+  },
+  {
+    key: "d",
+    word: "disclosures",
+    does: "Go to the nth disclosure and open it",
+    list: pageDisclosures,
+    // Opening is the arrival and not a press that follows it. Every arrival here reveals
+    // the collapsed containers on its way — this is the one whose target is the container,
+    // so the reveal that was travel for the others is the whole motion for this one, and a
+    // reader who wanted the section open has it open having asked once. The scroll takes
+    // the box rather than the summary, since a section taller than the window starts at its
+    // start where a centred summary would put half the screen above it. Standing on the
+    // summary afterwards leaves the platform's own press to close it again, which the
+    // disclosure scope names on the line.
+    go: (summary) => {
+      scrollToElement(summary.parentElement);
+      summary.focus({ preventScroll: true });
+    },
+  },
+];
+// A list's addressable members, and the range its label names. Capped where it is read
+// rather than where each list is written, so an entry states what it holds and this states
+// what the keyboard can reach.
+const addressed = (entry) => entry.list().slice(0, ADDRESS_CAP);
+const range = (n) => (n > 1 ? `1–${n}` : "1");
+// How an address is spelled, in one place and off the row that binds the key (GOTO): a
+// member with a standing surface of its own says the whole motion there — a reply box's
+// placeholder reads "Reply · g c 2" — and the armed chip is built the same way. Written
+// out at each of them, `g` was a letter three sites had agreed on and none could correct.
+const addressLabel = (entry, n) => `${labelOf(GOTO)} ${entry.key} ${n}`;
+
+// Whether the chord is up, and the list a digit addresses once a letter has named one.
 // The armed window is a mode the whole keyboard is in, and a digit pressed inside it
 // belongs to the chord wherever focus sits. A widget's own digit keys used to have to ask
 // this before consuming one; they no longer do, and lf-options no longer imports it — the
-// leader scope is `only`, so the dispatcher never reaches an inner scope while the window
-// stands, and the mode enforces itself where it was a rule each widget had to keep.
-const leaderArmed = () => Boolean(leaderTimer);
-function setLeader(on) {
+// chord's scope claims everything, so the dispatcher never reaches an inner scope while the
+// window stands, and the mode enforces itself where it was a rule each widget had to keep.
+//
+// `aimedList` and not `aimed`, which this file already spends on the aim chord's element
+// (refreshAim, aimTarget, aimBox): two concepts under one word, in one file, shadowing each
+// other inside the functions that hold both.
+let chordArmed = false;
+let aimedList = null;
+// Arming, aiming and disarming are one call, because they are one window: naming a list
+// re-opens it rather than starting a second, and every way down — Escape, a stray key,
+// focus entering a box — takes the aim with it.
+//
+// It stands until one of those, where it stood for a second and a half. A timeout is how a
+// keyboard resolves an ambiguous prefix, and there is none here: `g` is a prefix and
+// nothing else, any key the chord does not bind disarms it and then runs with its ordinary
+// meaning, so nothing is ever swallowed by a window left open. What the clock did instead
+// was charge the reader for reading the menu the press had just painted — and a letter
+// arriving a moment late is not a no-op but the page's own key, so a slow reader pressing
+// `l` got the leaves board rather than the links.
+function setChord(on, list = null) {
   // Armed over a control that has claimed Escape, one press would have two owners — the
-  // control's rung and the chord's cancel — so the leader refuses to arm there at all.
-  if (on && claimsEsc(focused())) return;
-  const was = Boolean(leaderTimer);
-  if (leaderTimer) clearTimeout(leaderTimer);
-  leaderTimer = on ? setTimeout(() => setLeader(false), LEADER_MS) : null;
-  panel.classList.toggle("lf-leader-armed", on);
-  // The chips are the eye's copy; the arming itself is spoken, or the mode change is
-  // silent to exactly the user who can't see them.
-  if (on && !was) announce(`Reply to thread — ${saying(LEADER.rows)}`);
+  // control's rung and the chord's cancel — so the chord refuses to arm there at all.
+  if (on && !chordArmed && claimsEsc(focused())) return;
+  chordArmed = on;
+  aimedList = on ? list : null;
+  // A list the reader cannot see is a list wearing no addresses: the panel holds the
+  // comments and draws nothing while closed, so naming that list opens it, and the chips
+  // land on boxes that have a geometry to be placed from. The open belongs here rather
+  // than in the arrival, where it left the letter painting nothing at all.
+  if (list?.reveal) list.reveal();
+  // The chips are the eye's copy; the window itself is spoken, or the mode change is
+  // silent to exactly the reader who can't see them. Off the rows either way, since the
+  // rows are what the window answers now — the letters at the first stage, the named
+  // list's digits at the second — and a sentence written here for the second would have
+  // been the row's own words, restated where nothing could correct them.
+  if (on) announce(`Go to — ${saying(GO.rows)}`);
   paintHere();
 }
-// What a digit does with the window: stepThread-to-nth and its Enter in one press.
-function replyTo(n) {
-  if (!panelOpen) setPanel(true);
-  const thread = threadsBox.querySelectorAll(":scope > .lf-thread")[n - 1];
-  const ta = thread?.querySelector("textarea");
-  if (!ta) return;
-  ta.focus({ preventScroll: true });
-  thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
-  scrollToThread(thread.dataset.id);
+
+// The chips: one per addressable member, drawn in the chrome's layer (addressBoard) and
+// placed from the member's own visible box, so a chip cannot claim room the page has
+// already refused — a thread scrolled out of the panel's list, a card half out of a board.
+// Painted only once a letter has named a list: before that there is no digit to promise,
+// and nine chips over a page nobody has aimed at yet are nine promises the next press
+// won't keep.
+//
+// The layer is the chrome's rather than the page's own markup for the reason every mark is
+// (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
+// span written into a paragraph to carry a number is a span the passage walk then has to
+// know about.
+//
+// Every chip is built detached and the board takes them in one write, which is the rule
+// the legend states for this same layer: a chip in the tree is a DOM write, and the next
+// member's rect read after one is a layout forced per member — nine of them on every
+// scroll frame an armed window stands through.
+function paintAddresses() {
+  const chips = [];
+  if (aimedList) {
+    const clips = new Map();
+    // The banner stands over the page rather than in it, so shownRect says nothing about
+    // it — that reading is what the page's own boxes clip, and the bar clips none of them.
+    // The chip is the one thing that has to care, being drawn above the bar: placed on a
+    // corner the bar has taken, it is a digit floating over the status line, addressing
+    // nothing the reader can see there. So it rides the covered edge, and a member with
+    // nothing left below that edge wears no chip at all.
+    const covered = banner.getBoundingClientRect().bottom;
+    for (const [i, member] of addressed(aimedList).entries()) {
+      const r = startsAt(aimedList.spot?.(member) ?? member, clips);
+      if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
+      const chip = el("span", "lf-address", String(i + 1));
+      if (r.top < covered) chip.classList.add("lf-in");
+      chip.style.left = `${r.left}px`;
+      chip.style.top = `${Math.max(r.top, covered)}px`;
+      chips.push(chip);
+    }
+  }
+  addressBoard.replaceChildren(...chips);
 }
+// A page that moves under an armed window moves the boxes the chips were placed from, so
+// the chips follow it rather than standing where the page used to be. Capture, because the
+// panel's list and a board's own overflow scroll in boxes of their own and a scroll event
+// does not bubble.
+//
+// Only while a list is aimed at, which is why this is a listener of its own rather than a
+// line in the page's own repaint door (pageShifted): what the line says about the chord
+// holds at every scroll position, no list's membership moving with the page, so the door
+// that repaints on every scroll of every page would be repainting for nobody. Aimed, the
+// paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
+// one door is what stops the chips having a repaint set of their own to keep in step.
+addEventListener("scroll", () => aimedList && paintHere(), {
+  capture: true,
+  passive: true,
+});
+addEventListener("resize", () => aimedList && paintHere());
 
 // ---------- what the page's keys are live over ----------
-const hasThreads = () => threadAddress.size > 0;
+const hasThreads = () => openThreads().length > 0;
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
 // takes ask the same question, so they cannot disagree about which thread this is. Not a
 // control inside it, whose own press is its own; nor a resolved thread, which has no reply
@@ -7179,10 +7454,6 @@ const focusedThread = () => {
   const active = document.activeElement;
   return active?.classList?.contains("lf-thread") ? active : null;
 };
-// A label naming a range counts what is there rather than promising nine: at most nine
-// open threads are addressable, fewer when fewer are open.
-const addressable = () => Math.min(9, threadAddress.size);
-const digits = () => (addressable() > 1 ? `1–${addressable()}` : "1");
 // What c would comment on, read off the anchor the 💬 carries — the same one commentKey
 // acts on, so the word and the button on screen cannot name different things. An element
 // anchor answers in its own word (a figure, a card), the way the panel names one.
@@ -7351,33 +7622,58 @@ function allButTheReference(binding) {
 }
 
 // ---------- the scopes ----------
-// Above everything: a chord is armed, or the reference is up. Both claim everything — the
+// Above everything: the chord is armed, or the reference is up. Both claim everything — the
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
-const LEADER = {
-  title: "With the reply chord armed",
-  // The chord addresses open threads, so a page with none has no chord to arm and the
-  // reference says nothing about one — the scope's own capability, where the rows say what
-  // a press does once the window stands.
-  when: hasThreads,
-  chord: "g",
-  at: leaderArmed,
+
+// The chord: one scope, a row per addressable list, and the window's own way out. The row
+// holds the whole motion — its letter names the list, and the digits it then binds are the
+// addresses into it. That is `v`'s shape, a chooser whose second key belongs to the scope
+// the first one stood up, and the reason it is one row rather than two is that a digits row
+// of its own could not name which list it meant.
+//
+// A row's `when` carries both questions here, where a scope usually carries one of them: a
+// list the page hasn't got is a capability, and which list is aimed at is whether the press
+// moves now. They can share the answer because a mode is not somewhere the reader stands
+// near — see showHelp, which reads a mode's rows by their own liveness for exactly that
+// reason. Written as a scope per list instead, each stating its own capability, the two
+// were named apart at the price of three scopes under one title, and the reference then
+// gathered them in the order it walks the stack — backwards, so it named the lists in the
+// opposite order to the line that had just offered them.
+const GO = {
+  title: "With g armed",
+  when: () => ADDRESSES.some((entry) => entry.list().length > 0),
+  chord: () => (aimedList ? `${labelOf(GOTO)} ${aimedList.key}` : labelOf(GOTO)),
+  at: () => chordArmed,
   claims: EVERYTHING,
   rows: [
-    {
-      // The digits the page actually has, so the row cannot offer an address no box wears;
-      // rendered as the range its label already counted rather than as nine alternatives.
-      keys: () => Array.from({ length: addressable() }, (_, i) => String(i + 1)),
-      label: digits,
-      does: "Reply to the nth open thread",
-      line: "reply to thread",
-      run: (binding) => replyTo(+binding),
-    },
+    ...ADDRESSES.map((entry) => ({
+      keys: () =>
+        aimedList === entry
+          ? addressed(entry).map((_, i) => String(i + 1))
+          : [entry.key],
+      // The range the list actually holds, so the label cannot offer an address no member
+      // wears; the letter drops off it once it has been pressed, the armed chip having
+      // taken it (`g c`).
+      label: () =>
+        aimedList === entry
+          ? range(addressed(entry).length)
+          : `${entry.key} ${range(addressed(entry).length)}`,
+      does: entry.does,
+      line: entry.word,
+      when: () => entry.list().length > 0 && (!aimedList || aimedList === entry),
+      run: (binding) => {
+        if (aimedList !== entry) return setChord(true, entry);
+        const member = addressed(entry)[+binding - 1];
+        setChord(false); // before the travel, so the arrival's own scrolling paints nothing
+        entry.go(member);
+      },
+    })),
     {
       keys: ["Escape"],
       does: "Cancel the chord",
       line: "cancel",
-      run: () => setLeader(false),
+      run: () => setChord(false),
     },
   ],
 };
@@ -7486,6 +7782,51 @@ const THREAD = {
   ],
 };
 
+// The platform's own controls in the page, and the press each already answers. The control
+// scope below cannot cover them: it works a span `offer` made pressable, where these arrive
+// with their keys already bound, and which keys differ — Enter follows an <a> while Space
+// scrolls the page out from under it, and both open a <summary>. So neither row binds a
+// `run`, the press being the browser's; nothing here promises more than the browser already
+// does, and what a row adds is the promise being on screen. `g` puts the reader on both of
+// these by key, and until a scope existed the line went quiet at exactly the moment they
+// arrived, with the press that finishes the motion unnamed.
+//
+// A table and not a scope apiece, for the reason the addresses are one: two scopes differing
+// only in a selector and a word are two things to edit the day either the chrome rule or the
+// shape of a capability changes, and the third platform control would make it three. The
+// page's controls and not every one, which is the reading the addresses take as well: the
+// chrome's own links are the leaves board's and its resolved comments are the panel's, and
+// both of those declare what they answer themselves. Asked of the document at large, "On a
+// link" was had by every page — a machine with one neighbour has a board full of links — so
+// the reference named it wherever the reader went, on pages holding none to stand on.
+const NATIVE = [
+  {
+    title: "On a link",
+    sel: "a[href]",
+    press: ["Enter"],
+    does: "Follow it",
+    line: "follow",
+  },
+  {
+    title: "On a disclosure",
+    sel: "details > summary",
+    press: PRESS,
+    does: "Open or close it",
+    // Read where it is painted rather than named once for both branches, the way a diff's
+    // own file rows read theirs: what this press does is whichever way the disclosure is
+    // standing, and a word fixed at declaration could only ever say one of them.
+    line: () => (focused().parentElement.open ? "close" : "open"),
+  },
+].map(({ title, sel, press, does, line }) => ({
+  title,
+  at: () => {
+    const el = focused();
+    return Boolean(el?.matches?.(sel)) && !inChrome(el);
+  },
+  when: () => pageParts(sel).length > 0,
+  rows: [{ keys: press, does, line }],
+}));
+
 // Every press the runtime builds out of a span, in one declaration. `offer` writes
 // role="button" onto an element the platform gives no keys, so these two are the UA's
 // contract restored — and the survey's largest hole was that nine classes of control
@@ -7564,6 +7905,23 @@ const REFERENCE = {
   line: "keys",
   run: toggleHelp,
 };
+// The way in to the chord, named for the reason the two rows above it are: the armed chip
+// and every address a member speaks are built from this row's own key (addressLabel), so
+// the letter the reader presses and the letter the page prints cannot be two decisions.
+//
+// The key alone on the line: what it opens is a table, and a label naming one of its lists
+// would be the chord's old shape wearing a letter — `g 1–9` said "threads" without saying
+// it, and the day a second list arrived there was no honest range to print. The scope the
+// press stands up names them all, one chip each.
+const GOTO = {
+  keys: ["g"],
+  does: "Go by address — the next key names one of the page's lists",
+  line: "go to",
+  // The scope this press stands up, read rather than restated: a key that armed a window
+  // with nothing in it would be the one promise the chord cannot keep.
+  when: GO.when,
+  run: () => setChord(true),
+};
 const PAGE = {
   rows: [
     {
@@ -7587,16 +7945,6 @@ const PAGE = {
       when: hasThreads,
       repeat: true,
       run: (binding) => stepThread(binding === "j" ? 1 : -1),
-    },
-    {
-      keys: ["g"],
-      // The chord's motion: its own key and the leader scope's row, which counts the
-      // threads that are there rather than promising nine.
-      label: () => `g ${digits()}`,
-      does: "Reply to the nth open thread",
-      line: "reply",
-      when: hasThreads,
-      run: () => setLeader(true),
     },
     {
       // A borrowed pair, like the walks either side of it: j/k is vim's list, d/u is
@@ -7684,6 +8032,13 @@ const PAGE = {
     // modes. Below it, the line drops chips a window at a time, and this is the one that
     // says how to undo the press that put them there.
     BACK_OUT,
+    // And the chord below it, having sat among the walks and pushed it off the end of a
+    // 1280px line — the reader standing on an ask, which is the one place the way out was
+    // written for. What it costs to yield is small and what it buys is not: `g` opens a
+    // door to three lists the walks above already reach one at a time, so a narrow window
+    // hides a second way to somewhere; the press it was crowding out is the only way back
+    // from where a press had just put the reader.
+    GOTO,
     CHOOSER,
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
@@ -7718,13 +8073,14 @@ const PAGE = {
 // same bug waiting on the next mode.
 const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
-  LEADER,
+  GO,
   HELP,
   ELEMENTS,
   VERSIONS,
   COMPOSER,
   TYPING,
   THREAD,
+  ...NATIVE,
   CONTROL,
   DESIGN,
   PAGE,
@@ -7749,7 +8105,16 @@ latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = (scope) => !scope.when || scope.when();
 const readerIn = (scope) => !scope.at || scope.at();
-const standing = (scope) => pageHas(scope) && readerIn(scope);
+// Where the reader is first, and what the page has second: both are pure and the and is
+// the same either way round, but `at` is a class check and a `when` may be the whole event
+// log folded — so the walk asks the cheap question of every scope and the dear one only of
+// the scopes it is already standing in. That is the rule the dispatcher's row loop already
+// keeps and the control scope's own comment already claims ("`at` is asked first and answers
+// false wherever this could be in doubt, so a paint never reaches it"), and the scope walk
+// was the one place it was not true. The chord is what made it bite: its `when` reaches the
+// asks fold and then every link on the page, once per keydown, from the first keystroke of
+// the first comment.
+const standing = (scope) => readerIn(scope) && pageHas(scope);
 // Every scope the reader is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
@@ -7821,10 +8186,12 @@ document.addEventListener("keydown", (ev) => {
   if (ev.isComposing) return;
   if (run(ev)) return;
   // Any other key disarms the chord and keeps its ordinary meaning, so a mistyped g costs
-  // nothing: g j is a thread step and g g re-arms. Spelled as walking again rather than as
-  // a rule, so the meaning a key keeps is the meaning the register gives it.
-  if (leaderTimer) {
-    setLeader(false);
+  // nothing: g j is a thread step and g g re-arms. A letter naming no list disarms the same
+  // way, and so does a digit past the end of the list a letter named. Spelled as walking
+  // again rather than as a rule, so the meaning a key keeps is the meaning the register
+  // gives it.
+  if (chordArmed) {
+    setChord(false);
     run(ev);
   }
 });
@@ -7858,17 +8225,27 @@ function run(ev) {
 // A focus move is the one change in where the reader is standing that no state writer
 // sees, so it asks for the paint itself — the ring and the line both, which is why one
 // call answers for it. Focus entering a box, or a control that claims Escape, also disarms
-// the leader — a digit typed in a box is text, and a chip left blooming would promise a
+// the chord — a digit typed in a box is text, and a chip left blooming would promise a
 // cancel the control would consume.
 document.addEventListener("focusin", () => {
-  // The same question `setLeader` asks before arming, so it takes the same answer: two
+  // The same question `setChord` asks before arming, so it takes the same answer: two
   // readings of where the reader is standing would refuse to arm somewhere they then
   // failed to disarm.
   const active = focused();
-  if (leaderTimer && (takesLetters(active) || claimsEsc(active))) setLeader(false);
+  if (chordArmed && (takesLetters(active) || claimsEsc(active))) setChord(false);
   paintHere();
 });
 document.addEventListener("focusout", () => paintHere());
+// A disclosure opening or closing changes what the next press does, and no writer in this
+// file reports it: the word on a summary's row is read off `open`, and the reader standing
+// there has moved nothing else. Left unpainted, the line said "close" for the three seconds
+// until a poll happened past — a key line stale about the press under the reader's finger,
+// where every gate reads it as eventually right. The event does not bubble, so this
+// captures; and it is the document's rather than each <details>'s, because the disclosures
+// on a page are whatever its author wrote and whatever its widgets built, which is not a
+// list this file can hold. lf-diff had exactly that listener on each file it renders, which
+// is one widget's answer to a question the runtime is the one that asks.
+document.addEventListener("toggle", () => paintHere(), true);
 
 // ---------- the key line ----------
 // What the next press does, walked outward from where the reader stands and cut where the
@@ -7880,9 +8257,9 @@ document.addEventListener("focusout", () => paintHere());
 // The rows the line shows, innermost scope first: the ones carrying a word for it. A row
 // is skipped where any of its bindings has been named already, so an inner scope's own
 // word for a press wins and the generic one behind it stays quiet — the case that names
-// this is `g` armed over an option's pick mark, where the chord's "1–3 reply to thread"
-// and the mark's "1–5 toggle the nth" would otherwise stand side by side, two promises for
-// one press.
+// this is `g c` aimed over an option's pick mark, where the chord's "1–3 comments" and the
+// mark's "1–5 toggle the nth" would otherwise stand side by side, two promises for one
+// press.
 function lineRows(scopes) {
   const named = new Set();
   const nearer = shadow();
@@ -7915,7 +8292,9 @@ function renderLine() {
   const ref = rows.findIndex((row) => bindings(row).includes("?"));
   const ordered =
     ref === -1 ? rows : [...rows.slice(0, ref), ...rows.slice(ref + 1), rows[ref]];
-  const chord = scopes.find((s) => s.chord)?.chord;
+  // Read where it is painted, like every other cell: the chord's chip says which stage the
+  // reader is at (`g`, then `g c`), and a string fixed at declaration could only say one.
+  const chord = word(scopes.find((s) => s.chord)?.chord);
   keylineEl.textContent = "";
   const chip = (key, said, armed) => {
     const span = el("span", "lf-key");
@@ -7980,7 +8359,7 @@ function commentKey() {
 // wrote here in the same synchronous pass.
 function stepThread(dir) {
   if (!panelOpen) setPanel(true);
-  const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+  const threads = openThreads();
   const at = threads.indexOf(document.activeElement?.closest?.(".lf-thread"));
   const next =
     threads[
@@ -8113,7 +8492,13 @@ function showHelp(open) {
       // "arrows move" belongs in the reference though no card is held and `r` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
-      const inIt = readerIn(scope);
+      //
+      // A mode is the exception, and it is one because there is no standing near it: the
+      // reader is in it or it is not there, so its rows answer about here whichever way the
+      // reference was opened. The chord is what needs this said — its rows are the lists
+      // the page has, and `?` reaches the reference only from a page nobody has armed, so
+      // listed whole it would name `l` on a page holding no link at all.
+      const inIt = readerIn(scope) || scope.claims === EVERYTHING;
       const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
       if (!rows.length) continue;
       if (scope.title) helpEl.append(el("h3", "", scope.title));
@@ -8526,15 +8911,15 @@ function askStep(asks, dir) {
   });
   return dir > 0 ? (reach[0] ?? asks[0]) : (reach.at(-1) ?? asks.at(-1));
 }
-function stepAsk(dir) {
-  const asks = openAsks();
-  if (!asks.length) return; // never: the key and the control are live only with asks
-  goToAsk(askStep(asks, dir), asks);
-}
-// Standing on one ask: what n and p do once they have decided which, and what a press on
-// a board row does having been told outright. One function because it is one act — the
-// board would otherwise be a second answer to "how do I put the reader on an ask", and
-// the two would drift the first time either the reveal or the focus rule changed.
+// Standing on one ask: what n and p do once they have decided which, what a press on a
+// board row does having been told outright, and where `g a` lands a digit. One function
+// because it is one act — a second would be a second answer to "how do I put the reader on
+// an ask", and the two would drift the first time either the reveal or the focus rule
+// changed.
+//
+// The list comes with the ask, because the announcement names a place in it and the caller
+// is the one that knows which list it walked: the walk's own, the board's, or the whole of
+// what the page is waiting on where an address reached past the nine it can spell.
 function goToAsk(next, asks) {
   // A thread's ask lives in the panel, which has no geometry while closed — the
   // same reason reveal() opens a settled group before the scroll.
@@ -8555,6 +8940,11 @@ function goToAsk(next, asks) {
   if (inChrome(next)) next.scrollIntoView({ behavior: SCROLL, block: "center" });
   else scrollToElement(next);
   announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
+}
+function stepAsk(dir) {
+  const asks = openAsks();
+  if (!asks.length) return; // never: the key and the control are live only with asks
+  goToAsk(askStep(asks, dir), asks);
 }
 
 // ---------- version diff ----------

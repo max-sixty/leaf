@@ -142,16 +142,12 @@
   `test_a_terse_variant_is_the_height_of_its_own_words` measures the two readings against
   each other. Narrow, a group is one column and none of it arises.
 
-- (2026-07-30) The g leader shipped with digits only (`g 1` reaches the nth open
-  thread's reply box) and the namespace open. Settle its shape before growing it:
-  should the sequence carry a verb (`g r 1`, leaving `g` room for other nouns), or
-  stay flat? Bare `r` resolves the focused thread now, so a verb vocabulary should
-  keep the bare keys' meanings — `g r 1` reading "reply" would give one letter two
-  verbs. A group's options answer to bare digits under focus now (`a` lands there),
-  which relieves the pressure for widget addresses; if the leader still grows them —
-  a board's grips, a draft's ✎ — the registry should declare the address (an `x-`
-  key the leader dispatches on), not modules registering keys, per the never-closed
-  widget list.
+- (2026-07-30) The g chord names a list and then a place in it, and the lists it
+  can name are core's own table. If it ever grows a widget's parts — a board's
+  grips, a draft's ✎ — the registry should declare the address (an `x-` key the
+  chord dispatches on) rather than modules registering keys, per the never-closed
+  widget list. No pressure for it yet: a group's options answer to bare digits
+  under focus, which is where the demand came from.
 
 - (2026-07-30) A widget can't own a conversation — the page half. In a thread the
   question and its words are one thread now, but a page group's box for words still

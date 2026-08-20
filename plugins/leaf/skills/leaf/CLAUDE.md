@@ -756,6 +756,30 @@ is the one anchor its controls keep whatever a layer decides (lf-suggestion.js).
 the readings defend now is the line of CSS any page can still write, and there the
 parts are the whole of the paint's answer.
 
+How much of that box the reader can see is the second half (`shownRect`), and it
+was written for one caller and read as complete. A box is clipped by the
+scrollers above it, so the walk climbed every ancestor — true of the page's own
+items, and untrue the moment the question was asked about a box in the chrome.
+The comment panel is `position: fixed`, and an ancestor's overflow does not clip
+a fixed box,
+while `body` is the page's scroller narrowed to the column standing beside the
+panel: a reply box measured through body's band came back wholly clipped away,
+on any window wide enough for the panel to stand beside the page rather than
+over it. So the walk stops at a fixed box and the viewport is applied to
+everything — which for a box in the page is what body's band already said, and
+for one in a fixed layer is the whole of what clips it. The tell was the same
+one the paragraph above records: a walk phrased as "every ancestor" is a claim
+about every element, and it had only ever been asked about one kind.
+
+What that reading is right to ignore, whatever draws on it has to answer for
+itself. The banner stands over the page and clips nothing, so a member scrolled
+under it is shown as far as `shownRect` is concerned — true of the element, and
+useless to a mark drawn above the bar: the chord's chip, placed on a corner the
+bar had taken, was a digit floating over the status line and addressing nothing
+the reader could see there. It rides the covered edge instead, the step the
+legend's tag already makes for the same bar. Chrome over the page is the
+drawer's business, not the geometry's.
+
 ## A widget's form follows its content, and each form states its own rules
 
 `lf-options` renders as stacked cards or as a list of rows, and nothing declares
@@ -1000,9 +1024,18 @@ drifting from each other: the key line asked `when` and the `?` overlay didn't,
 so a page with no open thread offered `g 1–9` to reply to one. So whether a key
 is live is declared once (`when`); `live` is the one question the dispatcher, the
 line and the overlay all put to that declaration; and a label that names a range
-is a function (`g ${digits()}`), so it counts the threads that are there rather
-than promising nine. A liveness guard inside `run` is the tell, because it makes
-the key refuse a press some surface is still advertising.
+is a function (`c 1–${n}`), so it counts the comments that are there rather than
+promising nine. A liveness guard inside `run` is the tell, because it makes the
+key refuse a press some surface is still advertising.
+
+A capability is about what the reader can reach from where the scope holds, not
+about what the document happens to contain. "On a link" asked
+`document.querySelector("a[href]")` — and the machine's own leaves board is a list
+of links, so every page had the scope and the reference named it on pages holding
+no link the reader could stand on. It asks after the page's links now, which is the
+same reading `g l` addresses — and the same reading the disclosures take, where
+the machine's own is the panel's fold for resolved comments: a scope asked about
+the document at large arrives on every page that has ever had one resolved.
 
 One `when` was still one answer to two questions, and `r` is where that showed.
 Its sentence said "On a focused thread" while its liveness said "the page has
@@ -1169,6 +1202,101 @@ reads properly on the day it declares `x-awaits`.
 The authoring half of this is in SKILL.md, and it is one sentence because the
 board makes it obvious: whatever an ask's own words open with is the whole of
 what a reader choosing among five of them has to go on.
+
+## A chord names which list before it names a place in one
+
+`g` armed a window in which a digit was an address, and the address was always a
+reply box. Nothing on the page said "reply box": the key line printed `g 1–9`,
+which reads as a general motion and was a sentence about one list, and what a
+digit meant lived inside `replyTo`. That is the shape every closed list has —
+the second thing a reader wants to reach by number has nowhere to go, and the
+natural repair is a second chord key, which is a menu being extended one item at
+a time.
+
+So the chord names the list first and the place second, and which lists there are
+is a table (`ADDRESSES`). An entry states its letter, the word every surface
+calls it by, the sentence the reference reads, its members in address order, and
+how to arrive at one; the chord's scope, the chips, the line's words and the
+reference are readings of that entry, and nothing that reads the table asks which
+list it is holding. One place names a list, and it is not a reader of the table:
+a member with a surface of its own has to say which list that surface belongs to,
+and the reply box's placeholder is the only member that has one. The page's own
+key is then `g` alone: what it opens is the table, and any range printed out
+there could only ever have counted one of the lists inside it.
+
+The fourth list was `d`, the disclosures, and it cost one entry and no consumer,
+which is the claim the table was making. Two things about it still had to be
+written, and both are about arriving. Every other member is reached through a
+reveal that opens the collapsed boxes standing between the reader and it; a
+disclosure is the member that *is* such a box, so there the travel is the whole
+motion, and a reader who wanted a section open has it open having asked once.
+That much belongs to the entry. The other does not: an arrival that leaves the
+reader standing on a control the platform answers owes them the word for it.
+`g l` had already run up that debt — the line went quiet at the moment they
+landed on a link — and one scope paid it for one tag. A second scope beside it,
+differing in a selector and a word, is the closed list in other clothes, so the
+platform's own controls are a table as well (`NATIVE`), each saying its word
+where it is painted: a summary's press opens or closes according to which way the
+box is standing.
+
+The chips are what make an address readable, and they had to move with the
+letter. A reply box wore its digit through a rule of the panel's, which works for
+exactly one list — the members of the others are a suggestion that draws no box
+and a link set mid-sentence. So they are drawn in a layer of the chrome's own and
+placed from each member's visible rect (`shownRect`), the reading the aim's box
+and the legend already take: a member the page is not showing wears nothing, and
+no digit is written into the author's markup for the passage walk to meet.
+
+A chip being what makes an address readable is then an argument for addressing
+what the reader can see, and it is a trap. Links were declared as the ones on
+screen, which reads as generosity — thirty links on a page and the digits land on
+the ones in front of you — and it makes the address mean a different link at every
+scroll position, so a reader who has just learnt that the PR is `g l 2` is wrong a
+moment later. It also moves a row's liveness onto the scroll, and a row that goes
+dead as the page moves is a row the key line has to be repainted to stop
+promising: one measured paint is 1.3ms on the gallery, and putting that on every
+scroll frame of every page buys one row its accuracy. A list is the document's,
+then, and the first nine of it are addressable however far down they sit — the
+same bound the comments and the asks have always had — while the chips are drawn
+for whichever of them the reader can see. What a chip cannot show, the address
+still reaches.
+
+The chord's rows carry two questions at once, where a scope usually carries one
+of them: whether the page has the list is the capability, and which list is aimed
+at is whether the press moves now. They can share the answer because a mode is
+not somewhere the reader stands near — they are in it or it is not there — so
+its rows answer about here whichever way the reference was opened, and `?`
+reaches the reference only from a page nobody has armed. That is what the
+reference reads to filter them (`showHelp`), off the claim the scope already
+makes. The claim has to survive the gathering to be read: sections are built by
+`merge`, which kept `when`, `at` and the rows and dropped everything else, so the
+chord arrived claiming nothing, was listed whole, and named `l` on a page holding
+no link at all — a fact stated on the scope and lost on the way to the one
+surface that asks for it.
+
+Naming the two apart instead is possible and was tried: a scope per list, each
+stating its own capability, all under one title. It costs three scopes where the
+keyboard has one mode, and the reference gathers contributors in the order it
+walks the stack — backwards — so it named the lists in the opposite order to the
+line that had just offered them.
+
+Arriving is the list's, and it is the same act however the member was chosen:
+`n`/`p` pick an ask by direction and `g a` by number, and both land through one
+function. A second arrival written beside the first would be a second answer to
+what standing on an ask means. Showing the list is the list's too, and it is not
+the arrival's: the comments live in a panel that draws nothing while it is shut,
+so naming that list is what opens it. Opening it on the digit instead put the
+letter's whole point — the addresses, on screen, to choose from — after the choice
+had been made.
+
+The mode stands until something ends it, where it stood for a second and a half.
+A timeout is how a keyboard resolves an ambiguous prefix, and there is none here:
+`g` is a prefix and nothing else, and any key the chord does not bind disarms it
+and then runs with its ordinary meaning, so no press is ever swallowed by a mode
+left open. What the clock did instead was charge the reader for reading the menu
+the press had just painted — and a letter arriving a moment late is not a no-op
+but the page's own key, so a slow reader pressing `l` got the leaves board rather
+than the links.
 
 ## A walk starts where the reader is standing
 

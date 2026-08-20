@@ -360,7 +360,7 @@ lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
 lf-option .lf-pick:focus-visible { outline: var(--here-ring);
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
- * (.lf-address) — the g leader's thread chips are that same fact and wear the same chip.
+ * (.lf-address) — the g chord's own chips are that same fact and wear the same chip.
  * Two things are this rule's: where it sits and when it shows.
  *
  * Where: in the column the option reserves for it (the joined control's rules above).

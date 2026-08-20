@@ -63,9 +63,9 @@
  * whether or not a digit is in it, which is the theme's half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise "toggle the nth" with
- * focus on a link inside one. An armed `g` leader keeps its own digits without this module
- * asking: the leader's scope suspends every scope inside it, where each widget used to
- * have to remember the question.
+ * focus on a link inside one. An armed `g` chord keeps its own digits without this module
+ * asking: its scopes suspend every scope inside them, where each widget used to have to
+ * remember the question.
  *
  * `settled` retires the decision once it has been made and acted on: the group collapses
  * to one line naming the chosen option, with every option — the chosen one included —
@@ -254,8 +254,8 @@ customElements.define(
     // The keyboard path past Tab-and-⏎: from a mark, ↑/↓ walk the options and a
     // digit picks outright. Declared on the mark, so a digit typed in the box for
     // words stays text and a nested group's marks stay its own, and an armed g
-    // leader keeps its own digits without this module asking — the chord's scope
-    // suspends every scope inside it. Each option shows its digit only while a mark
+    // chord keeps its own digits without this module asking — its scopes suspend
+    // every scope inside them. Each option shows its digit only while a mark
     // holds keyboard focus (the theme's :focus-visible rule), so the address
     // appears exactly when a key could use it.
     #keys() {
@@ -290,8 +290,8 @@ customElements.define(
           {
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
-            // are the markup's and do not change under the reader — where the leader's
-            // digits count open threads, which resolve as they are answered.
+            // are the markup's and do not change under the reader — where the chord's
+            // comment digits count open threads, which resolve as they are answered.
             keys: addresses,
             label: addresses.length > 1 ? `1–${addresses.length}` : "1",
             does: "Toggle the nth option",

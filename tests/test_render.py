@@ -17007,16 +17007,32 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
 def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     browser, serve, one_reader
 ):
-    """The log returns the accepted attempt when its first sender cannot settle it."""
+    """The log returns the accepted attempt when its first sender cannot settle it.
+
+    Both tabs are held stale, and each refusal states one half of that sentence. The
+    wrapper below closes the send path — the POST lands, the runtime never hears the
+    answer — and the poll is the other way the same tab settles a draft
+    (settleAcceptedDrafts), so a sender left polling can still tombstone the shared
+    generation out from under the replacement. It did: within a poll of the server
+    taking the answer, first's own next poll read the attempt back out of the log and
+    settled it, second's box emptied, and the send this test is about had nothing left
+    to send — sends=0, the failure landing either on `sendDraft` refusing a settled
+    record or on Playwright refusing a Send the box had already disabled, depending on
+    which side of the click the storage event fell. The race was one poll interval
+    against Playwright's own click, which is a gap only a loaded machine loses.
+
+    Second's refusal is the older half and states the same fact from its own side: the
+    replacement must not learn the attempt is in the log before it sends, or it would
+    correctly decline to. Both go through `held_stale` rather than a live `page.route`,
+    which reaches no poll already in the wire."""
     url = serve(ASK_PAGE)
-    first, _ = open_page(browser, url, context=one_reader)
-    second, second_errors = open_page(browser, url, context=one_reader)
+    first, _ = open_page(browser, url, context=held_stale(one_reader))
+    second, second_errors = open_page(browser, url, context=held_stale(one_reader))
     raw = "One answer survives its sender closing."
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
     second_say = second.locator("#jobs > .lf-conversation > .lf-say")
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
-    second.route("**/api/state*", refuse)
 
     first.evaluate(
         """() => {

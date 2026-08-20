@@ -461,6 +461,14 @@ $ leaf ack ./review 3</code></pre>
           plus your own edits; a reload replays them, and a second tab follows along
           live.
         </p>
+        <p id="undo">
+          <code>z</code> takes back the last change you made here — a card returned to
+          the column this version had it in, a thread you resolved by mistake open
+          again, a suggestion you accepted pending again — and pressing it again steps
+          further back. Nothing is erased and nothing is restated: the log gains one
+          word withdrawing the change, and the page is this version plus whatever still
+          stands, which is what a reload has always shown you.
+        </p>
         <p id="decline">
           Declining is a version too. When the agent disagrees with an edit, it ships
           the next version without the change, says why in the changelog, and the page

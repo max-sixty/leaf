@@ -142,6 +142,42 @@ invalidates a decision, the author says so with `restated` on the rewritten
 element, which retracts what rested on it — and `version check` refuses both a
 bare rewrite and an unearned `restated` (`restatement_errors`).
 
+Taking a gesture back is the same sentence read from the reader's side. `z` posts
+one event — `undo`, naming the gesture it takes back and nothing else — and every
+fold and the thread reading drop the gesture it names, so the page is the version
+plus what still stands. That is what a reload has always rendered, and what
+`restated` already writes from the author's side; the reader now has the same word
+for it. Nothing leaves the log, and nothing states a counter-gesture into it: a
+card put back on the list it came from would read as a decision to move it there,
+and there is no value "undecided" for any verb to carry, so a reader taking back
+an accept could not have been recorded at all.
+
+What the reader sees follows from that rather than being restated into it, and by
+the cheapest faithful means. Where the log still leaves the unit a state that can
+be stated — the detail a prior surviving action carried, or the placement this
+version's markup arrived showing — the widget is told it, so the card travels back
+under the reader's eye and the grip they were holding stays under their hand. That
+is why a position record names the field carrying the order as well as the
+container: a placement stated on the column alone puts a card back on the right
+list in the wrong place. Where the verb records nothing there is no such state, so
+the widget is rebuilt from the markup this version wrote and what survives is
+replayed onto it — a reload, done to one widget. The clone that makes it possible
+is taken beside the passage fences and for the same reason: the moment after the
+registry lands and before the modules import is the only one at which the page
+holds the author's markup and nothing else.
+
+Both routes are chosen by a declaration and neither knows a widget's name, which
+is the whole of why a settlement can be taken back at all. `accept` was final for
+as long as an undo could only state a value — a fact about the mechanism, wearing
+the clothes of a fact about suggestions, and written into that family's own entry
+as though it were one.
+
+One bound is real and stays: an action reaches only the version it was made
+against, a later version being free to have been written around the decision. On
+v2 the authored placement of a card moved on v1 is where the move put it, so the
+press would be live and paint nothing. Threads are not scoped that way and must
+not be, a conversation outliving the version it was opened on.
+
 Both failure modes here are invisible to the user, so the question was never which
 is worse but who can see each one. A dropped decision is visible to nobody. A
 stale decision standing over rewritten content is visible to the author at the
@@ -363,13 +399,14 @@ side the second writer shows on.
 - **Tests are integration tests in a real browser.** What a test must assert, and
   the ways one can pass vacuously, are in `tests/CLAUDE.md`; what each file
   covers, and the commands, are under "The suite" below.
-- **A cloud container has none of that, so set it up first.** There is no system
-  Chrome, so every browser test fails at launch — the Chromium preinstalled there
-  is a different build from the one the lockfile expects, and the suite asks for
-  `channel="chrome"`. There is no `pre-commit` either, so the lint cannot run:
+- **A cloud container has none of that, so set it up first.** The suite needs the
+  Chromium headless shell that matches the Playwright version in `uv.lock`. Two
+  end-to-end launcher tests also need installed Chrome. There is no `pre-commit`
+  either, so the lint cannot run:
 
   ```sh
   uv sync --frozen
+  uv run playwright install chromium --only-shell
   uv run playwright install chrome
   uv tool install pre-commit
   ```
@@ -421,8 +458,8 @@ the pages under `docs/` to the shipped theme and widget registry.
 `test_site.py` builds the site and reads it back: the theme it serves is the
 shipped file, each example stands up as a live page that takes a comment and
 holds a decision through a reload, both palettes reach the site's own layer, and
-no page scrolls sideways on a phone. Playwright attaches to the Chrome already on
-the machine, so there is no browser download and still no build step.
+no page scrolls sideways on a phone. Playwright drives the pinned Chromium headless
+shell installed with the developer environment.
 
 The suite runs in the environment `pyproject.toml` names and `uv.lock` pins, and
 that environment is the developer's only. leaf itself declares its dependencies
@@ -434,12 +471,12 @@ packages anyway, because they load `interact.py` by path.
 uv run pytest tests
 ```
 
-That everyday command needs no network. It runs one shipped page through the browser
-gate, so one of `pyproject.toml`'s eight workers launches Chrome; the other tests cover
-the static lint, server, vendoring, and product pages. The fixtures relocate the two
-XDG directories leaf reads (`config_home`, `state_home`) and leave the rest of the home
-alone, so every `leaf` the suite shells out to finds the uv cache the developer already
-has.
+That everyday command needs no network after setup. It runs one shipped page through
+the browser gate, so one of `pyproject.toml`'s eight workers launches Chromium; the
+other tests cover the static lint, server, vendoring, and product pages. The fixtures
+relocate the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
+developer already has.
 
 `test_render.py` and `test_site.py` are the browser integration suite. A browser change
 runs its focused test with `--run-nightly`; CI and `wt merge` use the same flag for the
@@ -463,10 +500,9 @@ pre-commit run --all-files
 CI is also the only place either gate meets a platform other than macOS, and the
 platforms disagree about exactly the things a browser test measures: how wide a
 system font sets a word, whether a scrollbar takes a gutter out of the window.
-`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container
-carrying the runner's Chrome and its fonts, so a CI failure becomes something to
-reproduce rather than something to guess at. It takes pytest's arguments, and
-needs a Docker daemon that can run linux/amd64:
+`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container carrying
+the pinned headless shell, installed Chrome, and the runner's fonts. It takes pytest's
+arguments and needs a Docker daemon that can run linux/amd64:
 
 ```sh
 scripts/linux-suite.sh

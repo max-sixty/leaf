@@ -475,6 +475,14 @@ For each acknowledged batch:
      disagree in silence. It guards the other end too: a version may retire ids only
      where the log settled the widget holding them, so an undecided proposal is
      carried, withdrawn whole, or left alone, never quietly kept as settled content.
+   - **A gesture the reader took back** is `{"kind": "undo", "undoes": "<event id>"}`:
+     they pressed `z`. It withdraws rather than deletes — the named gesture stays in
+     the log and stops counting, so the page is this version plus what still stands.
+     Read the pair as one act: the withdrawn gesture is not something to answer or to
+     carry into the markup, and a thread whose answering action was withdrawn is open
+     again with it. A suggestion whose accept was taken back is pending again, so
+     the next version carries neither half's decision. Where the id names an event
+     from an earlier batch, `leaf events <page>` has it.
    - **A page error** (`"kind": "error"`, author `page`) is the page's own runtime
      reporting a failure in front of the user — a widget module that wouldn't
      load, an uncaught throw. It is your debt, not theirs: the reader was never
@@ -708,7 +716,9 @@ It loads the version in the machine's installed Chrome (a couple of seconds, and
 before the version is published) and fails, in both color schemes, on what a static lint
 cannot see: a console error, a widget upgraded into a box of no size, a page that
 scrolls sideways, a `lf-diagram` whose mermaid source doesn't parse, words on screen
-that no selection can reach, a control drawn outside the box that clips it (an offer the
+that no selection can reach, an element that shows words and gives a mark no box to hang
+on, so a comment anchored there outlines nothing and `n` travels to the top of the page,
+a control drawn outside the box that clips it (an offer the
 page makes and doesn't show), code set in an ink the reader can't tell from the block it
 is on, words the screen shows and a printout drops, a version
 that authors widget state the log replays over

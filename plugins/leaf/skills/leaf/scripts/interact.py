@@ -331,7 +331,24 @@ shape as an action, validated by the widget's x-report declaration at the
 decisions the publishing version took back, and `reports`: the report event ids
 the version absorbed or overruled), error (the page's own runtime reporting a
 failure in front of the user — author=page, heard by the watcher like a report
-and never counted against the reader). The server stamps every other
+and never counted against the reader).
+
+undo (the reader taking a gesture back, `undoes` naming it — a resolve, an
+unresolve, or an action, per UNDOABLE_KINDS) is the log's one word for that, and
+it names the gesture and nothing else: every other field is the target's to
+state. It withdraws rather than deletes. Nothing is removed from the log; the
+folds and the thread reading simply drop the event, so the page is what the
+version says plus what still stands — the same sentence a reload has always
+read, and the same one `restated` already writes from the author's side. What
+the reader sees follows from that rather than from a second statement: where the
+log still leaves the unit a state that can be stated, the browser states it (a
+prior action's detail, or the placement the version's markup arrived showing) so
+the page moves rather than being rebuilt; where the verb records nothing, and so
+no state can be stated, the browser rebuilds that widget from the version's own
+markup and replays what survives onto it. The door refuses an `undoes` naming
+anything but an unwithdrawn gesture of the reader's own.
+
+The server stamps every other
 browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
 and `version publish` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
@@ -397,7 +414,8 @@ against it — no console or page errors, no fail-soft error box, every visible
 widget occupies real space, code that reads against the block it is set on, no
 sideways scroll, in both color schemes.
 The invariants live in render_version, which tests/test_render.py drives over
-the shipped examples, so the gate and the suite cannot drift apart.
+the shipped examples. The suite uses Chromium's headless shell, while its
+end-to-end render-check tests cover the installed Chrome launch used here.
 
 Passages: an anchor is resolved in the browser and written down here, so
 `leaf comment` reads a version the way the anchor pass reads the DOM — text in
@@ -466,6 +484,7 @@ BROWSER_EVENT_FIELDS = {
     "unresolve": {"parent": str},
     "done": {"version": int, "text": str},
     "action": {"widget": str, "action": str, "detail": dict, "version": int},
+    "undo": {"undoes": str},
     # The page's own runtime reporting a failure in front of the user — an
     # uncaught throw, a module that wouldn't load, a contained applyAction
     # fault. Stamped author "page", because it is the machine speaking: the
@@ -512,7 +531,17 @@ EVENT_VOCABULARY = {
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
     "error": {"version", "text"},
+    # The reader taking a gesture back (`z`), naming it and nothing else. Every
+    # other field is the target's to state, and stating it twice is two things to
+    # keep in step. What it takes back it takes back for every reader of the log:
+    # the folds drop the event, so the page is what the version says plus what
+    # still stands, which is the same sentence a reload has always read.
+    "undo": {"undoes"},
 }
+# The kinds a reader can take back. A message is not among them: a comment is
+# speech, and the agent may already have read it — what a reader regrets there
+# they say, rather than unsay. Nor is an undo itself, which would be a redo.
+UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After a complete batch enters context, run "
@@ -545,8 +574,15 @@ _RECORD_POSITION = {
         "kind": {"const": "position"},
         "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
         "value": {"type": "string", "minLength": 1},
+        # Where the unit sits among its siblings. Comparison stays at the
+        # container's granularity (see $state) — but a reader that has to *state*
+        # a position needs both halves, and taking a move back is one: the runtime
+        # reads the authored placement off the page before replay touches it, and
+        # a record naming only the column would put a card back on the right list
+        # in the wrong place.
+        "order": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "within", "value"],
+    "required": ["kind", "within", "value", "order"],
     "additionalProperties": False,
 }
 _RECORD_BODY = {
@@ -801,6 +837,19 @@ def read_json(path: Path):
         return None
 
 
+def file_stamp(path: Path):
+    """What the filesystem says a file is: which file, when it was last written,
+    and how big it is. A page directory holds files that are written once and read
+    on every request, so what each one says is worked out once and kept under this
+    stamp, and a file rewritten since wears a different one. A path with nothing
+    there stamps as None, which keeps nothing and reads every time."""
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+
+
 def read_cursor(page_dir: Path) -> int:
     """The seq the agent has acknowledged through (`leaf ack`); 0 before any."""
     return (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
@@ -979,6 +1028,41 @@ def read_events(page_dir: Path) -> list:
     return events
 
 
+def taken_back(events: list) -> set:
+    """Event ids some later gesture took back (`undoes`).
+
+    The counter-event states the state that stood before, so the folds need none
+    of this — the later absolute value wins on its own. What does need it is
+    every reading of what the earlier event *meant*: the thread an action
+    answered is open again once the answer is withdrawn, and the undo walk steps
+    back past what it has already taken."""
+    return {e["undoes"] for e in events if e.get("undoes")}
+
+
+def undo_error(event: dict, events: list) -> str | None:
+    """Why this undo may not take back the event it names, or None.
+
+    Checked once here, at the door the browser writes through, so nothing
+    downstream asks a second time whether an `undoes` points at something real.
+    Two tabs racing to take back the same event are the one case this refuses
+    that nothing is wrong with: the second is a no-op, and refusing it costs a
+    toast where accepting it would leave two withdrawals of one gesture in a log
+    whose every other line is something the reader did."""
+    target = next((e for e in events if e["id"] == event["undoes"]), None)
+    if target is None:
+        return f"unknown undoes {event['undoes']!r}"
+    if target["author"] != "user":
+        return f"{target['kind']} {target['id']} is not the reader's own gesture"
+    if target["kind"] not in UNDOABLE_KINDS:
+        return (
+            f"{target['kind']} events cannot be taken back (the kinds that can "
+            f"are {', '.join(sorted(UNDOABLE_KINDS))})"
+        )
+    if target["id"] in taken_back(events):
+        return f"{target['id']} has already been taken back"
+    return None
+
+
 def build_threads(events: list, spk: dict) -> dict:
     """Fold the chronological log into comment threads by root id.
 
@@ -1001,9 +1085,14 @@ def build_threads(events: list, spk: dict) -> dict:
     stood down quietly is exactly where a verb naming a part of its own widget
     would have gone unfloored."""
     floors = retractions(events)
+    withdrawn = taken_back(events)
     threads = {}
     thread_for = {}
     for e in events:
+        # A gesture the reader took back settles nothing, whichever way it settled:
+        # the log holds it and no reading of the log stands on it.
+        if e["id"] in withdrawn:
+            continue
         if e["kind"] == "comment":
             thread = {"root": e, "msgs": [e], "resolved": None}
             threads[e["id"]] = thread
@@ -1014,6 +1103,10 @@ def build_threads(events: list, spk: dict) -> dict:
         # a thread joins by declaring the field, not by being read here by name.
         # The sender snapshots the mapping into the action because the honoring
         # version retires the element that held it, so nothing later can look it up.
+        # …and only while the log lets it stand. An answer the reader took back
+        # (above) leaves the question open, the same way a `restated` version
+        # does — two ways for one action to stop standing, and the thread reading
+        # owes both the same reply.
         if e["kind"] == "action" and e["detail"].get("resolves"):
             answered = threads.get(e["detail"]["resolves"])
             if answered and not action_retracted(e, floors, spk):
@@ -1560,9 +1653,9 @@ def other_leaves(page_dir: Path) -> list:
     newest published version's — the version that page's own root URL answers
     with — read the way `transcript` reads it.
 
-    Uncached, on every /api/state: the whole scan, presence reads included,
-    measured ~1.4ms against a state home holding forty pages, three of them
-    live."""
+    The whole scan runs on every /api/state; what it reads of each neighbour is
+    kept per file, so a poll costs the scan and the presence reads rather than a
+    parse of every live neighbour's page (`parse_version`)."""
     candidates = []
     pages = state_home() / "pages"
     if pages.is_dir():
@@ -2034,6 +2127,9 @@ class Handler(BaseHTTPRequestHandler):
             e["id"] for e in events if e["kind"] in {"comment", "reply"}
         }:
             self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
+            return
+        if kind == "undo" and (error := undo_error(event, events)):
+            self._json({"error": error}, 400)
             return
         event["author"] = "page" if kind == "error" else "user"
         try:
@@ -3128,22 +3224,23 @@ def thread_widget_ids(events: list) -> set:
     return ids
 
 
-def action_widget_tags(page_dir: Path, version: int, events: list) -> dict:
+def action_widget_tags(byid: dict, events: list) -> dict:
     """Widget id → tag in the document that sent an action.
 
     Page widgets come from the action's own published version, not whichever
-    version is newest now. Thread widgets are the other live document the runtime
-    renders, so each message's `markup` joins this map — text never carries a
-    widget, in the panel or here. Both readings use _StructParser, the same
-    structure reading `version check` and markup validation already trust.
+    version is newest now. `byid` is that version's structural reading; the caller
+    takes it, having a second question for the same reading. Thread widgets are
+    the other live document the runtime renders, so each message's `markup` joins
+    this map — text never carries a widget, in the panel or here. Both readings
+    use _StructParser, the same structure reading `version check` and markup
+    validation already trust.
     """
-    sources = [version_path(page_dir, version).read_text(encoding="utf-8")]
-    sources.extend(e["markup"] for e in events if e.get("markup"))
-    widgets = {}
-    for source in sources:
-        widgets.update(
-            (wid, rec["tag"]) for wid, rec in parse_structure(source).by_id.items()
-        )
+    widgets = {wid: rec["tag"] for wid, rec in byid.items()}
+    for event in events:
+        if markup := event.get("markup"):
+            widgets.update(
+                (wid, rec["tag"]) for wid, rec in parse_structure(markup).by_id.items()
+            )
     return widgets
 
 
@@ -3156,7 +3253,10 @@ def detail_error(schema: dict, detail: dict):
 
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
     """Why a structurally complete action violates its sending widget's contract."""
-    tag = action_widget_tags(page_dir, event["version"], events).get(event["widget"])
+    # One structural reading of the version, for both questions this door asks of
+    # it: which tag the widget is, and whether it stands inside an exhibit.
+    byid = parse_version(page_dir, event["version"]).by_id
+    tag = action_widget_tags(byid, events).get(event["widget"])
     if tag is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
@@ -3175,11 +3275,10 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
-    # made on quoted material. Any sender the key admits reaches this door.
-    html = version_path(page_dir, event["version"]).read_text(encoding="utf-8")
-    if quoted_in(
-        event["widget"], parse_structure(html).by_id, spoken(html, registry), registry
-    ):
+    # made on quoted material. Any sender the key admits reaches this door. The
+    # page's own markup answers it, a thread's widgets standing in the document
+    # the panel renders rather than this one.
+    if (rec := byid.get(event["widget"])) and quoted_in(rec, registry):
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
@@ -3512,6 +3611,7 @@ def cmd_transcript(page_dir: Path) -> None:
     # is a version taking one back, which is the same understatement the other
     # way round — an edit shown as final that a later version overruled.
     # Widget-agnostic rendering: verb + detail pairs, against the version edited.
+    withdrawn = taken_back(events)
     edits = [
         e
         for e in events
@@ -3536,7 +3636,11 @@ def cmd_transcript(page_dir: Path) -> None:
                     f"{verb} (on v{e['version']})"
                 )
             else:
-                print(f"- `{e['widget']}`: {verb} (on v{e['version']})")
+                # An edit the reader took back is an outcome too, and the same
+                # understatement the other way round: shown as it stands it reads
+                # as final, and left out it reads as never made.
+                took = " — taken back" if e["id"] in withdrawn else ""
+                print(f"- `{e['widget']}`: {verb} (on v{e['version']}){took}")
 
     # Against the newest published version — the page as it now stands, which is
     # what a transcript is an account of. A page with nothing published yet has no
@@ -4359,8 +4463,27 @@ def parse_structure(markup: str) -> _StructParser:
     return parser
 
 
+_versions = {}  # version file -> (its stamp, the structural reading of it)
+
+
 def parse_version(page_dir: Path, version: int) -> _StructParser:
-    return parse_structure(version_path(page_dir, version).read_text(encoding="utf-8"))
+    """One structural reading per published version file.
+
+    `version publish` writes a version and nothing writes it again, while the
+    readings that cost most are the ones a reader waits through: the action door
+    checks a press against the version it was made on, and every poll reads each
+    live neighbour's newest version for the one string the board shows of it. That
+    last one made a title cost a parse of the whole page, once a second, per
+    neighbour — seven neighbours put more time between a press and its paint than
+    everything else the server did for it put together."""
+    path = version_path(page_dir, version)
+    stamp = file_stamp(path)
+    if stamp and (held := _versions.get(path)) and held[0] == stamp:
+        return held[1]
+    parser = parse_structure(path.read_text(encoding="utf-8"))
+    if stamp:
+        _versions[path] = (stamp, parser)
+    return parser
 
 
 def version_review_mode(page_dir: Path, version: int):
@@ -5522,11 +5645,13 @@ def validate_registry(registry: dict, source) -> dict:
                 record = spec.get("record")
                 if record:
                     fields.append(record["value"])
-                    if record["kind"] == "position" and record["within"] not in widgets:
-                        raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` records a position "
-                            f"within unknown widget <{record['within']}>"
-                        )
+                    if record["kind"] == "position":
+                        fields.append(record["order"])
+                        if record["within"] not in widgets:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records a "
+                                f"position within unknown widget <{record['within']}>"
+                            )
                     if record["kind"] == "value":
                         attr = record["attr"]
                         if attr not in properties:
@@ -5619,6 +5744,16 @@ def validate_registry(registry: dict, source) -> dict:
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
                             f"value `{value}` must be a string"
                         )
+                    if record["kind"] == "position":
+                        order = detail_properties[record["order"]]
+                        if not (
+                            isinstance(order, dict) and order.get("type") == "integer"
+                        ):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` record "
+                                f"order `{record['order']}` counts the unit's "
+                                "siblings, so its detail field must be an integer"
+                            )
         # Withdrawal is the author taking an unanswered question back, and the
         # entry says which of its own outcomes that leaves the page in
         # (retirable_ids). A verb no slot of this widget retires under would
@@ -5663,10 +5798,24 @@ def validate_registry_examples(registry: dict, source) -> dict:
     return registry
 
 
+_registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
+
+
 def read_registry(path: Path):
-    """Read and validate one complete registry vocabulary."""
-    registry = read_registry_entries(path)
-    return None if registry is None else validate_registry(registry, path)
+    """Read and validate one complete registry vocabulary, once per vendored file.
+
+    `page init` writes a page's registry.json and nothing writes it again, while an
+    action POST asks for the whole vocabulary before it can check a single press —
+    so every press re-linted forty frozen entries, an order of magnitude more work
+    than the contract check it was preparing for."""
+    stamp = file_stamp(path)
+    if stamp and (held := _registries.get(path)) and held[0] == stamp:
+        return held[1]
+    entries = read_registry_entries(path)
+    registry = None if entries is None else validate_registry(entries, path)
+    if stamp:
+        _registries[path] = (stamp, registry)
+    return registry
 
 
 def load_registry(page_dir: Path):
@@ -6281,6 +6430,7 @@ def state_fold(
     the consumer's window — the gate folds to the last published version (an
     action made later belongs to no comparison of these two files), a lag
     report to everything recorded (None)."""
+    withdrawn = taken_back(events)
     fold = {}
     for e in events:
         if e["kind"] != "action":
@@ -6290,7 +6440,11 @@ def state_fold(
         spec = event_spec(e, byid, registry, "x-state")
         if not spec:
             continue
-        if action_retracted(e, floors, spk):
+        # Two ways an action stops standing, and the fold owes both the same
+        # answer: a version that rewrote what it rested on (`restated`), and the
+        # reader taking it back. Neither leaves a mark on the action itself —
+        # the log is append-only — so both are read from what came after it.
+        if e["id"] in withdrawn or action_retracted(e, floors, spk):
             continue
         unit = fold_unit(e, spec)
         if isinstance(unit, str):
@@ -6512,12 +6666,20 @@ def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> b
     return False
 
 
-def quoted_in(unit: str, byid: dict, spk: dict, registry: dict) -> bool:
+def quoted_in(rec: dict, registry: dict) -> bool:
     """The runtime's `quoted`: inside an element the registry marks x-exhibit,
-    a widget is a mention rather than a use, and asks nothing."""
+    a widget is a mention rather than a use, and asks nothing.
+
+    The holder chain answers it, which is the walk `enclosing_slot` makes and the
+    one the runtime makes over the DOM. Asked of `spoken` instead, containment
+    became a question about the page's words: the reading that says what stands
+    around one widget walks every character of the version to do it, so an action
+    POST on a 90KB page spent forty milliseconds finding out what a single id sat
+    in. It reads a record rather than an id for the same reason the runtime takes
+    an element — an element the author left unnamed stands where it stands."""
     return any(
-        registry.get(byid.get(a, {}).get("tag"), {}).get("x-exhibit")
-        for a in spk.get(unit, EMPTY).within[:-1]
+        (registry.get(node["tag"]) or {}).get("x-exhibit")
+        for node in enclosing_widgets(rec)
     )
 
 
@@ -6539,7 +6701,7 @@ def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) ->
         unit = rec["attrs"].get("id")
         if unit and unit in dropped:
             continue
-        if unit and quoted_in(unit, byid, spk, registry):
+        if quoted_in(rec, registry):
             continue
         if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
             continue
@@ -6585,7 +6747,7 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
             if not awaits or not entry.get("x-state"):
                 continue
             unit = rec["attrs"].get("id")
-            if unit and quoted_in(unit, byid, spk, registry):
+            if quoted_in(rec, registry):
                 continue
             attrs = replayed_attrs(rec, fold, reports)
             if not asking(attrs, awaits.get("when")):
@@ -7241,6 +7403,50 @@ TINY_BOXES = """(widgets) => {
                       w: Math.round(el.getBoundingClientRect().width),
                       h: Math.round(el.getBoundingClientRect().height) }))
         .filter(box => box.h < 10 || (!inline.has(box.tag) && box.w < 40));
+}"""
+
+
+# An element the reader can see and no mark can be shown on. The gate presses no keys, so
+# it never watches the ask walk paint a ring or a comment paint an outline. It can still
+# read whether either would have had anywhere to land, which is the same fault one step
+# earlier, before it turns into a mark nobody can see.
+#
+# The fault is a box that isn't there. An element with `display: contents` lays its
+# children out in its parent's flow and generates no box of its own, so its rect is the
+# empty one every rect starts as — zero-sized, at the document's origin, a real-looking
+# answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
+# aimed at it lands at the top of the page: a page whose open asks were all suggestions
+# answered `n` by appearing to do nothing at all, and that reached its reader rather than
+# this gate. The runtime answers it by hanging a mark on the boxes an element shows
+# through (shownParts) — which leaves one case that answer cannot reach, an element whose
+# words are in no child element at all, where there is nothing to hang anything on.
+#
+# TINY_BOXES is next door and cannot see this: `checkVisibility()` is false for an element
+# with no box, so the very elements at issue are the ones it filters out. Both readings are
+# imported rather than restated, so what the gate refuses a handover for and what the page
+# actually paints cannot come apart — the whole point of the pair being that there is one
+# answer to where an element is.
+UNMARKABLE_ITEMS = """async () => {
+    const { shownBox, shownParts } = await import('/leaf.js');
+    const HTML = 'http://www.w3.org/1999/xhtml';
+    const found = [];
+    for (const el of document.querySelectorAll('[id]')) {
+        // The document's own elements, which is what an anchor can name and a walk can
+        // step to. A rendered diagram's insides are none of those — they are one
+        // picture, whose <lf-diagram> is the thing to point at and has a box of its
+        // own — and they are full of shapes with ids and no layout box: every <marker>
+        // in a mermaid flowchart's <defs> read as an item showing 11x11px of words.
+        if (el.namespaceURI !== HTML) continue;
+        if (el.closest('.lf-chrome')) continue;
+        const box = shownBox(el);
+        // Nothing on screen is nothing to mark, and nothing the reader can point at
+        // either: a collapsed tab's contents, a slot a decision retired.
+        if (!(box.width && box.height)) continue;
+        if (shownParts(el).length) continue;
+        found.push({ tag: el.tagName.toLowerCase(), id: el.id,
+                     w: Math.round(box.width), h: Math.round(box.height) });
+    }
+    return found;
 }"""
 
 
@@ -8207,6 +8413,8 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     console or page error, a request that 404s, a fail-soft error box, an upgrade
     module that never defines its declared element, an x-conversation whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
+    an element showing words with no box for a mark to hang on, so a comment anchored
+    there would outline nothing and the ask walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     words the user can read and can't select, words drawn on top of other words, code
     coloured in an ink the reader cannot tell from the code around it — each
@@ -8338,6 +8546,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             widgets,
         )
         tiny = page.evaluate(TINY_BOXES, widgets)
+        unmarkable = page.evaluate(UNMARKABLE_ITEMS)
         overflow = page.evaluate(
             "document.body.scrollWidth - document.body.clientWidth"
         )
@@ -8489,6 +8698,14 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             found.append(
                 f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
             )
+        found += [
+            f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
+            " and offers no box to mark: it draws none of its own and no element inside"
+            " it draws one either, so a comment anchored here would outline nothing and"
+            " the ask walk would travel to the top of the page. Put the words in an"
+            " element that takes a box"
+            for u in unmarkable
+        ]
         if overflow > 0:
             found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
         found += [f"[{scheme}] {s}" for s in misplaced]
@@ -8854,10 +9071,10 @@ def inline_assets(html: str, page_dir: Path) -> str:
 def export_page(browser, url: str, page_dir: Path) -> str:
     """The served version at `url`, copied as one self-contained document.
 
-    One implementation with two callers, as `render_version` is: `version export`
-    supplies a browser of its own, and the suite drives this over the shipped
-    examples with the one it already has, so the copy a user gets and the copy
-    the suite asserts on cannot drift.
+    One implementation has two callers, as `render_version` does: `version export`
+    supplies installed Chrome, while the suite drives this over the shipped
+    examples with its Chromium headless shell. That keeps the export behavior in
+    one function without claiming that the two browser launch paths are identical.
 
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page

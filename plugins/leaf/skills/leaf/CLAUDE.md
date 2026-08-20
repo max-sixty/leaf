@@ -70,22 +70,74 @@ The general form is that a fact derived from a box is not derived by a writer of
 that box. Where one function has to be both reader and writer, the write moves
 to a box nobody is measuring — or to the cascade, which is not that function.
 
+## A press waits for the log; a gesture that already moved something puts it back
+
+Two kinds of gesture reach the action channel and they owe the reader different
+things. A drag has already put the card where the hand let go, and an edit holds
+words only the open box ever had: the page cannot un-show either, so those paint
+themselves and restore the old state when the send fails (`lf-board`'s `#place`,
+`lf-draft`'s `#restore`). A press has shown nothing yet. It asks for a decision,
+the decision is the log's to make, and no decision is painted until the log has
+made it.
+
+What decides which kind a gesture is: whether the reader's next gesture computes
+from the paint. A toggle's does — the next press on an `lf-options` mark reads the
+picks the last one left, so a `multiple` group that deferred its paint would send
+the second pick as a set missing the first. A suggestion's decision has no next
+gesture at all: the slot retires and the controls stop offering. So
+`lf-suggestion` and `lf-options`' `Done` wait for the answer, and `choose` does
+not.
+
+Painting first and rewinding on refusal reaches the same end state and flickers on
+the way. Against a closed session the whole round trip is one frame wide, so a
+press painted "✓ Accepted" over a folding slot and took both back in the next
+frame. The rewind was not free to write either: it had to cancel a fold in flight,
+and read the change's words on the far side of the state move, because deciding
+retires the slot those words live in. None of that exists once the paint waits.
+
+Waiting to paint the decision is not the same as leaving the press unanswered, and
+the difference is where this nearly went wrong. Nothing acknowledged a press at
+all — no `:active` rule anywhere, and a `span[role="button"]` gets none from the
+browser, so the paint had been doing that job as a side effect of claiming the
+outcome. The two are separate promises: that the press landed, which is the page's
+to make immediately, and that the decision stands, which is the log's. So a widget
+mid-send says `aria-busy` — the platform's own word, which `lf-draft` was already
+saying to screen readers alone — and the layer paints it for every widget that
+does, keyed on the attribute rather than on any tag.
+
+That look is delayed by 200ms on purpose. A local answer lands inside 20ms, and a
+look that appeared and left inside the delay would be a second flicker put exactly
+where the first was removed; past the delay there is a real wait, and the
+reader is owed it. Which is also the answer to how far this design stretches:
+`--host` publishes a page to a reader on another machine, where the wait is a
+network round trip rather than a local one, and it is the delayed acknowledgment
+rather than the deferred paint that carries that case.
+
+What waiting costs is a local round trip: 10–15ms from press to paint on an
+ordinary page, and 25–40ms on `gallery.html`, which is every widget in the
+vocabulary at once. The POST is a small part of that, within a millisecond of a
+comment's, because what a page directory holds is worked out once per file rather
+than once per request (`parse_version`, `read_registry`). Most of the wait is the
+poll the send awaits. What still grows is the log it appends to, at about a
+millisecond per six hundred comments.
+
 ## A gesture the log has not taken outranks everything the page has read
 
-A widget paints the user's gesture before the log has taken it, so until the poll
-reads the action back, the page holds state no log accounts for. Replay leaves
-the widget alone for exactly that long. Every `applyAction` states the widget
-whole, so replaying an action from before the gesture hands the reader their
-older state back — and the next gesture then computes from what that replay
-painted. A `multiple` group two picks in, repainted holding one, sends the next
-toggle as a set the reader never chose. Applying each action exactly once is what
-makes replay converge, and "exactly once" says nothing about *when*.
+A widget that paints its own gesture holds state no log accounts for until the
+poll reads the action back. Replay leaves the widget alone for exactly that long.
+Every `applyAction` states the widget whole, so replaying an action from before
+the gesture hands the reader their older state back — and the next gesture then
+computes from what that replay painted. A `multiple` group two picks in,
+repainted holding one, sends the next toggle as a set the reader never chose.
+Applying each action exactly once is what makes replay converge, and "exactly
+once" says nothing about *when*.
 
 All of that rests on the log holding the gestures in the order they were made,
 and the wire does not give that order: the server answers each request on a
 thread of its own, so a pick overtaken by the pick after it leaves a decision the
 reader never made standing as their state. So `post` sends one action at a
-time — and the wait costs nothing, because the page has already painted. No
+time — a wait that costs a gesture which painted itself nothing at all, and costs
+a press the difference between its own round trip and the queue's (above). No
 machine here reproduced the race in two dozen tries, so the gate states the
 condition rather than running for it: the first send is stopped in the wire, and
 the second click is made while it is still there.
@@ -633,8 +685,7 @@ box is generated is the layer's own paint.
 ## An element that draws no box says it is at the top of the page
 
 `display: contents` is how a wrapper holds content without standing between it and
-the flow, and it is what lets a suggestion sit mid-sentence or wrap whole sections
-alike. An element with no box measures `(0, 0)` — not a flat box, but a box at the
+the flow. An element with no box measures `(0, 0)` — not a flat box, but a box at the
 document's origin — so every question put to the element directly comes back with a
 real-looking answer naming a place the element is not.
 
@@ -658,9 +709,74 @@ shows through are what the reader sees it on. Both read the platform rather than
 registry: generating no box is not a fact about which widget this is, any layer's
 wrapper can do it, and CSS has no selector that says so. The parts ask for area where
 the bounds ask only for a box, because a ring is worth hanging only where it can be
-seen — which is also what keeps a module's own apparatus out of it without a marker
-to read, a suggestion hanging its controls off an empty span that has a rect and
-nothing in it.
+seen.
+
+The parts must not reach the runtime's own chrome, and area read as though it were
+answering that too: a suggestion hangs its controls off a span with no width, so the
+apparatus fell out on its own. The line the paint pass writes to say how many comments
+a block holds is clipped to a pixel and has one — so an ask that had been commented on
+wore its ring on the runtime's word about the page rather than on the page. The order
+hid it: the note is written after the marks are placed, so a page's first paint is
+right and every one after it is not, and the fault needs a comment *and* a repaint to
+show at all. `inUi` asks that question already, and it is the one the anchor pass puts
+to a text node, so what a mark may hang on and what a quote may name cannot come apart.
+
+Two marks take this reading — the ask walk's ring and an element-anchored comment's
+outline — and for a release only the ring took it. That is the same fault surviving in
+the second of two consumers, which is what this whole norm is about: an element anchor
+on a suggestion drew nothing, and the composer, which stands off that same record,
+stood off a rect at the document's origin. The gate is a third consumer, and the one
+that can watch neither mark land, since it presses no keys. It reads instead whether a
+mark could have landed (`UNMARKABLE_ITEMS` in `interact.py`), which catches the case
+the parts cannot answer for: an element whose words are in no child element at all has
+nothing to hang anything on.
+
+The reading position was the quietest of them, and it wants the bounds rather than the
+parts. Its fallback landmark is whichever id stands nearest the block the reader was
+on, so a boxless one answered 0 when the place was written down and 0 again when it was
+put back — the correction came out 0, and a restore with somewhere to land did nothing,
+leaving the reader at the top of a page they were thirty paragraphs into. Only a reader
+whose quote the new version had rewritten ever reached that branch, which is how a
+consumer stays wrong through three releases of the one beside it.
+
+No shipped widget exercises any of this any more, and that is the deeper fix standing
+behind the readings: the suggestion's wrapper was the boxless element they were all
+written against, and it takes a form now — `inline` among the words for a change of a
+phrase, `block` around its slots for one of paragraphs ("A widget's form follows its
+content", below). Painted on the pieces, the shipped suggestion wore two outlines
+meeting down the middle of a sentence — two boxes touching where the reader is
+standing in one ask — and boxed, it wears one ring, its parts being the wrapper
+itself. Of the four workarounds that had grown around the missing box, the legend's
+union and the travel's became `shownBox`, the marks' became `shownParts`, and the
+empty span the widget prepends to itself stays on a reason of its own: which form the
+wrapper takes is a stylesheet's to say and a project layer says it again, so the span
+is the one anchor its controls keep whatever a layer decides (lf-suggestion.js). What
+the readings defend now is the line of CSS any page can still write, and there the
+parts are the whole of the paint's answer.
+
+How much of that box the reader can see is the second half (`shownRect`), and it
+was written for one caller and read as complete. A box is clipped by the
+scrollers above it, so the walk climbed every ancestor — true of the page's own
+items, and untrue the moment the question was asked about a box in the chrome.
+The comment panel is `position: fixed`, and an ancestor's overflow does not clip
+a fixed box,
+while `body` is the page's scroller narrowed to the column standing beside the
+panel: a reply box measured through body's band came back wholly clipped away,
+on any window wide enough for the panel to stand beside the page rather than
+over it. So the walk stops at a fixed box and the viewport is applied to
+everything — which for a box in the page is what body's band already said, and
+for one in a fixed layer is the whole of what clips it. The tell was the same
+one the paragraph above records: a walk phrased as "every ancestor" is a claim
+about every element, and it had only ever been asked about one kind.
+
+What that reading is right to ignore, whatever draws on it has to answer for
+itself. The banner stands over the page and clips nothing, so a member scrolled
+under it is shown as far as `shownRect` is concerned — true of the element, and
+useless to a mark drawn above the bar: the chord's chip, placed on a corner the
+bar had taken, was a digit floating over the status line and addressing nothing
+the reader could see there. It rides the covered edge instead, the step the
+legend's tag already makes for the same bar. Chrome over the page is the
+drawer's business, not the geometry's.
 
 ## A widget's form follows its content, and each form states its own rules
 
@@ -842,13 +958,16 @@ which is a claim about the last input rather than about where the reader is: the
 Asks button lands the focus by script after a pointer click, and the ask it
 brought them to would wear nothing.
 
-The ring lands on the ask, and an ask that draws no box draws no ring:
-`lf-suggestion` is `display: contents`, so its outline paints nothing at 0x0. The
-reader standing there sees the band on the ✓ Accept the family hangs in the page
-margin, which is the press they came for. The runtime's own `.lf-pill` rule draws
-that one, so a widget hanging a control out there gets the band without asking,
-and a widget that draws a box of its own gets the ring around the whole ask, as
-`lf-task` and `lf-options` do.
+The ring lands on the ask, one outline the element's own paint carries, which is why
+it costs nothing to keep in place: a box in the chrome's layer would have to chase the
+ask down every scroll, reflow and drag. Every ask in the vocabulary draws a box for it
+to paint on — the one that did not now takes a form rather than declining to have one
+— and an ask a page styles boxless hangs it on the boxes it shows through
+(`shownParts`, and the norm above), the same answer an element-anchored comment's
+outline gives. A reader who came by the ✓ Accept the family hangs in the page margin —
+the press they came for — is standing on that control, which draws the same band from
+the runtime's own `.lf-pill` rule, so a widget hanging a control out there gets it
+without asking.
 
 What the walk keeps instead is its own place (`landed`), which is a different
 question and had been sharing the ring's answer. A reader stepping the asks from
@@ -903,9 +1022,18 @@ drifting from each other: the key line asked `when` and the `?` overlay didn't,
 so a page with no open thread offered `g 1–9` to reply to one. So whether a key
 is live is declared once (`when`); `live` is the one question the dispatcher, the
 line and the overlay all put to that declaration; and a label that names a range
-is a function (`g ${digits()}`), so it counts the threads that are there rather
-than promising nine. A liveness guard inside `run` is the tell, because it makes
-the key refuse a press some surface is still advertising.
+is a function (`c 1–${n}`), so it counts the comments that are there rather than
+promising nine. A liveness guard inside `run` is the tell, because it makes the
+key refuse a press some surface is still advertising.
+
+A capability is about what the reader can reach from where the scope holds, not
+about what the document happens to contain. "On a link" asked
+`document.querySelector("a[href]")` — and the machine's own leaves board is a list
+of links, so every page had the scope and the reference named it on pages holding
+no link the reader could stand on. It asks after the page's links now, which is the
+same reading `g l` addresses — and the same reading the disclosures take, where
+the machine's own is the panel's fold for resolved comments: a scope asked about
+the document at large arrives on every page that has ever had one resolved.
 
 One `when` was still one answer to two questions, and `r` is where that showed.
 Its sentence said "On a focused thread" while its liveness said "the page has
@@ -1072,6 +1200,101 @@ reads properly on the day it declares `x-awaits`.
 The authoring half of this is in SKILL.md, and it is one sentence because the
 board makes it obvious: whatever an ask's own words open with is the whole of
 what a reader choosing among five of them has to go on.
+
+## A chord names which list before it names a place in one
+
+`g` armed a window in which a digit was an address, and the address was always a
+reply box. Nothing on the page said "reply box": the key line printed `g 1–9`,
+which reads as a general motion and was a sentence about one list, and what a
+digit meant lived inside `replyTo`. That is the shape every closed list has —
+the second thing a reader wants to reach by number has nowhere to go, and the
+natural repair is a second chord key, which is a menu being extended one item at
+a time.
+
+So the chord names the list first and the place second, and which lists there are
+is a table (`ADDRESSES`). An entry states its letter, the word every surface
+calls it by, the sentence the reference reads, its members in address order, and
+how to arrive at one; the chord's scope, the chips, the line's words and the
+reference are readings of that entry, and nothing that reads the table asks which
+list it is holding. One place names a list, and it is not a reader of the table:
+a member with a surface of its own has to say which list that surface belongs to,
+and the reply box's placeholder is the only member that has one. The page's own
+key is then `g` alone: what it opens is the table, and any range printed out
+there could only ever have counted one of the lists inside it.
+
+The fourth list was `d`, the disclosures, and it cost one entry and no consumer,
+which is the claim the table was making. Two things about it still had to be
+written, and both are about arriving. Every other member is reached through a
+reveal that opens the collapsed boxes standing between the reader and it; a
+disclosure is the member that *is* such a box, so there the travel is the whole
+motion, and a reader who wanted a section open has it open having asked once.
+That much belongs to the entry. The other does not: an arrival that leaves the
+reader standing on a control the platform answers owes them the word for it.
+`g l` had already run up that debt — the line went quiet at the moment they
+landed on a link — and one scope paid it for one tag. A second scope beside it,
+differing in a selector and a word, is the closed list in other clothes, so the
+platform's own controls are a table as well (`NATIVE`), each saying its word
+where it is painted: a summary's press opens or closes according to which way the
+box is standing.
+
+The chips are what make an address readable, and they had to move with the
+letter. A reply box wore its digit through a rule of the panel's, which works for
+exactly one list — the members of the others are a suggestion that draws no box
+and a link set mid-sentence. So they are drawn in a layer of the chrome's own and
+placed from each member's visible rect (`shownRect`), the reading the aim's box
+and the legend already take: a member the page is not showing wears nothing, and
+no digit is written into the author's markup for the passage walk to meet.
+
+A chip being what makes an address readable is then an argument for addressing
+what the reader can see, and it is a trap. Links were declared as the ones on
+screen, which reads as generosity — thirty links on a page and the digits land on
+the ones in front of you — and it makes the address mean a different link at every
+scroll position, so a reader who has just learnt that the PR is `g l 2` is wrong a
+moment later. It also moves a row's liveness onto the scroll, and a row that goes
+dead as the page moves is a row the key line has to be repainted to stop
+promising: one measured paint is 1.3ms on the gallery, and putting that on every
+scroll frame of every page buys one row its accuracy. A list is the document's,
+then, and the first nine of it are addressable however far down they sit — the
+same bound the comments and the asks have always had — while the chips are drawn
+for whichever of them the reader can see. What a chip cannot show, the address
+still reaches.
+
+The chord's rows carry two questions at once, where a scope usually carries one
+of them: whether the page has the list is the capability, and which list is aimed
+at is whether the press moves now. They can share the answer because a mode is
+not somewhere the reader stands near — they are in it or it is not there — so
+its rows answer about here whichever way the reference was opened, and `?`
+reaches the reference only from a page nobody has armed. That is what the
+reference reads to filter them (`showHelp`), off the claim the scope already
+makes. The claim has to survive the gathering to be read: sections are built by
+`merge`, which kept `when`, `at` and the rows and dropped everything else, so the
+chord arrived claiming nothing, was listed whole, and named `l` on a page holding
+no link at all — a fact stated on the scope and lost on the way to the one
+surface that asks for it.
+
+Naming the two apart instead is possible and was tried: a scope per list, each
+stating its own capability, all under one title. It costs three scopes where the
+keyboard has one mode, and the reference gathers contributors in the order it
+walks the stack — backwards — so it named the lists in the opposite order to the
+line that had just offered them.
+
+Arriving is the list's, and it is the same act however the member was chosen:
+`n`/`p` pick an ask by direction and `g a` by number, and both land through one
+function. A second arrival written beside the first would be a second answer to
+what standing on an ask means. Showing the list is the list's too, and it is not
+the arrival's: the comments live in a panel that draws nothing while it is shut,
+so naming that list is what opens it. Opening it on the digit instead put the
+letter's whole point — the addresses, on screen, to choose from — after the choice
+had been made.
+
+The mode stands until something ends it, where it stood for a second and a half.
+A timeout is how a keyboard resolves an ambiguous prefix, and there is none here:
+`g` is a prefix and nothing else, and any key the chord does not bind disarms it
+and then runs with its ordinary meaning, so no press is ever swallowed by a mode
+left open. What the clock did instead was charge the reader for reading the menu
+the press had just painted — and a letter arriving a moment late is not a no-op
+but the page's own key, so a slow reader pressing `l` got the leaves board rather
+than the links.
 
 ## A walk starts where the reader is standing
 

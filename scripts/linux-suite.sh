@@ -10,7 +10,7 @@
 # Needs a Docker daemon that can run linux/amd64 (linux-suite.Dockerfile says why). On
 # Apple silicon that is `colima start --vm-type vz --vz-rosetta`.
 #
-# Size that VM for the suite rather than for a shell. The reproducible Chrome setup is
+# Size that VM for the suite rather than for a shell. The reproducible browser setup is
 # `--cpu 8 --memory 16`; a smaller VM can turn runner pressure into product failures.
 set -euo pipefail
 
@@ -25,8 +25,11 @@ docker build --platform linux/amd64 -t leaf-linux-suite \
   -f "$HERE/linux-suite.Dockerfile" "$HERE"
 
 # --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite. The
-# named volume is uv's cache, which the first run fills and the rest read, so a container
-# thrown away after every run still resolves against a warm one.
+# named volumes hold uv's packages and Playwright's browser. The first run fills them,
+# and a container thrown away after every run still resolves against warm caches.
 exec docker run --rm --platform linux/amd64 --shm-size=2g \
   -v "$ROOT:/repo" -v leaf-linux-suite-uv:/root/.cache/uv \
-  leaf-linux-suite uv run --frozen pytest "$@"
+  -v leaf-linux-suite-playwright:/root/.cache/ms-playwright \
+  leaf-linux-suite bash -c \
+    'uv run --frozen playwright install chromium --only-shell && exec uv run --frozen pytest "$@"' \
+    bash "$@"

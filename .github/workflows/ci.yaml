@@ -15,15 +15,15 @@ jobs:
 
     steps:
       - name: 📂 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v7
 
-      # Nothing to install first. The suite resolves what it shells out to the way
-      # a user's machine does, and Playwright attaches to the runner's own Chrome
-      # (`channel="chrome"`), the same one `publish-site` draws the examples with,
-      # so there is no browser to fetch either.
-      #
+      # The runner supplies installed Chrome for the two launcher tests. The rest of
+      # the browser suite uses the headless shell matching the locked Playwright.
+      - name: Install Chromium headless shell
+        run: uv run playwright install --with-deps chromium --only-shell
+
       # `--run-nightly` adds the complete browser and published-site integration
       # suites; the runner has the package index the launcher resolves Playwright from.
       - name: 🧪 Test suite
@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: 📂 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔍 Pre-commit hooks
         uses: pre-commit/action@v3.0.1

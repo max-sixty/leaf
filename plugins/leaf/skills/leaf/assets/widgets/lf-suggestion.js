@@ -4,13 +4,12 @@
  * the next version carries the settled markup.
  *
  * Deciding is the end of the matter on screen: the element settles to the
- * surviving slot there and then (the theme drops every mark from it), exactly as a
- * dragged card sits where it was dropped before the honoring version exists —
- * the live view is the version plus the user's actions replayed on it. So
- * applyAction states an absolute outcome, which makes a reload, a second tab,
- * and the sender itself all converge on the same view. A pick can be cleared by
- * clicking its mark again; a decision can't. Changing your mind is a comment,
- * and the version reverses it.
+ * surviving slot as soon as the log has taken the decision (the theme drops every
+ * mark from it), long before the honoring version exists — the live view is the
+ * version plus the user's actions replayed on it. So applyAction states an
+ * absolute outcome, which makes a reload, a second tab, and the sender itself all
+ * converge on the same view. A pick can be cleared by clicking its mark again; a
+ * decision can't. Changing your mind is a comment, and the version reverses it.
  *
  * What deciding must not be is the page rearranging itself under the hand that
  * pressed. It was both. A block change is a struck old paragraph over a tinted
@@ -45,6 +44,15 @@
  * that span sits on, mid-sentence included, and the page reflows underneath with
  * both riding along. Hoisted, the row still meets the reader and the tab order
  * beside the change it decides, because it follows that change's own block.
+ *
+ * The span was there first because the wrapper generated no box to anchor from, and
+ * it stays now that the wrapper has one. Which form the wrapper takes is a
+ * stylesheet's to say, and a project layer says it again; a span the widget builds
+ * for itself is the one thing it can anchor from whatever a layer decides. Anchoring
+ * off the wrapper reads correctly on the shipped theme and takes the controls off the
+ * page entirely under a layer that makes it `display: contents`, because
+ * `checkVisibility()` is false for an element with no box: every row goes to
+ * `lf-waiting`, and a change nobody can accept is worse than one with no ring.
  *
  * That margin is the theme's rail, reserved by a page that carries a row at all;
  * measuring is what finds it, not what makes it. Three things are measured, all by
@@ -158,9 +166,9 @@ function relayout() {
   const measured = [...rows].map(([row, anchor]) => ({
     row,
     rect: row.getBoundingClientRect(),
-    // Whether the change is on screen, asked of the anchor rather than measured:
-    // lf-suggestion has a box of no size (display: contents), and a collapsed
-    // container reports its content's last rendered geometry rather than nothing.
+    // Whether the change is rendered at all, asked rather than measured: the anchor
+    // is an empty span with nothing to measure, and a collapsed container reports its
+    // content's last rendered geometry rather than nothing, so a rect could not say.
     shown: anchor.checkVisibility(),
   }));
   const inMargin = [];
@@ -188,7 +196,7 @@ customElements.define(
   class extends HTMLElement {
     #row = null;
     #anchor = null;
-    #motion = null; // the fold in flight, so a rewind can take it back
+    #deciding = null; // the decision in flight, so a second press joins it
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one —
@@ -324,13 +332,25 @@ customElements.define(
       return this.#decide("accept");
     }
 
+    // A press asks for the decision; the log makes it, and only then does the page
+    // show it. A suggestion can wait because its decision is terminal — the slot
+    // retires, the controls stop offering, no later gesture computes from any of
+    // it — so nothing is owed the reader during the round trip, and the round trip
+    // is local. What waiting buys is the absence of the other half: a settled
+    // suggestion the server never took had to be un-settled in front of the reader,
+    // a frame of "✓ Accepted" over a fold that started and stopped. The rule that
+    // decides which gestures wait, and what waiting costs, are in CLAUDE.md.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
-      // Read before settling: deciding retires a slot, a retired slot leaves the page's
+      // The decided state used to be this guard on its own, written in the frame of
+      // the press. It now lands when the log takes the decision, and the gap between
+      // press and answer is exactly wide enough for a second press to make a second
+      // decision beside the first — two lines in the log for one act.
+      if (this.#deciding) return this.#deciding;
+      // Read before deciding: deciding retires a slot, a retired slot leaves the page's
       // reading, and `says` on what has left the reading answers nothing — the toast
       // then named the widget's id instead of the words the user just judged.
       const label = this.#label();
-      this.#settle(outcome);
       // Accepting the fix answers the thread it was written for, so the same
       // event carries it: the mapping is snapshotted into the action, because
       // the honoring version retires this wrapper — attribute and all — and a
@@ -338,16 +358,29 @@ customElements.define(
       // disagreeing with no repair path.
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
-      return sendAction(this, outcome, detail).then((ok) => {
-        if (!ok) {
-          this.#settle(null); // unsent means unrecorded: back to pending
-          return false;
-        }
+      const sent = sendAction(this, outcome, detail).then((ok) => {
+        this.#inFlight(null);
+        if (!ok) return false; // unsent means unrecorded, and nothing was painted
+        this.#settle(outcome);
         toast(
           `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent to ${agentName()}`,
         );
         return true;
       });
+      this.#inFlight(sent);
+      return sent;
+    }
+
+    // One fact said twice, because it is owed to two audiences. The field is what
+    // refuses the second press above. The attribute is the platform's own word for a
+    // surface mid-update — the layer paints it (leaf.js) and a screen reader holds
+    // its announcements until it clears, so the labels are read once, as what they
+    // ended up saying. Said here rather than at the two ends of the send, so the two
+    // cannot come apart; `lf-draft` says the same word for the same reason.
+    #inFlight(decision) {
+      this.#deciding = decision;
+      if (decision) this.setAttribute("aria-busy", "true");
+      else this.removeAttribute("aria-busy");
     }
 
     #settle(outcome) {
@@ -355,37 +388,24 @@ customElements.define(
       // replay of this tab's own decision the no-op an absolute action promises to be.
       // The attribute was idempotent on its own and the fold is not: replayed, it
       // folded a slot that had already folded, from a height it no longer had.
-      if ((this.dataset.lfState ?? null) === (outcome ?? null)) return;
-      // A send the server refused rewinds a decision that may still be folding, and a
-      // fold outliving the state it was playing would leave the slot to reappear
-      // whenever it happened to land. Cancelling it runs the same cleanup finishing
-      // does, so the slot comes back to whatever the state now says.
-      this.#motion?.cancel();
-      // The change's words are read on whichever side of the state move has the slot
-      // in the page's reading: before it for a decision, because deciding retires the
-      // slot and its words leave the reading with it — and after it for a rewind,
-      // because the rewind is what brings them back. Read on the wrong side, a failed
-      // send relabelled the controls with the widget's id.
-      let change = outcome ? this.#label() : null;
-      const fold = outcome && this.#fold(outcome);
-      if (outcome) this.dataset.lfState = outcome;
-      else delete this.dataset.lfState;
-      change ??= this.#label();
+      if (this.dataset.lfState === outcome) return;
+      // Read before the state moves: deciding retires the slot, and its words leave
+      // the page's reading with it.
+      const change = this.#label();
+      const fold = this.#fold(outcome);
+      this.dataset.lfState = outcome;
       if (this.#row) {
         // The row stays; what changes is which of the two controls is speaking. A
         // quoted one grew none.
-        if (outcome) this.#row.dataset.lfOutcome = outcome;
-        else delete this.#row.dataset.lfOutcome;
+        this.#row.dataset.lfOutcome = outcome;
         for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
-          this.#name(btn, Boolean(outcome), change);
+          this.#name(btn, true, change);
       }
-      // The emphasis follows the pending state: a decided suggestion is plain
-      // prose, and a rewind brings the words' difference back. So does the word
-      // naming each slot, which is the same fact said to whoever is listening.
-      if (outcome) {
-        emphasized.delete(this);
-        repaintEmphasis();
-      } else this.#emphasize();
+      // The emphasis goes with the pending state: a decided suggestion is plain
+      // prose. So does the word naming each slot, which is the same fact said to
+      // whoever is listening.
+      emphasized.delete(this);
+      repaintEmphasis();
       this.#voice();
       fold?.();
       schedule(); // the rows below may no longer need the nudge they had
@@ -431,18 +451,17 @@ customElements.define(
         going.style.display = "block";
         going.style.boxSizing = "border-box";
         going.style.overflow = "hidden";
-        const played = (this.#motion = motion(going, [from, to], FOLD_MS));
+        const played = motion(going, [from, to], FOLD_MS);
         const done = () => {
           going.style.display = "";
           going.style.boxSizing = "";
           going.style.overflow = "";
-          if (this.#motion === played) this.#motion = null;
         };
-        // Cancelling rejects `finished`, which is a rewind rather than a fault:
-        // caught, so it is not an unhandled rejection, and the same hand-back runs
-        // either way. A reader who asked for less motion gets no animation at all
-        // (motion returns null), so the hand-back runs at once and the collapse is
-        // the frame of the press.
+        // A fold interrupted — the element taken out from under it — rejects
+        // `finished`. Caught, so it is not an unhandled rejection, and the hand-back
+        // runs either way. A reader who asked for less motion gets no animation at
+        // all (motion returns null), so the hand-back runs at once and the collapse
+        // is the frame the decision lands in.
         played ? played.finished.catch(() => {}).then(done) : done();
       };
     }
@@ -459,7 +478,7 @@ customElements.define(
     // screen reader announces in every mode — the bargain the mark note struck, and
     // why role="deletion" is not what stands here. It follows the state exactly as the
     // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
-    // up this word along with its marks, and a rewind brings both back.
+    // up this word along with its marks.
     //
     // "proposed", because the word is only ever on a slot nobody has decided and has to
     // say so itself. Pendingness was encoded as the word's presence, which is the one

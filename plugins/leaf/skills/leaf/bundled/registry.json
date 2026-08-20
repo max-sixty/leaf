@@ -338,7 +338,7 @@
       "move": {
         "detail": {"type": "object", "properties": {"card": {"type": "string"}, "to": {"type": "string"}, "index": {"type": "integer", "minimum": 0}}, "required": ["card", "to", "index"], "additionalProperties": false},
         "unit": "card",
-        "record": {"kind": "position", "within": "lf-column", "value": "to"}
+        "record": {"kind": "position", "within": "lf-column", "value": "to", "order": "index"}
       }
     },
     "x-wide": "box",

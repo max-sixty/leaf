@@ -13608,7 +13608,13 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     told(page)
-    assert len(actions(d)) == 1
+    # An undo posts no action, so counting actions says nothing about whether the
+    # press was refused — it stays at one either way, which is the assertion passing
+    # in exactly the failure the test is named for. The log holding no withdrawal is
+    # what says it, and the card still being where the move put it is what that means
+    # on the page.
+    assert [e["kind"] for e in interact.read_events(d) if e["kind"] == "undo"] == []
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -13813,6 +13819,164 @@ def test_a_rebuild_leaves_a_reader_standing_elsewhere_where_they_are(browser, se
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
     page.close()
+
+
+def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
+    """The withdrawal pass has to keep the discipline the replay loop keeps, because
+    it is replay: a widget the page has painted ahead of the log gets the next poll
+    rather than being written over. `lf-draft` says so outright — its applyAction
+    returns false while an editor stands, so the reader's unsent words are not yanked
+    out from under them — and a pass that drops that answer and marks the withdrawal
+    answered leaves the tab holding the withdrawn text for the rest of its life, with
+    the pending mark cleared because the fold agrees the edit is gone. A reload would
+    show the authored words; this tab never would again."""
+    url = serve(UNDO_PAGE)
+    one, errors_one = open_page(browser, url)
+    two, errors_two = open_page(browser, url)
+    body = "lf-draft .lf-draft-body"
+    authored = one.locator(body).inner_text()
+
+    one.locator("lf-draft .lf-draft-pencil").click()
+    one.locator("lf-draft textarea").fill("Rewritten.")
+    one.keyboard.press("Meta+Enter")
+    round_trip(one)
+    expect(two.locator(body)).to_have_text("Rewritten.")
+
+    # The second tab is now holding words of its own, so the log may not write over it.
+    two.locator("lf-draft .lf-draft-pencil").click()
+    expect(two.locator("lf-draft textarea")).to_be_focused()
+    one.keyboard.press("z")
+    round_trip(one)
+    expect(one.locator(body)).to_have_text(authored)
+
+    # The withdrawal has to reach the second tab *while* its editor stands — heard
+    # after the box closes, it applies on the way past and says nothing about the
+    # hold. told() consumes the poll that carries it.
+    told(two)
+    expect(two.locator(body)).to_have_text("Rewritten.")
+
+    # Let go, and the withdrawal it could not take yet lands on the next poll.
+    two.keyboard.press("Escape")
+    expect(two.locator("lf-draft textarea")).to_have_count(0)
+    expect(two.locator(body)).to_have_text(authored)
+    assert errors_one == [] and errors_two == []
+    one.close()
+    two.close()
+
+
+def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, serve):
+    """An undo names a gesture, and what the page owes afterwards is the unit's state
+    *now* — the fold minus that gesture — not the state that stood before it at the
+    time. The two differ whenever the withdrawn action is no longer the unit's last
+    word, which two tabs reach without trying: one presses `z` on the move it knows
+    about while the other has already moved the same card past it, and the door takes
+    it, recency not being a thing an event can be checked for.
+
+    The tab that hears it then paints the older reading over the standing move. Which
+    tab shows the damage is the part worth arranging: the tab that *made* the later
+    move painted it itself, so replay never marked it applied and the next poll lays
+    it down again, healing the page by luck. A tab that got that move through replay
+    has it marked applied and will never lay it down again — so it holds the wrong
+    board for the rest of its life, disagreeing with every fresh load of the same
+    log."""
+    url = serve(BOARD_PAGE)
+    order = "#col-todo > lf-card", "e => e.map(c => c.id)"
+    stale, errors_stale = open_page(browser, url)
+    mover, errors_mover = open_page(browser, url)
+
+    stale.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        stale.keyboard.press(key)
+    round_trip(stale)
+    expect(mover.locator("#col-done #card-baffle")).to_have_count(1)
+
+    # Hold the first tab's reading of the log where it is, so its `z` names the move
+    # it knows about while the second tab moves the same card on past it.
+    stale.route("**/api/state", refuse)
+    # Back to the list it came from and up past its neighbour, which is neither where
+    # the first move put it nor where the version wrote it: a second move that landed
+    # on the authored placement would make the wrong restore a no-op by luck, and the
+    # test would pass on a page doing the wrong thing.
+    mover.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowLeft", "ArrowUp", "Enter"]:
+        mover.keyboard.press(key)
+    round_trip(mover)
+    standing = ["card-baffle", "card-heater"]
+    assert mover.eval_on_selector_all(*order) == standing
+
+    # The tab the damage shows in: it reads the second move off the log rather than
+    # making it, so replay has it marked applied and will not lay it down twice.
+    heard, errors_heard = open_page(browser, url)
+    assert heard.eval_on_selector_all(*order) == standing
+
+    stale.keyboard.press("z")
+    # Not round_trip: this tab's polls are stopped, so what it sent can never come
+    # back to it. The server answering the post is the fact this wait consumes.
+    _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
+    stale.unroute("**/api/state")
+    told(heard)
+    told(heard)
+
+    assert heard.eval_on_selector_all(*order) == standing, (
+        "a tab that heard the undo painted the state that stood before the move it "
+        "named, over the move that still stands"
+    )
+    fresh, errors_fresh = open_page(browser, url)
+    assert fresh.eval_on_selector_all(*order) == standing, (
+        "a tab reading the log fresh disagrees with the tab that heard the undo"
+    )
+    # The stale tab's own console too: `refuse` cancels rather than fails a
+    # request, so stopping its polls leaves nothing for it to report.
+    assert errors_stale == [] and errors_mover == []
+    assert errors_heard == [] and errors_fresh == []
+    stale.close()
+    mover.close()
+    heard.close()
+    fresh.close()
+
+
+def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
+    """Which version a gesture was made against decides whether `z` is *offered*, and
+    says nothing about whether an undo must be *heard*. A tab holding an older version
+    can still gesture — `?pin` is a URL a reader keeps, and a tab mid-composition holds
+    its version too — so its undo reaches a tab that has moved on, and that tab applied
+    the action being withdrawn (replay takes every action up to the version it reads).
+
+    Refusing to hear it there leaves the newer tab showing a gesture the log no longer
+    holds, and only until someone reloads it. What this load's markup says is the right
+    answer either way: a version written around the decision states the same placement,
+    so the restore is a no-op, and one that was not, like this one, catches up."""
+    url = serve(BOARD_PAGE)
+    pinned, errors_pinned = open_page(browser, url + "&pin")
+    moved_on, errors_moved_on = open_page(browser, url)
+
+    pinned.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        pinned.keyboard.press(key)
+    round_trip(pinned)
+    expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
+
+    # A second version that says nothing about the move — the card is where v1 wrote
+    # it — so what the two tabs owe the card afterwards is visibly different.
+    d = serve.page_dir
+    (d / "versions" / "v2.html").write_text(BOARD_PAGE)
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "unchanged"}
+    )
+    moved_on.wait_for_url("**/v2.html*")
+    expect(moved_on).to_have_url(re.compile("v2"))
+    expect(pinned).to_have_url(re.compile("v1"))
+    # Replay carries the v1 move onto v2, so this tab is showing it.
+    expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
+
+    pinned.keyboard.press("z")
+    round_trip(pinned)
+    told(moved_on)
+    told(moved_on)
+    expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
+    assert errors_pinned == [] and errors_moved_on == []
+    pinned.close()
+    moved_on.close()
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
@@ -20380,6 +20544,56 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     accept = next(e for e in events if e.get("kind") == "action")
     assert accept["action"] == "accept" and accept["detail"] == {"resolves": "c1"}
     assert not any(e.get("kind") == "resolve" for e in events)
+    assert errors == []
+    page.close()
+
+
+def test_a_reject_after_an_accept_reopens_the_thread(browser, serve):
+    """The panel reports where the question currently stands, not that it was once
+    answered. A second tab can reject a suggestion the first has already accepted —
+    the controls are gone in the tab that decided, not in the one that hasn't
+    polled — and the reader who turned the fix down would otherwise find their
+    question filed away as answered by it, while the suggestion beside it read as
+    rejected. Both readings come off the same log; here is where they have to
+    agree in front of the reader."""
+    url = serve(
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
+    )
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "version": 1,
+            "text": "does this take downtime?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+
+    # What the other tab's press leaves in the log, made against the same version:
+    # its own accept and reject controls are still standing, because it has not
+    # heard about this one's decision yet.
+    interact.append_event(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-fix",
+            "action": "reject",
+            "detail": {},
+        },
+    )
+    told(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
+    expect(page.locator(".lf-details")).to_have_count(0)
+    reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
+    expect(reopened.locator(".lf-resolve")).to_have_count(1)
     assert errors == []
     page.close()
 

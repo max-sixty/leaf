@@ -625,6 +625,12 @@ def told(page):
 # not counted at the moment it is made, and a `round_trip` that reads the counters
 # before the browser has reported the request is a wait on a page that has not started
 # moving.
+#
+# The line answers about room as well as about liveness: renderLine drops chips from the
+# end when the window is too narrow to hold them, and the end is the outside of the
+# stack, where a page-level key like this one sits. So the wait needs the suite's
+# default 1200×900 or something near it; under a viewport set narrow on purpose it would
+# run its budget out on a press that is perfectly live.
 def undo(page):
     """Take the last gesture back, from the moment the line offers to."""
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
@@ -13865,8 +13871,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     # The second tab is now holding words of its own, so the log may not write over it.
     two.locator("lf-draft .lf-draft-pencil").click()
     expect(two.locator("lf-draft textarea")).to_be_focused()
-    one.keyboard.press("z")
-    round_trip(one)
+    undo(one)
     expect(one.locator(body)).to_have_text(authored)
 
     # The withdrawal has to reach the second tab *while* its editor stands — heard
@@ -13929,9 +13934,13 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     heard, errors_heard = open_page(browser, url)
     assert heard.eval_on_selector_all(*order) == standing
 
+    # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
+    # what it sends can never come back to it. The offer the helper waits on first is
+    # the part that still applies — the line and the dispatcher ask one predicate, so
+    # a press made before it stands is one the dispatcher refuses.
+    expect(stale.locator(".lf-keyline")).to_contain_text("undo")
     stale.keyboard.press("z")
-    # Not round_trip: this tab's polls are stopped, so what it sent can never come
-    # back to it. The server answering the post is the fact this wait consumes.
+    # The server answering the post is the fact this wait consumes.
     _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
     stale.unroute("**/api/state")
     told(heard)
@@ -13989,8 +13998,7 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     # Replay carries the v1 move onto v2, so this tab is showing it.
     expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
 
-    pinned.keyboard.press("z")
-    round_trip(pinned)
+    undo(pinned)
     told(moved_on)
     told(moved_on)
     expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)

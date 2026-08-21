@@ -1667,11 +1667,12 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
       <section id="hub-fleet">
         <h2>The fleet</h2>
         <p id="hub-fleet-intro">
-          Where each session stands, reported by the session itself rather than written
-          down here — the state and the clause after it move between versions, and the
-          line at the right is how long since that session last moved its own row, or
-          since I published the row where one never has. It is the one thing on this
-          page I could not write down and have still be true by the time you read it.
+          Where each session stands. Its current activity appears only while that
+          session's report stands; the state can enter the next version, while the
+          activity leaves when the version answers it. The line at the right is how long
+          since that session last moved its own row, or since I published the row where
+          one never has. It is the one thing on this page I could not write down and
+          have still be true by the time you read it.
           <em>quiet</em> is a session that claimed work and then stopped saying
           anything, which is the shape a dead worker makes. Select a row and comment on
           it to address that session; I relay it to whoever holds the row, and the
@@ -1681,7 +1682,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-wren"
             state="working"
-            doing="running the encoding-declaration cases against the 4 GB export"
             on="t-parser-decl"
             branch="atlas-parser"
           >
@@ -1690,7 +1690,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-finch"
             state="waiting"
-            doing="holding at the schema gate"
             on="t-schema"
             branch="atlas-schema"
           >
@@ -1700,7 +1699,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-junco"
             state="blocked"
-            doing="stopped for the partially-refunded fixture"
             on="t-ledger-export"
             branch="atlas-ledger"
           >

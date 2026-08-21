@@ -86,6 +86,40 @@ the row. One verb carries both halves and both are required
 (`leaf report <page> ag-finch state state=working doing="rebasing onto main"`), because
 where a worker stands and what it is on are one sentence about it.
 
+### Worker assignments
+
+Before work starts, the orchestrator gives the worker the absolute path to the exact
+launcher that initialized the page (`$LEAF`), the absolute page path (`$PAGE`), a stable
+display name for `LEAF_AGENT`, its `lf-agent` row id, its `lf-task` id, and the work's
+outcome and constraints. The orchestrator retains the host session handle and execution
+permissions. A page may name a branch or worktree, but Leaf never controls one.
+
+The worker uses `$LEAF` for every Leaf write: `report`, plus `reply` when the orchestrator
+hands it a thread id. It never waits on the page, acknowledges the orchestrator's batch,
+changes the page status, or publishes a version. Start by moving both axes:
+
+```bash
+LEAF_AGENT="$WORKER" "$LEAF" report "$PAGE" "$ROW" state state=working doing="<current activity>"
+LEAF_AGENT="$WORKER" "$LEAF" report "$PAGE" "$TASK" status status=active
+```
+
+If `report` itself fails, return its exact error through the retained host session and
+run no other page command.
+
+Report the row again whenever the activity changes and before its working claim goes
+quiet. A blocker moves both the row and task to `blocked`, with the immediate blocker in
+`doing`. A completed handoff moves the task to `review` and the row to `waiting`; the
+orchestrator writes `done` only after the work is accepted or landed. For a routed user
+comment, reply under the worker's own voice, then report any resulting state change:
+
+```bash
+LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" --text "<answer>"
+```
+
+The orchestrator alone keeps `leaf wait` running, routes each anchored comment through
+the host to the worker holding that row or task, and publishes versions that absorb or
+overrule the workers' reports.
+
 ## Setup
 
 The page lives in its own directory, conventionally

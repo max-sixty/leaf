@@ -3486,51 +3486,48 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     assert "unpointable" not in result.output
 
 
-def test_an_accept_carries_its_thread_resolution(page_dir):
-    """One atomic event: the accept snapshots the thread it answers, because the
-    honoring version retires the wrapper that held the `resolves` mapping and a
-    second POST could fail alone. A reject answers nothing."""
-    interact.append_event(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"},
-    )
-    interact.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c2",
-            "author": "user",
-            "text": "and the other thing",
-        },
-    )
-    interact.append_event(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "sug-a",
-            "action": "accept",
-            "detail": {"resolves": "c1"},
-        },
-    )
-    interact.append_event(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "sug-b",
-            "action": "reject",
-            "detail": {},
-        },
-    )
-    threads = interact.build_threads(
+# One comment and two decisions on one suggestion — the whole vocabulary these
+# threads are read out of. `REJECT` is spelt off `ACCEPT` because the two answering
+# the same widget is the entire premise: a decision supersedes the one before it on
+# the widget that sent it, the way a second `move` supersedes the first on one card.
+COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
+ACCEPT = {
+    "kind": "action",
+    "author": "user",
+    "version": 1,
+    "widget": "sug-a",
+    "action": "accept",
+    "detail": {"resolves": "c1"},
+}
+REJECT = {**ACCEPT, "action": "reject", "detail": {}}
+RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
+
+
+def logged(page_dir, *events):
+    """Append these events, then read the threads back the way the CLI does — off
+    the whole log and the page the decisions were folded over. Copied in, because
+    `append_event` stamps an id onto what it is handed and these are constants."""
+    for event in events:
+        interact.append_event(page_dir, dict(event))
+    return interact.build_threads(
         interact.read_events(page_dir),
         interact.spoken(
             (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
             interact.require_registry(page_dir),
         ),
+    )
+
+
+def test_an_accept_carries_its_thread_resolution(page_dir):
+    """One atomic event: the accept snapshots the thread it answers, because the
+    honoring version retires the wrapper that held the `resolves` mapping and a
+    second POST could fail alone. A reject answers nothing."""
+    threads = logged(
+        page_dir,
+        COMMENT,
+        {"kind": "comment", "id": "c2", "author": "user", "text": "the other thing"},
+        ACCEPT,
+        {**REJECT, "widget": "sug-b"},
     )
     assert threads["c1"]["resolved"]["widget"] == "sug-a"
     assert threads["c2"]["resolved"] is None
@@ -3538,10 +3535,11 @@ def test_an_accept_carries_its_thread_resolution(page_dir):
 
 def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     """An action names the thread it settles, and it settles it only while the
-    reader still stands behind it. Withdrawing the answer is the second way an
-    action stops standing — `restated` is the first — and the thread reading owes
-    both the same reply, or a question would read as answered by a gesture the log
-    itself records as taken back."""
+    reader still stands behind it. Withdrawing the answer is one of the three ways
+    an action stops standing — a `restated` version and a later answer from the
+    same widget are the others — and the thread reading owes all three the same
+    reply, or a question would read as answered by a gesture the log itself records
+    as taken back."""
     interact.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "which mounts?"},
@@ -3627,6 +3625,63 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
     )
     assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+
+
+def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
+    """A thread stands settled by its widget's standing answer, not by the fact an
+    answer was once given. Turning the fix down and leaving the question filed away
+    as answered by it is invisible from both sides — the fold reports the suggestion
+    rejected while the panel reports the thread closed, and nothing says so.
+
+    Read across the reject rather than after it: an assertion that the thread is open
+    passes just as well on a log where the accept never settled it."""
+    assert logged(page_dir, COMMENT, ACCEPT)["c1"]["resolved"]["action"] == "accept"
+    assert logged(page_dir, REJECT)["c1"]["resolved"] is None
+
+
+def test_an_accept_after_a_reject_settles_the_thread(page_dir):
+    """The other order, which the one-way latch already got right — this pins it
+    against the fix for the latch, not against the latch. A fold that kept the
+    first answer per widget rather than the last reads every case here correctly
+    except this one, where nothing would ever settle the thread."""
+    assert logged(page_dir, COMMENT, REJECT)["c1"]["resolved"] is None
+    assert logged(page_dir, ACCEPT)["c1"]["resolved"]["action"] == "accept"
+
+
+def test_a_resolve_between_two_decisions_outlives_the_second(page_dir):
+    """A resolve is a person saying the conversation is done, and the log cannot
+    take that back the way it takes back a decision. The one-way latch got this
+    right by never clearing anything; what it pins is the obvious wrong fix for the
+    latch — a reject that clears whatever its widget resolved — which would wipe a
+    press made in between. Settling in place is what makes it hold: the superseded
+    accept never stood, so it has nothing to clear."""
+    assert (
+        logged(page_dir, COMMENT, ACCEPT, RESOLVE)["c1"]["resolved"]["kind"]
+        == "resolve"
+    )
+    assert logged(page_dir, REJECT)["c1"]["resolved"]["kind"] == "resolve"
+
+
+def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again(page_dir):
+    """The two ways an answer stops standing compose, and this is where they meet: a
+    reject supersedes the accept before it, and taking the reject back leaves the
+    accept standing as the widget's answer once more. A withdrawal read only by the
+    walk and not by the standing answer would leave the thread open with the log
+    holding nothing that says so."""
+    assert (
+        logged(page_dir, COMMENT, ACCEPT, {**REJECT, "id": "r1"})["c1"]["resolved"]
+        is None
+    )
+    undone = {"kind": "undo", "author": "user", "undoes": "r1"}
+    assert logged(page_dir, undone)["c1"]["resolved"]["action"] == "accept"
+
+
+def test_another_widget_s_answer_holds_a_thread_two_widgets_answered(page_dir):
+    """Superseding is per widget, because the ask is. Two suggestions can answer one
+    question, and deciding against the second says nothing about the first — a fold
+    keyed on the thread instead of the widget would have let it."""
+    threads = logged(page_dir, COMMENT, {**ACCEPT, "widget": "sug-b"}, ACCEPT, REJECT)
+    assert threads["c1"]["resolved"]["widget"] == "sug-b"
 
 
 def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
@@ -3854,6 +3909,40 @@ def test_the_registry_door_holds_resolves_to_a_string(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "resolves" in result.output and "string" in result.output
+
+
+def test_the_registry_door_keeps_thread_answers_out_of_the_agent_channel(page_dir):
+    """Both thread builders read `resolves` off actions, so the name on a report
+    verb declares an answer nothing gives: the report folds like any other and
+    settles no thread ever. That is the feature nobody wired up rather than an
+    error, which is the shape this door exists to turn around."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    entry = registry["lf-task"]
+    verb = next(iter(entry["x-report"]))
+    entry["x-report"][verb]["detail"]["properties"]["resolves"] = {"type": "string"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "resolves" in result.output and "x-state" in result.output
+
+
+def test_the_registry_door_holds_a_thread_answer_to_the_whole_widget(page_dir):
+    """Both thread builders key a widget's standing answer on the widget id — the
+    one key a log outlives its markup with, the honoring version having retired the
+    element. A verb answering a thread while folding per part would fold per part
+    and settle per widget, and the thread would read right until a second part was
+    acted on. The door is where whoever writes that widget finds out.
+
+    Asked of a board rather than a suggestion, whose own verbs are held to the
+    widget by the retirement gate as well — so what fails here can only be this
+    one."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    move = registry["lf-board"]["x-state"]["move"]
+    move["detail"]["properties"]["resolves"] = {"type": "string"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "resolves" in result.output and "card" in result.output
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
@@ -4194,8 +4283,12 @@ def test_check_refuses_a_retirement_verb_its_parent_does_not_declare(page_dir):
 def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     accept = registry["lf-suggestion"]["x-state"]["accept"]
-    accept["unit"] = "resolves"
-    accept["detail"]["required"] = ["resolves"]
+    # A field of its own to fold by: `resolves` is the one detail key accept already
+    # declares, and a verb answering a thread is held to the widget for its own
+    # reason — so borrowing it here would trip that door instead of this one.
+    accept["detail"]["properties"] = {"part": {"type": "string"}}
+    accept["unit"] = "part"
+    accept["detail"]["required"] = ["part"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)

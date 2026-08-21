@@ -1078,21 +1078,64 @@ def build_threads(events: list, spk: dict) -> dict:
     of one fact; the settling event answers both questions and carries its own
     `author`.
 
-    An action settles the thread it names only while the log lets it stand. A
-    version that rewrites what a decision rested on says `restated`, publishing
-    records the floor, and replay drops the action — so the suggestion is pending
-    again and the thread it answered is open again with it. That is
-    `action_retracted`, the same test the fold and the words gate ask, rather than
-    a second reading of liveness beside them.
+    A thread is settled by the widget's standing answer: the last action that
+    widget sent and the log still lets stand, and then only while that answer
+    names the thread. Three things unseat one, and every one of them is the log's
+    own word rather than a case written out here. A version that rewrites what a
+    decision rested on says `restated`, publishing records the floor, and replay
+    drops the action — `action_retracted`, the same test the fold and the words
+    gate ask. The reader can take the answer back where they stand, which is the
+    `undo` naming it and `taken_back` reading it. And a later action on the same
+    widget supersedes the one before it, exactly as the state fold reads a second
+    `move` on one card. Without that last one, a reject after an accept left the
+    reader's question filed away as answered by the fix they had just turned down,
+    while the fold reported the suggestion rejected: the log held one thing, the
+    panel showed another, and nothing on either side said so.
 
-    `spk` is the page the containment half of that test is read against, and it is
-    the reading of the version the outcomes were folded over, so threads and state
-    cannot be settled against two different pages. Required, not defaulted: a
-    caller with no published page passes `{}` and says so, because a default that
-    stood down quietly is exactly where a verb naming a part of its own widget
-    would have gone unfloored."""
+    An ask is a widget instance ($awaits), so what answers one is that widget's
+    own last word — and the widget id is also the only key the log carries by
+    itself. That is why the state fold cannot serve here: it drops an action whose
+    widget the current page no longer holds, and the version that honors a
+    decision retires the widget that made it, precisely when the thread it settled
+    must stay settled. `x-state` holds a verb declaring `resolves` to a
+    widget-absolute unit, so the two keys are one key.
+
+    Standing says nothing about the page, and that silence cuts both ways: a stale
+    tab's decision unseats an answer whose widget a published version has since
+    retired, leaving the fold nothing to paint and the reader's press reaching the
+    thread or nothing at all. Asking the page instead would fork the two runtimes,
+    which read different pages — the browser's pinned version against this side's
+    last published file.
+
+    A `resolve` is a person saying the conversation is done, and the log does not
+    fold that away. Nothing here has to take one back: a superseded answer never
+    stood, so it has nothing to clear, and whatever was said after it still stands.
+
+    What `resolves` cannot say is the difference between an answer that leaves the
+    thread open and an action that is not an answer at all — a reject means the
+    first, and both spell it by carrying nothing. The one widget that names a
+    thread has two verbs, both of them its answers, so the readings coincide; a
+    press that confirms rather than answers, Done over a set of picks, would want
+    the third value spelled before its widget could settle a thread.
+
+    `spk` is the page the containment half of the retraction test is read against,
+    and it is the reading of the version the outcomes were folded over, so threads
+    and state cannot be settled against two different pages. Required, not
+    defaulted: a caller with no published page passes `{}` and says so, because a
+    default that stood down quietly is exactly where a verb naming a part of its
+    own widget would have gone unfloored."""
     floors = retractions(events)
     withdrawn = taken_back(events)
+    # widget id -> its last action the log still lets stand: not one the reader
+    # took back, and not one a version retracted under it.
+    answers = {}
+    for e in events:
+        if (
+            e["kind"] == "action"
+            and e["id"] not in withdrawn
+            and not action_retracted(e, floors, spk)
+        ):
+            answers[e["widget"]] = e
     threads = {}
     thread_for = {}
     for e in events:
@@ -1105,18 +1148,18 @@ def build_threads(events: list, spk: dict) -> dict:
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
-        # An action that names a thread settles it, and the detail carrying
+        # A standing answer settles the thread it names, and the detail carrying
         # `resolves` is the whole of that condition — a second widget that answers
         # a thread joins by declaring the field, not by being read here by name.
         # The sender snapshots the mapping into the action because the honoring
         # version retires the element that held it, so nothing later can look it up.
-        # …and only while the log lets it stand. An answer the reader took back
-        # (above) leaves the question open, the same way a `restated` version
-        # does — two ways for one action to stop standing, and the thread reading
-        # owes both the same reply.
-        if e["kind"] == "action" and e["detail"].get("resolves"):
-            answered = threads.get(e["detail"]["resolves"])
-            if answered and not action_retracted(e, floors, spk):
+        #
+        # Settled here, at the answer's own place in the log, rather than after the
+        # walk: a resolve pressed between two decisions is the last word on the
+        # thread, and applying settlements afterwards would paint over it.
+        if e["kind"] == "action":
+            answered = threads.get(e["detail"].get("resolves"))
+            if answered and answers.get(e["widget"]) is e:
                 answered["resolved"] = e
             continue
         if e["kind"] == "reply":
@@ -5571,17 +5614,6 @@ def validate_registry(registry: dict, source) -> dict:
                         "must state additionalProperties: false — a verb carries "
                         "only the detail keys it declares"
                     )
-                # `resolves` is the layer's word for the thread this action
-                # answers ($state), so a verb declaring the field is held to
-                # the string a thread id is: declared otherwise, settlement
-                # would dispatch on it anyway and crash on the first event.
-                resolves = spec["detail"].get("properties", {}).get("resolves")
-                if resolves is not None and not declares_string(resolves):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                        "field `resolves` — the layer's name for the thread an "
-                        "action answers — so it must declare a string"
-                    )
 
     slots = retirement_slots(registry)
     for tag, entry in widgets.items():
@@ -5770,15 +5802,43 @@ def validate_registry(registry: dict, source) -> dict:
                 # (build_threads, in both runtimes), so a verb spelling the name
                 # means that or is refused here — a widget using it otherwise
                 # would settle a thread silently.
-                if "resolves" in detail_properties and detail_properties[
-                    "resolves"
-                ] != {"type": "string"}:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                        "field `resolves`, a reserved name (the comment thread "
-                        'this action answers) — declare it {"type": "string"} or '
-                        "rename the field"
-                    )
+                if "resolves" in detail_properties:
+                    # The reader's channel only. Both thread builders read `resolves`
+                    # off actions, so the name on a report verb declares an answer
+                    # nothing gives: the report would fold like any other and settle
+                    # no thread ever — the feature nobody wired up, which this door
+                    # exists to turn into an error. A thread is the reader's to close,
+                    # or an action of theirs; the agent's own way is `leaf resolve`.
+                    if channel != "x-state":
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                            "field `resolves`, a reserved name (the comment thread "
+                            "this action answers) — only an x-state verb settles a "
+                            "thread, so rename the field"
+                        )
+                    if detail_properties["resolves"] != {"type": "string"}:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                            "field `resolves`, a reserved name (the comment thread "
+                            'this action answers) — declare it {"type": "string"} or '
+                            "rename the field"
+                        )
+                    # A thread is answered by the ask, and an ask is a widget
+                    # instance (x-awaits) — so the answer is absolute across the
+                    # widget, and both thread builders key the standing answer on
+                    # the widget id, the one key a log outlives its markup with.
+                    # A per-part verb answering a thread would fold per part and
+                    # settle per widget, and the disagreement is invisible: the
+                    # thread reads right until a second part is acted on. Whoever
+                    # writes that widget needs an ask per part first, and this is
+                    # where they find that out.
+                    if unit != "widget":
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` answers a "
+                            f"comment thread (`resolves`) but folds per `{unit}` — "
+                            "a thread is answered by the ask, and an ask is the "
+                            "whole widget"
+                        )
                 undeclared = [
                     field for field in fields if field not in detail_properties
                 ]

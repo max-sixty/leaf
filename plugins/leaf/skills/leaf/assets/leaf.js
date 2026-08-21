@@ -1239,6 +1239,13 @@ function merge(sections, { title, when, at, claims, rows }) {
  * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is
  * Enter on an already-focused grip, so no focus event would repaint the line.
  *
+ * The same duty is owed for state a widget writes that moves a row it never declared.
+ * `.lf-dragging` is half of `unrecordedGesture()`, so a widget wearing it moves core's
+ * `z`, and the two edges of a pointer drag went unpainted for as long as the duty read
+ * as being about a widget's own rows: the line offered `undo` for the whole of a drag,
+ * over a press the dispatcher was already refusing. Whoever moves the state paints,
+ * whosever row reads it.
+ *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * every x-upgrade module loads on every page, so a scope declared at the top level is help
  * for a widget the page hasn't got. The scope leaves with its element; there is no

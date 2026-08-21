@@ -373,9 +373,21 @@ customElements.define(
             } else this.#cancel();
           }
           this.classList.add("lf-dragging");
+          // The class is half of the runtime's own `z` liveness, and the drag it
+          // covers is a whole gesture rather than a frame: the focus paint landed
+          // on the mousedown, and `fallbackTolerance` fires this after it, so
+          // nothing else repaints until the drop. Without this the line goes on
+          // offering `undo` for as long as the reader holds the card, over a press
+          // the dispatcher refuses.
+          paintKeys();
         },
         onEnd: (evt) => {
           this.classList.remove("lf-dragging");
+          // Painted before the branches below, because the one that returns early
+          // sends nothing: a card dropped where it was picked up takes the class
+          // off with nothing following it. Where a send does follow, the frame
+          // this coalesces to lands after #send has stated what is in flight.
+          paintKeys();
           const sup = this.#superseded;
           this.#superseded = null;
           // The *draggable* indexes, which count cards; Sortable's plain

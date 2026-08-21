@@ -11916,6 +11916,95 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     page.close()
 
 
+def test_a_streamed_reply_grows_in_place_and_closes_whole(browser, serve):
+    """A streamed reply is chunk events the panel folds into one message — a
+    chunk is never met as a message — and the message grows in place as chunks
+    arrive, wearing a caret only while its chain is open and the page presents
+    as working. The close drops the caret and leaves the joined text whole, so
+    a reader watches the reply arrive instead of waiting for all of it."""
+    url = serve(REPLY_HOST_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-ask",
+            "author": "user",
+            "version": 1,
+            "text": "which one wins?",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "id": "r-head",
+            "author": "claude",
+            "parent": "c-ask",
+            "version": 1,
+            "text": "The second one wins ",
+            "more": True,
+        },
+    )
+    interact.cmd_status(d, "working", "answering")
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name="Comments", exact=False).click()
+
+    msgs = page.locator(".lf-msg.claude")
+    expect(msgs).to_have_count(1)
+    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
+    body = page.locator(".lf-msg.claude .lf-msg-body")
+    expect(body).to_contain_text("The second one wins")
+
+    # A chunk arrives: the same message grows — no second message node — and the
+    # chain stays open.
+    interact.append_event(
+        d,
+        {
+            "kind": "append",
+            "author": "claude",
+            "continues": "r-head",
+            "text": "because replay is absolute, ",
+            "more": True,
+        },
+    )
+    told(page)
+    expect(body).to_contain_text("The second one wins because replay is absolute,")
+    expect(msgs).to_have_count(1)
+    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
+
+    # The agent going quiet is a status move with no event behind it, so the
+    # caret must follow the presented state on a poll that grew nothing — an
+    # abandoned chain reads as a finished message, and picking the work back
+    # up restores the caret the same way.
+    interact.cmd_status(d, "idle", "")
+    told(page)
+    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(0)
+    interact.cmd_status(d, "working", "answering")
+    told(page)
+    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
+
+    # The close: the caret goes, and the joined text stands whole as one
+    # rendered body — the boundary spaces are the chunks' own, untouched.
+    interact.append_event(
+        d,
+        {
+            "kind": "append",
+            "author": "claude",
+            "continues": "r-head",
+            "text": "and the first is not.",
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(0)
+    expect(body).to_contain_text(
+        "The second one wins because replay is absolute, and the first is not."
+    )
+    expect(msgs).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 REF_PAGE = f"""<!doctype html>
 <html lang="en">
 <head>

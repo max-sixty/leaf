@@ -9,6 +9,9 @@ description:
   the user will want to watch go by, or an intricate design that needs review.'
 allowed-tools:
   - Bash(leaf:*)
+  - mcp__plugin_leaf_leaf__watch
+  - mcp__plugin_leaf_leaf__reply
+  - mcp__plugin_leaf_leaf__ack
 ---
 
 Present a concept, decision, findings, or work in progress as an HTML page the user opens
@@ -400,6 +403,22 @@ from the turn in front of them.
 - **Claude Code:** start `leaf wait` as a background task and end the turn. Its
   completion returns as host input: an idle session starts a turn, while a working
   session receives it between tool calls. Restart the background wait after each batch.
+  - **Channel mode:** when the session was launched with leaf's channel
+    registered, a `<channel source="plugin:leaf:leaf">` greeting arrives soon after the page is
+    claimed. Call the channel's `watch` tool once then — the greeting arriving is the
+    proof of delivery, and `watch` is what banks it — and the loop runs over the channel
+    from there: events arrive as `<channel source="plugin:leaf:leaf">` messages carrying the
+    event lines a wait prints, whose page is the message's own `page` attribute rather than
+    a leading line (an idle session is woken by them; no background wait, no
+    restarts), `ack` is the channel's own tool, and replies go through its `reply` tool
+    **streamed** — send the opening chunk the moment it is composed (`done: false`),
+    extend it with `continues`, close with `done: true`, so the reader watches the reply
+    arrive instead of waiting for the whole of it. Chunks concatenate raw; a widget's
+    markup rides only the closing call. `watch` answers a greeting: called without
+    one it would claim a watch no delivery backs, which is why an unconfirmed
+    channel heartbeats nothing and the hooks keep enforcing the standard loop. No
+    greeting means channels are off for this session — use the background wait
+    above.
 - **Codex:** send the URL to the user in an intermediate update before waiting. Start
   `leaf wait` in unified exec, retain the returned session id, and keep the
   current turn active. Where the user owns the next move, poll that exact session
@@ -573,7 +592,8 @@ the page itself as one file when that is what outlives it.
 
 The `Stop` hook applies the same invariant differently by host. In Claude Code, a fresh
 wait heartbeat means the background watcher can safely carry the next comment into a
-later turn. In Codex, that heartbeat only proves a command is running, so Stop continues
+later turn — a confirmed channel bumps the same heartbeat, so channel mode satisfies
+the hook by the same evidence. In Codex, that heartbeat only proves a command is running, so Stop continues
 to block until the page is idle and directs you to poll the exact unified-exec session
 inside the current turn. With no waiter it directs you to start one; with pending events
 it directs you to retrieve a complete, untruncated wait batch (acknowledging nothing and
@@ -585,11 +605,15 @@ The invariant is what the user is owed — from the browser, a page nobody is li
 to looks exactly like a page whose user simply has not commented yet, so without it
 they find out by asking. It covers the pages you run `server start` or `leaf wait`
 on, the two acts that put a user on the other end, so a directory you only built or
-linted is outside it. `leaf status <page> idle` refuses while events remain
-unacknowledged: run `leaf wait`, which returns at once when they are already there.
+linted is outside it. `leaf status <page> idle` refuses while the user is still owed an answer. For events
+not yet acknowledged: run `leaf wait`, which returns at once when they are already there.
 If its output is truncated, acknowledge nothing and rerun with enough output capacity
 for the whole batch. After a complete batch enters context, run `leaf ack` through
-its highest sequence.
+its highest sequence. And for a thread whose last word is the reader's, once you have
+acknowledged that word — acknowledging is what took it off the batch, so no later one
+will carry it, and their follow-up counts as much as their opening question:
+`leaf reply` answers it, and `leaf resolve` closes a thread the work has since
+answered. The Stop hook holds a turn on both counts.
 `leaf wait` also restarts a server that died under it and reports the restart on
 stderr; exit 2 means it couldn't, and the page stays down until `server start`. An
 idled page just leaves the watch, and the wait returns 2 once every watched page is

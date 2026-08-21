@@ -70,3 +70,44 @@ project/user precedence.
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes. They are live at
 <https://leaf.page/examples.html>, and `gallery.html` puts them on one page as tabs.
+
+## Experiments
+
+Liable to change or disappear. Leaf works the same without them.
+
+### Channel mode (Claude Code)
+
+Off by default. With it on, a long reply lands in the page chunk by chunk as it is
+composed rather than appearing whole at the end, and the loop stops needing the
+background `leaf wait` it otherwise restarts after every batch. Claude Code's
+channels are a research preview, so the mode exists only for a session launched
+with the flag:
+
+```
+claude --dangerously-load-development-channels plugin:leaf@leaf
+```
+
+It confirms at startup; an alias keeps the flag out of daily typing. A session
+launched without the flag behaves exactly as before, and the agent confirms
+delivery before relying on the channel, so a flag misremembered can't strand your
+comments.
+
+<details>
+<summary>Turning it on across an organization</summary>
+
+On a Team or Enterprise plan channels stay blocked until an Owner turns them on
+(claude.ai → Admin settings → Claude Code → Channels), and an admin who names leaf in
+`allowedChannelPlugins` retires the flag for everyone in the org — that list replaces
+Anthropic's default, so it names every channel plugin the org allows:
+
+```json
+{
+  "channelsEnabled": true,
+  "allowedChannelPlugins": [{ "marketplace": "leaf", "plugin": "leaf" }]
+}
+```
+
+Either way the launch flag becomes `claude --channels plugin:leaf@leaf`, with no
+confirmation, once leaf is on the effective allowlist.
+
+</details>

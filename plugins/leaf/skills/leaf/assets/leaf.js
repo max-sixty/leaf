@@ -9972,34 +9972,31 @@ function retractedIds(e, floors, widget) {
 // Reading it from the log rather than from the markup is what makes it last —
 // the version *after* the rewrite declares nothing, and its silence would
 // otherwise hand the user's retracted state straight back.
-// Memoized on the log's identity: `events` has one writer, which replaces the
-// array wholesale (poll), and the floors read nothing else — so a cached answer
-// can never be stale, and the full-log walk stops running two to four times per
-// poll (stateFold, buildThreads, replay each asked it fresh).
-const floorsMemo = new WeakMap();
-function retractionFloors(upto) {
-  let byUpto = floorsMemo.get(events);
-  if (!byUpto) floorsMemo.set(events, (byUpto = new Map()));
-  if (byUpto.has(upto)) return byUpto.get(upto);
+// The two note fields are the reviewer and agent channels' readings of one durable
+// relation: a version answers ids, and its answer lasts without being repeated.
+// Memoized on the log's identity and the field/window query: `events` has one writer,
+// which replaces the array wholesale (poll), so a cached answer cannot be stale and
+// every consumer shares the same filter-and-max fold.
+const noteFloorsMemo = new WeakMap();
+function noteFloors(field, upto) {
+  let byQuery = noteFloorsMemo.get(events);
+  if (!byQuery) noteFloorsMemo.set(events, (byQuery = new Map()));
+  const query = `${field}:${upto}`;
+  if (byQuery.has(query)) return byQuery.get(query);
   const floors = new Map();
   for (const e of events)
     if (e.kind === "note" && e.version <= upto)
-      for (const id of e.restated || [])
+      for (const id of e[field] || [])
         floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
-  byUpto.set(upto, floors);
+  byQuery.set(query, floors);
   return floors;
 }
+const retractionFloors = (upto) => noteFloors("restated", upto);
 // A report's end: the ids the notes in the window answered, absorbed or
 // overruled — the agent channel's mirror of retractionFloors, read from the
 // log for the same reason (the version after the answer declares nothing, and
 // its silence must not hand the report back).
-function answeredReports(upto) {
-  const answered = new Set();
-  for (const e of events)
-    if (e.kind === "note" && e.version <= upto)
-      for (const id of e.reports || []) answered.add(id);
-  return answered;
-}
+const answeredReports = (upto) => noteFloors("reports", upto);
 // An id-bearing element's state as markup can say it: tag, attributes, and
 // place among its id-bearing kin. Text is deliberately absent — words are the
 // static gate's subject (restatement_errors); this is the rest, the state no

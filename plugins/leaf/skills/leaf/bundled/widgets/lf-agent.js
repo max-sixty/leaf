@@ -1,7 +1,7 @@
 /* lf-agent: upgraded because a roster row has two facts a version cannot write.
  * `doing` is the standing report's live clause, and the line saying how old what the
- * row says is — the newer of that worker's last report and the version that published
- * the row — is computed rather than written down. The version carries the durable
+ * row says is computed at runtime from the worker's last report, or from the version's
+ * publish time when no report exists. The version carries the durable
  * state; answering its report therefore removes the clause rather than restoring an
  * authored copy of something that was true only between versions.
  *

@@ -10468,8 +10468,8 @@ function authoredDetail(el, unit, spec) {
 // and whose tag still declares the verb, each with the unit it folds to. What
 // differs is only what each channel counts as ended — a retraction floor for
 // the reviewer's, a note's answer for the agent's — so that is the caller's
-// `live` predicate and nothing else is duplicated. Named for interact.py's
-// `event_spec`/`fold_unit`, the same seam on the file side.
+// `live` predicate and nothing else is duplicated. interact.py's `declared_events`
+// owns the same seam on the file side.
 // Which element one event states, per the verb's declared fold unit: the widget itself
 // where the verb is absolute across the group, and the element its detail names where
 // it is absolute per part. One sentence, because two copies of it are two readings of

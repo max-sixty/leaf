@@ -7197,24 +7197,31 @@ def report_absorptions(events: list, upto=None) -> dict:
     return note_floors(events, "reports", upto)
 
 
-def event_spec(event: dict, byid: dict, registry: dict, channel: str):
-    """The verb spec the current markup declares behind an action or report:
-    None where no element holds the event's widget id, or where its tag no
-    longer declares the verb — a recorded event the vocabulary has moved past
-    folds to nothing rather than standing on trust."""
-    rec = byid.get(event["widget"])
-    if rec is None:
-        return None
-    return (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+def declared_events(events, byid, registry, kind, channel, upto):
+    """Registry-declared events in a window, with their fold unit and verb spec.
 
-
-def fold_unit(event: dict, spec: dict):
-    """The unit an event folds to: the widget itself for a verb absolute across
-    the group, else the element its detail names — the declaration state_fold's
-    docstring explains. Non-string means the detail named nothing foldable."""
-    if spec.get("unit", "widget") == "widget":
-        return event["widget"]
-    return event["detail"].get(spec["unit"])
+    Actions and reports share windowing, widget/verb lookup, and unit resolution;
+    what ends one remains the caller's channel-specific rule. The browser
+    runtime's `foldable` generator owns the same seam.
+    """
+    for event in events:
+        if event["kind"] != kind:
+            continue
+        if upto is not None and event["version"] > upto:
+            continue
+        rec = byid.get(event["widget"])
+        if rec is None:
+            continue
+        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+        if not spec:
+            continue
+        unit = (
+            event["widget"]
+            if spec.get("unit", "widget") == "widget"
+            else event["detail"].get(spec["unit"])
+        )
+        if isinstance(unit, str):
+            yield unit, event, spec
 
 
 def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dict:
@@ -7229,19 +7236,16 @@ def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dic
     channel's."""
     absorbed = report_absorptions(events, upto)
     per_unit = {}
-    for e in events:
-        if e["kind"] != "report":
-            continue
-        if upto is not None and e["version"] > upto:
-            continue
-        if e["id"] in absorbed:
-            continue
-        spec = event_spec(e, byid, registry, "x-report")
-        if not spec:
-            continue
-        unit = fold_unit(e, spec)
-        if isinstance(unit, str):
-            per_unit.setdefault(unit, []).append((e, spec))
+    for unit, event, spec in declared_events(
+        events,
+        byid,
+        registry,
+        "report",
+        "x-report",
+        upto,
+    ):
+        if event["id"] not in absorbed:
+            per_unit.setdefault(unit, []).append((event, spec))
     return per_unit
 
 
@@ -7298,23 +7302,21 @@ def state_fold(
     report to everything recorded (None)."""
     withdrawn = taken_back(events)
     fold = {}
-    for e in events:
-        if e["kind"] != "action":
-            continue
-        if upto is not None and e["version"] > upto:
-            continue
-        spec = event_spec(e, byid, registry, "x-state")
-        if not spec:
-            continue
+    for unit, event, spec in declared_events(
+        events,
+        byid,
+        registry,
+        "action",
+        "x-state",
+        upto,
+    ):
         # Two ways an action stops standing, and the fold owes both the same
         # answer: a version that rewrote what it rested on (`restated`), and the
         # reader taking it back. Neither leaves a mark on the action itself —
         # the log is append-only — so both are read from what came after it.
-        if e["id"] in withdrawn or action_retracted(e, floors, spk):
+        if event["id"] in withdrawn or action_retracted(event, floors, spk):
             continue
-        unit = fold_unit(e, spec)
-        if isinstance(unit, str):
-            fold[unit] = (e, spec)
+        fold[unit] = (event, spec)
     return fold
 
 
@@ -7874,15 +7876,16 @@ def report_errors(
     answered_at = {}
     if unearned:
         absorbed = report_absorptions(events, prev_num)
-        for e in events:
-            if e["kind"] != "report" or e["id"] not in absorbed:
-                continue
-            spec = event_spec(e, byid, registry, "x-report")
-            if not spec:
-                continue
-            unit = fold_unit(e, spec)
-            if isinstance(unit, str):
-                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[e["id"]])
+        for unit, event, _ in declared_events(
+            events,
+            byid,
+            registry,
+            "report",
+            "x-report",
+            prev_num,
+        ):
+            if event["id"] in absorbed:
+                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[event["id"]])
     for sid in sorted(unearned):
         rec = byid.get(sid)
         if rec is None:

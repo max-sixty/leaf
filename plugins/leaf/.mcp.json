@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "leaf": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/leaf",
+      "args": ["mcp"]
+    }
+  }
+}

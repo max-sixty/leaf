@@ -321,7 +321,11 @@ vocabulary for rides in the custom keywords below:
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
-passages apart), reply (parent=id),
+passages apart), reply (parent=id; `more` marks a streamed reply's chain open),
+append (agent; a streamed message's continuation — `continues` names the head,
+its text concatenates raw, and the message every reader meets is the fold of
+its chain: fold_messages here, foldMessages in the runtime, written by the
+channel server's reply tool, see cmd_mcp),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -462,6 +466,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import zlib
 from datetime import datetime
 from html.parser import HTMLParser
@@ -530,6 +535,9 @@ EVENT_VOCABULARY = {
         "session",
         "markup",
         "attempt",
+        # Set while a streamed reply's chain is still open, so every reader knows
+        # more of this message is still coming; the closing chunk omits it.
+        "more",
     },
     "resolve": {"parent", "agent", "session"},
     "unresolve": {"parent"},
@@ -538,6 +546,14 @@ EVENT_VOCABULARY = {
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
     "error": {"version", "text"},
+    # A streamed message's continuation: `continues` names the head — a claude
+    # comment or reply whose chain is still open (`more` on its last event) — and
+    # the chunk's text concatenates onto it raw, delta-style. Every event stays
+    # immutable and append-only; the *message* is a fold of its chain
+    # (fold_messages), exactly as a widget's standing state is a fold of its
+    # actions. `markup` may ride only a closing event, so a message carries at
+    # most one and the panel never re-renders an upgraded widget mid-stream.
+    "append": {"continues", "text", "more", "agent", "session", "markup"},
     # The reader taking a gesture back (`z`), naming it and nothing else. Every
     # other field is the target's to state, and stating it twice is two things to
     # keep in step. What it takes back it takes back for every reader of the log:
@@ -549,16 +565,22 @@ EVENT_VOCABULARY = {
 # speech, and the agent may already have read it — what a reader regrets there
 # they say, rather than unsay. Nor is an undo itself, which would be a redo.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
+ANSWER_ASK_INSTRUCTION = (
+    "Answer each with `leaf reply <page> --to <id> --text ...`, or close one the "
+    "work has since answered with `leaf resolve <page> --to <id>`."
+)
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After a complete batch enters context, run "
     "`leaf ack <page> <highest-seq>` for the page the batch's first line names."
 )
-# Fields whose one door is the CLI. The browser door refuses them rather than
-# silently dropping: `markup` enters only through the gate `leaf comment` and
-# `leaf reply` run, which is what lets every reader trust what the log holds
-# under that name.
-AGENT_ONLY_FIELDS = {"markup"}
+# Fields whose one door is the agent side. The browser door refuses them rather
+# than silently dropping: `markup` enters only through the gate `leaf comment`
+# and `leaf reply` run, which is what lets every reader trust what the log holds
+# under that name; `more` marks a streamed chain open, and only the channel's
+# reply tool streams (kind `append` is refused at the POST door outright, not
+# being a browser kind at all).
+AGENT_ONLY_FIELDS = {"markup", "more"}
 EVENT_BASE_FIELDS = {"id", "ts", "author", "kind", "seq"}
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
@@ -1035,6 +1057,47 @@ def read_events(page_dir: Path) -> list:
     return events
 
 
+def fold_messages(events: list) -> list:
+    """The log with each streamed message folded whole, in log order.
+
+    A streamed message is a chain: a head — a claude message carrying `more`
+    while unfinished; the fold reads the message class, comment and reply,
+    though today only the reply door opens a chain — and `append` events naming
+    it in `continues`, each chunk's text concatenating raw onto the head's:
+    delta semantics, so the chunking is the sender's and a boundary can fall
+    mid-sentence. The chain's
+    one `markup` rides its closing event (the door holds it to that), and the
+    fold leaves `more` on the folded head exactly while the chain is open, which
+    is what the panel's streaming mark and nothing else reads.
+
+    This is the message reading — build_threads, the transcript, thread_asks and
+    the runtime's own buildThreads all fold before reading, so a chunk is never
+    met as a message anywhere. Heads are copied, never mutated: the caller's
+    events are the log's, and appends leave the list. An append whose head a
+    torn log lost attaches to nothing and is dropped, the same silence
+    read_events keeps for the tear itself."""
+    folded = []
+    heads = {}
+    for e in events:
+        if e["kind"] == "append":
+            head = heads.get(e["continues"])
+            if head is None:
+                continue
+            head["text"] += e["text"]
+            if e.get("markup"):
+                head["markup"] = e["markup"]
+            if e.get("more"):
+                head["more"] = True
+            else:
+                head.pop("more", None)
+            continue
+        if e["kind"] in ("comment", "reply") and e.get("more"):
+            e = dict(e)
+            heads[e["id"]] = e
+        folded.append(e)
+    return folded
+
+
 def taken_back(events: list) -> set:
     """Event ids some later gesture took back (`undoes`).
 
@@ -1138,7 +1201,7 @@ def build_threads(events: list, spk: dict) -> dict:
             answers[e["widget"]] = e
     threads = {}
     thread_for = {}
-    for e in events:
+    for e in fold_messages(events):
         # A gesture the reader took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
         if e["id"] in withdrawn:
@@ -3105,6 +3168,103 @@ def start_server(
     return url, lifetime_note(page_dir)
 
 
+class PageTick(NamedTuple):
+    """Where one page stands at one pass of the watch."""
+
+    page_dir: Path
+    status: dict
+    batch: list
+    live: bool
+    lost: bool
+    restarted: str | None
+
+
+class Watch:
+    """A session's watch, one pass at a time, for `leaf wait` and the channel.
+
+    The two carriers differ in what they do with a batch — a wait prints one and
+    exits, the channel notifies and keeps going — and in nothing else. Which
+    pages the session holds, each one's status and unacknowledged batch, the
+    heartbeat that claims the watch, and the five-second server check with its
+    one revival per death are the same facts whichever carrier asks. Written
+    twice, they drifted the first time they were touched: `revive_server` became
+    `start_server` and only one copy followed, leaving the other calling a name
+    that no longer existed — a NameError the channel's own per-tick guard
+    swallowed once a second, on a path no test reaches.
+
+    A tick reads; the caller decides. That split is what keeps the difference
+    between the carriers from turning back into two loops: `lost` says a page's
+    server is down with no restart left to make, and a wait ends on it while the
+    channel drops that page and serves the rest of the session.
+    """
+
+    def __init__(self, session_id: str, named: Path | None = None):
+        self.session_id = session_id
+        self.named = named
+        self._revived: set = set()
+        self._lost: set = set()
+        self._check_at: dict = {}
+        self.bumped: set = set()
+
+    def pages(self) -> list:
+        """Every page this session holds, re-read each pass, so a page served
+        mid-watch joins it and a page another session picked up drops out.
+        Naming one holds it in the set whatever the registry says — how a
+        session picks up a leaf it didn't serve, and the whole set outside a
+        host session (a bare shell, the tests)."""
+        watched = owned_pages(self.session_id)
+        if self.named is not None and not any(
+            paths_same(d, self.named) for d in watched
+        ):
+            watched.append(self.named)
+        return watched
+
+    def tick(self) -> list:
+        return [self._read(d) for d in self.pages()]
+
+    def _read(self, page_dir: Path) -> PageTick:
+        status = read_json(page_dir / "status.json") or {"state": "idle"}
+        live = status["state"] != "idle"
+        batch = unacknowledged(read_events(page_dir), read_cursor(page_dir))
+        key, now, restarted = str(page_dir), time.time(), None
+        # Only live pages: SessionEnd idles a page and stops its server, and a
+        # watch winding down past that must not put it back up.
+        if live and now > self._check_at.get(key, 0):
+            self._check_at[key] = now + 5
+            if running_server(page_dir):
+                # A server seen running earns the next death its own revival —
+                # one attempt per death, so a server dying on arrival still
+                # can't respawn every five seconds.
+                self._revived.discard(key)
+                self._lost.discard(key)
+            elif key in self._revived or not (started := start_server(page_dir)):
+                self._lost.add(key)
+            else:
+                self._revived.add(key)
+                restarted = started[0]
+        lost = key in self._lost
+        # The heartbeat is where the watch is claimed — the Stop hook reads a
+        # fresh one as the page being attended — so it is written only where the
+        # claim is true. An idle page is owed no watch, and a page whose server
+        # will not come back is attended by nobody.
+        if live and not lost:
+            write_json(page_dir / "heartbeat.json", {"t": time.time()})
+            self.bumped.add(page_dir)
+        else:
+            self.drop(page_dir)
+        return PageTick(page_dir, status, batch, live, lost, restarted)
+
+    def drop(self, page_dir: Path) -> None:
+        """Withdraw this watch's claim on one page."""
+        self.bumped.discard(page_dir)
+        (page_dir / "heartbeat.json").unlink(missing_ok=True)
+
+    def release(self) -> None:
+        """Withdraw every claim, however the watch ended."""
+        for page_dir in list(self.bumped):  # a tick may still add mid-iteration
+            self.drop(page_dir)
+
+
 def cmd_wait(page_dir: Path | None = None) -> int:
     """Hold until a user speaks or a worker reports, and deliver what was said.
 
@@ -3129,43 +3289,33 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     if page_dir is not None:
         claim_page(page_dir)
     identity = host_identity()
-    session_id = identity["id"] if identity else ""
-    server_check_at = 0.0
-    revived = set()
-    bumped = set()
+    watch = Watch(identity["id"] if identity else "", named=page_dir)
     try:
         while True:
-            watched = owned_pages(session_id)
-            if page_dir is not None and not any(
-                paths_same(d, page_dir) for d in watched
-            ):
-                watched.append(page_dir)
-            statuses = {
-                d: read_json(d / "status.json") or {"state": "idle"} for d in watched
-            }
+            readings = watch.tick()
             # The batch outranks the page's state: a wait already holding events
             # owes them to the agent whatever became of the leaf, so an idled
             # page still delivers here — it just no longer holds the wait open
             # below.
-            for d in watched:
-                batch = unacknowledged(read_events(d), read_cursor(d))
-                if not batch:
+            for r in readings:
+                if not r.batch:
                     continue
                 # Whose events follow, said in-band: no event line names its
                 # page, and the ack has to go back to the right one.
-                print(json.dumps({"page": str(d)}), flush=True)
-                for event in batch:
+                print(json.dumps({"page": str(r.page_dir)}), flush=True)
+                for event in r.batch:
                     print(jsonl_line(event), flush=True)
-                if statuses[d]["state"] != "working":
-                    # Flip before the agent handles the batch: the handoff gap between this
-                    # exit and pickup must not show "waiting". handoff=True dates
-                    # that claim; the agent's own `leaf status` clears it.
-                    # Mid-work output has no pickup gap, so leave the existing claim
-                    # byte-for-byte untouched instead of shortening its freshness window.
-                    # "update", not "comment": a batch may mix comments, actions, and reports.
-                    n = len(batch)
+                if r.status["state"] != "working":
+                    # Flip before the agent handles the batch: the handoff gap
+                    # between this exit and pickup must not show "waiting".
+                    # handoff=True dates that claim; the agent's own `leaf
+                    # status` clears it. Mid-work output has no pickup gap, so
+                    # leave an existing claim byte-for-byte untouched instead of
+                    # shortening its freshness window. "update", not "comment":
+                    # a batch may mix comments, actions, and reports.
+                    n = len(r.batch)
                     cmd_status(
-                        d,
+                        r.page_dir,
                         "working",
                         f"picking up {n} update{'s' if n != 1 else ''}",
                         handoff=True,
@@ -3173,57 +3323,43 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                 return 0
             # A leaf that ended — the agent idled it, or SessionEnd did on its
             # way out — has nobody left to carry a comment to, so it leaves the
-            # watch, and the last one gone ends the watcher too. `leaf status
+            # watch, and the last one gone ends the wait too. `leaf status
             # <page> idle` used to close the agent's side of a page and leave
             # the watcher running on it, which is a long-running command with
             # nothing to notice it by.
-            live = [d for d in watched if statuses[d]["state"] != "idle"]
-            if not live:
-                if not watched:
+            if not any(r.live for r in readings):
+                if not readings:
                     print(
                         "nothing to watch: no page named and none claimed by "
                         "this session",
                         file=sys.stderr,
                     )
                     return 2
-                one = len(watched) == 1
-                names = ", ".join(str(d) for d in watched)
+                one = len(readings) == 1
+                names = ", ".join(str(r.page_dir) for r in readings)
                 print(
                     f"the {'leaf' if one else 'leaves'} ended; {names} "
                     f"{'is' if one else 'are'} idle",
                     file=sys.stderr,
                 )
                 return 2
-            for d in live:
-                write_json(d / "heartbeat.json", {"t": time.time()})
-                bumped.add(d)
-            if time.time() > server_check_at:
-                server_check_at = time.time() + 5
-                # Only live pages: SessionEnd idles a page and stops its server,
-                # and a watcher winding down past that must not put it back up.
-                for d in live:
-                    if running_server(d):
-                        continue
-                    # One revival per page per wait: a server that dies the
-                    # moment it comes up would otherwise respawn every five
-                    # seconds forever.
-                    if d in revived or not (started := start_server(d)):
-                        print(
-                            f"{d}: server is not running; restart it with "
-                            f"`leaf server start {d}`",
-                            file=sys.stderr,
-                        )
-                        return 2
-                    revived.add(d)
+            for r in readings:
+                if r.restarted:
                     print(
-                        f"{d}: server had died; restarted at {started[0]}",
+                        f"{r.page_dir}: server had died; restarted at {r.restarted}",
                         file=sys.stderr,
                         flush=True,
                     )
+                if r.lost:
+                    print(
+                        f"{r.page_dir}: server is not running; restart it with "
+                        f"`leaf server start {r.page_dir}`",
+                        file=sys.stderr,
+                    )
+                    return 2
             time.sleep(1)
     finally:
-        for d in bumped:
-            (d / "heartbeat.json").unlink(missing_ok=True)
+        watch.release()
 
 
 def cmd_ack(page_dir: Path, seq: int) -> None:
@@ -3497,13 +3633,27 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
     print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
 
 
-def cmd_reply(page_dir: Path, to: str, text, markup: str) -> None:
+def cmd_reply(page_dir: Path, to: str, text, markup: str, more: bool = False) -> dict:
+    """Post a threaded reply, whole or as a stream's head. `more` marks the
+    chain open — the channel's reply tool is what sets it, sending the opening
+    chunk the moment it is composed so the reader watches the reply arrive —
+    and `post_append` is the door the rest of the chain comes through."""
     events = read_events(page_dir)
     known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
     if to not in known:
         sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
-    body = read_text_arg(text)
+    if more:
+        require_streaming(page_dir)
+        # A chunk's edges are part of the stream — the next chunk concatenates
+        # raw onto this one — so the whole-message trim would eat the boundary.
+        if not text or not text.strip():
+            sys.exit("an unfinished chunk needs text")
+        body = text
+    else:
+        body = read_text_arg(text)
     if markup:
+        if more:
+            sys.exit("markup rides a chain's closing chunk; send it with the final one")
         check_markup(page_dir, "reply", markup, events)
     event = {
         "kind": "reply",
@@ -3514,7 +3664,65 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> None:
     }
     if markup:
         event["markup"] = markup
-    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+    if more:
+        event["more"] = True
+    return append_event(page_dir, event)
+
+
+def require_streaming(page_dir: Path) -> None:
+    """A page renders streamed chunks only if its vendored runtime folds them,
+    and the vendored `$events` stamp is the one statement of what that runtime
+    speaks. Writing a chain into a page vendored before streaming would show
+    the reader the head chunk alone, forever, with nothing anywhere saying so —
+    so the door refuses and names the re-vendor instead."""
+    registry = require_registry(page_dir)
+    if "append" not in registry["$events"]["kinds"]:
+        sys.exit(
+            "this page's vendored layer predates streamed messages (no `append` "
+            "in its $events stamp), so its runtime would show only a stream's "
+            "first chunk; re-vendor with `leaf page init` and republish first, "
+            "or post the reply whole"
+        )
+
+
+def post_append(
+    page_dir: Path, continues: str, text: str, markup: str, more: bool = False
+) -> dict:
+    """A streamed chunk's own door: `continues` names an open chain's head — a
+    claude message whose last event carried `more` — and the chunk's text
+    concatenates onto it raw. Markup rides only a closing chunk, so a message
+    carries at most one and the panel never re-renders a widget mid-stream. A
+    closing chunk may be empty (the stream is done and the last words are
+    already out); an unfinished one may not, having nothing to stream."""
+    require_streaming(page_dir)
+    events = read_events(page_dir)
+    head = next(
+        (e for e in fold_messages(events) if e["id"] == continues and e.get("more")),
+        None,
+    )
+    if head is None:
+        sys.exit(
+            f"{continues!r} is not an open streamed message; a chunk continues a "
+            "claude comment or reply whose chain is still open (`more`)"
+        )
+    if markup:
+        if more:
+            sys.exit("markup rides a chain's closing chunk; send it with the final one")
+        check_markup(page_dir, "append", markup, events)
+    if not text and more:
+        sys.exit("an unfinished chunk needs text")
+    event = {
+        "kind": "append",
+        "author": "claude",
+        **message_identity(),
+        "continues": continues,
+        "text": text or "",
+    }
+    if markup:
+        event["markup"] = markup
+    if more:
+        event["more"] = True
+    return append_event(page_dir, event)
 
 
 def cmd_resolve(page_dir: Path, to: str) -> None:
@@ -3937,16 +4145,79 @@ def cmd_stop(page_dir: Path) -> str:
 # ---------- hook: the loop, enforced rather than remembered ----------
 
 
+def unanswered_asks(events: list, cursor: int) -> list:
+    """The comments this session took delivery of and left with no answer under
+    them.
+
+    Acknowledging is what takes a comment off the batch, so an acknowledged one
+    nobody answered has passed the last gate that could have caught it: the
+    watcher keeps no memory of it, and re-delivery reads the same cursor. The
+    reader is left looking at a question with nothing under it, and the agent
+    believes the batch is dealt with.
+
+    What it looks for is a thread whose last word is the reader's. Not a thread
+    nobody but the reader has ever spoken in: the browser posts the reader's
+    follow-ups as `reply` events of their own, so under that reading one agent
+    message anywhere in a thread answers it forever, and a follow-up — "but why
+    not C?" — acknowledged and answered in the terminal is this very bug played
+    again one level down, with the gate reading green. The agent's own ask needs
+    no case of its own either way round: the last word there is the agent's
+    until the reader answers, and once they answer in-thread it is theirs.
+
+    Reading the last speaker rather than the whole cast means a thread that
+    needs no answer — "great, ship it" — holds a turn until the agent replies or
+    runs `leaf resolve`. That is the direction to err in. Both failures are
+    invisible from the browser, so the question is who can see each: a thread
+    left standing over a reader's last word is visible to nobody, while "does
+    this one need an answer" is a question the agent is holding the context to
+    settle, and settling it costs one command.
+
+    The log alone, with no reading of the page: `build_threads` is told there is
+    no published page to settle against, which is the one thing this reader may
+    not ask for. Reading the page means loading the page's vendored registry,
+    and that load is a gate — a page vendored before the layer last changed
+    fails it by design. Every other caller may raise on that; this one is
+    reached from the Stop hook, which fails open, so a raise here would stand
+    the whole guard down on any page a little older than the code, watch clause
+    included, and say nothing. What the log alone costs is that a pick retracted
+    by a floor on one of its parts, rather than on the widget it named, still
+    reads as settling its thread — an ask that goes unmentioned, never a turn
+    blocked over an answer the reader already gave.
+    """
+    return [
+        t["root"]
+        for t in build_threads(events, {}).values()
+        # The cursor is read against the last word, not the root: a follow-up
+        # past it is a delivery the agent has yet to take, which is the
+        # unacknowledged clause's to report and not this one's.
+        if t["msgs"][-1]["author"] == "user"
+        and t["msgs"][-1]["seq"] <= cursor
+        and not t["resolved"]
+    ]
+
+
 def unattended_pages(session_id: str) -> list:
-    """This session's pages the user is looking at with nobody on the other
-    end, each with what to do about it. The invariant is that a page is either
-    watched or idle: between turns there is no third state, so anything else is
-    a page that has quietly stopped listening."""
+    """The pages this session owes something, each with what to do about it.
+    Two invariants hold between turns. A page is watched or idle, so anything
+    else has quietly stopped listening. And every comment the session has taken
+    delivery of has an answer under it, since acknowledging is what takes one
+    off the batch and nothing delivers it again."""
     reasons = []
     for page_dir in owned_pages(session_id):
         events = read_events(page_dir)
         state = full_state(page_dir, events, published_versions(page_dir, events))
         codex = state["host"] == "codex"
+        # Asked of every page, watched or not, and ahead of the watch question
+        # below: a watcher cannot deliver a comment the cursor has already
+        # passed, so a live wait is no answer to this one.
+        stale = unanswered_asks(events, state["cursor"])
+        if stale:
+            ids = ", ".join(t["id"] for t in stale)
+            reasons.append(
+                f"{page_dir}: {len(stale)} acknowledged "
+                f"comment{'s' if len(stale) != 1 else ''} with no answer "
+                f"({ids}). " + ANSWER_ASK_INSTRUCTION
+            )
         if state["listening"] and not codex:
             # A live `leaf wait` is the watch, and it prints what's pending on its
             # own. Reporting the page here would have Claude start a second one, and two
@@ -4012,13 +4283,21 @@ def cmd_hook(payload: dict) -> None:
         return
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
+    # A block naming two debts and answered on one therefore ends the turn with
+    # the other standing — the guard is a nudge per stop, not a barrier. What
+    # carries the rest is UserPromptSubmit, which reads the same reasons, so the
+    # debt opens the next turn rather than waiting for its end.
     if event == "Stop" and payload.get("stop_hook_active"):
         return
     reasons = unattended_pages(sid)
     if not reasons:
         return
-    message = "leaf — a page of this session's is unattended:\n" + "\n".join(
-        f"- {r}" for r in reasons
+    # The message avoids "unattended": a page can be watched and still be owed
+    # an answer, and the runtime spends that word on a different fact — a page
+    # served to nobody at all.
+    message = (
+        "leaf — a page of this session's has something outstanding:\n"
+        + "\n".join(f"- {r}" for r in reasons)
     )
     if event == "Stop":
         print(json.dumps({"decision": "block", "reason": message}))
@@ -4033,6 +4312,446 @@ def cmd_hook(payload: dict) -> None:
                 }
             )
         )
+
+
+# ---------- channel: the loop as a Claude Code channel ----------
+
+# The newest MCP revision whose connections still carry unsolicited server
+# notifications — the path a channel's inbound delivery is. Claude Code refuses
+# channel registration to a connection negotiated at 2026-07-28 or later, so
+# this pin is load-bearing, not a default.
+MCP_PROTOCOL = "2025-06-18"
+# An unacknowledged batch is re-sent on this cadence: the harness can drop a
+# notification (a reconnect, a restart), and delivery here is at-least-once
+# against a monotonic, idempotent ack — the same contract a rerun `leaf wait`
+# gives a truncated batch.
+CHANNEL_RENOTIFY_SECS = 60
+# A flurry (a drag session, a burst of picks) settles for one tick before it is
+# delivered, so it arrives as one batch; a stream that never settles is
+# delivered anyway at this cadence rather than waiting it out.
+CHANNEL_FLURRY_SECS = 5
+
+CHANNEL_INSTRUCTIONS = """\
+leaf can run its loop over this channel instead of background `leaf wait`. When a \
+session serves a leaf page and was launched with channels enabled, a greeting \
+arrives as a <channel source="plugin:leaf:leaf"> message naming the page; call the `watch` tool \
+once then — the greeting arriving is the proof of delivery, and watch is how you \
+bank it. From then on page events arrive as <channel source="plugin:leaf:leaf"> messages: a \
+batch of the event lines `leaf wait` prints, one per line. Whose events they are is \
+the message's own `page` attribute rather than a line of the batch, so every line is \
+an event. For each batch: call `ack` with the highest seq once the complete batch is \
+in context, then handle every event per the leaf skill. Answer comments with the \
+`reply` tool, streamed: send the opening chunk as soon as it is composed \
+(done: false), extend with `continues`, and close with done: true — the reader \
+watches the reply arrive instead of waiting for the whole of it. If no greeting \
+ever arrives, channels are off for this session; keep the skill's standard loop."""
+
+CHANNEL_TOOLS = [
+    {
+        "name": "watch",
+        "description": (
+            "Confirm leaf channel delivery for this session: call once, in "
+            "answer to the channel greeting. The greeting arriving is the proof "
+            "of delivery — without one this call would claim a watch nothing "
+            "delivers. Arms channel mode: this session's pages are watched from "
+            'here — events arrive as <channel source="plugin:leaf:leaf"> messages '
+            "and no background `leaf wait` is needed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "reply",
+        "description": (
+            "Reply in a leaf page's thread. Streamed: pass done: false to open a "
+            "message with its first chunk (send it as soon as it is composed), "
+            "then extend with continues: <that reply's id> — chunks concatenate "
+            "raw, so end them mid-prose deliberately — and close with done: true. "
+            "A single call with done omitted posts a whole reply. Markup (widget "
+            "fragment) rides only a closing call."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "page": {"type": "string", "description": "the page directory"},
+                "to": {
+                    "type": "string",
+                    "description": "comment or reply id to answer (opens a message)",
+                },
+                "continues": {
+                    "type": "string",
+                    "description": "id of this agent's open streamed reply to extend",
+                },
+                "text": {"type": "string", "description": "the chunk's text"},
+                "done": {
+                    "type": "boolean",
+                    "description": "false while more chunks follow (default true)",
+                },
+                "markup": {
+                    "type": "string",
+                    "description": "widget markup rendered after the text; closing call only",
+                },
+            },
+            "required": ["page", "text"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "ack",
+        "description": (
+            "Acknowledge a complete channel batch once it is in context, through "
+            "its highest seq. Monotonic and idempotent; until acked, the batch is "
+            "re-delivered."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "page": {"type": "string", "description": "the page directory"},
+                "seq": {"type": "integer", "minimum": 1},
+            },
+            "required": ["page", "seq"],
+            "additionalProperties": False,
+        },
+    },
+]
+
+
+def cmd_mcp() -> None:
+    """The loop as a channel: an MCP stdio server Claude Code spawns per session
+    (.mcp.json names it), pushing this session's page events into the
+    conversation as <channel source="plugin:leaf:leaf"> messages and taking
+    replies as tool
+    calls. Inbound delivery is `notifications/claude/channel`, which is also the
+    wake: the harness enqueues each as a prompt, so an idle session gets a turn.
+
+    A channel is a door into the model's context, so what may come through it is
+    the question to answer first. This one adds no writer: it delivers what the
+    page log already holds, sooner than `leaf wait` would have printed it, and
+    the log's own gate is therefore the boundary — a browser event arrives at
+    `POST /api/event` carrying the page key, and everything else is written by a
+    command with filesystem access here. The batch is one event per line because
+    `jsonl_line` escapes every character that could pass for a line break, so a
+    comment cannot forge a second event beside its own.
+
+    Delivery must be demonstrated before it is relied on — the channel's
+    "printing is not receipt". Registration is decided harness-side (the
+    --channels launch flag, feature gates), and nothing tells this process the
+    outcome, so a greeting notification goes out when a page is first claimed
+    and the agent confirms it arrived by calling `watch`. Only that arms the
+    watcher: from then on it heartbeats each owned page (the Stop hook's
+    watched-or-idle invariant reads the same file `leaf wait` bumps), delivers
+    unacknowledged batches, re-delivers what stays unacked, and revives a dead
+    server the way `leaf wait` would. Unconfirmed, it stays silent and
+    heartbeats nothing, so the hooks keep enforcing the standard loop and a
+    session without channels never strands its reader.
+
+    The tools reuse the CLI's own doors (cmd_reply, post_append, cmd_ack), which
+    speak through sys.exit; the dispatcher turns that into a tool error, so the
+    gate and its words stay one implementation."""
+    # The harness spawns this server with the session id but no CLAUDE_PID, and
+    # everything downstream that claims a page requires both (claim_page). This
+    # process lives exactly as long as the session that spawned it, so its own
+    # pid is the claim's honest liveness: without it, a revive this watcher
+    # spawns cannot claim, and cmd_serve reads an unclaimed serve as standing —
+    # a server that outlives the session and nothing ever reaps.
+    os.environ.setdefault("CLAUDE_PID", str(os.getpid()))
+    out_lock = threading.Lock()
+    initialized = threading.Event()
+    armed = threading.Event()
+    stopping = threading.Event()
+    identity = host_identity()
+    watch = Watch(identity["id"] if identity else "")
+
+    def send(msg: dict) -> None:
+        with out_lock:
+            sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+
+    def fail(msg_id, code: int, message: str) -> None:
+        # One shape for every refusal, as the CLI's errors have one shape: what
+        # a caller reads is the words, never the frame they arrive in.
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": code, "message": message},
+            }
+        )
+
+    def notify(content: str, meta: dict) -> None:
+        send(
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/claude/channel",
+                "params": {"content": content, "meta": meta},
+            }
+        )
+
+    def deliver(page_dir: Path, batch: list, flip: bool) -> None:
+        notify(
+            "\n".join(jsonl_line(e) for e in batch),
+            {
+                "page": str(page_dir),
+                "first": str(batch[0]["seq"]),
+                "last": str(batch[-1]["seq"]),
+                "count": str(len(batch)),
+            },
+        )
+        # The same pickup flip `leaf wait` makes when it prints a batch: the
+        # handoff gap between delivery and the agent's own status must not
+        # show "waiting". First delivery only — a re-send of a batch the agent
+        # may already be holding must not overwrite their declared status.
+        if not flip:
+            return
+        status = read_json(page_dir / "status.json") or {"state": "idle"}
+        if status["state"] != "working":
+            n = len(batch)
+            cmd_status(
+                page_dir,
+                "working",
+                f"picking up {n} update{'s' if n != 1 else ''}",
+                handoff=True,
+            )
+
+    def watcher() -> None:
+        if identity is None:
+            return  # outside an agent host nothing is owed a watch
+        greeted = set()
+        prev_tail = {}
+        notified = {}
+        noted_at = {}
+        told = set()
+        initialized.wait()
+        while not stopping.wait(1):
+            # A fault here must not end the watch: the channel is the loop's
+            # carrier, and a watcher that dies quietly leaves a heartbeat going
+            # stale under a user who was promised delivery. Per pass and per
+            # page alike, the fault is contained and the next tick retries —
+            # the same bargain loop-guard strikes for the Stop hook.
+            try:
+                if not armed.is_set():
+                    # Unconfirmed, the channel claims nothing — no tick, so no
+                    # heartbeat — and the hooks go on enforcing the standard
+                    # loop for a session whose channels are off.
+                    for page_dir in watch.pages():
+                        key = str(page_dir)
+                        if key not in greeted:
+                            greeted.add(key)
+                            notify(
+                                f"leaf channel: delivering events for {page_dir}. "
+                                "This greeting arriving is the proof of delivery — "
+                                "call the leaf `watch` tool once to confirm and arm "
+                                "channel mode (events then arrive as messages like "
+                                "this one; no background `leaf wait` needed).",
+                                {"page": key, "kind": "greeting"},
+                            )
+                    continue
+                readings = watch.tick()
+            except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
+                continue
+            for r in readings:
+                key = str(r.page_dir)
+                # A neighbour's fault stays its own, as in other_leaves: a page
+                # deleted mid-scan must not take the watcher down with it.
+                try:
+                    if r.lost:
+                        # `leaf wait` ends on this; a channel has the rest of the
+                        # session to serve, so it drops the page — the tick has
+                        # already withdrawn the heartbeat — and says so once, to
+                        # the agent, who is the only one who can act.
+                        if key not in told:
+                            told.add(key)
+                            notify(
+                                f"leaf channel: {r.page_dir} has no server and "
+                                "would not restart, so it is no longer watched. "
+                                "Bring it back with "
+                                f"`leaf server start {r.page_dir}`.",
+                                {"page": key, "kind": "unwatched"},
+                            )
+                        continue
+                    told.discard(key)
+                    if r.batch:
+                        tail = r.batch[-1]["seq"]
+                        now = time.time()
+                        # A recreated page directory restarts its log below the
+                        # seq this watcher last delivered, and every reading
+                        # below is a comparison against that number — so the new
+                        # page's first batch reads as one already sent, and waits
+                        # out CHANNEL_RENOTIFY_SECS before it goes. A log that
+                        # went backwards is a different page.
+                        if tail < notified.get(key, 0):
+                            notified.pop(key, None)
+                            prev_tail.pop(key, None)
+                            noted_at.pop(key, None)
+                        # The flurry clock starts when a quiet page first shows
+                        # a batch, so a burst settles into one delivery; it
+                        # restarts at each delivery, so a stream that never
+                        # settles still lands every CHANNEL_FLURRY_SECS.
+                        noted_at.setdefault(key, now)
+                        settled = tail == prev_tail.get(key)
+                        overdue = now - noted_at[key] >= CHANNEL_FLURRY_SECS
+                        # Re-delivery is only for a batch already sent once —
+                        # gated on `notified` covering the tail.
+                        renotify = (
+                            notified.get(key, 0) >= tail
+                            and now - noted_at[key] >= CHANNEL_RENOTIFY_SECS
+                        )
+                        fresh = tail > notified.get(key, 0)
+                        if (fresh and (settled or overdue)) or renotify:
+                            # The pickup flip belongs to a batch's first
+                            # delivery: a re-send must not overwrite the status
+                            # the agent has since declared.
+                            deliver(r.page_dir, r.batch, flip=fresh)
+                            notified[key] = tail
+                            noted_at[key] = now
+                        prev_tail[key] = tail
+                    else:
+                        prev_tail.pop(key, None)
+                        noted_at.pop(key, None)
+                except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
+                    continue
+
+    def tool_watch(args: dict) -> str:
+        identity = host_identity()
+        if identity is None:
+            sys.exit(
+                "no agent host session identity in this environment; "
+                "the channel has no session to watch"
+            )
+        armed.set()
+        pages = owned_pages(identity["id"])
+        lines = [
+            (
+                f"channel mode armed for session {identity['id']}: watching "
+                f"{len(pages)} page(s); drop any background `leaf wait` — events "
+                'arrive as <channel source="plugin:leaf:leaf"> messages from here'
+            )
+        ]
+        for page_dir in pages:
+            pending = len(unacknowledged(read_events(page_dir), read_cursor(page_dir)))
+            lines.append(
+                f"- {page_dir}"
+                + (f" ({pending} pending, delivery follows)" if pending else "")
+            )
+        return "\n".join(lines)
+
+    def tool_reply(args: dict) -> str:
+        page_dir = resolve_dir(args["page"])
+        text = args["text"]
+        done = args.get("done", True)
+        markup = args.get("markup") or ""
+        to, continues = args.get("to"), args.get("continues")
+        if bool(to) == bool(continues):
+            sys.exit(
+                "pass exactly one of `to` (open a message) or `continues` (extend one)"
+            )
+        if to:
+            event = cmd_reply(page_dir, to, text, markup, more=not done)
+        else:
+            event = post_append(page_dir, continues, text, markup, more=not done)
+        head = event["id"] if to else continues
+        line = json.dumps(event, ensure_ascii=False)
+        if done:
+            return line
+        return f'{line}\nstream open — extend with continues: "{head}"'
+
+    def tool_ack(args: dict) -> str:
+        cmd_ack(resolve_dir(args["page"]), args["seq"])
+        return f"acknowledged through seq {args['seq']}"
+
+    tools = {"watch": tool_watch, "reply": tool_reply, "ack": tool_ack}
+
+    def call_tool(params: dict) -> dict:
+        fn = tools.get(params.get("name"))
+        if fn is None:
+            return {
+                "content": [
+                    {"type": "text", "text": f"unknown tool {params.get('name')!r}"}
+                ],
+                "isError": True,
+            }
+        try:
+            text = fn(params.get("arguments") or {})
+        except SystemExit as err:
+            # The CLI doors speak through sys.exit; same words, tool-shaped.
+            return {"content": [{"type": "text", "text": str(err)}], "isError": True}
+        except Exception:  # noqa: BLE001 - surfaced whole, in the tool result
+            # A fault in one tool call must not close the transport the loop
+            # rides on — the model is the one caller that can act on it, so the
+            # traceback goes back as the result rather than dying unread on
+            # stderr with the channel.
+            return {
+                "content": [{"type": "text", "text": traceback.format_exc()}],
+                "isError": True,
+            }
+        return {"content": [{"type": "text", "text": text}]}
+
+    def answer(msg: dict) -> None:
+        method, msg_id = msg.get("method"), msg.get("id")
+        if msg_id is None:
+            return  # notifications (initialized, cancelled) need no answer
+        if method == "initialize":
+            result = {
+                "protocolVersion": MCP_PROTOCOL,
+                "capabilities": {
+                    "tools": {},
+                    "experimental": {"claude/channel": {}},
+                },
+                "serverInfo": {"name": "leaf", "version": "1.0.0"},
+                "instructions": CHANNEL_INSTRUCTIONS,
+            }
+            initialized.set()
+        elif method == "ping":
+            result = {}
+        elif method == "tools/list":
+            result = {"tools": CHANNEL_TOOLS}
+        elif method == "tools/call":
+            result = call_tool(msg.get("params") or {})
+        else:
+            fail(msg_id, -32601, f"method not found: {method}")
+            return
+        send({"jsonrpc": "2.0", "id": msg_id, "result": result})
+
+    def stand_down() -> None:
+        # However the watch ends, the claims it made deserve better than going
+        # quietly stale under a user who was promised delivery.
+        stopping.set()
+        watch.release()
+
+    def bow_out(signum, frame):
+        # The harness stops a server with SIGINT then SIGTERM. Python's default
+        # SIGINT raises somewhere under the stdin read and the dispatcher, and
+        # SIGTERM runs no finally at all — so neither route reaches the finally
+        # below reliably, and this is the one exit from either signal.
+        stand_down()
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, bow_out)
+    signal.signal(signal.SIGTERM, bow_out)
+    threading.Thread(target=watcher, daemon=True).start()
+    try:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            try:
+                answer(msg)
+            except Exception:  # noqa: BLE001 - answered, and the channel lives on
+                # One message's fault must not close the transport the loop
+                # rides on. The sender is told (a JSON-RPC error names the
+                # traceback), the next message is served, and nothing of the
+                # watch is lost.
+                if msg.get("id") is not None:
+                    fail(msg["id"], -32603, traceback.format_exc())
+    finally:
+        stand_down()
 
 
 # ---------- check: deterministic pre-handover lint ----------
@@ -6881,7 +7600,9 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
     disclosure."""
     asks = []
     thread_of = {}
-    for e in events:
+    # Folded, so a closing chunk's markup is met on its message and never as a
+    # fragment of its own — the same reading the panel takes.
+    for e in fold_messages(events):
         if e["kind"] == "comment":
             thread_of[e["id"]] = e["id"]
         elif e["kind"] == "reply":
@@ -9758,21 +10479,31 @@ def status(dir: str, state: str, detail: str) -> None:
     standing "select text to comment".
     """
     page_dir = resolve_dir(dir)
-    # Idling over unacknowledged events ends the leaf on a user still owed an
-    # answer — or on a worker's report left standing as provisional state forever.
-    # The watcher's whole batch, not the reader-facing count. Here rather than in
-    # cmd_status because SessionEnd idles pages whose session is already gone,
-    # where nothing is left to pick them up.
-    pending = 0
+    # Idling over an event nobody has answered ends the leaf on a user still
+    # owed one — unread, or read and left. The watcher's whole batch, not the
+    # reader-facing count, so a worker's report cannot be left standing as
+    # provisional state forever either. Here rather than in cmd_status because
+    # SessionEnd idles pages whose session is already gone, where nothing is
+    # left to pick them up.
+    pending, unanswered = 0, []
     if state == "idle":
         events = read_events(page_dir)
-        pending = len(unacknowledged(events, read_cursor(page_dir)))
+        cursor = read_cursor(page_dir)
+        pending = len(unacknowledged(events, cursor))
+        unanswered = unanswered_asks(events, cursor)
     if pending:
         sys.exit(
             f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
             "idling ends the leaf over them. `leaf wait` prints them "
             "and returns at once when events are already waiting. "
             + ACK_BATCH_INSTRUCTION
+        )
+    if unanswered:
+        ids = ", ".join(t["id"] for t in unanswered)
+        sys.exit(
+            f"{len(unanswered)} acknowledged "
+            f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
+            f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
         )
     cmd_status(page_dir, state, detail)
 
@@ -9827,7 +10558,7 @@ def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
 @click.option("--markup", help="widget markup to render after the text, validated here")
 def reply(dir: str, to: str, text: str, markup: str) -> None:
     """Post a threaded reply as the agent (--text or stdin)."""
-    cmd_reply(resolve_dir(dir), to, text, markup)
+    print(json.dumps(cmd_reply(resolve_dir(dir), to, text, markup), ensure_ascii=False))
 
 
 @cli.command(short_help="Close a thread as the agent.")
@@ -9891,6 +10622,12 @@ def transcript(dir: str) -> None:
 def hook() -> None:
     """Answer an agent-host hook on stdin."""
     cmd_hook(json.load(sys.stdin))
+
+
+@cli.command(hidden=True)
+def mcp() -> None:
+    """Run the session's channel server (MCP over stdio); .mcp.json names it."""
+    cmd_mcp()
 
 
 if __name__ == "__main__":

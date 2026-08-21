@@ -68,7 +68,7 @@
     "description": "The vocabulary stamp: the event kinds this layer's runtime and CLI read, and the fields each carries beyond id/ts/author/kind/seq. Vendored with the page, it is the one statement of what that page's runtime speaks. `page init` refuses to re-vendor over a log recorded in kinds or verbs (x-state, per widget) the incoming layer no longer speaks, because those events would never replay again. `undo` names the gesture it takes back and nothing else: it withdraws rather than deletes, so every fold and the thread reading drop the event it names and the page is the version plus what still stands — which is what a reload has always rendered. What the reader sees is derived from that rather than restated: the browser states the unit's remaining state where one can be stated, and rebuilds the widget from the version's markup where the verb records nothing to state.",
     "kinds": {
       "comment": ["version", "text", "anchor", "suggestion", "about", "agent", "session", "markup", "attempt"],
-      "reply": ["parent", "version", "text", "agent", "session", "markup", "attempt"],
+      "reply": ["parent", "version", "text", "agent", "session", "markup", "attempt", "more"],
       "resolve": ["parent", "agent", "session"],
       "unresolve": ["parent"],
       "done": ["version", "text"],
@@ -76,7 +76,8 @@
       "undo": ["undoes"],
       "report": ["widget", "action", "detail", "version", "agent", "session"],
       "note": ["version", "text", "restated", "reports", "agent", "session"],
-      "error": ["version", "text"]
+      "error": ["version", "text"],
+      "append": ["continues", "text", "more", "agent", "session", "markup"]
     }
   },
   "$keys": {

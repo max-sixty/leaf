@@ -6590,6 +6590,10 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert interact.ACK_BATCH_INSTRUCTION in reason
 
     interact.cmd_ack(page, 1)
+    # Answered before the page closes: an acknowledged comment with nothing
+    # under it holds the turn on its own account, which is the subject of
+    # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
+    interact.cmd_reply(page, interact.read_events(page)[0]["id"], "so it does", None)
     interact.cmd_status(page, "idle", "")
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     assert capsys.readouterr().out == ""
@@ -6629,6 +6633,129 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     )
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
+
+
+def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):
+    """Acknowledging is what takes a comment off the batch, so after it no
+    watcher will raise that comment again and every other gate reads the page as
+    clean. The failure, from a live channel session: a comment arrived while the
+    agent was mid-turn on something else, the agent acknowledged it, answered
+    the person in the terminal instead of on the page, and the reader was left
+    with a question that nothing would ever deliver again."""
+    interact.cmd_status(claimed, "waiting", "")
+    # Watched, which is the whole of what clears the guard's other case and
+    # clears nothing here.
+    interact.write_json(claimed / "heartbeat.json", {"t": time.time()})
+    asked = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    assert "1 acknowledged comment with no answer" in answer["reason"]
+    assert asked["id"] in answer["reason"]
+
+    # A reply clears it, and the thread stays open behind it: closing one is the
+    # reader's to do, so an open thread is not an unanswered one.
+    interact.cmd_reply(claimed, asked["id"], "because the fold is absolute", None)
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # The reader's follow-up puts the ask back, and this is the case that picks
+    # the reading. The browser posts a follow-up as a reply of the reader's own,
+    # so a gate asking whether anyone but them has *ever* spoken is answered
+    # "yes" by the reply above and never fires for this thread again — the drop
+    # this test is named for, one level down and just as permanent. Reading the
+    # last word costs a thread that wants no answer one `leaf resolve`, which is
+    # a question the agent is holding the context to settle; the other reading
+    # costs the reader their question, which nobody sees at all.
+    follow = interact.append_event(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": asked["id"],
+            "text": "but why not C?",
+        },
+    )
+    # Until it is acknowledged the follow-up is not this clause's, which is why
+    # the cursor is read against the last word and not the root: a watcher is
+    # still going to deliver this one. Read against the root — acknowledged long
+    # ago — the turn would block over a message the agent has not been handed.
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert asked["id"] in json.loads(capsys.readouterr().out)["reason"]
+    interact.cmd_reply(claimed, follow["id"], "C is slower on the hot path", None)
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # Closing the thread is the other way to answer for one, for the cases where
+    # waiting on the reader says nothing.
+    moot = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "and C?"}
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert moot["id"] in json.loads(capsys.readouterr().out)["reason"]
+    interact.cmd_resolve(claimed, moot["id"])
+    capsys.readouterr()  # cmd_resolve prints the event it wrote
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # The agent's own ask holds nothing while the reader has yet to answer it:
+    # the last word there is the agent's. When they answer in the thread — which
+    # is where the panel's reply box puts it — the ask is the agent's again, and
+    # it is the last word rather than any reading of the root that says so.
+    ask = interact.append_event(
+        claimed,
+        {"kind": "comment", "author": "claude", "text": "which storage engine?"},
+    )
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+    interact.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": ask["id"], "text": "sqlite"},
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert ask["id"] in json.loads(capsys.readouterr().out)["reason"]
+    interact.cmd_reply(claimed, ask["id"], "sqlite it is", None)
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+
+def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
+    """A page directory holds the copy of the layer it was created with, and the
+    stamp refuses a copy the current layer has outgrown — by design, since that
+    refusal is what sends an agent to re-vendor. The Stop hook is the one reader
+    that must never put the question: `loop-guard.py` fails open, so a raise
+    here stands the *whole* guard down, watch clause included, on any page a
+    little older than the checkout, and says nothing about it. Found by running
+    the guard against a real page from an earlier vendoring, where reading the
+    published version to settle threads loaded that page's registry."""
+    registry = interact.read_json(claimed / "registry.json")
+    del registry["$events"]["kinds"]["action"]
+    interact.write_json(claimed / "registry.json", registry)
+    # Without this the test passes for the wrong reason: it has to be a page
+    # whose registry the current layer really does refuse.
+    with pytest.raises(interact.RegistryError):
+        interact.load_registry(claimed)
+
+    interact.cmd_status(claimed, "waiting", "")
+    interact.write_json(claimed / "heartbeat.json", {"t": time.time()})
+    asked = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    assert asked["id"] in answer["reason"]
 
 
 def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
@@ -6716,9 +6843,23 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert interact.read_json(claimed / "status.json")["state"] != "idle"
 
     # `leaf wait` returns at once, and acknowledgement records that its output
-    # reached model context; only then can idle close the page.
+    # reached model context. Reading it is not answering it, though: the same
+    # user is still waiting, and now nothing will raise the comment again, so
+    # idle holds until the thread has something under it.
     assert CliRunner().invoke(interact.cli, ["wait", str(claimed)]).exit_code == 0
     assert CliRunner().invoke(interact.cli, ["ack", str(claimed), "1"]).exit_code == 0
+    refused = CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"])
+    assert refused.exit_code == 1
+    assert "1 acknowledged comment with no answer" in refused.output
+    assert interact.read_json(claimed / "status.json")["state"] != "idle"
+
+    comment = interact.read_events(claimed)[0]["id"]
+    assert (
+        CliRunner()
+        .invoke(interact.cli, ["reply", str(claimed), "--to", comment, "--text", "ok"])
+        .exit_code
+        == 0
+    )
     assert (
         CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
@@ -6742,7 +6883,12 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 update nobody has picked up" in refused.output
-    assert CliRunner().invoke(interact.cli, ["ack", str(claimed), "2"]).exit_code == 0
+    report = str(interact.read_events(claimed)[-1]["seq"])
+    assert (
+        CliRunner().invoke(interact.cli, ["ack", str(claimed), report]).exit_code == 0
+    )
+    # A report is the agent's own news, so acknowledging it is the whole of what
+    # it asks for; only a reader's comment owes an answer as well.
     assert (
         CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
@@ -7567,6 +7713,438 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     assert status == 400
     assert "markup" in json.loads(body)["error"]
     assert interact.read_events(page_dir) == before
+
+
+def test_a_streamed_reply_folds_to_one_message(page_dir):
+    """A streamed reply is a chain of immutable events — a head carrying `more`
+    and appends naming it in `continues` — and the message is a fold of the
+    chain (fold_messages), the same shape a widget's standing state takes over
+    its actions. Every message reader folds before reading, so a chunk is never
+    met as a message: threads, the transcript, and the panel's own mirror."""
+    publish(page_dir)
+    interact.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    head = interact.cmd_reply(page_dir, "c1", "The first half ", "", more=True)
+    assert head["more"] is True and head["kind"] == "reply"
+    interact.post_append(page_dir, head["id"], "and the second, ", "", more=True)
+
+    # Chunk edges are the stream's: nothing trims them, or the boundary space
+    # between "half " and "and" would be eaten.
+    folded = {
+        e["id"]: e for e in interact.fold_messages(interact.read_events(page_dir))
+    }
+    assert folded[head["id"]]["text"] == "The first half and the second, "
+    assert folded[head["id"]]["more"] is True  # the chain is open, and says so
+
+    # The close may carry the message's markup, and may carry no text at all —
+    # the stream is done and the last words are already out.
+    markup = '<lf-diagram id="frag-d"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
+    interact.post_append(page_dir, head["id"], "then done.", markup)
+    events = interact.read_events(page_dir)
+    folded = {e["id"]: e for e in interact.fold_messages(events)}
+    msg = folded[head["id"]]
+    assert msg["text"] == "The first half and the second, then done."
+    assert "more" not in msg and msg["markup"] == markup
+    # The log itself holds only immutable events: the head's own text is untouched.
+    assert next(e for e in events if e["id"] == head["id"])["text"] == "The first half "
+
+    # Threads and the transcript read the folded message, never a chunk.
+    threads = interact.build_threads(events, {})
+    assert [m["text"] for m in threads["c1"]["msgs"]] == [
+        "hi",
+        "The first half and the second, then done.",
+    ]
+    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert "The first half and the second, then done." in transcript.output
+
+    # The door's refusals: a closed chain takes no more chunks, a chunk needs a
+    # real head, markup rides only a close, and an unfinished chunk needs text.
+    with pytest.raises(SystemExit, match="not an open streamed message"):
+        interact.post_append(page_dir, head["id"], "late", "")
+    with pytest.raises(SystemExit, match="not an open streamed message"):
+        interact.post_append(page_dir, "nowhere", "text", "")
+    with pytest.raises(SystemExit, match="closing chunk"):
+        interact.cmd_reply(page_dir, "c1", "opening", markup, more=True)
+    with pytest.raises(SystemExit, match="needs text"):
+        interact.cmd_reply(page_dir, "c1", "  ", "", more=True)
+    open_head = interact.cmd_reply(page_dir, "c1", "another ", "", more=True)
+    with pytest.raises(SystemExit, match="closing chunk"):
+        interact.post_append(page_dir, open_head["id"], "x", markup, more=True)
+    with pytest.raises(SystemExit, match="needs text"):
+        interact.post_append(page_dir, open_head["id"], "", "", more=True)
+
+
+def test_streaming_fields_enter_only_through_the_agent_doors(server, page_dir):
+    """The browser can neither open a chain (`more` is agent-only) nor continue
+    one (`append` is no browser kind): both are refused at the POST door rather
+    than silently dropped, so everything the log holds under those names came
+    through the agent's own gates."""
+    publish(page_dir, version=1)
+    interact.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    before = interact.read_events(page_dir)
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "reply", "parent": "c1", "version": 1, "text": "x", "more": True}
+        ).encode(),
+    )
+    assert status == 400 and "more" in json.loads(body)["error"]
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "append", "continues": "c1", "text": "x"}).encode(),
+    )
+    assert status == 400 and "kind" in json.loads(body)["error"]
+    assert interact.read_events(page_dir) == before
+
+
+# ---------- the channel: the loop over MCP ----------
+
+
+class _Channel:
+    """`leaf mcp` as a test drives it: a real subprocess spoken to over stdio,
+    its stdout read on a thread so every wait here carries a deadline instead
+    of blocking the suite on a line that never comes."""
+
+    def __init__(self, env):
+        self.proc = subprocess.Popen(
+            [
+                sys.executable,
+                str(PLUGIN_ROOT / "skills/leaf/scripts/interact.py"),
+                "mcp",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        self.inbox = []
+        self.said = []
+        self.lock = threading.Lock()
+        threading.Thread(target=self._read, daemon=True).start()
+        threading.Thread(target=self._read_err, daemon=True).start()
+
+    def _read(self):
+        for line in self.proc.stdout:
+            with self.lock:
+                self.inbox.append(json.loads(line))
+
+    def _read_err(self):
+        # Every wait here ends in silence when the server faults, and silence
+        # names nothing: the traceback it left is on stderr, so it is read as
+        # it arrives and carried into whichever assertion noticed. An unread
+        # pipe would also stop the server outright once it filled.
+        for line in self.proc.stderr:
+            with self.lock:
+                self.said.append(line.rstrip())
+
+    def send(self, msg):
+        self.proc.stdin.write(json.dumps(msg) + "\n")
+        self.proc.stdin.flush()
+
+    def take(self, pred, timeout=10):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            with self.lock:
+                for i, msg in enumerate(self.inbox):
+                    if pred(msg):
+                        return self.inbox.pop(i)
+            time.sleep(0.05)
+        with self.lock:
+            unclaimed, said = list(self.inbox), list(self.said)
+        raise AssertionError(
+            f"channel said nothing matching within {timeout}s "
+            f"(exit {self.proc.poll()}); unclaimed: {unclaimed}; "
+            f"stderr: {said or 'silent'}"
+        )
+
+    def call(self, msg_id, name, arguments):
+        self.send(
+            {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            }
+        )
+        return self.take(lambda m: m.get("id") == msg_id)["result"]
+
+
+def test_the_channel_server_runs_the_loop_over_mcp(page_dir, monkeypatch):
+    """The whole channel loop against the real server: the legacy-protocol
+    handshake that channel registration requires, the greeting a claimed page
+    earns, `watch` arming the heartbeat (the Stop hook's watched-or-idle
+    invariant reads the same file `leaf wait` bumps — and only a confirmed
+    channel may claim it, delivery being provable only by the greeting coming
+    back), a user event delivered as a batch in `leaf wait`'s own shape with the
+    handoff status flip, `ack` advancing the cursor, and a reply streamed
+    through the tool chunk by chunk."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "channel-test")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    interact.claim_page(page_dir)
+    publish(page_dir)
+    # A held server.json: the watcher revives a dead server for a non-idle page,
+    # and this test's subject is the channel, not a spawned `server run`.
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    interact.cmd_status(page_dir, "waiting", "read the plan")
+
+    # The harness spawns the server with the session id and no CLAUDE_PID —
+    # cmd_mcp supplies its own pid (a revive that cannot claim would come up
+    # standing, a server nothing ever reaps), so the test's env matches the
+    # real spawn rather than the test process's.
+    env = dict(os.environ)
+    env.pop("CLAUDE_PID", None)
+    ch = _Channel(env=env)
+    try:
+        ch.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2026-07-28",
+                    "capabilities": {},
+                    "clientInfo": {"name": "t", "version": "0"},
+                },
+            }
+        )
+        init = ch.take(lambda m: m.get("id") == 1)["result"]
+        # ≥ 2026-07-28 negotiates the revision with no unsolicited-notification
+        # path, and Claude Code refuses channel registration over it.
+        assert init["protocolVersion"] == "2025-06-18"
+        assert "claude/channel" in init["capabilities"]["experimental"]
+        assert init["instructions"]
+        ch.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+        ch.send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        tools = ch.take(lambda m: m.get("id") == 2)["result"]["tools"]
+        assert [t["name"] for t in tools] == ["watch", "reply", "ack"]
+
+        note = lambda m: m.get("method") == "notifications/claude/channel"
+        greeting = ch.take(note)["params"]
+        assert greeting["meta"] == {"page": str(page_dir), "kind": "greeting"}
+        assert "watch" in greeting["content"]
+
+        # Unconfirmed, the channel claims nothing: no heartbeat, so the hooks
+        # keep enforcing the standard loop for a session whose channels are off.
+        assert not (page_dir / "heartbeat.json").exists()
+
+        armed = ch.call(3, "watch", {})
+        assert not armed.get("isError"), armed
+        deadline = time.time() + 5
+        while not (page_dir / "heartbeat.json").exists() and time.time() < deadline:
+            time.sleep(0.1)
+        assert (page_dir / "heartbeat.json").exists()
+
+        interact.append_event(
+            page_dir,
+            {"kind": "comment", "id": "c1", "author": "user", "text": "why B?"},
+        )
+        delivery = ch.take(note)["params"]
+        batch = [json.loads(line) for line in delivery["content"].splitlines()]
+        assert [e["id"] for e in batch] == ["c1"]
+        seq = batch[0]["seq"]
+        assert delivery["meta"] == {
+            "page": str(page_dir),
+            "first": str(seq),
+            "last": str(seq),
+            "count": "1",
+        }
+        # The same pickup flip `leaf wait` makes when it prints for a
+        # non-working page, dated as a handoff.
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            status = interact.read_json(page_dir / "status.json")
+            if status["state"] == "working" and status.get("handoff"):
+                break
+            time.sleep(0.1)
+        assert (status["state"], status.get("handoff")) == ("working", True)
+
+        acked = ch.call(4, "ack", {"page": str(page_dir), "seq": seq})
+        assert not acked.get("isError"), acked
+        assert interact.read_json(page_dir / "cursor.json") == {"seq": seq}
+
+        opened = ch.call(
+            5,
+            "reply",
+            {"page": str(page_dir), "to": "c1", "text": "B holds when ", "done": False},
+        )
+        assert not opened.get("isError"), opened
+        head = json.loads(opened["content"][0]["text"].splitlines()[0])
+        assert head["more"] is True
+        closed = ch.call(
+            6,
+            "reply",
+            {
+                "page": str(page_dir),
+                "continues": head["id"],
+                "text": "the fold is absolute.",
+                "done": True,
+            },
+        )
+        assert not closed.get("isError"), closed
+        folded = {
+            e["id"]: e for e in interact.fold_messages(interact.read_events(page_dir))
+        }
+        assert folded[head["id"]]["text"] == "B holds when the fold is absolute."
+
+        late = ch.call(
+            7,
+            "reply",
+            {"page": str(page_dir), "continues": head["id"], "text": "x", "done": True},
+        )
+        assert (
+            late.get("isError")
+            and "not an open streamed message" in (late["content"][0]["text"])
+        )
+        both = ch.call(
+            8,
+            "reply",
+            {"page": str(page_dir), "to": "c1", "continues": head["id"], "text": "x"},
+        )
+        assert both.get("isError") and "exactly one" in both["content"][0]["text"]
+    finally:
+        ch.proc.stdin.close()
+        ch.proc.wait(timeout=10)
+    # Shutdown gives the heartbeat back, so a dead channel reads as no watcher
+    # rather than a live one.
+    deadline = time.time() + 3
+    while (page_dir / "heartbeat.json").exists() and time.time() < deadline:
+        time.sleep(0.1)
+    assert not (page_dir / "heartbeat.json").exists()
+
+
+def _greeted_channel(page_dir, msg_id=1):
+    """A `leaf mcp` subprocess taken as far as the greeting, the way the harness
+    spawns it: session id in the environment and no CLAUDE_PID, which cmd_mcp
+    supplies for itself."""
+    env = dict(os.environ)
+    env.pop("CLAUDE_PID", None)
+    ch = _Channel(env=env)
+    ch.send(
+        {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "t", "version": "0"},
+            },
+        }
+    )
+    ch.take(lambda m: m.get("id") == msg_id)
+    ch.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    ch.take(lambda m: m.get("method") == "notifications/claude/channel")
+    return ch
+
+
+def test_a_channel_stops_watching_a_page_it_cannot_bring_back(page_dir, monkeypatch):
+    """The heartbeat is where a watch is claimed — the Stop hook reads a fresh
+    one as the page being attended — so a watcher that cannot bring a page back
+    must stop writing it. `leaf wait` says this by ending (exit 2); a channel has
+    the rest of the session to serve, so it drops the page instead, withdraws the
+    heartbeat, and tells the agent, who is the only one able to act on it.
+
+    The failure is reachable rather than hypothetical: `cmd_serve` binds a
+    *stated* port exactly, with no next-free fallback, so a page whose
+    access.json names an occupied port cannot come back however often it is
+    tried."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "channel-down")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    interact.claim_page(page_dir)
+    publish(page_dir)
+    taken = socket.socket()
+    taken.bind(("127.0.0.1", 0))
+    taken.listen(1)
+    interact.write_json(
+        page_dir / "access.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": taken.getsockname()[1],
+            "lifetime": "session",
+        },
+    )
+    # Non-idle, with no server.json at all: as far as the agent is concerned the
+    # page is up and its server has gone, which is what a revive answers.
+    interact.cmd_status(page_dir, "waiting", "read the plan")
+
+    ch = _greeted_channel(page_dir)
+    try:
+        assert not ch.call(2, "watch", {}).get("isError")
+        note = lambda m: m.get("method") == "notifications/claude/channel"
+        unwatched = lambda m: note(m) and m["params"]["meta"].get("kind") == "unwatched"
+        gone = ch.take(unwatched, timeout=30)["params"]
+        assert str(page_dir) in gone["content"]
+        assert "leaf server start" in gone["content"]
+        deadline = time.time() + 5
+        while (page_dir / "heartbeat.json").exists() and time.time() < deadline:
+            time.sleep(0.1)
+        assert not (page_dir / "heartbeat.json").exists()
+        # Said once. The server check comes round every five seconds, and a page
+        # already given up on has no further news in it.
+        with pytest.raises(AssertionError):
+            ch.take(unwatched, timeout=8)
+    finally:
+        taken.close()
+        ch.proc.stdin.close()
+        ch.proc.wait(timeout=10)
+
+
+def test_a_recreated_page_is_delivered_without_waiting_out_the_resend(
+    page_dir, monkeypatch
+):
+    """Deleting a page directory and building it again is this project's whole
+    migration story, so a watcher meets a log that restarts below the seq it last
+    delivered. Every reading that decides whether to send compares against that
+    seq, so with no reset the new page's first comment reads as a batch already
+    sent and waits out CHANNEL_RENOTIFY_SECS — a minute of the user wondering why
+    nobody answered — and arrives without the pickup flip that says it was
+    picked up."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "channel-again")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    interact.claim_page(page_dir)
+    publish(page_dir)
+    # A held server.json: this test's subject is delivery, not revival.
+    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    interact.cmd_status(page_dir, "waiting", "read the plan")
+
+    ch = _greeted_channel(page_dir)
+    try:
+        assert not ch.call(2, "watch", {}).get("isError")
+        note = lambda m: m.get("method") == "notifications/claude/channel"
+        for i in (1, 2):
+            interact.append_event(
+                page_dir,
+                {"kind": "comment", "id": f"c{i}", "author": "user", "text": "hm"},
+            )
+        first = ch.take(lambda m: note(m) and "c2" in m["params"]["content"])["params"]
+        seq = int(first["meta"]["last"])
+        assert not ch.call(3, "ack", {"page": str(page_dir), "seq": seq}).get("isError")
+
+        # The page rebuilt: a log numbering from the top again and a cursor with
+        # nothing acknowledged, which is what a deleted and re-inited directory
+        # leaves behind.
+        (page_dir / "comments.jsonl").write_bytes(b"")
+        (page_dir / "cursor.json").unlink(missing_ok=True)
+        publish(page_dir)
+        interact.append_event(
+            page_dir,
+            {"kind": "comment", "id": "fresh", "author": "user", "text": "anyone?"},
+        )
+        again = ch.take(
+            lambda m: note(m) and "fresh" in m["params"]["content"], timeout=25
+        )["params"]
+        # The seq really did go backwards — without that, this test would pass on
+        # a log that never restarted and prove nothing.
+        assert int(again["meta"]["last"]) < seq
+    finally:
+        ch.proc.stdin.close()
+        ch.proc.wait(timeout=10)
 
 
 def test_export_prints_threads_and_versions(page_dir):

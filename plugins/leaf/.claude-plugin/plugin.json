@@ -1,6 +1,7 @@
 {
   "name": "leaf",
   "description": "Generative UI: the agent builds the page your task needs, writes new widgets when the project calls for them, and answers your comments and edits over a messaging and collaboration bus.",
+  "channels": [{ "server": "leaf" }],
   "author": {
     "name": "Maximilian Roos"
   },

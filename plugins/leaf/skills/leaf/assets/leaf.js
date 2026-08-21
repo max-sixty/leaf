@@ -2402,6 +2402,13 @@ ${MARK_RULES}
        is the panel's narrower column — tighter blocks, headings that don't shout at
        360px, and no margin where the body meets its own head. */
     .lf-msg-body { margin: 2px 0 0; overflow-wrap: anywhere; }
+    /* A streamed message still arriving wears a pulsing caret after its last
+       words. Generated with empty content — paint, not words, so no reading of
+       the page (a screen reader, the clipboard) picks it up — and only while
+       the page presents as working (syncMsg): a chain the agent abandoned reads
+       as a finished message rather than a promise nobody is keeping. */
+    .lf-msg.lf-streaming .lf-msg-body::after { content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: text-bottom; background: var(--accent); animation: lf-stream-caret 1s steps(2, jump-none) infinite; }
+    @keyframes lf-stream-caret { 50% { opacity: 0; } }
     .lf-msg-body > :first-child { margin-top: 0; }
     .lf-msg-body > :last-child { margin-bottom: 0; }
     .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
@@ -3996,6 +4003,36 @@ export const ago = (ts) => {
 };
 
 // ---------- threads ----------
+// The log with each streamed message folded whole, in log order — the mirror of
+// interact.py's fold_messages, and the panel's one message reading. A chain is a
+// head (a claude comment or reply carrying `more` while unfinished) plus append
+// events naming it in `continues`, each chunk's text concatenating raw onto the
+// head's. The fold leaves `more` on the folded head exactly while the chain is
+// open, which is what the streaming mark reads; heads are copied, never mutated,
+// because `events` is the log's own list. An append whose head a torn log lost
+// attaches to nothing and is dropped.
+function foldMessages(evts) {
+  const folded = [];
+  const heads = new Map();
+  for (let e of evts) {
+    if (e.kind === "append") {
+      const head = heads.get(e.continues);
+      if (!head) continue;
+      head.text += e.text;
+      if (e.markup) head.markup = e.markup;
+      if (e.more) head.more = true;
+      else delete head.more;
+      continue;
+    }
+    if ((e.kind === "comment" || e.kind === "reply") && e.more) {
+      e = { ...e };
+      heads.set(e.id, e);
+    }
+    folded.push(e);
+  }
+  return folded;
+}
+
 function buildThreads() {
   const threads = new Map();
   const threadFor = new Map();
@@ -4024,7 +4061,7 @@ function buildThreads() {
       !retractedIds(e, floors, elementById(e.widget)).length
     )
       answers.set(e.widget, e);
-  for (const e of events) {
+  for (const e of foldMessages(events)) {
     // A gesture the reader took back settles nothing, whichever way it settled: the
     // log holds it and no reading of the log stands on it. The same sentence
     // interact.py's build_threads reads, because it is the same reading.
@@ -4117,9 +4154,79 @@ const loadMarked = () =>
 
 // Bodies are cached per event id and re-adopted when a thread node is rebuilt — which
 // the reconcile leaves one occasion for, a thread resolving: the log is append-only so
-// a body's text never changes, and re-adopting the node keeps a widget in a reply
-// (a rendered diagram) from re-upgrading across that rebuild.
+// a closed message's text never changes, and re-adopting the node keeps a widget in a
+// reply (a rendered diagram) from re-upgrading across that rebuild. An open streamed
+// message is the one message whose text still grows, so it stays out of the cache
+// until its chain closes (syncMsg).
 const msgBodies = new Map();
+// Whether the page presents as working — presented(state).kind, set by poll();
+// the streaming caret reads it, so a chain the agent abandoned stops promising.
+let agentWorking = false;
+function buildMsgBody(m) {
+  const body = el("div", "lf-msg-body");
+  if (m.suggestion) {
+    // Verbatim: a suggestion's characters are bound for the page as typed, and a
+    // rendering would show an italic where the next version carries the asterisks.
+    body.classList.add("lf-suggest-body");
+    body.textContent = m.text;
+  } else {
+    body.innerHTML = renderMarkdown(m.text);
+    // The widget markup beside the text, injected as the CLI gate validated it.
+    // Already-defined widgets upgrade on insertion; the passes below don't come
+    // along with them — the said and quiet passes write a widget's declared words,
+    // spoken and silent, and a fenced block is a <pre><code class="language-…">
+    // like any the page holds.
+    //
+    // markWide is the pass that deliberately stays behind, and the reason is what
+    // it hands out: the room the *document* has, which is not the room in here. A
+    // diagram in a reply is a widget the vocabulary calls wide, and marked as one
+    // it would lay itself out to the page's measure inside a 420px panel. The room
+    // a message has is the message's, and it already has it.
+    if (m.markup) body.insertAdjacentHTML("beforeend", m.markup);
+    renderSaid(body);
+    renderQuiet(body);
+    // Not settle()d: that queue holds the page's geometry still for the first anchor
+    // pass, and a message colors in the panel, where no anchor is captured and nothing
+    // waits. Each block already fails soft to its own plain source.
+    highlightBlocks(body);
+  }
+  return body;
+}
+
+// A streamed message grows in place. While its chain is open the body renders
+// again whenever more text arrived, and the close renders once more — the chunk
+// that closes may carry the message's markup — banks the now-immutable body in
+// msgBodies, and drops the open mark. A message that was never open returns at
+// the first guard, so the reconcile's promise to closed messages (untouched
+// nodes, surviving focus and selection) is unchanged; re-rendering an open one
+// is safe for the same reason it is cheap — no markup until the close, so no
+// upgraded widget is torn down mid-render, and the caret mark is paint, not
+// layout. The mark shows only while the page presents as working: a chain the
+// agent abandoned reads as a finished message rather than a promise nobody is
+// keeping.
+function syncMsg(msg, m) {
+  const open = Boolean(m.more);
+  if (msg.dataset.lfOpen !== "1" && !open) return;
+  if (msg.dataset.lfLen !== String(m.text.length) || !open) {
+    const body = buildMsgBody(m);
+    msg.querySelector(":scope > .lf-msg-body").replaceWith(body);
+    msg.dataset.lfLen = String(m.text.length);
+    if (!open) msgBodies.set(m.id, body);
+  }
+  if (!open) delete msg.dataset.lfOpen;
+  msg.classList.toggle("lf-streaming", open && agentWorking);
+}
+
+// The caret's other writer, for the half no event reaches: the page's status
+// can move with nothing new in the log — the agent going idle, a working claim
+// aging out — and the reconcile above only runs when events arrive. So a flip
+// in the presented state sweeps the open messages directly; both writers state
+// the same outcome from the same two facts, so they cannot disagree.
+function paintStreaming() {
+  for (const msg of document.querySelectorAll('.lf-msg[data-lf-open="1"]'))
+    msg.classList.toggle("lf-streaming", agentWorking);
+}
+
 function msgNode(m) {
   const div = el("div", `lf-msg ${m.author}`);
   div.dataset.mid = m.id; // the reconcile's key, and revealThread's address for it
@@ -4130,34 +4237,15 @@ function msgNode(m) {
   );
   let body = msgBodies.get(m.id);
   if (!body) {
-    body = el("div", "lf-msg-body");
-    if (m.suggestion) {
-      // Verbatim: a suggestion's characters are bound for the page as typed, and a
-      // rendering would show an italic where the next version carries the asterisks.
-      body.classList.add("lf-suggest-body");
-      body.textContent = m.text;
-    } else {
-      body.innerHTML = renderMarkdown(m.text);
-      // The widget markup beside the text, injected as the CLI gate validated it.
-      // Already-defined widgets upgrade on insertion; the passes below don't come
-      // along with them — the said and quiet passes write a widget's declared words,
-      // spoken and silent, and a fenced block is a <pre><code class="language-…">
-      // like any the page holds.
-      //
-      // markWide is the pass that deliberately stays behind, and the reason is what
-      // it hands out: the room the *document* has, which is not the room in here. A
-      // diagram in a reply is a widget the vocabulary calls wide, and marked as one
-      // it would lay itself out to the page's measure inside a 420px panel. The room
-      // a message has is the message's, and it already has it.
-      if (m.markup) body.insertAdjacentHTML("beforeend", m.markup);
-      renderSaid(body);
-      renderQuiet(body);
-      // Not settle()d: that queue holds the page's geometry still for the first anchor
-      // pass, and a message colors in the panel, where no anchor is captured and nothing
-      // waits. Each block already fails soft to its own plain source.
-      highlightBlocks(body);
-    }
-    msgBodies.set(m.id, body); // the id is server-minted, on every event
+    body = buildMsgBody(m);
+    // Cached only once its chain is closed (syncMsg banks it): chunks are
+    // immutable, so a closed message is immutable, which is the cache's contract.
+    if (!m.more) msgBodies.set(m.id, body); // the id is server-minted, on every event
+  }
+  div.dataset.lfLen = String(m.text.length);
+  if (m.more) {
+    div.dataset.lfOpen = "1";
+    div.classList.toggle("lf-streaming", agentWorking);
   }
   div.append(head);
   if (m.suggestion) div.append(el("div", "lf-suggest-label", "suggested replacement"));
@@ -4438,6 +4526,7 @@ function threadNode(t, grow) {
       const time = msg.querySelector(":scope > .lf-msg-head time");
       const when = ago(m.ts);
       if (time.textContent !== when) time.textContent = when;
+      syncMsg(msg, m);
     }
     return existing;
   }
@@ -10723,12 +10812,23 @@ async function poll() {
   if (eventSeq < lastEventSeq) return;
   // Messages render from Markdown; have the renderer in hand before the panel
   // builds a body, so msgNode stays synchronous.
-  if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
+  if (
+    nextEvents.some(
+      (e) => e.kind === "comment" || e.kind === "reply" || e.kind === "append",
+    )
+  )
     await loadMarked();
   events = nextEvents;
   statePhase = "ready";
   settleAcceptedDrafts();
   agent = state.agent || "Claude";
+  // Before the panel renders: the streaming caret keys on the same judgment the
+  // banner shows, so a growing message and the dot beside it cannot disagree —
+  // and a flip repaints the open messages itself, because status can move with
+  // no event behind it and the reconcile below only runs when events arrive.
+  const wasWorking = agentWorking;
+  agentWorking = presented(state).kind === "working";
+  if (agentWorking !== wasWorking) paintStreaming();
   renderStatus(state);
   renderVersions(state);
   renderOthers(state);

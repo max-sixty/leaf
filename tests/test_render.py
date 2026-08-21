@@ -14443,6 +14443,10 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
 
     held[0].continue_()
     round_trip(page)
+    # The response reaching the browser precedes sendAction's final continuation.
+    # The undo row is the page's own statement that the move is in the log and the
+    # next press can read it, rather than a timing guess over that last turn.
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
     page.keyboard.press("z")
     round_trip(page)
     # The newest move, which is the one the reader would have meant — and the older
@@ -14476,6 +14480,10 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     page.keyboard.press("z")
     round_trip(page)
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    # Replay restoring the option and the undo send finishing are adjacent but
+    # distinct facts. Wait for the register to offer the earlier gesture before
+    # pressing it, as a reader would see it offered.
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
     page.keyboard.press("z")
     round_trip(page)
     assert body.inner_text() == authored

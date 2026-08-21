@@ -4183,7 +4183,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
     interact.append_event(
         d,
@@ -4808,7 +4808,7 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     panel, in the same pixels as the thread list's own — and the two thumbs would
     stack. The regions must not share an edge."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
 
     geom = page.evaluate("""() => {
@@ -5648,6 +5648,79 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         assert errors == []
     finally:
         context.close()
+
+
+def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
+    """A fold is a claim about a node standing in the list, and the reader can take
+    that node out from under it: `z` reopens the thread the fold is carrying away, and
+    the render that puts the thread back drops the folding node. Held past that, the
+    record would hand the spent node back the next time the thread settled — the fold
+    would be over before it started, and what stood in the list for its duration would
+    be the thread as it read before it reopened, one message short.
+
+    Reachable in the product, not only here: resolve, `z` and resolve are three round
+    trips through the real server in 78ms measured, against a fold of 220ms, so the
+    window is the reader's typing speed and nothing else. Holding the motion is what
+    makes it a state instead of a race — a paused animation never settles `finished`,
+    so the record stays exactly as long as the assertions need it."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    c1 = next(
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
+    going = page.locator(f'.lf-threads > .lf-going[data-id="{c1}"]')
+
+    before = page.evaluate("window.__lfHeld.length")
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    round_trip(page)
+    expect(going).to_have_count(1)
+    folds = page.evaluate("window.__lfHeld.length")
+    assert folds == before + 1, "the press drew something other than its one fold"
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(thread).to_have_count(1)
+    expect(going).to_have_count(0)
+    # News the thread takes while it is open again, which the node the first fold was
+    # carrying away has never held — so what folds the second time says which node it is.
+    reply = interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "version": 1,
+            "parent": c1,
+            "text": "Reopened, and answered.",
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-msg")).to_have_count(2)
+
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    round_trip(page)
+    expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    assert page.evaluate("window.__lfHeld.length") > folds, (
+        "the second settlement drew no fold of its own"
+    )
+
+    # And the first fold runs out, which is the other half of two folds standing at
+    # once: its node left the list when the thread reopened, and the record it must
+    # not clear on its way is the live fold's. Cleared, the thread is pulled out of
+    # the list in the middle of the motion carrying it away.
+    page.evaluate(
+        "async (i) => { const m = window.__lfHeld[i];"
+        " m.play(); m.currentTime = m.effect.getComputedTiming().duration;"
+        " await m.finished; }",
+        before,
+    )
+    expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    assert errors == []
+    page.close()
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
@@ -7862,7 +7935,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(
         '#rp-live .lf-pick[role="button"]'
     )  # the reply's widgets upgraded
@@ -7949,7 +8022,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-msg-body table")
 
     # One client rect is one line: the figure is drawn as a single run, the URL
@@ -8036,7 +8109,7 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     means shrinking it to re-measure on every keystroke, and a box briefly too
     small for its own text flashes a scrollbar."""
     page, _ = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     box = page.locator(".lf-general textarea")
 
     page.evaluate("""() => {
@@ -8160,7 +8233,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # keep their line, clear of the column on one side and of the panel on the
     # other. Measured after the layout has moved, since opening the panel resizes
     # the page and the rows re-place on the frame after that.
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
@@ -8640,9 +8713,10 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
 
 
 # Every animation the page starts, held at time zero so a test can read it rather than
-# race it. The runtime's own chrome runs CSS animations, which this never sees; what it
-# catches is a widget's WAAPI motion, started synchronously inside the gesture that
-# causes it. Installed before anything runs, so the first frame is already held.
+# race it. What it catches is everything through `motion()`, which is the layer's only
+# caller of `animate` — the folds and the board's FLIP, each started synchronously
+# inside the gesture that causes it. CSS animations run outside it and are never seen,
+# `grow` among them. Installed before anything runs, so the first frame is already held.
 HOLD_MOTION = """
   window.__lfHeld = [];
   const inner = Element.prototype.animate;
@@ -10102,7 +10176,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
         for section in ("flow", "long-part")
     }
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     quote = lambda section: page.locator(
         f'.lf-thread[data-id="{thread[section]}"] .lf-quote'
     )
@@ -10278,7 +10352,7 @@ ROSTER_PAGE = """<!doctype html>
 <main>
 <h1 id="h">The aviary crew</h1>
 <lf-roster id="crew">
-  <lf-agent id="ag-wren" state="working" doing="drilling the north post" branch="mounts">
+  <lf-agent id="ag-wren" state="working" branch="mounts">
     <strong>wren</strong> The feeders.</lf-agent>
   <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
   <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
@@ -10312,12 +10386,10 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
 
 
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
-    """The half of a roster no version can write down. A published page states what
-    each worker is doing; only the log knows when it last said so, and a page that
-    keeps a fleet is at its least trustworthy exactly when the reader has been away
-    longest. So the row renders elapsed time from the newest standing report and
-    re-renders on every poll — and says nothing at all where nothing has been heard,
-    an empty log behind a fresh version being no fault to report.
+    """The half of a roster no version can write down. A standing report states what
+    each worker is doing; only the log knows when it last said so, and a page that keeps
+    a fleet is at its least trustworthy exactly when the reader has been away longest.
+    So the row renders elapsed time from the newest report and re-renders on every poll.
 
     Then the case the line exists for: a claim of work nobody has refreshed. It is
     called out in words rather than in the tint alone, on the rope the banner already
@@ -10330,7 +10402,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # Before any worker has spoken, the row dates from the version that asserted it —
     # not from nothing, which would leave a fleet dead since last night reading exactly
     # like one published a minute ago.
-    expect(wren.locator(".lf-heard")).to_have_text("last heard just now")
+    expect(wren.locator(".lf-heard")).to_contain_text("last heard")
     # The state is a word this module writes rather than paint the runtime speaks, so
     # a reader listening gets it from the row itself.
     assert "working" in wren.aria_snapshot()
@@ -10350,19 +10422,22 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     )
     assert sent.exit_code == 0, sent.output
     told(page)
-    expect(wren).to_have_attribute("doing", "rebasing onto main")
+    expect(wren.locator(".lf-doing")).to_have_text("rebasing onto main")
+    expect(wren).not_to_have_attribute("doing", "rebasing onto main")
     expect(wren).to_have_attribute("data-lf-reported", "1")
     expect(wren.locator(".lf-heard")).to_have_text("last heard just now")
     expect(wren.locator(".lf-cold")).to_have_count(0)
 
     stale_report(d, "ag-wren", "still rebasing", 3)
     told(page)
+    expect(wren.locator(".lf-doing")).to_have_text("still rebasing")
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
 
     # The same silence against no claim of work says nothing beyond its own age.
     stale_report(d, "ag-finch", "nothing", 3, state="idle")
     told(page)
+    expect(finch.locator(".lf-doing")).to_have_text("nothing")
     expect(finch.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(finch.locator(".lf-cold")).to_have_count(0)
 
@@ -10373,13 +10448,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # that claimed work, had the claim written into the document, and then died. The
     # provisional mark goes, because the document speaks again; the log's memory of who
     # last said anything does not, because no version can speak for that.
-    (d / "versions" / "v2.html").write_text(
-        ROSTER_PAGE.replace(
-            'doing="drilling the north post"', 'doing="still rebasing"'
-        ).replace(
-            'id="ag-finch" state="idle"', 'id="ag-finch" state="idle" doing="nothing"'
-        )
-    )
+    (d / "versions" / "v2.html").write_text(ROSTER_PAGE)
     published = CliRunner().invoke(
         interact.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "absorbing"],
@@ -10389,6 +10458,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     page.wait_for_function(BOTH_STAMPS)
     wren = page.locator("#ag-wren")
     expect(wren).not_to_have_attribute("data-lf-reported", "1")
+    expect(wren.locator(".lf-doing")).to_have_count(0)
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
     assert errors == []
@@ -10477,8 +10547,8 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     by wrapping, and it fails the same way: nothing errors, the page just stops taking
     the gesture.
 
-    So the clock touches one text node and the structure is rebuilt only where an
-    attribute moved. Asserted as node identity rather than as a selection, because
+    So the clock touches one text node and the structure is rebuilt only when a
+    report moves that row. Asserted as node identity rather than as a selection, because
     identity is the property the rendering owes and a selection is one thing that rests
     on it."""
     url = serve(ROSTER_PAGE)
@@ -10739,7 +10809,7 @@ STANDING_PAGE = """<!doctype html>
   <lf-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-task>
 </lf-tasks>
 <lf-roster id="ab-crew">
-  <lf-agent id="ab-wren" state="working" doing="wiring the importer"><strong>wren</strong> The importer.</lf-agent>
+  <lf-agent id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-agent>
 </lf-roster>
 <lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
 <lf-suggestion id="ab-sug-410">
@@ -10804,9 +10874,9 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         )
     # The agent channel through its own door, which is the only way a report is
     # written: both channels replay, so both rest on the same contract. A roster row
-    # moves two attributes under one verb, so re-applying has to leave both where they
-    # stand — the case a verb per attribute could not even reach, two of them on one
-    # widget being two entries competing for one fold key.
+    # carries recorded state and a generated clause under one verb, so re-applying has
+    # to leave both where they stand. Splitting the clause into another verb would make
+    # the two reports compete for one fold key.
     for widget, verb, fields in [
         ("ab-baffles", "status", ["status=done"]),
         ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
@@ -10959,6 +11029,277 @@ def test_the_render_gate_catches_a_relative_apply_action(
         "[light] <lf-tally id=tally-seen> applyAction(caption) is relative — "
         "re-applying the standing log moved the state recorded on tally-seen" + tail,
     ], failures
+
+
+# A widget that stands out of place and settles into it, for the two tests below. The
+# distance is more than the blocks under it are tall, so while it is out of place its
+# words are over a neighbour's — which is a page the gate reports, and the whole of
+# what these tests measure. `offset` is the state and the transform is a rendering of
+# it, so the module never reads a position back off the page.
+DRIFT_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>a page still settling</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="drift-title">The feeders</h1>
+<lf-drift id="drift-note" offset="120"><strong>Two greys at the north feeder</strong> They came over the fence at a run, took the sunflower hearts from the hanging tray, and were gone again before the camera on the shed had finished waking up.</lf-drift>
+<p id="drift-four">They came back at four and stayed until dusk.</p>
+<p id="drift-week">The baffles went up the following week.</p>
+<p id="drift-seed">Nothing has been at the seed since.</p>
+<p id="drift-count">The count runs again on Sunday.</p>
+<p id="drift-sunday">Sunday is when the tally goes in.</p>
+</main>
+</body>
+</html>
+"""
+
+DRIFT_MODULE = """\
+import { motion, once } from "/leaf.js";
+
+customElements.define(
+  "lf-drift",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      // `deep` renders the same words from inside the widget's own root, and moves
+      // them there: an animation a document-level reading cannot see.
+      if (this.hasAttribute("deep")) {
+        const root = this.attachShadow({ mode: "open" });
+        // `bare` stages the words with no element over them — the page refuses that,
+        // and the refusal is what one of the tests below reads.
+        if (this.hasAttribute("bare")) {
+          root.append(...this.childNodes);
+          return;
+        }
+        const held = document.createElement("div");
+        held.append(...this.childNodes);
+        root.append(held);
+        held.animate(
+          [{ transform: "translateY(120px)" }, { transform: "none" }],
+          { duration: 30000 },
+        );
+      }
+      this.#place();
+    }
+    // Absolute, as every applyAction is: the offset is stated, never stepped.
+    applyAction(action, detail) {
+      if (action !== "settle") return;
+      const from = this.getAttribute("offset");
+      this.setAttribute("offset", String(detail.offset));
+      this.#place();
+      // Held at the old offset for nine tenths of the run, so the words are over
+      // their neighbour's for as long as the motion lasts. A move that eased the
+      // whole way would leave a last fifth of a second in which a reading taken
+      // then happened to be clean, and the test would be measuring when the gate
+      // looked rather than whether it waited.
+      motion(
+        this,
+        [
+          { transform: `translateY(${from}px)` },
+          { transform: `translateY(${from}px)`, offset: 0.9 },
+          { transform: "none" },
+        ],
+        1200,
+      );
+    }
+    #place() {
+      this.style.transform = `translateY(${this.getAttribute("offset")}px)`;
+    }
+  },
+);
+"""
+
+
+def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
+    """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-drift", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-drift"]["properties"]["offset"] = {"type": "integer", "minimum": 0}
+    entries["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
+    entries["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
+    deep = deep or bare
+    if deep:
+        # The body is rendered from the widget's own root, so the entry stops
+        # claiming the reader gets it verbatim from the markup.
+        entries["lf-drift"]["x-shadow"] = True
+        del entries["lf-drift"]["x-verbatim"]
+    # The registry holds a widget-unit verb to the attribute a version retracts a
+    # decision with, so a state channel arrives with its way out of one.
+    entries["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-drift"]["x-state"] = {
+        "settle": {
+            "detail": {
+                "type": "object",
+                "properties": {"offset": {"type": "integer", "minimum": 0}},
+                "required": ["offset"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "offset", "value": "offset"},
+        }
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(DRIFT_MODULE)
+    if not deep:
+        return DRIFT_PAGE
+    opens = "<lf-drift deep bare id=" if bare else "<lf-drift deep id="
+    return DRIFT_PAGE.replace("<lf-drift id=", opens)
+
+
+def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The premise the test below rests on, stated where it can fail on its own.
+
+    With nothing in the log to settle it, <lf-drift> keeps the offset its markup
+    states for as long as the page is open, and its words sit over the paragraphs
+    under it. That is a page the covered-words reading reports — so the test below,
+    which serves this same markup and expects nothing, is measuring the gate's
+    patience rather than a page that was never broken."""
+    url = serve(drifting_widget(tmp_path, monkeypatch))
+
+    covered = [f for f in interact.render_version(browser, url) if "same place" in f]
+
+    assert covered and all("drift-note" in f for f in covered), covered
+
+
+def test_a_page_at_rest_is_read_across_a_widgets_own_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Whether the page is still moving is asked of every tree the page is in.
+
+    A document answers for its own tree alone: `document.getAnimations()` returns
+    nothing for an element inside a widget's shadow root, and `{subtree: true}` on
+    the root element returns nothing either. A widget drawing itself into place in
+    there grows the host box the gate's own readings measure, so a reading that
+    asked the document would call that page still and read it mid-move — the fault
+    the wait exists to prevent, surviving inside the one place a widget is most
+    likely to draw."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, deep=True))
+    page, errors = open_page(browser, url)
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    # The banner's dot pulses forever and is deliberately not the page moving, so the
+    # control asks after a finite end rather than after an empty list.
+    assert (
+        page.evaluate(
+            "() => document.getAnimations().filter(a => Number.isFinite("
+            "  a.effect?.getComputedTiming().endTime)).length"
+        )
+        == 0
+    ), "the document tree already answers for this one, so the reading proves nothing"
+    assert page.evaluate(interact.MOVING) == ["<lf-drift id=drift-note>"]
+    assert errors == []
+    page.close()
+
+
+def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The one text these walks reach with no element over it, and the page says whose.
+
+    A widget may render the page's words into its own shadow root, and the passage walk
+    crosses in after them. What it cannot take is a text node put straight on the root:
+    `parentElement` is null there, so those words have no block to sit in, no cell to be
+    fenced by and nothing for a mark to hang on, and admitting them would split the
+    page's reading from the file's. The page refuses to present at all, which is the
+    loud direction — but the refusal used to arrive as `Cannot read properties of null
+    (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
+    which is a bug report against leaf rather than against the module that caused it."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, bare=True))
+    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    # The first thing the page says in anger, whatever that turns out to be: waiting
+    # for the wording under test would make a page that says something else read as a
+    # page that says nothing, and the message is the whole subject here.
+    with page.expect_console_message(lambda message: message.type == "error") as caught:
+        page.goto(url, wait_until="commit")
+    refusal = caught.value.text
+
+    assert '<lf-drift id="drift-note">' in refusal, refusal
+    assert "They came over the fence" in refusal, refusal
+    assert "closest" not in refusal, (
+        "the refusal is still a property name, which reads as leaf being broken: "
+        + refusal
+    )
+    assert page.evaluate("() => document.body.dataset.lfUpgraded") is None, (
+        "the page presented anyway, so the words with nothing over them are in it"
+    )
+    page.close()
+
+
+def test_the_render_gate_reads_a_page_that_has_finished_arriving(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A page finishes twice, and the second ending arrives moving.
+
+    `lf-upgraded` is the first: every widget upgraded, the geometry final. The
+    runtime writes it in the same breath as it *starts* the first poll and never
+    awaits that poll, so a gate reading there reads the authored page — here, a
+    widget standing 120px out of place with its words over the paragraphs below it.
+    `lf-applied` is the second, and the frame it lands in is the first frame of the
+    move it describes: a poll that brings nothing presents the authored page
+    deliberately, so the replay after it crosses the presentation boundary and moves
+    rather than teleports.
+
+    Both windows are load-shaped — a busy server, a few hundred milliseconds — which
+    is how this page passed at a desk and reported words drawn over words under a
+    full suite. Holding the action back until the first poll has answered makes the
+    window the same every run: the page reads as broken for about three seconds, and
+    the gate must have nothing to say about it. Either wait on its own leaves this
+    failing."""
+    # For the page directory and its vendored layer; this test serves it itself.
+    serve(drifting_widget(tmp_path, monkeypatch))
+    landed = []
+    settle = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "drift-note",
+        "action": "settle",
+        "detail": {"offset": 0},
+    }
+
+    class TheLogArrivesLate(interact.handler_for(serve.page_dir, TOKEN)):
+        """The action reaches the log after the page's first poll has answered.
+
+        A page whose first poll brings nothing is presented on the authored markup
+        deliberately, so the replay that follows is past the presentation boundary
+        and moves rather than teleports. A poll is told from the gate's own reading
+        of the same document by the Referer a page fetch carries and an
+        APIRequestContext does not, so the gate always sees a log with the action
+        in it and always has a caught-up stamp to wait for."""
+
+        def do_GET(self):
+            super().do_GET()
+            page_fetch = self.headers.get("Referer") and self.path.startswith(
+                "/api/state"
+            )
+            if page_fetch and not landed:
+                landed.append(self.headers["Referer"])
+                interact.append_event(serve.page_dir, settle)
+
+    httpd = interact.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
+        assert interact.render_version(browser, late) == []
+    finally:
+        httpd.shutdown()
+    assert landed and "/versions/v1.html" in landed[0], (
+        "the action went in behind the gate's own reading rather than behind the "
+        f"page's first poll, so the window this rests on never opened: {landed}"
+    )
 
 
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
@@ -11560,7 +11901,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     body = page.locator(".lf-msg.claude .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
@@ -11632,7 +11973,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
@@ -11744,7 +12085,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     body = page.locator(".lf-msg-body.lf-suggest-body")
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
@@ -11793,7 +12134,7 @@ def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
     assert errors == []
@@ -14257,7 +14598,7 @@ def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, 
         "   >= document.querySelector('main').getBoundingClientRect().right"
     ), "the margin placement is the precondition — nothing strands a column-placed box"
     # A press on the banner's own button: standDown keeps a composer holding text.
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     page.wait_for_function("""() => {
         const box = document.querySelector('.lf-composer').getBoundingClientRect();
@@ -15075,7 +15416,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
                 "anchor": {"section": None, "quote": quote},
             },
         )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
@@ -15380,7 +15721,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
             },
         },
     )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     # Posted to the server rather than through the page, so the page hears about it
     # when its next poll asks.
     told(page)
@@ -15965,7 +16306,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
                 "anchor": {"section": "fig"},
             },
         )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
@@ -19463,7 +19804,7 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     the user nothing, so the key reads as dead, and the document is somewhere else
     when the sheet closes."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
@@ -20573,14 +20914,20 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page.close()
 
 
-def test_a_reject_after_an_accept_reopens_the_thread(browser, serve):
+def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     """The panel reports where the question currently stands, not that it was once
     answered. A second tab can reject a suggestion the first has already accepted —
     the controls are gone in the tab that decided, not in the one that hasn't
     polled — and the reader who turned the fix down would otherwise find their
     question filed away as answered by it, while the suggestion beside it read as
     rejected. Both readings come off the same log; here is where they have to
-    agree in front of the reader."""
+    agree in front of the reader.
+
+    Then the same rule read the other way: `z` takes the reject back, the accept it
+    superseded is the widget's answer once more, and the thread closes under it. The
+    two ways an answer stops standing compose, and nothing is written down to say so:
+    an `unresolve` posted where the thread reopened would be a second record of the
+    same fact, and taking the reject back would leave it standing against the accept."""
     url = serve(
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
     )
@@ -20619,6 +20966,23 @@ def test_a_reject_after_an_accept_reopens_the_thread(browser, serve):
     expect(page.locator(".lf-details")).to_have_count(0)
     reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
+
+    # Offered here because the log says the reader made the reject; which tab they
+    # were in is not something the log records, and not something a withdrawal
+    # could turn on. The widget goes back to the markup and the surviving log is
+    # replayed onto it, so what the press restores is the accept, not a blank slate.
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
+    expect(reopened).to_have_count(0)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    # What the log holds is the three gestures and not one word about the thread:
+    # it was reopened and closed again by that log being read.
+    assert [
+        e.get("action", e["kind"])
+        for e in interact.read_events(d)
+        if e["kind"] in ("action", "undo", "resolve", "unresolve")
+    ] == ["accept", "reject", "undo"]
     assert errors == []
     page.close()
 
@@ -22594,7 +22958,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     expect(page.locator("#fallback-flow svg")).to_be_visible()
 

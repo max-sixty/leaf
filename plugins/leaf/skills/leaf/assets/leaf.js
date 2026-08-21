@@ -4559,7 +4559,19 @@ function threadNode(t, grow) {
 const folding = new Map(); // thread id -> the node folding out of the open list
 function foldOut(t) {
   const going = folding.get(t.root.id);
-  if (going) return going;
+  // For as long as it stands in the list, which is the whole of what the record
+  // claims. A reader who reopens a thread mid-fold has that render drop the folding
+  // node from the list, and the entry left behind names a node in nothing: handed
+  // back when they settle the thread again, it would stand a spent animation where
+  // the thread is, saying what the thread said before it reopened, and the thread
+  // would leave with no fold at all. The node's own connectedness is that fact, read
+  // here rather than written from wherever a node leaves the list, which is the
+  // difference between one writer and every caller of setChildren remembering.
+  // Dropped rather than passed over, because the two returns below leave without
+  // setting one, and an entry over a thread nothing is folding hides that thread
+  // from the disclosure that should be holding it by then.
+  if (going?.isConnected) return going;
+  folding.delete(t.root.id);
   const node = threadsBox.querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`);
   if (!node) return null;
   // Measured before anything about the node changes, and stated as a border box —
@@ -4603,7 +4615,10 @@ function foldOut(t) {
   // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
   // see it.
   played.finished.then(() => {
-    folding.delete(t.root.id);
+    // This node's own entry, never whatever the thread's key holds now: a fold the
+    // line above superseded is still running, and the older one finishing must not
+    // take the live one's record with it.
+    if (folding.get(t.root.id) === node) folding.delete(t.root.id);
     node.remove();
     renderPanel();
   });
@@ -4893,20 +4908,38 @@ const TEXT_BLOCK =
 //
 // Built per walk rather than per node, because the retired half of the wall is read out
 // of the registry each time it is asked for.
-// A text node's parent is an element, and these two say so the way the other two
-// readings of the same nodes already do (pageText's cell walk, snapOut's seam). Written
-// four ways it was four answers to one question, three of them asserting the parent and
-// one quietly admitting a node without one — which is a claim about the page nothing
-// backs: what a widget stages into a shadow root is the only text these walks reach
-// with no element over it, and a module staging a bare text node would be handing the
-// page words no cell, no fence and no block. It throws here now, out of the pass the
-// render gate reads the console for, which is the loud direction and in front of
-// whoever staged it.
+// A text node's parent is an element, and all four readings of these nodes say so:
+// the two below, pageText's cell walk and snapOut's seam. Written four ways it was four
+// answers to one question, three of them asserting the parent and one quietly admitting
+// a node without one — which is a claim about the page nothing backs: what a widget
+// stages into a shadow root is the only text these walks reach with no element over it,
+// and a module staging a bare text node would be handing the page words no cell, no
+// fence and no block. So the assertion is one function, and refusing is what it does.
+//
+// It refuses in the words of the mistake, which is the half that was missing. Throwing
+// out of the pass the render gate reads the console for is the loud direction, and the
+// throw was `Cannot read properties of null (reading 'closest')` on a page showing
+// nothing at all — naming neither the widget that staged the text nor what was wrong
+// with it. A refusal whose message is a property name reaches its author as the runtime
+// being broken, which is the one thing it isn't.
+const elementOver = (n) => {
+  if (n.parentElement) return n.parentElement;
+  const host = n.getRootNode()?.host;
+  const at = host
+    ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
+    : "a module";
+  throw new Error(
+    `${at} staged bare text into a shadow root: ` +
+      `${JSON.stringify(n.data.trim().slice(0, 40).trim())} has no element over it, ` +
+      `so the page holds no block, cell or fence for it. Give a module's rendered ` +
+      `words an element to sit in.`,
+  );
+};
 const quotable = () => {
   const gone = silenced();
-  return (n) => !inUi(n) && !n.parentElement.closest(gone);
+  return (n) => !inUi(n) && !elementOver(n).closest(gone);
 };
-const authored = () => (n) => !n.parentElement.closest(GENERATED);
+const authored = () => (n) => !elementOver(n).closest(GENERATED);
 // The composed tree, not the light one: a widget that renders the page's words into an
 // open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
 // own children stop rendering the moment it has one. A TreeWalker sees none of that — it
@@ -5414,9 +5447,7 @@ function pageText() {
   // become fences; x-says spans are already present in the file-side reading.
   const dynamicWords = new WeakSet();
   for (const seg of segments) {
-    // A text node written directly under a declared shadow root has no element
-    // parent in its tree; it is nobody's generated cell.
-    const generated = seg.node.parentElement?.closest("[data-lf-gen]");
+    const generated = elementOver(seg.node).closest("[data-lf-gen]");
     if (!generated) continue;
     const attr = generated.getAttribute("data-lf-said");
     const hostEntry = registry[generated.parentElement?.localName];
@@ -6618,7 +6649,7 @@ function snapOut(reading, at, back) {
   const { raw, origin, fences } = reading;
   const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
   const ahead = fences.find((f) => f >= at) ?? raw.length;
-  const spoke = (o) => o.node.parentElement.closest("[data-lf-gen]");
+  const spoke = (o) => elementOver(o.node).closest("[data-lf-gen]");
   // An EDGE's neighbours are the nearest characters, not the nearest cells: an empty
   // text node is an empty segment, which puts two EDGEs flush, and every reader of
   // `origin` steps over its nulls.

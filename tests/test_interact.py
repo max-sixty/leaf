@@ -7503,10 +7503,12 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     """Several worker sessions report to one page. Each agent-authored event
     carries its poster's display name and session id from the poster's own
     environment, so the log tells the voices apart by id; the claim — the
-    watcher the banner names — stays the hub's, untouched by a worker's post."""
+    watcher the banner names — and every publication stay the hub's, untouched
+    by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
+    _tasks_version(page_dir, 1, "active")
     interact.claim_page(page_dir)
     published(page_dir)
     interact.append_event(
@@ -7520,14 +7522,17 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
+    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
     assert reply("indexing done").exit_code == 0
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
     events = interact.read_events(page_dir)
-    note = next(e for e in events if e["kind"] == "note")
-    assert (note["agent"], note["session"]) == ("Hub", "hub")
+    notes = [e for e in events if e["kind"] == "note"]
+    assert [(e["agent"], e["session"]) for e in notes] == [("Hub", "hub")]
+    report = next(e for e in events if e["kind"] == "report")
+    assert (report["agent"], report["session"]) == ("Indexer", "worker-1")
     replies = [e for e in events if e["kind"] == "reply"]
     assert [(e["agent"], e["session"]) for e in replies] == [
         ("Indexer", "worker-1"),

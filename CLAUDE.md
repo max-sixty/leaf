@@ -417,7 +417,7 @@ side the second writer shows on.
 
 - **Tests are integration tests in a real browser.** What a test must assert, and
   the ways one can pass vacuously, are in `tests/CLAUDE.md`; what each file
-  covers, and the commands, are under "The suite" below.
+  covers, and which command to run when, are under "The suite" below.
 - **A cloud container has none of that, so set it up first.** The suite needs the
   Chromium headless shell that matches the Playwright version in `uv.lock`. Two
   end-to-end launcher tests also need installed Chrome. There is no `pre-commit`
@@ -497,10 +497,27 @@ relocate the two XDG directories leaf reads (`config_home`, `state_home`) and le
 rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
 developer already has.
 
-`test_render.py` and `test_site.py` are the browser integration suite. A browser change
-runs its focused test with `--run-nightly`; CI and `wt merge` use the same flag for the
-complete suite. The complete run has a network because the installed launcher's
-browser path may resolve Playwright outside `uv.lock`:
+`test_render.py` and `test_site.py` are the browser integration suite, and a complete
+run puts eight workers on the machine, most of them driving a headless shell of their
+own. It takes about five minutes, measured while three sibling worktrees ran their own
+suites, as is ordinary here. So while iterating, run the tests that cover the change,
+with xdist off:
+
+```sh
+uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
+```
+
+A focused run of those two modules needs `--run-nightly` as much as the complete run
+does. Without it, the mark takes the whole module out of the run, and pytest prints a
+deselected count, no passed count, and exits 5. That is a non-zero exit off a run that
+did nothing, so a `&&` chain stops on it, and a check that flips a line of code to watch
+the suite go red reads the empty run as the catch. Only the passed count tells an empty
+run from a real one. `test_interact.py` carries no mark, so a focused run there takes
+no flag.
+
+Run the complete suite before handing the work back; CI and `wt merge` run the same
+command. It needs a network because the installed launcher's browser path may resolve
+Playwright outside `uv.lock`:
 
 ```sh
 uv run pytest tests --run-nightly

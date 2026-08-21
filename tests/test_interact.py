@@ -46,6 +46,7 @@ PAGE = """<!doctype html>
 <title>t</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -66,7 +67,6 @@ graph LR
   </pre></lf-diagram>
 </section>
 </main>
-<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """
@@ -2479,6 +2479,130 @@ def test_check_rejects_wrong_scaffold(page_dir):
     assert result.exit_code == 1
     assert "exactly one external <script src>" in result.output
     assert "exactly one stylesheet" in result.output
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        PAGE.replace('<script type="module" src="/leaf.js"></script>', "").replace(
+            "</main>",
+            '</main>\n<script type="module" src="/leaf.js"></script>',
+        ),
+        PAGE.replace('<link rel="stylesheet" href="/theme.css">', "").replace(
+            "<main>", '<main>\n<link rel="stylesheet" href="/theme.css">'
+        ),
+        PAGE.replace('<link rel="stylesheet" href="/theme.css">', "")
+        .replace('<script type="module" src="/leaf.js"></script>', "")
+        .replace(
+            "</main>",
+            """</main>
+<head>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>""",
+        ),
+    ],
+    ids=["module-after-main", "stylesheet-inside-main", "assets-in-late-head"],
+)
+def test_check_requires_presentation_assets_in_head(page_dir, html):
+    """The gate must exist before the browser can paint the body it withholds."""
+    (page_dir / "versions" / "v1.html").write_text(html)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "must be in <head> before <body>" in result.output
+
+
+@pytest.mark.parametrize(
+    "asset, changed",
+    [
+        (
+            '<link rel="stylesheet" href="/theme.css">',
+            '<link rel="stylesheet" href="/theme.css" media="print">',
+        ),
+        (
+            '<script type="module" src="/leaf.js"></script>',
+            '<script type="module" src="/leaf.js" async></script>',
+        ),
+    ],
+    ids=["print-only-theme", "noncanonical-module"],
+)
+def test_check_requires_always_applicable_canonical_assets(page_dir, asset, changed):
+    """An asset whose URL is right but applicability differs is not the boundary."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace(asset, changed))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "exactly" in result.output
+
+
+def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
+    """Inline importance outranks stylesheet layers, so the authoring door owns it."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<main>", '<main style="opacity: 1 !important">')
+    )
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "protected presentation property opacity important" in result.output
+
+
+@pytest.mark.parametrize(
+    "outside",
+    [
+        "Authored tail",
+        '<p id="tail">Authored tail</p>',
+        '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
+        '<main><p id="tail">Second main</p></main>',
+    ],
+)
+def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
+    """The element the presentation boundary withholds contains the whole page.
+
+    Prose, ordinary elements, widgets, and another main beside the first are all
+    visible outside the CSS gate and must be refused at the authoring door.
+    """
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</main>", f"</main>\n{outside}")
+    )
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one <main> directly under <body>" in result.output
+
+
+def test_check_requires_main_to_be_a_direct_body_child(page_dir):
+    """A main nested in an authored wrapper is not selected by `body > main`."""
+    wrapped = PAGE.replace("<main>", "<div>\n<main>").replace(
+        "</main>", "</main>\n</div>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(wrapped)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one <main> directly under <body>" in result.output
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        PAGE.replace("</body>", '</body>\n<p id="tail">Authored tail</p>'),
+        PAGE.replace("</head>", '<img src="/media/tail.png" alt="tail">\n</head>'),
+    ],
+)
+def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
+    """HTML recovery cannot move authored pixels around the main boundary."""
+    (page_dir / "versions" / "v1.html").write_text(html)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one <main> directly under <body>" in result.output
 
 
 def test_check_owns_the_lf_meta_vocabulary(page_dir):

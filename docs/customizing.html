@@ -330,11 +330,16 @@ lf-options {
               <td>
                 On a slot: the holder's action outcome that takes this element off the
                 page (a suggestion's <code>lf-old</code> under <code>accept</code>).
-                Requires x-parent. The holder's module writes
-                data-lf-state="&lt;outcome&gt;" on itself as it settles, which is how
-                the page knows the slot has gone; the file's reading takes the same fact
-                from the log, and <code>version check</code> licenses dropping the
-                slot's ids on it.
+                Requires x-parent. The layer renders the settlement whole, following the
+                log's standing state both ways — replay paints
+                data-lf-state="&lt;outcome&gt;" on the holder and data-lf-retired on the
+                slots that outcome retires, takes both off when a later widget-unit verb
+                displaces the decision in the fold, and one theme rule hides the marked
+                slots — so no module owes any of it, though one may paint the same
+                sooner as its own gesture (renderRetired). The file's reading takes the
+                fact from the log, and <code>version check</code> licenses dropping the
+                slot's ids on it; <code>version check --render</code> reports a settled
+                slot still showing words, or a mark the log never decided.
               </td>
             </tr>
             <tr>

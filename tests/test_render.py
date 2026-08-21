@@ -632,9 +632,10 @@ def refuse(route):
 # later, against storage the test has moved in the meantime. Registered through
 # `primed`, the route is on the page before it navigates and no poll is ever unrouted.
 #
-# The first is let through because `open_page` waits for `lf-applied`, which rides on
-# it — and that same wait is what leaves nothing outstanding when the page is handed
-# over. Where the tab has to hear the log again, the test lifts the refusal itself.
+# The first is let through because `open_page` waits for the page's readiness facts,
+# including `lf-applied`, which rides on it — and that same wait is what leaves nothing
+# outstanding when the page is handed over. Where the tab has to hear the log again,
+# the test lifts the refusal itself.
 def held_stale(context):
     """A context whose next page is refused every poll after the one that stamps it."""
 
@@ -648,9 +649,10 @@ def held_stale(context):
     return primed(context, hold)
 
 
-# The two state-readiness stamps: `lf-upgraded` is the document's — widgets upgraded and
-# the anchor pass run — and `lf-applied` is the log's, written at the end of every replay
-# pass. They say the poll's state was applied, not that later layout work has settled.
+# The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
+# and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
+# pass, and `lf-presented` says a deliberately shown waiting surface has completed its
+# minimum dwell. Applied state is not yet a completed page while that surface stands.
 # The runtime stamps the document in the same breath as it starts that first poll and
 # never awaits it, so a page can be done becoming itself while knowing nothing of what
 # the reader has decided or which version is newest.
@@ -665,6 +667,7 @@ def held_stale(context):
 BOTH_STAMPS = (
     "() => document.body.dataset.lfUpgraded === '1'"
     " && document.body.dataset.lfApplied !== undefined"
+    " && document.body.dataset.lfPresented === '1'"
 )
 STORED_DRAFT_TEXT = """ctx => {
   try {
@@ -793,8 +796,8 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` takes the page's own two stamps for having finished, `BOTH_STAMPS` above
-    saying what each of them answers for. Twenty-two tests stood on the pair the day it
+    `upgraded` takes the page's three readiness facts for having finished, `BOTH_STAMPS`
+    above saying what each answers. Twenty-two tests stood on the first pair the day it
     was written here, and a dockerised Linux runner had named three.
 
     Navigation waits for `load`, so the stylesheet and media that determine layout have
@@ -970,6 +973,7 @@ CUSTOM_WIDGET_PAGE = """<!doctype html>
 <title>custom widget</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -978,7 +982,6 @@ CUSTOM_WIDGET_PAGE = """<!doctype html>
   <strong>Heads up</strong> This widget came from the project layer.
 </lf-callout>
 </main>
-<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """
@@ -2064,6 +2067,36 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     expect(button).to_be_disabled()
     assert errors == []
     page.close()
+
+
+def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
+    """Approval belongs to the presented page; runtime discussion does not wait for it."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    held = []
+    page = browser.new_page()
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/api/state*"):
+            page.goto(serve(html), wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the first state response"
+        button = page.locator(".lf-signoff")
+        expect(button).to_be_visible()
+        expect(button).to_be_disabled()
+
+        page.locator(".lf-comments").click()
+        expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(button).to_be_enabled()
+        assert errors == []
+    finally:
+        page.close()
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
@@ -8641,8 +8674,33 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     middle = page.evaluate(at)
     assert 0 < middle < tall, f"the fold's midpoint is not between its ends: {middle}"
 
-    page.evaluate("() => window.__lfHeld[0].play()")
+    # The endpoint is part of the motion, not a scheduling gap the finish handler has
+    # to beat. Read it synchronously at the exact duration: without a forwards fill the
+    # effect has already stopped applying here and the slot springs back to its
+    # unanimated height before cleanup gets its turn.
+    endpoint = page.evaluate(
+        """() => {
+          const m = window.__lfHeld[0];
+          m.currentTime = m.effect.getTiming().duration;
+          return {
+            height: m.effect.target.getBoundingClientRect().height,
+            opacity: Number(getComputedStyle(m.effect.target).opacity),
+            fill: m.effect.getTiming().fill,
+          };
+        }"""
+    )
+    assert endpoint["height"] == pytest.approx(0, abs=0.1), (
+        f"the fold exposed its unanimated box at the endpoint: {endpoint}"
+    )
+    assert endpoint["opacity"] == pytest.approx(0, abs=0.001), (
+        f"the fold exposed its unanimated ink at the endpoint: {endpoint}"
+    )
+
+    page.evaluate("() => window.__lfHeld[0].finish()")
     expect(old).to_be_hidden()
+    page.wait_for_function(
+        "() => document.querySelector('#sug lf-old').getAnimations().length === 0"
+    )
     assert after.evaluate("el => el.getBoundingClientRect().top") < below, (
         "the page never gave back the room the retired paragraph was holding"
     )
@@ -10755,6 +10813,7 @@ RELATIVE_WIDGET_PAGE = """<!doctype html>
 <title>relative widget</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -10764,7 +10823,6 @@ RELATIVE_WIDGET_PAGE = """<!doctype html>
 </lf-tally>
 <lf-tally id="tally-seen" count="0">Nothing at the feeders this week.</lf-tally>
 </main>
-<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """
@@ -11115,23 +11173,15 @@ TWO_HOLDER_PAGE = """<!doctype html>
 """
 
 
-def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
-    browser, serve, tmp_path, monkeypatch
-):
-    """`x-parent` is a list, and the retired-slot selector is built from it. Written
-    `${entry["x-parent"]}` the list interpolates comma-joined, so a slot naming two
-    holders wrote a selector *list* whose first member was the bare holder tag: every
-    instance of it read as a retired slot however the log stood, its words silenced
-    from the anchor pass, while the pair that was meant matched nothing at all.
-
-    Unreachable until this layer's licensing opened `x-retired-when` past the
-    suggestion family, which is why the shipped vocabulary — every slot of it naming
-    one holder — could never have said so. The page holds an undecided trial, so
-    nothing here is retired and a quote inside it must anchor like any other."""
-    monkeypatch.chdir(tmp_path)
+def trial_family(tmp_path):
+    """A third-party settlement family in the project layer, built the way a project
+    builds one: `leaf customize widget` scaffolds each tag, and the registry edit
+    relates them — x-state verbs on the holders, x-parent/x-retired-when on the
+    slots. The holders upgrade, because a tag declaring x-state needs a module to
+    define its element; the scaffold module is all they get, so anything a test sees
+    settle is the layer's doing, not a module's. Only lf-proposed names two holders,
+    for the selector case the two-holder test is about."""
     runner = CliRunner()
-    # The holders upgrade, because a tag declaring x-state must have a handler to
-    # replay one; the slots are markup and need none.
     for tag, upgrade in (
         ("lf-trial", True),
         ("lf-pilot", True),
@@ -11155,15 +11205,16 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
         "</lf-proposed></lf-pilot>",
     }
+    # `pause` settles nothing: the widget-unit verb that displaces a decision in
+    # the fold, there for the test that holds the mark to following it out.
     for tag, state in (
-        ("lf-trial", ("adopt", "shelve")),
+        ("lf-trial", ("adopt", "shelve", "pause")),
         ("lf-pilot", ("run", "shelve")),
     ):
         entries[tag]["x-state"] = {name: dict(verb) for name in state}
         entries[tag]["properties"]["restated"] = {"type": "boolean"}
         entries[tag]["x-content"] = "items"
         entries[tag]["x-example"] = example[tag]
-    # Only lf-proposed names two, which is the whole of what this is for.
     for tag, holders, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
@@ -11172,6 +11223,32 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         entries[tag].pop("x-example", None)
         entries[tag].pop("required", None)
     source.write_text(json.dumps(entries))
+    # The scaffold styles every tag as a card; a slot is a slot, the way the shipped
+    # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
+    # margins that stand trapped under the holder's frame once a settled sibling is
+    # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.
+    theme = tmp_path / ".leaf" / "theme.css"
+    theme.write_text(
+        theme.read_text() + "\nlf-current, lf-proposed "
+        "{ display: block; margin: 0; padding: 0; border: none; --lf-frame: initial; }\n"
+    )
+
+
+def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
+    browser, serve, tmp_path, monkeypatch
+):
+    """`x-parent` is a list, and the retired-slot selector is built from it. Written
+    `${entry["x-parent"]}` the list interpolates comma-joined, so a slot naming two
+    holders wrote a selector *list* whose first member was the bare holder tag: every
+    instance of it read as a retired slot however the log stood, its words silenced
+    from the anchor pass, while the pair that was meant matched nothing at all.
+
+    Unreachable until this layer's licensing opened `x-retired-when` past the
+    suggestion family, which is why the shipped vocabulary — every slot of it naming
+    one holder — could never have said so. The page holds an undecided trial, so
+    nothing here is retired and a quote inside it must anchor like any other."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_PAGE, anchored=[("th-now", "warmed on every deploy")])
     page, errors = open_page(browser, url)
@@ -11185,6 +11262,153 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     )
     assert errors == []
     page.close()
+
+
+def test_a_settled_third_party_holder_wears_the_layers_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A settlement is the layer's rendering of the log's decision, never a module
+    obligation: the trial's module is the bare scaffold — it defines the element and
+    supplies no applyAction at all — and once its decision replays the holder wears
+    data-lf-state, the retired slot is marked and hidden by the theme's one generic
+    rule, and the quote anchored in it detaches instead of pointing at words the
+    page's reading has dropped. The mark and the hide used to be each holder
+    module's own duty, stated in the scaffold comment and the key table and enforced
+    nowhere, and the first family that forgot would have split the page's reading
+    from the file's in silence. The second half drives it all back out: the fold
+    keeps the last surviving action per unit, so a widget-unit verb that settles
+    nothing displaces the decision, and the mark, the marker and the hide follow
+    it."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+
+    url = serve(TWO_HOLDER_PAGE, anchored=[("th-next", "warmed on the first request")])
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") == "", (
+        "the quote matched inside a slot the logged decision retired: nothing wrote "
+        "the settlement mark for a module that doesn't"
+    )
+    assert errors == []
+    page.close()
+
+    # The mark follows the fold out as well as in: the file's standing state is the
+    # last surviving action per unit, so a widget-unit verb that settles nothing
+    # displaces the decision, and a mark left standing would silence a slot the log
+    # has handed back.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "pause",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
+    assert page.locator("#th-cache").get_attribute("data-lf-state") is None
+    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
+    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") != "", (
+        "the displaced decision's slot is back on the page, so its quote must "
+        "anchor again"
+    )
+    assert errors == []
+    page.close()
+
+
+# The two-holder page with a second, undecided trial beside the first: the instance a
+# module that invents settlement gets caught on, since on the decided one its mark
+# only repeats the log.
+TWO_HOLDER_SPARE_PAGE = TWO_HOLDER_PAGE.replace(
+    "</main>",
+    """<lf-trial id="th-spare">
+  <lf-current><p id="sp-now">The spare stands as it is.</p></lf-current>
+  <lf-proposed><p id="sp-next">The spare would move.</p></lf-proposed>
+</lf-trial>
+</main>""",
+)
+
+
+def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for the settlement reading, in both directions. The bare family first
+    proves the gate accepts a holder that brings nothing of its own — the layer's
+    default hide is the whole of its disappearance. Then the one generic hide rule is
+    stripped from the vendored theme, standing in for whatever re-shows a retired
+    slot (a later layer's rule outranking the default, a module re-showing what it
+    folded): the words stay on screen where the reader can select what no comment
+    can anchor to, and the gate must say so. Then the theme goes back and the
+    vendored module is rewritten to mark every trial at upgrade: on the undecided
+    spare that is a settlement the log never decided, silencing words the reader can
+    still see, and the gate must say that too. Both failures render perfectly, which
+    is why each is put back deliberately."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+
+    url = serve(TWO_HOLDER_SPARE_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+    assert interact.render_version(browser, url) == []
+
+    hide = "[data-lf-retired] { display: none; }"
+    vendored = serve.page_dir / "theme.css"
+    css = vendored.read_text()
+    assert css.count(hide) == 1
+    vendored.write_text(css.replace(hide, ""))
+    failures = interact.render_version(browser, url)
+    assert any(
+        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
+        in failure
+        for failure in failures
+    ), failures
+
+    vendored.write_text(css)
+    module = serve.page_dir / "widgets" / "lf-trial.js"
+    source = module.read_text()
+    upgrade_line = "if (!once(this)) return;"
+    assert source.count(upgrade_line) == 1
+    module.write_text(
+        source.replace(
+            upgrade_line,
+            upgrade_line + '\n      this.setAttribute("data-lf-state", "shelve");',
+        )
+    )
+    failures = interact.render_version(browser, url)
+    assert any(
+        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
+        "records no decision" in failure
+        for failure in failures
+    ), failures
 
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
@@ -17921,7 +18145,6 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     second_say = second.locator("#jobs > .lf-conversation > .lf-say")
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
-
     first.evaluate(
         """() => {
           const actualFetch = window.fetch.bind(window);
@@ -19130,6 +19353,767 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     page.close()
 
 
+FIRST_PRESENTATION = """
+  window.__lfPresentation = { frames: [], releases: 0 };
+  new MutationObserver((changes) => {
+    window.__lfPresentation.releases += changes.length;
+  }).observe(document, {
+    subtree: true,
+    attributeFilter: ["data-lf-presented"],
+  });
+  const sample = () => {
+    const old = document.querySelector("#sug lf-old");
+    if (old) {
+      const box = old.getBoundingClientRect();
+      window.__lfPresentation.frames.push({
+        stale: old.checkVisibility({
+          opacityProperty: true,
+          visibilityProperty: true,
+        }),
+        interactive: old.contains(document.elementFromPoint(
+          box.left + box.width / 2,
+          box.top + box.height / 2,
+        )),
+        height: old.getBoundingClientRect().height,
+        note: getComputedStyle(document.body, "::after").content,
+        waitingPainted:
+          getComputedStyle(document.body, "::after").visibility !== "hidden"
+          && Number(getComputedStyle(document.body, "::after").opacity) > 0,
+      });
+    }
+    if (document.body?.dataset.lfPresented === undefined)
+      requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+"""
+
+
+def test_first_replay_is_the_pages_first_presentation(browser, serve):
+    """A version is not the page the reader left when the log already changed it.
+
+    Hold the first state response beyond the document stamp and record every frame the
+    browser offers to paint. The authored suggestion stays laid out — presentation is
+    paint, not a second rendering — but none of those frames may expose it. Releasing the
+    one held response applies the decision and releases the page exactly once."""
+    url = serve(
+        SHORT_SUGGESTION.replace(
+            "</head>",
+            """<style>
+main, main * {
+  visibility: visible !important;
+  opacity: 1 !important;
+  interactivity: auto !important;
+  pointer-events: auto !important;
+}
+</style></head>""",
+        )
+        .replace(
+            "<main>",
+            '<main style="visibility: visible; opacity: 1; interactivity: auto; '
+            'pointer-events: auto">',
+        )
+        .replace(
+            "<lf-old>",
+            '<lf-old style="visibility: visible; opacity: 1">'
+            '<button id="stale-control">Stale control</button>'
+            '<dialog id="stale-dialog" style="visibility: visible; opacity: 1; '
+            'interactivity: auto; pointer-events: auto">'
+            '<button style="visibility: visible">'
+            "Top-layer stale control</button></dialog>",
+        )
+        .replace("</main>", SHADOWED_DIFF)
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(FIRST_PRESENTATION)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
+        page.evaluate(
+            """() => {
+              const root = document.querySelector('#shadowed').shadowRoot;
+              const dialog = document.createElement('dialog');
+              dialog.id = 'shadow-stale-dialog';
+              dialog.innerHTML = '<button>Shadow top-layer stale control</button>';
+              root.append(dialog);
+              dialog.showModal();
+              const popover = document.createElement('div');
+              popover.id = 'shadow-stale-popover';
+              popover.setAttribute('popover', 'manual');
+              popover.textContent = 'Shadow top-layer stale popover';
+              root.append(popover);
+              popover.showPopover();
+              const nonmodal = document.createElement('dialog');
+              nonmodal.id = 'shadow-final-nonmodal';
+              nonmodal.textContent = 'Final state is non-modal';
+              root.append(nonmodal);
+              nonmodal.showModal();
+              nonmodal.close();
+              nonmodal.show();
+            }"""
+        )
+        frames = page.evaluate("() => window.__lfPresentation.frames")
+        assert held, "the positive control did not hold the first state response"
+        assert page.evaluate(
+            """() => [
+              getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-presentation-delay').trim(),
+              getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-presentation-dwell').trim(),
+            ]"""
+        ) == ["300ms", "400ms"], "the shipped first-presentation timing drifted"
+        assert frames and all(frame["height"] > 0 for frame in frames), (
+            f"the authored state was never laid out, so the paint gate tested nothing: {frames}"
+        )
+        assert not [frame for frame in frames if frame["stale"]], (
+            f"authored state was visibly painted before replay: {frames}"
+        )
+        assert not [frame for frame in frames if frame["interactive"]], (
+            f"authored state accepted a pointer before replay: {frames}"
+        )
+        assert not page.locator("#stale-control").evaluate(
+            "element => { element.focus(); return document.activeElement === element; }"
+        ), "authored state accepted keyboard focus before replay"
+        assert not page.locator("#stale-dialog").is_visible(), (
+            "authored top-layer content painted before replay"
+        )
+        assert not page.locator("#stale-dialog button").evaluate(
+            "element => { element.focus(); return document.activeElement === element; }"
+        ), "authored top-layer content accepted focus before replay"
+        assert not page.locator("#stale-dialog").evaluate(
+            """dialog => {
+              const box = dialog.getBoundingClientRect();
+              return dialog.contains(document.elementFromPoint(
+                box.left + box.width / 2,
+                box.top + box.height / 2,
+              ));
+            }"""
+        ), "authored top-layer content accepted a pointer before replay"
+        shadow_state = page.evaluate(
+            """() => {
+              const root = document.querySelector('#shadowed').shadowRoot;
+              const dialog = root.querySelector('#shadow-stale-dialog');
+              const control = dialog.querySelector('button');
+              control.focus();
+              const box = dialog.getBoundingClientRect();
+              return {
+                visibility: getComputedStyle(dialog).visibility,
+                opacity: getComputedStyle(dialog).opacity,
+                focused: root.activeElement === control,
+                hit: dialog.contains(root.elementFromPoint(
+                  box.left + box.width / 2,
+                  box.top + box.height / 2,
+                )),
+              };
+            }"""
+        )
+        assert shadow_state == {
+            "visibility": "hidden",
+            "opacity": "0",
+            "focused": False,
+            "hit": False,
+        }, f"authored shadow top-layer content escaped before replay: {shadow_state}"
+        shadow_popover = page.evaluate(
+            """() => {
+              const root = document.querySelector('#shadowed').shadowRoot;
+              const popover = root.querySelector('#shadow-stale-popover');
+              const box = popover.getBoundingClientRect();
+              return {
+                visibility: getComputedStyle(popover).visibility,
+                opacity: getComputedStyle(popover).opacity,
+                hit: popover.contains(root.elementFromPoint(
+                  box.left + box.width / 2,
+                  box.top + box.height / 2,
+                )),
+              };
+            }"""
+        )
+        assert shadow_popover == {
+            "visibility": "hidden",
+            "opacity": "0",
+            "hit": False,
+        }, f"authored shadow popover escaped before replay: {shadow_popover}"
+        assert page.locator("#stale-dialog").evaluate(
+            "dialog => dialog.open && !dialog.matches(':modal')"
+        ), "the held light dialog became modal before replay"
+        assert page.evaluate(
+            """() => {
+              const dialog = document.querySelector('#shadowed').shadowRoot
+                .querySelector('#shadow-stale-dialog');
+              return dialog.open && !dialog.matches(':modal');
+            }"""
+        ), "the held shadow dialog became modal before replay"
+        assert page.evaluate(
+            """() => {
+              const dialog = document.querySelector('#shadowed').shadowRoot
+                .querySelector('#shadow-final-nonmodal');
+              return dialog.open && !dialog.matches(':modal');
+            }"""
+        ), "the widget's final non-modal state did not stand before replay"
+        assert page.get_by_role("button", name=re.compile("^Comments")).evaluate(
+            "button => { button.focus(); return document.activeElement === button; }"
+        ), "a held authored modal disabled the usable Comments chrome"
+        page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-stale-popover').hidePopover()"
+        )
+        assert all("Applying current decisions" in frame["note"] for frame in frames), (
+            f"the boundary replaced the page with no useful visible state: {frames}"
+        )
+        painted = [i for i, frame in enumerate(frames) if frame["waitingPainted"]]
+        assert painted, f"the waiting explanation was never painted: {frames}"
+        assert painted == list(range(painted[0], len(frames))), (
+            f"the waiting explanation disappeared while replay was still held: {frames}"
+        )
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(page.locator("#sug lf-old")).to_be_hidden()
+        assert not page.locator("#stale-dialog").evaluate(
+            "dialog => dialog.open || dialog.matches(':modal')"
+        ), "replay retired a dialog but presentation promoted it anyway"
+        assert page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-stale-dialog').matches(':modal')"
+        ), "a still-current deferred dialog was not promoted after replay"
+        assert page.evaluate(
+            """() => {
+              const dialog = document.querySelector('#shadowed').shadowRoot
+                .querySelector('#shadow-final-nonmodal');
+              return dialog.open && !dialog.matches(':modal');
+            }"""
+        ), "a dialog whose final state was non-modal was promoted after replay"
+        page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-stale-dialog').close()"
+        )
+        assert page.evaluate("() => window.__lfPresentation.releases") == 1
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, serve):
+    """Restored runtime chrome may not publish authored asks as current log state.
+
+    The board was open on the prior visit and the log has since accepted its one
+    suggestion. Holding the first replay makes the dangerous interval deterministic:
+    discussion stays available, but the stale count, row, and bulk action stay withheld.
+    Once replay presents the page, the restored board paints the accepted state directly.
+    """
+    url = serve(SHORT_SUGGESTION)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    priming = context.new_page()
+    priming.goto(url, wait_until="load")
+    priming.wait_for_function(BOTH_STAMPS)
+    priming.evaluate("localStorage.setItem('lf-edge-board', 'asks')")
+    priming.close()
+
+    held = []
+    page = context.new_page()
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        assert held, "the positive control did not hold the first state response"
+        expect(page.locator(".lf-asks")).to_be_hidden()
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(page.locator(".lf-answer-all")).to_be_hidden()
+
+        comments = page.get_by_role("button", name=re.compile("^Comments"))
+        expect(comments).to_be_enabled()
+        comments.click()
+        expect(page.locator(".lf-general textarea")).to_be_editable()
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+        expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
+        expect(page.locator(".lf-asks-panel")).to_be_visible()
+        expect(page.locator("button.lf-asks-row")).to_have_count(0)
+        expect(page.locator(".lf-answer-all")).to_be_hidden()
+        assert errors == []
+    finally:
+        context.close()
+
+
+def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
+    """Receiving state is not readiness while its message renderer is still loading."""
+    url = serve(SHORT_SUGGESTION)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "text": "A preloaded **comment**",
+        },
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/vendor/marked.esm.js"):
+            page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the Markdown renderer"
+
+        page.get_by_role("button", name=re.compile("^Comments")).click()
+        expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+        expect(page.locator(".lf-thread")).to_have_count(0)
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator(".lf-empty")).to_have_count(0)
+        expect(page.locator(".lf-thread")).to_have_count(1)
+        expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
+    """Presentation waits for an answer, not necessarily state.
+
+    When the first poll cannot reach the server there is no log to apply, so the honest
+    page is the authored one under an offline banner. It must be visible rather than
+    stranded behind the replay boundary, and the one failed answer releases it once."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(FIRST_PRESENTATION)
+    page.route("**/api/state*", refuse)
+    try:
+        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        page.wait_for_function(
+            "() => document.body.dataset.lfUpgraded === '1'"
+            " && document.body.dataset.lfPresented === '1'"
+        )
+        expect(page.locator("main")).to_be_visible()
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Server offline — comments won't send"
+        )
+        assert page.locator("body").get_attribute("data-lf-applied") is None
+        assert page.evaluate("() => window.__lfPresentation.releases") == 1
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
+    """A useful wait must not become a one-frame flash when there is no wait.
+
+    The held first-poll test above proves that the waiting surface is a real useful
+    screen. This takes its pixels as a reference, then records Chrome's actual compositor
+    frames while the same local page opens and reloads with an immediate successful
+    answer. Neither navigation may paint Leaf's held screen on its way to the ready page.
+    Playwright disables Chrome's PaintHolding, so its reload may still contribute a blank
+    platform frame; that is not a Leaf surface this runtime can remove. A DOM sample or a
+    duration would only say the wait was paintable; the screencast says whether the
+    reader's display was actually given its contentful pixels."""
+    import base64
+
+    from PIL import Image
+
+    # The banner carries changing connection text and controls; the center of the page
+    # is the stable region where Leaf's waiting explanation either did or did not reach
+    # the compositor. Cropping both screenshots and screencast frames to that same region
+    # makes exact pixels evidence about the surface under test rather than chrome churn.
+    content_crop = (240, 140, 960, 800)
+
+    def pixels(raw):
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        return image.crop(content_crop).tobytes()
+
+    def compositor_frames(page, navigate, ready):
+        cdp = page.context.new_cdp_session(page)
+        encoded = []
+
+        def record(event):
+            encoded.append(event["data"])
+            cdp.send("Page.screencastFrameAck", {"sessionId": event["sessionId"]})
+
+        cdp.on("Page.screencastFrame", record)
+        cdp.send(
+            "Page.startScreencast",
+            {"format": "png", "quality": 100, "everyNthFrame": 1},
+        )
+        navigate()
+        ready()
+        page.evaluate(
+            "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+        )
+        cdp.send("Page.stopScreencast")
+        assert encoded, "the compositor-frame positive control recorded nothing"
+        return [pixels(base64.b64decode(frame)) for frame in encoded]
+
+    delay_waiting_surface = """
+      const setDelay = () => {
+        if (!document.documentElement) return false;
+        document.documentElement.style.setProperty('--lf-presentation-delay', '2s');
+        return true;
+      };
+      if (!setDelay()) {
+        const delayObserver = new MutationObserver(() => {
+          if (setDelay()) delayObserver.disconnect();
+        });
+        delayObserver.observe(document, {childList: true});
+      }
+    """
+
+    url = serve(SHORT_SUGGESTION)
+    held = []
+    waiting = browser.new_page(viewport={"width": 1200, "height": 900})
+    waiting.route("**/api/state*", lambda route: held.append(route))
+
+    def wait_until_loader_is_painted():
+        waiting.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        waiting.wait_for_function(
+            """() => document.getAnimations().some(animation =>
+              animation.animationName === 'lf-presentation-wait'
+              && animation.playState === 'finished'
+            )"""
+        )
+
+    held_frames = compositor_frames(
+        waiting,
+        lambda: waiting.goto(url, wait_until="load"),
+        wait_until_loader_is_painted,
+    )
+    assert held, "the reference page never held the first state response"
+    assert "Applying current decisions" in waiting.evaluate(
+        "() => getComputedStyle(document.body, '::after').content"
+    )
+    waiting_pixels = pixels(waiting.screenshot())
+    assert waiting_pixels in held_frames, (
+        "the stable-content compositor detector missed a waiting surface held on screen"
+    )
+    held.pop(0).continue_()
+    waiting.wait_for_function(BOTH_STAMPS)
+    waiting.close()
+
+    fresh = browser.new_page(viewport={"width": 1200, "height": 900})
+    fresh.add_init_script(delay_waiting_surface)
+    fresh_frames = compositor_frames(
+        fresh,
+        lambda: fresh.goto(url, wait_until="load"),
+        lambda: fresh.wait_for_function(BOTH_STAMPS),
+    )
+    fresh.close()
+
+    reloaded = browser.new_page(viewport={"width": 1200, "height": 900})
+    reloaded.add_init_script(delay_waiting_surface)
+    reloaded.goto(url, wait_until="load")
+    reloaded.wait_for_function(BOTH_STAMPS)
+    reload_frames = compositor_frames(
+        reloaded,
+        lambda: reloaded.reload(wait_until="load"),
+        lambda: reloaded.wait_for_function(BOTH_STAMPS),
+    )
+    reloaded.close()
+
+    failures = []
+    if waiting_pixels in fresh_frames:
+        failures.append("fresh open painted Leaf's waiting surface")
+    if waiting_pixels in reload_frames:
+        failures.append("reload painted Leaf's waiting surface")
+    assert not failures, "; ".join(failures)
+
+
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
+    browser, serve, reduced_motion
+):
+    """The delayed wait is real pixels, and once paid for it cannot become a flash.
+
+    A paused CSS timeline makes both sides of the paint threshold observable without a
+    race against module load or screenshot speed. When the held response reaches fetch,
+    the probe starts a fresh dwell interval in that same browser task. The presentation
+    mutation must land beyond it, with response receipt before it as the positive control
+    that a missing release-time wait could not pass vacuously."""
+    from PIL import Image, ImageChops
+
+    held = []
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion=reduced_motion
+    )
+    page = context.new_page()
+    errors = watched(page)
+    page.add_init_script(
+        """
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = async (...args) => {
+          const response = await nativeFetch(...args);
+          const input = args[0];
+          const url = typeof input === 'string' ? input : input.url;
+          if (new URL(url, location.href).pathname !== '/api/state'
+              || window.__lfReplayReceivedAt !== undefined) return response;
+
+          const wait = document.getAnimations()
+            .find(a => a.animationName === 'lf-presentation-wait');
+          const timing = wait.effect.getTiming();
+          wait.currentTime = timing.delay + timing.duration;
+          const current = Number(wait.currentTime);
+          const dwell = Number(getComputedStyle(document.documentElement)
+            .getPropertyValue('--lf-presentation-dwell').replace('ms', ''));
+          window.__lfReplayReceivedAt = document.timeline.currentTime;
+          window.__lfEarliestPresentation =
+            window.__lfReplayReceivedAt - current + timing.delay + dwell;
+          window.__lfPresentationAt = null;
+          new MutationObserver((changes, observer) => {
+            if (!document.body.hasAttribute('data-lf-presented')) return;
+            window.__lfPresentationAt = document.timeline.currentTime;
+            observer.disconnect();
+          }).observe(document.body, {
+            attributes: true,
+            attributeFilter: ['data-lf-presented'],
+          });
+          return response;
+        };
+        """
+    )
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.evaluate(
+            """async () => {
+              const wait = document.getAnimations()
+                .find(a => a.animationName === 'lf-presentation-wait');
+              wait.pause();
+              await wait.ready;
+              wait.currentTime = 0;
+            }"""
+        )
+        before = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        assert (
+            page.evaluate(
+                "() => Number(getComputedStyle(document.body, '::after').opacity)"
+            )
+            == 0
+        ), "the waiting explanation painted before its threshold"
+
+        page.evaluate(
+            """() => {
+              const wait = document.getAnimations()
+                .find(a => a.animationName === 'lf-presentation-wait');
+              const timing = wait.effect.getTiming();
+              wait.currentTime = timing.delay + timing.duration;
+            }"""
+        )
+        assert (
+            page.evaluate(
+                "() => Number(getComputedStyle(document.body, '::after').opacity)"
+            )
+            == 1
+        ), "the waiting explanation did not paint beyond its threshold"
+        after = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        changed = ImageChops.difference(before, after)
+        assert changed.getbbox() is not None, (
+            "the computed waiting state changed without painting any pixels"
+        )
+        assert (
+            sum(pixel != (0, 0, 0) for pixel in changed.get_flattened_data()) > 100
+        ), "the waiting surface did not paint enough pixels to be a useful explanation"
+        assert held, "the positive control did not hold the first state response"
+        held.pop(0).continue_()
+        page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+        release = page.evaluate(
+            """() => [
+              window.__lfPresentationAt,
+              window.__lfEarliestPresentation,
+              window.__lfReplayReceivedAt,
+            ]"""
+        )
+        assert release[2] < release[1], (
+            "the held response arrived after the dwell boundary, so the release-time "
+            f"wait was not exercised: response at {release[2]:.1f}, "
+            f"boundary at {release[1]:.1f}"
+        )
+        assert release[0] + 1 >= release[1], (
+            "the ready page cut off a waiting explanation before its CSS dwell ended: "
+            f"presentation at {release[0]:.1f}, earliest {release[1]:.1f}"
+        )
+        assert errors == []
+    finally:
+        context.close()
+
+
+def test_a_startup_failure_never_presents_unapplied_authored_state(browser, serve):
+    """A failed runtime may explain itself; it may not present a state it never read.
+
+    A decision already stands in the log, then the registry fails after leaf.js has
+    evaluated and taken responsibility for presentation. The reader must receive a
+    fixed explanation rather than the authored alternatives underneath it: those words
+    predate the decision, and showing them as the live page would be a false answer."""
+    url = serve(SHORT_SUGGESTION)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/registry.json",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body="{}"
+        ),
+    )
+    try:
+        with page.expect_console_message(
+            predicate=lambda message: "page failed to start" in message.text
+        ):
+            page.goto(url, wait_until="load")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+
+        explanation = page.evaluate("""() => {
+            const pseudo = getComputedStyle(document.body, '::after');
+            const fixed = pseudo.visibility !== 'hidden'
+              && Number(pseudo.opacity) > 0
+              && !['none', 'normal', ''].includes(pseudo.content);
+            const named = [...document.body.querySelectorAll('*')].some(el =>
+              el.checkVisibility({visibilityProperty: true})
+              && /failed|offline|unavailable|reload/i.test(el.textContent));
+            return fixed || named;
+        }""")
+        assert explanation, "startup failed into a blank page with no recourse"
+        assert not page.locator("#sug lf-old").is_visible(), (
+            "startup failed before the log was read, but the authored alternative was "
+            "presented as though it were the reader's current decision"
+        )
+    finally:
+        page.close()
+
+
+def test_a_malformed_first_state_never_presents_unapplied_authored_state(
+    browser, serve
+):
+    """A successful response that cannot be replayed must retain the safety gate."""
+    url = serve(
+        SHORT_SUGGESTION.replace(
+            "</title>", '</title><meta name="lf-review" content="sign-off">', 1
+        )
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/api/state*",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body="not-json"
+        ),
+    )
+    try:
+        with page.expect_console_message(
+            predicate=lambda message: "poll failed" in message.text
+        ):
+            page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Page couldn't apply current state — reload"
+        )
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
+        assert not page.locator("#sug lf-old").is_visible(), (
+            "state processing failed before replay, but authored state was presented"
+        )
+        expect(page.locator(".lf-signoff")).to_be_disabled()
+    finally:
+        page.close()
+
+
+def test_a_root_module_failure_leaves_visible_recovery(browser, serve):
+    """The CSS boundary takes responsibility before the root module evaluates.
+
+    If that module itself throws, no runtime code exists to report the failure. The
+    stylesheet must still keep authored decisions withheld and paint its fixed recovery
+    message, so the safety boundary cannot turn a broken import into a blank page.
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    failures = []
+    page.on("pageerror", lambda error: failures.append(error))
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="throw new Error('root module failed')",
+        ),
+    )
+    try:
+        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        assert failures and "root module failed" in str(failures[0])
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        recovery = page.evaluate(
+            "() => getComputedStyle(document.body, '::after').content"
+        )
+        assert "Applying current decisions" in recovery and "reload" in recovery
+        assert (
+            page.locator("main").evaluate(
+                "element => getComputedStyle(element).opacity"
+            )
+            == "0"
+        )
+    finally:
+        page.close()
+
+
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     """`open_page` promises a page that has finished becoming itself, and the log is half
     of what that means. The instrument is a refusal of the first `/api/state`. Replay then
@@ -19439,23 +20423,39 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
         upgraded=False,
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+    )
+    expect(page.locator("body > main")).to_be_hidden()
+    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile("^Comments"))).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
     page.get_by_role("button", name=re.compile("^Comments")).click()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+    expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
     expect(page.locator(".lf-thread")).to_have_count(2)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
-    page.locator("#gate-milestone").select_text()
-    page.keyboard.press("c")
+    # Authored content is deliberately not selectable until replay can make it honest.
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+    words = page.locator("#gate-milestone strong").bounding_box()
+    assert words, "the upgraded milestone never produced selectable words"
+    y = words["y"] + words["height"] / 2
+    select(
+        page,
+        (words["x"] + 2, y),
+        (words["x"] + words["width"] - 2, y),
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
     page.locator(".lf-fab").click()
     page.locator(".lf-composer textarea").fill("Still anchored?")
@@ -21092,6 +22092,7 @@ LATE_MARGIN_PAGE = """<!doctype html>
 <title>late margin</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -21103,7 +22104,6 @@ LATE_MARGIN_PAGE = """<!doctype html>
   <lf-column id="r3" label="Done"></lf-column>
 </lf-board>
 </main>
-<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """

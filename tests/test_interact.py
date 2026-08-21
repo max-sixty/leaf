@@ -5887,11 +5887,15 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
     # n bytes before it reads any, so this raises MemoryError out of the read itself —
     # neither a ValueError nor anything the parse could have raised, and the third
     # exception type found this way. A length that cannot be allocated is a length that
-    # cannot be used, so it earns the same word an unparsable length does.
+    # cannot be used, so it earns the same word an unparsable length does. The length is
+    # past what any machine can address rather than merely large: a host that overcommits
+    # can hand over ~91 TiB inside the 128 TiB four-level paging reaches, and the read
+    # would then block until this connection's own timeout, failing the row on the wait
+    # rather than on the refusal it is about.
     door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
     try:
         door.putrequest("POST", f"/api/event?t={TOKEN}")
-        door.putheader("Content-Length", "99999999999999")
+        door.putheader("Content-Length", "999999999999999999")
         door.putheader("Content-Type", "application/json")
         door.endheaders()
         door.send(b"")

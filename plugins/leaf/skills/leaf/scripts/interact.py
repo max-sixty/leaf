@@ -2023,8 +2023,9 @@ class Handler(BaseHTTPRequestHandler):
         # door the door does not produce itself. What shapes an answer there is the door
         # it came through rather than the branch that decided it, and every refusal has
         # to name the attempt it refuses: a browser holding that gesture in its outbox
-        # reads `final` and nothing else as leave to put the gesture back, so a refusal
-        # in any other shape is re-sent every poll for the life of the tab. Ahead of the
+        # reads a `final` refusal naming that attempt, and nothing else, as leave to put
+        # the gesture back, so a refusal in any other shape is re-sent every poll for
+        # the life of the tab. Ahead of the
         # gate is not outside the boundary, which is what `prepare` is for.
         self._answer(self._post, prepare=self._read_posted)
 
@@ -2047,9 +2048,11 @@ class Handler(BaseHTTPRequestHandler):
             # `BufferedReader.read(n)` allocates n bytes before it reads any, so a
             # length past what the machine will give raises MemoryError out of the read
             # rather than out of the parse. A length that cannot be allocated is a
-            # length that cannot be used, so this is the true word for it — and unlike
-            # the 500 the raise would otherwise earn, this refusal is final, which is
-            # the only shape that lets the browser put the gesture back.
+            # length that cannot be used, so this is the true word for it. Like the two
+            # refusals below it names no attempt — the body one would have been read out
+            # of is the thing that could not be read — so `final` does not put this
+            # gesture back either; what it buys over the 500 the raise would otherwise
+            # earn is an answer in the door's own shape, saying what defeated the read.
             return {}, "invalid Content-Length"
         try:
             posted = json.loads(body)

@@ -20548,6 +20548,56 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page.close()
 
 
+def test_a_reject_after_an_accept_reopens_the_thread(browser, serve):
+    """The panel reports where the question currently stands, not that it was once
+    answered. A second tab can reject a suggestion the first has already accepted —
+    the controls are gone in the tab that decided, not in the one that hasn't
+    polled — and the reader who turned the fix down would otherwise find their
+    question filed away as answered by it, while the suggestion beside it read as
+    rejected. Both readings come off the same log; here is where they have to
+    agree in front of the reader."""
+    url = serve(
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
+    )
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "version": 1,
+            "text": "does this take downtime?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+
+    # What the other tab's press leaves in the log, made against the same version:
+    # its own accept and reject controls are still standing, because it has not
+    # heard about this one's decision yet.
+    interact.append_event(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-fix",
+            "action": "reject",
+            "detail": {},
+        },
+    )
+    told(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
+    expect(page.locator(".lf-details")).to_have_count(0)
+    reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
+    expect(reopened.locator(".lf-resolve")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
     """The chrome is wired before the asynchronous registry fetch completes.
     That interval is real state, not a missing-registry fallback: general

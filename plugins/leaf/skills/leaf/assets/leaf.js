@@ -4008,6 +4008,22 @@ function buildThreads() {
   // never the conversation".
   const floors = retractionFloors(Infinity);
   const withdrawn = takenBack();
+  // widget id -> its last action the log still lets stand: not one the reader took
+  // back, not one a version retracted under it. The widget is what an ask is
+  // (x-awaits), so what answers one is that widget's own last word; and it is the
+  // only key the log carries by itself, which is why stateFold cannot be borrowed for
+  // this — foldable() drops an action whose widget the page no longer holds, and the
+  // version that honors a decision retires the widget that made it, precisely when the
+  // thread it settled most needs to stay settled. x-state holds a verb declaring
+  // `resolves` to a widget-absolute unit so the two keys are the same one.
+  const answers = new Map();
+  for (const e of events)
+    if (
+      e.kind === "action" &&
+      !withdrawn.has(e.id) &&
+      !retractedIds(e, floors, elementById(e.widget)).length
+    )
+      answers.set(e.widget, e);
   for (const e of events) {
     // A gesture the reader took back settles nothing, whichever way it settled: the
     // log holds it and no reading of the log stands on it. The same sentence
@@ -4022,10 +4038,10 @@ function buildThreads() {
       threadFor.set(e.id, thread);
       continue;
     }
-    // An action that names a thread settles it. The answer snapshots the thread
-    // it was made in, because the honoring version retires the wrapper that held
-    // the mapping and one atomic event can't half-arrive the way a second POST
-    // could — so the log is the only place that pairing survives.
+    // A widget's standing answer settles the thread it names. The answer snapshots
+    // the thread it was made in, because the honoring version retires the wrapper
+    // that held the mapping and one atomic event can't half-arrive the way a second
+    // POST could — so the log is the only place that pairing survives.
     //
     // Read off the detail rather than the verb, because the naming is the
     // mechanism's and the verb is a member's: `accept` stood here once, which was
@@ -4035,15 +4051,22 @@ function buildThreads() {
     // nobody wired up rather than as an error. A verb carries only the detail
     // keys its entry declares (additionalProperties: false), so a `resolves` is
     // one on purpose, and an answer that settles no thread carries none.
-    if (e.kind === "action" && e.detail.resolves) {
+    //
+    // Standing is every way the log currently holds an answer: not retracted by a
+    // version that rewrote what the decision rested on (`restated`), not taken back
+    // by the reader (the skip above), and not superseded by a later action on the
+    // same widget. Without that last one, a
+    // reject after an accept left the reader's question filed away as answered by
+    // the fix they had just turned down, while the fold reported the suggestion
+    // rejected: the log held one thing, the panel showed another, and nothing on
+    // either side said so.
+    //
+    // Settled at the answer's own place in the walk rather than after it: a resolve
+    // pressed between two decisions is the last word on the thread, and a
+    // superseded answer has nothing to clear because it never stood.
+    if (e.kind === "action") {
       const answered = threads.get(e.detail.resolves);
-      // Only while the action still stands. A version that rewrote what the decision
-      // rested on retracts it (`restated`), and replay drops it — so a thread left
-      // resolved here would be the one reading the log said nothing about, exactly the
-      // second store this design has none of. The reader taking the answer back is the
-      // other way one stops standing, and the skip above is where that is read.
-      if (answered && !retractedIds(e, floors, elementById(e.widget)).length)
-        answered.resolved = e;
+      if (answered && answers.get(e.widget) === e) answered.resolved = e;
       continue;
     }
     if (e.kind === "reply") {

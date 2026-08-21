@@ -8689,15 +8689,35 @@ def recurring_resize_observer_error(unit: str) -> str:
 # What the page is still doing, named by what it moves. A finite end is what separates a
 # page settling from a page living: the banner's dot pulses for as long as the tab is
 # open, and a wait that asked for no animation at all would never be answered.
-MOVING = """() => document.getAnimations()
-    .filter(a => a.playState === 'running'
-                 && Number.isFinite(a.effect?.getComputedTiming().endTime))
-    .map(a => { const el = a.effect?.target;
-                const named = el?.closest?.('[id]');
-                const where = named
-                    ? `<${named.tagName.toLowerCase()} id=${named.id}>`
-                    : `<${el?.tagName?.toLowerCase() ?? '?'}>`;
-                return a.animationName ? `${where} ${a.animationName}` : where; })"""
+#
+# Every open root, because a document answers for its own tree alone. `getAnimations`
+# on the document returns nothing for an element inside a widget's shadow root, and
+# `{subtree: true}` on the root element returns nothing either (measured on Chrome
+# 151) — so a widget drawing itself into place inside its own tree would leave the
+# wait satisfied while the host box it grows is still moving, which is the one thing
+# this reading exists to prevent.
+MOVING = (
+    """() => {"""
+    + OPEN_ROOTS
+    + """
+    // Named by the nearest thing the reader can point at, climbing out of a tree the
+    // way the runtime's own walks do: an element a widget staged in its root has no
+    // id in there, and `<div>` names nothing a fix could start from.
+    const at = (el) => {
+        for (let n = el; n; n = n.getRootNode?.()?.host) {
+            const named = n.closest?.('[id]');
+            if (named) return `<${named.tagName.toLowerCase()} id=${named.id}>`;
+        }
+        return `<${el?.tagName?.toLowerCase() ?? '?'}>`;
+    };
+    return roots(document)
+        .flatMap(root => root.getAnimations())
+        .filter(a => a.playState === 'running'
+                     && Number.isFinite(a.effect?.getComputedTiming().endTime))
+        .map(a => a.animationName ? `${at(a.effect?.target)} ${a.animationName}`
+                                  : at(a.effect?.target));
+}"""
+)
 
 
 def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:

@@ -11040,6 +11040,24 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
+      // `deep` renders the same words from inside the widget's own root, and moves
+      // them there: an animation a document-level reading cannot see.
+      if (this.hasAttribute("deep")) {
+        const root = this.attachShadow({ mode: "open" });
+        // `bare` stages the words with no element over them — the page refuses that,
+        // and the refusal is what one of the tests below reads.
+        if (this.hasAttribute("bare")) {
+          root.append(...this.childNodes);
+          return;
+        }
+        const held = document.createElement("div");
+        held.append(...this.childNodes);
+        root.append(held);
+        held.animate(
+          [{ transform: "translateY(120px)" }, { transform: "none" }],
+          { duration: 30000 },
+        );
+      }
       this.#place();
     }
     // Absolute, as every applyAction is: the offset is stated, never stepped.
@@ -11071,7 +11089,7 @@ customElements.define(
 """
 
 
-def drifting_widget(tmp_path, monkeypatch):
+def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
@@ -11081,6 +11099,14 @@ def drifting_widget(tmp_path, monkeypatch):
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-drift"]["properties"]["offset"] = {"type": "integer", "minimum": 0}
+    entries["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
+    entries["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
+    deep = deep or bare
+    if deep:
+        # The body is rendered from the widget's own root, so the entry stops
+        # claiming the reader gets it verbatim from the markup.
+        entries["lf-drift"]["x-shadow"] = True
+        del entries["lf-drift"]["x-verbatim"]
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
     entries["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
@@ -11098,7 +11124,10 @@ def drifting_widget(tmp_path, monkeypatch):
     }
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(DRIFT_MODULE)
-    return DRIFT_PAGE
+    if not deep:
+        return DRIFT_PAGE
+    opens = "<lf-drift deep bare id=" if bare else "<lf-drift deep id="
+    return DRIFT_PAGE.replace("<lf-drift id=", opens)
 
 
 def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
@@ -11116,6 +11145,70 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     covered = [f for f in interact.render_version(browser, url) if "same place" in f]
 
     assert covered and all("drift-note" in f for f in covered), covered
+
+
+def test_a_page_at_rest_is_read_across_a_widgets_own_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Whether the page is still moving is asked of every tree the page is in.
+
+    A document answers for its own tree alone: `document.getAnimations()` returns
+    nothing for an element inside a widget's shadow root, and `{subtree: true}` on
+    the root element returns nothing either. A widget drawing itself into place in
+    there grows the host box the gate's own readings measure, so a reading that
+    asked the document would call that page still and read it mid-move — the fault
+    the wait exists to prevent, surviving inside the one place a widget is most
+    likely to draw."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, deep=True))
+    page, errors = open_page(browser, url)
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    # The banner's dot pulses forever and is deliberately not the page moving, so the
+    # control asks after a finite end rather than after an empty list.
+    assert (
+        page.evaluate(
+            "() => document.getAnimations().filter(a => Number.isFinite("
+            "  a.effect?.getComputedTiming().endTime)).length"
+        )
+        == 0
+    ), "the document tree already answers for this one, so the reading proves nothing"
+    assert page.evaluate(interact.MOVING) == ["<lf-drift id=drift-note>"]
+    assert errors == []
+    page.close()
+
+
+def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The one text these walks reach with no element over it, and the page says whose.
+
+    A widget may render the page's words into its own shadow root, and the passage walk
+    crosses in after them. What it cannot take is a text node put straight on the root:
+    `parentElement` is null there, so those words have no block to sit in, no cell to be
+    fenced by and nothing for a mark to hang on, and admitting them would split the
+    page's reading from the file's. The page refuses to present at all, which is the
+    loud direction — but the refusal used to arrive as `Cannot read properties of null
+    (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
+    which is a bug report against leaf rather than against the module that caused it."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, bare=True))
+    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    # The first thing the page says in anger, whatever that turns out to be: waiting
+    # for the wording under test would make a page that says something else read as a
+    # page that says nothing, and the message is the whole subject here.
+    with page.expect_console_message(lambda message: message.type == "error") as caught:
+        page.goto(url, wait_until="commit")
+    refusal = caught.value.text
+
+    assert '<lf-drift id="drift-note">' in refusal, refusal
+    assert "They came over the fence" in refusal, refusal
+    assert "closest" not in refusal, (
+        "the refusal is still a property name, which reads as leaf being broken: "
+        + refusal
+    )
+    assert page.evaluate("() => document.body.dataset.lfUpgraded") is None, (
+        "the page presented anyway, so the words with nothing over them are in it"
+    )
+    page.close()
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(

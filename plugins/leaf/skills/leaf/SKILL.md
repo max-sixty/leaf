@@ -94,6 +94,12 @@ display name for `LEAF_AGENT`, its `lf-agent` row id, its `lf-task` id, and the 
 outcome and constraints. The orchestrator retains the host session handle and execution
 permissions. A page may name a branch or worktree, but Leaf never controls one.
 
+Leaf persists the page and log, including each event's attribution; it does not persist
+host session handles; a logged session id says who spoke and is never an address. A
+host-selected successor starts with `page state`, keeps completed rows as history,
+publishes unreachable nonterminal rows as `idle` without `on`, then assigns remaining
+work to a fresh session and retains that handle locally.
+
 The worker uses `$LEAF` for every Leaf write: `report`, plus `reply` when the orchestrator
 hands it a thread id. It never waits on the page, acknowledges the orchestrator's batch,
 changes the page status, or publishes a version. Start by moving both axes:
@@ -116,9 +122,11 @@ comment, reply under the worker's own voice, then report any resulting state cha
 LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" --text "<answer>"
 ```
 
-The orchestrator alone keeps `leaf wait` running, routes each anchored comment through
-the host to the worker holding that row or task, and publishes versions that absorb or
-overrule the workers' reports.
+The orchestrator alone keeps `leaf wait` running. It routes an anchored comment through
+the host only when it retains the worker handle for that assigned, nonterminal row or
+task. Comments on terminal rows or tasks, and on assignments whose handles are
+unreachable, remain with the orchestrator to answer. It publishes versions that absorb
+or overrule the workers' reports.
 
 ## Setup
 
@@ -668,10 +676,20 @@ this file: which layer a change belongs in, the scaffold commands, what a module
 and how the change reaches a page.
 
 The page directory is self-contained: a version the user approved can't change under
-them. Re-running `page init` on a live page is the explicit re-vendor; note it in
-the next version's changelog. It refuses when the incoming layer no longer accepts a
-logged event kind or action contract (tag, verb, and detail), since that event would
-stop replaying.
+them. Re-vendoring a served page is an explicit quiescent sequence:
+
+1. Run `leaf server stop <page>`. This disables the desired service and waits until
+   the old process has released its listening socket, accepted connections, and live
+   lease.
+2. Run `leaf page init <page>`, then `leaf server start <page>`. The recorded lifetime
+   is restored, so a standing page needs no repeated `--standing` flag.
+
+The recorded address, port, and key restore the exact URL, and the page's status is
+untouched. Before writing, `page init` refuses an enabled or live service, or an
+incoming layer that no longer accepts a logged event contract. Note the re-vendor in
+the next version's changelog. Each successful init embeds a new layer epoch in both
+the runtime and registry: an open or half-loaded tab from the previous contract
+reloads before its next poll or event can cross into the replacement server.
 
 ## Where the page is served
 
@@ -699,16 +717,19 @@ networks this machine is already on: there is no public tunnel — a tunnel woul
 log's one door on the open internet, and a fresh tunnel hostname each restart would strand
 the URL an open page is polling.
 
-Address and bind are recorded once in `<page>/access.json` — `--host` goes there too —
-because a restart has to reproduce the URL an open browser is still polling. Deleting that
-file derives the address again from the session running now. The key is the machine's
-rather than the page's, minted on the first serve and kept in the state home: handing out
-one page's URL hands out every page on this machine.
+Address, bind, port, enabled state, and lifetime live in `<page>/service.json` —
+`--host` goes there too — because a restart has to reproduce the URL an open browser
+is still polling. Deleting that file derives the address and lifetime again from the
+session running now. The key is the machine's rather than the page's, minted on the
+first serve and kept in the state home: handing out one page's URL hands out every page
+on this machine.
 
 ## A page that outlives the session
 
-`server start` from your session claims the page, and the server goes down when the
-session ends. Two launches decline that claim and stay up instead:
+On a page with no recorded lifetime, `server start` from your session chooses a
+session lifetime, so its process goes down when the page has no live claiming session.
+That does not finish the work or disable desired service: a successor's `leaf wait`
+can revive the exact URL. The choice survives an explicit stop and restart. Two first launches choose a standing lifetime instead:
 `server start --standing`, and a serve from a shell of the user's own — a terminal, a
 login item. Either is a **standing page**, the arrangement for a command hub or a
 dashboard they keep open for weeks. The serve says which lifetime it started on the line
@@ -716,20 +737,21 @@ after the URL. Start one with `--standing` when the page is meant to outlive you
 session, and say so when you do, since the user inherits a process only that command
 stops.
 
-Nothing supervises a standing server and no session's end reaches it; `leaf server stop
-<page>` is the only thing that ends one. A `leaf wait` watching the page brings one back
-if it dies underneath, standing as it was — the lifetime is recorded beside the
-address rather than held by the process — so there is nothing to re-establish.
+Only `leaf server stop <page>` disables a service. A standing process also ignores
+session claims, so it remains up between sessions. A `leaf wait` watching an enabled page brings its server back if the
+process dies, standing as it was — the lifetime is recorded beside the address rather
+than held by the process — so there is nothing to re-establish.
 
-Working on a standing page changes nothing in the loop, and adds one step before it:
-the page carries weeks of decisions your session never saw, so read
-`leaf page state <page>` first — the standing state the log has folded onto the page,
-the asks still open, and where the markup lags a decision, as one JSON object. Then
-pick it up with `leaf wait <page>` — naming the page is what claims it for this
-session — publish versions as usual, and expect the same
-loop while your session lasts — a
-`server start` of your own finds the standing server already up, prints its URL, and
-leaves it running. What changes is the ending: don't stop the server, and use
+Working on a standing page changes nothing in the loop. Before Leaf pickup, the host
+selects exactly one successor session. Neither `page state` nor `leaf wait` grants an
+exclusive lease. The selected successor reads `leaf page state <page>` first — the
+standing state the log has folded onto the page, the asks still open, and where the
+markup lags a decision, as one JSON object. If it reports a live watcher, the host ends
+that watcher before this session continues. Then the selected successor runs
+`leaf wait <page>`, which claims the page for this session, publishes versions as usual,
+and follows the same loop while your session lasts. A `server start` of your own finds
+the standing server already up, prints its URL, and leaves it running. What changes is
+the ending: don't stop the server, and use
 `leaf status <page> idle` only when the *page* is finished, not when your work on it
 is. A session that just ends leaves the page up and unheld, which is what the user sees
 between sessions and what the banner says; an idled one reads "Leaf closed" to

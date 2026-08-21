@@ -427,6 +427,8 @@ def serve(tmp_path, monkeypatch):
         )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
+        go.httpd = httpd
+        go.servers = servers
         go.page_dir = d  # for tests that publish a v2 or read the event log
         # The key rides in the URL exactly as it does in a handover, so the first
         # navigation of each browser context earns the cookie the rest of the
@@ -448,6 +450,12 @@ def page_registry(page):
     the whole question those readings answer.
     """
     return interact.served(page, page.url, "/registry.json").json()
+
+
+def post_event(page, url, **kwargs):
+    """An event arriving from another tab running this page's current layer."""
+    generation = page_registry(page)["$layer"]["generation"]
+    return page.request.post(url, headers={"Leaf-Layer": generation}, **kwargs)
 
 
 # What the page has sent and how much of it has come back, counted where the traffic is:
@@ -2704,6 +2712,122 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     page.close()
 
 
+def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, serve):
+    """The layer epoch closes the gap between a stopped server and an open tab.
+
+    Polls are refused so the stale click, not a preceding state read, discovers the
+    change. Its old contract must append nothing and reload; the same real click then
+    succeeds under the replacement contract.
+    """
+    url = serve(REPLAYED_PAGE)
+    page, errors = open_page(browser, url)
+    old_layer = page_registry(page)["$layer"]["generation"]
+    page.route("**/api/state*", refuse)
+    page.wait_for_event(
+        "request", predicate=lambda request: "/api/state" in request.url
+    )
+
+    old_server = serve.httpd
+    address = old_server.server_address
+    old_server.shutdown()
+    old_server.server_close()
+    project = serve.page_dir.parent / ".leaf"
+    project.mkdir()
+    (project / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
+    initialized = CliRunner().invoke(
+        interact.cli, ["page", "init", str(serve.page_dir)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    new_layer = interact.layer_generation(serve.page_dir)
+    assert new_layer != old_layer
+    replacement = interact.LeafHTTPServer(
+        address, interact.handler_for(serve.page_dir, TOKEN)
+    )
+    threading.Thread(target=replacement.serve_forever, daemon=True).start()
+    serve.servers.append(replacement)
+    serve.httpd = replacement
+
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#opt-stage").click()
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert [
+        event
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == []
+
+    page.unroute("**/api/state*")
+    told(page)
+    page.wait_for_function(BOTH_STAMPS)
+    page.locator("#opt-stage").click()
+    round_trip(page)
+    actions = [
+        event
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert [(event["widget"], event["action"]) for event in actions] == [
+        ("approach", "choose")
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serve):
+    """The runtime bytes and registry are one contract, even across a slow fetch."""
+    url = serve(REPLAYED_PAGE)
+    gate_registry_once = """
+      if (!sessionStorage.getItem('lf-gated-registry')) {
+        sessionStorage.setItem('lf-gated-registry', '1');
+        const nativeFetch = window.fetch.bind(window);
+        window.lfRegistryGate = new Promise(
+          resolve => window.lfReleaseRegistry = resolve
+        );
+        window.fetch = (...args) => {
+          const input = args[0];
+          const requested = typeof input === 'string' ? input : input.url;
+          if (new URL(requested, location.href).pathname === '/registry.json') {
+            window.lfRegistryBlocked = true;
+            return window.lfRegistryGate.then(() => nativeFetch(...args));
+          }
+          return nativeFetch(...args);
+        };
+      }
+    """
+    page, errors = open_page(
+        browser,
+        url,
+        init_script=gate_registry_once,
+        wait_until="domcontentloaded",
+        upgraded=False,
+    )
+    page.wait_for_function("() => window.lfRegistryBlocked === true")
+    old_layer = interact.layer_generation(serve.page_dir)
+
+    old_server = serve.httpd
+    address = old_server.server_address
+    old_server.shutdown()
+    old_server.server_close()
+    initialized = CliRunner().invoke(
+        interact.cli, ["page", "init", str(serve.page_dir)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    assert interact.layer_generation(serve.page_dir) != old_layer
+    replacement = interact.LeafHTTPServer(
+        address, interact.handler_for(serve.page_dir, TOKEN)
+    )
+    threading.Thread(target=replacement.serve_forever, daemon=True).start()
+    serve.servers.append(replacement)
+    serve.httpd = replacement
+
+    with page.expect_navigation(wait_until="load"):
+        page.evaluate("() => window.lfReleaseRegistry()")
+    page.wait_for_function(BOTH_STAMPS)
+    assert page.evaluate("() => sessionStorage.getItem('lf-gated-registry')") == "1"
+    assert errors == []
+    page.close()
+
+
 def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser, serve):
     """A press in design mode is a comment about the layer, and that is all it does.
 
@@ -3677,29 +3801,28 @@ def live_leaf(tmp_path, monkeypatch):
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         port = httpd.server_address[1]
-        # Held, not merely written: the exclusive lock on the record is what
-        # says a server is up, so a neighbour this fixture stands up holds one
-        # exactly as `server run` does.
-        record = open(d / "server.json", "a+b")  # noqa: SIM115 - held, see above
-        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        record.write(
-            interact.json_bytes(
-                {
-                    "port": port,
-                    "pid": os.getpid(),
-                    "url": f"http://127.0.0.1:{port}/?t={TOKEN}",
-                }
-            )
+        # Desired address and a held, contentless lease are the two facts a real
+        # server exposes to neighbouring pages.
+        interact.write_json(
+            d / "service.json",
+            {
+                "host": "127.0.0.1",
+                "bind": "127.0.0.1",
+                "port": port,
+                "enabled": True,
+                "lifetime": "standing",
+            },
         )
-        record.flush()
-        held.append(record)
+        lease = open(d / "server.lock", "a+b")  # noqa: SIM115 - held, see above
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        held.append(lease)
         return f"http://127.0.0.1:{port}", d
 
     yield go
     for httpd in servers:
         httpd.shutdown()
-    for record in held:
-        record.close()
+    for lease in held:
+        lease.close()
 
 
 @pytest.fixture
@@ -12920,7 +13043,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # A comment landing from elsewhere re-runs the anchor pass, which splits the text
     # nodes the painted range is pinned to. The reader is mid-sentence; their passage
     # can neither blink out nor come back covering the wrong words.
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -12964,7 +13088,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     assert not composer_quote(page)["shown"], (
         "the outline is on the figure and the composer names its section as well"
     )
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "version": 1, "text": "and another"},
     )
@@ -14974,7 +15099,8 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     assert len(held) == 19, (
         f"this assertion needs a selection to survive; it made {held!r}"
     )
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "version": 2, "text": "arriving from another tab"},
     )
@@ -15703,7 +15829,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         "spanning two blocks": "more than one text node. A neighbouring block",
     }
     for name, quote in forms.items():
-        page.request.post(
+        post_event(
+            page,
             url.rsplit("/versions/", 1)[0] + "/api/event",
             data={
                 "kind": "comment",
@@ -15722,7 +15849,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
     # page's gaps are word boundaries, and a quote that runs across one is naming
     # something the page doesn't say — "never" must not find the tail of "on every".
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -15816,7 +15944,8 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     because a synthetic click event sails straight past the gap it lives in."""
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, url)
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -15868,7 +15997,8 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     # A quote inside the figure's caption: a painted range, so opening the panel reflows the
     # text out from under the pointer. An element anchor wouldn't show it — a figure still
     # covers the same point after the column narrows.
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -16003,7 +16133,8 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     )
 
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -16593,7 +16724,8 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, url)
     for text in ("first on the figure", "second on the figure"):
-        page.request.post(
+        post_event(
+            page,
             url.rsplit("/versions/", 1)[0] + "/api/event",
             data={
                 "kind": "comment",
@@ -16616,7 +16748,8 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     painted range has to be asked again, so everything that moves the page asks."""
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -21285,10 +21418,11 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
 
 def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
     """The chrome is wired before the asynchronous registry fetch completes.
-    That interval is real state, not a missing-registry fallback: general
-    Comments remains usable, but an anchored comment waits until upgrades have
-    made the page's final words. The explicit gate proves each assertion runs on
-    the intended side of the fetch rather than racing a timer."""
+    That interval is real state, not a missing-registry fallback: general Comments
+    accepts a send but holds it until the layer identity arrives, while an anchored
+    comment waits until upgrades have made the page's final words. The explicit gate
+    proves each assertion runs on the intended side of the fetch rather than racing a
+    timer."""
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
       window.lfRegistryGate = new Promise(resolve => window.lfReleaseRegistry = resolve);
@@ -21337,13 +21471,14 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
-    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
     # Authored content is deliberately not selectable until replay can make it honest.
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")
+    expect(page.locator(".lf-thread")).to_have_count(2)
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")

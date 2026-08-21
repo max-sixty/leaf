@@ -262,12 +262,34 @@ export function failSoft(el, err, source) {
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
-const postEvent = (event) =>
-  fetch("/api/event", {
+const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
+let layerGeneration = vendoredLayerGeneration;
+let revealLayer;
+const layerReady = new Promise((resolve) => (revealLayer = resolve));
+let layerReloading = false;
+function sameLayer(generation) {
+  if (generation === layerGeneration) return true;
+  if (!layerReloading) {
+    layerReloading = true;
+    location.reload();
+  }
+  return false;
+}
+
+const postEvent = async (event) => {
+  await layerReady;
+  const response = await fetch("/api/event", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Leaf-Layer": layerGeneration,
+    },
     body: JSON.stringify(event),
   });
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
+  return response;
+};
 
 // The page reporting itself broken, to the party who can fix it: the agent
 // authored the page and its widgets, and before this the only route for a
@@ -1528,7 +1550,13 @@ async function upgradeWidgets() {
   const response = await fetch("/registry.json");
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (responseGeneration && !sameLayer(responseGeneration)) return;
   registry = await response.json();
+  const registryGeneration = registry.$layer?.generation;
+  if (typeof registryGeneration !== "string" || !registryGeneration)
+    throw new Error("leaf: registry lacks $layer.generation");
+  if (!sameLayer(registryGeneration)) return;
   if (
     !registry.$events?.kinds ||
     !registry.$languages?.names ||
@@ -1536,6 +1564,7 @@ async function upgradeWidgets() {
     !registry.$tones?.names
   )
     throw new Error("leaf: registry lacks $events, $languages or $tones");
+  revealLayer();
   rememberPassageParts();
   rememberAuthoredMarkup();
   markWide(document.body);
@@ -3892,6 +3921,7 @@ async function post(event) {
   let minted;
   try {
     const res = await mine;
+    if (!res) return null; // a newer layer is taking this tab over
     if (!res.ok) throw new Error(await res.text());
     ({ event: minted } = await res.json());
   } catch {
@@ -10801,6 +10831,8 @@ async function poll() {
     // JSON or processing errors escape so the caller retains the recovery boundary.
     res = null;
   }
+  const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
+  if (responseGeneration && !sameLayer(responseGeneration)) return;
   // A refusal is not state: the server answers a missing key with error-shaped JSON at
   // 403. A live server refusing the key and a dead one both leave the page unreachable
   // from here, and the terminal link is the recourse for both.
@@ -10819,6 +10851,7 @@ async function poll() {
     document.dispatchEvent(new Event("lf-actions"));
     return;
   }
+  if (!sameLayer(state.layer)) return;
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
   // post() and the timer can poll together. The log is append-only, so a response

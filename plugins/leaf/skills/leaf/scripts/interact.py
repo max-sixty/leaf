@@ -67,30 +67,24 @@ A page directory holds:
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
                          `leaf ack`
-    server.json          {"port", "pid", "url"} for the running server, held
-                         open under an exclusive lock for that process's life:
-                         the lock is the claim (whoever takes it serves the
-                         page) and the liveness at once, so a record whose
-                         writer is gone — crashed, killed, or lost to a
-                         reboot — is free for the taking and reads as stale
-    access.json          {"host", "bind", "port", "lifetime"}: the name the page's
-                         URL carries, the interface its server binds, the exact
-                         port, and what may take the server down. Derived at the
-                         first `server run` and kept, because a restart has to
-                         reproduce the URL an open browser is already polling —
-                         the port included, since a revive on the next free port
-                         reports success while the open tab polls the old one.
-                         lifetime is "session" when the first server start claimed the
-                         page and "standing" when nothing did (or --standing
-                         declined to); it survives revives, and `server stop`
-                         clears it so the next serve decides afresh. The key the
-                         URL also carries is the machine's, not the page's, and
-                         lives in the state home
-    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent session
-                         last working on the page — the watcher the banner names,
-                         not necessarily the author of any given message — and the
-                         directory that session was working in, which is how the
-                         leaves board tells one page from another
+    service.json         {"host", "bind", "port", "enabled", "lifetime"}: the
+                         durable desired service. It preserves the exact URL an
+                         open browser polls and whether a session may end it.
+                         A crash leaves it enabled so `leaf wait` can revive it;
+                         `server stop` disables it and leaves the address and
+                         lifetime ready for a later start. The key in the URL is
+                         the machine's, not the page's, and lives in the state home
+    server.lock          a contentless live-server lease, locked for the process's
+                         whole life. The kernel releases it on a crash. A stop
+                         asks the server to exit through service.json and waits
+                         for this lease, so no listening or accepted socket
+                         remains when the command returns
+    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent
+                         session last working on the page — the watcher the
+                         banner names, not necessarily the author of any given
+                         message — and the directory that session was working
+                         in, which is how the leaves board tells one page from
+                         another
 
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
@@ -118,7 +112,9 @@ life unheld, and picks up again the moment a session takes it.
 The `hook` command closes the same gap from the agent's side. Registered on
 Stop, UserPromptSubmit and SessionEnd, it refuses to let a turn end with one of
 this session's pages unwatched, surfaces unacknowledged user events at the next
-prompt, and idles the pages and stops their servers when the session exits. It
+prompt, and releases the session's page claims when it exits. Session death is
+not completion or an explicit stop: work status and desired service stay as they
+were, while a session server retires once no live successor has claimed it. It
 finds the session's pages through ~/.local/state/leaf/sessions/<session id>.json,
 where the serve and `leaf wait` write the host session identity the environment
 carries; absent that identity (interact.py run outside an agent host), nothing
@@ -140,25 +136,23 @@ its own and hands back the URL that process printed and the lifetime it
 recorded — so a killed background task costs only the watcher and leaves every
 page up, and recovery is one `leaf wait`.
 
-Whether a session's end reaches a server is decided once, at launch, and written
-down in access.json as the lifetime. A server start from an agent host claims the
-page, and that claim is what two reapers act on: a watcher thread stops the process
-when the claimant pid goes, and SessionEnd idles the page and stops the server.
-A server run from a bare shell — a terminal, a launchd job — claims nothing, and that
+Whether a session's end reaches a server is decided at launch and written in
+service.json as its lifetime. A serve from an agent host claims the page in
+session.json. Claim replacement and release cross their own narrow lock: a
+successor arriving before the session server's final recheck keeps that process;
+one arriving afterward finds the old process and lease already gone and revives
+the still-enabled service. Neither path changes the page's authored work status.
+A serve from a bare shell — a terminal, a launchd job — claims nothing, and that
 is the standing serve: a page kept up across sessions, for a command hub or a
 dashboard someone leaves open for weeks. `server start --standing` makes the
 same statement from inside a host: the launch declines the claim, for a page
-meant to outlive the session that starts it: under a harness that restarts
-mid-session, the claimant pid churns, and a claimed server reads the old pid's
-death as the session ending. No daemon is involved, and a server that dies under
-a `leaf wait` watching the page is revived by that wait — as standing, because
-the lifetime comes from the record. `leaf server stop` is a standing
+meant to outlive the session that starts it. No daemon is involved, and a server
+that dies under a `leaf wait` watching an enabled page is revived with the
+lifetime and exact URL in service.json. `leaf server stop` is a standing
 server's one reaper, and that is the whole of what "standing" means. A session
 that picks the page up later owes it a watcher while the session lives, exactly
-as it would any page, and takes nothing down when it ends: no watcher was ever
-started for a server the session didn't launch, and SessionEnd leaves a standing
-server alone rather than adopting it — the page's status included, since the
-leaf outlives the session that answered on it for an afternoon.
+as it would any page. Its claim comes and goes without changing the standing
+service or the page's status.
 
 `page init` vendors the runtime, theme, registry, widgets, and vendor assets into the
 page directory, overlaying by precedence: leaf's integrated layer (the runtime,
@@ -173,12 +167,22 @@ than deep-merging its schema; runtime, widget, and vendor files replace by path.
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, noted in the next version's changelog.
+is the explicit re-vendor, noted in the next version's changelog. A served page
+is first stopped, which disables its desired service and waits for the process
+and every accepted connection to retire. After re-vendoring, `server start`
+restores its URL and lifetime; its status needs no maintenance copy. One
+transition covers start, stop, init, contract-bearing CLI writes, and preview
+reads. Stop retains it through the server's release, so no operation can cross
+the old process's contract.
 
 The registry is shared by the JS runtime, the POST and re-vendor action gates,
 this file's `version check` and thread-markup validation, the passage reader
 `leaf comment` anchors through, and the `page catalog` the agent reads. Each
-entry is JSON Schema over the instance built from the element's attributes
+successful init embeds a fresh `$layer.generation` in both leaf.js and the
+registry. State reports it and event requests carry it; the server repeats it on
+contract responses, so an old or half-loaded tab reloads before a replacement
+server can interpret or append its event. Every widget entry is JSON Schema over the instance built
+from the element's attributes
 (values as strings, flag attributes as True). What JSON Schema has no
 vocabulary for rides in the custom keywords below:
     x-parent    the tags this element may be a direct child of
@@ -457,6 +461,7 @@ import base64
 import contextlib
 import ctypes
 import errno
+import functools
 import hashlib
 import ipaddress
 import json
@@ -485,8 +490,8 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 # A session-managed server gives a replacement session one short poll window to
-# claim the page before it closes. The claim itself is the ownership record:
-# manual servers have none and therefore remain up until `server stop`.
+# claim the page before it closes. session.json is the ownership record; a
+# standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
 # The browser's event kinds, and per kind the fields something downstream reads.
 # POST /api/event is the one door they come through, so this is where the shape is
@@ -773,6 +778,7 @@ ASSETS = Path(__file__).resolve().parent.parent / "assets"
 BUNDLED = Path(__file__).resolve().parent.parent / "bundled"
 VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
 VENDORED_DIRS = ("widgets", "vendor")
+LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
@@ -796,8 +802,8 @@ PAGE_STATE_FILES = (
     "status.json",
     "waiter.lock",
     "cursor.json",
-    "server.json",
-    "access.json",
+    "service.json",
+    "server.lock",
     "session.json",
 )
 PAGE_OWNED_FILES = (*VENDORED_FILES, *PAGE_STATE_FILES)
@@ -849,11 +855,11 @@ def require_cross_process_locking() -> None:
 @contextlib.contextmanager
 def flocked(path: Path):
     """An exclusive lock held while the block runs — the one serialization
-    primitive here. The log file serializes its own appends, the cursor
-    read-modify-write derived from it, and the claim and status
-    transitions beside it; a `.lock` beside a registry of JSON files serializes
-    updates to them, since the files themselves are replaced by rename and a
-    lock on a replaced inode holds nothing."""
+    primitive here. The log serializes appends, cursor and status updates, and
+    delivery. Stable purpose locks serialize claims and contract or service
+    transitions; a `.lock` beside a registry of JSON files serializes updates
+    to them, since the files themselves are replaced by rename and a lock on a
+    replaced inode holds nothing."""
     require_cross_process_locking()
     with open(path, "a+b") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
@@ -1409,28 +1415,41 @@ def lock_is_held(path: Path) -> bool:
         return False
 
 
+def page_lock(page_dir: Path, purpose: str) -> Path:
+    """A stable lock for one page, outside the page it guards.
+
+    `page init` must reject a customization source without writing into it, so
+    locks that can meet init cannot live in the prospective page directory. The
+    resolved path gives every process the same lock while the purpose keeps the
+    contract transition independent from the page's current session claim.
+    """
+    locks = state_home() / "page-locks"
+    locks.mkdir(exist_ok=True)
+    key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:32]
+    return locks / f"{key}.{purpose}.lock"
+
+
+def transition_lock(page_dir: Path) -> Path:
+    """Serialize service changes, re-vendoring, and contract-bearing writes."""
+    return page_lock(page_dir, "transition")
+
+
+def claim_lock(page_dir: Path) -> Path:
+    """Serialize replacement and release of the page's current session."""
+    return page_lock(page_dir, "claim")
+
+
 def running_server(page_dir: Path):
-    """The recorded server, where its writer is still holding the record."""
-    info = read_json(page_dir / "server.json")
-    if not info or not lock_is_held(page_dir / "server.json"):
+    """The desired service, while a process holds its live-server lease."""
+    if not lock_is_held(page_dir / "server.lock"):
         return None
-    return info
-
-
-def standing_server(page_dir: Path) -> bool:
-    """Whether the page's running server is one no session's end may take down.
-
-    The first serve decided this and access.json records it — the durable file,
-    because the lifetime is a fact about the page's serve and not about whichever
-    launch most recently restarted the process. It lived in server.json once, and
-    a standing server the wait revived came back as the reviving session's own:
-    SessionEnd then stopped and idled the dashboard someone left up for weeks.
-    The two reapers a session has — the watcher thread and the SessionEnd hook —
-    ask this one question rather than each guessing from what it can see."""
-    return (
-        bool(running_server(page_dir))
-        and (read_json(page_dir / "access.json") or {}).get("lifetime") == "standing"
-    )
+    service = read_json(page_dir / "service.json")
+    if not service or not service["enabled"]:
+        return None
+    return {
+        **service,
+        "url": page_url(service["host"], service["port"], host_key()),
+    }
 
 
 def lifetime_note(page_dir: Path) -> str:
@@ -1442,11 +1461,10 @@ def lifetime_note(page_dir: Path) -> str:
     leaving it to be discovered, on the line after the URL, and names the command
     where that is the only way out.
 
-    Read from access.json, the one place a lifetime is written down. The record
-    lands before the URL is printed, so whoever holds the URL can read it, and a
-    page with no lifetime recorded is one `server stop` cleared — which leaves
-    the next serve to decide afresh."""
-    if (read_json(page_dir / "access.json") or {}).get("lifetime") == "standing":
+    Read from service.json, the one place a lifetime is written down. The record
+    lands before the URL is printed and survives an explicit stop, so a restart
+    restores the same lifetime as well as the same URL."""
+    if (read_json(page_dir / "service.json") or {}).get("lifetime") == "standing":
         return (
             "standing server: no agent session claimed this page, so it outlives "
             f"this shell. `leaf server stop {page_dir}` is what stops it."
@@ -1456,26 +1474,40 @@ def lifetime_note(page_dir: Path) -> str:
     )
 
 
-def stop_when_session_ends(httpd: "LeafHTTPServer", page_dir: Path) -> None:
-    """Stop a session-managed server once the page's current claimant is gone.
+def stop_when_service_ends(page_dir: Path) -> None:
+    """Apply desired state and session ownership from inside the server.
 
-    Read the claim afresh on every pass: another live session may take over the
-    already-running server, and then its pid — not the process that originally
-    launched the server — is the one whose lifetime matters. This watcher is
-    only started when `server run` has a claim, which is what makes the standing
-    serve work: a bare-shell server has no watcher to retarget, so a session
-    claiming the page afterwards inherits no power to end it.
+    The process exits as the shutdown operation. That closes the listening
+    socket, every accepted keep-alive socket, and the live lease together; a
+    graceful `shutdown()` can release the lease while a handler thread still
+    owns an accepted connection.
     """
     orphaned_at = None
     while True:
+        service = read_json(page_dir / "service.json")
+        if not service or not service["enabled"]:
+            os._exit(0)
+        if service["lifetime"] == "standing":
+            time.sleep(0.1)
+            continue
         session = read_json(page_dir / "session.json")
         if session and pid_alive(session["pid"]):
             orphaned_at = None
         elif orphaned_at is None:
             orphaned_at = time.monotonic()
         elif time.monotonic() - orphaned_at >= ORPHAN_GRACE_SECS:
-            httpd.shutdown()
-            return
+            # A claim and this final recheck cross one narrow lock. A successor
+            # either arrives first and keeps this process, or waits until this
+            # process exits and releases both the claim lock and server lease.
+            # Work status and desired service remain untouched: a crashed
+            # session did not finish the work or explicitly stop the page.
+            with flocked(claim_lock(page_dir)):
+                session = read_json(page_dir / "session.json")
+                if session and pid_alive(session["pid"]):
+                    orphaned_at = None
+                    continue
+                (page_dir / "session.json").unlink(missing_ok=True)
+                os._exit(0)
         time.sleep(0.1)
 
 
@@ -1505,7 +1537,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
     here rather than passed per run."""
-    access = read_json(page_dir / "access.json")
+    access = read_json(page_dir / "service.json")
     if access and host is None:
         return access
     if host:
@@ -1529,7 +1561,6 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
         ssh = os.environ.get("SSH_CONNECTION", "").split()
         addr = ssh[2] if len(ssh) == 4 else "127.0.0.1"
         access = {"host": addr, "bind": addr}
-    write_json(page_dir / "access.json", access)
     return access
 
 
@@ -1650,9 +1681,9 @@ def message_identity() -> dict:
 
 def session_pid(identity: dict) -> int:
     """The process whose lifetime is the agent session's, which is what the
-    claim records and two reapers act on: the registry sweep below drops a
-    session whose pid has gone, and a session-managed server stops
-    ORPHAN_GRACE_SECS after it (`stop_when_session_ends`).
+    claim records and its readers act on: the registry sweep below drops a
+    session whose pid has gone, and a session-managed server retires
+    ORPHAN_GRACE_SECS after it (`stop_when_service_ends`).
 
     Claude Code states it outright and Codex states nothing, so the Codex half
     is discovered: the nearest ancestor running the `codex` program. The
@@ -1701,10 +1732,7 @@ def claim_page(page_dir: Path) -> bool:
         return False
     pid = session_pid(identity)
     sid = identity["id"]
-    # The page's log lock is its one serialization primitive. A wait decides
-    # whether it may deliver or revive the server under this
-    # same lock, so a claim transfer is wholly before or wholly after each act.
-    with flocked(page_dir / "comments.jsonl"):
+    with flocked(claim_lock(page_dir)):
         write_json(
             page_dir / "session.json",
             # Where the session is working, which is what a page is *about* to the person
@@ -1712,12 +1740,7 @@ def claim_page(page_dir: Path) -> bool:
             # state directory nobody chose, and neither says which project it came out of.
             # The claiming command runs from the session's own directory, the same reading
             # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
-            {
-                **identity,
-                "pid": pid,
-                "cwd": os.getcwd(),
-                "ts": now_iso(),
-            },
+            {**identity, "pid": pid, "cwd": os.getcwd(), "ts": now_iso()},
         )
     sessions = state_home() / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
@@ -1737,6 +1760,16 @@ def claim_page(page_dir: Path) -> bool:
             sessions / f"{sid}.json", {"pid": pid, "pages": pages, "ts": now_iso()}
         )
     return True
+
+
+def release_page(page_dir: Path, session_id: str) -> bool:
+    """Remove one session's claim without erasing a successor's."""
+    with flocked(claim_lock(page_dir)):
+        session = read_json(page_dir / "session.json")
+        if not session or session["id"] != session_id:
+            return False
+        (page_dir / "session.json").unlink()
+        return True
 
 
 def session_pages(session_id: str) -> list:
@@ -1760,8 +1793,8 @@ def page_owned_by(page_dir: Path, identity: dict | None) -> bool:
     """Whether the waiter's host session currently owns this page.
 
     A bare-shell wait has no host claim and keeps its explicitly named page.
-    Callers that act on this answer hold the page's comments-log lock through
-    the act, so the answer cannot age between the ownership read and its use.
+    Callers that act on this answer hold the claim lock through the act, so the
+    answer cannot age between the ownership read and its use.
     """
     if identity is None:
         return True
@@ -1781,8 +1814,8 @@ def other_leaves(page_dir: Path) -> list:
     Candidates are the two places page directories are already written down:
     the conventional pages/ home and the live-session registry, which is what
     finds a page served from a session's scratch directory. Liveness is
-    server.json's pid, the same answer `running_server` gives everything else,
-    and the URL is the one that server minted, key included. The title is the
+    the held server.lock lease, the same answer `running_server` gives everything
+    else, and the URL is the one in durable service state, key included. The title is the
     newest published version's — the version that page's own root URL answers
     with — read the way `transcript` reads it.
 
@@ -1856,7 +1889,7 @@ def unacknowledged(events: list, cursor: int) -> list:
 
 
 def current_watch_state(page_dir: Path, identity: dict | None) -> str:
-    """Why a wait may act on this page, read while its log lock is held."""
+    """Why a wait may act, read while its claim and log locks are held."""
     if not page_owned_by(page_dir, identity):
         return "lost"
     status = read_json(page_dir / "status.json") or {"state": "idle"}
@@ -1947,8 +1980,11 @@ def presence(page_dir: Path, events: list) -> dict:
     }
 
 
-def full_state(page_dir: Path, events: list, versions: list) -> dict:
+def full_state(
+    page_dir: Path, events: list, versions: list, layer: str | None = None
+) -> dict:
     return {
+        "layer": layer or layer_generation(page_dir),
         "versions": versions,
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
@@ -2023,6 +2059,9 @@ class Handler(BaseHTTPRequestHandler):
     def end_headers(self):
         # Every response ends here — answered, redirected, or refused — so the
         # cookie has one writer rather than one per path that sends a header.
+        path = urlsplit(self.path).path
+        if path.startswith("/api/") or path == "/registry.json":
+            self.send_header("Leaf-Layer", self.layer)
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",
@@ -2099,7 +2138,12 @@ class Handler(BaseHTTPRequestHandler):
             # versions through the handler's own view, so a preview server's
             # state agrees with what it serves (identical when not previewing).
             events = read_events(self.page_dir)
-            state = full_state(self.page_dir, events, self.versions_live(events))
+            state = full_state(
+                self.page_dir,
+                events,
+                self.versions_live(events),
+                layer=self.layer,
+            )
             # Every URL in `others` carries the key this reader arrived on, since
             # there is one key for the machine (`host_key`) — so the list is a
             # way to the neighbours rather than a way past anything.
@@ -2148,6 +2192,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if urlsplit(self.path).path != "/api/event":
             self._json({"error": "not found"}, 404)
+            return
+        current_layer = self.layer
+        if self.headers.get("Leaf-Layer") != current_layer:
+            # Consume the request so this HTTP/1.1 connection remains a valid
+            # stream. The body is deliberately not parsed: a runtime from an old
+            # layer has no event vocabulary this server may interpret.
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self._json({"layer": current_layer})
             return
         try:
             event = json.loads(
@@ -2328,6 +2380,7 @@ def handler_for(
             "token": token,
             "preview_upto": preview_upto,
             "protocol_version": protocol_version,
+            "layer": layer_generation(page_dir),
         },
     )
 
@@ -2540,7 +2593,14 @@ def layered_theme(layers: list) -> str:
     return "".join(parts)
 
 
-def cmd_init(page_dir: Path) -> None:
+def _cmd_init_locked(page_dir: Path) -> None:
+    service = read_json(page_dir / "service.json")
+    server_live = lock_is_held(page_dir / "server.lock")
+    if server_live or (service and service["enabled"]):
+        sys.exit(
+            f"cannot re-vendor {page_dir} while its service is enabled. "
+            f"Run `leaf server stop {page_dir}` first."
+        )
     # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
     # where drift has to be caught: a tag or verb the new layer omits, or a
     # detail schema that no longer accepts an old payload, makes a recorded
@@ -2620,6 +2680,19 @@ def cmd_init(page_dir: Path) -> None:
         if source is None:
             sys.exit(f"the incoming layer has no {name}")
         top_files[name] = source.read_bytes()
+    # `page init` is the contract transition, even when its input bytes happen to
+    # match the last run. The browser carries this epoch on every write so an open
+    # tab cannot post through a runtime whose server contract was re-vendored under it.
+    generation = secrets.token_hex(16)
+    incoming["$layer"] = {"generation": generation}
+    runtime = top_files["leaf.js"]
+    if runtime.count(LAYER_PLACEHOLDER) != 1:
+        sys.exit(
+            "the incoming leaf.js must contain exactly one layer-generation placeholder"
+        )
+    top_files["leaf.js"] = runtime.replace(
+        LAYER_PLACEHOLDER, json.dumps(generation).encode()
+    )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
     directory_files = {
@@ -2655,7 +2728,7 @@ def cmd_init(page_dir: Path) -> None:
             sys.exit(f"{target} must be a file")
 
     # Owner-only when this call creates it: the directory holds the discussion
-    # and a server.json whose URL carries the machine key. A directory the
+    # and service state whose URL carries the machine key. A directory the
     # caller already made keeps the mode they chose.
     page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     (page_dir / "versions").mkdir(exist_ok=True)
@@ -2687,6 +2760,12 @@ def cmd_init(page_dir: Path) -> None:
     if not (page_dir / "status.json").exists():
         cmd_status(page_dir, "working", "Writing the page")
     print(f"initialized {page_dir}")
+
+
+def cmd_init(page_dir: Path) -> None:
+    """Replace a disabled page's vendored contract as one lifecycle transition."""
+    with flocked(transition_lock(page_dir)):
+        _cmd_init_locked(page_dir)
 
 
 CUSTOM_THEME = """\
@@ -3047,140 +3126,118 @@ def cmd_serve(
     page_dir: Path,
     host: str | None = None,
     standing: bool = False,
+    revive: bool = False,
 ) -> None:
     require_cross_process_locking()
-    # Serving and claiming are separate operations. `server start` claims before
-    # it spawns this service; a wait that revives the server already owns the
-    # page. A revival reads the claim while the waiter holds the log lock. The
-    # service never writes ownership, so it cannot overtake a later owner.
-    identity = host_identity()
-    claim = read_json(page_dir / "session.json")
-    claimed = bool(
-        not standing
-        and identity is not None
-        and claim
-        and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
-    )
-    existing = running_server(page_dir)
-    if existing:
-        # Read, never derive: a refusal must not rewrite the record it refuses
-        # over, and a running server proves the record exists.
-        access = read_json(page_dir / "access.json") or {}
-        # A stated host silently ignored would print a URL that contradicts the
-        # flag, so compare against that URL — what the user would be handed.
-        if host and urlsplit(existing["url"]).hostname != host.lower():
-            sys.exit(
-                f"already serving at {existing['url']}; `leaf server stop` "
-                "first, then re-run with --host"
-            )
-        # A stated lifetime silently ignored would print a note that contradicts
-        # the flag, exactly as a stated host would — same refusal, same way out.
-        if standing and access.get("lifetime") != "standing":
-            sys.exit(
-                f"already serving as a session server at {existing['url']}; "
-                "`leaf server stop` first, then re-run with --standing"
-            )
-        print(existing["url"], flush=True)
-        # The running server's lifetime, not this invocation's: claiming the page
-        # does not adopt a server this launch found already up.
-        print(lifetime_note(page_dir), file=sys.stderr, flush=True)
-        return
-    access = page_access(page_dir, host)
-    # The recorded lifetime outranks this launch's own shape, because a revive is
-    # this same command run bare from the watcher's child: a standing page stays
-    # standing however it comes back, and `server stop` — the arrangement's one
-    # reaper — is what clears the record so the next serve decides afresh.
-    lifetime = (
-        "standing"
-        if standing or access.get("lifetime") == "standing" or not claimed
-        else "session"
-    )
-    token = host_key()
-    base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
+    page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lease = None
     httpd = None
-    # A recorded port is bound exactly: the contract of access.json is that a
-    # restart reproduces the URL an open browser is already polling, and a port
-    # re-derived onto the next free number was a revive reporting success while
-    # the user's tab polled the old one forever.
-    ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-    for port in ports:
+    with flocked(transition_lock(page_dir)):
+        service = read_json(page_dir / "service.json")
+        if revive and (not service or not service["enabled"]):
+            sys.exit("service was stopped; not reviving")
+        if revive and service["lifetime"] == "session":
+            identity = host_identity()
+            with flocked(claim_lock(page_dir)):
+                claim = read_json(page_dir / "session.json")
+                owns = bool(
+                    identity
+                    and claim
+                    and (claim["host"], claim["id"])
+                    == (identity["host"], identity["id"])
+                )
+            if not owns:
+                sys.exit("this session no longer owns the service; not reviving")
+        claimed = False
+        existing = running_server(page_dir)
+        if existing:
+            if host and urlsplit(existing["url"]).hostname != host.lower():
+                sys.exit(
+                    f"already serving at {existing['url']}; `leaf server stop` "
+                    "first, then re-run with --host"
+                )
+            if standing and existing["lifetime"] != "standing":
+                sys.exit(
+                    f"already serving as a session server at {existing['url']}; "
+                    "`leaf server stop` first, then re-run with --standing"
+                )
+            if not standing and not revive:
+                claimed = claim_page(page_dir)
+                # The old session reaper and this claim meet at claim_lock. If
+                # it won, it exited before releasing the lock; do not return a
+                # URL from the liveness snapshot taken before that boundary.
+                existing = running_server(page_dir)
+            if existing:
+                print(existing["url"], flush=True)
+                print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+                return
+
+        access = page_access(page_dir, host)
+        token = host_key()
+        base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
+        ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
+        lease = open(page_dir / "server.lock", "a+b")  # noqa: SIM115 - process lease
         try:
-            httpd = server_at(
-                access["bind"],
-                port,
-                handler_for(page_dir, token, protocol_version="HTTP/1.1"),
-            )
-            break
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE and "port" not in access:
-                continue
-            # The address outlived the session that derived it — a page created
-            # over SSH and served again from elsewhere, a recorded port another
-            # process now holds. Naming where it was recorded is the whole fix.
-            sys.exit(
-                f"can't serve {page_dir} on {access['bind']}"
-                f"{':' + str(access['port']) if 'port' in access else ''}: {e}\n"
-                f"that address came from the session that first served this page and is "
-                f"kept in {page_dir / 'access.json'}; delete that file to derive the "
-                "address again from this one, or re-run with --host NAME to bind every "
-                "interface and put NAME in the URL."
-            )
-    url = page_url(access["host"], httpd.server_address[1], token)
-    # The lock is the claim and the liveness at once, so taking it is the whole
-    # of becoming this page's server: two `server run`s racing past the check
-    # above both bind (the scan hands the loser the next port), and the one that
-    # takes the lock is the one that serves. Held open for this process's life —
-    # `record` stays in scope deliberately — so the kernel releases it on exit,
-    # crash or reboot alike, and the next reader sees the truth with nothing to
-    # clean up.
-    record = open(page_dir / "server.json", "a+b")  # noqa: SIM115 - held for this process's life
-    try:
-        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        httpd.server_close()
-        record.close()
-        winner = running_server(page_dir)
-        if not winner:
-            sys.exit(f"another `server run` raced this one on {page_dir}; re-run")
-        print(winner["url"], flush=True)
-        print(lifetime_note(page_dir), file=sys.stderr, flush=True)
-        return
-    record.truncate(0)
-    # The durable record, only from the winner: written before the link decided
-    # the race, a loser's copy could name a port nothing listens on, and the next
-    # revive would bind exactly that. Ahead of the record's own content, so a
-    # reader that finds a live server finds the lifetime it is running under.
-    write_json(
-        page_dir / "access.json",
-        {**access, "port": httpd.server_address[1], "lifetime": lifetime},
-    )
-    # The pid is what `server stop` signals. It is safe to signal now for the
-    # same reason the record is trustworthy: the lock says this process is the
-    # one that wrote it, so the number cannot have been dealt to a stranger.
-    record.write(
-        json_bytes({"port": httpd.server_address[1], "pid": os.getpid(), "url": url})
-    )
-    record.flush()
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            lease.close()
+            sys.exit(f"another `server run` is serving {page_dir}; re-run")
+        for port in ports:
+            try:
+                httpd = server_at(
+                    access["bind"],
+                    port,
+                    handler_for(page_dir, token, protocol_version="HTTP/1.1"),
+                )
+                break
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE and "port" not in access:
+                    continue
+                lease.close()
+                sys.exit(
+                    f"can't serve {page_dir} on {access['bind']}"
+                    f"{':' + str(access['port']) if 'port' in access else ''}: {e}\n"
+                    f"that address is kept in {page_dir / 'service.json'}; delete "
+                    "that file to derive the address again from this session, or "
+                    "re-run with --host NAME."
+                )
+        # A watcher claimed before deciding to revive. An explicit start claims
+        # only after every refusal and bind has succeeded, so a failed launch
+        # cannot take a live page away from another session.
+        if not standing and not revive and not claimed:
+            claimed = claim_page(page_dir)
+        lifetime = (
+            "standing"
+            if standing
+            or access.get("lifetime") == "standing"
+            or (not revive and not claimed)
+            else "session"
+        )
+        service = {
+            "host": access["host"],
+            "bind": access["bind"],
+            "port": httpd.server_address[1],
+            "enabled": True,
+            "lifetime": lifetime,
+        }
+        write_json(page_dir / "service.json", service)
+        url = page_url(service["host"], service["port"], token)
+
     # The URL is the payload and goes to stdout alone, as everything downstream
     # reads it there; what ends this process is the account beside it, and stderr
     # is where leaf's other accounts of themselves already go.
     print(url, flush=True)
     print(lifetime_note(page_dir), file=sys.stderr, flush=True)
-    if lifetime == "session":
-        threading.Thread(
-            target=stop_when_session_ends,
-            args=(httpd, page_dir),
-            daemon=True,
-        ).start()
+    threading.Thread(
+        target=stop_when_service_ends,
+        args=(page_dir,),
+        daemon=True,
+    ).start()
     try:
         httpd.serve_forever()
     finally:
-        # The lock this process holds is what said the record was live, so
-        # letting go is the whole of taking the page down — an exit that
-        # skipped this (a crash, a kill) says the same thing by the same
-        # means. Removing the file is tidiness, and only ours to do.
-        record.close()
-        (page_dir / "server.json").unlink(missing_ok=True)
+        httpd.server_close()
+        lease.close()
 
 
 def write_status(
@@ -3202,6 +3259,7 @@ def start_server(
     page_dir: Path,
     host: str | None = None,
     standing: bool = False,
+    revive: bool = False,
 ) -> tuple[str, str] | None:
     """Put the page's server up in a session of its own, and report where.
 
@@ -3210,11 +3268,10 @@ def start_server(
     rather than held, and the one long-running command a leaf costs its session
     is the watcher. The module docstring carries the rest of that.
 
-    A private service command in a session of its own is the whole mechanism.
-    The caller owns the page claim: `server start` writes it before spawning,
-    while a revival starts under the waiter's serialized ownership decision.
-    The service child reads that claim and never writes it. sys.executable is the
-    resolved uv environment, so this skips uv.
+    `server run` in a session of its own is the whole mechanism. An explicit
+    start may enable a stopped service; a revival carries the narrower intent
+    "only if still enabled," which the child checks inside the transition.
+    sys.executable is the resolved uv environment, so this skips uv.
 
     Returns where the page is and what ends it — the URL the child minted and
     the note for the lifetime it recorded — or None, having put the child's
@@ -3226,10 +3283,11 @@ def start_server(
             sys.executable,
             str(Path(__file__).resolve()),
             "server",
-            "_serve",
+            "run",
             str(page_dir),
             *(["--host", host] if host else []),
             *(["--standing"] if standing else []),
+            *(["--revive"] if revive else []),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -3275,9 +3333,11 @@ class Watch:
     unacknowledged batch, and the five-second server check with its one revival
     per death are the same facts whichever carrier asks.
 
-    A tick yields while the page's log lock remains held. The caller decides how
-    to deliver the batch before asking for the next tick, so claim transfer,
-    SessionEnd, event arrival, delivery, and the handoff status have one order.
+    A tick yields while the page's claim and log locks remain held. The caller
+    decides how to deliver the batch before asking for the next tick, so claim
+    transfer, event arrival, delivery, and the handoff status have one order.
+    A revival releases both locks before waiting for the service transition,
+    then rereads under both; no snapshot crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with no restart left to make.
     """
@@ -3323,11 +3383,41 @@ class Watch:
             # testable: a claim or SessionEnd can win after page selection,
             # and _read must then decline every stale act.
             observed = read_json(page_dir / "status.json") or {"state": "idle"}
-            with flocked(page_dir / "comments.jsonl"):
-                yield self._read(page_dir, observed)
+            with (
+                flocked(claim_lock(page_dir)),
+                flocked(page_dir / "comments.jsonl"),
+            ):
+                reading, revive = self._read(page_dir, observed)
+                if not revive:
+                    yield reading
+                    continue
 
-    def _read(self, page_dir: Path, observed: dict) -> PageTick:
-        """Read and maintain one page while its log lock is held."""
+            started = start_server(page_dir, revive=True)
+            key = str(page_dir)
+            if started:
+                self._revived.add(key)
+                self._lost.discard(key)
+            else:
+                self._lost.add(key)
+
+            # Ownership or status may have changed while the service transition
+            # ran. Only this second reading may be delivered.
+            with (
+                flocked(claim_lock(page_dir)),
+                flocked(page_dir / "comments.jsonl"),
+            ):
+                reading, _ = self._read(page_dir, observed)
+                if (
+                    started
+                    and reading.watch_state == "watching"
+                    and reading.live
+                    and not reading.lost
+                ):
+                    reading = reading._replace(restarted=started[0])
+                yield reading
+
+    def _read(self, page_dir: Path, observed: dict) -> tuple[PageTick, bool]:
+        """Read one page under its claim and log locks; say if revival is due."""
         watch_state = current_watch_state(page_dir, self.identity)
         status = (
             observed
@@ -3340,10 +3430,14 @@ class Watch:
             if watch_state != "lost"
             else []
         )
-        key, now, restarted = str(page_dir), time.time(), None
-        # Only live pages: SessionEnd idles a page and stops its server, and a
-        # watch winding down past that must not put it back up.
-        if watch_state == "watching" and live and now > self._check_at.get(key, 0):
+        service = read_json(page_dir / "service.json")
+        enabled = bool(service and service["enabled"])
+        key, now, revive = str(page_dir), time.time(), False
+        # Desired service state owns revival. Status says what the page is doing;
+        # it does not turn a deliberately disabled service back on.
+        if watch_state == "watching" and live and not enabled:
+            self._lost.add(key)
+        elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
             self._check_at[key] = now + 5
             if running_server(page_dir):
                 # A server seen running earns the next death its own revival —
@@ -3351,22 +3445,24 @@ class Watch:
                 # can't respawn every five seconds.
                 self._revived.discard(key)
                 self._lost.discard(key)
-            elif key in self._revived or not (started := start_server(page_dir)):
+            elif key in self._revived:
                 self._lost.add(key)
             else:
-                self._revived.add(key)
-                restarted = started[0]
+                revive = True
         elif watch_state != "watching" or not live:
             self._lost.discard(key)
             self._revived.discard(key)
-        return PageTick(
-            page_dir,
-            status,
-            batch,
-            live,
-            watch_state,
-            key in self._lost,
-            restarted,
+        return (
+            PageTick(
+                page_dir,
+                status,
+                batch,
+                live,
+                watch_state,
+                key in self._lost,
+                None,
+            ),
+            revive,
         )
 
     def release(self) -> None:
@@ -3423,6 +3519,13 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                     continue
                 if reading.live:
                     live.append(reading)
+                if reading.restarted:
+                    print(
+                        f"{reading.page_dir}: server had died; "
+                        f"restarted at {reading.restarted}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 # The batch outranks the page's state: a wait already holding
                 # events owes them to the agent whatever became of the leaf, so
                 # an idled page still delivers here — it just no longer holds
@@ -3446,13 +3549,6 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                             handoff=True,
                         )
                     return 0
-                if reading.restarted:
-                    print(
-                        f"{reading.page_dir}: server had died; "
-                        f"restarted at {reading.restarted}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
                 if reading.lost:
                     print(
                         f"{reading.page_dir}: server is not running; restart it with "
@@ -3460,9 +3556,8 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                         file=sys.stderr,
                     )
                     return 2
-            # A leaf that ended — the agent idled it, or SessionEnd did on its
-            # way out — has nobody left to carry a comment to, so it leaves the
-            # watch, and the last one gone ends the wait too.
+            # A leaf the agent idled has nobody left to carry a comment to, so it
+            # leaves the watch, and the last one gone ends the wait too.
             if not live:
                 if not readings:
                     print(
@@ -3716,6 +3811,18 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         )
 
 
+def contract_writer(function):
+    """Keep a CLI event's validation and append on one vendored contract."""
+
+    @functools.wraps(function)
+    def locked(page_dir: Path, *args, **kwargs):
+        with flocked(transition_lock(page_dir)):
+            return function(page_dir, *args, **kwargs)
+
+    return locked
+
+
+@contract_writer
 def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> None:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -3755,6 +3862,7 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
     print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
 
 
+@contract_writer
 def cmd_reply(page_dir: Path, to: str, text, markup: str, more: bool = False) -> dict:
     """Post a threaded reply, whole or as a stream's head. `more` marks the
     chain open — the channel's reply tool is what sets it, sending the opening
@@ -3807,6 +3915,7 @@ def require_streaming(page_dir: Path) -> None:
         )
 
 
+@contract_writer
 def post_append(
     page_dir: Path, continues: str, text: str, markup: str, more: bool = False
 ) -> dict:
@@ -3847,6 +3956,7 @@ def post_append(
     return append_event(page_dir, event)
 
 
+@contract_writer
 def cmd_resolve(page_dir: Path, to: str) -> None:
     """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole
@@ -3864,6 +3974,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
 
 
+@contract_writer
 def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     """A worker's provisional news: a declared state change folded onto a page
     widget, validated at this door the way the POST door validates an action,
@@ -3896,6 +4007,7 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
 
 
+@contract_writer
 def cmd_publish(page_dir: Path, version: int, text) -> None:
     name = version_name(version)
     path = version_path(page_dir, version)
@@ -3905,7 +4017,7 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
         )
     # Publishing makes the note the server's visibility gate, so a version that
     # fails the check cannot go live.
-    if cmd_check(page_dir, version) != 0:
+    if cmd_check(page_dir, version, transition_held=True) != 0:
         sys.exit(
             f"refusing to publish {name}: `leaf version check` failed (issues above)"
         )
@@ -4244,24 +4356,20 @@ def cmd_page_state(page_dir: Path) -> None:
 
 
 def cmd_stop(page_dir: Path) -> str:
-    info = running_server(page_dir)
-    if info:
-        os.kill(info["pid"], signal.SIGTERM)
-        outcome = f"stopped server pid {info['pid']}"
-    else:
-        outcome = "no server running"
-    (page_dir / "server.json").unlink(missing_ok=True)
-    # Stopping ends the standing arrangement along with the process — it is the
-    # arrangement's one reaper — so the next serve decides its lifetime afresh.
-    # A revive never comes through here, which is what keeps a standing page
-    # standing across the deaths it doesn't choose.
-    access = read_json(page_dir / "access.json")
-    if access and "lifetime" in access:
-        write_json(
-            page_dir / "access.json",
-            {k: v for k, v in access.items() if k != "lifetime"},
-        )
-    return outcome
+    require_cross_process_locking()
+    with flocked(transition_lock(page_dir)):
+        service = read_json(page_dir / "service.json")
+        live = lock_is_held(page_dir / "server.lock")
+        if service and service["enabled"]:
+            write_json(page_dir / "service.json", {**service, "enabled": False})
+        if live:
+            # The serving process observes the disabled service and owns its own
+            # shutdown. Taking its lease is the release barrier: the socket is
+            # closed before the server lets the lease go.
+            with open(page_dir / "server.lock", "a+b") as lease:
+                fcntl.flock(lease, fcntl.LOCK_EX)
+            return "stopped server"
+    return "no server running"
 
 
 # ---------- hook: the loop, enforced rather than remembered ----------
@@ -4396,21 +4504,11 @@ def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if event == "SessionEnd":
         for page_dir in owned_pages(sid):
-            with flocked(page_dir / "comments.jsonl"):
-                claim = read_json(page_dir / "session.json")
-                if not claim or claim["id"] != sid:
-                    continue
-                # A standing server is not this session's to end. Picking a page up
-                # earns the watch obligation, never the launch's authority over the
-                # process — and idling would close a leaf that outlives this
-                # session just as the server does, so both stand down together.
-                if standing_server(page_dir):
-                    continue
-                write_status(
-                    page_dir, "idle", "the session that opened this page has ended"
-                )
-                cmd_stop(page_dir)
-                (page_dir / "session.json").unlink(missing_ok=True)
+            # The claim is checked again under its own lock. A successor that
+            # arrived after owned_pages() was read remains current; lifecycle
+            # and authored work status are independent of this bookkeeping.
+            with flocked(transition_lock(page_dir)):
+                release_page(page_dir, sid)
         (state_home() / "sessions" / f"{sid}.json").unlink(missing_ok=True)
         return
     # stop_hook_active means this hook already blocked once and Claude is running
@@ -4645,7 +4743,7 @@ def cmd_mcp() -> None:
         status = read_json(page_dir / "status.json") or {"state": "idle"}
         if status["state"] != "working":
             n = len(batch)
-            # Watch.tick still holds the page's log lock through delivery.
+            # Watch.tick still holds the page's claim and log locks through delivery.
             write_status(
                 page_dir,
                 "working",
@@ -6835,6 +6933,18 @@ def load_registry(page_dir: Path):
     return read_registry(page_dir / "registry.json")
 
 
+def layer_generation(page_dir: Path) -> str:
+    """The epoch shared by this page's vendored runtime and server contract."""
+    registry = read_registry_entries(page_dir / "registry.json")
+    generation = (registry or {}).get("$layer", {}).get("generation")
+    if not isinstance(generation, str) or not generation:
+        raise RegistryError(
+            f"{page_dir / 'registry.json'}: vendored registry lacks $layer.generation; "
+            "run `leaf page init`"
+        )
+    return generation
+
+
 def require_registry(page_dir: Path) -> dict:
     """The vendored vocabulary, for a command that has nothing to do without one."""
     registry = load_registry(page_dir)
@@ -8100,7 +8210,15 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     )
 
 
-def cmd_check(page_dir: Path, version, render: bool = False) -> int:
+def cmd_check(
+    page_dir: Path,
+    version,
+    render: bool = False,
+    transition_held: bool = False,
+) -> int:
+    if not transition_held:
+        with flocked(transition_lock(page_dir)):
+            return cmd_check(page_dir, version, render, transition_held=True)
     versions = list_versions(page_dir)
     if not versions:
         sys.exit(
@@ -8321,7 +8439,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
         print(f"  · {line}")
     # Render only what passed the static half: an unparsable page would drown
     # the browser's report in consequences of what the lint already named.
-    return render_check(page_dir, selected) if render else 0
+    return render_check(page_dir, selected, transition_held=True) if render else 0
 
 
 # ---------- check --render: the browser half of the gate ----------
@@ -10030,7 +10148,7 @@ def render_version(browser, url: str) -> list:
 
 
 @contextlib.contextmanager
-def preview_server(page_dir: Path, version: int):
+def preview_server(page_dir: Path, version: int, transition_held: bool = False):
     """The page directory on a loopback port, exposing versions up to this one, for
     the length of a `with`. Two callers need a browser to see a version the user
     may not have (`version check --render` before its note lands, `version export`
@@ -10041,18 +10159,24 @@ def preview_server(page_dir: Path, version: int):
     # page here is read with. It sets that key under the one cookie name, which
     # would sign a reader out of every page on 127.0.0.1 — except that both
     # callers below drive Playwright, whose browser brings its own jar.
-    token = secrets.token_urlsafe(16)
-    httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), handler_for(page_dir, token, preview_upto=version)
+    transition = (
+        contextlib.nullcontext()
+        if transition_held
+        else flocked(transition_lock(page_dir))
     )
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    try:
-        yield f"http://127.0.0.1:{httpd.server_address[1]}/versions/{version_name(version)}?t={token}"
-    finally:
-        httpd.shutdown()
+    with transition:
+        token = secrets.token_urlsafe(16)
+        httpd = LeafHTTPServer(
+            ("127.0.0.1", 0), handler_for(page_dir, token, preview_upto=version)
+        )
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            yield f"http://127.0.0.1:{httpd.server_address[1]}/versions/{version_name(version)}?t={token}"
+        finally:
+            httpd.shutdown()
 
 
-def render_check(page_dir: Path, version: int) -> int:
+def render_check(page_dir: Path, version: int, transition_held: bool = False) -> int:
     """Serve the page directory to the machine's installed Chrome and run the
     render invariants on this version.
 
@@ -10074,7 +10198,10 @@ def render_check(page_dir: Path, version: int) -> int:
         )
         return 1
     name = version_name(version)
-    with preview_server(page_dir, version) as url, sync_playwright() as p:
+    with (
+        preview_server(page_dir, version, transition_held=transition_held) as url,
+        sync_playwright() as p,
+    ):
         try:
             browser = p.chromium.launch(channel="chrome")
         except PlaywrightError as error:
@@ -10559,7 +10686,7 @@ def serve_flags(command):
             "--host",
             metavar="NAME",
             help="bind every interface and put NAME in the URL, for a user the "
-            "derived address can't reach; recorded in access.json",
+            "derived address can't reach; recorded in service.json",
         ),
     ):
         command = option(command)
@@ -10577,22 +10704,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
-    page_dir = resolve_dir(dir)
-    claimed = not standing and claim_page(page_dir)
-    if claimed:
-        # The claim makes SessionEnd include this page. From here through the
-        # child's readiness line, the page log gives startup and SessionEnd one
-        # order. If SessionEnd occupied the gap after claim_page, it removed the
-        # claim and this launch stops here instead of reviving the ended page.
-        with flocked(page_dir / "comments.jsonl"):
-            if not page_owned_by(page_dir, host_identity()):
-                raise SystemExit(
-                    f"this session no longer owns {page_dir}; the server was not started"
-                )
-            started = start_server(page_dir, host, standing)
-    else:
-        started = start_server(page_dir, host, standing)
-    if not started:
+    if not (started := start_server(resolve_dir(dir), host, standing)):
         raise SystemExit(1)
     url, note = started
     print(url)
@@ -10602,25 +10714,15 @@ def start(dir: str, host: str | None, standing: bool) -> None:
 @server.command(short_help="Serve a page in the foreground until stopped.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def run(dir: str, host: str | None, standing: bool) -> None:
+@click.option("--revive", is_flag=True, hidden=True)
+def run(dir: str, host: str | None, standing: bool, revive: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
     From an agent session use `server start`. A page already served prints that
     server's URL and exits.
     """
-    page_dir = resolve_dir(dir)
-    if not standing:
-        claim_page(page_dir)
-    cmd_serve(page_dir, host, standing)
-
-
-@server.command("_serve", hidden=True)
-@click.argument("dir", metavar="PAGE")
-@serve_flags
-def service(dir: str, host: str | None, standing: bool) -> None:
-    """Run the detached service after its caller has decided ownership."""
-    cmd_serve(resolve_dir(dir), host, standing)
+    cmd_serve(resolve_dir(dir), host, standing, revive)
 
 
 @server.command(short_help="Stop a page's server.")
@@ -10647,9 +10749,8 @@ def status(dir: str, state: str, detail: str) -> None:
     # owed one — unread, or read and left. The watcher's whole batch, not the
     # reader-facing count, so a worker's report cannot be left standing as
     # provisional state forever either. Here rather than in cmd_status because
-    # SessionEnd idles pages whose session is already gone, where nothing is
-    # left to pick them up. The log lock gives the check and the transition one
-    # order with an event arriving or an acknowledgement advancing the cursor.
+    # the log lock gives the check and the transition one order with an event
+    # arriving or an acknowledgement advancing the cursor.
     if state != "idle":
         cmd_status(page_dir, state, detail)
         return

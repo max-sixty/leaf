@@ -2025,20 +2025,28 @@ class Handler(BaseHTTPRequestHandler):
         # refusal has to name the attempt it refuses: a browser holding that gesture in
         # its outbox reads `final` and nothing else as leave to put the gesture back,
         # so a refusal in any other shape is re-sent every poll for the life of the tab.
+        # That puts the read outside `_answer`'s boundary, which is why the refusals it
+        # returns are the whole of what it may do with a body it cannot use.
         self.posted, self.posted_error = self._read_posted()
         self._answer(self._post)
 
     def _read_posted(self) -> tuple:
-        """The POSTed body as a dict, or the refusal it has already earned."""
+        """The POSTed body as a dict, or the refusal it has already earned. Every way a
+        body can defeat the read is one of those refusals and never an exception: this
+        runs ahead of `_answer`, so nothing here would turn a raise into an answer, and
+        the socket drops instead — which the outbox reads as a lost connection and
+        re-posts every poll for the life of the tab."""
         try:
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         except (TypeError, ValueError):
             return {}, "invalid Content-Length"
         try:
             posted = json.loads(body)
-        except ValueError:
+        except (ValueError, RecursionError):
             # `json.loads` decodes the bytes before it parses, so a body that is not
             # UTF-8 raises UnicodeDecodeError — a ValueError, never a JSONDecodeError.
+            # Nesting past the parser's own stack raises RecursionError, which is
+            # neither, and the parse is the whole of what either body defeated.
             return {}, "invalid JSON"
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"

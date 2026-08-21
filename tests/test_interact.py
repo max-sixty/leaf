@@ -5846,25 +5846,40 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
     # cannot reach: every one of them parses. These name no attempt — the door has
     # nothing to read one out of — so the browser cannot put that gesture back, and the
     # weaker assertion is the whole of what the door can promise here. What it must
-    # still be is an answer: `json.loads` decodes the bytes before it parses, so a body
-    # that is not UTF-8 raises UnicodeDecodeError rather than JSONDecodeError, and
-    # uncaught it left the request unanswered — which the outbox reads as a lost
-    # connection and re-posts every poll for the life of the tab, the same permanent
-    # loop reached from the other side.
+    # still be is an answer: a body defeats the parse in more ways than the parse was
+    # written for — bytes that are not UTF-8 raise UnicodeDecodeError, since `json.loads`
+    # decodes before it parses, and nesting past the parser's own stack raises
+    # RecursionError, which is not even a ValueError. Uncaught, each left the request
+    # unanswered — which the outbox reads as a lost connection and re-posts every poll
+    # for the life of the tab, the same permanent loop reached from the other side.
+    #
+    # Each row names the refusal it must earn rather than asking for any refusal at all.
+    # The depth the parser gives up at is the interpreter's to choose, so a platform
+    # that got through this nesting would fall to the next gate, be refused as not an
+    # object, and pass a row that had proved nothing about the stack it was written for.
     unreadable = [
-        ("a body that is not UTF-8", b'{"kind": "comment", "text": "\xff"}'),
-        ("a body that is not JSON", b"{not json"),
-        ("a body that is not an object", b"[1, 2]"),
+        (
+            "a body that is not UTF-8",
+            b'{"kind": "comment", "text": "\xff"}',
+            "invalid JSON",
+        ),
+        ("a body that is not JSON", b"{not json", "invalid JSON"),
+        ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
+        (
+            "a body nested past the parser's stack",
+            b"[" * 20000 + b"]" * 20000,
+            "invalid JSON",
+        ),
     ]
-    for name, body in unreadable:
+    for name, body, refusal in unreadable:
         status, answered = fetch(f"{server}/api/event", data=body)
         answer = json.loads(answered)
-        assert (status, answer.get("ok"), answer.get("final")) == (400, False, True), (
-            name,
-            status,
-            answer,
-        )
-        assert answer.get("error"), (name, answer)
+        assert (status, answer.get("ok"), answer.get("final"), answer.get("error")) == (
+            400,
+            False,
+            True,
+            refusal,
+        ), (name, status, answer)
 
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
 

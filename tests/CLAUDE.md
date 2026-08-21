@@ -35,11 +35,11 @@ document does it.
 
 ## The everyday run opens one browser
 
-`test_render.py` and `test_site.py` carry a module-wide `pytest.mark.nightly`. A
-browser change runs its focused test with `--run-nightly`; CI and `wt merge` pass the
-same flag for the complete suite. The everyday run covers the static lint, server,
-vendoring, and product pages, plus one `ship-review` render through the real gate. Its
-worker is the only one that launches Chromium.
+`test_render.py` and `test_site.py` carry a module-wide `pytest.mark.nightly`, which
+`tests/conftest.py` deselects unless `--run-nightly` is passed. The everyday run covers
+the static lint, server, vendoring, and product pages, plus one `ship-review` render
+through the real gate. Its worker is the only one that launches Chromium. Which run to
+reach for when is under "The suite" in the repo's CLAUDE.md.
 
 The suite browser is the headless shell that matches the Playwright version in
 `uv.lock`, and the page it opens is on disk. Two tests also drive `bin/leaf` on a

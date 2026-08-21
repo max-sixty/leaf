@@ -5875,6 +5875,16 @@ const HTML_WORDS = {
 function itemWord(item) {
   if (!item) return "";
   const tag = item.tagName.toLowerCase();
+  // A widget whose kind is not its tag says which it is. Three shapes of change are all
+  // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks board
+  // under the words it proposed to remove, reading exactly like the insertion above it.
+  // Asked only where an entry says there is something to ask, and answered only by an
+  // element that has upgraded — before that, and for every widget that declares nothing,
+  // the tag is the word.
+  if (registry[tag]?.["x-word"] === "module") {
+    const own = item.lfWord?.();
+    if (own) return own;
+  }
   if (tag.startsWith("lf-")) return tag.slice(3);
   // A <pre> is a block of something and the something is in the markup: the documented
   // shape for source is <pre><code class="language-*">, and a <pre> without the <code> is

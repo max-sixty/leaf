@@ -749,6 +749,7 @@ EXTENSION_SCHEMA = {
         "x-visual": {"type": "boolean"},
         "x-wide": {"enum": ["box", "drawing"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-word": {"enum": ["module"]},
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {"x-retired-when": ["x-parent"]},

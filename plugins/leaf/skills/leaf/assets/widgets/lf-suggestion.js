@@ -523,6 +523,19 @@ customElements.define(
       repaintEmphasis();
     }
 
+    // Which of the three changes this is, for anything naming it away from the page:
+    // a row on the asks board, the label on a comment anchored here. The slots are the
+    // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
+    // deletes — and it is the reading #voice already speaks on the slots themselves,
+    // said once for the element. A settled suggestion keeps the word it had: the
+    // retired half stays in the markup, and a decision changed the outcome rather than
+    // the kind of thing that was proposed.
+    lfWord() {
+      const cut = this.querySelector(":scope > lf-old");
+      const put = this.querySelector(":scope > lf-new");
+      return cut && put ? "rewrite" : put ? "insertion" : "deletion";
+    }
+
     // accept | reject: the outcome is absolute, so replaying the sender's own
     // action is a no-op and a second tab lands in the same state.
     applyAction(action) {

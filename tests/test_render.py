@@ -9547,6 +9547,74 @@ ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map
 }))"""
 
 
+CHANGE_SHAPES_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>retry policy</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="title">Retry policy</h1>
+<lf-suggestion id="sug-rewrite">
+  <lf-old><p id="p-job">The worker retries a failed job three times.</p></lf-old>
+  <lf-new><p>The worker retries a failed job, then parks it.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="sug-insert">
+  <lf-new><p>Parked jobs are listed on the run page.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="sug-delete">
+  <lf-old><p id="p-logs">Retries are logged at debug level.</p></lf-old>
+</lf-suggestion>
+<lf-options id="shapes-q" label="How long should a parked job wait?" choose>
+  <lf-option id="wait-day"><strong>A day</strong></lf-option>
+  <lf-option id="wait-week"><strong>A week</strong></lf-option>
+</lf-options>
+</main>
+</body>
+</html>
+"""
+
+
+def test_a_change_says_which_of_the_three_it_is(browser, serve):
+    """A row names its ask by kind and then by the ask's own opening words, and for a
+    change those opening words are whichever half comes first — the current text, where
+    there is one. So a deletion arrived on the board under the words it was proposing to
+    remove, with nothing to tell it from the insertion above it, which was proposing to
+    add its own. Three shapes, one tag, one word for all of them.
+
+    The tag is the right word wherever one tag is one kind of thing, which is every
+    other widget here, so the fix is not to teach the board about suggestions: the entry
+    declares that this tag's word comes from its module (x-word), and the module reads
+    it off the slots it holds. The group below is in this page to hold the other half of
+    that — a widget declaring nothing still gets its tag, and would go on getting it if
+    the declaration were dropped."""
+    page, errors = open_page(browser, serve(CHANGE_SHAPES_PAGE))
+    resized(page, 1200, 900)
+
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    rows = page.evaluate(ASK_ROW_SAYS)
+
+    assert {r["at"]: r["kind"] for r in rows} == {
+        "sug-rewrite": "rewrite",
+        "sug-insert": "insertion",
+        "sug-delete": "deletion",
+        "shapes-q": "options",
+    }
+    # The words beside the kind are still the element's own, and the two changes that
+    # keep a current paragraph still open on it — the reading did not move, only what
+    # is said about it.
+    said = {r["at"]: r["says"] for r in rows}
+    assert said["sug-delete"].startswith("Retries are logged"), said
+    assert said["sug-insert"].startswith("Parked jobs"), said
+    assert errors == []
+    page.close()
+
+
 def test_a_opens_a_board_of_what_the_page_is_waiting_for(browser, serve):
     """`a` shows the list n/p walk, which until now the reader could only see by
     walking it: there was no way to tell what a page wanted without visiting each ask

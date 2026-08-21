@@ -160,24 +160,25 @@ to click belongs on a page you are going to serve.
 ## Page conventions
 
 - Pages are complete HTML documents. `version check` enforces the scaffold — exactly one
-  stylesheet link (`/theme.css`) and one external script (the `/leaf.js` module);
-  the rest of the head (title, charset, the `lf-*` metas below) is yours:
+  stylesheet link (`/theme.css`) and one external script (the `/leaf.js` module), both
+  in the head so the presentation boundary exists before body paint; the rest of the
+  head (title, charset, the `lf-*` metas below) is yours:
 
   ```html
   <!doctype html>
   <html lang="en">
   <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>…</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>…</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+    <link rel="stylesheet" href="/theme.css">
+    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
-  <main>
-    …authored HTML and widgets…
-  </main>
-  <script type="module" src="/leaf.js"></script>
+    <main>
+      …authored HTML and widgets…
+    </main>
   </body>
   </html>
   ```

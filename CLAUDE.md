@@ -289,6 +289,25 @@ member's, not the mechanism's: `suggestion_errors` holds the family's markup to
 one slot of each kind, at least one, and no nesting — cardinality being the one
 thing no key states, and those sentences meaning nothing for the twelfth widget.
 
+Opening the pair to any family carried an obligation along with it. The
+settlement mark (`data-lf-state`) was the suggestion module's own write, so
+generalizing the relation turned it into a duty every holder module had to
+remember — stated in the scaffold and the key table, enforced nowhere — and a
+module that forgot would split the page's reading from the file's, with
+`leaf comment`'s refusal as the only symptom, versions later and nowhere near
+the mistake. Nothing about the mark ever needed a module: the relation and the
+log both sit in the layer's hands, so replay paints it (`markSettled`,
+leaf.js), and a scaffold module that does nothing on settle still yields a page
+whose readings agree. The visible half followed once the same question was put
+to it: hiding the retired slot needs only the relation too, so the layer marks
+the slot (`renderRetired`) and one theme rule hides it, where the shipped
+family's by-name rules had been the closed list wearing CSS's clothes. What is
+left to a module is its own choreography, and the render gate reads the result
+(`RETIRED_SLOTS`), comparing mark and shown words against the log's decision —
+the check for what no default can see. Before gating an obligation every
+adopter must remember, ask whether the declaration already states enough for
+the layer to do it once.
+
 Which kind a widget is has one question behind it: is this one of the ways leaf
 works, or one of the things a page can hold? Convenience is not an answer; a
 widget joins the first set only when the loop is written in terms of it. The
@@ -398,14 +417,15 @@ side the second writer shows on.
 
 - **Tests are integration tests in a real browser.** What a test must assert, and
   the ways one can pass vacuously, are in `tests/CLAUDE.md`; what each file
-  covers, and the commands, are under "The suite" below.
-- **A cloud container has none of that, so set it up first.** There is no system
-  Chrome, so every browser test fails at launch — the Chromium preinstalled there
-  is a different build from the one the lockfile expects, and the suite asks for
-  `channel="chrome"`. There is no `pre-commit` either, so the lint cannot run:
+  covers, and which command to run when, are under "The suite" below.
+- **A cloud container has none of that, so set it up first.** The suite needs the
+  Chromium headless shell that matches the Playwright version in `uv.lock`. Two
+  end-to-end launcher tests also need installed Chrome. There is no `pre-commit`
+  either, so the lint cannot run:
 
   ```sh
   uv sync --frozen
+  uv run playwright install chromium --only-shell
   uv run playwright install chrome
   uv tool install pre-commit
   ```
@@ -457,8 +477,8 @@ the pages under `docs/` to the shipped theme and widget registry.
 `test_site.py` builds the site and reads it back: the theme it serves is the
 shipped file, each example stands up as a live page that takes a comment and
 holds a decision through a reload, both palettes reach the site's own layer, and
-no page scrolls sideways on a phone. Playwright attaches to the Chrome already on
-the machine, so there is no browser download and still no build step.
+no page scrolls sideways on a phone. Playwright drives the pinned Chromium headless
+shell installed with the developer environment.
 
 The suite runs in the environment `pyproject.toml` names and `uv.lock` pins, and
 that environment is the developer's only. leaf itself declares its dependencies
@@ -470,17 +490,34 @@ packages anyway, because they load `interact.py` by path.
 uv run pytest tests
 ```
 
-That everyday command needs no network. It runs one shipped page through the browser
-gate, so one of `pyproject.toml`'s eight workers launches Chrome; the other tests cover
-the static lint, server, vendoring, and product pages. The fixtures relocate the two
-XDG directories leaf reads (`config_home`, `state_home`) and leave the rest of the home
-alone, so every `leaf` the suite shells out to finds the uv cache the developer already
-has.
+That everyday command needs no network after setup. It runs one shipped page through
+the browser gate, so one of `pyproject.toml`'s eight workers launches Chromium; the
+other tests cover the static lint, server, vendoring, and product pages. The fixtures
+relocate the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
+developer already has.
 
-`test_render.py` and `test_site.py` are the browser integration suite. A browser change
-runs its focused test with `--run-nightly`; CI and `wt merge` use the same flag for the
-complete suite. The complete run has a network because the installed launcher's
-browser path may resolve Playwright outside `uv.lock`:
+`test_render.py` and `test_site.py` are the browser integration suite, and a complete
+run puts eight workers on the machine, most of them driving a headless shell of their
+own. It takes about five minutes, measured while three sibling worktrees ran their own
+suites, as is ordinary here. So while iterating, run the tests that cover the change,
+with xdist off:
+
+```sh
+uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
+```
+
+A focused run of those two modules needs `--run-nightly` as much as the complete run
+does. Without it, the mark takes the whole module out of the run, and pytest prints a
+deselected count, no passed count, and exits 5. That is a non-zero exit off a run that
+did nothing, so a `&&` chain stops on it, and a check that flips a line of code to watch
+the suite go red reads the empty run as the catch. Only the passed count tells an empty
+run from a real one. `test_interact.py` carries no mark, so a focused run there takes
+no flag.
+
+Run the complete suite before handing the work back; CI and `wt merge` run the same
+command. It needs a network because the installed launcher's browser path may resolve
+Playwright outside `uv.lock`:
 
 ```sh
 uv run pytest tests --run-nightly
@@ -499,10 +536,9 @@ pre-commit run --all-files
 CI is also the only place either gate meets a platform other than macOS, and the
 platforms disagree about exactly the things a browser test measures: how wide a
 system font sets a word, whether a scrollbar takes a gutter out of the window.
-`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container
-carrying the runner's Chrome and its fonts, so a CI failure becomes something to
-reproduce rather than something to guess at. It takes pytest's arguments, and
-needs a Docker daemon that can run linux/amd64:
+`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container carrying
+the pinned headless shell, installed Chrome, and the runner's fonts. It takes pytest's
+arguments and needs a Docker daemon that can run linux/amd64:
 
 ```sh
 scripts/linux-suite.sh

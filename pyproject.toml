@@ -46,7 +46,7 @@ package = false
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
 # The site module is one load group because its module-scoped build and host are the
-# shared setup; everything else stays individually balanced. Chrome launches once
+# shared setup; everything else stays individually balanced. Chromium launches once
 # per worker for the run.
 # Eight rather than every core, so a second worktree can run its own suite.
 # `-n0` to debug a single test.

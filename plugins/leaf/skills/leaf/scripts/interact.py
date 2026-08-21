@@ -296,7 +296,12 @@ vocabulary for rides in the custom keywords below:
                 decision reaches it. That one holder/slot relation is the whole
                 of what a decision settles: the anchor pass's skip list on both
                 sides, and which ids a version honoring the decision may drop
-                (retirable_ids).
+                (retirable_ids). The browser's half of the skip keys on
+                data-lf-state, which the layer itself paints onto the holder as
+                replay applies the decision — with data-lf-retired painted onto
+                the retired slots, which one theme rule hides — never a module
+                obligation; the render gate compares both halves back against
+                the log (RETIRED_SLOTS).
     x-withdrawn-as  the outcome an unanswered instance stands as when the author
                 takes it back: a withdrawn suggestion leaves the page where a
                 `reject` would. Without it a question, once asked, stays until
@@ -394,9 +399,11 @@ Commands:
 
 `version check` is a deterministic pre-handover lint (no browser, near-free;
 `version publish` re-runs it on every version): the HTML parses with balanced
-tags; the page carries exactly one external script
+tags; one direct `<body><main>` contains all authored content; the page carries
+exactly one external script
 (<script type="module" src="/leaf.js">) and one stylesheet link
-(/theme.css); every lf-* element validates against the vendored registry
+(/theme.css), both directly in `<head>` so the presentation boundary exists before
+body paint; every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -414,7 +421,8 @@ against it — no console or page errors, no fail-soft error box, every visible
 widget occupies real space, code that reads against the block it is set on, no
 sideways scroll, in both color schemes.
 The invariants live in render_version, which tests/test_render.py drives over
-the shipped examples, so the gate and the suite cannot drift apart.
+the shipped examples. The suite uses Chromium's headless shell, while its
+end-to-end render-check tests cover the installed Chrome launch used here.
 
 Passages: an anchor is resolved in the browser and written down here, so
 `leaf comment` reads a version the way the anchor pass reads the DOM — text in
@@ -1070,21 +1078,64 @@ def build_threads(events: list, spk: dict) -> dict:
     of one fact; the settling event answers both questions and carries its own
     `author`.
 
-    An action settles the thread it names only while the log lets it stand. A
-    version that rewrites what a decision rested on says `restated`, publishing
-    records the floor, and replay drops the action — so the suggestion is pending
-    again and the thread it answered is open again with it. That is
-    `action_retracted`, the same test the fold and the words gate ask, rather than
-    a second reading of liveness beside them.
+    A thread is settled by the widget's standing answer: the last action that
+    widget sent and the log still lets stand, and then only while that answer
+    names the thread. Three things unseat one, and every one of them is the log's
+    own word rather than a case written out here. A version that rewrites what a
+    decision rested on says `restated`, publishing records the floor, and replay
+    drops the action — `action_retracted`, the same test the fold and the words
+    gate ask. The reader can take the answer back where they stand, which is the
+    `undo` naming it and `taken_back` reading it. And a later action on the same
+    widget supersedes the one before it, exactly as the state fold reads a second
+    `move` on one card. Without that last one, a reject after an accept left the
+    reader's question filed away as answered by the fix they had just turned down,
+    while the fold reported the suggestion rejected: the log held one thing, the
+    panel showed another, and nothing on either side said so.
 
-    `spk` is the page the containment half of that test is read against, and it is
-    the reading of the version the outcomes were folded over, so threads and state
-    cannot be settled against two different pages. Required, not defaulted: a
-    caller with no published page passes `{}` and says so, because a default that
-    stood down quietly is exactly where a verb naming a part of its own widget
-    would have gone unfloored."""
+    An ask is a widget instance ($awaits), so what answers one is that widget's
+    own last word — and the widget id is also the only key the log carries by
+    itself. That is why the state fold cannot serve here: it drops an action whose
+    widget the current page no longer holds, and the version that honors a
+    decision retires the widget that made it, precisely when the thread it settled
+    must stay settled. `x-state` holds a verb declaring `resolves` to a
+    widget-absolute unit, so the two keys are one key.
+
+    Standing says nothing about the page, and that silence cuts both ways: a stale
+    tab's decision unseats an answer whose widget a published version has since
+    retired, leaving the fold nothing to paint and the reader's press reaching the
+    thread or nothing at all. Asking the page instead would fork the two runtimes,
+    which read different pages — the browser's pinned version against this side's
+    last published file.
+
+    A `resolve` is a person saying the conversation is done, and the log does not
+    fold that away. Nothing here has to take one back: a superseded answer never
+    stood, so it has nothing to clear, and whatever was said after it still stands.
+
+    What `resolves` cannot say is the difference between an answer that leaves the
+    thread open and an action that is not an answer at all — a reject means the
+    first, and both spell it by carrying nothing. The one widget that names a
+    thread has two verbs, both of them its answers, so the readings coincide; a
+    press that confirms rather than answers, Done over a set of picks, would want
+    the third value spelled before its widget could settle a thread.
+
+    `spk` is the page the containment half of the retraction test is read against,
+    and it is the reading of the version the outcomes were folded over, so threads
+    and state cannot be settled against two different pages. Required, not
+    defaulted: a caller with no published page passes `{}` and says so, because a
+    default that stood down quietly is exactly where a verb naming a part of its
+    own widget would have gone unfloored."""
     floors = retractions(events)
     withdrawn = taken_back(events)
+    # widget id -> its last action the log still lets stand: not one the reader
+    # took back, and not one a version retracted under it.
+    answers = {}
+    for e in events:
+        if (
+            e["kind"] == "action"
+            and e["id"] not in withdrawn
+            and not action_retracted(e, floors, spk)
+        ):
+            answers[e["widget"]] = e
     threads = {}
     thread_for = {}
     for e in events:
@@ -1097,18 +1148,18 @@ def build_threads(events: list, spk: dict) -> dict:
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
-        # An action that names a thread settles it, and the detail carrying
+        # A standing answer settles the thread it names, and the detail carrying
         # `resolves` is the whole of that condition — a second widget that answers
         # a thread joins by declaring the field, not by being read here by name.
         # The sender snapshots the mapping into the action because the honoring
         # version retires the element that held it, so nothing later can look it up.
-        # …and only while the log lets it stand. An answer the reader took back
-        # (above) leaves the question open, the same way a `restated` version
-        # does — two ways for one action to stop standing, and the thread reading
-        # owes both the same reply.
-        if e["kind"] == "action" and e["detail"].get("resolves"):
-            answered = threads.get(e["detail"]["resolves"])
-            if answered and not action_retracted(e, floors, spk):
+        #
+        # Settled here, at the answer's own place in the log, rather than after the
+        # walk: a resolve pressed between two decisions is the last word on the
+        # thread, and applying settlements afterwards would paint over it.
+        if e["kind"] == "action":
+            answered = threads.get(e["detail"].get("resolves"))
+            if answered and answers.get(e["widget"]) is e:
                 answered["resolved"] = e
             continue
         if e["kind"] == "reply":
@@ -2688,11 +2739,13 @@ def custom_widget_module(tag: str) -> str:
 //   replay applies it on every later version, and the sender's own action
 //   must be a no-op. `version check --render` re-applies the standing state and
 //   reports a widget that moves under it.
-// - A holder whose slots declare x-retired-when writes data-lf-state="<outcome>"
-//   on itself as it settles. That attribute is what the page reads to know a slot
-//   has left it — the file's reading takes the same fact from the log — so a module
-//   that settles without writing it leaves `leaf comment` refusing a quote into
-//   words the reader can still see and select.
+// - A slot that declares x-retired-when leaves the page when its holder settles,
+//   and the layer renders the whole settlement: replay paints data-lf-state on the
+//   holder and data-lf-retired on the retired slots, and one theme rule hides
+//   them. This module owes only its own choreography — a fold, a control saying
+//   what was decided (renderRetired paints the same state sooner on the sender's
+//   own gesture). `version check --render` reads the result, and reports a settled
+//   slot that shows words anyway, or a mark the log never decided.
 // - Read your own slot with says(el), never textContent: the runtime's hidden
 //   comment line lands inside widgets legitimately.
 // - Anything you inject is chrome only if marked: offer() for a control,
@@ -4135,6 +4188,11 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # (scripts stay 'self'-only, which is what matters). Verified over the gallery —
 # every widget, mermaid and the tokenizer included — before it was required.
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+# Non-painting document structure that may stand outside the authored main. Head
+# metadata is allowed only while the parser is actually inside head; the canonical
+# module is also allowed beside main because shipped pages use both placements.
+DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
+HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 
 
 def implicit_closes(open_tags: list, tag: str) -> int:
@@ -4169,10 +4227,21 @@ class _StructParser(HTMLParser):
         self.stack = []  # (tag, lineno, lf_record | None, id | None)
         self.errors = []
         self.all_ids = []
-        self.external_scripts = []  # (src, type)
-        self.stylesheets = []  # hrefs of rel=stylesheet links
+        # {attrs, parent, early_head} per external asset. Applicability and placement
+        # belong to the asset record: parallel lists made one fact several
+        # representations and let a later parser edit silently misalign them.
+        self.external_scripts = []
+        self.stylesheets = []
         self.lf_metas = []  # {"name", "content", "line"} for <meta name="lf-*">
         self.http_equivs = []  # {"equiv", "content", "line"} per http-equiv meta
+        # The authored page lives under one direct body > main because that is the
+        # element the first-replay presentation boundary withholds. Both assets that
+        # establish that boundary belong in head; anything paintable outside main would
+        # stand outside it.
+        self.body_lines = []
+        self.head_elements = []  # (line, direct child of html)
+        self.main_elements = []  # (line, direct child of body)
+        self.outside_main = []  # paintable content with no main ancestor
         # /media/ paths any attribute points at, so the check that the file is
         # there reads references and not mentions: a page documenting leaf
         # writes one of these paths in prose, and a raw scan of the markup
@@ -4271,9 +4340,25 @@ class _StructParser(HTMLParser):
             # handle_starttag writes over this the moment the record exists.
             self.within[attrs_d["id"]] = self._open_widget()
         if tag == "script" and attrs_d.get("src"):
-            self.external_scripts.append((attrs_d["src"], attrs_d.get("type")))
+            self.external_scripts.append(
+                {
+                    "attrs": attrs_d,
+                    "parent": self.stack[-1][0] if self.stack else None,
+                    "early_head": bool(self.head_elements)
+                    and self.head_elements[-1][1]
+                    and not self.body_lines,
+                }
+            )
         if tag == "link" and "stylesheet" in (attrs_d.get("rel") or ""):
-            self.stylesheets.append(attrs_d.get("href"))
+            self.stylesheets.append(
+                {
+                    "attrs": attrs_d,
+                    "parent": self.stack[-1][0] if self.stack else None,
+                    "early_head": bool(self.head_elements)
+                    and self.head_elements[-1][1]
+                    and not self.body_lines,
+                }
+            )
         if tag == "meta" and (attrs_d.get("name") or "").startswith("lf-"):
             self.lf_metas.append(
                 {
@@ -4321,6 +4406,15 @@ class _StructParser(HTMLParser):
             )
         return values
 
+    def _record_outside_main(self, tag):
+        """Record markup Chrome can paint without crossing the authored main."""
+        ancestors = {open_tag for open_tag, *_ in self.stack}
+        if "main" in ancestors or tag in DOCUMENT_WRAPPERS:
+            return
+        if "head" in ancestors and tag in HEAD_METADATA_TAGS:
+            return
+        self.outside_main.append(f"<{tag}> at line {self.getpos()[0]}")
+
     def handle_starttag(self, tag, attrs):
         attrs_d = self._attributes(tag, attrs)
         # The browser renders neither: template content parses into an inert
@@ -4336,6 +4430,7 @@ class _StructParser(HTMLParser):
             )
         self._harvest(tag, attrs_d)
         if tag == "svg":
+            self._record_outside_main(tag)
             self._svg_depth += 1
             self.stack.append((tag, self.getpos()[0], None, attrs_d.get("id")))
             return
@@ -4344,6 +4439,14 @@ class _StructParser(HTMLParser):
         # Before the void check: <hr> is void and closes an open <p>, and a void tag
         # left inside a paragraph it ended puts the rest of the section in it.
         self._implicit_close(tag)
+        parent = self.stack[-1][0] if self.stack else None
+        if tag == "head":
+            self.head_elements.append((self.getpos()[0], parent == "html"))
+        if tag == "body":
+            self.body_lines.append(self.getpos()[0])
+        if tag == "main":
+            self.main_elements.append((self.getpos()[0], parent == "body"))
+        self._record_outside_main(tag)
         # After it, so the parent recorded here is the one the browser will see.
         lang = LANGUAGE_CLASS.search(attrs_d.get("class") or "")
         if lang:
@@ -4398,9 +4501,11 @@ class _StructParser(HTMLParser):
         # open in a browser and swallows the rest of its parent, so from here on
         # this parser's tree and the browser's would diverge. Reject the form
         # outright rather than model a tree the user's page won't have.
-        self._harvest(tag, self._attributes(tag, attrs))
+        attrs_d = self._attributes(tag, attrs)
+        self._harvest(tag, attrs_d)
         if self._svg_depth:  # SVG has real self-closing syntax
             return
+        self._record_outside_main(tag)
         if tag not in VOID_TAGS:
             self.errors.append(
                 f"<{tag}/> at line {self.getpos()[0]} is self-closing: HTML ignores "
@@ -4411,9 +4516,16 @@ class _StructParser(HTMLParser):
             self.stack[-1][2]["children"].append(tag)
 
     def handle_data(self, data):
+        ancestors = {open_tag for open_tag, *_ in self.stack}
+        holder = self.stack[-1][0] if self.stack else None
+        if (
+            data.strip()
+            and "main" not in ancestors
+            and holder not in {"script", "style", "title"}
+        ):
+            self.outside_main.append(f"text at line {self.getpos()[0]}")
         if self.stack and self.stack[-1][2] is not None and data.strip():
             self.stack[-1][2]["text"] = True
-        holder = self.stack[-1][0] if self.stack else None
         if holder == "style":
             self.css += data
         elif holder == "title":
@@ -5299,6 +5411,33 @@ def _overwide_elements(parser: _StructParser, column: int) -> list:
     return hits
 
 
+PRESENTATION_PROPERTIES = {
+    "all",
+    "display",
+    "interactivity",
+    "opacity",
+    "pointer-events",
+    "visibility",
+}
+
+
+def inline_presentation_override_errors(parser: _StructParser) -> list:
+    """Inline importance outranks even the theme's first important cascade layer."""
+    errors = []
+    for number, style in enumerate(parser.inline_styles, 1):
+        for declaration in css_block(style):
+            if (
+                declaration.type == "declaration"
+                and declaration.important
+                and declaration.lower_name in PRESENTATION_PROPERTIES
+            ):
+                errors.append(
+                    f"inline style #{number} makes protected presentation property "
+                    f"{declaration.lower_name} important"
+                )
+    return errors
+
+
 class RegistryError(click.ClickException):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
@@ -5474,17 +5613,6 @@ def validate_registry(registry: dict, source) -> dict:
                         f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
                         "must state additionalProperties: false — a verb carries "
                         "only the detail keys it declares"
-                    )
-                # `resolves` is the layer's word for the thread this action
-                # answers ($state), so a verb declaring the field is held to
-                # the string a thread id is: declared otherwise, settlement
-                # would dispatch on it anyway and crash on the first event.
-                resolves = spec["detail"].get("properties", {}).get("resolves")
-                if resolves is not None and not declares_string(resolves):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                        "field `resolves` — the layer's name for the thread an "
-                        "action answers — so it must declare a string"
                     )
 
     slots = retirement_slots(registry)
@@ -5674,15 +5802,43 @@ def validate_registry(registry: dict, source) -> dict:
                 # (build_threads, in both runtimes), so a verb spelling the name
                 # means that or is refused here — a widget using it otherwise
                 # would settle a thread silently.
-                if "resolves" in detail_properties and detail_properties[
-                    "resolves"
-                ] != {"type": "string"}:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                        "field `resolves`, a reserved name (the comment thread "
-                        'this action answers) — declare it {"type": "string"} or '
-                        "rename the field"
-                    )
+                if "resolves" in detail_properties:
+                    # The reader's channel only. Both thread builders read `resolves`
+                    # off actions, so the name on a report verb declares an answer
+                    # nothing gives: the report would fold like any other and settle
+                    # no thread ever — the feature nobody wired up, which this door
+                    # exists to turn into an error. A thread is the reader's to close,
+                    # or an action of theirs; the agent's own way is `leaf resolve`.
+                    if channel != "x-state":
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                            "field `resolves`, a reserved name (the comment thread "
+                            "this action answers) — only an x-state verb settles a "
+                            "thread, so rename the field"
+                        )
+                    if detail_properties["resolves"] != {"type": "string"}:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                            "field `resolves`, a reserved name (the comment thread "
+                            'this action answers) — declare it {"type": "string"} or '
+                            "rename the field"
+                        )
+                    # A thread is answered by the ask, and an ask is a widget
+                    # instance (x-awaits) — so the answer is absolute across the
+                    # widget, and both thread builders key the standing answer on
+                    # the widget id, the one key a log outlives its markup with.
+                    # A per-part verb answering a thread would fold per part and
+                    # settle per widget, and the disagreement is invisible: the
+                    # thread reads right until a second part is acted on. Whoever
+                    # writes that widget needs an ask per part first, and this is
+                    # where they find that out.
+                    if unit != "widget":
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` answers a "
+                            f"comment thread (`resolves`) but folds per `{unit}` — "
+                            "a thread is answered by the ask, and an ask is the "
+                            "whole widget"
+                        )
                 undeclared = [
                     field for field in fields if field not in detail_properties
                 ]
@@ -7051,6 +7207,28 @@ def structure_errors(parser: _StructParser) -> list:
     return errors
 
 
+def page_boundary_errors(parser: _StructParser) -> list:
+    """Authored content lies under the same element the presentation gate owns."""
+    errors = []
+    direct = [line for line, is_direct in parser.main_elements if is_direct]
+    if (
+        len(parser.body_lines) != 1
+        or len(parser.main_elements) != 1
+        or len(direct) != 1
+    ):
+        errors.append(
+            "the page must have one <main> directly under <body>; "
+            f"found {len(parser.body_lines)} bodies, {len(parser.main_elements)} mains, "
+            f"and {len(direct)} direct body mains"
+        )
+    if parser.outside_main:
+        errors.append(
+            "paintable authored content must stay inside the one <main> directly "
+            "under <body>; found " + str(parser.outside_main)
+        )
+    return errors
+
+
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
     carrying widgets): the discussion-side analog of `version check`. The declared-word
@@ -7089,22 +7267,39 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
 
     parser = parse_structure(html)
     errors.extend(structure_errors(parser))
+    errors.extend(page_boundary_errors(parser))
 
     scripts = parser.external_scripts
     if len(scripts) != 1:
         errors.append(
             f"expected exactly one external <script src> tag, found {len(scripts)}"
-            + (f": {[s for s, _ in scripts]}" if scripts else "")
+            + (f": {[s['attrs']['src'] for s in scripts]}" if scripts else "")
         )
-    elif scripts[0] != ("/leaf.js", "module"):
+    elif scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
+        attrs = scripts[0]["attrs"]
         errors.append(
-            'the external script must be <script type="module" src="/leaf.js">, '
-            f"found src={scripts[0][0]!r} type={scripts[0][1]!r}"
+            'the only external script must be exactly <script type="module" '
+            f'src="/leaf.js">, found attributes {attrs}'
         )
-    if parser.stylesheets != ["/theme.css"]:
+    elif scripts[0]["parent"] != "head" or not scripts[0]["early_head"]:
         errors.append(
-            'the page must link exactly one stylesheet, <link rel="stylesheet" '
-            f'href="/theme.css">, found {parser.stylesheets}'
+            "the /leaf.js module must be in <head> before <body> can paint; "
+            "its <head> must be the document's direct, initial head"
+        )
+    stylesheets = parser.stylesheets
+    if len(stylesheets) != 1 or stylesheets[0]["attrs"] != {
+        "rel": "stylesheet",
+        "href": "/theme.css",
+    }:
+        errors.append(
+            "the page must link exactly one stylesheet, always-applicable and exactly "
+            '<link rel="stylesheet" href="/theme.css">, found '
+            f"{[asset['attrs'] for asset in stylesheets]}"
+        )
+    elif stylesheets[0]["parent"] != "head" or not stylesheets[0]["early_head"]:
+        errors.append(
+            "the /theme.css stylesheet must be in <head> before <body> can paint; "
+            "its <head> must be the document's direct, initial head"
         )
     declared_csp = [
         m["content"]
@@ -7246,6 +7441,7 @@ def cmd_check(page_dir: Path, version, render: bool = False) -> int:
     for number, style in enumerate(parser.inline_styles, 1):
         errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
     errors.extend(css_syntax_errors(theme_css, "theme.css"))
+    errors.extend(inline_presentation_override_errors(parser))
     column = _column_width(parser.css, theme_css)
     errors.extend(_overwide_elements(parser, column))
 
@@ -8265,6 +8461,92 @@ UNDECLARED_ATTRS = (
 )
 
 
+# The two sides of the settlement contract, compared on the rendered page. The mark —
+# data-lf-state on a holder — is the layer's paint of a logged decision (applyActions
+# in leaf.js), and the anchor pass retires slots by it, so whatever it says, the page's
+# reading obeys. What can still go wrong is a family's, and both failures render
+# perfectly: a module that writes the mark where the log decided nothing silences words
+# the reader can still see and select, and a settled slot can show its words anyway — a
+# later layer's rule outranking the default hide, a module re-showing what it folded —
+# leaving the reader selecting words no comment can anchor to, with the refusal
+# arriving later, at `leaf comment`, nowhere near the mistake. So the expected outcome
+# comes from the file's reading (`decisions`, folded over this version's log), never
+# from the page, and the page answers only for what it shows.
+#
+# The words walk is textNodesUnder with an accepts of its own, on purpose: the anchor
+# pass's default accepts already skips a marked holder's slots, so asking it whether
+# the retired words are gone would let the mark answer for the screen. What it keeps
+# of that reading is the boundary — declared shadow roots, the same trees replay's
+# elementById marks across, which is why the holders are found through OPEN_ROOTS
+# too — and the chrome test (inUi): a declared label is the page's words, so a
+# settled slot still showing one is still showing words. The visibility guards are
+# COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes
+# report as last laid out, and visibility and opacity hide with layout intact. One
+# scheme, on the trapped-margin reading's premise — the palettes carry no geometry
+# between them — with the fold a replayed decision plays awaited first, finite
+# animations only, because a slot mid-fold still paints words it has already retired.
+RETIRED_SLOTS = (
+    """async (holders) => {"""
+    + OPEN_ROOTS
+    + """
+    const leaf = await import('/leaf.js');
+    const all = roots(document);
+    const find = (id) => {
+        for (const r of all) {
+            const el = r.getElementById(id);
+            if (el) return el;
+        }
+        return null;
+    };
+    const found = [];
+    const showing = (slot) => {
+        for (const seg of leaf.textNodesUnder(slot, (n) => !leaf.inUi(n))) {
+            const n = seg.node, el = n.parentElement;
+            if (!n.data.trim()) continue;
+            if (el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
+            if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+                continue;
+            const range = document.createRange();
+            range.selectNodeContents(n);
+            for (const box of range.getClientRects())
+                if (box.width > 1 && box.height > 1) return n.data.trim().slice(0, 40);
+        }
+        return null;
+    };
+    for (const h of holders) {
+        const el = find(h.id);
+        if (!el || leaf.inChrome(el) || leaf.quoted(el)) continue;
+        await Promise.allSettled(
+            el.getAnimations({subtree: true})
+                .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+                .map((a) => a.finished));
+        const mark = el.getAttribute('data-lf-state');
+        const at = `<${h.tag} id='${h.id}'>`;
+        if (mark !== (h.outcome ?? null)) {
+            const log = h.outcome ? '`' + h.outcome + '`' : 'no decision';
+            found.push(`${at} wears data-lf-state=${JSON.stringify(mark)} where the `
+                + `log records ${log} — the mark is the layer's paint of a logged `
+                + `decision, and the anchor pass retires slots by it, so a module may `
+                + `say only what the log decided`);
+            continue;
+        }
+        for (const tag of h.slots)
+            for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
+                for (const slot of root.querySelectorAll(`:scope > ${tag}`)) {
+                    const words = showing(slot);
+                    if (words === null) continue;
+                    found.push(`${at} settled \\`${h.outcome}\\` and its <${tag}> still `
+                        + `shows ${JSON.stringify(words)} — those words have left the `
+                        + `page's reading, so the reader can select what no comment can `
+                        + `anchor to; the layer hides a retired slot by default, so `
+                        + `something in this family is showing it anyway`);
+                }
+    }
+    return found;
+}"""
+)
+
+
 # A box that draws an inset and shows a different one. A child's outer margin normally
 # collapses through its parent and is spent between blocks; where the parent draws
 # something at that edge, or holds a formatting context of its own, it cannot get out and
@@ -8372,14 +8654,11 @@ def served(page, url: str, path: str):
     return page.request.get(urljoin(url, path), timeout=SERVED_TIMEOUT_MS)
 
 
-def previous_version(url: str, versions: list) -> int | None:
-    """The newest version this server lists before the one the URL names, or None
-    where there is none — a first version, or one the server does not list at all,
-    which is the same answer for the same reason: the conflict reading compares this
-    file against what a reader could have seen before it. The gate is always pointed
-    at a version file, so the path stating which one is a fact to read rather than
-    something to test for."""
-    here = int(re.search(r"/versions/v([1-9]\d*)\.html$", urlsplit(url).path).group(1))
+def previous_version(here: int, versions: list) -> int | None:
+    """The newest version this server lists before this one, or None where there is
+    none — a first version, or one the server does not list at all, which is the
+    same answer for the same reason: the conflict reading compares this file against
+    what a reader could have seen before it."""
     earlier = [version for version in versions if version < here]
     return max(earlier) if earlier else None
 
@@ -8423,7 +8702,10 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     applyAction is relative, so the poll's replay of the sender's own gesture moves the
-    page again (none of the three is CSS), a box drawing one inset and showing another,
+    page again (none of the three is CSS), a settled holder whose mark or still-showing
+    slot words disagree with the log's decision (read once, on the premise the
+    trapped-margin reading shares: the palettes carry no geometry between them), a box
+    drawing one inset and showing another,
     and, on paper, words the page drops that it says on screen, or draws over each other
     (print is scheme-blind). Returns human-readable failures; [] is a pass.
 
@@ -8503,11 +8785,15 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
             state = served(page, url, "/api/state").json()
             markup = served(page, url, urlsplit(url).path).text()
+            # Which version this is, parsed once for every reading that needs it:
+            # the gate is always pointed at a version file, so the path stating
+            # which one is a fact to read rather than something to test for.
+            here = version_num(Path(urlsplit(url).path).name)
             # The version before this one, for the conflict reading below: which
             # pair it compares is a question about the log and the URL, both of
             # which are held out here. A first version has no predecessor to have
             # authored anything against.
-            before = previous_version(url, state["versions"])
+            before = previous_version(here, state["versions"])
             earlier = (
                 served(page, url, f"/versions/v{before}.html").text()
                 if before
@@ -8573,6 +8859,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         missing_conversations = []
         replayed = True
         undeclared_attrs = []
+        retired = []
         if scheme == "light":
             # x-conversation promises one page view per matching instance. A widget in
             # thread chrome already has the thread's reply surface and conversationBox
@@ -8650,6 +8937,36 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 # an applyAction states its widget whole, and a record form is
                 # exactly the attribute it is allowed to state it in.
                 undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, widgets)
+                # Behind it too: the settlement mark is replay's own write, so a
+                # reading taken earlier asks after paint the page has not been
+                # asked to make yet. The expected outcomes are the file's, scoped
+                # to each holder's own relation: `decisions` folds any verb that
+                # retires somewhere in the vocabulary, so a verb of that name on
+                # a family it settles nothing of decides nothing here — the
+                # browser's write reads the per-holder relation, and a comparison
+                # against anything wider would fail a page both sides are right
+                # about.
+                if slots := retirement_slots(registry):
+                    fold, vparser, _ = page_fold(
+                        markup, state["events"], registry, here
+                    )
+                    outcomes = decisions(fold, registry)
+                    holders = []
+                    for h in retirement_holders(vparser, registry):
+                        declared = slots[h["tag"]]
+                        outcome = outcomes.get(h["id"])
+                        if outcome not in declared:
+                            outcome = None
+                        holders.append(
+                            {
+                                "tag": h["tag"],
+                                "id": h["id"],
+                                "outcome": outcome,
+                                "slots": sorted(declared.get(outcome, ())),
+                            }
+                        )
+                    if holders:
+                        retired = page.evaluate(RETIRED_SLOTS, holders)
         # One scheme, the palettes carrying no geometry between them, and before the
         # medium moves: a box's inset is what it declared in either.
         trapped = page.evaluate(TRAPPED_MARGINS) if scheme == "light" else []
@@ -8750,6 +9067,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
                 f"in theme.css reaches it"
             )
+        found += [f"[{scheme}] {r}" for r in retired]
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += [f"[{scheme}] {r}" for r in relative]
         found += on_paper
@@ -9070,10 +9388,10 @@ def inline_assets(html: str, page_dir: Path) -> str:
 def export_page(browser, url: str, page_dir: Path) -> str:
     """The served version at `url`, copied as one self-contained document.
 
-    One implementation with two callers, as `render_version` is: `version export`
-    supplies a browser of its own, and the suite drives this over the shipped
-    examples with the one it already has, so the copy a user gets and the copy
-    the suite asserts on cannot drift.
+    One implementation has two callers, as `render_version` does: `version export`
+    supplies installed Chrome, while the suite drives this over the shipped
+    examples with its Chromium headless shell. That keeps the export behavior in
+    one function without claiming that the two browser launch paths are identical.
 
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page

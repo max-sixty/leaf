@@ -1239,13 +1239,6 @@ function merge(sections, { title, when, at, claims, rows }) {
  * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is
  * Enter on an already-focused grip, so no focus event would repaint the line.
  *
- * The same duty is owed for state a widget writes that moves a row it never declared.
- * `.lf-dragging` is half of `unrecordedGesture()`, so a widget wearing it moves core's
- * `z`, and the two edges of a pointer drag went unpainted for as long as the duty read
- * as being about a widget's own rows: the line offered `undo` for the whole of a drag,
- * over a press the dispatcher was already refusing. Whoever moves the state paints,
- * whosever row reads it.
- *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * every x-upgrade module loads on every page, so a scope declared at the top level is help
  * for a widget the page hasn't got. The scope leaves with its element; there is no
@@ -9757,9 +9750,26 @@ function renderVersions(state) {
   showNews(latestChip, behind);
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
 }
+/** The reader's hand on a widget, in the layer's own word: a drag the log has not taken
+ * yet. The class is half of `unrecordedGesture` below, so taking it up or putting it
+ * down moves core's `z` row — a row no widget declares, and therefore the one no widget
+ * would think to repaint. Both edges of a pointer drag went unpainted for exactly that
+ * reason, and on a quiet board the line went on offering `undo` for as long as the
+ * reader held the card, over a press the dispatcher was already refusing. So the paint
+ * is owed here, where the class is written, rather than by whoever remembers.
+ *
+ * Coalesced to a frame like every paint, which is what lets it stand for everything else
+ * the same gesture moved: the widget's own rows where the grab is a press on an
+ * already-focused grip and no focus event fires, and a send the drop states after this
+ * returns — so a drop that sends still reads as a gesture the log has not taken.
+ */
+export const dragging = (el, on) => {
+  el.classList.toggle("lf-dragging", on);
+  paintKeys();
+};
 // A gesture of the reader's that the log has not taken yet, asked of the layer's own
-// signals rather than of any widget by name: a drag wears .lf-dragging (the module sets
-// it), a send in flight is sendAction's own record, and an undo in flight is its own —
+// signals rather than of any widget by name: a drag wears .lf-dragging (dragging, above),
+// a send in flight is sendAction's own record, and an undo in flight is its own —
 // it belongs to no widget, so `sending` cannot keep it. Two questions want the answer,
 // which is why it has a name of its own: navigating away would destroy such a gesture,
 // and the undo walk reads the log to find the last thing the reader did, so it cannot

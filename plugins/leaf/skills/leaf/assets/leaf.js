@@ -877,13 +877,18 @@ export const pageScroller = document.body;
 // poll's replay re-applies it once (see applyActions), which is why applyAction
 // implementations must state an absolute placement, never a relative mutation.
 //
-// A map rather than a count because replay needs to know which widget: from the
-// gesture until the poll that reads its action back, the page holds state no log it
-// can read accounts for, and replay leaves that widget alone for exactly that long
-// (see applyActions). midComposition asks the same store whether anything at all is
-// in flight — navigating away could lose the unrecorded edit — and it lives here
-// because every widget's action passes through this door.
-const sending = new Map(); // widget id -> sends in flight for it
+// The outbox is the one representation of a gesture the page has made and the log has
+// not authoritatively answered yet. It orders every user event, gives replay the widget
+// ids it must leave alone, and tells undo/navigation whether any action is unresolved.
+// A second pending map used to mirror part of the same lifecycle and then needed a
+// protocol of its own to agree with the send queue and the polling loop.
+const outbox = [];
+const actionPending = (widget) =>
+  outbox.some(
+    (entry) =>
+      entry.event.kind === "action" &&
+      (widget === undefined || entry.event.widget === widget),
+  );
 export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
@@ -896,30 +901,14 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
     );
     return null;
   }
-  sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
-  // Both edges repaint the line, the way undoLast does for its own record: this store
-  // is half of unrecordedGesture, which is what `z`'s row asks, so a send starting or
-  // ending moves whether that key works and no focus event reports it. Without them
-  // the line's answer trails the dispatcher's by however long until the next paint
-  // some other signal happens to schedule — the line offering a press the dispatcher
-  // would refuse, which is the one thing "a key on screen is a key that works" is
-  // there to rule out. paintHere coalesces to a frame, so the pair costs nothing.
-  paintKeys();
-  try {
-    return await post({
-      kind: "action",
-      version: VNUM,
-      widget: el.id,
-      action,
-      detail,
-      ...(attempt && { attempt }),
-    });
-  } finally {
-    const left = sending.get(el.id) - 1;
-    if (left) sending.set(el.id, left);
-    else sending.delete(el.id);
-    paintKeys();
-  }
+  return post({
+    kind: "action",
+    version: VNUM,
+    widget: el.id,
+    action,
+    detail,
+    ...(attempt && { attempt }),
+  });
 }
 
 // The page seat of a widget's conversation (x-conversation). A module places the seat;
@@ -3866,54 +3855,102 @@ function showToast(msg, onClick) {
 
 // Returns the event the server minted — the id is the sender's only handle on the
 // thread or message it just created, which is what revealThread is handed — or null
-// when the send failed. The poll is awaited before returning, so by the time a caller
-// holds the minted event the panel has already rendered it.
+// when the server definitively refused it. Every event carries one browser-minted
+// attempt, so a lost answer is retried without becoming a second gesture.
 //
-// One send at a time, because the log's order is the order the user acted in and two
-// requests in flight are not: the server answers each on a thread of its own, so a pick
-// made a moment after another can be appended before it. Replay states a widget whole,
-// so the log read back then hands the reader the older decision as their standing state
-// and the gesture after that computes from it — the very drift the poll's own ordering
-// is written around, arriving through the log instead. It cost two CI runs: two clicks
-// three lines apart in a test reached the log reversed on a loaded runner, where two
-// dozen tries under the dockerised Linux suite never once managed it.
+// The outbox sends one at a time because the log's order is the order the reader acted
+// in and concurrent requests are not. It is also the page's only record of unresolved
+// work: an action in this list is the widget replay leaves alone and the fact that keeps
+// undo dead. A separate promise chain plus a pending-widget map used to describe those
+// same records twice, then reconcile them through a later poll.
 //
-// A gesture that painted itself has nothing the reader is looking at waiting on this;
-// a press has its own paint waiting, since it shows the decision only once the log has
-// taken it (see CLAUDE.md). Either way what waits behind is the next event's request,
-// until this one has been taken. A failed send is not a queue that stops: the turn
-// passes on whatever the fetch did. And only the send is ordered; the poll each one
-// ends with is a read, and no fact about the log turns on when a read lands.
-let taken = Promise.resolve();
-async function post(event) {
-  // One attempt. A send the server never took changes nothing — the page says so,
-  // and puts back whatever the gesture had painted — and a send it took whose
-  // response was lost is put back by the next poll, the log being what the page
-  // renders from. Retrying instead would need the sender to mint the id (a
-  // second send is only safe if the door can tell it from a second decision),
-  // and it would hold the queue below through its own backoff, delaying every
-  // later gesture to soften a case the log already reconciles.
-  const mine = taken.then(() => postEvent(event));
-  // The turn passes on whatever the send did, failures included — and the
-  // catch is what makes that true: a rejection left in `taken` is a promise
-  // every later send would chain onto and none would ever run from.
-  taken = mine.catch(() => {});
-  let minted;
-  try {
-    const res = await mine;
-    if (!res.ok) throw new Error(await res.text());
-    ({ event: minted } = await res.json());
-  } catch {
-    showToast("Couldn't send — server offline?");
-    return null;
+// A successful POST returns the server's state through the event it accepted. The page
+// therefore crosses one boundary, not "append succeeded" followed by "a GET happened
+// to read it": when an entry leaves this list, its caller has the minted event and this
+// page has read a log containing it. A periodic poll may observe the attempt first after
+// a response is lost; that is the same durable answer and ends the retry.
+const retryPause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS));
+let drainingOutbox = false;
+async function deliver(entry) {
+  let announced = false;
+  for (;;) {
+    const { event } = entry;
+    const alreadyAccepted = events.find(
+      (candidate) => candidate.attempt === event.attempt,
+    );
+    if (alreadyAccepted) return alreadyAccepted;
+    let res;
+    try {
+      res = await postEvent(event);
+    } catch {
+      if (!announced) showToast("Connection lost — retrying your change…");
+      announced = true;
+      await retryPause();
+      continue;
+    }
+    let answer;
+    try {
+      answer = await res.json();
+    } catch {
+      if (!announced) showToast("Couldn't read the answer — retrying your change…");
+      announced = true;
+      await retryPause();
+      continue;
+    }
+    const acceptedEvent = answer?.state?.events?.find(
+      (candidate) => candidate.attempt === event.attempt,
+    );
+    if (res.ok && answer?.ok === true && acceptedEvent) {
+      try {
+        await receiveState(answer.state);
+        return acceptedEvent;
+      } catch (error) {
+        console.error("leaf: state in event response", error);
+        if (!announced) showToast("Couldn't apply the answer — retrying your change…");
+        announced = true;
+        await retryPause();
+      }
+      continue;
+    }
+    if (
+      answer?.final === true &&
+      answer.attempt === event.attempt &&
+      answer.ok === false
+    ) {
+      showToast(`Couldn't send — ${answer.error || "the server refused it"}`);
+      return null;
+    }
+    if (!announced) showToast("Server answer was incomplete — retrying your change…");
+    announced = true;
+    await retryPause();
   }
-  // The send succeeded the moment the server minted the event. The poll only
-  // brings the panel up to date, so a fault in its render pipeline is its own
-  // news and must not claim the send failed — a caller told null takes back a pick
-  // the log already holds, or withholds a decision the log already holds, and the
-  // next timer poll paints it back two seconds later either way.
-  await poll().catch((error) => console.error("leaf: poll after send", error));
-  return minted;
+}
+async function drainOutbox() {
+  if (drainingOutbox) return;
+  drainingOutbox = true;
+  try {
+    while (outbox.length) {
+      const entry = outbox[0];
+      const answer = await deliver(entry);
+      outbox.shift();
+      // The list is an input to the key line and no focus/mouse event accompanies
+      // either edge. Repaint before resolving the caller, whose own settlement may
+      // move a second row on the same frame.
+      paintKeys();
+      entry.resolve(answer);
+    }
+  } finally {
+    drainingOutbox = false;
+  }
+}
+function post(event) {
+  const attempted = { ...event, attempt: event.attempt || newAttempt() };
+  const answer = new Promise((resolve) => {
+    outbox.push({ event: attempted, resolve });
+  });
+  paintKeys();
+  void drainOutbox();
+  return answer;
 }
 
 // ---------- text inputs ----------
@@ -7531,13 +7568,28 @@ const syncGeneral = wireInput(generalInput, {
 });
 mirrorDraft(generalInput, syncGeneral, "general");
 
+let approving = false;
 function paintApproval() {
   const approved = events.some((e) => e.kind === "done");
   approveBtn.disabled =
-    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) || approved;
+    approving ||
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+    approved;
   approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
 }
-approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good" });
+approveBtn.onclick = async () => {
+  if (approving) return;
+  approving = true;
+  approveBtn.setAttribute("aria-busy", "true");
+  paintApproval();
+  try {
+    await post({ kind: "done", version: VNUM, text: "Looks good" });
+  } finally {
+    approving = false;
+    approveBtn.removeAttribute("aria-busy");
+    paintApproval();
+  }
+};
 
 // ---------- keyboard ----------
 // The register's scopes, and the one dispatcher that walks them. What a row and a scope
@@ -8389,10 +8441,10 @@ const PAGE = {
       keys: ["z"],
       does: "Take back the last change you made here",
       line: "undo",
-      // Dead while the page holds a gesture the log has not taken, this one's own
-      // send included: the walk would name the gesture *before* the one they just
-      // made and take that back instead. The line drops the chip for as long as
-      // that is true rather than promising a press that would undo the wrong thing.
+      // Dead while the page holds a gesture no log read accounts for, this one's
+      // own send included: the walk would name the gesture *before* the one they
+      // just made and take that back instead. The line drops the chip for as long
+      // as that is true rather than promising a press that would undo the wrong thing.
       when: () => !unrecordedGesture() && Boolean(undoable()),
       run: undoLast,
     },
@@ -9887,10 +9939,12 @@ function renderVersions(state) {
   showNews(latestChip, behind);
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
 }
-// A gesture of the reader's that the log has not taken yet, asked of the layer's own
-// signals rather than of any widget by name: a drag wears .lf-dragging (the module sets
-// it), a send in flight is sendAction's own record, and an undo in flight is its own —
-// it belongs to no widget, so `sending` cannot keep it. Two questions want the answer,
+// A gesture of the reader's that the page has not accounted for in a log read, asked of
+// the layer's own signals rather than of any widget by name: a drag wears .lf-dragging
+// (the module sets it), every unresolved browser event is in the outbox, and an undo
+// in flight is its own — it is tracked separately because the walk itself cannot be
+// offered again while its event is being answered.
+// Two questions want the answer,
 // which is why it has a name of its own: navigating away would destroy such a gesture,
 // and the undo walk reads the log to find the last thing the reader did, so it cannot
 // answer while the page is holding one. Its own press included — a second `z` landing
@@ -9898,7 +9952,7 @@ function renderVersions(state) {
 // gesture again, which the door refuses and the reader hears as a page that couldn't
 // reach its server.
 const unrecordedGesture = () =>
-  undoing || sending.size > 0 || Boolean(document.querySelector(".lf-dragging"));
+  undoing || outbox.length > 0 || Boolean(document.querySelector(".lf-dragging"));
 // The user is mid-something navigation would destroy: the above, and the words they
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
@@ -9930,12 +9984,12 @@ latestChip.onclick = () => goVersion(latestVersion);
 // from its older place in that order, and the reader's next gesture computes from
 // what it painted and sends a decision they never made. Applying each action once
 // says nothing about *when* — an action recorded before a click can still be applied
-// after it. Two facts keep the order between them. A widget whose own send is in
-// flight is left alone (`sending`): until the log has taken that gesture, the page's
-// copy of the widget is ahead of every log it can read, so nothing in one can be
-// shown to sit after it. And that hold ends on the poll `post` awaits, which has
-// read the log past the gesture — from there the log being append-only carries it,
-// since an answer the page has already read past is stale whole and dropped (poll).
+// after it. Two facts keep the order between them. A widget whose own action has not
+// been answered is left alone (`outbox`): the page's copy of the widget is
+// ahead of every log it can read, so nothing in one can be shown to sit after it.
+// That hold ends when the POST's state (or a periodic poll) contains the minted action —
+// from there the log being append-only carries it, since an answer the page has already
+// read past is stale whole and dropped (receiveState).
 //
 // Reports ride the same pass with the precedence reversed. A report is a
 // worker's provisional news (`leaf report`, x-report in the registry): it
@@ -10099,8 +10153,8 @@ function applyActions() {
   // right: one already in the log at load skipped the gesture it names, so the page was
   // built without it. Asking instead whether *replay* applied that gesture is the
   // question one tab always answers wrongly — the tab that made it painted it itself
-  // and replay never touched it (sending), so the tab that pressed `z` would be the one
-  // tab the press did nothing in.
+  // and replay never touched it (outbox), so the tab that pressed `z` would
+  // be the one tab the press did nothing in.
   for (const e of events) {
     if (e.kind !== "undo" || appliedActions.has(e.seq)) continue;
     const target = logRendered && eventById(e.undoes);
@@ -10110,14 +10164,14 @@ function applyActions() {
       continue;
     }
     // The holds the loop below keeps, kept here too, because this is replay. A widget
-    // the page has painted ahead of the log has its events reconsidered on the poll
-    // that reads its own gesture back (sending), and one that asks for time gets the
-    // next poll — an `lf-draft` with an editor standing answers false rather than let
-    // the log pull words out from under the reader. So the withdrawal is marked
+    // the page has painted ahead of the log has its events reconsidered once the
+    // outbox answers its own gesture, and one that asks for time gets the next state —
+    // an `lf-draft` with an editor standing answers false rather
+    // than let the log pull words out from under the reader. So the withdrawal is marked
     // answered only once it has been, or it is spent on a widget that never took it
     // and that tab holds the withdrawn words for the rest of its life, with the
     // pending mark cleared because the fold agrees the gesture is gone.
-    if (sending.has(target.widget) || deferredWidgets.has(target.widget)) continue;
+    if (actionPending(target.widget) || deferredWidgets.has(target.widget)) continue;
     if (put.state) {
       if (put.el.applyAction(put.state.action, put.state.detail) === false) {
         deferredWidgets.add(target.widget);
@@ -10158,14 +10212,14 @@ function applyActions() {
     let wrote = false;
     for (const e of events) {
       // Held rather than decided, both of them: a widget the page has painted ahead
-      // of the log (`sending`, see above) has its events reconsidered on the poll
-      // that reads its own gesture back, and a widget that asked for time gets the
-      // next poll — so nothing here is retired on a page state that was temporary.
+      // of the log (`outbox`, see above) has its events reconsidered when its answer
+      // reads the gesture back, and a widget that asked for time gets the next state —
+      // so nothing here is retired on a page state that was temporary.
       if (
         e.kind !== kind ||
         appliedActions.has(e.seq) ||
         deferredWidgets.has(e.widget) ||
-        sending.has(e.widget)
+        actionPending(e.widget)
       )
         continue;
       const el = elementById(e.widget);
@@ -10818,6 +10872,9 @@ async function poll() {
     document.dispatchEvent(new Event("lf-actions"));
     return;
   }
+  return receiveState(state);
+}
+async function receiveState(state) {
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
   // post() and the timer can poll together. The log is append-only, so a response

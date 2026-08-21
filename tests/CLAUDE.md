@@ -98,30 +98,34 @@ tests that cover standing serves, that is the arrangement under test, not a gap
 in the fixtures. Those tests are the one place a killed run can still strand a
 server; they hold one up for a second or two and stop it as they end.
 
-## A round trip is not over when its response lands
+## A round trip ends at an authoritative read
 
-The runtime answers a post by polling, so what the page does about a send arrives
-with the next poll, not with the post's own response. The press sweep learned
-this the expensive way: its two "matching" frames read the page from before the
-press had any effect, and the sweep caught its own regression on about half of
-the runs written to prove it caught it. Watch the trip rather than timing it. A
-hold sized to `POLL_MS` states a number the runtime is free to change, still
-guesses on a loaded machine, and charges every press two seconds for a trip
-that takes ten milliseconds. `wait_for_load_state("networkidle")` is not the wait
-either: with no navigation to answer for, it returns at once.
+An accepted event response carries the page state containing that event. There
+is no second request between the server taking a gesture and the sender reading
+it. If the answer is lost, the gesture remains unresolved: the outbox retries
+the same attempt, and either its response or a periodic state read containing
+that attempt ends the trip. Absence from a poll proves nothing about a request
+whose outcome is unknown.
+
+Watch that evidence rather than timing it. A hold sized to `POLL_MS` states a
+number the runtime is free to change, still guesses on a loaded machine, and
+charges every press for a trip that normally takes milliseconds.
+`wait_for_load_state("networkidle")` is not the wait either: with no navigation
+to answer for, it returns at once.
 
 Watch the trip from outside the page. `Traffic` counts the browser's own
-`request`, `response` and `requestfailed` events — the same five numbers used to
+`request`, `response` and `requestfailed` events — the same facts used to
 come from an init script wrapping `window.fetch` on every page of every run,
 which was permanent surgery on the runtime under test to learn what the browser
 was already saying. `open_page` hangs that watcher on every page it opens,
 because a test that had to ask for the counter first is, in practice, a test that
 asserted straight through the trip instead. `round_trip(page)` waits for the
-page's own sends to come back, and that is the wait to take before reading the
-event log: a widget settles a decision in front of the user before the server has
-taken it, so the page looking done is not the log holding the event. Polling the
-log instead only ever asks after the send the test names — a stray send, from a
-widget that was supposed to stay quiet, passes straight through such a poll.
+page's unresolved attempt set to empty. A failed physical request does not clear
+that set; a matching accepted/refused event response does, and a state response
+does only when it contains the attempt. That is the wait to take before reading
+the event log. Polling the log for one expected event instead only ever asks
+after the send the test names — a stray send, from a widget that was supposed to
+stay quiet, passes straight through such a poll.
 
 A file the test writes is the same trip run the other way, and there `expect`'s
 own timeout becomes the hold in disguise. A declared status, a bumped heartbeat,
@@ -174,9 +178,10 @@ fact to wait on; where it stopped is the assertion.
 A press the dispatcher can refuse needs the same fact before it, and reads as
 neither wait nor assertion until it is given one. `z` is the one press whose
 subject is read rather than pointed at, so it is dead while the page holds a
-gesture the log has not taken — its predecessor's trip included. Every other press
-can be made the moment the paint is there, and the paint arrives a turn before the
-trip it was made on is over, so a `z` made on it is refused; what the refusal
+gesture no log read has accounted for — its predecessor's trip included. Every
+other press can be made the moment the paint is there, and the paint arrives a
+turn before the trip it was made on is over, so a `z` made on it is refused; what
+the refusal
 leaves behind is the page an assertion on the un-undone state would find anyway.
 Nothing distinguishes that from an undo that did the wrong thing, and the suite's
 undo tests were failing that way one at a time, a different one per run. The line

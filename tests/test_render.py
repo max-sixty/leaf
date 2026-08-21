@@ -464,39 +464,27 @@ def page_registry(page):
 class Traffic:
     """One page's trips to the server, counted as the browser reports them.
 
-    `read` is what makes `round_trip` a statement about this gesture rather than about
-    whichever poll happened to land last: a poll notes the posts already answered when it
-    goes out, so what it can have told the page on arrival is those and no later ones. Two
-    polls can be in flight at once — a post's own and the timer's — so the freshest reading
-    stands rather than the last one to arrive, which is what the max is for.
-
-    A trip that fails is over too, so `requestfailed` counts exactly where a response
-    would. A post the server refuses and a poll a test aborts have both finished going
-    round, and a wait that only counted successes would sit out the rest of its timeout on
-    the strength of a request that is never coming back.
-
-    Both readings are taken at the same moment the wrapper took them: it counted in
-    `res.then(...)`, which is the fetch promise settling, and that is the trip this event
-    reports. What the runtime then does about the answer is later than either, and it is
-    the auto-retrying `expect` after the wait that covers it — as it always did.
+    `pending` is keyed by the attempt the runtime sends, not by physical requests. A
+    failed request therefore stays pending while the outbox retries it; an accepted or
+    definitive response clears it, as does a state response that contains the attempt.
+    This is the same evidence the runtime accepts, observed outside the page.
 
     The count is the page's whole life, reloads included, where the init script started
-    over at each navigation. That only ever waits longer: a reloaded page's sends are
-    already answered, so the first poll after it carries `read` up to them, and a
-    `round_trip` that used to return on a zeroed counter now returns on a real one."""
+    over at each navigation. Navigation clears unresolved attempts because it destroys
+    that page's outbox; later sends still advance the lifetime counters."""
 
     def __init__(self, page):
         self.sends = 0  # events posted
         self.acked = 0  # posts the server has answered
-        self.read = 0  # answered posts the newest state the page has read accounts for
         self.asked = 0  # state the page has gone out for
         self.heard = 0  # ... and been given
-        self._asof = {}  # a poll in flight -> the posts already answered when it went out
+        self.pending = set()  # browser attempt ids not yet accounted for by a read
+        self._token = {}  # outbox request -> its browser attempt
         self._flying = (
             set()
         )  # event posts in the air, each counted once whichever way it ends
         page.on("request", self._out)
-        page.on("response", lambda response: self._back(response.request))
+        page.on("response", self._responded)
         page.on("requestfailed", self._back)
         # A navigation is the third way a trip ends, and the one the browser reports
         # for neither kind: a post the reload kills mid-flight gets no `response` and
@@ -511,9 +499,13 @@ class Traffic:
         if "/api/event" in request.url:
             self.sends += 1
             self._flying.add(request)
+            event = request.post_data_json
+            token = event.get("attempt") if isinstance(event, dict) else None
+            if token:
+                self._token[request] = token
+                self.pending.add(token)
         elif "/api/state" in request.url:
             self.asked += 1
-            self._asof[request] = self.acked
 
     def _back(self, request):
         # Counted only while in the air, so a straggling report of a post the
@@ -524,18 +516,56 @@ class Traffic:
                 self.acked += 1
         elif "/api/state" in request.url:
             self.heard += 1
-            self.read = max(self.read, self._asof.pop(request, 0))
+
+    def _responded(self, response):
+        request = response.request
+        self._back(request)
+        if "/api/event" in request.url:
+            try:
+                answer = response.json()
+            except Exception:  # noqa: BLE001 - malformed answers are retryable evidence
+                return
+            token = self._token.get(request)
+            state_attempts = {
+                event.get("attempt")
+                for event in (answer.get("state") or {}).get("events", [])
+                if event.get("attempt")
+            }
+            accepted = (
+                answer.get("ok") is True
+                and answer.get("state") is not None
+                and token in state_attempts
+            )
+            refused = (
+                answer.get("ok") is False
+                and answer.get("final") is True
+                and answer.get("attempt") == token
+            )
+            if accepted or refused:
+                self.pending.discard(token)
+        elif "/api/state" in request.url and response.ok:
+            try:
+                state = response.json()
+            except Exception:  # noqa: BLE001 - it accounted for nothing the page can read
+                return
+            attempts = {
+                event.get("attempt")
+                for event in state.get("events", [])
+                if event.get("attempt")
+            }
+            self.pending.difference_update(attempts)
 
     def _navigated(self, frame):
         if frame.parent_frame is not None:
             return
-        while self._flying:
-            self._flying.pop()
-            self.acked += 1
+        self.acked += len(self._flying)
+        self._flying.clear()
+        self.pending.clear()
+        self._token.clear()
 
     def __str__(self):
         return (
-            f"sends={self.sends} acked={self.acked} read={self.read} "
+            f"sends={self.sends} acked={self.acked} pending={len(self.pending)} "
             f"asked={self.asked} heard={self.heard}"
         )
 
@@ -577,20 +607,14 @@ def _until(page, fact, wanted):
         ) from ran_out
 
 
-# A gesture that sends is not over when its response lands. The runtime answers a post by
-# polling, and what the page does about the gesture arrives with that poll rather than with
-# the post, so a read taken on the post is a read from before the gesture had an effect —
-# passing or failing by where the round trip happened to be. That is the flake CLAUDE.md
-# calls worse than an outright failure, and it hid the sign-off regression on about half
-# the runs meant to prove the press sweep catches it.
-#
-# So the wait is the round trip itself, watched rather than timed. Holding for the poll
-# interval instead would state a number the runtime is free to change, and would still
-# be a guess on a loaded machine — while charging every gesture two seconds for a trip
-# that takes ten milliseconds.
+# A gesture is over when the response carrying authoritative state lands, or when a
+# periodic poll observes its attempt after that response was lost. Traffic records both
+# as one fact: every send through this page has been answered back into this page. A
+# request failure does not finish it, because the outbox keeps the same attempt and
+# retries; waiting merely for `acked` would return on that ambiguous edge.
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
-    _until(page, lambda t: t.read >= t.sends, "heard back what it sent")
+    _until(page, lambda t: not t.pending, "heard back what it sent")
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory
@@ -610,13 +634,13 @@ def told(page):
 
 
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
-# holds it dead while the page holds a gesture the log has not taken — this press's own
-# trip included (unrecordedGesture). Every other press acts on what is under the reader
-# and can be made the moment the paint is there; the paint arrives a turn before the
-# trip it was made on is over, so a `z` made on it is a press the dispatcher refuses,
-# and what the refusal leaves behind is the page an assertion on the un-undone state
-# would find anyway. A test cannot tell that from an undo that did the wrong thing: it
-# reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
+# holds it dead while the page holds a gesture no log read has accounted for — this
+# press's own trip included (unrecordedGesture). Every other press acts on what is under
+# the reader and can be made the moment the paint is there; the paint arrives a turn
+# before the trip it was made on is over, so a `z` made on it is a press the dispatcher
+# refuses, and what the refusal leaves behind is the page an assertion on the un-undone
+# state would find anyway. A test cannot tell that from an undo that did the wrong thing:
+# it reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
 #
 # So the press waits on the fact the page states rather than on the gesture before it
 # having painted. The line and the dispatcher ask one predicate (`live`), so no surface
@@ -641,13 +665,10 @@ def undo(page):
 
 
 # A poll a test stops is cancelled rather than failed. The page cannot tell the two
-# apart — both reject the fetch the runtime awaits and leave it on the same `catch` —
-# and `requestfailed` fires for either, so the trip still counts as over and every wait
-# built on `Traffic` is unchanged. The console can tell them apart, which is what the
-# reason is chosen for: tests/CLAUDE.md, "A test cannot assert over noise it makes
-# itself". A send the network refuses is the other act, and
-# test_a_decision_the_server_never_took_goes_back_to_pending aborts plainly for it —
-# there the failure is the subject, and the entry it leaves is what the test asserts.
+# apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
+# The console can tell them apart, which is what the reason is chosen for:
+# tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
+# request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
     route.abort("aborted")
@@ -2250,7 +2271,17 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
         "title", "Approve this work; the page stays open for follow-up"
     )
 
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     button.click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the approval in the wire")
+    expect(button).to_be_disabled()
+    expect(button).to_have_attribute("aria-busy", "true")
+    button.dispatch_event("click")
+    assert _traffic(page).sends == 1, "one approval press became two log events"
+
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
     event = interact.read_events(serve.page_dir)[-1]
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
@@ -7483,82 +7514,38 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
 
 
 def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
-    """Replay states a widget whole, so the order is what it owes: an action applied
-    after the gesture that superseded it hands the reader their older state back, and
-    the gesture after that computes from what it painted and sends a decision they
-    never made. Applying each action once says nothing about *when* — a pick recorded
-    before a click can still be replayed after it, which is what a loaded machine does
-    to this page's own polls.
-
-    So the instrument is that answer, stated from outside: every poll is served the log
-    truncated to what the page may see, and the one that lands while the second pick is
-    still in flight carries only the first — a poll snapshotted between the two picks,
-    arriving after both, where a slow machine would have put it. Which poll that is
-    cannot be timed from here, so the answers are gated on the page's own traffic. After
-    it every poll is refused, so nothing heals what that answer did and the third pick
-    reads the page the answer left.
-
-    Another tab's pick on the group beside it rides the same answer, and is what says
-    the batch was replayed at all: a trip is over when its response lands, which is
-    before the page has done anything about it, so without that edge both the count
-    below and the third click would be about a page nothing had happened to yet."""
+    """The first POST's state contains only the first pick, but it may arrive after a
+    second local pick. Replay leaves the outbox's widget alone, so that older snapshot
+    cannot erase the newer gesture or corrupt the absolute state it later sends."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
-    # The log, and how much of it the page is shown. Seq 1 is the note it opened on,
-    # 2 the other tab's pick, 3 this tab's first — so an answer capped at 3 is one
-    # snapshotted between this tab's two picks, and one capped at 1 keeps the page
-    # from seeing either until then.
-    OPENED_ON, THROUGH_THE_FIRST_PICK = 1, 3
-    interact.append_event(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "bracket",
-            "action": "choose",
-            "detail": {"options": ["br-cedar"]},
-        },
-    )
+    first_answer = []
+    second_send = []
 
-    served = []  # what each answer was capped at, and so the record that one was
-
-    def answer(route):
-        # On posts answered rather than posts sent: the page asks for state the moment
-        # one comes back, so the first poll after the second answer is the one that
-        # pick's own send is still open across — which is the whole of the race.
-        if _traffic(page).acked < 2:
-            cap = OPENED_ON
-        elif THROUGH_THE_FIRST_PICK not in served:
-            cap = THROUGH_THE_FIRST_PICK
+    def hold_answers(route):
+        if not first_answer:
+            response = route.fetch()
+            first_answer.append((route, response.json()))
         else:
-            refuse(route)
-            return
-        served.append(cap)
-        state = route.fetch().json()
-        state["events"] = [e for e in state["events"] if e["seq"] <= cap]
-        route.fulfill(json=state)
+            second_send.append(route)
 
-    page.route("**/api/state*", answer)
-
+    page.route("**/api/event", hold_answers)
     page.locator("#job-mounts").click()
-    round_trip(page)
+    _until(page, lambda traffic: traffic.sends == 1, "held the first pick's answer")
     page.locator("#job-camera").click()
-    round_trip(page)
-    expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
-    # Nothing else here says the answers were the ones the test wrote: served at full
-    # length they carry the second pick too, and the page converges either way — so the
-    # day this route stops matching, the test goes quiet rather than red.
-    assert THROUGH_THE_FIRST_PICK in served, f"the log was never held back: {served}"
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
 
-    # The page is deaf from here, so half of a round trip is never coming back: what
-    # says the log holds this pick is the post's own answer, the server having appended
-    # before it. Counted from before the click, so the picks already answered can't
-    # satisfy it.
-    answered = _traffic(page).acked
+    first_route, answer = first_answer[0]
+    first_route.fulfill(json=answer)
+    _until(page, lambda traffic: traffic.sends == 2, "sent the second queued pick")
+    assert len(second_send) == 1
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
+
+    second_send[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     page.locator("#job-heater").click()
-    _until(page, lambda t: t.acked > answered, "had this click's send answered")
+    round_trip(page)
     assert [
         e["detail"]["options"] for e in sent_events(d) if e.get("widget") == "jobs"
     ] == [
@@ -9039,9 +9026,9 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     # Nothing left to accept, so the button says nothing rather than saying zero.
     expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
 
-    # Every one of those settled optimistically — the page shows a decision before the
-    # server has taken it, which is the next test's whole subject — so the page reading
-    # done is not the log holding it, and the last of the three is still in flight here.
+    # The controls settle from their individual authoritative answers. Wait for the
+    # whole outbox as well: the rows are asserted one at a time above, while this is
+    # the boundary before reading the shared log as a sequence.
     round_trip(page)
     logged = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert [(e["widget"], e["action"]) for e in logged] == [
@@ -9129,7 +9116,20 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     press against a closed session painted one frame of "✓ Accepted" over a folding
     slot before rewinding it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    page.route("**/api/event", lambda route: route.abort())
+
+    def refuse_attempt(route):
+        attempt = route.request.post_data_json["attempt"]
+        route.fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    page.route("**/api/event", refuse_attempt)
     # Watch the attribute across every frame, not just after: a rewind is only
     # visible while it is happening, and the end state is the same either way.
     page.evaluate(
@@ -9163,14 +9163,63 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
 
-    # The retry is a second click, not a reload: the widget is pending again.
+    # The retry is a second click, not a reload: a definitive refusal made the widget
+    # pending again, and the new press carries a fresh attempt of its own.
     page.unroute("**/api/event")
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    logged = actions(serve.page_dir)
+    assert [(event["widget"], event["action"]) for event in logged] == [
+        ("sug-refill", "accept")
+    ]
+    assert logged[0]["attempt"]
+    undo(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert len(errors) == 2 and all("400" in error for error in errors)
+    page.close()
+
+
+def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
+    """Losing an accepted action answer keeps the original press busy and retries
+    that exact attempt. Repeating the press cannot mint a second decision that one
+    undo would merely uncover."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    requests = []
+    accepted = []
+
+    def lose_first_answer(route):
+        requests.append(route.request.post_data_json)
+        if len(requests) == 1:
+            accepted.append(route.fetch().status)
+            refuse(route)
+        else:
+            route.continue_()
+
+    # Force recovery through the outbox rather than letting a periodic read observe
+    # the accepted attempt first. Both are valid recovery paths; this one proves the
+    # retry reuses the identity whose answer was lost.
+    page.route("**/api/state*", refuse)
+    page.route("**/api/event", lose_first_answer)
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: "/api/event" in request.url
+    ):
+        accept.click()
+    expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-toast")).to_contain_text("retrying your change")
+
+    accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    # The refused POST is the one thing the console may carry, and it is this
-    # test's own doing — anything else means the page broke on the way back to
-    # pending.
-    assert errors == ["Failed to load resource: net::ERR_FAILED"]
+    assert accepted == [200]
+    assert len(requests) == 2
+    assert len({request["attempt"] for request in requests}) == 1
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [("sug-refill", "accept")]
+
+    undo(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert errors == []
     page.close()
 
 
@@ -14152,6 +14201,39 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     page.close()
 
 
+def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
+    """Resolve and reopen are undoable gestures too. While a second resolve is in
+    the outbox, undo cannot name the older resolve still visible in the log."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads > .lf-thread")
+    threads.nth(0).locator(".lf-resolve").click()
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    sent = _traffic(page).sends
+    threads.nth(0).locator(".lf-resolve").click()
+    _until(page, lambda traffic: traffic.sends > sent, "held the second resolution")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    assert _traffic(page).sends == sent + 1
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    undo(page)
+    assert [
+        event["kind"]
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] in {"resolve", "undo"} and event["author"] == "user"
+    ] == ["resolve", "resolve", "undo"]
+    assert errors == []
+    page.close()
+
+
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     """A withdrawal leaves the log holding one gesture and one word taking it back,
     and the page derives the rest. What it derives here is the placement this
@@ -14279,6 +14361,93 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     # one still stands, where taking back the wrong gesture would have reversed it.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
+    browser, serve
+):
+    """The event response is state through the event it accepted. Even when every
+    later GET is unavailable, the page can offer undo immediately and the press names
+    the newest gesture rather than the stale one before it."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    move = ["Enter", "ArrowRight", "Enter"]
+    page.locator("#card-heater .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    page.route("**/api/state*", refuse)
+    page.locator("#card-baffle .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    round_trip(page)
+
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    undo(page)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
+    """The outbox retries an accepted gesture whose response was lost before it
+    sends the next gesture. Both arrive once, in the order the reader made them."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    requests = []
+    accepted = []
+
+    def lose_first_answer(route):
+        requests.append(route.request.post_data_json)
+        if len(requests) == 1:
+            accepted.append(route.fetch().status)
+            refuse(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/state*", refuse)
+    page.route("**/api/event", lose_first_answer)
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: "/api/event" in request.url
+    ):
+        page.locator("#card-baffle .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+
+    first_attempt = requests[0]["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        page.locator("#card-heater .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    round_trip(page)
+
+    assert accepted == [200]
+    assert [request["detail"]["card"] for request in requests] == [
+        "card-baffle",
+        "card-baffle",
+        "card-heater",
+    ]
+    assert requests[0]["attempt"] == requests[1]["attempt"]
+    assert requests[2]["attempt"] != first_attempt
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle",
+        "card-heater",
+    ]
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+
+    undo(page)
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -18221,8 +18390,8 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
 
 def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
     """Empty text is a real replacement, not the absence of a saved draft. Deleting
-    the whole body must survive reload, keep the current version under the active
-    editor, and arrive in the log as an ordinary absolute edit."""
+    the whole body must hold a live editor on its version, survive reload, and arrive
+    in the log as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
     page, errors = open_page(browser, url)
     draft = page.locator("#draft-ops")
@@ -18259,12 +18428,15 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
         }"""
     )
     draft.get_by_role("button", name="Save").click()
-    expect(draft.locator("textarea")).to_be_focused()
-    expect(draft.locator("textarea")).to_have_value("")
+    # A 503 cannot say whether the server appended before its answer was lost. Keep
+    # the one saved gesture visibly pending and its draft recoverable; reopening the
+    # editor would invite a second gesture while this attempt is still retrying.
+    expect(draft).to_have_attribute("aria-busy", "true")
+    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("")
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
 
     page.evaluate("window.lfFailDraft = false")
-    draft.get_by_role("button", name="Save").click()
     page.wait_for_url("**/v2.html")
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text("")
     page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
@@ -18842,7 +19014,9 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
 def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     browser, serve, one_reader
 ):
-    """One request may fail while the same attempt from another tab is accepted."""
+    """One request may lose its answer while another tab gets the same attempt
+    accepted. The first tab adopts that durable outcome instead of reporting failure
+    or offering the words as a second message."""
     url = serve(ASK_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
@@ -18861,12 +19035,14 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
 
     refuse(held[0])
     first.unroute("**/api/event")
-    expect(first.locator(".lf-toast")).to_contain_text("Couldn't send")
+    round_trip(first)
+    expect(first.locator(".lf-toast")).to_contain_text("Sent to Claude")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw.strip()]
-    assert _traffic(first).sends + _traffic(second).sends == 2
+    expect(first_say).to_be_hidden()
+    expect(second_say).to_be_hidden()
     assert first_errors == []
     assert second_errors == []
 
@@ -21318,8 +21494,8 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
 
 
 def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
-    """A post-triggered poll and the timer can overlap. The append-only event
-    sequence makes an older response unambiguously stale."""
+    """Timer polls can overlap when one response is delayed. The append-only event
+    sequence makes the older response unambiguously stale."""
     delay_second_state = """
       const nativeFetch = window.fetch.bind(window);
       let stateCalls = 0;

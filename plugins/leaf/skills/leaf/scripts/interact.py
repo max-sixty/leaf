@@ -539,9 +539,9 @@ EVENT_VOCABULARY = {
         # more of this message is still coming; the closing chunk omits it.
         "more",
     },
-    "resolve": {"parent", "agent", "session"},
-    "unresolve": {"parent"},
-    "done": {"version", "text"},
+    "resolve": {"parent", "agent", "session", "attempt"},
+    "unresolve": {"parent", "attempt"},
+    "done": {"version", "text", "attempt"},
     "action": {"widget", "action", "detail", "version", "attempt"},
     "report": {"widget", "action", "detail", "version", "agent", "session"},
     "note": {"version", "text", "restated", "reports", "agent", "session"},
@@ -559,7 +559,7 @@ EVENT_VOCABULARY = {
     # keep in step. What it takes back it takes back for every reader of the log:
     # the folds drop the event, so the page is what the version says plus what
     # still stands, which is the same sentence a reload has always read.
-    "undo": {"undoes"},
+    "undo": {"undoes", "attempt"},
 }
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
@@ -958,6 +958,21 @@ def jsonl_line(event: dict) -> str:
 
 class AttemptConflict(ValueError):
     """One browser attempt was reused for a different event payload."""
+
+
+class AttemptExecution:
+    """One execution shared by concurrent HTTP requests for the same attempt.
+
+    Success is durable in the event log. The record coordinates requests while a
+    handler is executing, then retains a definitive refusal for the server's lifetime.
+    A retry therefore receives the same outcome while the original is active and after
+    mutable validation state changes.
+    """
+
+    def __init__(self, payload: dict):
+        self.payload = payload
+        self.done = threading.Event()
+        self.result = None
 
 
 def _attempt_payload(event: dict) -> dict:
@@ -1901,6 +1916,8 @@ def full_state(page_dir: Path, events: list, versions: list) -> dict:
 class Handler(BaseHTTPRequestHandler):
     page_dir = None
     token = None
+    event_attempts = None
+    event_attempts_lock = None
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
@@ -1920,6 +1937,21 @@ class Handler(BaseHTTPRequestHandler):
             for version in list_versions(self.page_dir)
             if version <= self.preview_upto
         ]
+
+    def page_state(self) -> dict:
+        """The one wire representation of this page's current log reading.
+
+        GET returns it directly; an accepted POST nests the same object beside the
+        event it minted. The latter makes acknowledgement and read one transaction
+        from the browser's perspective: no second request can fail between them.
+        """
+        events = read_events(self.page_dir)
+        state = full_state(self.page_dir, events, self.versions_live(events))
+        # Every URL in `others` carries the key this reader arrived on, since there is
+        # one key for the machine (`host_key`) — so the list is a way to the neighbours
+        # rather than a way past anything.
+        state["others"] = other_leaves(self.page_dir)
+        return state
 
     def log_message(self, *args):
         pass
@@ -2035,15 +2067,9 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 cls.viewed_at = time.time()
                 write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
-            # versions through the handler's own view, so a preview server's
-            # state agrees with what it serves (identical when not previewing).
-            events = read_events(self.page_dir)
-            state = full_state(self.page_dir, events, self.versions_live(events))
-            # Every URL in `others` carries the key this reader arrived on, since
-            # there is one key for the machine (`host_key`) — so the list is a
-            # way to the neighbours rather than a way past anything.
-            state["others"] = other_leaves(self.page_dir)
-            self._json(state)
+            # versions through the handler's own view, so a preview server's state
+            # agrees with what it serves (identical when not previewing).
+            self._json(self.page_state())
             return
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
@@ -2076,6 +2102,146 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, ctype, file.read_bytes())
                 return
         self._json({"error": "not found"}, 404)
+
+    @staticmethod
+    def event_rejection(event: dict, error: str, status: int = 400) -> tuple:
+        """A response proving this execution ended without an append.
+
+        `attempt` is the browser's evidence that the answer came from the event
+        boundary rather than from an intermediary. `final` says no concurrent
+        handler for that attempt remains alive; only such an answer may make a
+        retrying browser put its gesture back.
+        """
+        body = {"ok": False, "error": error, "final": True}
+        if event.get("attempt"):
+            body["attempt"] = event["attempt"]
+        return status, body
+
+    def accepted_state(self) -> tuple:
+        return 200, {"ok": True, "state": self.page_state()}
+
+    def coordinate_event(self, event: dict) -> tuple:
+        """Run one copy of an attempt and hand concurrent retries its outcome.
+
+        The append lock makes accepted attempts durable and unique. This record covers
+        the interval before that boundary and remembers a refusal that has no log entry.
+        A retry therefore cannot reject independently while the original handler later
+        appends.
+        """
+        attempt = event.get("attempt")
+        if not attempt:
+            return self.execute_event(event)
+        payload = _attempt_payload(event)
+        with self.event_attempts_lock:
+            execution = self.event_attempts.get(attempt)
+            if execution is None:
+                execution = AttemptExecution(payload)
+                self.event_attempts[attempt] = execution
+                owner = True
+            else:
+                owner = False
+                if execution.payload != payload:
+                    return self.event_rejection(
+                        event,
+                        f"attempt {attempt!r} already belongs to another event",
+                        409,
+                    )
+        if not owner:
+            execution.done.wait()
+            return execution.result
+        try:
+            result = self.execute_event(event)
+        except Exception as error:  # noqa: BLE001 - every waiter needs an outcome
+            # A fault may have happened after append but before state was built. It
+            # is therefore retryable, never a rejection: the next identical request
+            # either finds the accepted attempt in the log or tries the execution again.
+            result = (
+                500,
+                {
+                    "ok": False,
+                    "attempt": attempt,
+                    "error": f"{type(error).__name__}: {error}",
+                    "retry": True,
+                },
+            )
+        finally:
+            execution.result = result
+            execution.done.set()
+            # Acceptance is remembered durably by the log, and a retryable fault must
+            # execute again. A definitive refusal has no log record, so retain this
+            # completed receipt for the server's lifetime: one attempt cannot be refused
+            # to one tab and later accepted from another after validation state moves.
+            # A 409 means this identity is already owned by a durable accepted event.
+            # Retryable faults and successes also have another source of truth, so only
+            # an ordinary state-dependent refusal needs the in-memory receipt.
+            if result[0] != 400:
+                with self.event_attempts_lock:
+                    if self.event_attempts.get(attempt) is execution:
+                        del self.event_attempts[attempt]
+        return result
+
+    def execute_event(self, event: dict) -> tuple:
+        """Validate and append one browser event, returning its complete answer."""
+        kind = event["kind"]
+        # An accepted attempt outranks mutable validation state. A replacement tab may
+        # retry after a newer version retired the sender's version; this request is not
+        # a new event for that retired version, but a request for the event the log
+        # already durably accepted. Absence continues through every state-dependent
+        # gate below, and the append lock repeats this lookup at the write boundary.
+        if "attempt" in event:
+            event["author"] = "user"
+            try:
+                existing = accepted_attempt(self.page_dir, event)
+            except AttemptConflict as error:
+                return self.event_rejection(event, str(error), 409)
+            if existing:
+                return self.accepted_state()
+        events = read_events(self.page_dir)
+        if "version" in event:
+            live_versions = self.versions_live(events)
+            if event["version"] not in live_versions:
+                return self.event_rejection(
+                    event, f"{kind} version must be one of {live_versions}"
+                )
+        # Approval is the page's ask, so a version that never asked cannot record one:
+        # the banner offers the button only where the meta declares sign-off, and the
+        # door says the same thing to anything posting past it.
+        if kind == "done":
+            mode = version_review_mode(self.page_dir, event["version"])
+            if mode != "sign-off":
+                return self.event_rejection(
+                    event,
+                    f"version {event['version']} does not declare "
+                    '<meta name="lf-review" content="sign-off">, so it has no '
+                    "approval to record",
+                )
+        if kind == "action":
+            # A page's vendored registry is frozen at `page init` and the layer around it
+            # is not, so a stamp that no longer parses — or no longer declares what this
+            # layer writes — is state the reader can reach by clicking. It is theirs to
+            # hear about, in the same shape as every rejection above.
+            try:
+                registry = load_registry(self.page_dir)
+            except RegistryError as error:
+                return self.event_rejection(event, str(error))
+            if registry is None:
+                return self.event_rejection(event, "the page has no registry.json")
+            if error := action_contract_error(self.page_dir, event, events, registry):
+                return self.event_rejection(event, error)
+        # A parent names a message in a thread, the same rule `leaf reply`
+        # holds Claude to. Enforced so a walk up the log terminates at a comment.
+        if "parent" in event and event["parent"] not in {
+            e["id"] for e in events if e["kind"] in {"comment", "reply"}
+        }:
+            return self.event_rejection(event, f"unknown parent {event['parent']!r}")
+        if kind == "undo" and (error := undo_error(event, events)):
+            return self.event_rejection(event, error)
+        event["author"] = "page" if kind == "error" else "user"
+        try:
+            append_event(self.page_dir, event)
+        except AttemptConflict as error:
+            return self.event_rejection(event, str(error), 409)
+        return self.accepted_state()
 
     def _post(self):
         # The preview window is the gate's own browser over a maybe-unpublished
@@ -2172,85 +2338,14 @@ class Handler(BaseHTTPRequestHandler):
         ):
             self._json(
                 {
-                    "error": "comment/reply/action attempt must be 16–128 ASCII letters, "
+                    "error": "event attempt must be 16–128 ASCII letters, "
                     "digits, underscores, or hyphens"
                 },
                 400,
             )
             return
-        # An accepted attempt outranks mutable validation state. A replacement tab may
-        # retry after a newer version retired the sender's version; this request is not
-        # a new event for that retired version, but a request for the event the log
-        # already durably accepted. Static shape and exact-payload reuse were checked
-        # above; absence continues through every state-dependent gate below, and the
-        # append lock repeats this lookup to close the race between two absent readers.
-        if "attempt" in event:
-            event["author"] = "user"
-            try:
-                existing = accepted_attempt(self.page_dir, event)
-            except AttemptConflict as error:
-                self._json({"error": str(error)}, 409)
-                return
-            if existing:
-                self._json({"ok": True, "event": existing})
-                return
-        events = read_events(self.page_dir)
-        if "version" in event:
-            live_versions = self.versions_live(events)
-            if event["version"] not in live_versions:
-                self._json(
-                    {"error": f"{kind} version must be one of {live_versions}"},
-                    400,
-                )
-                return
-        # Approval is the page's ask, so a version that never asked cannot record one:
-        # the banner offers the button only where the meta declares sign-off, and the
-        # door says the same thing to anything posting past it.
-        if kind == "done":
-            mode = version_review_mode(self.page_dir, event["version"])
-            if mode != "sign-off":
-                self._json(
-                    {
-                        "error": f"version {event['version']} does not declare "
-                        '<meta name="lf-review" content="sign-off">, so it has no '
-                        "approval to record"
-                    },
-                    400,
-                )
-                return
-        if kind == "action":
-            # A page's vendored registry is frozen at `page init` and the layer around it
-            # is not, so a stamp that no longer parses — or no longer declares what this
-            # layer writes — is state the reader can reach by clicking. It is theirs to
-            # hear about, in the same shape as every rejection above.
-            try:
-                registry = load_registry(self.page_dir)
-            except RegistryError as error:
-                self._json({"error": str(error)}, 400)
-                return
-            if registry is None:
-                self._json({"error": "the page has no registry.json"}, 400)
-                return
-            if error := action_contract_error(self.page_dir, event, events, registry):
-                self._json({"error": error}, 400)
-                return
-        # A parent names a message in a thread, the same rule `leaf reply`
-        # holds Claude to. Enforced so a walk up the log terminates at a comment.
-        if "parent" in event and event["parent"] not in {
-            e["id"] for e in events if e["kind"] in {"comment", "reply"}
-        }:
-            self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
-            return
-        if kind == "undo" and (error := undo_error(event, events)):
-            self._json({"error": error}, 400)
-            return
-        event["author"] = "page" if kind == "error" else "user"
-        try:
-            accepted = append_event(self.page_dir, event)
-        except AttemptConflict as error:
-            self._json({"error": str(error)}, 409)
-            return
-        self._json({"ok": True, "event": accepted})
+        status, answer = self.coordinate_event(event)
+        self._json(answer, status)
 
 
 def handler_for(
@@ -2267,6 +2362,8 @@ def handler_for(
             "token": token,
             "preview_upto": preview_upto,
             "protocol_version": protocol_version,
+            "event_attempts": {},
+            "event_attempts_lock": threading.Lock(),
         },
     )
 

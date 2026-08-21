@@ -113,42 +113,41 @@ reader is owed it. Which is also the answer to how far this design stretches:
 network round trip rather than a local one, and it is the delayed acknowledgment
 rather than the deferred paint that carries that case.
 
-What waiting costs is a local round trip: 10–15ms from press to paint on an
-ordinary page, and 25–40ms on `gallery.html`, which is every widget in the
-vocabulary at once. The POST is a small part of that, within a millisecond of a
-comment's, because what a page directory holds is worked out once per file rather
-than once per request (`parse_version`, `read_registry`). Most of the wait is the
-poll the send awaits. What still grows is the log it appends to, at about a
-millisecond per six hundred comments.
+An accepted POST carries the page's state through the event it minted. That one
+answer is both the log deciding and this tab reading the decision; a follow-up
+GET used to split those facts across two requests and made a successful gesture
+look failed whenever the read was the half that broke. Periodic polls now carry
+only other writers' news and recovery when a POST response was lost. What still
+grows is the log the request appends to, at about a millisecond per six hundred
+comments.
 
-## A gesture the log has not taken outranks everything the page has read
+## An unresolved gesture outranks every older log read
 
-A widget that paints its own gesture holds state no log accounts for until the
-poll reads the action back. Replay leaves the widget alone for exactly that long.
-Every `applyAction` states the widget whole, so replaying an action from before
-the gesture hands the reader their older state back — and the next gesture then
-computes from what that replay painted. A `multiple` group two picks in,
-repainted holding one, sends the next toggle as a set the reader never chose.
-Applying each action exactly once is what makes replay converge, and "exactly
-once" says nothing about *when*.
+A widget that paints its own gesture holds state no authoritative answer accounts
+for while that gesture remains in the outbox. Replay leaves the widget alone for
+exactly that long. Every `applyAction` states the widget whole, so replaying an
+action from before the gesture hands the reader their older state back — and the
+next gesture then computes from what that replay painted. A `multiple` group two
+picks in, repainted holding one, sends the next toggle as a set the reader never
+chose. Applying each action exactly once is what makes replay converge, and
+"exactly once" says nothing about *when*.
 
-All of that rests on the log holding the gestures in the order they were made,
-and the wire does not give that order: the server answers each request on a
-thread of its own, so a pick overtaken by the pick after it leaves a decision the
-reader never made standing as their state. So `post` sends one action at a
-time — a wait that costs a gesture which painted itself nothing at all, and costs
-a press the difference between its own round trip and the queue's (above). No
-machine here reproduced the race in two dozen tries, so the gate states the
-condition rather than running for it: the first send is stopped in the wire, and
-the second click is made while it is still there.
+The outbox is the one representation of unresolved browser work. It mints an
+attempt before sending, preserves the reader's event order, tells replay which
+widgets to leave alone, and keeps undo dead while its subject is uncertain. A
+successful POST removes its head only after applying state containing that
+attempt. A lost or incomplete answer retries the same head; a periodic read can
+remove it only by carrying the attempt. Later gestures wait behind it, so a slow
+first handler cannot append after them. Concurrent server requests with the same
+attempt share one execution. An accepted attempt lives in the log, and the server
+retains a refused attempt's outcome for its lifetime.
 
-The hold belongs to the layer, in `sendAction`'s record of what is in flight, and
-no module writes one of its own. `lf-draft` once did, privately (`#sending`), and
-was the only widget that had a hold — written at the level of the one widget in
-front of its author rather than at the level the problem is general at. What a
-module still owes is the state the layer cannot see: an open editor is a live
-gesture no send accounts for, so its `applyAction` returns `false` while one
-stands.
+The hold belongs to the layer, and no module writes one of its own. `lf-draft`
+once did, privately (`#sending`), and was the only widget that had a hold — written
+at the level of the one widget in front of its author rather than at the level the
+problem is general at. What a module still owes is the state the layer cannot see:
+an open editor is a live gesture no send accounts for, so its `applyAction`
+returns `false` while one stands.
 
 ## The page finishes twice, and the second time is the log's
 

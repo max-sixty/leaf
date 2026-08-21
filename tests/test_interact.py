@@ -3581,13 +3581,13 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             f"{server}/api/event",
             data=json.dumps({"kind": "comment", "version": 1, "text": "hi"}).encode(),
         )[1]
-    )["event"]
+    )["state"]["events"][-1]
     resolved = json.loads(
         fetch(
             f"{server}/api/event",
             data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
         )[1]
-    )["event"]
+    )["state"]["events"][-1]
     agent_closed = interact.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
     )
@@ -3614,7 +3614,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
     undone = {"kind": "undo", "undoes": resolved["id"]}
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
     assert status == 200, body
-    took_back = json.loads(body)["event"]
+    took_back = json.loads(body)["state"]["events"][-1]
 
     # Once, and never the undo itself: repeated presses walk back through the
     # reader's history rather than toggling the last gesture on and off.
@@ -5214,13 +5214,27 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     for thread in threads:
         thread.join()
     assert len(results) == 8 and {status for status, _ in results} == {200}
-    accepted_events = [json.loads(body)["event"] for _, body in results]
+    accepted_events = [
+        next(
+            event
+            for event in json.loads(body)["state"]["events"]
+            if event.get("attempt") == first["attempt"]
+        )
+        for _, body in results
+    ]
     assert len({event["id"] for event in accepted_events}) == 1
     accepted = accepted_events[0]
 
     status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
     assert status == 200
-    assert json.loads(body)["event"]["id"] == accepted["id"]
+    assert (
+        next(
+            event
+            for event in json.loads(body)["state"]["events"]
+            if event.get("attempt") == first["attempt"]
+        )["id"]
+        == accepted["id"]
+    )
     comments = [
         event for event in interact.read_events(page_dir) if event["kind"] == "comment"
     ]
@@ -5248,7 +5262,108 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     (page_dir / "versions" / "v1.html").unlink()
     status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
     assert status == 200
-    assert json.loads(body)["event"]["id"] == accepted["id"]
+    assert (
+        next(
+            event
+            for event in json.loads(body)["state"]["events"]
+            if event.get("attempt") == first["attempt"]
+        )["id"]
+        == accepted["id"]
+    )
+
+
+def test_an_accepted_event_response_is_state_through_that_event(server, page_dir):
+    """The POST answer is the sender's authoritative read, not half of a
+    transaction completed by a second request. A response cannot acknowledge an
+    event while handing the page history from before it."""
+    publish(page_dir)
+    sent = {
+        "kind": "comment",
+        "version": 1,
+        "text": "The response carries the state that includes this message.",
+        "attempt": "attempt-state-0001",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+
+    assert status == 200, body
+    answer = json.loads(body)
+    assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
+
+
+def test_concurrent_retries_share_one_attempt_execution(server, page_dir, monkeypatch):
+    """A retry arriving while the original request is validating waits for that
+    outcome. It cannot independently refuse while the original remains free to
+    append later, which would make the refusal a lie to the browser."""
+    publish(page_dir)
+    entered = threading.Event()
+    release = threading.Event()
+    second_arrived = threading.Event()
+    calls = 0
+    original_post = interact.Handler._post
+
+    posts = 0
+
+    def observe_post(handler):
+        nonlocal posts
+        posts += 1
+        if posts == 2:
+            second_arrived.set()
+        return original_post(handler)
+
+    def refuse_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            entered.set()
+            assert release.wait(5), "the test never released the first attempt"
+        return "the action was refused"
+
+    monkeypatch.setattr(interact, "action_contract_error", refuse_once)
+    monkeypatch.setattr(interact.Handler, "_post", observe_post)
+    sent = {
+        "kind": "action",
+        "version": 1,
+        "widget": "feeder-board",
+        "action": "move",
+        "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        "attempt": "attempt-flight-001",
+    }
+    results = []
+
+    def post():
+        results.append(fetch(f"{server}/api/event", data=json.dumps(sent).encode()))
+
+    first = threading.Thread(target=post)
+    second = threading.Thread(target=post)
+    first.start()
+    assert entered.wait(5), "the first attempt never entered validation"
+    second.start()
+    try:
+        assert second_arrived.wait(5), "the retry never reached the event boundary"
+        assert not results, "the retry answered while the original attempt was active"
+    finally:
+        release.set()
+        first.join()
+        second.join()
+
+    assert calls == 1
+    assert len(results) == 2
+    assert {status for status, _ in results} == {400}
+    answers = [json.loads(body) for _, body in results]
+    assert answers == [answers[0], answers[0]]
+    assert answers[0] == {
+        "ok": False,
+        "attempt": sent["attempt"],
+        "error": "the action was refused",
+        "final": True,
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    assert status == 400 and json.loads(body) == answers[0]
+    assert calls == 1, "a later copy of a final attempt was evaluated again"
+    assert [
+        event for event in interact.read_events(page_dir) if event["kind"] == "action"
+    ] == []
 
 
 def test_flocked_refuses_a_platform_without_cross_process_locking(

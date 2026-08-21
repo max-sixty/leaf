@@ -7519,31 +7519,39 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     cannot erase the newer gesture or corrupt the absolute state it later sends."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
-    first_answer = []
-    second_send = []
+    held = []
+    sent_behind = []
 
     def hold_answers(route):
-        if not first_answer:
-            response = route.fetch()
-            first_answer.append((route, response.json()))
+        # The first pick is stopped in the wire and released below, so the state its
+        # answer carries — that pick and nothing else, the second never having been
+        # sent behind it — reaches the page after the second pick is painted. Held
+        # rather than fetched here: a handler that goes to the server itself is still
+        # inside that call while the clicks below run, and the release would reach for
+        # a route the list hasn't got (tests/CLAUDE.md, on releasing a hold).
+        if held:
+            sent_behind.append(route)
+            route.continue_()
         else:
-            second_send.append(route)
+            held.append(route)
 
     page.route("**/api/event", hold_answers)
     page.locator("#job-mounts").click()
     _until(page, lambda traffic: traffic.sends == 1, "held the first pick's answer")
     page.locator("#job-camera").click()
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
+    assert _traffic(page).sends == 1, (
+        "the second pick went out over the first, so the answer released below is not "
+        "the older one this test is about"
+    )
 
-    first_route, answer = first_answer[0]
-    first_route.fulfill(json=answer)
+    held[0].continue_()
     _until(page, lambda traffic: traffic.sends == 2, "sent the second queued pick")
-    assert len(second_send) == 1
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
 
-    second_send[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
+    assert len(sent_behind) == 1
     page.locator("#job-heater").click()
     round_trip(page)
     assert [

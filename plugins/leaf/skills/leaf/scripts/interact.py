@@ -2019,7 +2019,38 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._get)
 
     def do_POST(self):
+        # The body is read before the key gate below, which is the one refusal at the
+        # event door the door does not produce itself. What shapes an answer there is
+        # the door it came through rather than the branch that decided it, and every
+        # refusal has to name the attempt it refuses: a browser holding that gesture in
+        # its outbox reads `final` and nothing else as leave to put the gesture back,
+        # so a refusal in any other shape is re-sent every poll for the life of the tab.
+        self.posted, self.posted_error = self._read_posted()
         self._answer(self._post)
+
+    def _read_posted(self) -> tuple:
+        """The POSTed body as a dict, or the refusal it has already earned."""
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        except (TypeError, ValueError):
+            return {}, "invalid Content-Length"
+        try:
+            posted = json.loads(body)
+        except json.JSONDecodeError:
+            return {}, "invalid JSON"
+        if not isinstance(posted, dict):
+            return {}, "event must be a JSON object"
+        return posted, None
+
+    def _refuse(self, error: str, status: int = 400) -> None:
+        """A refusal in the shape the door it came through speaks. The event door's
+        answers are final and name the attempt; every other route says what went wrong
+        and nothing more."""
+        if self.command == "POST" and urlsplit(self.path).path == "/api/event":
+            status, body = self.event_rejection(self.posted, error, status)
+            self._json(body, status)
+        else:
+            self._json({"error": error}, status)
 
     def _answer(self, route) -> None:
         """One boundary for the key and for what a route raises. Unanswered, a fault
@@ -2031,10 +2062,12 @@ class Handler(BaseHTTPRequestHandler):
         route added later cannot be the one that forgot to ask."""
         try:
             if not self.authorized():
-                self._json({"error": NO_KEY}, 403)
+                self._refuse(NO_KEY, 403)
                 return
             route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+            # Not a refusal: a fault may have landed either side of the append, so the
+            # browser is owed another try rather than leave to put its gesture back.
             try:
                 self._json({"error": f"{type(error).__name__}: {error}"}, 500)
             except OSError:
@@ -2111,6 +2144,14 @@ class Handler(BaseHTTPRequestHandler):
         boundary rather than from an intermediary. `final` says no concurrent
         handler for that attempt remains alive; only such an answer may make a
         retrying browser put its gesture back.
+
+        Every refusal the event door gives is written here, including the ones decided
+        before this method's own gates are reached — the key, the preview server, and
+        each shape gate (`_refuse`). Finality is a property of the door having refused,
+        not of which branch refused: a deterministic refusal in any other shape reads to
+        the outbox as an incomplete answer, and the page re-posts it every poll for the
+        life of the tab. A key that died with the browser session is how a reader
+        reaches that, their whole explanation being one toast.
         """
         body = {"ok": False, "error": error, "final": True}
         if event.get("attempt"):
@@ -2155,13 +2196,15 @@ class Handler(BaseHTTPRequestHandler):
             # A fault may have happened after append but before state was built. It
             # is therefore retryable, never a rejection: the next identical request
             # either finds the accepted attempt in the log or tries the execution again.
+            # Retryable is what this answer says by withholding `final`, and it says it
+            # once: a `retry` beside that would be the same fact in a second word, free
+            # to disagree with the word the browser actually reads.
             result = (
                 500,
                 {
                     "ok": False,
                     "attempt": attempt,
                     "error": f"{type(error).__name__}: {error}",
-                    "retry": True,
                 },
             )
         finally:
@@ -2244,31 +2287,23 @@ class Handler(BaseHTTPRequestHandler):
         return self.accepted_state()
 
     def _post(self):
+        if urlsplit(self.path).path != "/api/event":
+            self._json({"error": "not found"}, 404)
+            return
         # The preview window is the gate's own browser over a maybe-unpublished
         # version, not the reader: an error event it minted would stand in the
         # real log as the agent's debt, diagnostics the lint generated about
         # itself. Nothing it does is the page's to keep.
         if self.preview_upto is not None:
-            self._json({"error": "the preview server is read-only"}, 403)
+            self._refuse("the preview server is read-only", 403)
             return
-        if urlsplit(self.path).path != "/api/event":
-            self._json({"error": "not found"}, 404)
+        if self.posted_error:
+            self._refuse(self.posted_error)
             return
-        try:
-            event = json.loads(
-                self.rfile.read(int(self.headers.get("Content-Length", 0)))
-            )
-        except json.JSONDecodeError:
-            self._json({"error": "invalid JSON"}, 400)
-            return
-        if not isinstance(event, dict):
-            self._json({"error": "event must be a JSON object"}, 400)
-            return
+        event = self.posted
         kind = event.get("kind")
         if not isinstance(kind, str) or kind not in BROWSER_EVENT_FIELDS:
-            self._json(
-                {"error": f"kind must be one of {sorted(BROWSER_EVENT_FIELDS)}"}, 400
-            )
+            self._refuse(f"kind must be one of {sorted(BROWSER_EVENT_FIELDS)}")
             return
         # Identity, authorship, and time belong to the server. Drop client copies
         # before checking the kind's declared payload, so none can be forged into
@@ -2279,11 +2314,8 @@ class Handler(BaseHTTPRequestHandler):
             set(event) - {"kind"} - (EVENT_VOCABULARY[kind] - AGENT_ONLY_FIELDS)
         )
         if unexpected:
-            self._json(
-                {
-                    "error": f"{event['kind']} events have unexpected fields {sorted(unexpected)}"
-                },
-                400,
+            self._refuse(
+                f"{event['kind']} events have unexpected fields {sorted(unexpected)}"
             )
             return
         wrong = [
@@ -2292,7 +2324,7 @@ class Handler(BaseHTTPRequestHandler):
             if type(event.get(name)) is not typ or event[name] == ""
         ]
         if wrong:
-            self._json({"error": f"{kind} events need {', '.join(wrong)}"}, 400)
+            self._refuse(f"{kind} events need {', '.join(wrong)}")
             return
         if kind == "comment" and "anchor" in event:
             anchor = event["anchor"]
@@ -2314,12 +2346,9 @@ class Handler(BaseHTTPRequestHandler):
                 or not (anchor.get("section") or anchor.get("quote"))
             )
             if invalid:
-                self._json(
-                    {
-                        "error": "comment anchor must contain a string section or quote, "
-                        "with optional string prefix/suffix/part"
-                    },
-                    400,
+                self._refuse(
+                    "comment anchor must contain a string section or quote, "
+                    "with optional string prefix/suffix/part"
                 )
                 return
         if (
@@ -2327,21 +2356,18 @@ class Handler(BaseHTTPRequestHandler):
             and "suggestion" in event
             and type(event["suggestion"]) is not bool
         ):
-            self._json({"error": "comment suggestion must be boolean"}, 400)
+            self._refuse("comment suggestion must be boolean")
             return
         if kind == "comment" and "about" in event and event["about"] != "layer":
-            self._json({"error": 'comment about must be "layer"'}, 400)
+            self._refuse('comment about must be "layer"')
             return
         if "attempt" in event and (
             not isinstance(event["attempt"], str)
             or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", event["attempt"]) is None
         ):
-            self._json(
-                {
-                    "error": "event attempt must be 16–128 ASCII letters, "
-                    "digits, underscores, or hyphens"
-                },
-                400,
+            self._refuse(
+                "event attempt must be 16–128 ASCII letters, "
+                "digits, underscores, or hyphens"
             )
             return
         status, answer = self.coordinate_event(event)

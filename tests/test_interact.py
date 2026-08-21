@@ -5773,6 +5773,78 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
 
 
+def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
+    server, page_dir
+):
+    """`final` is the only word that ends a retry, so a refusal that leaves it out is
+    not a refusal the browser can act on: the outbox reads it as an incomplete answer
+    and re-posts the same attempt every poll for the life of the tab, with one toast as
+    the reader's whole explanation. Every one of these is deterministic, so the loop
+    never ends.
+
+    The state-dependent refusals were written through `event_rejection` from the start
+    and the gates in front of them were not, which is the split this asserts away: the
+    key, the read-only preview server, and each shape gate answer in the door's own
+    shape rather than in the shape of whichever branch decided them. A page's runtime is
+    vendored at `page init` and the layer around it moves, so the shape gates are
+    reachable by an older page's honest event, not only by a hand-written POST."""
+    publish(page_dir)
+    attempt = "attempt-for-the-door-x"
+    comment = {"kind": "comment", "version": 1, "text": "hello", "attempt": attempt}
+    preview = interact.LeafHTTPServer(
+        ("127.0.0.1", 0), interact.handler_for(page_dir, TOKEN, preview_upto=1)
+    )
+    thread = threading.Thread(target=preview.serve_forever, daemon=True)
+    thread.start()
+    try:
+        refusals = [
+            ("no key", 403, comment, None, server),
+            (
+                "the preview server",
+                403,
+                comment,
+                TOKEN,
+                f"http://127.0.0.1:{preview.server_address[1]}",
+            ),
+            ("an unknown kind", 400, {**comment, "kind": "nope"}, TOKEN, server),
+            ("an unexpected field", 400, {**comment, "widget": "x"}, TOKEN, server),
+            ("a field of the wrong type", 400, {**comment, "text": 7}, TOKEN, server),
+            (
+                "a bad anchor",
+                400,
+                {**comment, "anchor": {"nothing": "here"}},
+                TOKEN,
+                server,
+            ),
+            (
+                "a malformed attempt",
+                400,
+                {**comment, "attempt": "too-short"},
+                TOKEN,
+                server,
+            ),
+            # The one refusal that was always in this shape, here so the loop below is
+            # read against a case that could never have failed it.
+            ("an unlive version", 400, {**comment, "version": 9}, TOKEN, server),
+        ]
+        for name, wanted, event, token, url in refusals:
+            status, body = fetch(
+                f"{url}/api/event", data=json.dumps(event).encode(), token=token
+            )
+            answer = json.loads(body)
+            assert (status, answer.get("ok"), answer.get("final")) == (
+                wanted,
+                False,
+                True,
+            ), (name, status, answer)
+            assert answer.get("attempt") == event["attempt"], (name, answer)
+            assert answer.get("error"), (name, answer)
+    finally:
+        preview.shutdown()
+
+    assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
+
+
 def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     """What makes the key invisible: it is in the link once, and the cookie carries
     it from there. The runtime's own fetches are relative and hold no query, and a

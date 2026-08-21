@@ -3901,16 +3901,19 @@ async function deliver(entry) {
       (candidate) => candidate.attempt === event.attempt,
     );
     if (res.ok && answer?.ok === true && acceptedEvent) {
+      // The send succeeded the moment the answer named the accepted event. A fault
+      // rendering that state is its own news and must not re-send: the next poll
+      // paints it, and re-posting an attempt the log already holds is a request the
+      // server can only answer the same way. Where the throw lands before the events
+      // are stored, the retry would not even end at the top of this loop — the
+      // attempt is in no list to be found — so the page would post forever and this
+      // gesture would never settle.
       try {
         await receiveState(answer.state);
-        return acceptedEvent;
       } catch (error) {
         console.error("leaf: state in event response", error);
-        if (!announced) showToast("Couldn't apply the answer — retrying your change…");
-        announced = true;
-        await retryPause();
       }
-      continue;
+      return acceptedEvent;
     }
     if (
       answer?.final === true &&

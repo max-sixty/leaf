@@ -1176,6 +1176,26 @@ closing the other — leaving two boards stacked on one edge with the lower
 unreachable, which no reader could report as anything but the board being
 broken.
 
+A reload is a third way a board goes up, and for a while it was that second
+opener. A board the reader had left standing was put back where the boards
+register, which runs while this module is still evaluating — so it could reach
+neither the page's open asks nor anything else declared below it, and the
+reader who had left the board open got a ReferenceError where their page
+should have been.
+
+So the restore now stands at the foot of the file beside the comment panel's
+own, and opens the board by calling `showEdge`. A restore is spelled as the
+press it stands in for rather than as the writes that press happens to make
+today, because the writes are free to grow and a copy of them is not. The one
+thing it does not borrow is the movement: the page arrives already arranged
+rather than arranging itself while the reader watches. The stylesheet was
+already saying that about the room the board takes — its transition is stamped
+on an upgraded body — and `slide` says it about the board, from the same stamp.
+
+The list inside is not the restore's to fill. No poll has run when it stands,
+so the log is empty, and the board's rows are drawn from it by the same
+startup pass that fills the banner's count beside it.
+
 What the two do not share is the document's box: the leaves board lies over
 the page and the asks board takes a strip out of it. That is not an
 inconsistency waiting to be tidied. A leaf's row is a way out of this page and

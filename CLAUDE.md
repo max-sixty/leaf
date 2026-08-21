@@ -498,9 +498,12 @@ both color schemes, and asserts what a static lint cannot reach: every widget
 upgrades into a box with usable size, the document and the comment panel scroll
 in separate regions, the comment box grows without any script sizing it, and
 neither pressing a control nor news arriving on its own moves the controls beside
-it. One journey test drives the whole loop through the real UI — select a
-passage, comment, drag a card, follow the next version, find the comment still
-anchored — and pins the event log it leaves behind. `test_product_page.py` holds
+it. It then reads each example again as a reader who left something standing,
+once in every arrangement a browser can put back: the panel open, a board standing,
+design mode on. Every other reading in the suite is of a first visit. One journey test drives the
+whole loop through the real UI — select a passage, comment, drag a card, follow
+the next version, find the comment still anchored — and pins the event log it
+leaves behind. `test_product_page.py` holds
 the pages under `docs/` to the shipped theme and widget registry.
 `test_site.py` builds the site and reads it back: the theme it serves is the
 shipped file, each example stands up as a live page that takes a comment and

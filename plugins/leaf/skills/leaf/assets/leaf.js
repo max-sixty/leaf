@@ -378,6 +378,16 @@ const stored = (backing, scope = "") => ({
       return false;
     }
   },
+  // Where this store puts a key, as the platform's own two names for its stores plus
+  // the key the backing actually holds. Only the browser gate asks: it seeds a store
+  // before the page has run, so it cannot ask a store that does not exist yet, and the
+  // alternative is a second copy of the scope rule kept over there to go stale.
+  where(key) {
+    return {
+      store: backing === sessionStorage ? "session" : "local",
+      key: scope + key,
+    };
+  },
   // What this scope holds, spelled as the callers spell it. The drafts are what needs
   // it: a composer's key is the passage it is on, so which draft to reopen at load is a
   // question about the set rather than about a key someone already knows.
@@ -2660,7 +2670,6 @@ asksBtn.title = "Go to the next thing this page is waiting on you for";
 // status change repaints the row's own dot and words without moving it.
 const othersBtn = el("button", "lf-btn lf-others", "");
 othersBtn.title = "Leaves live on this machine, and what each is doing";
-othersBtn.setAttribute("aria-expanded", "false");
 // A nav, because navigation is what it is and a bare div may not carry the
 // aria-label the card needs (axe: aria-prohibited-attr, serious).
 const othersPanel = el("nav", "lf-ui lf-others-panel");
@@ -2687,8 +2696,14 @@ asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
 const edges = new Map();
 const EDGE_KEY = "lf-edge-board";
 // The board survives a reload like the comment panel does (see PANEL_KEY): reloading is
-// not resetting, and a board someone stood up to watch stays stood.
-let edgeUp = readerStore.get(EDGE_KEY) || null;
+// not resetting, and a board someone stood up to watch stays stood. Null until the
+// restore at the foot of this module puts it back, which it does by opening the board
+// the way a press does. Reading the store into this declaration instead is what made
+// registration a second opener, and a second opener here can reach almost nothing: it
+// runs while this module is still evaluating, so the page's own asks — declared
+// thousands of lines below — are not initialized yet, and the reader who had left the
+// board standing got a ReferenceError where their page should have been.
+let edgeUp = null;
 const openEdge = (key) => edgeUp === key;
 function showEdge(key) {
   if (edgeUp === key) return;
@@ -2733,21 +2748,14 @@ function showEdge(key) {
   else delete document.body.dataset.lfEdge;
   paintHere();
 }
+// Registration and nothing else: no board is up while this module is evaluating, and
+// the one the reader left standing goes up in the restore section at the foot of the
+// file, through showEdge. So there is one opener, and every fact that carries "this
+// board is up" is written where it is decided.
 function edgeIs(key, panel, btn, paint) {
   edges.set(key, { panel, btn, paint });
   btn.onclick = () => showEdge(openEdge(key) ? null : key);
-  const restored =
-    openEdge(key) && document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
-  btn.setAttribute("aria-expanded", String(restored));
-  // A board the reader left standing comes back standing — but it is not filled here.
-  // This runs while the module is still evaluating, and a board's paint reads the page's
-  // open asks, whose own reading is declared far below this line: calling it now throws a
-  // ReferenceError in front of the reader, which is how this was found. restoreEdge's
-  // post-replay presentation pass fills it, by which point everything exists.
-  if (restored) {
-    panel.classList.add("open");
-    document.body.dataset.lfEdge = key;
-  }
+  btn.setAttribute("aria-expanded", "false");
 }
 edgeIs("leaves", othersPanel, othersBtn);
 edgeIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
@@ -9981,34 +9989,31 @@ function retractedIds(e, floors, widget) {
 // Reading it from the log rather than from the markup is what makes it last —
 // the version *after* the rewrite declares nothing, and its silence would
 // otherwise hand the user's retracted state straight back.
-// Memoized on the log's identity: `events` has one writer, which replaces the
-// array wholesale (poll), and the floors read nothing else — so a cached answer
-// can never be stale, and the full-log walk stops running two to four times per
-// poll (stateFold, buildThreads, replay each asked it fresh).
-const floorsMemo = new WeakMap();
-function retractionFloors(upto) {
-  let byUpto = floorsMemo.get(events);
-  if (!byUpto) floorsMemo.set(events, (byUpto = new Map()));
-  if (byUpto.has(upto)) return byUpto.get(upto);
+// The two note fields are the reviewer and agent channels' readings of one durable
+// relation: a version answers ids, and its answer lasts without being repeated.
+// Memoized on the log's identity and the field/window query: `events` has one writer,
+// which replaces the array wholesale (poll), so a cached answer cannot be stale and
+// every consumer shares the same filter-and-max fold.
+const noteFloorsMemo = new WeakMap();
+function noteFloors(field, upto) {
+  let byQuery = noteFloorsMemo.get(events);
+  if (!byQuery) noteFloorsMemo.set(events, (byQuery = new Map()));
+  const query = `${field}:${upto}`;
+  if (byQuery.has(query)) return byQuery.get(query);
   const floors = new Map();
   for (const e of events)
     if (e.kind === "note" && e.version <= upto)
-      for (const id of e.restated || [])
+      for (const id of e[field] || [])
         floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
-  byUpto.set(upto, floors);
+  byQuery.set(query, floors);
   return floors;
 }
+const retractionFloors = (upto) => noteFloors("restated", upto);
 // A report's end: the ids the notes in the window answered, absorbed or
 // overruled — the agent channel's mirror of retractionFloors, read from the
 // log for the same reason (the version after the answer declares nothing, and
 // its silence must not hand the report back).
-function answeredReports(upto) {
-  const answered = new Set();
-  for (const e of events)
-    if (e.kind === "note" && e.version <= upto)
-      for (const id of e.reports || []) answered.add(id);
-  return answered;
-}
+const answeredReports = (upto) => noteFloors("reports", upto);
 // An id-bearing element's state as markup can say it: tag, attributes, and
 // place among its id-bearing kin. Text is deliberately absent — words are the
 // static gate's subject (restatement_errors); this is the rest, the state no
@@ -10480,8 +10485,8 @@ function authoredDetail(el, unit, spec) {
 // and whose tag still declares the verb, each with the unit it folds to. What
 // differs is only what each channel counts as ended — a retraction floor for
 // the reviewer's, a note's answer for the agent's — so that is the caller's
-// `live` predicate and nothing else is duplicated. Named for interact.py's
-// `event_spec`/`fold_unit`, the same seam on the file side.
+// `live` predicate and nothing else is duplicated. interact.py's `declared_events`
+// owns the same seam on the file side.
 // Which element one event states, per the verb's declared fold unit: the widget itself
 // where the verb is absolute across the group, and the element its detail names where
 // it is absolute per part. One sentence, because two copies of it are two readings of
@@ -10871,7 +10876,34 @@ async function poll() {
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general") ?? "";
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
+// Remembered board intent is staged here, after every declaration exists. Its strip is
+// part of the arrival geometry, but its state-dependent rows stay hidden until the first
+// replay presents the page and restoreEdge paints them. An already-presented document
+// (an exported or pre-presented DOM) can restore immediately through the same function.
+edgeUp = readerStore.get(EDGE_KEY) || null;
+if (edgeUp) document.body.dataset.lfEdge = edgeUp;
+if (pagePresented()) restoreEdge();
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
+// Every way this page can come up that is not a first visit — the restores above, each
+// named by the fact its store holds. The browser gate arrives once in each, because
+// every other reading it takes is of a first visit: a fresh context holds nothing, so
+// the panel is shut, no board stands and the mode is off. That made the restores the one
+// road onto the page with no gate on it, and a board left standing came up as a
+// ReferenceError rather than a page — on every load, for the only readers who had asked
+// for it. Declared here rather than listed in the gate, because a list over there stops
+// at the surfaces it was taught; this one is read on the day a surface starts
+// remembering something. One stored fact each rather than the combinations of them: what
+// a finding has to name is the restore that broke, and the geometry the combinations
+// would add is measured on the first visit already.
+export const ARRANGEMENTS = [
+  { name: "the comment panel open", ...readerStore.where(PANEL_KEY), value: "1" },
+  ...[...edges.keys()].map((board) => ({
+    name: `the ${board} board standing`,
+    ...readerStore.where(EDGE_KEY),
+    value: board,
+  })),
+  { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
+];
 // Where the reader stands, which is the half of an arrival the browser cannot answer on
 // a page that moves its own scrolling: `html` is `overflow: hidden` so the document
 // scrolls in `body`, and the browser scrolls whichever box it last saw the reader put
@@ -10888,7 +10920,8 @@ if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // can name itself to Chrome now.
 letGo();
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
-// panel is restored just above, so the column is already reflowed). The browser answers
+// panel and a remembered board's strip are restored just above, so the column is already
+// reflowed; the board's pixels wait for replay). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:
 // upgrades change its height afterwards (tabs collapse, diagrams render, diff files
 // fold), so a restored offset points into a document that no longer exists and a

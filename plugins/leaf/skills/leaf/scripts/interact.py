@@ -3434,9 +3434,29 @@ def action_widget_tags(byid: dict, events: list) -> dict:
 
 def detail_error(schema: dict, detail: dict):
     """The first schema complaint about an event's detail payload, or None —
-    sorted so which one speaks doesn't depend on validator iteration order."""
-    errors = sorted(Draft202012Validator(schema).iter_errors(detail), key=str)
-    return errors[0].message if errors else None
+    ordered so which one speaks doesn't depend on validator iteration order."""
+    error = min(Draft202012Validator(schema).iter_errors(detail), key=str, default=None)
+    return error.message if error else None
+
+
+def declared_event_error(
+    event: dict, tag: str, registry: dict, kind: str, channel: str
+):
+    """Why a known widget's verb or detail violates one declared channel."""
+    entry = registry.get(tag)
+    if entry is None:
+        return (
+            f"registry no longer declares <{tag}> for {kind} widget {event['widget']!r}"
+        )
+    declared = entry.get(channel, {})
+    spec = declared.get(event["action"])
+    if spec is None:
+        return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
+            f"; it declares {sorted(declared)}" if kind == "report" and declared else ""
+        )
+    if message := detail_error(spec["detail"], event["detail"]):
+        return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
+    return None
 
 
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
@@ -3450,16 +3470,8 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
             f"unknown action widget {event['widget']!r} in v{event['version']} "
             "or agent-authored thread markup"
         )
-    entry = registry.get(tag)
-    if entry is None:
-        return (
-            f"registry no longer declares <{tag}> for action widget {event['widget']!r}"
-        )
-    state = entry.get("x-state", {})
-    if event["action"] not in state:
-        return f"<{tag}> does not declare action verb {event['action']!r}"
-    if message := detail_error(state[event["action"]]["detail"], event["detail"]):
-        return f"<{tag}> action {event['action']!r} detail is invalid: {message}"
+    if error := declared_event_error(event, tag, registry, "action", "x-state"):
+        return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
@@ -3488,19 +3500,7 @@ def report_contract_error(page_dir: Path, event: dict, registry: dict):
             "reports name page widgets only; thread markup is frozen, so no "
             "version could ever answer a report made there"
         )
-    entry = registry.get(tag)
-    if entry is None:
-        return (
-            f"registry no longer declares <{tag}> for report widget {event['widget']!r}"
-        )
-    declared = entry.get("x-report", {})
-    if event["action"] not in declared:
-        return f"<{tag}> does not declare report verb {event['action']!r}" + (
-            f"; it declares {sorted(declared)}" if declared else ""
-        )
-    if message := detail_error(declared[event["action"]]["detail"], event["detail"]):
-        return f"<{tag}> report {event['action']!r} detail is invalid: {message}"
-    return None
+    return declared_event_error(event, tag, registry, "report", "x-report")
 
 
 def version_ids(page_dir: Path) -> set:
@@ -4921,12 +4921,11 @@ def implicit_closes(open_tags: list, tag: str) -> int:
     </p>, so a tree they disagreed about would be a passage one of them puts in the
     wrong section."""
     closed = 0
-    top = lambda: open_tags[-1 - closed] if closed < len(open_tags) else None
     if tag in P_CLOSERS:
-        while top() == "p":
+        while closed < len(open_tags) and open_tags[-1 - closed] == "p":
             closed += 1
     siblings = SIBLING_CLOSERS.get(tag, ())
-    while top() in siblings:
+    while closed < len(open_tags) and open_tags[-1 - closed] in siblings:
         closed += 1
     return closed
 
@@ -7172,57 +7171,57 @@ def action_subjects(event: dict, byid: dict, now: dict, registry: dict) -> list:
     return subjects or [widget]
 
 
-def retractions(events: list, upto=None) -> dict:
-    """id → the version that last took back what was recorded on it.
+def note_floors(events: list, field: str, upto=None) -> dict:
+    """id named by a note field → the last version that named it in the window.
 
-    A version declares a rewrite with `restated` in its markup and `note` records
-    it here, on the note event itself, because the declaration belongs to the one
-    version that rewrote the words and a retraction has to outlive it. Left in
-    the markup, the version after would have to repeat the attribute to keep the
-    retraction standing — the hand-copying this whole design exists to remove,
-    and silently resurrecting a decision the moment someone forgot.
-    `upto` windows the reading the way the JS twin's retractionFloors(upto)
-    does — filter, then max — so an id retracted both early and late keeps its
-    early floor inside the window instead of vanishing with the late one."""
+    `restated` and `reports` are the reviewer and agent channels' two readings
+    of the same durable relation: one version's note answers ids, and that
+    answer lasts without being repeated. Keeping their filter-and-max fold here
+    prevents the channels from disagreeing about how a window is applied.
+    """
     at = {}
-    for e in events:
-        if e["kind"] == "note" and (upto is None or e["version"] <= upto):
-            for wid in e.get("restated", []):
-                at[wid] = max(at.get(wid, 0), e["version"])
+    for event in events:
+        if event["kind"] == "note" and (upto is None or event["version"] <= upto):
+            for named in event.get(field, []):
+                at[named] = max(at.get(named, 0), event["version"])
     return at
+
+
+def retractions(events: list, upto=None) -> dict:
+    """id → the version whose `restated` note last took back its decision."""
+    return note_floors(events, "restated", upto)
 
 
 def report_absorptions(events: list, upto=None) -> dict:
-    """report event id → the version whose note answered it (absorbed or
-    overruled) — the agent channel's mirror of `retractions`, windowed the same
-    way and lasting the same way: the answer rides the note of the one version
-    that gave it, and holds for good without being repeated."""
-    at = {}
-    for e in events:
-        if e["kind"] == "note" and (upto is None or e["version"] <= upto):
-            for rid in e.get("reports", []):
-                at[rid] = max(at.get(rid, 0), e["version"])
-    return at
+    """report event id → the version whose `reports` note last answered it."""
+    return note_floors(events, "reports", upto)
 
 
-def event_spec(event: dict, byid: dict, registry: dict, channel: str):
-    """The verb spec the current markup declares behind an action or report:
-    None where no element holds the event's widget id, or where its tag no
-    longer declares the verb — a recorded event the vocabulary has moved past
-    folds to nothing rather than standing on trust."""
-    rec = byid.get(event["widget"])
-    if rec is None:
-        return None
-    return (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+def declared_events(events, byid, registry, kind, channel, upto):
+    """Registry-declared events in a window, with their fold unit and verb spec.
 
-
-def fold_unit(event: dict, spec: dict):
-    """The unit an event folds to: the widget itself for a verb absolute across
-    the group, else the element its detail names — the declaration state_fold's
-    docstring explains. Non-string means the detail named nothing foldable."""
-    if spec.get("unit", "widget") == "widget":
-        return event["widget"]
-    return event["detail"].get(spec["unit"])
+    Actions and reports share windowing, widget/verb lookup, and unit resolution;
+    what ends one remains the caller's channel-specific rule. The browser
+    runtime's `foldable` generator owns the same seam.
+    """
+    for event in events:
+        if event["kind"] != kind:
+            continue
+        if upto is not None and event["version"] > upto:
+            continue
+        rec = byid.get(event["widget"])
+        if rec is None:
+            continue
+        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+        if not spec:
+            continue
+        unit = (
+            event["widget"]
+            if spec.get("unit", "widget") == "widget"
+            else event["detail"].get(spec["unit"])
+        )
+        if isinstance(unit, str):
+            yield unit, event, spec
 
 
 def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dict:
@@ -7237,19 +7236,16 @@ def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dic
     channel's."""
     absorbed = report_absorptions(events, upto)
     per_unit = {}
-    for e in events:
-        if e["kind"] != "report":
-            continue
-        if upto is not None and e["version"] > upto:
-            continue
-        if e["id"] in absorbed:
-            continue
-        spec = event_spec(e, byid, registry, "x-report")
-        if not spec:
-            continue
-        unit = fold_unit(e, spec)
-        if isinstance(unit, str):
-            per_unit.setdefault(unit, []).append((e, spec))
+    for unit, event, spec in declared_events(
+        events,
+        byid,
+        registry,
+        "report",
+        "x-report",
+        upto,
+    ):
+        if event["id"] not in absorbed:
+            per_unit.setdefault(unit, []).append((event, spec))
     return per_unit
 
 
@@ -7306,23 +7302,21 @@ def state_fold(
     report to everything recorded (None)."""
     withdrawn = taken_back(events)
     fold = {}
-    for e in events:
-        if e["kind"] != "action":
-            continue
-        if upto is not None and e["version"] > upto:
-            continue
-        spec = event_spec(e, byid, registry, "x-state")
-        if not spec:
-            continue
+    for unit, event, spec in declared_events(
+        events,
+        byid,
+        registry,
+        "action",
+        "x-state",
+        upto,
+    ):
         # Two ways an action stops standing, and the fold owes both the same
         # answer: a version that rewrote what it rested on (`restated`), and the
         # reader taking it back. Neither leaves a mark on the action itself —
         # the log is append-only — so both are read from what came after it.
-        if e["id"] in withdrawn or action_retracted(e, floors, spk):
+        if event["id"] in withdrawn or action_retracted(event, floors, spk):
             continue
-        unit = fold_unit(e, spec)
-        if isinstance(unit, str):
-            fold[unit] = (e, spec)
+        fold[unit] = (event, spec)
     return fold
 
 
@@ -7882,15 +7876,16 @@ def report_errors(
     answered_at = {}
     if unearned:
         absorbed = report_absorptions(events, prev_num)
-        for e in events:
-            if e["kind"] != "report" or e["id"] not in absorbed:
-                continue
-            spec = event_spec(e, byid, registry, "x-report")
-            if not spec:
-                continue
-            unit = fold_unit(e, spec)
-            if isinstance(unit, str):
-                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[e["id"]])
+        for unit, event, _ in declared_events(
+            events,
+            byid,
+            registry,
+            "report",
+            "x-report",
+            prev_num,
+        ):
+            if event["id"] in absorbed:
+                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[event["id"]])
     for sid in sorted(unearned):
         rec = byid.get(sid)
         if rec is None:
@@ -9398,6 +9393,10 @@ WINDOW_ERRORS = (
 )
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 
+# The page's own word for "I have finished becoming myself", which every pass here
+# waits on before reading anything (the stamp's reasons are at the foot of leaf.js).
+UPGRADED = "() => document.body.dataset.lfUpgraded === '1'"
+
 
 def resize_observer_error(text: str) -> bool:
     return text.startswith(RESIZE_OBSERVER_ERROR)
@@ -9514,7 +9513,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         # document, so a box measured while it is still drawing belongs to no version of
         # the page — which is the stamp `version export` waits on for the same reason.
         try:
-            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+            page.wait_for_function(UPGRADED)
         except PlaywrightTimeout:
             page.close()
             explanations = [*errors, *resize_notices]
@@ -10176,7 +10175,7 @@ def export_page(browser, url: str, page_dir: Path) -> str:
     try:
         page.goto(url, wait_until="networkidle")
         try:
-            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+            page.wait_for_function(UPGRADED)
             # Both replayed kinds, as the render gate counts them: the caught-up
             # stamp counts reports beside actions, and a page whose only recorded
             # state is a worker's report would otherwise copy before it painted.

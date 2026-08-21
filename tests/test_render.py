@@ -594,7 +594,7 @@ def round_trip(page):
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory
-# announces itself — a declared status, a bumped heartbeat, an appended event all reach
+# announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when its next poll asks — so an assertion made straight after the write is
 # waiting out the poll interval on whatever budget expect() happens to carry. Timed, that
 # wait takes 1.8 to 2.3 of the default five seconds, and it takes them every time: an
@@ -3812,8 +3812,8 @@ def test_a_panel_row_follows_its_pages_status_live(
     # A neighbour waiting on its own reader says so in this seat's shorter words, and
     # in the same term its banner uses: one word per state across the product, or a
     # user reading both surfaces has to work out whether they mean the same thing.
-    # Its own watcher has to be live for that, which is what the neighbour's heartbeat
-    # is — judged from the same evidence its banner judges itself on.
+    # Its own watcher has to be live for that, which is what the neighbour's held lease
+    # proves — judged from the same evidence its banner judges itself on.
     interact.write_json(
         other_dir / "status.json",
         {"state": "waiting", "detail": "", "ts": interact.now_iso()},
@@ -21468,25 +21468,15 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
 
 @contextmanager
 def live_watcher(page_dir, page):
-    """Bump heartbeat.json for the duration of the block, as `leaf wait` does.
-
-    Both ends wait for the poll that carries them, so the assertions on either side
-    read a page that has already been told a watcher arrived or left. The first beat
-    is written here rather than in the thread, so that wait cannot outrun it."""
-    stop = threading.Event()
-
-    def pump():
-        while not stop.wait(0.5):
-            interact.write_json(page_dir / "heartbeat.json", {"t": time.time()})
-
-    interact.write_json(page_dir / "heartbeat.json", {"t": time.time()})
-    threading.Thread(target=pump, daemon=True).start()
+    """Hold the exact lease `leaf wait` uses for the duration of the block."""
+    session = interact.read_json(page_dir / "session.json")
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(page_dir, session))
+    assert lease
     told(page)
     try:
         yield
     finally:
-        stop.set()
-        (page_dir / "heartbeat.json").unlink(missing_ok=True)
+        lease.close()
     # Outside the finally: a block that raised has its own failure to report, and
     # nothing after it to wait for.
     told(page)

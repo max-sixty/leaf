@@ -9623,8 +9623,8 @@ function presented(state) {
     status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
   );
   // Nothing is behind the claim. The claimant pid settles it where there is one: gone
-  // is gone, whatever the claim says and however lately a stray `leaf wait` bumped
-  // the heartbeat for a session that can no longer read it. Where nothing claimed the
+  // is gone, whatever the claim says and whether a stray `leaf wait` still holds
+  // a lease for a session that can no longer read it. Where nothing claimed the
   // page — a server started outside an agent host — there is no pid to look for, so a
   // live watcher or a claim still inside its grace is the whole of the evidence, and
   // once both are spent the page is unheld too.

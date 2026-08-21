@@ -124,7 +124,7 @@ log instead only ever asks after the send the test names — a stray send, from 
 widget that was supposed to stay quiet, passes straight through such a poll.
 
 A file the test writes is the same trip run the other way, and there `expect`'s
-own timeout becomes the hold in disguise. A declared status, a bumped heartbeat,
+own timeout becomes the hold in disguise. A declared status, a changed wait lease,
 an appended event: none of them announce themselves, so the page learns of each
 when its next poll asks. An assertion made straight after the write therefore
 spends a whole poll interval out of whatever budget `expect` was given — 1.8 to

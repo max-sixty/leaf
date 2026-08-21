@@ -147,7 +147,7 @@ leaf status <page> working "<detail>"    # or: waiting "<what you want back>", i
 leaf report <page> <widget> <verb> name=value…  # a worker's state change, e.g.
                                              #   report <page> t-parser status status=review
 leaf wait [<page>]                       # prints one page's events; line 1 names it
-leaf ack <page> <seq>                    # complete, untruncated output reached context
+leaf ack <page> <seq>                    # after the batch reaches its next consumer
 leaf comment <page> --quote "<passage>" --text "…"
 leaf reply <page> --to <id> --text "…"
 leaf resolve <page> --to <id>            # close a thread; see the loop for when
@@ -400,14 +400,18 @@ from the turn in front of them.
 - **Claude Code:** start `leaf wait` as a background task and end the turn. Its
   completion returns as host input: an idle session starts a turn, while a working
   session receives it between tool calls. Restart the background wait after each batch.
-- **Codex:** send the URL to the user in an intermediate update before waiting. Start
-  `leaf wait` in unified exec, retain the returned session id, and keep the
-  current turn active. Where the user owns the next move, poll that exact session
-  with empty `write_stdin` calls and long yields until it returns. Where you are working,
-  leave the same waiter running, continue the work, and poll it between tool calls or
-  milestones so a comment can change the next decision. Never detach the wait and never
-  end the turn expecting its completion to start another one: Codex has no unprompted
-  completion delivery. Start a fresh wait session after each batch and retain its new id.
+- **Codex:** send the URL to the user in an intermediate update
+  before waiting. Start `leaf wait` in unified exec, retain the returned session id, and
+  keep the current turn active. Where the user owns the next move, poll that exact
+  session with empty `write_stdin` calls and long yields until it returns. Where you are
+  working, leave the same waiter running, continue the work, and poll it between tool
+  calls or milestones so a comment can change the next decision. Never detach the wait
+  and never end the turn expecting its completion to start another one: a detached
+  command has no unprompted completion delivery. Start a fresh wait after each batch.
+
+  A watcher task is optional and requires the user's explicit authorization because it
+  adds a visible task. When authorized, read and follow
+  `${CLAUDE_SKILL_DIR}/references/codex-watcher.md` before handing over the page.
 
 One wait watches every page this session holds, so serving another leaf mid-wait
 needs no second watcher, and the batch it returns may be any watched page's: its
@@ -430,17 +434,18 @@ The wait can stay open as long as the user takes, and exits when they comment, r
 resolve, approve the page or end the leaf, or edit an interactive widget (a drag on
 a `lf-board` arrives as an `action` event) — or when a worker session posts a
 `leaf report`, which joins the same batch — printing one page's unacknowledged
-events as JSON lines. Printing is deliberately not receipt: a
-detached process can finish without its output ever entering model context. As soon as
-a complete wait result enters context, run `leaf ack <page> <highest-seq>` — for the
-page the batch's first line names — before
-interpreting or handling it. If the wait output was truncated at all, acknowledge
-nothing: run a new wait with enough output capacity to receive the whole batch. A scalar
-cursor cannot represent a missing line in the middle. Acknowledgement is monotonic and
-idempotent; an event posted between wait and ack has a higher sequence and remains
-pending. Until ack, the next wait prints the batch again. Reading the full log with
-`leaf events` does not acknowledge it. User comments exist only through the browser;
-`leaf comment` posts as you, never as them.
+events as JSON lines. Printing is deliberately not receipt: a detached process can
+finish without its output ever entering model context. The wait owner acknowledges only
+after the complete batch reaches its next durable consumer. In the direct loop, that is
+model context: run `leaf ack <page> <highest-seq>` — for the page the batch's first line
+names — before interpreting or handling the events. An adapter acknowledges after its
+receiver accepts the batch; the receiver never does. If wait output was truncated at
+all, acknowledge nothing: run a new wait with enough output capacity to receive the
+whole batch. A scalar cursor cannot represent a missing line in the middle.
+Acknowledgement is monotonic and idempotent; an event posted between wait and ack has a
+higher sequence and remains pending. Until ack, the next wait prints the batch again.
+Reading the full log with `leaf events` does not acknowledge it. User comments exist
+only through the browser; `leaf comment` posts as you, never as them.
 
 A wait result while the page already says `working` leaves that status untouched;
 `handoff` dates only a pickup from a non-working state.
@@ -545,11 +550,11 @@ For each acknowledged batch:
    history), edit the copy where the page moved, then run `version publish <page>
    --version 2 --text "<changelog>"`. Keep the changelog brief, though a decline's why
    can take a sentence or two. The browser follows the published version automatically.
-4. Re-enter the host's loop above: start a new background wait in Claude Code, or a new
-   unified-exec wait in Codex and retain its exact session. Use `leaf status <page>
-   waiting "<what you want back>"` and long-poll where the next move is the user's.
-   Where it is yours, use `working`, keep doing the work, and poll the running waiter
-   between milestones.
+4. Re-enter the host's loop above: start a new background wait in Claude Code; let the
+   Codex watcher task keep its wait; or, without one, start a new Codex
+   unified-exec wait and retain its exact session. Use `leaf status <page> waiting
+   "<what you want back>"` where the next move is the user's. Where it is yours, use
+   `working`, keep doing the work, and check the host's live waiter between milestones.
 
 A `done` event is sign-off — it arrives only from a page declaring it (see the
 conventions). It approves the work rather than ending the page: carry the approval back
@@ -558,10 +563,9 @@ it from here. So the page stays `working` under a live `leaf wait` — "skip tha
 then reaches you mid-flight rather than at the end.
 
 Ending a page is yours, and the browser has no control for it: a reader who has stopped
-commenting has said nothing about whether the work is done. If wait output
-is truncated, acknowledge nothing and retrieve the whole batch. After the complete,
-untruncated batch enters context, acknowledge through its highest sequence, handle every
-earlier event in that batch, then run `leaf status <page> idle`. That explicit status
+commenting has said nothing about whether the work is done. Follow the delivery and
+acknowledgement contract above, handle every event in the complete batch, then run
+`leaf status <page> idle`. That explicit status
 command is the act that ends the agent side of a page — on a comments-only page and on
 a sign-off page whose approved work is finished alike. A server you
 started needs no stopping; it goes down with the session (a standing one is the
@@ -571,29 +575,25 @@ right without the log; `leaf transcript` lists what still lags on stderr, and pr
 the whole exchange as Markdown when a PR description wants it. `version export` writes
 the page itself as one file when that is what outlives it.
 
-The `Stop` hook applies the same invariant differently by host. In Claude Code, a fresh
-wait heartbeat means the background watcher can safely carry the next comment into a
-later turn. In Codex, that heartbeat only proves a command is running, so Stop continues
-to block until the page is idle and directs you to poll the exact unified-exec session
-inside the current turn. With no waiter it directs you to start one; with pending events
-it directs you to retrieve a complete, untruncated wait batch (acknowledging nothing and
-retrying if output is truncated), then acknowledge and handle it. The hook's one-shot
-recursion escape
-still lets a turn it has already blocked proceed once.
+The `Stop` hook applies the same invariant differently by host. In Claude Code, a held
+wait lease means the background watcher can carry the next comment into a later turn.
+In Codex, the task that owns the page stays in its active wait turn and polls its exact
+unified-exec session. A named wait transfers ownership to the task that runs it. With no
+waiter the hook directs the owner to start one; with pending events it directs the owner
+to retrieve a complete batch. The hook's one-shot recursion escape still lets a turn it
+already blocked proceed once.
 
 The invariant is what the user is owed — from the browser, a page nobody is listening
 to looks exactly like a page whose user simply has not commented yet, so without it
 they find out by asking. It covers the pages you run `server start` or `leaf wait`
 on, the two acts that put a user on the other end, so a directory you only built or
-linted is outside it. `leaf status <page> idle` refuses while the user is still owed an answer. For events
-not yet acknowledged: run `leaf wait`, which returns at once when they are already there.
-If its output is truncated, acknowledge nothing and rerun with enough output capacity
-for the whole batch. After a complete batch enters context, run `leaf ack` through
-its highest sequence. And for a thread whose last word is the reader's, once you have
-acknowledged that word — acknowledging is what took it off the batch, so no later one
-will carry it, and their follow-up counts as much as their opening question:
-`leaf reply` answers it, and `leaf resolve` closes a thread the work has since
-answered. The Stop hook holds a turn on both counts.
+linted is outside it. `leaf status <page> idle` refuses while events remain
+unacknowledged or an acknowledged thread still awaits an answer. The ending-page
+procedure above owns how each loop clears events. For a thread whose last word is the
+reader's, once you have acknowledged that word — acknowledging is what took it off the
+batch, so no later one will carry it, and their follow-up counts as much as their
+opening question — `leaf reply` answers it, and `leaf resolve` closes a thread the
+work has since answered. The Stop hook holds a turn on both counts.
 `leaf wait` also restarts a server that died under it and reports the restart on
 stderr; exit 2 means it couldn't, and the page stays down until `server start`. An
 idled page just leaves the watch, and the wait returns 2 once every watched page is

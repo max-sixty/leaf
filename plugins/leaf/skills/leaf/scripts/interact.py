@@ -56,13 +56,17 @@ A page directory holds:
                          when `leaf wait` prints for a non-working page, it
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
-    heartbeat.json       watcher liveness, bumped by `leaf wait` while it runs
+    waiter.lock          bare-shell `leaf wait` lease, held open and locked for
+                         the command's life. A host session holds the same lease
+                         once at sessions/<id>.wait instead, because one wait
+                         watches all of that session's pages
     viewed.json          when a browser last polled the page, bumped (throttled)
                          by the server on /api/state; absent for a page nobody
                          has ever opened, which would otherwise be
                          indistinguishable from one the user studied and left
-    cursor.json          seq of the last user event acknowledged from the agent's
-                         model context, written by `leaf ack`
+    cursor.json          seq of the last user event acknowledged after the complete
+                         batch reached its next durable consumer — written by
+                         `leaf ack`
     server.json          {"port", "pid", "url"} for the running server, held
                          open under an exclusive lock for that process's life:
                          the lock is the claim (whoever takes it serves the
@@ -76,26 +80,25 @@ A page directory holds:
                          reproduce the URL an open browser is already polling —
                          the port included, since a revive on the next free port
                          reports success while the open tab polls the old one.
-                         lifetime is "session" when the first serve claimed the
+                         lifetime is "session" when the first server start claimed the
                          page and "standing" when nothing did (or --standing
                          declined to); it survives revives, and `server stop`
                          clears it so the next serve decides afresh. The key the
                          URL also carries is the machine's, not the page's, and
                          lives in the state home
-    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent
-                         session last working on the page — the watcher the
-                         banner names, not necessarily the author of any given
-                         message — and the directory that session was working
-                         in, which is how the leaves board tells one page from
-                         another
+    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent session
+                         last working on the page — the watcher the banner names,
+                         not necessarily the author of any given message — and the
+                         directory that session was working in, which is how the
+                         leaves board tells one page from another
 
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
 say, so a comment can sit unread with the page still reading "Claude is
-working". The directory therefore also carries what it can prove — a heartbeat
-only a live `leaf wait` bumps, the acknowledgement cursor, and the owning
-session's pid — and `/api/state` ships those beside the claim, so the banner can
-say when the claim has outlived its evidence. When a wait prints for a
+working". The directory therefore also carries what it can prove — a lease only
+a live `leaf wait` can hold, the acknowledgement cursor, and the owning session's
+pid — and `/api/state` ships those beside the claim, so the banner can say when
+the claim has outlived its evidence. When a wait prints for a
 non-working page, it marks the status it writes "handoff", which dates that
 claim: after acknowledgement the agent writes its own `leaf status`, so a
 handoff mark that survives means a dropped pickup rather than a long turn, and
@@ -132,16 +135,16 @@ has to not exit at all, because the browser polls it between turns and straight
 across every wait. So no single process does both. Only the watcher belongs to
 the session, and one watcher is enough: it watches every page the session
 holds, re-reading the set on each pass, and delivers one page's batch under a
-first line naming the page. `server start` spawns `server run` into a session of
+first line naming the page. `server start` spawns the service into a session of
 its own and hands back the URL that process printed and the lifetime it
 recorded — so a killed background task costs only the watcher and leaves every
 page up, and recovery is one `leaf wait`.
 
 Whether a session's end reaches a server is decided once, at launch, and written
-down in access.json as the lifetime. A serve from an agent host claims the page,
-and that claim is what two reapers act on: a watcher thread stops the process
+down in access.json as the lifetime. A server start from an agent host claims the
+page, and that claim is what two reapers act on: a watcher thread stops the process
 when the claimant pid goes, and SessionEnd idles the page and stops the server.
-A serve from a bare shell — a terminal, a launchd job — claims nothing, and that
+A server run from a bare shell — a terminal, a launchd job — claims nothing, and that
 is the standing serve: a page kept up across sessions, for a command hub or a
 dashboard someone leaves open for weeks. `server start --standing` makes the
 same statement from inside a host: the launch declines the claim, for a page
@@ -481,7 +484,6 @@ import tinycss2
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-HEARTBEAT_FRESH_SECS = 8
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The claim itself is the ownership record:
 # manual servers have none and therefore remain up until `server stop`.
@@ -571,8 +573,9 @@ ANSWER_ASK_INSTRUCTION = (
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
-    "capacity for the whole batch. After a complete batch enters context, run "
-    "`leaf ack <page> <highest-seq>` for the page the batch's first line names."
+    "capacity for the whole batch. After the complete batch reaches its next durable "
+    "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
+    "batch's first line names."
 )
 # Fields whose one door is the agent side. The browser door refuses them rather
 # than silently dropping: `markup` enters only through the gate `leaf comment`
@@ -791,7 +794,7 @@ KEY_COOKIE = "lf_key"
 PAGE_STATE_FILES = (
     "comments.jsonl",
     "status.json",
-    "heartbeat.json",
+    "waiter.lock",
     "cursor.json",
     "server.json",
     "access.json",
@@ -846,10 +849,11 @@ def require_cross_process_locking() -> None:
 @contextlib.contextmanager
 def flocked(path: Path):
     """An exclusive lock held while the block runs — the one serialization
-    primitive here. The log file serializes its own appends and the cursor
-    read-modify-write derived from it; a `.lock` beside a registry of JSON
-    files serializes updates to them, since the files themselves are replaced
-    by rename and a lock on a replaced inode holds nothing."""
+    primitive here. The log file serializes its own appends, the cursor
+    read-modify-write derived from it, and the claim and status
+    transitions beside it; a `.lock` beside a registry of JSON files serializes
+    updates to them, since the files themselves are replaced by rename and a
+    lock on a replaced inode holds nothing."""
     require_cross_process_locking()
     with open(path, "a+b") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
@@ -1386,21 +1390,11 @@ def ancestry() -> list[tuple[int, str]]:
     return walked
 
 
-def held_by_a_live_server(path: Path) -> bool:
-    """Whether some process is still holding the server record open.
+def lock_is_held(path: Path) -> bool:
+    """Whether an exclusive lease is held on this file.
 
-    The serving process takes an exclusive lock on server.json and keeps it for
-    its whole life, so this is the one question and the kernel answers it: a
-    lock nobody can take is a server running now, and a lock free for the taking
-    is a record whose writer is gone — crashed, killed, or lost to a reboot.
-
-    That is a fact rather than a guess about one, which is what the record's pid
-    was. A pid is not identity: server.json outlives a power loss and the
-    machine deals the number to whatever starts next, so `server run` printed a
-    dead URL, `leaf wait` never revived, and `server stop` sent SIGTERM to a
-    stranger. Reading a start time out of `ps` to tell those apart cost 18ms a
-    call on a path that runs every couple of seconds per open page; the lock
-    costs an open and is exact.
+    The kernel releases the lease on exit, crash, or reboot. A durable record
+    can therefore outlive its writer without being mistaken for a live process.
     """
     require_cross_process_locking()
     try:
@@ -1408,7 +1402,7 @@ def held_by_a_live_server(path: Path) -> bool:
             try:
                 fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError:
-                return True  # someone holds it: the server is up
+                return True
             fcntl.flock(probe, fcntl.LOCK_UN)
             return False
     except OSError:
@@ -1418,7 +1412,7 @@ def held_by_a_live_server(path: Path) -> bool:
 def running_server(page_dir: Path):
     """The recorded server, where its writer is still holding the record."""
     info = read_json(page_dir / "server.json")
-    if not info or not held_by_a_live_server(page_dir / "server.json"):
+    if not info or not lock_is_held(page_dir / "server.json"):
         return None
     return info
 
@@ -1695,27 +1689,36 @@ def claim_page(page_dir: Path) -> bool:
     wherever they live). The host identity reaches this process through the
     environment, so this needs no cooperation from the agent.
 
-    A serve and `leaf wait` claim; nothing else does. The claim tracks
-    the watch obligation the hooks enforce: a serve puts the page in front
-    of a user and incurs it, while `leaf wait` takes it up. Authoring
-    commands neither incur the obligation nor discharge it, so a directory a
-    session only wrote to, like a throwaway page for testing the widget layer,
-    owes nobody a watcher. Return whether this invocation made a claim, so a
-    bare-shell server never inherits a stale claim's lifetime."""
+    `server start` and `leaf wait` claim; nothing else does. The claim tracks the
+    watch obligation the hooks enforce: a server start puts the page in front of a
+    user and incurs it, while `leaf wait` takes it up. Authoring commands neither
+    incur the obligation nor discharge it, so a directory a session only wrote
+    to, like a throwaway page for testing the widget layer, owes nobody a
+    watcher. Return whether this invocation made a claim, so a bare-shell server
+    never inherits a stale claim's lifetime."""
     identity = host_identity()
     if not identity:
         return False
     pid = session_pid(identity)
     sid = identity["id"]
-    write_json(
-        page_dir / "session.json",
-        # Where the session is working, which is what a page is *about* to the person
-        # reading the board: a leaf is named by a title somebody wrote and lives in a
-        # state directory nobody chose, and neither says which project it came out of.
-        # The claiming command runs from the session's own directory, the same reading
-        # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
-        {**identity, "pid": pid, "cwd": os.getcwd(), "ts": now_iso()},
-    )
+    # The page's log lock is its one serialization primitive. A wait decides
+    # whether it may deliver or revive the server under this
+    # same lock, so a claim transfer is wholly before or wholly after each act.
+    with flocked(page_dir / "comments.jsonl"):
+        write_json(
+            page_dir / "session.json",
+            # Where the session is working, which is what a page is *about* to the person
+            # reading the board: a leaf is named by a title somebody wrote and lives in a
+            # state directory nobody chose, and neither says which project it came out of.
+            # The claiming command runs from the session's own directory, the same reading
+            # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
+            {
+                **identity,
+                "pid": pid,
+                "cwd": os.getcwd(),
+                "ts": now_iso(),
+            },
+        )
     sessions = state_home() / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     # Sessions that died without a SessionEnd hook leave their file behind; drop
@@ -1751,6 +1754,22 @@ def owned_pages(session_id: str) -> list:
         for d in session_pages(session_id)
         if (read_json(d / "session.json") or {"id": None})["id"] == session_id
     ]
+
+
+def page_owned_by(page_dir: Path, identity: dict | None) -> bool:
+    """Whether the waiter's host session currently owns this page.
+
+    A bare-shell wait has no host claim and keeps its explicitly named page.
+    Callers that act on this answer hold the page's comments-log lock through
+    the act, so the answer cannot age between the ownership read and its use.
+    """
+    if identity is None:
+        return True
+    current = read_json(page_dir / "session.json")
+    return bool(
+        current
+        and (current["host"], current["id"]) == (identity["host"], identity["id"])
+    )
 
 
 def other_leaves(page_dir: Path) -> list:
@@ -1836,6 +1855,48 @@ def unacknowledged(events: list, cursor: int) -> list:
     ]
 
 
+def current_watch_state(page_dir: Path, identity: dict | None) -> str:
+    """Why a wait may act on this page, read while its log lock is held."""
+    if not page_owned_by(page_dir, identity):
+        return "lost"
+    status = read_json(page_dir / "status.json") or {"state": "idle"}
+    return "ended" if status["state"] == "idle" else "watching"
+
+
+def waiter_lease_path(page_dir: Path | None, session: dict | None) -> Path | None:
+    """The one lease a wait holds for its watch set.
+
+    A host wait covers every page its session owns, so its lease belongs to the
+    session. Outside a host, a named page is the entire watch set and holds a
+    page-local lease. An unnamed bare-shell wait has no watch set and no lease.
+    """
+    if session:
+        return state_home() / "sessions" / f"{session['id']}.wait"
+    return page_dir / "waiter.lock" if page_dir is not None else None
+
+
+def take_waiter_lease(path: Path):
+    """Take and return a wait lease, or None when another wait already holds it."""
+    require_cross_process_locking()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = open(path, "a+b")  # noqa: SIM115 - returned and held for the wait's life
+    try:
+        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        record.close()
+        return None
+    return record
+
+
+def wait_is_live(page_dir: Path, session: dict | None) -> bool:
+    """Whether a host-session or bare-shell wait lease is held now."""
+    session_path = waiter_lease_path(page_dir, session) if session else None
+    return bool(
+        (session_path and lock_is_held(session_path))
+        or lock_is_held(page_dir / "waiter.lock")
+    )
+
+
 def presence(page_dir: Path, events: list) -> dict:
     """What a seat showing this page says about it: the agent's claim, everything
     the directory holds that can answer for it, and where that agent is working.
@@ -1851,15 +1912,14 @@ def presence(page_dir: Path, events: list) -> dict:
         "detail": "",
         "ts": None,
     }
-    heartbeat = read_json(page_dir / "heartbeat.json") or {"t": 0}
     session = read_json(page_dir / "session.json")
-    # What the agent has acknowledged from model context: an action past this seq
-    # can't have been seen (so not declined), which is what lets the runtime carry
-    # it forward onto versions written without it.
+    # What the wait owner has acknowledged after the complete batch reached its
+    # next durable consumer. An action past this seq has not reached that point,
+    # which lets the runtime carry it forward onto versions written without it.
     cursor = read_cursor(page_dir)
     return {
         "status": status,
-        "listening": time.time() - heartbeat["t"] < HEARTBEAT_FRESH_SECS,
+        "listening": wait_is_live(page_dir, session),
         "cursor": cursor,
         # The reader's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
@@ -2983,11 +3043,24 @@ def server_at(bind: str, port: int, handler) -> LeafHTTPServer:
         return LeafHTTPServer(("0.0.0.0", port), handler)
 
 
-def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -> None:
+def cmd_serve(
+    page_dir: Path,
+    host: str | None = None,
+    standing: bool = False,
+) -> None:
     require_cross_process_locking()
-    # `--standing` declines the claim rather than adding a second lifetime
-    # mechanism: everything downstream still reads "session iff claimed".
-    claimed = False if standing else claim_page(page_dir)
+    # Serving and claiming are separate operations. `server start` claims before
+    # it spawns this service; a wait that revives the server already owns the
+    # page. A revival reads the claim while the waiter holds the log lock. The
+    # service never writes ownership, so it cannot overtake a later owner.
+    identity = host_identity()
+    claim = read_json(page_dir / "session.json")
+    claimed = bool(
+        not standing
+        and identity is not None
+        and claim
+        and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
+    )
     existing = running_server(page_dir)
     if existing:
         # Read, never derive: a refusal must not rewrite the record it refuses
@@ -3110,15 +3183,25 @@ def cmd_serve(page_dir: Path, host: str | None = None, standing: bool = False) -
         (page_dir / "server.json").unlink(missing_ok=True)
 
 
-def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -> None:
+def write_status(
+    page_dir: Path, state: str, detail: str, handoff: bool = False
+) -> None:
+    """Write a status while the caller holds the page's log lock."""
     status = {"state": state, "detail": detail, "ts": now_iso()}
     if handoff:
         status["handoff"] = True
     write_json(page_dir / "status.json", status)
 
 
+def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -> None:
+    with flocked(page_dir / "comments.jsonl"):
+        write_status(page_dir, state, detail, handoff)
+
+
 def start_server(
-    page_dir: Path, host: str | None = None, standing: bool = False
+    page_dir: Path,
+    host: str | None = None,
+    standing: bool = False,
 ) -> tuple[str, str] | None:
     """Put the page's server up in a session of its own, and report where.
 
@@ -3127,9 +3210,11 @@ def start_server(
     rather than held, and the one long-running command a leaf costs its session
     is the watcher. The module docstring carries the rest of that.
 
-    `server run` in a session of its own is the whole mechanism, so `server
-    start` and the revival a `leaf wait` makes when it finds the page down are
-    the same act. sys.executable is the resolved uv environment, so this skips uv.
+    A private service command in a session of its own is the whole mechanism.
+    The caller owns the page claim: `server start` writes it before spawning,
+    while a revival starts under the waiter's serialized ownership decision.
+    The service child reads that claim and never writes it. sys.executable is the
+    resolved uv environment, so this skips uv.
 
     Returns where the page is and what ends it — the URL the child minted and
     the note for the lifetime it recorded — or None, having put the child's
@@ -3141,7 +3226,7 @@ def start_server(
             sys.executable,
             str(Path(__file__).resolve()),
             "server",
-            "run",
+            "_serve",
             str(page_dir),
             *(["--host", host] if host else []),
             *(["--standing"] if standing else []),
@@ -3152,7 +3237,7 @@ def start_server(
         start_new_session=True,
     )
     # The child's own handshake, rather than a deadline over a file that may or
-    # may not appear inside it: `server run` prints the URL once it holds the
+    # may not appear inside it: the service prints the URL once it holds the
     # record and the port, and otherwise exits having named its own reason — a
     # stale bind, a taken port, a flag the running server contradicts.
     url = child.stdout.readline().strip()
@@ -3176,36 +3261,43 @@ class PageTick(NamedTuple):
     status: dict
     batch: list
     live: bool
+    watch_state: str
     lost: bool
     restarted: str | None
 
 
 class Watch:
-    """A session's watch, one pass at a time, for `leaf wait` and the channel.
+    """A session's watch, one locked page reading at a time.
 
     The two carriers differ in what they do with a batch — a wait prints one and
     exits, the channel notifies and keeps going — and in nothing else. Which
-    pages the session holds, each one's status and unacknowledged batch, the
-    heartbeat that claims the watch, and the five-second server check with its
-    one revival per death are the same facts whichever carrier asks. Written
-    twice, they drifted the first time they were touched: `revive_server` became
-    `start_server` and only one copy followed, leaving the other calling a name
-    that no longer existed — a NameError the channel's own per-tick guard
-    swallowed once a second, on a path no test reaches.
+    pages the session holds, exact liveness lease, ownership, status and
+    unacknowledged batch, and the five-second server check with its one revival
+    per death are the same facts whichever carrier asks.
 
-    A tick reads; the caller decides. That split is what keeps the difference
-    between the carriers from turning back into two loops: `lost` says a page's
-    server is down with no restart left to make, and a wait ends on it while the
-    channel drops that page and serves the rest of the session.
+    A tick yields while the page's log lock remains held. The caller decides how
+    to deliver the batch before asking for the next tick, so claim transfer,
+    SessionEnd, event arrival, delivery, and the handoff status have one order.
+    `watch_state` is ownership/lifetime; `lost` separately says the server is
+    down with no restart left to make.
     """
 
-    def __init__(self, session_id: str, named: Path | None = None):
-        self.session_id = session_id
+    def __init__(self, identity: dict | None, named: Path | None = None):
+        self.identity = identity
+        self.session_id = identity["id"] if identity else ""
         self.named = named
+        self.lease_path = waiter_lease_path(named, identity)
+        self.lease = None
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
-        self.bumped: set = set()
+
+    def acquire(self) -> bool:
+        """Take this carrier's exact liveness lease, idempotently."""
+        if self.lease is not None or self.lease_path is None:
+            return True
+        self.lease = take_waiter_lease(self.lease_path)
+        return self.lease is not None
 
     def pages(self) -> list:
         """Every page this session holds, re-read each pass, so a page served
@@ -3220,17 +3312,38 @@ class Watch:
             watched.append(self.named)
         return watched
 
-    def tick(self) -> list:
-        return [self._read(d) for d in self.pages()]
+    def tick(self):
+        """Yield each page while its ownership and delivery lock is held."""
+        if self.lease_path is not None and self.lease is None:
+            return
+        for page_dir in self.pages():
+            # This is only the account returned if ownership is already gone.
+            # Every act uses the current reading under the lock below. Keeping
+            # the harmless observation outside makes the lock boundary itself
+            # testable: a claim or SessionEnd can win after page selection,
+            # and _read must then decline every stale act.
+            observed = read_json(page_dir / "status.json") or {"state": "idle"}
+            with flocked(page_dir / "comments.jsonl"):
+                yield self._read(page_dir, observed)
 
-    def _read(self, page_dir: Path) -> PageTick:
-        status = read_json(page_dir / "status.json") or {"state": "idle"}
+    def _read(self, page_dir: Path, observed: dict) -> PageTick:
+        """Read and maintain one page while its log lock is held."""
+        watch_state = current_watch_state(page_dir, self.identity)
+        status = (
+            observed
+            if watch_state == "lost"
+            else read_json(page_dir / "status.json") or {"state": "idle"}
+        )
         live = status["state"] != "idle"
-        batch = unacknowledged(read_events(page_dir), read_cursor(page_dir))
+        batch = (
+            unacknowledged(read_events(page_dir), read_cursor(page_dir))
+            if watch_state != "lost"
+            else []
+        )
         key, now, restarted = str(page_dir), time.time(), None
         # Only live pages: SessionEnd idles a page and stops its server, and a
         # watch winding down past that must not put it back up.
-        if live and now > self._check_at.get(key, 0):
+        if watch_state == "watching" and live and now > self._check_at.get(key, 0):
             self._check_at[key] = now + 5
             if running_server(page_dir):
                 # A server seen running earns the next death its own revival —
@@ -3243,27 +3356,24 @@ class Watch:
             else:
                 self._revived.add(key)
                 restarted = started[0]
-        lost = key in self._lost
-        # The heartbeat is where the watch is claimed — the Stop hook reads a
-        # fresh one as the page being attended — so it is written only where the
-        # claim is true. An idle page is owed no watch, and a page whose server
-        # will not come back is attended by nobody.
-        if live and not lost:
-            write_json(page_dir / "heartbeat.json", {"t": time.time()})
-            self.bumped.add(page_dir)
-        else:
-            self.drop(page_dir)
-        return PageTick(page_dir, status, batch, live, lost, restarted)
-
-    def drop(self, page_dir: Path) -> None:
-        """Withdraw this watch's claim on one page."""
-        self.bumped.discard(page_dir)
-        (page_dir / "heartbeat.json").unlink(missing_ok=True)
+        elif watch_state != "watching" or not live:
+            self._lost.discard(key)
+            self._revived.discard(key)
+        return PageTick(
+            page_dir,
+            status,
+            batch,
+            live,
+            watch_state,
+            key in self._lost,
+            restarted,
+        )
 
     def release(self) -> None:
-        """Withdraw every claim, however the watch ended."""
-        for page_dir in list(self.bumped):  # a tick may still add mid-iteration
-            self.drop(page_dir)
+        """Release this carrier's liveness proof, however it ended."""
+        if self.lease is not None:
+            self.lease.close()
+            self.lease = None
 
 
 def cmd_wait(page_dir: Path | None = None) -> int:
@@ -3276,7 +3386,9 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     a leaf it didn't serve — and holds it in the set, which is also the whole
     set outside a host session (a bare shell, the tests). A batch is one page's
     events, so its first line names the page, and `leaf ack` goes back to that
-    page.
+    page. The JSON envelope says nothing about what consumes it. The wait owner
+    advances the cursor only after the complete batch reaches that next durable
+    consumer.
 
     A wait ends on someone speaking, on the last watched leaf ending, or on a
     server being down with no restart to make. It puts no clock on how long a
@@ -3290,45 +3402,68 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     if page_dir is not None:
         claim_page(page_dir)
     identity = host_identity()
-    watch = Watch(identity["id"] if identity else "", named=page_dir)
+    watch = Watch(identity, named=page_dir)
+    if not watch.acquire():
+        target = "this session" if identity else str(page_dir)
+        print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
+        return 2
     try:
         while True:
-            readings = watch.tick()
-            # The batch outranks the page's state: a wait already holding events
-            # owes them to the agent whatever became of the leaf, so an idled
-            # page still delivers here — it just no longer holds the wait open
-            # below.
-            for r in readings:
-                if not r.batch:
+            readings = []
+            live = []
+            for reading in watch.tick():
+                readings.append(reading)
+                if reading.watch_state == "lost":
+                    if page_dir is not None and paths_same(reading.page_dir, page_dir):
+                        print(
+                            f"stopped watching {page_dir}: this session no longer owns it",
+                            file=sys.stderr,
+                        )
+                        return 2
                     continue
-                # Whose events follow, said in-band: no event line names its
-                # page, and the ack has to go back to the right one.
-                print(json.dumps({"page": str(r.page_dir)}), flush=True)
-                for event in r.batch:
-                    print(jsonl_line(event), flush=True)
-                if r.status["state"] != "working":
-                    # Flip before the agent handles the batch: the handoff gap
-                    # between this exit and pickup must not show "waiting".
-                    # handoff=True dates that claim; the agent's own `leaf
-                    # status` clears it. Mid-work output has no pickup gap, so
-                    # leave an existing claim byte-for-byte untouched instead of
-                    # shortening its freshness window. "update", not "comment":
-                    # a batch may mix comments, actions, and reports.
-                    n = len(r.batch)
-                    cmd_status(
-                        r.page_dir,
-                        "working",
-                        f"picking up {n} update{'s' if n != 1 else ''}",
-                        handoff=True,
+                if reading.live:
+                    live.append(reading)
+                # The batch outranks the page's state: a wait already holding
+                # events owes them to the agent whatever became of the leaf, so
+                # an idled page still delivers here — it just no longer holds
+                # the wait open below.
+                if reading.batch:
+                    # Whose events follow, said in-band: no event line names its
+                    # page, and the ack has to go back to the right one.
+                    print(jsonl_line({"page": str(reading.page_dir)}), flush=True)
+                    for event in reading.batch:
+                        print(jsonl_line(event), flush=True)
+                    if reading.status["state"] != "working":
+                        # Flip before the agent handles the batch: the handoff
+                        # gap between this exit and pickup must not show
+                        # "waiting". The tick still holds the page lock, so a
+                        # transfer cannot land between delivery and this claim.
+                        n = len(reading.batch)
+                        write_status(
+                            reading.page_dir,
+                            "working",
+                            f"picking up {n} update{'s' if n != 1 else ''}",
+                            handoff=True,
+                        )
+                    return 0
+                if reading.restarted:
+                    print(
+                        f"{reading.page_dir}: server had died; "
+                        f"restarted at {reading.restarted}",
+                        file=sys.stderr,
+                        flush=True,
                     )
-                return 0
+                if reading.lost:
+                    print(
+                        f"{reading.page_dir}: server is not running; restart it with "
+                        f"`leaf server start {reading.page_dir}`",
+                        file=sys.stderr,
+                    )
+                    return 2
             # A leaf that ended — the agent idled it, or SessionEnd did on its
             # way out — has nobody left to carry a comment to, so it leaves the
-            # watch, and the last one gone ends the wait too. `leaf status
-            # <page> idle` used to close the agent's side of a page and leave
-            # the watcher running on it, which is a long-running command with
-            # nothing to notice it by.
-            if not any(r.live for r in readings):
+            # watch, and the last one gone ends the wait too.
+            if not live:
                 if not readings:
                     print(
                         "nothing to watch: no page named and none claimed by "
@@ -3344,27 +3479,13 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
-            for r in readings:
-                if r.restarted:
-                    print(
-                        f"{r.page_dir}: server had died; restarted at {r.restarted}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                if r.lost:
-                    print(
-                        f"{r.page_dir}: server is not running; restart it with "
-                        f"`leaf server start {r.page_dir}`",
-                        file=sys.stderr,
-                    )
-                    return 2
             time.sleep(1)
     finally:
         watch.release()
 
 
 def cmd_ack(page_dir: Path, seq: int) -> None:
-    """Acknowledge through one event of a complete wait batch that reached context.
+    """Acknowledge through one event of a complete wait batch that reached delivery.
 
     The target must be something `leaf wait` prints — a user event or a
     worker's report. This catches a mistyped sequence and prevents an agent from
@@ -4240,7 +4361,10 @@ def unattended_pages(session_id: str) -> list:
                 )
             else:
                 remedy = "`leaf wait` prints them."
-            remedy += f" {ACK_BATCH_INSTRUCTION} Then address every one."
+            remedy += (
+                f" {ACK_BATCH_INSTRUCTION} If this task is the consumer, then address "
+                "every event."
+            )
             reasons.append(
                 f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
                 + remedy
@@ -4272,14 +4396,21 @@ def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if event == "SessionEnd":
         for page_dir in owned_pages(sid):
-            # A standing server is not this session's to end. Picking a page up
-            # earns the watch obligation, never the launch's authority over the
-            # process — and idling would close a leaf that outlives this
-            # session just as the server does, so both stand down together.
-            if standing_server(page_dir):
-                continue
-            cmd_status(page_dir, "idle", "the session that opened this page has ended")
-            cmd_stop(page_dir)
+            with flocked(page_dir / "comments.jsonl"):
+                claim = read_json(page_dir / "session.json")
+                if not claim or claim["id"] != sid:
+                    continue
+                # A standing server is not this session's to end. Picking a page up
+                # earns the watch obligation, never the launch's authority over the
+                # process — and idling would close a leaf that outlives this
+                # session just as the server does, so both stand down together.
+                if standing_server(page_dir):
+                    continue
+                write_status(
+                    page_dir, "idle", "the session that opened this page has ended"
+                )
+                cmd_stop(page_dir)
+                (page_dir / "session.json").unlink(missing_ok=True)
         (state_home() / "sessions" / f"{sid}.json").unlink(missing_ok=True)
         return
     # stop_hook_active means this hook already blocked once and Claude is running
@@ -4447,12 +4578,11 @@ def cmd_mcp() -> None:
     --channels launch flag, feature gates), and nothing tells this process the
     outcome, so a greeting notification goes out when a page is first claimed
     and the agent confirms it arrived by calling `watch`. Only that arms the
-    watcher: from then on it heartbeats each owned page (the Stop hook's
-    watched-or-idle invariant reads the same file `leaf wait` bumps), delivers
-    unacknowledged batches, re-delivers what stays unacked, and revives a dead
-    server the way `leaf wait` would. Unconfirmed, it stays silent and
-    heartbeats nothing, so the hooks keep enforcing the standard loop and a
-    session without channels never strands its reader.
+    watcher: from then on it holds the same exact session lease as `leaf wait`,
+    delivers unacknowledged batches, re-delivers what stays unacked, and revives
+    a dead server the way `leaf wait` would. Unconfirmed, it holds no lease, so
+    the hooks keep enforcing the standard loop and a session without channels
+    never strands its reader.
 
     The tools reuse the CLI's own doors (cmd_reply, post_append, cmd_ack), which
     speak through sys.exit; the dispatcher turns that into a tool error, so the
@@ -4469,7 +4599,7 @@ def cmd_mcp() -> None:
     armed = threading.Event()
     stopping = threading.Event()
     identity = host_identity()
-    watch = Watch(identity["id"] if identity else "")
+    watch = Watch(identity)
 
     def send(msg: dict) -> None:
         with out_lock:
@@ -4515,7 +4645,8 @@ def cmd_mcp() -> None:
         status = read_json(page_dir / "status.json") or {"state": "idle"}
         if status["state"] != "working":
             n = len(batch)
-            cmd_status(
+            # Watch.tick still holds the page's log lock through delivery.
+            write_status(
                 page_dir,
                 "working",
                 f"picking up {n} update{'s' if n != 1 else ''}",
@@ -4529,19 +4660,15 @@ def cmd_mcp() -> None:
         prev_tail = {}
         notified = {}
         noted_at = {}
-        told = set()
         initialized.wait()
         while not stopping.wait(1):
-            # A fault here must not end the watch: the channel is the loop's
-            # carrier, and a watcher that dies quietly leaves a heartbeat going
-            # stale under a user who was promised delivery. Per pass and per
-            # page alike, the fault is contained and the next tick retries —
-            # the same bargain loop-guard strikes for the Stop hook.
+            # A fault here must not end the channel process. Per pass and per
+            # page alike, the fault is contained and the next tick retries.
             try:
                 if not armed.is_set():
-                    # Unconfirmed, the channel claims nothing — no tick, so no
-                    # heartbeat — and the hooks go on enforcing the standard
-                    # loop for a session whose channels are off.
+                    # Unconfirmed, the channel claims nothing — no tick and no
+                    # lease — so the hooks enforce the standard loop for a
+                    # session whose channels are off.
                     for page_dir in watch.pages():
                         key = str(page_dir)
                         if key not in greeted:
@@ -4556,69 +4683,70 @@ def cmd_mcp() -> None:
                             )
                     continue
                 readings = watch.tick()
-            except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
-                continue
-            for r in readings:
-                key = str(r.page_dir)
-                # A neighbour's fault stays its own, as in other_leaves: a page
-                # deleted mid-scan must not take the watcher down with it.
                 try:
-                    if r.lost:
-                        # `leaf wait` ends on this; a channel has the rest of the
-                        # session to serve, so it drops the page — the tick has
-                        # already withdrawn the heartbeat — and says so once, to
-                        # the agent, who is the only one who can act.
-                        if key not in told:
-                            told.add(key)
-                            notify(
-                                f"leaf channel: {r.page_dir} has no server and "
-                                "would not restart, so it is no longer watched. "
-                                "Bring it back with "
-                                f"`leaf server start {r.page_dir}`.",
-                                {"page": key, "kind": "unwatched"},
-                            )
-                        continue
-                    told.discard(key)
-                    if r.batch:
-                        tail = r.batch[-1]["seq"]
-                        now = time.time()
-                        # A recreated page directory restarts its log below the
-                        # seq this watcher last delivered, and every reading
-                        # below is a comparison against that number — so the new
-                        # page's first batch reads as one already sent, and waits
-                        # out CHANNEL_RENOTIFY_SECS before it goes. A log that
-                        # went backwards is a different page.
-                        if tail < notified.get(key, 0):
-                            notified.pop(key, None)
-                            prev_tail.pop(key, None)
-                            noted_at.pop(key, None)
-                        # The flurry clock starts when a quiet page first shows
-                        # a batch, so a burst settles into one delivery; it
-                        # restarts at each delivery, so a stream that never
-                        # settles still lands every CHANNEL_FLURRY_SECS.
-                        noted_at.setdefault(key, now)
-                        settled = tail == prev_tail.get(key)
-                        overdue = now - noted_at[key] >= CHANNEL_FLURRY_SECS
-                        # Re-delivery is only for a batch already sent once —
-                        # gated on `notified` covering the tail.
-                        renotify = (
-                            notified.get(key, 0) >= tail
-                            and now - noted_at[key] >= CHANNEL_RENOTIFY_SECS
-                        )
-                        fresh = tail > notified.get(key, 0)
-                        if (fresh and (settled or overdue)) or renotify:
-                            # The pickup flip belongs to a batch's first
-                            # delivery: a re-send must not overwrite the status
-                            # the agent has since declared.
-                            deliver(r.page_dir, r.batch, flip=fresh)
-                            notified[key] = tail
-                            noted_at[key] = now
-                        prev_tail[key] = tail
-                    else:
-                        prev_tail.pop(key, None)
-                        noted_at.pop(key, None)
-                except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
-                    continue
+                    for r in readings:
+                        key = str(r.page_dir)
+                        # A neighbour's fault stays its own, as in other_leaves:
+                        # a page deleted or transferred mid-scan does not take
+                        # the channel process down.
+                        try:
+                            if r.watch_state == "lost":
+                                prev_tail.pop(key, None)
+                                notified.pop(key, None)
+                                noted_at.pop(key, None)
+                                continue
+                            if r.lost:
+                                # One session lease proves the whole watch. It
+                                # cannot honestly remain held while one owned
+                                # page has been dropped, so a failed revival
+                                # stands the channel down as a whole.
+                                armed.clear()
+                                watch.release()
+                                notify(
+                                    f"leaf channel: {r.page_dir} has no server and "
+                                    "would not restart, so the channel watch stopped. "
+                                    "Bring it back with "
+                                    f"`leaf server start {r.page_dir}`, then call "
+                                    "the leaf `watch` tool again.",
+                                    {"page": key, "kind": "unwatched"},
+                                )
+                                break
+                            if r.batch:
+                                tail = r.batch[-1]["seq"]
+                                now = time.time()
+                                # A recreated page directory restarts its log
+                                # below the seq last delivered. That is a
+                                # different page, not an old batch.
+                                if tail < notified.get(key, 0):
+                                    notified.pop(key, None)
+                                    prev_tail.pop(key, None)
+                                    noted_at.pop(key, None)
+                                # A flurry settles for one tick; an endless
+                                # stream still lands at the flurry cadence.
+                                noted_at.setdefault(key, now)
+                                settled = tail == prev_tail.get(key)
+                                overdue = now - noted_at[key] >= CHANNEL_FLURRY_SECS
+                                renotify = (
+                                    notified.get(key, 0) >= tail
+                                    and now - noted_at[key] >= CHANNEL_RENOTIFY_SECS
+                                )
+                                fresh = tail > notified.get(key, 0)
+                                if (fresh and (settled or overdue)) or renotify:
+                                    # The tick holds the page lock through both
+                                    # the notification and the pickup flip.
+                                    deliver(r.page_dir, r.batch, flip=fresh)
+                                    notified[key] = tail
+                                    noted_at[key] = now
+                                prev_tail[key] = tail
+                            else:
+                                prev_tail.pop(key, None)
+                                noted_at.pop(key, None)
+                        except Exception:  # noqa: BLE001, S112
+                            continue
+                finally:
+                    readings.close()
+            except Exception:  # noqa: BLE001, S112 - retry on the next pass
+                continue
 
     def tool_watch(args: dict) -> str:
         identity = host_identity()
@@ -4626,6 +4754,11 @@ def cmd_mcp() -> None:
             sys.exit(
                 "no agent host session identity in this environment; "
                 "the channel has no session to watch"
+            )
+        if not watch.acquire():
+            sys.exit(
+                "another Leaf carrier is already watching this session; "
+                "stop it before arming the channel"
             )
         armed.set()
         pages = owned_pages(identity["id"])
@@ -10444,7 +10577,22 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
-    if not (started := start_server(resolve_dir(dir), host, standing)):
+    page_dir = resolve_dir(dir)
+    claimed = not standing and claim_page(page_dir)
+    if claimed:
+        # The claim makes SessionEnd include this page. From here through the
+        # child's readiness line, the page log gives startup and SessionEnd one
+        # order. If SessionEnd occupied the gap after claim_page, it removed the
+        # claim and this launch stops here instead of reviving the ended page.
+        with flocked(page_dir / "comments.jsonl"):
+            if not page_owned_by(page_dir, host_identity()):
+                raise SystemExit(
+                    f"this session no longer owns {page_dir}; the server was not started"
+                )
+            started = start_server(page_dir, host, standing)
+    else:
+        started = start_server(page_dir, host, standing)
+    if not started:
         raise SystemExit(1)
     url, note = started
     print(url)
@@ -10457,10 +10605,21 @@ def start(dir: str, host: str | None, standing: bool) -> None:
 def run(dir: str, host: str | None, standing: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
-    The server itself: what `server start` spawns, and what to run in a terminal
-    of your own to hold a page up where you can watch it. From an agent session
-    use `server start`. A page already served prints that server's URL and exits.
+    Run this in a terminal of your own to hold a page up where you can watch it.
+    From an agent session use `server start`. A page already served prints that
+    server's URL and exits.
     """
+    page_dir = resolve_dir(dir)
+    if not standing:
+        claim_page(page_dir)
+    cmd_serve(page_dir, host, standing)
+
+
+@server.command("_serve", hidden=True)
+@click.argument("dir", metavar="PAGE")
+@serve_flags
+def service(dir: str, host: str | None, standing: bool) -> None:
+    """Run the detached service after its caller has decided ownership."""
     cmd_serve(resolve_dir(dir), host, standing)
 
 
@@ -10489,28 +10648,34 @@ def status(dir: str, state: str, detail: str) -> None:
     # reader-facing count, so a worker's report cannot be left standing as
     # provisional state forever either. Here rather than in cmd_status because
     # SessionEnd idles pages whose session is already gone, where nothing is
-    # left to pick them up.
-    pending, unanswered = 0, []
-    if state == "idle":
+    # left to pick them up. The log lock gives the check and the transition one
+    # order with an event arriving or an acknowledgement advancing the cursor.
+    if state != "idle":
+        cmd_status(page_dir, state, detail)
+        return
+    with flocked(page_dir / "comments.jsonl"):
         events = read_events(page_dir)
         cursor = read_cursor(page_dir)
         pending = len(unacknowledged(events, cursor))
         unanswered = unanswered_asks(events, cursor)
-    if pending:
-        sys.exit(
-            f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-            "idling ends the leaf over them. `leaf wait` prints them "
-            "and returns at once when events are already waiting. "
-            + ACK_BATCH_INSTRUCTION
-        )
-    if unanswered:
-        ids = ", ".join(t["id"] for t in unanswered)
-        sys.exit(
-            f"{len(unanswered)} acknowledged "
-            f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
-            f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
-        )
-    cmd_status(page_dir, state, detail)
+        if pending:
+            prefix = (
+                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
+                "idling ends the leaf over them; "
+            )
+            sys.exit(
+                prefix + "`leaf wait` prints them and returns at once when events are "
+                "already waiting. The wait owner must finish the delivery contract "
+                "before idling. " + ACK_BATCH_INSTRUCTION
+            )
+        if unanswered:
+            ids = ", ".join(t["id"] for t in unanswered)
+            sys.exit(
+                f"{len(unanswered)} acknowledged "
+                f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
+                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
+            )
+        write_status(page_dir, state, detail)
 
 
 @cli.command(

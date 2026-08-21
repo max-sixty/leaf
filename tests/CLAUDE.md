@@ -175,6 +175,20 @@ machine's load rather than the product's behaviour: the reading it took was
 whichever transient it was quick enough to catch. The scroll stopping is the
 fact to wait on; where it stopped is the assertion.
 
+A press the dispatcher can refuse needs the same fact before it, and reads as
+neither wait nor assertion until it is given one. `z` is the one press whose
+subject is read rather than pointed at, so it is dead while the page holds a
+gesture the log has not taken — its predecessor's trip included. Every other press
+can be made the moment the paint is there, and the paint arrives a turn before the
+trip it was made on is over, so a `z` made on it is refused; what the refusal
+leaves behind is the page an assertion on the un-undone state would find anyway.
+Nothing distinguishes that from an undo that did the wrong thing, and the suite's
+undo tests were failing that way one at a time, a different one per run. The line
+and the dispatcher ask one predicate (`live`), so the offer standing on the line is
+the page saying this press will be taken — which is what `undo(page)` waits for
+before pressing. Where a gesture has a liveness of its own, wait for the page to
+state it rather than for the gesture before it to have painted.
+
 Where nothing will happen, there is no fact to consume and polling has no end. An
 assertion of absence holds a window instead, and the window's length is derived
 from the mechanism rather than picked: a manually launched server must outlive

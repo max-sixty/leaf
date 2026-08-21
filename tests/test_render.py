@@ -617,6 +617,37 @@ def told(page):
     _until(page, lambda t: t.heard > asked, "finished a poll that went out from here")
 
 
+# `z` is the one press whose subject is read rather than pointed at, so the dispatcher
+# holds it dead while the page holds a gesture the log has not taken — this press's own
+# trip included (unrecordedGesture). Every other press acts on what is under the reader
+# and can be made the moment the paint is there; the paint arrives a turn before the
+# trip it was made on is over, so a `z` made on it is a press the dispatcher refuses,
+# and what the refusal leaves behind is the page an assertion on the un-undone state
+# would find anyway. A test cannot tell that from an undo that did the wrong thing: it
+# reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
+#
+# So the press waits on the fact the page states rather than on the gesture before it
+# having painted. The line and the dispatcher ask one predicate (`live`), so no surface
+# can promise a press the dispatcher refuses — which makes the offer standing on the
+# line the page saying this press will be taken. Then the trip: the press's own send is
+# not counted at the moment it is made, and a `round_trip` that reads the counters
+# before the browser has reported the request is a wait on a page that has not started
+# moving.
+#
+# The line answers about room as well as about liveness: renderLine drops chips from the
+# end when the window is too narrow to hold them, and the end is the outside of the
+# stack, where a page-level key like this one sits. So the wait needs the suite's
+# default 1200×900 or something near it; under a viewport set narrow on purpose it would
+# run its budget out on a press that is perfectly live.
+def undo(page):
+    """Take the last gesture back, from the moment the line offers to."""
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    sent = _traffic(page).sends
+    page.keyboard.press("z")
+    _until(page, lambda t: t.sends > sent, "put the withdrawal in the wire")
+    round_trip(page)
+
+
 # A poll a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch` —
 # and `requestfailed` fires for either, so the trip still counts as over and every wait
@@ -6110,8 +6141,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     folds = page.evaluate("window.__lfHeld.length")
     assert folds == before + 1, "the press drew something other than its one fold"
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(thread).to_have_count(1)
     expect(going).to_have_count(0)
     # News the thread takes while it is open again, which the node the first fold was
@@ -14471,10 +14501,8 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(
         page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
     ).to_have_count(1)
@@ -14514,8 +14542,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     round_trip(page)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     # Second of the two, as the version wrote it — not merely back on the list.
     assert page.eval_on_selector_all(
@@ -14617,12 +14644,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
 
     held[0].continue_()
     round_trip(page)
-    # The response reaching the browser precedes sendAction's final continuation.
-    # The undo row is the page's own statement that the move is in the log and the
-    # next press can read it, rather than a timing guess over that last turn.
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     # The newest move, which is the one the reader would have meant — and the older
     # one still stands, where taking back the wrong gesture would have reversed it.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
@@ -14651,15 +14673,13 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     round_trip(page)
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
-    # Replay restoring the option and the undo send finishing are adjacent but
-    # distinct facts. Wait for the register to offer the earlier gesture before
-    # pressing it, as a reader would see it offered.
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
+    # The arrival first, read the way every assertion after a trip reads it, and then
+    # the reading a retry cannot make: `to_have_text` collapses the blank line, which
+    # is the very thing the authored text is here to bring back.
+    expect(body).to_have_text(authored)
     assert body.inner_text() == authored
     # Two gestures and two words taking them back, newest first: nothing in the log
     # claims the reader chose opt-b or typed the authored draft, because they did
@@ -14700,8 +14720,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     expect(old).to_be_hidden()
     expect(page.locator(".lf-asks")).to_have_text("Asks (2)")
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
     # the control offers the decision rather than recording it, and the banner
     # counts the question among the ones still waiting on the reader.
@@ -14763,8 +14782,7 @@ def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
     page.wait_for_function(f"{marks} === 0")
     expect(accept).to_be_focused()
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     page.wait_for_function(f"{marks} === 1")
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_be_focused()
     assert errors == []
@@ -14781,8 +14799,7 @@ def test_a_rebuild_leaves_a_reader_standing_elsewhere_where_they_are(browser, se
     round_trip(page)
     page.evaluate("() => document.body.focus()")
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
@@ -14813,8 +14830,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     # The second tab is now holding words of its own, so the log may not write over it.
     two.locator("lf-draft .lf-draft-pencil").click()
     expect(two.locator("lf-draft textarea")).to_be_focused()
-    one.keyboard.press("z")
-    round_trip(one)
+    undo(one)
     expect(one.locator(body)).to_have_text(authored)
 
     # The withdrawal has to reach the second tab *while* its editor stands — heard
@@ -14877,9 +14893,13 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     heard, errors_heard = open_page(browser, url)
     assert heard.eval_on_selector_all(*order) == standing
 
+    # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
+    # what it sends can never come back to it. The offer the helper waits on first is
+    # the part that still applies — the line and the dispatcher ask one predicate, so
+    # a press made before it stands is one the dispatcher refuses.
+    expect(stale.locator(".lf-keyline")).to_contain_text("undo")
     stale.keyboard.press("z")
-    # Not round_trip: this tab's polls are stopped, so what it sent can never come
-    # back to it. The server answering the post is the fact this wait consumes.
+    # The server answering the post is the fact this wait consumes.
     _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
     stale.unroute("**/api/state")
     told(heard)
@@ -14937,8 +14957,7 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     # Replay carries the v1 move onto v2, so this tab is showing it.
     expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
 
-    pinned.keyboard.press("z")
-    round_trip(pinned)
+    undo(pinned)
     told(moved_on)
     told(moved_on)
     expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
@@ -14971,8 +14990,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     round_trip(one)
     expect(two.locator("#sug-refill lf-old")).to_be_hidden()
 
-    one.keyboard.press("z")
-    round_trip(one)
+    undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
     expect(two.locator(".lf-asks")).to_have_text("Asks (3)")
     # Everything the change had when it was pending, including what the theme paints
@@ -15023,8 +15041,7 @@ def test_a_rebuild_keeps_what_the_reader_did_inside_the_change(browser, serve):
 
     page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
     round_trip(page)
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
 
     expect(page.locator("#sug-thistle lf-old, #sug-thistle lf-new")).to_have_count(1)
     expect(page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")).to_have_text(
@@ -15045,8 +15062,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     page.close()
 
     again, errors = open_page(browser, url)
@@ -21582,8 +21598,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # were in is not something the log records, and not something a withdrawal
     # could turn on. The widget goes back to the markup and the surviving log is
     # replayed onto it, so what the press restores is the accept, not a blank slate.
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
     expect(reopened).to_have_count(0)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")

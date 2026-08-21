@@ -919,6 +919,14 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
     return null;
   }
   sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
+  // Both edges repaint the line, the way undoLast does for its own record: this store
+  // is half of unrecordedGesture, which is what `z`'s row asks, so a send starting or
+  // ending moves whether that key works and no focus event reports it. Without them
+  // the line's answer trails the dispatcher's by however long until the next paint
+  // some other signal happens to schedule — the line offering a press the dispatcher
+  // would refuse, which is the one thing "a key on screen is a key that works" is
+  // there to rule out. paintHere coalesces to a frame, so the pair costs nothing.
+  paintKeys();
   try {
     return await post({
       kind: "action",
@@ -932,6 +940,7 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
     const left = sending.get(el.id) - 1;
     if (left) sending.set(el.id, left);
     else sending.delete(el.id);
+    paintKeys();
   }
 }
 

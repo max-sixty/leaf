@@ -9393,6 +9393,10 @@ WINDOW_ERRORS = (
 )
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 
+# The page's own word for "I have finished becoming myself", which every pass here
+# waits on before reading anything (the stamp's reasons are at the foot of leaf.js).
+UPGRADED = "() => document.body.dataset.lfUpgraded === '1'"
+
 
 def resize_observer_error(text: str) -> bool:
     return text.startswith(RESIZE_OBSERVER_ERROR)
@@ -9509,7 +9513,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         # document, so a box measured while it is still drawing belongs to no version of
         # the page — which is the stamp `version export` waits on for the same reason.
         try:
-            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+            page.wait_for_function(UPGRADED)
         except PlaywrightTimeout:
             page.close()
             explanations = [*errors, *resize_notices]
@@ -10171,7 +10175,7 @@ def export_page(browser, url: str, page_dir: Path) -> str:
     try:
         page.goto(url, wait_until="networkidle")
         try:
-            page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+            page.wait_for_function(UPGRADED)
             # Both replayed kinds, as the render gate counts them: the caught-up
             # stamp counts reports beside actions, and a page whose only recorded
             # state is a worker's report would otherwise copy before it painted.

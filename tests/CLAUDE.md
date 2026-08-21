@@ -21,6 +21,15 @@ it over the examples, so the gate a user's page passes and the suite the example
 pass share one implementation. The end-to-end render-check tests cover its installed
 Chrome launch path separately.
 
+Which of the two a reading belongs to follows from whose fault its findings are.
+The gate reads a version, and everything it reports is something the page's
+author wrote and can change. A reading whose answer is the same under every
+version is about the layer instead, and an agent running the gate at handover
+would be paying for a verdict on code it neither wrote nor can fix. That reading
+lives here, swept over the corpus like any other. `arrival_findings` is the one
+that does: what a page does for a reader who left the comment panel open or a
+board standing is the restore's answer, and no markup changes it.
+
 ## A synthetic drag presses on a whole pixel
 
 `select` is the helper a test drags a selection with, and the reason it exists is

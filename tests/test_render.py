@@ -1004,6 +1004,166 @@ def resize_notice_after_last_probe(page):
     page.evaluate = with_notice
 
 
+# What a returning reader's browser puts back before the page runs, declared by the
+# runtime that puts it back (leaf.js, ARRANGEMENTS). Read from the page rather than
+# listed here: which surfaces remember anything is the runtime's to say, and a list on
+# this side would stop at the ones it was taught.
+ARRANGEMENTS = "() => import('/leaf.js').then((leaf) => leaf.ARRANGEMENTS)"
+
+# One arrangement and no other, written the way a reader's own browser holds it. Both
+# stores are cleared first, so each arrival is the arrangement it names rather than that
+# one plus whatever the last reload left. Nothing is caught: a browser that will not
+# store is a browser this reading cannot make, and swallowing that would turn every
+# arrival into a first visit and every arrival finding into a pass.
+ARRANGE = """(a) => {
+  localStorage.clear();
+  sessionStorage.clear();
+  (a.store === "session" ? sessionStorage : localStorage).setItem(a.key, a.value);
+}"""
+
+
+def arrival_findings(browser, url):
+    """Whether a page comes up at all in each arrangement a reader can return to.
+
+    The suite's, not `render_version`'s, and the line between them is whose fault a
+    finding is. Everything the gate reads is something the page's author wrote and
+    can change; a restore is the layer's, identical under every version, so an agent
+    running the gate at handover would be paying for a verdict on code it did not
+    write and cannot fix.
+
+    What it reads: a fresh context holds nothing, so every other reading in the suite
+    is of a first visit — the comment panel shut, no board standing, design mode off —
+    and each of those is something a reader turns on once and gets back on every load
+    afterwards. That left the restores as the one road onto a page with nothing
+    watching it, and a board someone had left standing came up as a ReferenceError
+    instead of a page: it was put up by code running while the runtime was still
+    evaluating, which could reach almost nothing. It reached the reader, who reported
+    it.
+
+    One page, reloaded into each arrangement, which is what a returning reader does:
+    the store is written on the origin the page is already on and read while the next
+    load evaluates. What comes back is the upgrade stamp and the console and no more,
+    because coming up is the whole question here. Boxes are not measured again: every
+    shipped example was measured in each of these arrangements and none of them moved
+    a box that a first visit didn't.
+    """
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    errors = []
+    notices = []
+
+    def console_message(message):
+        if message.type != "error":
+            return
+        target = notices if interact.resize_observer_error(message.text) else errors
+        target.append(message.text)
+
+    page.on("console", console_message)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on(
+        "response",
+        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
+    )
+    page.add_init_script(interact.WINDOW_ERRORS)
+    found = []
+    try:
+        # A first visit, to be arranged from and to read the arrangements off. Reported
+        # rather than raised when it doesn't arrive: this is the reading that says what
+        # happens on a load, so a load it could not make is its own answer, and a page
+        # that never came up has nothing to be arranged into.
+        try:
+            # `load`, where the gate's scheme passes wait for network quiet: those read
+            # the served documents and want a page that has stopped asking for things,
+            # while everything here is either the stamp below — which the page raises
+            # for itself, and which is the stronger fact — or a console the handlers
+            # above are already attached to. Network quiet costs 3.5x what the load
+            # event does over the five navigations here, measured on
+            # design-decision.html, and buys this nothing.
+            page.goto(url, wait_until="load")
+            page.wait_for_function(interact.UPGRADED)
+        except PlaywrightTimeout:
+            return [
+                "[arrivals] the page never came up unarranged, so nothing could be "
+                "arranged — "
+                + ("; ".join([*errors, *notices]) or "and no console error says why")
+            ]
+        for arrangement in page.evaluate(ARRANGEMENTS):
+            page.evaluate(ARRANGE, arrangement)
+            # A console the last arrangement dirtied is not this one's news.
+            errors.clear()
+            notices.clear()
+            try:
+                page.reload(wait_until="load")
+                page.wait_for_function(interact.UPGRADED)
+            except PlaywrightTimeout:
+                found.append(
+                    f"[{arrangement['name']}] the page never finished coming up — "
+                    + (
+                        "; ".join([*errors, *notices])
+                        or "and no console error says why"
+                    )
+                )
+                continue
+            # A ResizeObserver notice is the gate's to adjudicate over two attempts on
+            # the same document; one seen here says nothing on its own.
+            found += [f"[{arrangement['name']}] console: {e}" for e in errors]
+    finally:
+        page.close()
+    return found
+
+
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+def test_an_example_comes_up_for_a_reader_who_left_something_standing(
+    browser, serve, example
+):
+    """The corpus read the way a reader reads it the second time. `test_example_renders`
+    above is every example's first visit; this is the same examples with the panel
+    open, a board standing, or design mode on, which is what the reader who opened one
+    of those gets back on every load until they close it."""
+    assert arrival_findings(browser, serve(example.read_text())) == []
+
+
+def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
+    """The sweep above asks whether each example survives an arrangement; this asks
+    whether the reading covers them. The probe speaks only to a returning reader, so
+    every finding here is the arrival pass's, and what it is held to is the
+    arrangements the runtime declares — all of them, in order, because a pass that
+    stopped at the first would leave every surface after it exactly as unwatched as it
+    was before."""
+
+    def prepare(page):
+        # At document start, before the page's own scripts, so what is read is what the
+        # gate seeded and not what the runtime has since written back over it.
+        page.add_init_script(
+            "const held = [...Object.keys(localStorage), ...Object.keys(sessionStorage)];"
+            "if (held.length) console.error('returned holding ' + held.join());"
+        )
+
+    url = serve(CUSTOM_WIDGET_PAGE)
+    declared = browser.new_page()
+    declared.goto(url, wait_until="load")
+    declared.wait_for_function(interact.UPGRADED)
+    arrangements = declared.evaluate(ARRANGEMENTS)
+    declared.close()
+    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+
+    arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
+    assert [f.split("]")[0].lstrip("[") for f in arrived] == [
+        a["name"] for a in arrangements
+    ]
+    # And each was the arrangement it names rather than that one plus everything the
+    # reloads before it left standing — a difference no finding could show on its own,
+    # since all of them would still be reported, each under a name that had stopped
+    # being true. Only the other arrangements' keys are held against an arrival: the
+    # page writes its own reading position on the way out of every load, so a store
+    # holding that too is a page that departed, not an arrangement that leaked.
+    arranged = {a["key"] for a in arrangements}
+    for finding, arrangement in zip(arrived, arrangements):
+        held = set(finding.split("returned holding ")[1].split(","))
+        assert held & arranged == {arrangement["key"]}, finding
+
+
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
     """The notice can arrive on the rendering turn after the gate's last probe. A
     navigation-only confirmation would call the attempt clean, and an immediate close
@@ -1070,7 +1230,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
             resize_notice_after_last_probe(page)
-        elif number >= 2:
+        elif number >= 2:  # the arrival page, then the confirming attempt's two
             page.set_default_timeout(500)
             page.route("**/leaf.js", lambda route: route.abort())
         pages.append(page)

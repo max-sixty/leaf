@@ -366,6 +366,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
         check=False,
     )
     assert help_result.returncode == 0, help_result.stderr
+    assert help_result.stderr == ""
     assert (
         "Build and run interactive pages a session shares with its user."
         in help_result.stdout
@@ -398,6 +399,53 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     )
     assert publish_result.returncode == 0, publish_result.stderr
     assert interact.published_versions(page, interact.read_events(page)) == [1]
+
+
+@pytest.mark.nightly  # the resolve behind the lock asks the index for the header
+def test_the_launcher_starts_where_the_locks_own_urls_cannot_be_served(tmp_path):
+    """The lock records an absolute URL per wheel and uv fetches exactly those, so an
+    index the host configures is never consulted while the lock can be satisfied. On a
+    host whose index is a private mirror rather than pypi.org that fetch fails, and it
+    fails before the script runs — `page init`, `version check` and `server run` alike.
+
+    The mirror is stood up from the other side, because that is the half this repro
+    needs: the lock's recorded URLs are pointed at a closed port, which leaves the
+    configured index as the only thing that can serve the three dependencies. The cache
+    gets a directory of its own for the same reason — a wheel already in the developer's
+    cache answers whatever the lock says, and the run proves nothing."""
+    installed = tmp_path / "plugins" / "leaf"
+    shutil.copytree(PLUGIN_ROOT, installed)
+    lock = installed / "skills" / "leaf" / "scripts" / "interact.py.lock"
+    lock.write_text(
+        lock.read_text().replace(
+            "https://files.pythonhosted.org/", "http://127.0.0.1:1/"
+        )
+    )
+
+    result = subprocess.run(
+        [installed / "bin" / "leaf", "--help"],
+        cwd=tmp_path,
+        env={**os.environ, "UV_CACHE_DIR": str(tmp_path / "uv-cache")},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (
+        "Build and run interactive pages a session shares with its user."
+        in result.stdout
+    )
+    # The fallback re-resolves a header with no upper bounds and writes the result
+    # over the pins, and the run behind it succeeds — so it says so on stderr,
+    # which is the only account anyone gets of a moved pin.
+    assert "resolving the header against this host's index" in result.stderr
+    # Which failure it was is the ask's to say and not the announcement's — an
+    # unservable lock reads nothing like a 503 or a host with no `uv` at all — so
+    # the ask's own words come with it rather than dying with its exit status.
+    assert "127.0.0.1:1" in result.stderr
+    # The resolve is paid once: it rewrites the lock to what this host's index
+    # served, so the next run is pinned again rather than resolving afresh.
+    assert "127.0.0.1:1" not in lock.read_text()
 
 
 def case_alias(path):

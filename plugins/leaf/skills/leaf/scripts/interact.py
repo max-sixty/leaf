@@ -8686,6 +8686,20 @@ def recurring_resize_observer_error(unit: str) -> str:
     return f"{RESIZE_OBSERVER_ERROR} notice recurred on the confirming {unit}"
 
 
+# What the page is still doing, named by what it moves. A finite end is what separates a
+# page settling from a page living: the banner's dot pulses for as long as the tab is
+# open, and a wait that asked for no animation at all would never be answered.
+MOVING = """() => document.getAnimations()
+    .filter(a => a.playState === 'running'
+                 && Number.isFinite(a.effect?.getComputedTiming().endTime))
+    .map(a => { const el = a.effect?.target;
+                const named = el?.closest?.('[id]');
+                const where = named
+                    ? `<${named.tagName.toLowerCase()} id=${named.id}>`
+                    : `<${el?.tagName?.toLowerCase() ?? '?'}>`;
+                return a.animationName ? `${where} ${a.animationName}` : where; })"""
+
+
 def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console or page error, a request that 404s, a fail-soft error box, an upgrade
@@ -8821,6 +8835,41 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         touched = [
             e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
         ]
+        # Every reading below is of a page at rest, and the upgrade stamp above is
+        # one third of that. The stamp is written without awaiting the first poll, so
+        # a gate reading there reads the authored board, the unanswered question and
+        # the body the reader has since rewritten — a page nobody is shown. The
+        # caught-up stamp is the log's answer to that, and the frame it lands in is
+        # the first frame of whatever the replay set moving, a replay past the
+        # presentation boundary moving rather than teleporting. Both waits are taken
+        # in both schemes, because every reading below has boxes or words in it. The
+        # windows open under load alone, which is how one page passed at a desk and
+        # reported words drawn over words under a full suite ("The page finishes
+        # twice", in the layer's own CLAUDE.md).
+        unsettled = []
+        replayed = True
+        if touched:
+            applied = len(touched)
+            try:
+                page.wait_for_function(
+                    "(applied) => Number(document.body.dataset.lfApplied ?? -1)"
+                    " >= applied",
+                    arg=applied,
+                )
+            except PlaywrightTimeout:
+                replayed = False
+                stalled = (
+                    "the runtime never finished replaying the log "
+                    f"({applied} action(s))"
+                )
+                unsettled = [stalled]
+        if replayed:
+            try:
+                page.wait_for_function(f"() => ({MOVING})().length === 0")
+            except PlaywrightTimeout:
+                unsettled = [
+                    "the page never stopped moving: " + ", ".join(page.evaluate(MOVING))
+                ]
         failsoft = page.evaluate(
             "[...document.querySelectorAll('.lf-error')].map(e => e.textContent.trim())"
         )
@@ -8850,14 +8899,11 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 .map(el => `<${el.localName}>`))]""",
             registry,
         )
-        # Replay is scheme-blind, so one scheme's reading covers both. The wait
-        # is for the runtime's own caught-up stamp: reading the replay's record
-        # mid-replay would miss whatever hadn't landed yet.
+        # Replay is scheme-blind, so one scheme's reading covers both.
         conflicts = []
         dishonest_verbatim = []
         silent = []
         missing_conversations = []
-        replayed = True
         undeclared_attrs = []
         retired = []
         if scheme == "light":
@@ -8908,29 +8954,15 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                     for s in shown
                     if s["says"] != spk.get(s["id"], EMPTY).words
                 ]
-            if touched:
-                applied = len(touched)
-                try:
-                    page.wait_for_function(
-                        "() => Number(document.body.dataset.lfApplied ?? -1) "
-                        f">= {applied}"
-                    )
-                    if earlier is not None:
-                        conflicts = page.evaluate(
-                            REPLAY_OVERRIDES,
-                            {"curHtml": markup, "prevHtml": earlier},
-                        )
-                except PlaywrightTimeout:
-                    replayed = False
-                    stalled = (
-                        "the runtime never finished replaying the log "
-                        f"({applied} action(s))"
-                    )
-                    conflicts = [stalled]
-            # Behind the same wait: a report moves a painted attribute and the pass
-            # that speaks it runs before the stamp, so a reading taken any earlier
-            # asks after a word the page has not been asked to say yet. A page that
-            # never caught up is already reported above and read no further.
+            if touched and replayed and earlier is not None:
+                conflicts = page.evaluate(
+                    REPLAY_OVERRIDES,
+                    {"curHtml": markup, "prevHtml": earlier},
+                )
+            # Behind the caught-up wait above: a report moves a painted attribute and
+            # the pass that speaks it runs before the stamp, so a reading taken any
+            # earlier asks after a word the page has not been asked to say yet. A page
+            # that never caught up is already reported there and read no further.
             if replayed:
                 silent = page.evaluate(SILENT_WORDS, widgets)
                 # Behind the same wait, because replay is one of the two writers:
@@ -9068,6 +9100,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"in theme.css reaches it"
             )
         found += [f"[{scheme}] {r}" for r in retired]
+        found += [f"[{scheme}] {u}" for u in unsettled]
         found += [f"[{scheme}] {c}" for c in conflicts]
         found += [f"[{scheme}] {r}" for r in relative]
         found += on_paper

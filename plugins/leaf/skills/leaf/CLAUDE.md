@@ -161,10 +161,23 @@ rendered what the log holds.
 
 Anything that means "the page is ready" wants both stamps, and the gap between
 them is one fetch wide — which is why it keeps being missed. `version export`
-copied a page blank, and the suite lost three keypresses into pages that had
-nothing yet to answer them. Nothing collapses the two stamps into one: the
+copied a page blank, the suite lost three keypresses into pages that had nothing
+yet to answer them, and `version check --render` measured the boxes of a board
+the log had not moved yet. Nothing collapses the two stamps into one: the
 document's stamp owes nothing to the network, and a page whose server never
 answers has still finished becoming itself.
+
+Anything reading *boxes* wants a third fact past both stamps, and the log itself
+is what makes it necessary. Where a first poll brings nothing, the runtime
+presents the authored page deliberately, so the replay that follows crosses the
+presentation boundary and moves rather than teleports (the norm on holding still,
+below) — cards mid-FLIP, a settled suggestion mid-fold, with `lf-applied` already
+standing. Read there, the gate's covered-words reading was right and worthless:
+the words were on top of each other, and a frame later they were not. So a page
+at rest is both stamps and no finite animation still running, the finite part
+being what tells a page settling from a page living — the banner's dot pulses for
+as long as the tab is open. Both windows open under load alone, which is how one
+page passed at a desk and failed under a full suite.
 
 ## A pinned version scopes the document, never the conversation
 

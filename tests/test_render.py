@@ -4152,7 +4152,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
     interact.append_event(
         d,
@@ -4777,7 +4777,7 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     panel, in the same pixels as the thread list's own — and the two thumbs would
     stack. The regions must not share an edge."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
 
     geom = page.evaluate("""() => {
@@ -7904,7 +7904,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(
         '#rp-live .lf-pick[role="button"]'
     )  # the reply's widgets upgraded
@@ -7991,7 +7991,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-msg-body table")
 
     # One client rect is one line: the figure is drawn as a single run, the URL
@@ -8078,7 +8078,7 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     means shrinking it to re-measure on every keystroke, and a box briefly too
     small for its own text flashes a scrollbar."""
     page, _ = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     box = page.locator(".lf-general textarea")
 
     page.evaluate("""() => {
@@ -8202,7 +8202,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # keep their line, clear of the column on one side and of the panel on the
     # other. Measured after the layout has moved, since opening the panel resizes
     # the page and the rows re-place on the frame after that.
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
@@ -10145,7 +10145,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
         for section in ("flow", "long-part")
     }
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     quote = lambda section: page.locator(
         f'.lf-thread[data-id="{thread[section]}"] .lf-quote'
     )
@@ -11004,6 +11004,184 @@ def test_the_render_gate_catches_a_relative_apply_action(
     ], failures
 
 
+# A widget that stands out of place and settles into it, for the two tests below. The
+# distance is more than the blocks under it are tall, so while it is out of place its
+# words are over a neighbour's — which is a page the gate reports, and the whole of
+# what these tests measure. `offset` is the state and the transform is a rendering of
+# it, so the module never reads a position back off the page.
+DRIFT_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>a page still settling</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>
+<body>
+<main>
+<h1 id="drift-title">The feeders</h1>
+<lf-drift id="drift-note" offset="120"><strong>Two greys at the north feeder</strong> They came over the fence at a run, took the sunflower hearts from the hanging tray, and were gone again before the camera on the shed had finished waking up.</lf-drift>
+<p id="drift-four">They came back at four and stayed until dusk.</p>
+<p id="drift-week">The baffles went up the following week.</p>
+<p id="drift-seed">Nothing has been at the seed since.</p>
+<p id="drift-count">The count runs again on Sunday.</p>
+<p id="drift-sunday">Sunday is when the tally goes in.</p>
+</main>
+</body>
+</html>
+"""
+
+DRIFT_MODULE = """\
+import { motion, once } from "/leaf.js";
+
+customElements.define(
+  "lf-drift",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      this.#place();
+    }
+    // Absolute, as every applyAction is: the offset is stated, never stepped.
+    applyAction(action, detail) {
+      if (action !== "settle") return;
+      const from = this.getAttribute("offset");
+      this.setAttribute("offset", String(detail.offset));
+      this.#place();
+      // Held at the old offset for nine tenths of the run, so the words are over
+      // their neighbour's for as long as the motion lasts. A move that eased the
+      // whole way would leave a last fifth of a second in which a reading taken
+      // then happened to be clean, and the test would be measuring when the gate
+      // looked rather than whether it waited.
+      motion(
+        this,
+        [
+          { transform: `translateY(${from}px)` },
+          { transform: `translateY(${from}px)`, offset: 0.9 },
+          { transform: "none" },
+        ],
+        1200,
+      );
+    }
+    #place() {
+      this.style.transform = `translateY(${this.getAttribute("offset")}px)`;
+    }
+  },
+);
+"""
+
+
+def drifting_widget(tmp_path, monkeypatch):
+    """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-drift", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-drift"]["properties"]["offset"] = {"type": "integer", "minimum": 0}
+    # The registry holds a widget-unit verb to the attribute a version retracts a
+    # decision with, so a state channel arrives with its way out of one.
+    entries["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-drift"]["x-state"] = {
+        "settle": {
+            "detail": {
+                "type": "object",
+                "properties": {"offset": {"type": "integer", "minimum": 0}},
+                "required": ["offset"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "offset", "value": "offset"},
+        }
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(DRIFT_MODULE)
+    return DRIFT_PAGE
+
+
+def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The premise the test below rests on, stated where it can fail on its own.
+
+    With nothing in the log to settle it, <lf-drift> keeps the offset its markup
+    states for as long as the page is open, and its words sit over the paragraphs
+    under it. That is a page the covered-words reading reports — so the test below,
+    which serves this same markup and expects nothing, is measuring the gate's
+    patience rather than a page that was never broken."""
+    url = serve(drifting_widget(tmp_path, monkeypatch))
+
+    covered = [f for f in interact.render_version(browser, url) if "same place" in f]
+
+    assert covered and all("drift-note" in f for f in covered), covered
+
+
+def test_the_render_gate_reads_a_page_that_has_finished_arriving(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A page finishes twice, and the second ending arrives moving.
+
+    `lf-upgraded` is the first: every widget upgraded, the geometry final. The
+    runtime writes it in the same breath as it *starts* the first poll and never
+    awaits that poll, so a gate reading there reads the authored page — here, a
+    widget standing 120px out of place with its words over the paragraphs below it.
+    `lf-applied` is the second, and the frame it lands in is the first frame of the
+    move it describes: a poll that brings nothing presents the authored page
+    deliberately, so the replay after it crosses the presentation boundary and moves
+    rather than teleports.
+
+    Both windows are load-shaped — a busy server, a few hundred milliseconds — which
+    is how this page passed at a desk and reported words drawn over words under a
+    full suite. Holding the action back until the first poll has answered makes the
+    window the same every run: the page reads as broken for about three seconds, and
+    the gate must have nothing to say about it. Either wait on its own leaves this
+    failing."""
+    # For the page directory and its vendored layer; this test serves it itself.
+    serve(drifting_widget(tmp_path, monkeypatch))
+    landed = []
+    settle = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "drift-note",
+        "action": "settle",
+        "detail": {"offset": 0},
+    }
+
+    class TheLogArrivesLate(interact.handler_for(serve.page_dir, TOKEN)):
+        """The action reaches the log after the page's first poll has answered.
+
+        A page whose first poll brings nothing is presented on the authored markup
+        deliberately, so the replay that follows is past the presentation boundary
+        and moves rather than teleports. A poll is told from the gate's own reading
+        of the same document by the Referer a page fetch carries and an
+        APIRequestContext does not, so the gate always sees a log with the action
+        in it and always has a caught-up stamp to wait for."""
+
+        def do_GET(self):
+            super().do_GET()
+            page_fetch = self.headers.get("Referer") and self.path.startswith(
+                "/api/state"
+            )
+            if page_fetch and not landed:
+                landed.append(self.headers["Referer"])
+                interact.append_event(serve.page_dir, settle)
+
+    httpd = interact.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
+        assert interact.render_version(browser, late) == []
+    finally:
+        httpd.shutdown()
+    assert landed and "/versions/v1.html" in landed[0], (
+        "the action went in behind the gate's own reading rather than behind the "
+        f"page's first poll, so the window this rests on never opened: {landed}"
+    )
+
+
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
     """A widget may use the runtime's namespace for state without making that state
     runtime paint. Replaying a suggestion changes only data-lf-state on its authored
@@ -11603,7 +11781,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     body = page.locator(".lf-msg.claude .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
@@ -11675,7 +11853,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
@@ -11787,7 +11965,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     body = page.locator(".lf-msg-body.lf-suggest-body")
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
@@ -11836,7 +12014,7 @@ def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
     assert errors == []
@@ -14306,7 +14484,7 @@ def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, 
         "   >= document.querySelector('main').getBoundingClientRect().right"
     ), "the margin placement is the precondition — nothing strands a column-placed box"
     # A press on the banner's own button: standDown keeps a composer holding text.
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     page.wait_for_function("""() => {
         const box = document.querySelector('.lf-composer').getBoundingClientRect();
@@ -15124,7 +15302,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
                 "anchor": {"section": None, "quote": quote},
             },
         )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
@@ -15429,7 +15607,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
             },
         },
     )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     # Posted to the server rather than through the page, so the page hears about it
     # when its next poll asks.
     told(page)
@@ -16014,7 +16192,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
                 "anchor": {"section": "fig"},
             },
         )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
@@ -19512,7 +19690,7 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     the user nothing, so the key reads as dead, and the document is somewhere else
     when the sheet closes."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
@@ -22666,7 +22844,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     expect(page.locator("#fallback-flow svg")).to_be_visible()
 

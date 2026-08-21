@@ -5681,8 +5681,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     folds = page.evaluate("window.__lfHeld.length")
     assert folds == before + 1, "the press drew something other than its one fold"
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(thread).to_have_count(1)
     expect(going).to_have_count(0)
     # News the thread takes while it is open again, which the node the first fold was
@@ -20971,8 +20970,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # were in is not something the log records, and not something a withdrawal
     # could turn on. The widget goes back to the markup and the surviving log is
     # replayed onto it, so what the press restores is the accept, not a blank slate.
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
     expect(reopened).to_have_count(0)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")

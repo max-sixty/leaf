@@ -4550,7 +4550,19 @@ function threadNode(t, grow) {
 const folding = new Map(); // thread id -> the node folding out of the open list
 function foldOut(t) {
   const going = folding.get(t.root.id);
-  if (going) return going;
+  // For as long as it stands in the list, which is the whole of what the record
+  // claims. A reader who reopens a thread mid-fold has that render drop the folding
+  // node from the list, and the entry left behind names a node in nothing: handed
+  // back when they settle the thread again, it would stand a spent animation where
+  // the thread is, saying what the thread said before it reopened, and the thread
+  // would leave with no fold at all. The node's own connectedness is that fact, read
+  // here rather than written from wherever a node leaves the list, which is the
+  // difference between one writer and every caller of setChildren remembering.
+  // Dropped rather than passed over, because the two returns below leave without
+  // setting one, and an entry over a thread nothing is folding hides that thread
+  // from the disclosure that should be holding it by then.
+  if (going?.isConnected) return going;
+  folding.delete(t.root.id);
   const node = threadsBox.querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`);
   if (!node) return null;
   // Measured before anything about the node changes, and stated as a border box —
@@ -4594,7 +4606,10 @@ function foldOut(t) {
   // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
   // see it.
   played.finished.then(() => {
-    folding.delete(t.root.id);
+    // This node's own entry, never whatever the thread's key holds now: a fold the
+    // line above superseded is still running, and the older one finishing must not
+    // take the live one's record with it.
+    if (folding.get(t.root.id) === node) folding.delete(t.root.id);
     node.remove();
     renderPanel();
   });

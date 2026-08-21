@@ -5619,6 +5619,79 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         context.close()
 
 
+def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
+    """A fold is a claim about a node standing in the list, and the reader can take
+    that node out from under it: `z` reopens the thread the fold is carrying away, and
+    the render that puts the thread back drops the folding node. Held past that, the
+    record would hand the spent node back the next time the thread settled — the fold
+    would be over before it started, and what stood in the list for its duration would
+    be the thread as it read before it reopened, one message short.
+
+    Reachable in the product, not only here: resolve, `z` and resolve are three round
+    trips through the real server in 78ms measured, against a fold of 220ms, so the
+    window is the reader's typing speed and nothing else. Holding the motion is what
+    makes it a state instead of a race — a paused animation never settles `finished`,
+    so the record stays exactly as long as the assertions need it."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    c1 = next(
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
+    going = page.locator(f'.lf-threads > .lf-going[data-id="{c1}"]')
+
+    before = page.evaluate("window.__lfHeld.length")
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    round_trip(page)
+    expect(going).to_have_count(1)
+    folds = page.evaluate("window.__lfHeld.length")
+    assert folds == before + 1, "the press drew something other than its one fold"
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(thread).to_have_count(1)
+    expect(going).to_have_count(0)
+    # News the thread takes while it is open again, which the node the first fold was
+    # carrying away has never held — so what folds the second time says which node it is.
+    reply = interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "version": 1,
+            "parent": c1,
+            "text": "Reopened, and answered.",
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-msg")).to_have_count(2)
+
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    round_trip(page)
+    expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    assert page.evaluate("window.__lfHeld.length") > folds, (
+        "the second settlement drew no fold of its own"
+    )
+
+    # And the first fold runs out, which is the other half of two folds standing at
+    # once: its node left the list when the thread reopened, and the record it must
+    # not clear on its way is the live fold's. Cleared, the thread is pulled out of
+    # the list in the middle of the motion carrying it away.
+    page.evaluate(
+        "async (i) => { const m = window.__lfHeld[i];"
+        " m.play(); m.currentTime = m.effect.getComputedTiming().duration;"
+        " await m.finished; }",
+        before,
+    )
+    expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
@@ -8609,9 +8682,10 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
 
 
 # Every animation the page starts, held at time zero so a test can read it rather than
-# race it. The runtime's own chrome runs CSS animations, which this never sees; what it
-# catches is a widget's WAAPI motion, started synchronously inside the gesture that
-# causes it. Installed before anything runs, so the first frame is already held.
+# race it. What it catches is everything through `motion()`, which is the layer's only
+# caller of `animate` — the folds and the board's FLIP, each started synchronously
+# inside the gesture that causes it. CSS animations run outside it and are never seen,
+# `grow` among them. Installed before anything runs, so the first frame is already held.
 HOLD_MOTION = """
   window.__lfHeld = [];
   const inner = Element.prototype.animate;
@@ -20548,14 +20622,20 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page.close()
 
 
-def test_a_reject_after_an_accept_reopens_the_thread(browser, serve):
+def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     """The panel reports where the question currently stands, not that it was once
     answered. A second tab can reject a suggestion the first has already accepted —
     the controls are gone in the tab that decided, not in the one that hasn't
     polled — and the reader who turned the fix down would otherwise find their
     question filed away as answered by it, while the suggestion beside it read as
     rejected. Both readings come off the same log; here is where they have to
-    agree in front of the reader."""
+    agree in front of the reader.
+
+    Then the same rule read the other way: `z` takes the reject back, the accept it
+    superseded is the widget's answer once more, and the thread closes under it. The
+    two ways an answer stops standing compose, and nothing is written down to say so:
+    an `unresolve` posted where the thread reopened would be a second record of the
+    same fact, and taking the reject back would leave it standing against the accept."""
     url = serve(
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
     )
@@ -20594,6 +20674,23 @@ def test_a_reject_after_an_accept_reopens_the_thread(browser, serve):
     expect(page.locator(".lf-details")).to_have_count(0)
     reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
+
+    # Offered here because the log says the reader made the reject; which tab they
+    # were in is not something the log records, and not something a withdrawal
+    # could turn on. The widget goes back to the markup and the surviving log is
+    # replayed onto it, so what the press restores is the accept, not a blank slate.
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
+    expect(reopened).to_have_count(0)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    # What the log holds is the three gestures and not one word about the thread:
+    # it was reopened and closed again by that log being read.
+    assert [
+        e.get("action", e["kind"])
+        for e in interact.read_events(d)
+        if e["kind"] in ("action", "undo", "resolve", "unresolve")
+    ] == ["accept", "reject", "undo"]
     assert errors == []
     page.close()
 

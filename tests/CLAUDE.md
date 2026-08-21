@@ -323,6 +323,17 @@ ahead of that next frame, and that is where the reading is taken now
 (`test_the_room_is_measured_after_a_late_rail`). The injection buys the record
 again; the wait is still the stamp's.
 
+Holding a motion holds whatever its ending drives, and that is the way past a
+window too short to drive from outside. The record of a folding thread lives until
+`finished` settles, and a paused animation never settles it, so the 220ms a reader
+has to reopen a thread mid-fold becomes a state that lasts as long as the
+assertions need — which is what
+`test_a_thread_reopened_mid_fold_folds_again_when_it_settles` reads, and it steps
+the held fold to its end afterwards to read what that ending clears. What the suite
+could not drive was the timing; the states either side of it were in reach the whole
+time. So before writing a race off as untestable, ask which of its ends can be
+stopped.
+
 ## A page's source is formatted, so ask what it says
 
 Prettier formats the `.html` under `docs/` and `examples/`, and it re-derives

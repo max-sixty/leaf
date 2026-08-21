@@ -14417,6 +14417,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
     page, errors = open_page(browser, url)
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     page.keyboard.press("z")
     round_trip(page)
     page.close()

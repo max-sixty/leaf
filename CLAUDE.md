@@ -484,7 +484,9 @@ in separate regions, the comment box grows without any script sizing it, and
 neither pressing a control nor news arriving on its own moves the controls beside
 it. It then reads each example again as a reader who left something standing,
 once in every arrangement a browser can put back: the panel open, a board standing,
-design mode on. Every other reading in the suite is of a first visit. One journey test drives the
+design mode on. Every other reading in the suite is of a first visit. A return moves
+nothing a first visit doesn't, arriving being no gesture; that one is read off the
+animations the browser itself reports. One journey test drives the
 whole loop through the real UI — select a passage, comment, drag a card, follow
 the next version, find the comment still anchored — and pins the event log it
 leaves behind. `test_product_page.py` holds

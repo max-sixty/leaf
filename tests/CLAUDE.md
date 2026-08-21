@@ -232,6 +232,18 @@ simply gone. So navigation waits for the load event, which says the resources
 shaping the page have arrived, and `open_page` waits for `lf-applied`, which says
 the log has — two stated facts replacing a quiet window for state readiness.
 
+Traffic is not the only thing the browser will report. The inspector's animation
+agent names every animation and transition as it is created, whoever created it,
+and that is what lets an arrival be held to painting no motion at all — a claim
+about something that does not happen, which read from inside the page would be
+`getAnimations` against a 200ms slide, a race this machine wins and a loaded one
+loses. The report outlives the motion it describes, so what has to be caught is
+the frame the motion begins on and never the fifth of a second it runs for — and
+that frame does have to be waited for, the report being made by the rendering
+update that starts the animation rather than by the script call that created it.
+A command on the same session is then the flush, replies and events travelling
+one connection in order.
+
 ## A race this machine won't lose is stated rather than run for
 
 Two picks a moment apart reached the log in reversed order on a CI runner,

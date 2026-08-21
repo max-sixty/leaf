@@ -97,22 +97,17 @@ command, and the page's server would follow it down a second later. So
 `session_pid` reads Claude Code's own `CLAUDE_PID`, and finds Codex's by walking
 up to the ancestor process running `codex`.
 
-`plugins/leaf/.mcp.json` belongs to Claude Code alone, and channel mode is an
-experiment beside the loop rather than part of it: the background wait is the
-path every session takes, and the channel is a second door onto the same log —
-it calls the CLI's own doors, and nothing in the file calls back into it, so
-what the experiment holds is one section and the line that wires it up.
-
-The manifest runs `leaf mcp`, the session's channel server (`cmd_mcp`), which
-carries the loop as a Claude Code channel: page events are pushed into the
-conversation as `<channel source="plugin:leaf:leaf">` messages, and replies
-stream back chunk by chunk through its `reply` tool. Whether those
-notifications register at all is the harness's decision, made at launch, and
-nothing tells the server the outcome. So delivery is proven once per session:
-the server sends a greeting, and the agent confirms it arrived by calling the
-`watch` tool. Only a confirmed channel heartbeats the watch. Under Codex, or
-any launch without the flag, the server idles and the skill's standard loop
-stands.
+One section of `interact.py` is an experiment the payload does not wire up.
+`cmd_mcp` serves the same log over a Claude Code channel: page events pushed
+into the conversation as notifications, and replies taken through its own tools,
+streamed chunk by chunk. It reaches a session only through an `.mcp.json` naming
+`leaf mcp` and a `channels` entry in the Claude Code manifest, neither of which
+the payload ships — so nothing spawns the server and no session carries its
+tools. Channels are a research preview gated to first-party providers, and
+refused over MCP revisions from 2026-07-28 on, which is why `cmd_mcp` pins
+2025-06-18. The background wait is the loop every session runs and the only one
+the skill documents. The section and its tests stay, because unwired they cost
+nothing and the tests keep the door in working order.
 
 `page init` vendors the whole layer into each page directory, deliberately: a page
 you approved cannot change under you when the shipped defaults do. What a page
@@ -477,17 +472,6 @@ side the second writer shows on.
   installs from a marketplace snapshot it fetches separately and does not sweep,
   so a change reaches it through `codex plugin marketplace upgrade leaf` and then
   `codex plugin add leaf@leaf`.
-- **Channel mode reaches a session only through its launch.** Claude Code registers
-  leaf's channel notifications only for a session launched with
-  `--channels plugin:leaf@leaf` — and until Anthropic's allowlist carries leaf, that
-  means `claude --dangerously-load-development-channels plugin:leaf@leaf`, which
-  confirms at startup. Testing from a checkout, the plugin loaded via
-  `--plugin-dir plugins/leaf` carries the marketplace name `inline`, so the dev
-  spec there is `plugin:leaf@inline` — the registration gate names the expected
-  marketplace in its refusal when the spec is wrong. Channels are a research preview, gated to first-party providers,
-  and refused over MCP revisions from 2026-07-28 on, which is why `cmd_mcp` pins
-  2025-06-18. Nothing needs configuring for a session without the flag: the greeting
-  never arrives, `watch` is never called, and the standard loop stands.
 
 ### The suite
 

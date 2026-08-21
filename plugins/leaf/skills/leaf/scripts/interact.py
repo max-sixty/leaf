@@ -4421,12 +4421,17 @@ CHANNEL_TOOLS = [
 
 
 def cmd_mcp() -> None:
-    """The loop as a channel: an MCP stdio server Claude Code spawns per session
-    (.mcp.json names it), pushing this session's page events into the
+    """The loop as a channel: an MCP stdio server a Claude Code session spawns
+    where an .mcp.json names it, pushing that session's page events into the
     conversation as <channel source="plugin:leaf:leaf"> messages and taking
-    replies as tool
-    calls. Inbound delivery is `notifications/claude/channel`, which is also the
-    wake: the harness enqueues each as a prompt, so an idle session gets a turn.
+    replies as tool calls. Inbound delivery is `notifications/claude/channel`,
+    which is also the wake: the harness enqueues each as a prompt, so an idle
+    session gets a turn.
+
+    Nothing shipped names it. Spawning this takes that .mcp.json plus a
+    `channels` entry in the Claude Code manifest, and the payload carries
+    neither, so the background wait is the loop every session runs. The repo's
+    own CLAUDE.md says why the section is kept and what wiring it back takes.
 
     A channel is a door into the model's context, so what may come through it is
     the question to answer first. This one adds no writer: it delivers what the
@@ -10626,7 +10631,7 @@ def hook() -> None:
 
 @cli.command(hidden=True)
 def mcp() -> None:
-    """Run the session's channel server (MCP over stdio); .mcp.json names it."""
+    """Run the session's channel server (MCP over stdio); nothing shipped wires it."""
     cmd_mcp()
 
 

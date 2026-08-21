@@ -5842,6 +5842,30 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
     finally:
         preview.shutdown()
 
+    # The refusals decided before the body is a dict at all, which the eight above
+    # cannot reach: every one of them parses. These name no attempt — the door has
+    # nothing to read one out of — so the browser cannot put that gesture back, and the
+    # weaker assertion is the whole of what the door can promise here. What it must
+    # still be is an answer: `json.loads` decodes the bytes before it parses, so a body
+    # that is not UTF-8 raises UnicodeDecodeError rather than JSONDecodeError, and
+    # uncaught it left the request unanswered — which the outbox reads as a lost
+    # connection and re-posts every poll for the life of the tab, the same permanent
+    # loop reached from the other side.
+    unreadable = [
+        ("a body that is not UTF-8", b'{"kind": "comment", "text": "\xff"}'),
+        ("a body that is not JSON", b"{not json"),
+        ("a body that is not an object", b"[1, 2]"),
+    ]
+    for name, body in unreadable:
+        status, answered = fetch(f"{server}/api/event", data=body)
+        answer = json.loads(answered)
+        assert (status, answer.get("ok"), answer.get("final")) == (400, False, True), (
+            name,
+            status,
+            answer,
+        )
+        assert answer.get("error"), (name, answer)
+
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
 
 

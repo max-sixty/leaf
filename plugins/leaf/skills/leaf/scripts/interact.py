@@ -2036,7 +2036,9 @@ class Handler(BaseHTTPRequestHandler):
             return {}, "invalid Content-Length"
         try:
             posted = json.loads(body)
-        except json.JSONDecodeError:
+        except ValueError:
+            # `json.loads` decodes the bytes before it parses, so a body that is not
+            # UTF-8 raises UnicodeDecodeError — a ValueError, never a JSONDecodeError.
             return {}, "invalid JSON"
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"

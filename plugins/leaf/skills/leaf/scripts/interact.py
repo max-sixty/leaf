@@ -2019,26 +2019,37 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._get)
 
     def do_POST(self):
-        # The body is read before the key gate below, which is the one refusal at the
-        # event door the door does not produce itself. What shapes an answer there is
-        # the door it came through rather than the branch that decided it, and every
-        # refusal has to name the attempt it refuses: a browser holding that gesture in
-        # its outbox reads `final` and nothing else as leave to put the gesture back,
-        # so a refusal in any other shape is re-sent every poll for the life of the tab.
-        # That puts the read outside `_answer`'s boundary, which is why the refusals it
-        # returns are the whole of what it may do with a body it cannot use.
-        self.posted, self.posted_error = self._read_posted()
-        self._answer(self._post)
+        # The body is read ahead of the key gate, which is the one refusal at the event
+        # door the door does not produce itself. What shapes an answer there is the door
+        # it came through rather than the branch that decided it, and every refusal has
+        # to name the attempt it refuses: a browser holding that gesture in its outbox
+        # reads `final` and nothing else as leave to put the gesture back, so a refusal
+        # in any other shape is re-sent every poll for the life of the tab. Ahead of the
+        # gate is not outside the boundary, which is what `prepare` is for.
+        self._answer(self._post, prepare=self._read_posted)
 
     def _read_posted(self) -> tuple:
-        """The POSTed body as a dict, or the refusal it has already earned. Every way a
-        body can defeat the read is one of those refusals and never an exception: this
-        runs ahead of `_answer`, so nothing here would turn a raise into an answer, and
-        the socket drops instead — which the outbox reads as a lost connection and
-        re-posts every poll for the life of the tab."""
+        """The POSTed body as a dict, or the refusal it has already earned.
+
+        Which raises a body can defeat the read with is not a list anyone here gets
+        to close. Three rounds each added one type to it — `UnicodeDecodeError` from
+        the decode the parse runs first, `RecursionError` from nesting past the
+        parser's own stack, `MemoryError` from a `Content-Length` the machine will
+        not hand over — and each was found by a body, not by reading this. So the
+        refusals below are what the read *knows* how to name, and `_answer` is what
+        answers for the fourth: a raise here is a 500 the banner can show, where
+        outside that boundary it dropped the socket, which the outbox reads as a lost
+        connection and re-posts every poll for the life of the tab.
+        """
         try:
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, MemoryError):
+            # `BufferedReader.read(n)` allocates n bytes before it reads any, so a
+            # length past what the machine will give raises MemoryError out of the read
+            # rather than out of the parse. A length that cannot be allocated is a
+            # length that cannot be used, so this is the true word for it — and unlike
+            # the 500 the raise would otherwise earn, this refusal is final, which is
+            # the only shape that lets the browser put the gesture back.
             return {}, "invalid Content-Length"
         try:
             posted = json.loads(body)
@@ -2062,15 +2073,23 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._json({"error": error}, status)
 
-    def _answer(self, route) -> None:
-        """One boundary for the key and for what a route raises. Unanswered, a fault
+    def _answer(self, route, prepare=None) -> None:
+        """One boundary for the key, for what reading the request raises, and for what a
+        route raises. Unanswered, a fault
         drops the socket, socketserver buries the traceback in stderr nothing reads, and
         the banner says "Server offline" about a server that is up — so every
         fault becomes a 500 naming itself, which the banner can show to the one
         person still looking. The key is checked here for `end_headers`'s reason: every
         request passes through, so there is one gate rather than one per method, and a
-        route added later cannot be the one that forgot to ask."""
+        route added later cannot be the one that forgot to ask.
+
+        `prepare` is whatever the key gate itself needs read first — the POSTed body,
+        which `_refuse` names the refused attempt out of. Read at the call site instead,
+        it sat outside this try, and every raise it had not enumerated dropped the
+        socket in front of a reader whose banner then blamed a server that was up."""
         try:
+            if prepare:
+                self.posted, self.posted_error = prepare()
             if not self.authorized():
                 self._refuse(NO_KEY, 403)
                 return

@@ -9,6 +9,7 @@ Run from the repo root:
 
 import errno
 import fcntl
+import http.client
 import http.cookiejar
 import importlib.util
 import json
@@ -5880,6 +5881,30 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
             True,
             refusal,
         ), (name, status, answer)
+
+    # The fifth is the header rather than the body, and no opener will send it: a
+    # Content-Length the machine will not hand over. `BufferedReader.read(n)` allocates
+    # n bytes before it reads any, so this raises MemoryError out of the read itself —
+    # neither a ValueError nor anything the parse could have raised, and the third
+    # exception type found this way. A length that cannot be allocated is a length that
+    # cannot be used, so it earns the same word an unparsable length does.
+    door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
+    try:
+        door.putrequest("POST", f"/api/event?t={TOKEN}")
+        door.putheader("Content-Length", "99999999999999")
+        door.putheader("Content-Type", "application/json")
+        door.endheaders()
+        door.send(b"")
+        answered = door.getresponse()
+        answer = json.loads(answered.read())
+    finally:
+        door.close()
+    assert (
+        answered.status,
+        answer.get("ok"),
+        answer.get("final"),
+        answer.get("error"),
+    ) == (400, False, True, "invalid Content-Length"), answer
 
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
 

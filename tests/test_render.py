@@ -2186,20 +2186,21 @@ BANNER_WATCH = f"""(sel) => {{
       .filter(window.__lfOnScreen);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
-# One reading, named once, so the settle loop and the assertion cannot measure differently.
+# One reading, named once, so the rendered-frame wait and the assertion cannot measure
+# differently.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => window.__lfOnScreen(n)
       ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
-SETTLE_MS = 50  # a few frames: enough for a transition to finish
-SETTLED = """(hold) => {
-  const now = JSON.stringify(window.__lfBoxes());
-  if (now !== window.__lfSettle) {
-    window.__lfSettle = now;
-    window.__lfSince = performance.now();
-    return false;
-  }
-  return performance.now() - window.__lfSince > hold;
-}"""
+# Nested animation-frame callbacks have one complete rendering turn between them, so
+# this states rendered progress rather than elapsed time between two frame polls.
+RENDERED = "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+
+
+def page_at_rest(page):
+    """Render the known edge, finish finite motion, then render its ending."""
+    page.evaluate(RENDERED)
+    page.wait_for_function(f"() => ({interact.MOVING})().length === 0")
+    page.evaluate(RENDERED)
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
@@ -2329,6 +2330,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
     silently masked by the sweep's own previous gesture."""
     url = serve(example.read_text())
     page, errors = open_page(browser, url)
+    page_at_rest(page)
     total = page.locator(PRESS).count()
     pressed, dirty = 0, False
     for i in range(total):
@@ -2351,6 +2353,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # below that says so out loud — refuse the first poll of each navigation here
             # and every one of the thirteen examples fails on it.
             page.wait_for_function(BOTH_STAMPS)
+            page_at_rest(page)
             dirty = False
             assert page.locator(PRESS).count() == total, (
                 f"{example.name} has a different set of controls after a reload, so the "
@@ -2376,10 +2379,9 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
         # The press's own effect is synchronous; what follows it is the round trip the
         # press started and whatever its answer repaints, which is as much part of
         # pressing as the frame before it. A press that sent nothing is already round
-        # tripped, so both kinds take the same short hold.
+        # tripped, so both kinds take the same rendered edge.
         round_trip(page)
-        page.evaluate("() => { window.__lfSettle = null; window.__lfSince = null; }")
-        page.wait_for_function(SETTLED, arg=SETTLE_MS)
+        page_at_rest(page)
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, (
             f"pressing {label} in {example.name} moved the controls beside it:\n  "
@@ -3525,6 +3527,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page.wait_for_function(
         f"() => document.querySelector('{comments}').textContent === 'Comments (9)'"
     )
+    page_at_rest(page)
 
     def publish_v2():
         (d / "versions" / "v2.html").write_text(html)
@@ -3592,8 +3595,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         )
         drive()
         page.wait_for_function(arrived)
-        page.evaluate("() => { window.__lfSettle = null; window.__lfSince = null; }")
-        page.wait_for_function(SETTLED, arg=SETTLE_MS)
+        page_at_rest(page)
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
@@ -3993,6 +3995,7 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
 # The page's scroll after it has stopped moving. A native Space is a smooth scroll, so
 # reading straight after the press reads a frame of the glide and calls it the answer —
 # which is the whole of what CLAUDE.md's wait norm is about.
+SCROLL_SETTLE_MS = 50
 SCROLL_STILL = """(hold) => {
   const at = document.body.scrollTop;
   if (at !== window.__lfScrollAt) {
@@ -4031,7 +4034,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
         # to get back to the top would be the very thing this test says is not needed.
         page.evaluate("() => { document.body.scrollTop = 0; }")
         page.keyboard.press(key)
-        page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
+        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert page.evaluate(top) > 0, (
             f"{key} moved nothing on a page nobody had clicked in"
         )
@@ -4068,7 +4071,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # than the runtime's (`d`/`u` are the rows; this key has none).
     page.keyboard.press("Space")
     page.wait_for_function("() => document.body.scrollTop > 0")
-    page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
+    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
     was = page.evaluate(top)
 
     # Opened with the pointer, the button holds focus and the browser withholds the ring.
@@ -9887,7 +9890,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # assertions are then about the landing: measured from the wrapper's own rect the
     # change sits at the document's origin, so the reader is carried to the top of the
     # page — up from where they stood, with the change still below the fold.
-    page.wait_for_function(SCROLL_SETTLED, arg=SETTLE_MS)
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     assert page.evaluate("() => document.body.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )
@@ -9959,7 +9962,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
     ) == [0, 0], "the page's own style no longer takes the wrapper's box away"
-    page.wait_for_function(SCROLL_SETTLED, arg=SETTLE_MS)
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     assert page.evaluate("() => document.body.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )

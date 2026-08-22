@@ -177,8 +177,8 @@ absent receipt load-bearing rather than merely tidy. A draft's attempt is stored
 with its words and reminted only on a keystroke, so a second press of Send is the
 same attempt arriving after the refusal was delivered and the entry dropped. That
 press needs the door to evaluate it again, because the ground a refusal stood on
-moves as the log grows: a reply refused for an `unknown parent` its tab had not
-read yet, an action refused by a registry the page has since re-vendored. A
+moves under it: a reply refused for an `unknown parent` its tab had not read
+yet, an action refused by a registry the page has since re-vendored. A
 remembered refusal would answer the stale verdict to an identical payload, and
 409 `already belongs to another event` — naming an event that does not exist — to
 the payload a reload had moved on, leaving the reader's words unsendable until

@@ -2365,9 +2365,9 @@ class Handler(BaseHTTPRequestHandler):
             # refusal, but a draft's attempt is stored with its words and reminted only
             # on a keystroke, so a second press of Send is the same attempt arriving
             # after that drop. That press needs the gates read again, because the ground
-            # a refusal stood on moves as the log grows — a reply refused for an unknown
-            # parent its tab had not read yet, an action refused by a registry the page
-            # has since re-vendored. A kept receipt would answer it the stale verdict on
+            # a refusal stood on moves under it — a reply refused for an unknown parent
+            # its tab had not read yet, an action refused by a registry the page has
+            # since re-vendored. A kept receipt would answer it the stale verdict on
             # an identical payload and 409 `already belongs to another event` — naming an
             # event that does not exist — on the payload a reload had moved on: the
             # reader's words unsendable until they typed a character.

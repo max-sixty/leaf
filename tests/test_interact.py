@@ -5554,7 +5554,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     The door refuses a version in that direction only. `published_versions` grows and
     never shrinks, so no version a tab was served is later refused for liveness, and
     this gate is the mirror of the one a reader meets — cheapest to walk the door
-    through, standing in for the refusals whose ground the log really does move under
+    through, standing in for the refusals whose ground really does move under them
     (`unknown parent`, `undo_error`, `action_contract_error` behind a re-vendor)."""
     publish(page_dir, 1)
     draft = {

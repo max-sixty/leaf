@@ -750,6 +750,11 @@ def refuse(route):
 # event is posted only by a gesture the test just made — or by `reportPageError`, which
 # nothing awaits — so a test that is not mid-gesture has nothing in the wire there to
 # strand, and one that is waits for the send before it lifts.
+#
+# `CutOff` is the switch wherever the handler only refuses. Where it answers as well —
+# a first poll held back for the test to fulfil later, a first poll fabricated
+# malformed — the handler reads a flag of the test's own at its top and continues on
+# it, which is the same switch written where the answers are.
 class CutOff:
     """A page's polls, stopped from outside it until the test says it can hear again."""
 
@@ -771,6 +776,12 @@ class CutOff:
 
     def restore(self):
         self._live = True
+
+    # A test that reads one live poll and then wants the page deaf again. The count
+    # `lets_through` is measured against is not rewound: what a second cut restores is
+    # the refusal, not the page's whole first impression.
+    def cut(self):
+        self._live = False
 
 
 # A tab a test holds stale is stale for one poll interval and no longer: every poll
@@ -15422,12 +15433,15 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     replay and undo remain held until a later complete response accounts for it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     older = []
+    lifted = []
 
     def hold_older_state(route):
-        if older:
+        if lifted:
+            route.continue_()
+        elif older:
             refuse(route)
-            return
-        older.append(route)
+        else:
+            older.append(route)
 
     page.route("**/api/state*", hold_older_state)
     with page.expect_request("**/api/state"):
@@ -15509,7 +15523,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     # A complete poll accounts for the older acceptance and the refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
     # includes both accepted gestures and makes the newest one safe to undo.
-    page.unroute("**/api/state*")
+    lifted.append(True)
     told(page)
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
@@ -16059,6 +16073,9 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     page, errors = open_page(browser, serve(BOARD_PAGE))
 
     def malformed_poll_state(route):
+        if lifted:
+            route.continue_()
+            return
         if malformed_polls:
             refuse(route)
             return
@@ -16075,6 +16092,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         route.fulfill(status=response.status, json=answer)
 
     malformed_polls = []
+    lifted = []
     page.route("**/api/state*", malformed_poll_state)
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
@@ -16137,7 +16155,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     # Neither malformed read is a state the projector may consume. The accepted
     # baffle move remains held until a complete poll can place it in chronology.
     expect(page.locator("#col-done #card-baffle")).to_have_count(0)
-    page.unroute("**/api/state*")
+    lifted.append(True)
     with page.expect_response(
         lambda response: "/api/state" in response.url and response.ok
     ):
@@ -16257,7 +16275,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     errors = watched(page)
-    page.route("**/api/state*", refuse)
+    cut = CutOff().hold(page)
     page.goto(serve(BOARD_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
@@ -16285,9 +16303,9 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
 
-    page.unroute("**/api/state*")
+    cut.restore()
     told(page)
-    page.route("**/api/state*", refuse)
+    cut.cut()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
@@ -16307,7 +16325,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     errors = watched(page)
-    page.route("**/api/state*", refuse)
+    cut = CutOff().hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
@@ -16331,9 +16349,9 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
 
-    page.unroute("**/api/state*")
+    cut.restore()
     told(page)
-    page.route("**/api/state*", refuse)
+    cut.cut()
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
     expect(page.locator("#sug-refill lf-old")).to_be_visible()

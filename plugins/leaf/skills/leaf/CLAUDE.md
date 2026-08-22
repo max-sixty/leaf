@@ -124,13 +124,13 @@ millisecond per six hundred comments.
 ## A gesture the log has not taken outranks everything the page has read
 
 A widget that paints its own gesture holds state no log accounts for until the
-poll reads the action back. Replay leaves the widget alone for exactly that long.
-Every `applyAction` states the widget whole, so replaying an action from before
-the gesture hands the reader their older state back — and the next gesture then
-computes from what that replay painted. A `multiple` group two picks in,
-repainted holding one, sends the next toggle as a set the reader never chose.
-Applying each action exactly once is what makes replay converge, and "exactly
-once" says nothing about *when*.
+poll reads the action back. Reconciliation leaves that widget alone until then.
+Each `applyAction` states one unit-and-facet fact absolutely. Applying an older
+winner before the gesture restores that fact's older state, so the next gesture
+computes from the wrong page. A `multiple` group two picks in, repainted holding
+one, sends the next toggle as a set the reader never chose. Reapplying an absolute
+winner is a no-op. The checkpoint decides when reconciliation can skip work, not
+what the state means.
 
 All of that rests on the log holding the gestures in the order they were made,
 and the wire does not give that order: the server answers each request on a
@@ -1246,9 +1246,9 @@ reader can quote the question the way they quote an answer. Nothing learned
 about `lf-options` to make that work, and the twelfth widget gets a row that
 reads properly on the day it declares `x-awaits`.
 
-The authoring half of this is in SKILL.md, and it is one sentence because the
-board makes it obvious: whatever an ask's own words open with is the whole of
-what a reader choosing among five of them has to go on.
+The authoring half is in references/page-authoring.md under "Asks and sign-off":
+whatever an ask's own words open with is what a reader choosing among five of
+them has to go on.
 
 ## A chord names which list before it names a place in one
 

@@ -97,18 +97,6 @@ command, and the page's server would follow it down a second later. So
 `session_pid` reads Claude Code's own `CLAUDE_PID`, and finds Codex's by walking
 up to the ancestor process running `codex`.
 
-One section of `interact.py` is an experiment the payload does not wire up.
-`cmd_mcp` serves the same log over a Claude Code channel: page events pushed
-into the conversation as notifications, and replies taken through its own tools,
-streamed chunk by chunk. It reaches a session only through an `.mcp.json` naming
-`leaf mcp` and a `channels` entry in the Claude Code manifest, neither of which
-the payload ships — so nothing spawns the server and no session carries its
-tools. Channels are a research preview gated to first-party providers, and
-refused over MCP revisions from 2026-07-28 on, which is why `cmd_mcp` pins
-2025-06-18. The background wait is the loop every session runs and the only one
-the skill documents. The section and its tests stay, because unwired they cost
-nothing and the tests keep the door in working order.
-
 `page init` vendors the whole layer into each page directory, deliberately: a page
 you approved cannot change under you when the shipped defaults do. What a page
 directory holds, and why each file is in it, is documented in `interact.py`'s
@@ -390,24 +378,19 @@ silently dropped the other ten — the natural act of declaring a shape cost the
 agent the catalog it authors from. The stamp does not care about the grain: its
 gates read the merged result (`merge_layer_entries`).
 
-An `applyAction` implementation states an absolute placement, never a relative
-mutation, because the poll replays every action — including the sender's own,
-which must therefore be a no-op when reapplied. The verb, its detail schema, its
-fold unit, and its record form are declared in the registry (`x-state`), not
-known privately to the module: absoluteness is what makes the user's standing
-state a fold over the log, and the declaration drives every consumer of it
-without teaching any of them a widget by name. For a long time nothing checked
-this, and every gate passed a relative implementation, because there is nothing
-to see: it renders perfectly, and the cost arrives later, on the poll that
-replays the sender's own action on top of the state their gesture already
-painted. So the render gate asks the page rather than the code
-(`RELATIVE_REPLAYS`): it re-applies the standing state, whole and in the log's
-order, and reports what moved — at which widget, with the fix — reading the
-result twice: `shallowSigs` for the markup state, which excludes text on purpose,
-and the unit's declared record form for the words. Checking each action on its
-own would be a different check and a wrong one, since two cards dragged to the
-head of one column fold to two standing moves. What the gate cannot reach is a
-verb nobody has used yet; the actions it replays are the log's.
+An `applyAction` implementation states an absolute placement. Poll reconciliation
+may apply any standing winner again, including the sender's, so reapplication must
+be a no-op. The verb's detail schema, semantic facet, fold unit, and record form
+come from `x-state`; no consumer knows the widget by name. These declarations make
+the log a fold of the user's standing state.
+
+A relative implementation looks correct until a poll applies the sender's action
+over the state its gesture painted. `version check --render` catches this through
+`RELATIVE_REPLAYS`: it reapplies each owner-unit-facet winner in log order and
+reports what moved. `shallowSigs` reads markup state without text, while the unit's
+record form reads the words. Testing each action alone would be wrong: two cards
+dragged to the head of one column fold to two standing moves. The gate can test
+only verbs represented in the log.
 
 A verb's record form is also the whole of what a module may write in the author's
 namespace. An entry's `additionalProperties: false` closes that namespace, and
@@ -448,7 +431,15 @@ side the second writer shows on.
   they pass.
 - **Measure before optimising, and before assuming.** The cost claims in this
   codebase came from timing the real thing on `examples/gallery.html`, not from
-  reasoning about it.
+  reasoning about it. The costliest assumption was that a suite driving browsers
+  must be what makes a busy machine unusable. Read across an idle-run-idle
+  timeline, WindowServer sat at 78% of a core before a run, 76% during it and 64%
+  after, while the headless shell went from nothing to 100-220%:
+  `chrome-headless-shell` has no platform-window layer, so it never opens a
+  connection to the compositor at all, and only the two launcher tests that ask
+  for installed Chrome do. A machine bogged down beside a green suite is
+  something else holding real windows open, and cutting the suite's concurrency
+  buys nothing against it.
 - **A page directory holds a copy of the layer, so re-vendor before believing
   it.** `page init` is what vendors, and it re-vendors an existing directory.
   Until it runs again, a page serves the assets it was created with, so

@@ -7,7 +7,10 @@ Run from the repo root:
     uv run pytest tests
 """
 
+import contextlib
+import errno
 import fcntl
+import http.client
 import http.cookiejar
 import importlib.util
 import json
@@ -15,6 +18,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -22,6 +26,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -37,6 +42,39 @@ _spec = importlib.util.spec_from_file_location(
 interact = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(interact)
 
+PROBE_BOOTSTRAP = """\
+import contextlib
+import importlib.util
+import os
+from pathlib import Path
+import sys
+
+spec = importlib.util.spec_from_file_location("interact", os.environ["INTERACT"])
+interact = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(interact)
+"""
+
+
+def spawn_probe(spawn, page_dir, body, **environment):
+    """Run a deterministic race seam in an isolated interact.py process."""
+    env = {name: str(value) for name, value in environment.items()}
+    return spawn(
+        [sys.executable, "-c", PROBE_BOOTSTRAP + body],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=os.environ
+        | {"INTERACT": str(interact.__file__), "PAGE": str(page_dir)}
+        | env,
+    )
+
+
+def wait_for_path(path, failure):
+    deadline = time.monotonic() + 10
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert path.exists(), failure
+
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -45,6 +83,7 @@ PAGE = """<!doctype html>
 <title>t</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -65,7 +104,6 @@ graph LR
   </pre></lf-diagram>
 </section>
 </main>
-<script type="module" src="/leaf.js"></script>
 </body>
 </html>
 """
@@ -187,6 +225,7 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
     )
 
     assert result.exit_code == 0
+    assert "--forward" not in result.output
     assert " ".join(interact.ACK_BATCH_INSTRUCTION.split()) in " ".join(
         result.output.split()
     )
@@ -195,9 +234,69 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
 def test_ack_batch_instruction_preserves_scalar_cursor_safety():
     assert interact.ACK_BATCH_INSTRUCTION == (
         "If wait output is truncated, acknowledge nothing and rerun with enough output "
-        "capacity for the whole batch. After a complete batch enters context, run "
-        "`leaf ack <page> <highest-seq>` for the page the batch's first line names."
+        "capacity for the whole batch. After the complete batch reaches its next durable "
+        "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
+        "batch's first line names."
     )
+
+
+def test_skill_assigns_acknowledgement_to_the_wait_owner():
+    root = PLUGIN_ROOT / "skills" / "leaf"
+    conversation = (root / "references" / "conversation-loop.md").read_text()
+    watcher = (root / "references" / "codex-watcher.md").read_text()
+
+    assert " ".join(interact.ACK_BATCH_INSTRUCTION.split()) in " ".join(
+        conversation.split()
+    )
+    assert "Process every event" in conversation
+    assert "`send_message_to_thread` is available" in watcher
+    assert "Run `leaf wait <page>`" in watcher
+    assert "do not run\n   `leaf wait` or `leaf ack`" in watcher
+    assert "page and event seq already handled is a retry" in watcher
+    assert "After the host accepts the follow-up" in watcher
+
+
+def test_leaf_skill_routes_its_complete_reference_set():
+    root = PLUGIN_ROOT / "skills" / "leaf"
+    skill = (root / "SKILL.md").read_text()
+    references = sorted((root / "references").glob("*.md"))
+    expected = {
+        "codex-watcher.md",
+        "conversation-loop.md",
+        "customizing.md",
+        "page-authoring.md",
+        "serving-pages.md",
+        "worker-orchestration.md",
+    }
+
+    assert len(skill.splitlines()) < 500
+    assert {path.name for path in references} == expected
+    assert "--forward" not in "\n".join(
+        [skill, *(path.read_text() for path in references)]
+    )
+    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
+    conversation = " ".join(
+        (root / "references/conversation-loop.md").read_text().split()
+    )
+    assert "Escape `&` first, then `<` and `>`" in authoring
+    assert "status banner, comment sidebar, version picker" in authoring
+    assert "live-leaves board, and open-asks board" in authoring
+    assert "informational page with no concrete ask" in " ".join(skill.split())
+    assert "informational page with no concrete ask" in conversation
+    for path in references:
+        assert f"references/{path.name}" in skill
+        text = path.read_text()
+        if len(text.splitlines()) <= 100:
+            continue
+        sections = [
+            line.removeprefix("## ")
+            for line in text.splitlines()
+            if line.startswith("## ") and line != "## Contents"
+        ]
+        contents = text.split("## Contents", 1)[1].split("\n## ", 1)[0]
+        for section in sections:
+            anchor = re.sub(r"[^a-z0-9 -]", "", section.lower()).replace(" ", "-")
+            assert f"(#{anchor})" in contents
 
 
 def test_hidden_hook_remains_callable():
@@ -283,6 +382,25 @@ def page_state(d):
     return interact.full_state(d, events, interact.published_versions(d, events))
 
 
+def record_claim(page, **fields):
+    """Write the canonical claim shape for lifecycle fixtures."""
+    record = {
+        "page": str(page.resolve()),
+        "id": "s1",
+        "host": "claude-code",
+        "pid": os.getpid(),
+        "agent": "Claude",
+        "cwd": str(Path.cwd()),
+        "ts": "t",
+        "released": None,
+        **fields,
+    }
+    path = interact.claim_path(page)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    interact.write_json(path, record)
+    return record
+
+
 def live_versions(d):
     events = interact.read_events(d)
     return interact.published_versions(d, events)
@@ -326,6 +444,12 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
+        "skills/leaf/references/codex-watcher.md",
+        "skills/leaf/references/conversation-loop.md",
+        "skills/leaf/references/customizing.md",
+        "skills/leaf/references/page-authoring.md",
+        "skills/leaf/references/serving-pages.md",
+        "skills/leaf/references/worker-orchestration.md",
         "skills/leaf/scripts/interact.py",
         # The lock only pins what it ships beside; an install that loses it
         # resolves fresh and looks identical from the outside.
@@ -1091,11 +1215,10 @@ def test_customize_continues_when_the_project_root_is_the_page(tmp_path, monkeyp
     (
         "comments.jsonl",
         "status.json",
-        "heartbeat.json",
+        "waiter.lock",
         "cursor.json",
-        "server.json",
-        "access.json",
-        "session.json",
+        "service.json",
+        "server.lock",
     ),
 )
 def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
@@ -1466,6 +1589,66 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
         if path.is_file()
     }
     assert after == before
+
+
+def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypatch):
+    """A directory the caller prepared is not page state until init succeeds."""
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "prepared-page"
+    page.mkdir()
+    layer = tmp_path / ".leaf"
+    layer.mkdir()
+    (layer / "theme.css").write_text(".bad { color red; }\n")
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+
+    assert result.exit_code != 0
+    assert "theme.css syntax error" in result.output
+    assert list(page.iterdir()) == []
+
+
+def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
+    """An existing directory becomes a page only through a completed page init."""
+    page = tmp_path / "prepared-page"
+    page.mkdir()
+
+    result = CliRunner().invoke(interact.cli, ["server", "stop", str(page)])
+
+    assert result.exit_code != 0
+    assert "page init" in result.output
+    assert list(page.iterdir()) == []
+
+
+def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_dir):
+    """An external claim does not turn a deleted page back into initialized state."""
+    record_claim(page_dir, id="stale-session")
+    shutil.rmtree(page_dir)
+    page_dir.mkdir()
+
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
+
+    assert list(page_dir.iterdir()) == []
+
+
+def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
+    tmp_path, monkeypatch
+):
+    """The stable log marks a completed init, not one that failed while committing."""
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "interrupted-page"
+    original_replace_files = interact.replace_files
+
+    def fail_layer_commit(files):
+        if any(path.name == "registry.json" for path, _, _ in files):
+            raise OSError("layer commit failed")
+        return original_replace_files(files)
+
+    monkeypatch.setattr(interact, "replace_files", fail_layer_commit)
+
+    with pytest.raises(OSError, match="layer commit failed"):
+        interact.cmd_init(page)
+
+    assert not (page / "comments.jsonl").exists()
 
 
 def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypatch):
@@ -2480,6 +2663,130 @@ def test_check_rejects_wrong_scaffold(page_dir):
     assert "exactly one stylesheet" in result.output
 
 
+@pytest.mark.parametrize(
+    "html",
+    [
+        PAGE.replace('<script type="module" src="/leaf.js"></script>', "").replace(
+            "</main>",
+            '</main>\n<script type="module" src="/leaf.js"></script>',
+        ),
+        PAGE.replace('<link rel="stylesheet" href="/theme.css">', "").replace(
+            "<main>", '<main>\n<link rel="stylesheet" href="/theme.css">'
+        ),
+        PAGE.replace('<link rel="stylesheet" href="/theme.css">', "")
+        .replace('<script type="module" src="/leaf.js"></script>', "")
+        .replace(
+            "</main>",
+            """</main>
+<head>
+<link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script>
+</head>""",
+        ),
+    ],
+    ids=["module-after-main", "stylesheet-inside-main", "assets-in-late-head"],
+)
+def test_check_requires_presentation_assets_in_head(page_dir, html):
+    """The gate must exist before the browser can paint the body it withholds."""
+    (page_dir / "versions" / "v1.html").write_text(html)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "must be in <head> before <body>" in result.output
+
+
+@pytest.mark.parametrize(
+    "asset, changed",
+    [
+        (
+            '<link rel="stylesheet" href="/theme.css">',
+            '<link rel="stylesheet" href="/theme.css" media="print">',
+        ),
+        (
+            '<script type="module" src="/leaf.js"></script>',
+            '<script type="module" src="/leaf.js" async></script>',
+        ),
+    ],
+    ids=["print-only-theme", "noncanonical-module"],
+)
+def test_check_requires_always_applicable_canonical_assets(page_dir, asset, changed):
+    """An asset whose URL is right but applicability differs is not the boundary."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace(asset, changed))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "exactly" in result.output
+
+
+def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
+    """Inline importance outranks stylesheet layers, so the authoring door owns it."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<main>", '<main style="opacity: 1 !important">')
+    )
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "protected presentation property opacity important" in result.output
+
+
+@pytest.mark.parametrize(
+    "outside",
+    [
+        "Authored tail",
+        '<p id="tail">Authored tail</p>',
+        '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
+        '<main><p id="tail">Second main</p></main>',
+    ],
+)
+def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
+    """The element the presentation boundary withholds contains the whole page.
+
+    Prose, ordinary elements, widgets, and another main beside the first are all
+    visible outside the CSS gate and must be refused at the authoring door.
+    """
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</main>", f"</main>\n{outside}")
+    )
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one <main> directly under <body>" in result.output
+
+
+def test_check_requires_main_to_be_a_direct_body_child(page_dir):
+    """A main nested in an authored wrapper is not selected by `body > main`."""
+    wrapped = PAGE.replace("<main>", "<div>\n<main>").replace(
+        "</main>", "</main>\n</div>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(wrapped)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one <main> directly under <body>" in result.output
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        PAGE.replace("</body>", '</body>\n<p id="tail">Authored tail</p>'),
+        PAGE.replace("</head>", '<img src="/media/tail.png" alt="tail">\n</head>'),
+    ],
+)
+def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
+    """HTML recovery cannot move authored pixels around the main boundary."""
+    (page_dir / "versions" / "v1.html").write_text(html)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one <main> directly under <body>" in result.output
+
+
 def test_check_owns_the_lf_meta_vocabulary(page_dir):
     # The sign-off declaration: valid on its one value, rejected on a misspelled
     # value or name — either would silently declare nothing in the browser.
@@ -2740,6 +3047,55 @@ def test_publishing_names_the_reports_it_answered(page_dir):
     stale = check(page_dir, version=3)
     assert stale.exit_code == 1
     assert "v2 already answered" in stale.output
+
+
+def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
+    """Report versioning and note calculation are one transaction each."""
+    _tasks_version(page_dir, 1, "active")
+    publish(page_dir)
+    _tasks_version(page_dir, 2, "review")
+
+    at_commit = threading.Event()
+    resume = threading.Event()
+    original_append_event = interact.append_event
+
+    def held_append_event(directory, event):
+        if event.get("kind") == "note" and event.get("version") == 2:
+            at_commit.set()
+            assert resume.wait(timeout=10), "the report did not enter the publish gap"
+        return original_append_event(directory, event)
+
+    monkeypatch.setattr(interact, "append_event", held_append_event)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        publishing = executor.submit(interact.cmd_publish, page_dir, 2, "absorb")
+        assert at_commit.wait(timeout=10), "publish never reached its note commit"
+        serialized = interact.lock_is_held(page_dir / "comments.jsonl")
+        reporting = executor.submit(
+            interact.cmd_report,
+            page_dir,
+            "t-parser",
+            "status",
+            ("status=review",),
+        )
+        # This branch only prevents the test harness from deadlocking in the
+        # correct implementation: a transaction-holding publish must finish
+        # before the report can derive its version; the current unlocked publish
+        # lets the report finish first and exposes the inconsistent order.
+        if serialized:
+            resume.set()
+            publishing.result(timeout=10)
+            reporting.result(timeout=10)
+        else:
+            reporting.result(timeout=10)
+            resume.set()
+            publishing.result(timeout=10)
+
+    events = interact.read_events(page_dir)
+    report = [event for event in events if event["kind"] == "report"][-1]
+    note = [event for event in events if event["kind"] == "note"][-1]
+    assert serialized, "publish calculated mutable log state outside its transaction"
+    assert note["version"] == 2 and "reports" not in note
+    assert report["version"] == 2
 
 
 def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
@@ -3165,7 +3521,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert state["asks"] == []
     assert state["state"] == [
         {
+            "widget": "g1",
             "unit": "g1",
+            "facet": "selection",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
             "version": 1,
@@ -3174,7 +3532,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["lag"] == [
         {
+            "widget": "g1",
             "unit": "g1",
+            "facet": "selection",
             "channel": "action",
             "action": "choose",
             "log": ["o-shim"],
@@ -3182,6 +3542,81 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
+
+    # Completion is an independent fact on the same widget. It stands beside
+    # selection instead of superseding it, and both are visible to the agent.
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert [
+        (item["facet"], item["action"]) for item in state_json(page_dir)["state"]
+    ] == [
+        ("completion", "answer"),
+        ("selection", "choose"),
+    ]
+
+
+def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page_dir):
+    """A report remains live for later absorption, but the reader's action is
+    the desired state and the only record debt on their shared coordinate."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    options = registry["lf-options"]
+    options["properties"]["overruled"] = {"type": "boolean"}
+    options["x-report"] = {"choose": options["x-state"]["choose"]}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    opts = OPTIONS.format(
+        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "worker",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-stage"]},
+        },
+    )
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+
+    state = state_json(page_dir)
+    assert state["state"][0]["detail"] == {"options": ["o-shim"]}
+    assert state["reports"][0]["detail"] == {"options": ["o-stage"]}
+    assert state["lag"] == [
+        {
+            "widget": "g1",
+            "unit": "g1",
+            "facet": "selection",
+            "channel": "action",
+            "action": "choose",
+            "log": ["o-shim"],
+            "markup": [],
+        }
+    ]
 
 
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
@@ -3274,7 +3709,9 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert state["asks"] == []
     assert state["reports"] == [
         {
+            "widget": "t-parser",
             "unit": "t-parser",
+            "facet": "status",
             "action": "status",
             "detail": {"status": "done"},
             "version": 1,
@@ -3285,7 +3722,9 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     ]
     assert state["lag"] == [
         {
+            "widget": "t-parser",
             "unit": "t-parser",
+            "facet": "status",
             "channel": "report",
             "action": "status",
             "log": "done",
@@ -3361,54 +3800,202 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     assert "unpointable" not in result.output
 
 
-def test_an_accept_carries_its_thread_resolution(page_dir):
-    """One atomic event: the accept snapshots the thread it answers, because the
-    honoring version retires the wrapper that held the `resolves` mapping and a
-    second POST could fail alone. A reject answers nothing."""
-    interact.append_event(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"},
-    )
-    interact.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c2",
-            "author": "user",
-            "text": "and the other thing",
-        },
-    )
-    interact.append_event(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "sug-a",
-            "action": "accept",
-            "detail": {"resolves": "c1"},
-        },
-    )
-    interact.append_event(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "sug-b",
-            "action": "reject",
-            "detail": {},
-        },
-    )
-    threads = interact.build_threads(
+# One comment and two decisions on one suggestion — the whole vocabulary these
+# threads are read out of. `REJECT` is spelt off `ACCEPT` because the two answering
+# the same widget is the entire premise: a decision supersedes the one before it on
+# the widget that sent it, the way a second `move` supersedes the first on one card.
+COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
+ACCEPT = {
+    "kind": "action",
+    "author": "user",
+    "version": 1,
+    "widget": "sug-a",
+    "action": "accept",
+    "detail": {"resolves": "c1"},
+}
+REJECT = {**ACCEPT, "action": "reject", "detail": {}}
+RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
+
+
+def logged(page_dir, *events):
+    """Append these events, then read the threads back the way the CLI does — off
+    the whole log and the page the decisions were folded over. Copied in, because
+    `append_event` stamps an id onto what it is handed and these are constants."""
+    for event in events:
+        interact.append_event(page_dir, dict(event))
+    return interact.build_threads(
         interact.read_events(page_dir),
         interact.spoken(
             (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
             interact.require_registry(page_dir),
         ),
     )
+
+
+def test_an_accept_carries_its_thread_resolution(page_dir):
+    """One atomic event: the accept snapshots the thread it answers, because the
+    honoring version retires the wrapper that held the `resolves` mapping and a
+    second POST could fail alone. A reject answers nothing."""
+    threads = logged(
+        page_dir,
+        COMMENT,
+        {"kind": "comment", "id": "c2", "author": "user", "text": "the other thing"},
+        ACCEPT,
+        {**REJECT, "widget": "sug-b"},
+    )
     assert threads["c1"]["resolved"]["widget"] == "sug-a"
     assert threads["c2"]["resolved"] is None
+
+
+def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
+    """An action names the thread it settles, and it settles it only while the
+    reader still stands behind it. Withdrawing the answer is one of the three ways
+    an action stops standing — a `restated` version and a later answer from the
+    same widget are the others — and the thread reading owes all three the same
+    reply, or a question would read as answered by a gesture the log itself records
+    as taken back."""
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "which mounts?"},
+    )
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "id": "a1",
+            "author": "user",
+            "version": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"], "resolves": "c1"},
+        },
+    )
+    spk = interact.spoken(
+        (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
+        interact.require_registry(page_dir),
+    )
+    threads = interact.build_threads(interact.read_events(page_dir), spk)
+    assert threads["c1"]["resolved"]["id"] == "a1"
+
+    interact.append_event(page_dir, {"kind": "undo", "author": "user", "undoes": "a1"})
+    threads = interact.build_threads(interact.read_events(page_dir), spk)
+    assert threads["c1"]["resolved"] is None
+
+
+def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, page_dir):
+    """`undoes` is checked completely where it enters, so nothing downstream asks a
+    second time whether it points at something real. What an undo may name is one
+    unwithdrawn gesture of the reader's own: an agent's `leaf resolve` is not
+    theirs to take back, a comment is speech rather than state, an undo is not
+    itself undoable (that would be a redo), and one gesture cannot be taken back
+    twice."""
+    publish(page_dir)
+    posted = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "version": 1, "text": "hi"}).encode(),
+        )[1]
+    )["event"]
+    resolved = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
+        )[1]
+    )["event"]
+    agent_closed = interact.append_event(
+        page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
+    )
+
+    for bad, says in [
+        ({"kind": "undo", "undoes": "nope"}, "unknown"),
+        # The reader's own gestures only, and only the kinds that carry state.
+        (
+            {"kind": "undo", "undoes": agent_closed["id"]},
+            "not the reader's own gesture",
+        ),
+        ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
+        # The one field it carries, and the door refuses it in any other shape.
+        ({"kind": "undo"}, "'undoes' is a required property"),
+        (
+            {"kind": "undo", "undoes": resolved["id"], "widget": "x"},
+            "widget",
+        ),
+    ]:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400, bad
+        assert says in json.loads(body)["error"], body
+
+    undone = {"kind": "undo", "undoes": resolved["id"]}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
+    assert status == 200, body
+    took_back = json.loads(body)["event"]
+
+    # Once, and never the undo itself: repeated presses walk back through the
+    # reader's history rather than toggling the last gesture on and off.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
+    assert status == 400 and "already been taken back" in json.loads(body)["error"]
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
+    )
+    assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+
+
+def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
+    """A thread stands settled by its widget's standing answer, not by the fact an
+    answer was once given. Turning the fix down and leaving the question filed away
+    as answered by it is invisible from both sides — the fold reports the suggestion
+    rejected while the panel reports the thread closed, and nothing says so.
+
+    Read across the reject rather than after it: an assertion that the thread is open
+    passes just as well on a log where the accept never settled it."""
+    assert logged(page_dir, COMMENT, ACCEPT)["c1"]["resolved"]["action"] == "accept"
+    assert logged(page_dir, REJECT)["c1"]["resolved"] is None
+
+
+def test_an_accept_after_a_reject_settles_the_thread(page_dir):
+    """The other order, which the one-way latch already got right — this pins it
+    against the fix for the latch, not against the latch. A fold that kept the
+    first answer per widget rather than the last reads every case here correctly
+    except this one, where nothing would ever settle the thread."""
+    assert logged(page_dir, COMMENT, REJECT)["c1"]["resolved"] is None
+    assert logged(page_dir, ACCEPT)["c1"]["resolved"]["action"] == "accept"
+
+
+def test_a_resolve_between_two_decisions_outlives_the_second(page_dir):
+    """A resolve is a person saying the conversation is done, and the log cannot
+    take that back the way it takes back a decision. The one-way latch got this
+    right by never clearing anything; what it pins is the obvious wrong fix for the
+    latch — a reject that clears whatever its widget resolved — which would wipe a
+    press made in between. Settling in place is what makes it hold: the superseded
+    accept never stood, so it has nothing to clear."""
+    assert (
+        logged(page_dir, COMMENT, ACCEPT, RESOLVE)["c1"]["resolved"]["kind"]
+        == "resolve"
+    )
+    assert logged(page_dir, REJECT)["c1"]["resolved"]["kind"] == "resolve"
+
+
+def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again(page_dir):
+    """The two ways an answer stops standing compose, and this is where they meet: a
+    reject supersedes the accept before it, and taking the reject back leaves the
+    accept standing as the widget's answer once more. A withdrawal read only by the
+    walk and not by the standing answer would leave the thread open with the log
+    holding nothing that says so."""
+    assert (
+        logged(page_dir, COMMENT, ACCEPT, {**REJECT, "id": "r1"})["c1"]["resolved"]
+        is None
+    )
+    undone = {"kind": "undo", "author": "user", "undoes": "r1"}
+    assert logged(page_dir, undone)["c1"]["resolved"]["action"] == "accept"
+
+
+def test_another_widget_s_answer_holds_a_thread_two_widgets_answered(page_dir):
+    """Superseding is per widget, because the ask is. Two suggestions can answer one
+    question, and deciding against the second says nothing about the first — a fold
+    keyed on the thread instead of the widget would have let it."""
+    threads = logged(page_dir, COMMENT, {**ACCEPT, "widget": "sug-b"}, ACCEPT, REJECT)
+    assert threads["c1"]["resolved"]["widget"] == "sug-b"
 
 
 def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
@@ -3590,6 +4177,261 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     assert "lf-task" in result.output and "status" in result.output
 
 
+def test_report_validation_and_append_cannot_straddle_revendoring(
+    page_dir, monkeypatch
+):
+    _tasks_version(page_dir, 1, "active")
+    publish(page_dir)
+    registry = json.loads((page_dir / "registry.json").read_text())
+    task = registry["lf-task"]
+    task.pop("x-report")
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+
+    transition = interact.transition_lock(page_dir)
+    report_validated = threading.Event()
+    release_report = threading.Event()
+    init_waiting = threading.Event()
+    real_append = interact.append_event
+    real_flocked = interact.flocked
+
+    def paused_append(directory, event):
+        if event["kind"] == "report":
+            report_validated.set()
+            assert release_report.wait(5)
+        return real_append(directory, event)
+
+    @contextlib.contextmanager
+    def observed_flocked(path):
+        if path == transition and threading.current_thread().name == "re-vendor":
+            init_waiting.set()
+        with real_flocked(path) as held:
+            yield held
+
+    monkeypatch.setattr(interact, "append_event", paused_append)
+    monkeypatch.setattr(interact, "flocked", observed_flocked)
+    outcomes, errors = [], []
+
+    def report():
+        try:
+            interact.cmd_report(page_dir, "t-parser", "status", ("status=done",))
+            outcomes.append("reported")
+        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+            errors.append(error)
+
+    def revendoring():
+        try:
+            interact.cmd_init(page_dir)
+            outcomes.append("revendored")
+        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+            errors.append(error)
+
+    reporting = threading.Thread(target=report, name="report")
+    reporting.start()
+    assert report_validated.wait(5)
+    initing = threading.Thread(target=revendoring, name="re-vendor")
+    initing.start()
+    assert init_waiting.wait(5)
+    release_report.set()
+    reporting.join(timeout=5)
+    initing.join(timeout=5)
+
+    assert not reporting.is_alive() and not initing.is_alive()
+    assert outcomes == ["reported"]
+    assert len(errors) == 1 and "report contract" in str(errors[0])
+    assert interact.read_events(page_dir)[-1]["kind"] == "report"
+    assert "x-report" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+
+
+def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
+    before = interact.layer_generation(page_dir)
+    transition = interact.transition_lock(page_dir)
+    init_waiting = threading.Event()
+    real_flocked = interact.flocked
+
+    @contextlib.contextmanager
+    def observed_flocked(path):
+        if path == transition and threading.current_thread().name == "re-vendor":
+            init_waiting.set()
+        with real_flocked(path) as held:
+            yield held
+
+    monkeypatch.setattr(interact, "flocked", observed_flocked)
+    errors = []
+
+    def revendoring():
+        try:
+            interact.cmd_init(page_dir)
+        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+            errors.append(error)
+
+    with interact.preview_server(page_dir, 1):
+        initing = threading.Thread(target=revendoring, name="re-vendor")
+        initing.start()
+        assert init_waiting.wait(5)
+        assert interact.layer_generation(page_dir) == before
+
+    initing.join(timeout=5)
+    assert not initing.is_alive()
+    assert errors == []
+    assert interact.layer_generation(page_dir) != before
+
+
+def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
+    """Hold one admitted writer at append and prove re-vendor cannot pass it."""
+    entering = threading.Event()
+    resume = threading.Event()
+    checked_without_writer = threading.Event()
+    finish_vendoring = threading.Event()
+    original_append_event = interact.append_event
+    original_layered_theme = interact.layered_theme
+
+    def held_append_event(directory, event):
+        if event.get("kind") == kind:
+            entering.set()
+            assert resume.wait(timeout=10), "re-vendor never observed the writer"
+        return original_append_event(directory, event)
+
+    def held_layered_theme(layers):
+        checked_without_writer.set()
+        assert finish_vendoring.wait(timeout=10), "the writer never resumed"
+        return original_layered_theme(layers)
+
+    def init_result():
+        try:
+            interact.cmd_init(page_dir)
+        except SystemExit as error:
+            return str(error)
+        return None
+
+    monkeypatch.setattr(interact, "append_event", held_append_event)
+    monkeypatch.setattr(interact, "layered_theme", held_layered_theme)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        writing = executor.submit(write)
+        assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
+        vendoring = executor.submit(init_result)
+        passed_check = checked_without_writer.wait(timeout=2)
+        # Release either acquisition order without relying on a scheduler: a
+        # broken re-vendor may already own the page lease at layered_theme.
+        finish_vendoring.set()
+        resume.set()
+        written = writing.result(timeout=10)
+        refusal = vendoring.result(timeout=10)
+
+    assert not passed_check, f"re-vendor passed a validated {kind} writer"
+    assert refusal is not None
+    return written, refusal
+
+
+def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
+    page_dir, server, monkeypatch
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    version = page_dir / "versions/v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>", registry["lf-board"]["x-example"] + "\n</section>"
+        )
+    )
+    publish(page_dir)
+    board = registry["lf-board"]
+    board["x-state"]["move"]["detail"]["properties"]["index"]["minimum"] = 1
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-board": board}))
+    action = json.dumps(
+        {
+            "kind": "action",
+            "version": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        }
+    ).encode()
+    (status, body), refusal = assert_revendor_serializes_writer(
+        page_dir, monkeypatch, "action", lambda: fetch(f"{server}/api/event", action)
+    )
+
+    assert status == 200, body
+    assert "no longer speaks" in refusal and "move" in refusal
+
+
+def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
+    page_dir, monkeypatch
+):
+    _tasks_version(page_dir, 1, "active")
+    publish(page_dir)
+    registry = json.loads((page_dir / "registry.json").read_text())
+    task = registry["lf-task"]
+    task.pop("x-report")
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    _, refusal = assert_revendor_serializes_writer(
+        page_dir,
+        monkeypatch,
+        "report",
+        lambda: interact.cmd_report(page_dir, "t-parser", "status", ("status=review",)),
+    )
+
+    assert "no longer speaks" in refusal and "status" in refusal
+
+
+def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
+    page_dir, monkeypatch
+):
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    local = interact.custom_widget_entry("lf-local-thread", False)
+    (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
+    interact.cmd_init(page_dir)
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
+    )
+    (overlay / "registry.json").unlink()
+    markup = '<lf-local-thread id="thread-local">Choose locally.</lf-local-thread>'
+    _, refusal = assert_revendor_serializes_writer(
+        page_dir,
+        monkeypatch,
+        "reply",
+        lambda: interact.cmd_reply(page_dir, "c1", "Pick one:", markup),
+    )
+
+    assert "lf-local-thread" in refusal
+
+
+def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
+    page_dir,
+):
+    """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
+    )
+    markup = (
+        '<lf-options id="thread-choice" choose>'
+        '<lf-option id="thread-a">A</lf-option>'
+        "</lf-options>"
+    )
+    interact.cmd_reply(page_dir, "c1", "Pick one:", markup)
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    option = registry["lf-option"]
+    option["x-retired-when"] = "choose"
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-option": option}))
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "thread markup contract" in result.output
+    assert "lf-options" in result.output
+
+
 def test_check_refuses_a_malformed_registry(page_dir):
     (page_dir / "registry.json").write_text("{broken")
     result = check(page_dir)
@@ -3636,6 +4478,40 @@ def test_the_registry_door_holds_resolves_to_a_string(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "resolves" in result.output and "string" in result.output
+
+
+def test_the_registry_door_keeps_thread_answers_out_of_the_agent_channel(page_dir):
+    """Both thread builders read `resolves` off actions, so the name on a report
+    verb declares an answer nothing gives: the report folds like any other and
+    settles no thread ever. That is the feature nobody wired up rather than an
+    error, which is the shape this door exists to turn around."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    entry = registry["lf-task"]
+    verb = next(iter(entry["x-report"]))
+    entry["x-report"][verb]["detail"]["properties"]["resolves"] = {"type": "string"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "resolves" in result.output and "x-state" in result.output
+
+
+def test_the_registry_door_holds_a_thread_answer_to_the_whole_widget(page_dir):
+    """Both thread builders key a widget's standing answer on the widget id — the
+    one key a log outlives its markup with, the honoring version having retired the
+    element. A verb answering a thread while folding per part would fold per part
+    and settle per widget, and the thread would read right until a second part was
+    acted on. The door is where whoever writes that widget finds out.
+
+    Asked of a board rather than a suggestion, whose own verbs are held to the
+    widget by the retirement gate as well — so what fails here can only be this
+    one."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    move = registry["lf-board"]["x-state"]["move"]
+    move["detail"]["properties"]["resolves"] = {"type": "string"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "resolves" in result.output and "card" in result.output
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
@@ -3762,6 +4638,7 @@ def _report_says_attr(registry):
             "required": ["owner"],
             "additionalProperties": False,
         },
+        "facet": "status",
         "unit": "widget",
         "record": {"kind": "value", "attr": "owner", "value": "owner"},
     }
@@ -3912,6 +4789,152 @@ def test_record_values_have_the_type_the_reader_uses(
     assert wanted in result.output
 
 
+def test_recorded_actions_require_only_fields_authored_markup_can_restore(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    detail = registry["lf-options"]["x-state"]["choose"]["detail"]
+    detail["properties"]["animate"] = {"type": "boolean"}
+    detail["required"].append("animate")
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "requires detail fields ['animate']" in result.output
+    assert "authored markup cannot restore" in result.output
+
+
+def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    numeric = {"type": "integer", "minimum": 0}
+    registry["lf-agent"]["properties"]["state"] = numeric
+    registry["lf-agent"]["x-report"]["state"]["detail"]["properties"]["state"] = numeric
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "record value `state` must be a string or string enum" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "channel", "verb", "field"),
+    [
+        ("lf-suggestion", "x-state", "accept", "facet"),
+        ("lf-suggestion", "x-state", "accept", "unit"),
+        ("lf-task", "x-report", "status", "facet"),
+        ("lf-task", "x-report", "status", "unit"),
+    ],
+)
+def test_every_fold_verb_declares_its_coordinate(page_dir, tag, channel, verb, field):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry[tag][channel][verb][field]
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert f"<{tag}> registry extensions are invalid" in result.output
+    assert field in result.output
+
+
+def test_same_facet_verbs_must_share_one_unit_and_record_form(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    answer = registry["lf-options"]["x-state"]["answer"]
+    answer["facet"] = "selection"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "share facet `selection`" in result.output
+    assert "identical record forms" in result.output
+
+    answer["record"] = registry["lf-options"]["x-state"]["choose"]["record"]
+    answer["unit"] = "option"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "share facet `selection`" in result.output
+    assert "different fold units" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "channel", "verb", "slot"),
+    [
+        ("lf-draft", "x-state", "edit", "body"),
+        ("lf-board", "x-state", "move", "position"),
+        ("lf-task", "x-report", "status", "value `status`"),
+        ("lf-options", "x-state", "choose", "attribute `chosen`"),
+    ],
+)
+def test_distinct_facets_cannot_claim_one_physical_record_slot(
+    page_dir, tag, channel, verb, slot
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    declared = registry[tag][channel][verb]
+    parallel = json.loads(json.dumps(declared))
+    parallel["facet"] = "parallel"
+    registry[tag][channel]["parallel"] = parallel
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert (
+        f"<{tag}> {channel} verb `parallel` (facet `parallel`)"
+        f" and {channel} verb `{verb}` (facet `{declared['facet']}`) claim the same "
+        f"physical record slot (unit `{parallel['unit']}`, {slot}); distinct facets "
+        "must record independently" in result.output
+    )
+
+
+def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+
+    # Both channels may state the same fact through the same slot.
+    task = registry["lf-task"]
+    task["properties"]["restated"] = {"type": "boolean"}
+    task["x-state"] = {"status": task["x-report"]["status"]}
+
+    # A different host attribute is a different value slot on the same unit.
+    owner = json.loads(json.dumps(task["x-report"]["status"]))
+    owner["facet"] = "owner"
+    owner["detail"]["properties"] = {"owner": {"type": "string"}}
+    owner["detail"]["required"] = ["owner"]
+    owner["record"] = {"kind": "value", "attr": "owner", "value": "owner"}
+    task["properties"]["owner"] = {"type": "string"}
+    task["x-report"]["owner"] = owner
+
+    # Placement is one slot only for a given declared unit.
+    board = registry["lf-board"]
+    arrange = json.loads(json.dumps(board["x-state"]["move"]))
+    arrange["facet"] = "arrangement"
+    arrange["unit"] = "to"
+    arrange["detail"]["properties"].pop("card")
+    arrange["detail"]["required"].remove("card")
+    board["x-state"]["arrange"] = arrange
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+def test_every_action_on_a_thread_answer_widget_shares_its_answer_facet(page_dir):
+    """Thread history outlives the markup that declared the action, so its one
+    durable widget key is exact only when every action on a resolves-bearing tag
+    is another outcome of the same answer fact."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-suggestion"]["x-state"]["reject"]["facet"] = "other"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "resolves-bearing widget" in result.output
+    assert "answer facet `settlement`" in result.output
+
+
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     """A child appearing first must not inspect a malformed parent half-validated."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -3976,13 +4999,41 @@ def test_check_refuses_a_retirement_verb_its_parent_does_not_declare(page_dir):
 def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     accept = registry["lf-suggestion"]["x-state"]["accept"]
-    accept["unit"] = "resolves"
-    accept["detail"]["required"] = ["resolves"]
+    # A field of its own to fold by: `resolves` is the one detail key accept already
+    # declares, and a verb answering a thread is held to the widget for its own
+    # reason — so borrowing it here would trip that door instead of this one.
+    accept["detail"]["properties"] = {"part": {"type": "string"}}
+    accept["unit"] = "part"
+    accept["detail"]["required"] = ["part"]
+    # Keep the settlement coordinate coherent so this reaches the separate
+    # holder/slot relation being exercised here.
+    reject = registry["lf-suggestion"]["x-state"]["reject"]
+    reject["detail"]["properties"] = {"part": {"type": "string"}}
+    reject["unit"] = "part"
+    reject["detail"]["required"] = ["part"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-old> x-retired-when `accept` must fold by widget" in result.output
+
+
+def test_one_holders_retirement_outcomes_share_one_facet(page_dir):
+    """Retirement is one decision even when its holder answers no thread."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    accept = registry["lf-suggestion"]["x-state"]["accept"]
+    accept["detail"] = {"type": "object", "additionalProperties": False}
+    registry["lf-suggestion"]["x-state"]["reject"]["facet"] = "alternative"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert (
+        "<lf-suggestion> x-retired-when outcomes span facets (`accept` → "
+        "`settlement`, `reject` → `alternative`); every retirement outcome for "
+        "one holder must share one facet" in result.output
+    )
 
 
 # A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`
@@ -4036,6 +5087,7 @@ def trial_page(tmp_path, monkeypatch):
     entries = json.loads(source.read_text())
     verb = {
         "detail": {"type": "object", "additionalProperties": False},
+        "facet": "settlement",
         "unit": "widget",
     }
     for tag, state, example in (
@@ -4341,7 +5393,7 @@ def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path,
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$events"]["kinds"]["note"].remove(field)
+    del registry["$events"]["kinds"]["note"]["record"]["properties"][field]
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
@@ -4349,6 +5401,90 @@ def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path,
     assert "current layer writes" in result.output
     assert "note" in result.output
     assert field in result.output
+
+
+def test_the_registry_door_validates_event_schemas(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$events"]["kinds"]["comment"]["record"]["properties"]["text"] = {
+        "type": "not-a-type"
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "$events kind `comment` record is not a valid JSON Schema" in result.output
+
+
+def test_registry_refuses_hidden_event_record_constraints(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$events"]["kinds"]["comment"]["record"]["not"] = {
+        "required": ["author"],
+        "properties": {"author": {"const": "claude"}},
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "record must use only type, properties, required" in result.output
+
+
+def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeypatch):
+    published(page_dir)
+    monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
+    monkeypatch.setenv("LEAF_AGENT", "")
+
+    result = comment(page_dir, "--text", "Which worker said this?")
+
+    assert result.exit_code == 0, result.output
+    event = interact.read_events(page_dir)[-1]
+    assert (event["agent"], event["session"]) == ("Codex", "worker-1")
+
+
+def test_event_required_order_is_not_a_contract_change(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    required = registry["$events"]["kinds"]["comment"]["record"]["required"]
+    required.reverse()
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+def test_an_event_kind_contract_replaces_whole_across_layers():
+    """A kind is one schema contract. Merging its record and browser members from
+    different layers would produce a contract neither layer authored."""
+    old = {"record": {"const": "old"}, "browser": {"const": "old"}}
+    replacement = {"record": {"const": "new"}}
+    merged = {"$events": {"kinds": {"signal": old}}}
+
+    interact.merge_layer_entries(
+        merged, {"$events": {"kinds": {"signal": replacement}}}
+    )
+
+    assert merged["$events"]["kinds"]["signal"] == replacement
+
+
+def test_a_record_contract_does_not_open_a_browser_event_kind(server, page_dir):
+    """The log may carry a kind written through another door. Browser authorship
+    is a separate assertion and must be opted into on the kind itself."""
+    publish(page_dir)
+    registry = json.loads((page_dir / "registry.json").read_text())
+    contract = json.loads(json.dumps(registry["$events"]["kinds"]["error"]))
+    del contract["browser"]
+    contract["record"]["properties"]["kind"] = {"const": "signal"}
+    registry["$events"]["kinds"]["signal"] = contract
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "signal", "text": "hello"}).encode(),
+    )
+
+    assert status == 400
+    assert "kind must be one of" in json.loads(body)["error"]
 
 
 def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
@@ -4633,7 +5769,7 @@ def server(page_dir):
     httpd.shutdown()
 
 
-def fetch(url, data=None, token=TOKEN):
+def fetch(url, data=None, token=TOKEN, layer=None):
     """A request arriving the way a user's does: the key in the query, and a
     cookie jar to carry it onward — `/` redirects to the latest version, and the
     followed request is authorized by the cookie the redirect set, not by the query
@@ -4644,10 +5780,38 @@ def fetch(url, data=None, token=TOKEN):
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
     )
     try:
-        with opener.open(url, data=data) as res:
+        headers = {}
+        if data is not None and (
+            token or urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("t")
+        ):
+            if layer is None:
+                state_url = (
+                    urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+                )
+                with opener.open(state_url) as state:
+                    layer = json.loads(state.read())["layer"]
+            headers["Leaf-Layer"] = layer
+        request = urllib.request.Request(url, data=data, headers=headers)
+        with opener.open(request) as res:
             return res.status, res.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
+
+
+def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
+    publish(page_dir)
+    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    before = interact.read_events(page_dir)
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=b"this is not even JSON in the current contract",
+        layer="superseded-layer",
+    )
+
+    assert status == 200
+    assert json.loads(body) == {"layer": current}
+    assert interact.read_events(page_dir) == before
 
 
 def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
@@ -4730,6 +5894,7 @@ def test_server_round_trip(server, page_dir):
                 "agent": "Codex",
                 "session": "s-forged",
                 "ts": "1900-01-01T00:00:00Z",
+                "seq": 99,
                 "version": 1,
                 "text": "hm",
             }
@@ -4740,6 +5905,7 @@ def test_server_round_trip(server, page_dir):
     assert posted["author"] == "user" and posted["id"] != "c9"
     assert "agent" not in posted and "session" not in posted
     assert posted["ts"] != "1900-01-01T00:00:00Z"
+    assert posted["seq"] != 99
     status, body = fetch(f"{server}/api/state")
     state = json.loads(body)
     assert state["versions"] == [1]
@@ -4962,9 +6128,9 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         interact.start_server(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        interact.held_by_a_live_server(page_dir / "server.json")
-    assert not (page_dir / "server.json").exists()
-    assert not (page_dir / "access.json").exists()
+        interact.lock_is_held(page_dir / "server.lock")
+    assert not (page_dir / "server.lock").exists()
+    assert not (page_dir / "service.json").exists()
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
@@ -5036,7 +6202,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         # ordinary state — and the reader meets it by clicking, not by running anything.
         (
             lambda registry: json.dumps({**registry, "$events": {"kinds": {}}}),
-            "$events.kinds omits vocabulary the current layer writes",
+            "$events.kinds omits or changes contracts the current layer writes",
         ),
     ],
 )
@@ -5223,8 +6389,14 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     facts restate nothing: dropping them re-derived the exact port an open tab
     polls and demoted the standing lifetime to the recovering session's."""
     interact.write_json(
-        page_dir / "access.json",
-        {"host": "10.0.0.5", "bind": "10.0.0.5", "port": 41234, "lifetime": "standing"},
+        page_dir / "service.json",
+        {
+            "host": "10.0.0.5",
+            "bind": "10.0.0.5",
+            "port": 41234,
+            "enabled": False,
+            "lifetime": "standing",
+        },
     )
     access = interact.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
@@ -5386,19 +6558,25 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
 
 
-def test_a_stated_host_binds_every_interface_and_is_recorded(page_dir, monkeypatch):
+def test_a_stated_host_binds_every_interface_without_recording_before_serve(
+    page_dir, monkeypatch
+):
     """The name a user routes to need not resolve to an address this machine
     could bind — a jump host or NAT is the case `--host` exists for — nor say
     which family they reach it by, so a stated name binds the wildcard of both
-    families and goes in the URL as given. A bare re-serve (`start_server`)
-    reads the stated record back unchanged, so the URL a browser already holds
-    keeps answering."""
+    families and goes in the URL as given. Derivation stays in memory until the
+    server-lease winner records it."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    interact.page_access(page_dir)
-
     stated = interact.page_access(page_dir, host="devbox.corp.example")
     assert (stated["host"], stated["bind"]) == ("devbox.corp.example", "::")
-    assert interact.page_access(page_dir) == stated
+    service = {
+        **stated,
+        "port": 41234,
+        "enabled": False,
+        "lifetime": "standing",
+    }
+    interact.write_json(page_dir / "service.json", service)
+    assert interact.page_access(page_dir) == service
 
 
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
@@ -5410,7 +6588,7 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
         with pytest.raises(SystemExit):
             interact.page_access(page_dir, host=junk)
-    assert not (page_dir / "access.json").exists()
+    assert not (page_dir / "service.json").exists()
 
     assert interact.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
@@ -5424,18 +6602,65 @@ def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
         assert fetch(f"http://{loopback}:{port}/api/state")[0] == 200, loopback
 
 
+def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
+    page_dir, monkeypatch
+):
+    """A kernel with IPv6 switched off refuses AF_INET6 at the constructor, and
+    the reader who most needs `--host` is on exactly such a box — headless, where
+    the derived address is loopback and no browser is local. So the wildcard is
+    restated as 0.0.0.0, which says the same thing in the family that is left,
+    and the page serves. A literal v6 address keeps its refusal: every interface
+    is not what that record chose."""
+    real_socket = socket.socket
+
+    def kernel_without_ipv6(family=socket.AF_INET, *args, **kwargs):
+        if family == socket.AF_INET6:
+            raise OSError(
+                errno.EAFNOSUPPORT, "Address family not supported by protocol"
+            )
+        return real_socket(family, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
+    with pytest.raises(OSError) as refused:
+        interact.server_at(
+            "fd7a:115c:a1e0::1", 0, interact.handler_for(page_dir, TOKEN)
+        )
+    # Name the errno, or the assertion is satisfied on a v6-capable machine by
+    # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
+    # nothing about whether the family refusal under test was ever reached.
+    assert refused.value.errno == errno.EAFNOSUPPORT
+
+    httpd = interact.server_at("::", 0, interact.handler_for(page_dir, TOKEN))
+    assert httpd.socket.family == socket.AF_INET
+    assert httpd.server_address[0] == "0.0.0.0"
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_the_address_and_key_outlive_the_session_that_first_served(
     page_dir, monkeypatch
 ):
-    """`start_server` restarts a dead server by re-running `server run`. The
+    """`start_server` restarts a dead server through the detached service. The
     user's browser has been polling one URL since it died, so a fresh address or
     key there would leave the page it reopens talking to nothing."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
     recorded = interact.page_access(page_dir)
     minted = interact.host_key()
+    service = {
+        **recorded,
+        "port": 41234,
+        "enabled": False,
+        "lifetime": "session",
+    }
+    interact.write_json(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
-    assert interact.page_access(page_dir) == recorded
+    assert interact.page_access(page_dir) == service
     assert interact.host_key() == minted
 
 
@@ -5472,31 +6697,51 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             httpd.shutdown()
 
 
-HELD_RECORDS = []
+HELD_LEASES = []
 
 
-def serving(directory, record: dict) -> None:
-    """A server.json the way a live `server run` leaves it: written, and held
-    open under the exclusive lock that is what says a server is up. Writing the
-    file alone says nothing now — which is the point of the lock, and is why a
-    test that wants a live neighbour has to hold one like everything else."""
+def serving(directory, port: int, lifetime: str = "standing") -> None:
+    """Hold the same contentless lease as a live `server run`."""
     directory.mkdir(parents=True, exist_ok=True)
-    handle = open(directory / "server.json", "a+b")  # noqa: SIM115 - held, see above
+    service = {
+        "host": "127.0.0.1",
+        "bind": "127.0.0.1",
+        "port": port,
+        "enabled": True,
+        "lifetime": lifetime,
+    }
+    interact.write_json(directory / "service.json", service)
+    handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    handle.truncate(0)
-    handle.write(interact.json_bytes(record))
-    handle.flush()
-    HELD_RECORDS.append(handle)
+    HELD_LEASES.append(handle)
+
+
+def available_loopback_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def fifo_writer(path: Path, failure: str) -> int:
+    """Open a nonblocking writer once a child is waiting on this FIFO."""
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError as error:
+            if error.errno != errno.ENXIO:
+                raise
+            time.sleep(0.05)
+    path.unlink()
+    pytest.fail(failure)
 
 
 @pytest.fixture(autouse=True)
 def _no_page_outlives_its_test(tmp_path):
     """Nothing the suite put up is still up when the test that put it there ends.
 
-    The suite's own pretend servers go first. `serving` holds a record open under
-    this process's pid, and a stop read off one would send SIGTERM to the worker,
-    so dropping those locks is what makes the sweep below safe: what still reads
-    as served afterwards is a process leaf really spawned.
+    The suite's own pretend servers go first. They do not run the cooperative
+    service watcher, so their leases are released before the real-server sweep.
 
     Then every page under the directories a test can write to. A server `server
     start` or a revival puts up is spawned into a session of its own, so no Popen
@@ -5509,18 +6754,16 @@ def _no_page_outlives_its_test(tmp_path):
     and the home derived without it is the developer's own."""
     state = interact.state_home()
     yield
-    while HELD_RECORDS:
-        HELD_RECORDS.pop().close()
+    while HELD_LEASES:
+        HELD_LEASES.pop().close()
     for root in (tmp_path, state):
-        for record in root.rglob("server.json"):
-            if interact.running_server(record.parent):
-                interact.cmd_stop(record.parent)
+        for lease in root.rglob("server.lock"):
+            if interact.running_server(lease.parent):
+                interact.cmd_stop(lease.parent)
 
 
 def neighbour_page(directory, title=None, dead=False, published=True):
-    """A page another server is serving, written down the way `server run` writes
-    it: a version on disk, its note in the log, and a held server.json. `dead`
-    writes the record without holding it, which is what a crashed server leaves."""
+    """A page with desired service state and, unless dead, a live lease."""
     (directory / "versions").mkdir(parents=True)
     head = f"<title>{title}</title>" if title else ""
     (directory / "versions" / "v1.html").write_text(
@@ -5531,19 +6774,27 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         interact.append_event(
             directory, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
-    url = f"http://127.0.0.1:59999/?t=key-{directory.name}"
-    record = {"port": 59999, "pid": os.getpid(), "url": url}
+    record = {"port": 59999}
     if dead:
-        interact.write_json(directory / "server.json", record)
+        interact.write_json(
+            directory / "service.json",
+            {
+                "host": "127.0.0.1",
+                "bind": "127.0.0.1",
+                "port": 59999,
+                "enabled": True,
+                "lifetime": "standing",
+            },
+        )
     else:
-        serving(directory, record)
-    return url
+        serving(directory, record["port"])
+    return interact.page_url("127.0.0.1", 59999, interact.host_key())
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the
-    live-session registry — titled by its newest published version, and nothing
+    canonical claims — titled by its newest published version, and nothing
     else: not a dead server's page, not one with nothing published to link, and
     not the page doing the asking. Each entry carries the same presence facts the
     page ships about itself (`presence`), so the panel's row and that page's own
@@ -5555,15 +6806,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         pages / "live" / "status.json",
         {"state": "working", "detail": "measuring", "ts": "2026-01-01T00:00:00-08:00"},
     )
-    interact.write_json(
-        pages / "live" / "session.json",
-        {
-            "id": "s9",
-            "host": "claude-code",
-            "pid": os.getpid(),
-            "agent": "Codex",
-            "cwd": "/work/api",
-        },
+    record_claim(
+        pages / "live",
+        id="s9",
+        agent="Codex",
+        cwd="/work/api",
     )
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
@@ -5574,19 +6821,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "comments.jsonl").write_text('{"kind": "note", "author"')
     # A page served from a session's scratch directory, plus the asking page
-    # itself: the registry finds the first, and the second stays out of its own
+    # itself: the claim index finds the first, and the second stays out of its own
     # list. Untitled, so the title falls back to the directory's name.
-    claimed_url = neighbour_page(tmp_path / "scratch")
-    sessions = interact.state_home() / "sessions"
-    sessions.mkdir(parents=True, exist_ok=True)
-    interact.write_json(
-        sessions / "s1.json",
-        {
-            "pid": os.getpid(),
-            "pages": [str(tmp_path / "scratch"), str(page_dir)],
-            "ts": "2026-01-01T00:00:00-08:00",
-        },
-    )
+    scratch = tmp_path / "scratch"
+    claimed_url = neighbour_page(scratch)
+    record_claim(scratch, released="2026-01-01T00:00:00-08:00")
 
     state = json.loads(fetch(f"{server}/api/state")[1])
     # A directory holding no claims at all is still a complete answer: every
@@ -5603,7 +6842,15 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "session_cwd": None,
     }
     assert state["others"] == [
-        {"title": "scratch", "url": claimed_url, **unclaimed},
+        {
+            "title": "scratch",
+            "url": claimed_url,
+            **unclaimed,
+            "agent": "Claude",
+            "host": "claude-code",
+            "session_alive": False,
+            "session_cwd": str(Path.cwd()),
+        },
         {
             "title": "The other page",
             "url": live_url,
@@ -5652,8 +6899,8 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
 
 
 def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsys):
-    # A held server.json is what wait's liveness probe asks for.
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    # A held server.lock lease is what wait's liveness probe asks for.
+    serving(page_dir, 1)
     interact.cmd_status(page_dir, "waiting", "")
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
@@ -5731,6 +6978,39 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     assert interact.read_json(page_dir / "cursor.json")["seq"] == 4
 
 
+def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
+    """The page and each event's sequence identify retries for any consumer."""
+    serving(page_dir, 1)
+    interact.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+
+    first = CliRunner().invoke(interact.cli, ["wait", str(page_dir)])
+    assert first.exit_code == 0, first.output
+    header, event = [json.loads(line) for line in first.output.strip().splitlines()]
+    assert header == {"page": str(page_dir)}
+    assert (event["id"], event["seq"], event["text"]) == ("c1", 1, "hi")
+    assert interact.read_json(page_dir / "cursor.json") is None
+
+    retry = CliRunner().invoke(interact.cli, ["wait", str(page_dir)])
+    assert retry.exit_code == 0, retry.output
+    assert json.loads(retry.output.splitlines()[0]) == header
+
+    # If wait output was lost or truncated, retrieving it again before ack can
+    # include a newer event. The old event keeps the same page-and-seq identity
+    # for the receiving task to skip.
+    interact.append_event(
+        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "later"}
+    )
+    grown = CliRunner().invoke(interact.cli, ["wait", str(page_dir)])
+    assert grown.exit_code == 0, grown.output
+    grown_header, *grown_events = [
+        json.loads(line) for line in grown.output.strip().splitlines()
+    ]
+    assert grown_header == header
+    assert [event["seq"] for event in grown_events] == [1, 2]
+
+
 def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     interact.append_event(
         page_dir,
@@ -5778,7 +7058,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
 
 
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    serving(page_dir, 1)
     interact.cmd_status(page_dir, "working", "running the browser suite")
     status_path = page_dir / "status.json"
     before = status_path.read_bytes()
@@ -5831,6 +7111,82 @@ def comment_once_served():
         thread.join(timeout=5)
 
 
+def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch):
+    interact.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": False,
+            "lifetime": "session",
+        },
+    )
+    interact.cmd_status(page_dir, "waiting", "review the page")
+
+    def unexpected_start(*_args, **_kwargs):
+        pytest.fail("disabled desired state was revived")
+
+    monkeypatch.setattr(interact, "start_server", unexpected_start)
+    watch = interact.Watch(None, named=page_dir)
+    try:
+        assert watch.acquire()
+        reading = next(watch.tick())
+    finally:
+        watch.release()
+
+    assert reading.lost is True
+    assert reading.restarted is None
+
+
+def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
+    interact.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    interact.cmd_status(page_dir, "working", "watching for a reply")
+    entered, release = threading.Event(), threading.Event()
+    real_start = interact.start_server
+
+    def delayed_start(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return real_start(*args, **kwargs)
+
+    monkeypatch.setattr(interact, "start_server", delayed_start)
+    readings, errors = [], []
+    watch = interact.Watch(None, named=page_dir)
+    assert watch.acquire()
+
+    def tick():
+        try:
+            readings.extend(watch.tick())
+        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+            errors.append(error)
+        finally:
+            watch.release()
+
+    reviving = threading.Thread(target=tick)
+    reviving.start()
+    assert entered.wait(5), "the watcher did not decide to revive"
+    assert interact.cmd_stop(page_dir) == "no server running"
+    release.set()
+    reviving.join(timeout=10)
+
+    assert not reviving.is_alive()
+    assert errors == []
+    assert readings[0].lost is True
+    assert readings[0].restarted is None
+    assert interact.read_json(page_dir / "service.json")["enabled"] is False
+    assert not interact.lock_is_held(page_dir / "server.lock")
+
+
 def test_wait_restarts_a_server_that_died_under_it(
     page_dir, comment_once_served, capsys
 ):
@@ -5838,8 +7194,18 @@ def test_wait_restarts_a_server_that_died_under_it(
     else — so `leaf wait`, the one thing positioned to notice, brings it back
     rather than exiting and leaving the discovery to the user."""
 
+    interact.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
     comment_once_served(page_dir)
-    assert interact.cmd_wait(page_dir) == 0  # no server.json at all when it starts
+    assert interact.cmd_wait(page_dir) == 0
     info = interact.running_server(page_dir)
     # The revived server has to answer on the URL it published, key included:
     # the user's browser has been polling that address since it died.
@@ -5852,7 +7218,119 @@ def test_wait_restarts_a_server_that_died_under_it(
     # A wait claims the page it names, so what it revives is the claiming
     # session's server and dies with that session. Here the session is the
     # worker (conftest), which is what keeps a killed run from stranding this.
-    assert not interact.standing_server(page_dir)
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == "session"
+
+
+def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
+    codex_claimed_page, under_codex, codex_env, monkeypatch
+):
+    """A stale wait cannot revive a server for a page it no longer owns.
+
+    The FIFO holds the status read after the waiter selected the page but
+    before it checks the dead server. Another session then claims the page. The
+    old wait must leave without spawning a server under its stale ownership
+    decision.
+    """
+    page = codex_claimed_page
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    interact.cmd_stop(page)
+    interact.cmd_status(page, "waiting", "comment on the prototype")
+    status_path = page / "status.json"
+    status_path.unlink()
+    os.mkfifo(status_path)
+    first = under_codex(
+        shlex.join([str(launcher), "wait", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    writer = fifo_writer(status_path, "the waiter never reached its held status read")
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    interact.claim_page(page)
+    os.write(
+        writer,
+        json.dumps(
+            {
+                "state": "waiting",
+                "detail": "comment on the prototype",
+                "ts": "t",
+            }
+        ).encode(),
+    )
+    os.close(writer)
+    interact.cmd_status(page, "idle", "the page is done")
+
+    first_out, first_err = first.communicate(timeout=60)
+    assert (first.returncode, first_out) == (2, ""), first_err
+    assert "no longer owns it" in first_err
+    assert "the leaf ended" not in first_err
+    session = interact.page_claim(page)
+    assert session["id"] == "replacement"
+    assert interact.running_server(page) is None
+
+
+def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
+    """The session-end reaper must outrank a wait's stale live-page snapshot.
+
+    The FIFO holds the wait after it selected the page but before it checks the
+    dead server. SessionEnd then releases its claim. Releasing the stale status
+    read must not let that wait put a session server back up.
+    """
+    page = claimed
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    interact.write_json(
+        page / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    interact.cmd_status(page, "waiting", "comment on the prototype")
+    status_path = page / "status.json"
+    status_path.unlink()
+    os.mkfifo(status_path)
+    waiter = spawn(
+        [launcher, "wait", str(page)],
+        env=os.environ
+        | {"CLAUDE_CODE_SESSION_ID": "s1", "CLAUDE_PID": str(os.getpid())},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    writer = fifo_writer(status_path, "the waiter never reached its held status read")
+
+    interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    assert interact.read_json(page / "service.json")["enabled"] is True
+    assert interact.running_server(page) is None
+
+    os.write(
+        writer,
+        json.dumps(
+            {
+                "state": "waiting",
+                "detail": "comment on the prototype",
+                "ts": "t",
+            }
+        ).encode(),
+    )
+    os.close(writer)
+
+    out, err = waiter.communicate(timeout=60)
+    assert waiter.returncode == 2, f"{out}{err}"
+    assert "this session no longer owns it" in err
+    assert interact.page_claim(page)["released"] is not None
+    assert interact.running_server(page) is None
+    # SessionEnd releases ownership only. The FIFO remains the same status path;
+    # lifecycle code did not replace it with an authored idle state.
+    assert status_path.is_fifo()
 
 
 def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
@@ -5866,34 +7344,39 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
     server was down would inherit a dashboard somebody left up for weeks, and
     take it down when it ended."""
     interact.write_json(
-        claimed / "access.json",
-        {"host": "127.0.0.1", "bind": "127.0.0.1", "lifetime": "standing"},
+        claimed / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "standing",
+        },
     )
     comment_once_served(claimed)
     assert interact.cmd_wait(claimed) == 0
     # The reviving session did claim the page, so a lifetime read off this
     # launch would have said "session" — the claim is what the standing
     # record has to outrank.
-    assert interact.read_json(claimed / "session.json")["id"] == "s1"
-    assert interact.standing_server(claimed)
+    assert interact.page_claim(claimed)["id"] == "s1"
+    assert interact.read_json(claimed / "service.json")["lifetime"] == "standing"
 
 
 def test_wait_ends_when_the_leaf_does(page_dir):
     """Idling is how a leaf ends, and it has to reach the watcher: a wait that
     held on past it left a long-running command open for a page nobody was going
-    to press, which the session was then left to kill by pid. The server is not
+    to press. The server is not
     the watcher's to end — a reader is free to stay on a page the agent has
     finished with — so it is left exactly as it stands."""
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    serving(page_dir, 1)
     interact.cmd_status(page_dir, "idle", "the page is done")
     assert interact.cmd_wait(page_dir) == 2
     assert interact.running_server(page_dir)
 
     # And where SessionEnd idled the page and stopped its server both, a watcher
-    # still winding down must not put it straight back up. Dropping the lock is
-    # what makes the record read stale; `cmd_stop` would signal this process.
-    HELD_RECORDS.pop().close()
-    (page_dir / "server.json").unlink()
+    # still winding down must not put it straight back up. Dropping the lease is
+    # what makes the server read as dead.
+    HELD_LEASES.pop().close()
     assert interact.cmd_wait(page_dir) == 2
     assert interact.running_server(page_dir) is None
 
@@ -5908,11 +7391,12 @@ def test_one_wait_watches_every_page_the_session_holds(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     second = tmp_path / "second"
-    second.mkdir()
+    interact.cmd_init(second)
+    capsys.readouterr()
     interact.cmd_status(second, "waiting", "")
     interact.cmd_status(page_dir, "waiting", "")
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
-    serving(second, {"port": 2, "pid": os.getpid(), "url": "y"})
+    serving(page_dir, 1)
+    serving(second, 2)
     for d in (page_dir, second):
         assert interact.claim_page(d)
     interact.append_event(second, {"kind": "comment", "author": "user", "text": "hi"})
@@ -5940,12 +7424,13 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     puts the page in front of the running wait."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s10")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    serving(page_dir, 1)
     assert interact.claim_page(page_dir)
     joined = tmp_path / "joined"
-    joined.mkdir()
+    interact.cmd_init(joined)
+    capsys.readouterr()
     interact.cmd_status(joined, "waiting", "")
-    serving(joined, {"port": 2, "pid": os.getpid(), "url": "y"})
+    serving(joined, 2)
 
     def join():
         interact.claim_page(joined)
@@ -5964,7 +7449,7 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     """The batch outranks the page's state: an idled leaf can still hold a
     comment the reader got in before the end, and a wait that exited on the
     idle instead would strand it unread until a hook complained."""
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    serving(page_dir, 1)
     interact.append_event(page_dir, {"kind": "comment", "author": "user", "text": "hi"})
     interact.cmd_status(page_dir, "idle", "the page is done")
     assert interact.cmd_wait(page_dir) == 0
@@ -5987,7 +7472,7 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
     from one they can't reach, so the wait doesn't guess between them: over a page
     no request has ever touched it holds for the user exactly as it would for
     one reading, and reports nothing of its own."""
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "x"})
+    serving(page_dir, 1)
     interact.cmd_status(page_dir, "waiting", "")
     threading.Timer(
         0.2,
@@ -6001,6 +7486,91 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
     assert json.loads(printed.out.splitlines()[0]) == {"page": str(page_dir)}
     assert [json.loads(line)["id"] for line in printed.out.splitlines()[1:]] == ["c1"]
     assert printed.err == ""
+
+
+def test_a_named_bare_shell_wait_keeps_its_directory_without_a_claim(
+    page_dir, sessionless, capsys
+):
+    """A terminal has no session ownership to gain or lose."""
+    serving(page_dir, 1)
+    interact.append_event(page_dir, {"kind": "comment", "author": "user", "text": "hi"})
+
+    assert interact.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert header == {"page": str(page_dir)}
+    assert interact.page_claim(page_dir) is None
+
+
+def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
+    """Without a host identity or a named page, there is nothing to watch."""
+    interact.cmd_status(page_dir, "waiting", "")
+    serving(page_dir, 1)
+    record_claim(page_dir, id="foreign-session")
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "foreign", "author": "user", "text": "private"},
+    )
+
+    assert interact.cmd_wait() == 2
+    printed = capsys.readouterr()
+    assert printed.out == ""
+    assert "nothing to watch" in printed.err
+
+
+def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn):
+    """A page has one wait owner even when the first has no host identity."""
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    interact.cmd_status(page_dir, "waiting", "")
+    serving(page_dir, 1)
+    bare = spawn(
+        [launcher, "wait", str(page_dir)],
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not interact.lock_is_held(
+        page_dir / "waiter.lock"
+    ):
+        time.sleep(0.05)
+    assert interact.lock_is_held(page_dir / "waiter.lock")
+
+    host_env = os.environ | {
+        "CLAUDE_CODE_SESSION_ID": "host-owner",
+        "CLAUDE_PID": str(os.getpid()),
+    }
+    host = spawn(
+        [launcher, "wait", str(page_dir)],
+        env=host_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        claim = interact.page_claim(page_dir)
+        if (
+            claim
+            and claim["id"] == "host-owner"
+            and interact.lock_is_held(interact.waiter_lease_path(page_dir, claim))
+        ):
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the host wait never claimed the page")
+
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "once", "author": "user", "text": "hi"},
+    )
+    bare_out, bare_err = bare.communicate(timeout=10)
+    host_out, host_err = host.communicate(timeout=10)
+
+    assert (bare.returncode, bare_out) == (2, ""), bare_err
+    assert "no longer owns it" in bare_err
+    assert host.returncode == 0, host_err
+    assert [json.loads(line)["id"] for line in host_out.splitlines()[1:]] == ["once"]
 
 
 @pytest.fixture
@@ -6064,9 +7634,8 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # own message down with it, and nothing here reads either stream. Left to
     # pytest, the message is in the failure it belongs to.
     subprocess.run([launcher, "page", "init", page], env=env, check=True)
-    # Under the fake codex so the claim's ancestry walk finds it, and through
-    # `server start`, which blocks on the URL while the `server run` it spawned
-    # claims — so the chain from that claim up to the codex program is intact.
+    # Under the fake codex so the service child's claim walk finds it. The chain
+    # from that claim up to the codex program is therefore intact.
     # Captured because the URL is read back; the status is asserted here with
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
@@ -6080,13 +7649,28 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     assert out.startswith("http://127.0.0.1:")
+    # The fake codex wrapper exits with this one command; a real Codex session
+    # stays above later hook calls. Keep that session lifetime true for tests
+    # using this fixture after the launch itself has been verified.
+    claim = interact.page_claim(page)
+    interact.write_json(interact.claim_path(page), {**claim, "pid": os.getpid()})
     return page
 
 
 def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
-    session = interact.read_json(codex_claimed_page / "session.json")
+    session = interact.page_claim(codex_claimed_page)
     assert session["id"] == "codex-thread"
     assert session["agent"] == "Codex" and session["host"] == "codex"
+    assert set(session) == {
+        "page",
+        "id",
+        "agent",
+        "host",
+        "pid",
+        "cwd",
+        "ts",
+        "released",
+    }
     assert page_state(codex_claimed_page)["agent"] == "Codex"
 
 
@@ -6097,8 +7681,8 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     `$PPID` is not it: it is a fact about the shape of the command. Measured
     through `codex exec`, a bare command and an `&&` chain reported the codex
     process because the wrapping shell exec'd leaf in place, and a pipeline
-    reported that shell — which exits with the command, so the sweep would drop
-    a live session's entry and its server would stop a second later. Here the
+        reported that shell — which exits with the command, so ownership would go
+        inactive and its server would stop a second later. Here the
     shell is between the session and the command and has exited by the time this
     reads what was written, so a pid it could have recorded is one this cannot
     match."""
@@ -6109,9 +7693,7 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     session = under_codex(shlex.join([str(launcher), "wait", str(page)]), env)
     assert session.wait(timeout=60) == 0
-    assert interact.read_json(page / "session.json")["pid"] == session.pid
-    registry = interact.state_home() / "sessions" / "thread-shape.json"
-    assert interact.read_json(registry)["pid"] == session.pid
+    assert interact.page_claim(page)["pid"] == session.pid
 
 
 def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_env):
@@ -6119,8 +7701,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_en
     nothing running Codex is above this process, so there is no process whose
     life is that session's. Nothing to fall back on either — a pid guessed here
     is a claim that expires by itself, and every state that follows from one is
-    silent — so it fails the way a missing LEAF_AGENT does, naming what it
-    walked.
+    silent, so the refusal names what it walked.
 
     Its premise is this process's own ancestry, which is the developer's to
     supply: run the suite from inside Codex and the walk finds that session,
@@ -6141,7 +7722,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_en
     )
     assert refused.returncode == 1, refused.stdout
     assert "no codex process runs above this one" in refused.stderr
-    assert not (page / "session.json").exists()
+    assert interact.page_claim(page) is None
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
@@ -6156,10 +7737,90 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     work.mkdir()
     monkeypatch.chdir(work)
     assert interact.claim_page(page_dir)
-    assert interact.read_json(page_dir / "session.json")["cwd"] == str(work)
+    assert interact.page_claim(page_dir)["cwd"] == str(work)
     assert interact.presence(page_dir, [])["session_cwd"] == str(work)
-    (page_dir / "session.json").unlink()
-    assert interact.presence(page_dir, [])["session_cwd"] is None
+    with interact.PageTransaction(page_dir) as page:
+        page.release_claim()
+    assert interact.presence(page_dir, [])["session_cwd"] == str(work)
+    assert interact.presence(page_dir, [])["session_alive"] is False
+
+
+def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
+    """A regenerated page is not the deleted page that occupied its path."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert interact.claim_page(page_dir)
+
+    shutil.rmtree(page_dir)
+    initialized = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert initialized.exit_code == 0, initialized.output
+
+    assert interact.page_claim(page_dir) is None
+    assert interact.owned_pages("old-session") == []
+
+
+def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
+    tmp_path, monkeypatch, spawn
+):
+    """The first page creation is one serialized transition."""
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "concurrent-page"
+    reached_layer = threading.Event()
+    resume = threading.Event()
+    original_layered_theme = interact.layered_theme
+
+    def held_layered_theme(layers):
+        reached_layer.set()
+        assert resume.wait(timeout=10), "the concurrent init never released its peer"
+        return original_layered_theme(layers)
+
+    monkeypatch.setattr(interact, "layered_theme", held_layered_theme)
+    executor = ThreadPoolExecutor(max_workers=1)
+    first = executor.submit(interact.cmd_init, page)
+    try:
+        assert reached_layer.wait(timeout=10), (
+            "the first init never reached its held read"
+        )
+
+        launcher = PLUGIN_ROOT / "bin" / "leaf"
+        second = spawn(
+            [launcher, "page", "init", page],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(0.1)
+        assert second.poll() is None, "the overlapping init bypassed the page lease"
+        resume.set()
+        first.result(timeout=10)
+        second_out, second_err = second.communicate(timeout=10)
+        assert second.returncode == 0, f"{second_out}{second_err}"
+        idled = subprocess.run(
+            [launcher, "status", page, "idle"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert idled.returncode == 0, idled.stderr
+        picked_up = subprocess.run(
+            [launcher, "wait", page],
+            env=os.environ
+            | {
+                "CLAUDE_CODE_SESSION_ID": "new-owner",
+                "CLAUDE_PID": str(os.getpid()),
+            },
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert picked_up.returncode == 2, picked_up.stderr
+        assert interact.page_claim(page)["id"] == "new-owner"
+    finally:
+        resume.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+    assert first.done()
+    assert interact.page_claim(page)["id"] == "new-owner"
 
 
 def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(
@@ -6174,7 +7835,7 @@ def test_the_launcher_defaults_the_name_but_a_worker_keeps_its_own(
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     waited = under_codex(shlex.join([str(launcher), "wait", str(page)]), env)
     assert waited.wait(timeout=60) == 0
-    session = interact.read_json(page / "session.json")
+    session = interact.page_claim(page)
     assert session["id"] == "thread-9"
     assert session["agent"] == "Indexer" and session["host"] == "codex"
 
@@ -6192,12 +7853,14 @@ def test_hook_remedies_follow_the_host_not_the_display_name(
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     waited = under_codex(shlex.join([str(launcher), "wait", str(page)]), env)
     assert waited.wait(timeout=60) == 0
+    claim = interact.page_claim(page)
+    interact.write_json(interact.claim_path(page), {**claim, "pid": os.getpid()})
     interact.cmd_status(page, "waiting", "")
 
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "unified exec" in reason and "write_stdin" in reason
-    assert interact.read_json(page / "session.json")["agent"] == "Indexer"
+    assert interact.page_claim(page)["agent"] == "Indexer"
 
 
 def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
@@ -6205,10 +7868,12 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 ):
     page = codex_claimed_page
     interact.cmd_status(page, "waiting", "")
-    interact.write_json(page / "heartbeat.json", {"t": time.time()})
+    session = interact.page_claim(page)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(page, session))
+    assert lease
 
-    # A fresh heartbeat means Claude may end its turn, but Codex must keep this one
-    # active and poll the unified-exec session whose output can enter this context.
+    # A live wait lets Claude end its turn, but Codex must keep this one active and
+    # poll the unified-exec session whose output can enter this context.
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
@@ -6224,7 +7889,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert capsys.readouterr().out == ""
 
     # With no waiter, the remedy names both halves of the Codex loop.
-    (page / "heartbeat.json").unlink()
+    lease.close()
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "Start `leaf wait`" in reason
@@ -6232,16 +7897,296 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # Pending output still has to cross context and be acknowledged before handling.
     interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    interact.write_json(page / "heartbeat.json", {"t": time.time()})
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(page, session))
+    assert lease
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf ack" in reason and "address every one" in reason
+    assert "leaf ack" in reason and "If this task is the consumer" in reason
     assert interact.ACK_BATCH_INSTRUCTION in reason
+    lease.close()
 
     interact.cmd_ack(page, 1)
+    # Answered before the page closes: an acknowledged comment with nothing
+    # under it holds the turn on its own account, which is the subject of
+    # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
+    interact.cmd_reply(page, interact.read_events(page)[0]["id"], "so it does", None)
     interact.cmd_status(page, "idle", "")
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     assert capsys.readouterr().out == ""
+
+
+def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
+    codex_claimed_page, under_codex, codex_env, capsys
+):
+    """The task that blocks in wait is the claimant, not the task it wakes.
+
+    That transfer is the bridge: the parent may finish its turn because it no
+    longer owns an unattended page, while the helper's own Stop hook keeps the
+    wait inside a live turn. Leaf does not need to know where that task sends the
+    batch.
+    """
+    page = codex_claimed_page
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    interact.cmd_status(page, "waiting", "comment on the prototype")
+    watcher = under_codex(
+        shlex.join([str(launcher), "wait", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": "leaf-watcher"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        session = interact.page_claim(page) or {}
+        if session.get("id") == "leaf-watcher" and page_state(page)["listening"]:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the watcher task never claimed the page and entered leaf wait")
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    assert capsys.readouterr().out == ""
+
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "leaf-watcher"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert "Keep this turn active" in reason and "poll the existing" in reason
+
+    interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
+    out, err = watcher.communicate(timeout=60)
+    assert watcher.returncode == 0, f"{out}{err}"
+    header, event = [json.loads(line) for line in out.splitlines()]
+    assert header == {"page": str(page)}
+    assert event["text"] == "hi"
+    assert interact.read_json(page / "cursor.json") is None
+
+
+def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
+    codex_claimed_page, under_codex, codex_env
+):
+    """One page has one cursor owner even if two watcher tasks are started.
+
+    The later wait takes the page's claim. The earlier wait must then leave the
+    watch set rather than print the same event from a task that no longer owns
+    either the page or its acknowledgement cursor.
+    """
+    page = codex_claimed_page
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    interact.cmd_status(page, "waiting", "comment on the prototype")
+
+    first = under_codex(
+        shlex.join([str(launcher), "wait", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        session = interact.page_claim(page) or {}
+        if session.get("id") == "leaf-watcher-1" and page_state(page)["listening"]:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the first watcher never claimed the page")
+
+    second = under_codex(
+        shlex.join([str(launcher), "wait", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": "leaf-watcher-2"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        session = interact.page_claim(page) or {}
+        if session.get("id") == "leaf-watcher-2" and page_state(page)["listening"]:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the replacement watcher never claimed the page")
+
+    first_out, first_err = first.communicate(timeout=60)
+    assert (first.returncode, first_out) == (2, ""), first_err
+    assert second.poll() is None
+    assert page_state(page)["listening"]
+
+    interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
+    second_out, second_err = second.communicate(timeout=60)
+
+    assert second.returncode == 0, f"{second_out}{second_err}"
+    header, event = [json.loads(line) for line in second_out.splitlines()]
+    assert header == {"page": str(page)}
+    assert event["seq"] == 1
+
+
+def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
+    codex_claimed_page, under_codex, codex_env, monkeypatch
+):
+    """Ownership is checked at delivery, not only at the start of a poll.
+
+    The FIFO holds a normal status read after the first watcher has already
+    selected its page. A second session then takes the claim and an event arrives.
+    The old watcher must re-read ownership before it prints that event; otherwise
+    two sessions can act as cursor owner despite the supersession check passing on
+    every ordinary run.
+    """
+    page = codex_claimed_page
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    interact.cmd_status(page, "waiting", "comment on the prototype")
+    first = under_codex(
+        shlex.join([str(launcher), "wait", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        session = interact.page_claim(page) or {}
+        if session.get("id") == "leaf-watcher-1" and page_state(page)["listening"]:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the first watcher never claimed the page")
+
+    status_path = page / "status.json"
+    status_path.unlink()
+    os.mkfifo(status_path)
+    writer = fifo_writer(
+        status_path, "the first watcher never reached its held status read"
+    )
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    interact.claim_page(page)
+    interact.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
+    os.write(
+        writer,
+        json.dumps(
+            {
+                "state": "waiting",
+                "detail": "comment on the prototype",
+                "ts": "t",
+            }
+        ).encode(),
+    )
+    os.close(writer)
+
+    first_out, first_err = first.communicate(timeout=60)
+    assert (first.returncode, first_out) == (2, ""), first_err
+    session = interact.page_claim(page)
+    assert session["id"] == "replacement"
+
+
+@pytest.mark.parametrize(
+    "identity_names",
+    [
+        pytest.param(
+            (
+                "CLAUDE_CODE_SESSION_ID",
+                "CLAUDE_PID",
+                "CODEX_THREAD_ID",
+                "LEAF_SESSION_ID",
+                "LEAF_AGENT",
+            ),
+            id="bare-shell",
+        ),
+        pytest.param((), id="host-session"),
+    ],
+)
+def test_wait_lease_is_exact_and_excludes_another_wait(
+    page_dir, monkeypatch, spawn, identity_names
+):
+    """The held lease, not a timestamp or pid, is the wait's liveness."""
+    for name in identity_names:
+        monkeypatch.delenv(name, raising=False)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    serving(page_dir, 1)
+    interact.cmd_status(page_dir, "waiting", "comment on the prototype")
+    # A bare waiter may hold an unclaimed page; a host waiter claims the page
+    # from its prior owner before taking its session-scoped lease.
+    if not identity_names:
+        record_claim(page_dir, id="past-session")
+    lease_path = (
+        page_dir / "waiter.lock"
+        if identity_names
+        else interact.waiter_lease_path(page_dir, interact.host_identity())
+    )
+    first = spawn(
+        [launcher, "wait", str(page_dir)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=os.environ,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not interact.lock_is_held(lease_path):
+        time.sleep(0.05)
+    assert interact.lock_is_held(lease_path)
+
+    second = subprocess.run(
+        [launcher, "wait", str(page_dir)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=os.environ,
+        check=False,
+    )
+    assert second.returncode == 2
+    assert "another `leaf wait` is already active" in second.stderr
+
+    first.terminate()
+    first.communicate(timeout=10)
+    assert not interact.lock_is_held(lease_path)
+
+
+def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
+    page_dir, monkeypatch
+):
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert interact.claim_page(page_dir)
+    first = interact.host_identity()
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(page_dir, first))
+    assert lease and page_state(page_dir)["listening"]
+
+    assert interact.claim_page(page_dir)
+    assert page_state(page_dir)["listening"]
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    assert interact.claim_page(page_dir)
+    assert not page_state(page_dir)["listening"]
+    lease.close()
+
+
+def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
+    page_dir, monkeypatch, capsys
+):
+    """A page-local lease proves only an unclaimed bare-shell watch."""
+    interact.cmd_status(page_dir, "waiting", "")
+    bare = interact.take_waiter_lease(page_dir / "waiter.lock")
+    assert bare
+    try:
+        assert page_state(page_dir)["listening"]
+        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "host-owner")
+        monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+        assert interact.claim_page(page_dir)
+        claim = interact.page_claim(page_dir)
+        assert not interact.lock_is_held(interact.waiter_lease_path(page_dir, claim))
+        assert interact.lock_is_held(page_dir / "waiter.lock")
+        assert not page_state(page_dir)["listening"]
+
+        interact.cmd_hook({"hook_event_name": "Stop", "session_id": "host-owner"})
+        answer = json.loads(capsys.readouterr().out)
+        assert answer["decision"] == "block"
+        assert "no watcher" in answer["reason"]
+
+        with interact.PageTransaction(page_dir) as page:
+            page.release_claim()
+        assert page_state(page_dir)["listening"]
+    finally:
+        bare.close()
 
 
 def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
@@ -6262,10 +8207,12 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     assert capsys.readouterr().out == ""
 
     # A live watcher, and a closed page, each end the turn cleanly.
-    interact.write_json(claimed / "heartbeat.json", {"t": time.time()})
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
-    (claimed / "heartbeat.json").unlink()
+    lease.close()
     interact.cmd_status(claimed, "idle", "")
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -6273,11 +8220,167 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     # A page a second session has since picked up is that session's to watch, so
     # s1 is no longer held to it.
     interact.cmd_status(claimed, "waiting", "")
-    interact.write_json(
-        claimed / "session.json", {"id": "s2", "pid": os.getpid(), "ts": "t"}
+    record_claim(claimed, id="s2")
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+
+def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
+    """A Stop decision belongs to the page's owner at decision time.
+
+    Hold the old owner's hook after it discovers the page, transfer the claim,
+    then let the hook finish reading. It must not block the old session on the
+    new owner's unwatched page.
+    """
+    interact.cmd_status(claimed, "waiting", "")
+    status = interact.read_json(claimed / "status.json")
+    status_path = claimed / "status.json"
+    status_path.unlink()
+    os.mkfifo(status_path)
+    answers = []
+    hook = threading.Thread(
+        target=lambda: answers.append(interact.unattended_pages("s1")), daemon=True
+    )
+    hook.start()
+    writer = fifo_writer(status_path, "the hook never reached its held status read")
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    assert interact.claim_page(claimed)
+    os.write(writer, interact.json_bytes(status))
+    os.close(writer)
+    hook.join(timeout=5)
+
+    assert not hook.is_alive()
+    assert answers == [[]]
+
+
+def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):
+    """Acknowledging is what takes a comment off the batch, so after it no
+    watcher will raise that comment again and every other gate reads the page as
+    clean. The failure, from a live channel session: a comment arrived while the
+    agent was mid-turn on something else, the agent acknowledged it, answered
+    the person in the terminal instead of on the page, and the reader was left
+    with a question that nothing would ever deliver again."""
+    interact.cmd_status(claimed, "waiting", "")
+    # Watched, which is the whole of what clears the guard's other case and
+    # clears nothing here.
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
+    asked = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    assert "1 acknowledged comment with no answer" in answer["reason"]
+    assert asked["id"] in answer["reason"]
+
+    # A reply clears it, and the thread stays open behind it: closing one is the
+    # reader's to do, so an open thread is not an unanswered one.
+    interact.cmd_reply(claimed, asked["id"], "because the fold is absolute", None)
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # The reader's follow-up puts the ask back, and this is the case that picks
+    # the reading. The browser posts a follow-up as a reply of the reader's own,
+    # so a gate asking whether anyone but them has *ever* spoken is answered
+    # "yes" by the reply above and never fires for this thread again — the drop
+    # this test is named for, one level down and just as permanent. Reading the
+    # last word costs a thread that wants no answer one `leaf resolve`, which is
+    # a question the agent is holding the context to settle; the other reading
+    # costs the reader their question, which nobody sees at all.
+    follow = interact.append_event(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": asked["id"],
+            "text": "but why not C?",
+        },
+    )
+    # Until it is acknowledged the follow-up is not this clause's, which is why
+    # the cursor is read against the last word and not the root: a watcher is
+    # still going to deliver this one. Read against the root — acknowledged long
+    # ago — the turn would block over a message the agent has not been handed.
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert asked["id"] in json.loads(capsys.readouterr().out)["reason"]
+    interact.cmd_reply(claimed, follow["id"], "C is slower on the hot path", None)
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # Closing the thread is the other way to answer for one, for the cases where
+    # waiting on the reader says nothing.
+    moot = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "and C?"}
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert moot["id"] in json.loads(capsys.readouterr().out)["reason"]
+    interact.cmd_resolve(claimed, moot["id"])
+    capsys.readouterr()  # cmd_resolve prints the event it wrote
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # The agent's own ask holds nothing while the reader has yet to answer it:
+    # the last word there is the agent's. When they answer in the thread — which
+    # is where the panel's reply box puts it — the ask is the agent's again, and
+    # it is the last word rather than any reading of the root that says so.
+    ask = interact.append_event(
+        claimed,
+        {"kind": "comment", "author": "claude", "text": "which storage engine?"},
     )
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
+    interact.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": ask["id"], "text": "sqlite"},
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert ask["id"] in json.loads(capsys.readouterr().out)["reason"]
+    interact.cmd_reply(claimed, ask["id"], "sqlite it is", None)
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+    lease.close()
+
+
+def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
+    """A page directory holds the copy of the layer it was created with, and the
+    stamp refuses a copy the current layer has outgrown — by design, since that
+    refusal is what sends an agent to re-vendor. The Stop hook is the one reader
+    that must never put the question: `loop-guard.py` fails open, so a raise
+    here stands the *whole* guard down, watch clause included, on any page a
+    little older than the checkout, and says nothing about it. Found by running
+    the guard against a real page from an earlier vendoring, where reading the
+    published version to settle threads loaded that page's registry."""
+    registry = interact.read_json(claimed / "registry.json")
+    del registry["$events"]["kinds"]["action"]
+    interact.write_json(claimed / "registry.json", registry)
+    # Without this the test passes for the wrong reason: it has to be a page
+    # whose registry the current layer really does refuse.
+    with pytest.raises(interact.RegistryError):
+        interact.load_registry(claimed)
+
+    interact.cmd_status(claimed, "waiting", "")
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
+    asked = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    assert asked["id"] in answer["reason"]
+    lease.close()
 
 
 def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
@@ -6292,9 +8395,12 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
 
     # Not while a watcher is live: it prints them itself, and sending Claude to start a
     # second `leaf wait` would print every unacknowledged event twice.
-    interact.write_json(claimed / "heartbeat.json", {"t": time.time()})
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
     interact.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     assert capsys.readouterr().out == ""
+    lease.close()
 
 
 def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
@@ -6312,7 +8418,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
         CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)]).exit_code
         == 0
     )
-    assert interact.session_pages("s7") == []
+    assert interact.owned_pages("s7") == []
     # `page init` left the page "working", which is the state the guard blocks on —
     # but only for a page some session answers for, and none does.
     interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
@@ -6320,7 +8426,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
 
     interact.append_event(page_dir, {"kind": "comment", "author": "user", "text": "hi"})
     assert CliRunner().invoke(interact.cli, ["wait", str(page_dir)]).exit_code == 0
-    assert interact.session_pages("s7") == [page_dir.resolve()]
+    assert interact.owned_pages("s7") == [page_dir.resolve()]
 
     # If wait's process finished without its output entering model context, the event
     # remains recoverable and the next hook names it rather than calling it delivered.
@@ -6332,8 +8438,10 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
 
 
-def test_loop_guard_agrees_with_interact_on_state_home(tmp_path, monkeypatch):
-    """The plain-Python hook inlines the uv script's XDG state resolution."""
+def test_loop_guard_agrees_on_claim_home_and_active_ownership(
+    tmp_path, monkeypatch, dead_pid
+):
+    """The plain-Python preflight reads the canonical active-claim rule."""
 
     def load(path):
         spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
@@ -6349,7 +8457,15 @@ def test_loop_guard_agrees_with_interact_on_state_home(tmp_path, monkeypatch):
         for key, value in env.items():
             monkeypatch.setenv(key, value)
         guard = load(PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py")
-        assert guard.SESSIONS == interact.state_home() / "sessions"
+        assert guard.CLAIMS == interact.state_home() / "claims"
+        page = tmp_path / f"page-{len(env)}"
+        page.mkdir(exist_ok=True)
+        record_claim(page, id="guarded")
+        assert guard.session_has_active_claim("guarded")
+        record_claim(page, id="guarded", released=interact.now_iso())
+        assert not guard.session_has_active_claim("guarded")
+        record_claim(page, id="guarded", pid=dead_pid)
+        assert not guard.session_has_active_claim("guarded")
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
@@ -6362,12 +8478,27 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert refused.exit_code == 1
     assert "1 update nobody has picked up" in refused.output
     assert interact.ACK_BATCH_INSTRUCTION in refused.output
+    assert "wait owner must finish the delivery contract" in refused.output
     assert interact.read_json(claimed / "status.json")["state"] != "idle"
 
     # `leaf wait` returns at once, and acknowledgement records that its output
-    # reached model context; only then can idle close the page.
+    # reached model context. Reading it is not answering it, though: the same
+    # user is still waiting, and now nothing will raise the comment again, so
+    # idle holds until the thread has something under it.
     assert CliRunner().invoke(interact.cli, ["wait", str(claimed)]).exit_code == 0
     assert CliRunner().invoke(interact.cli, ["ack", str(claimed), "1"]).exit_code == 0
+    refused = CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"])
+    assert refused.exit_code == 1
+    assert "1 acknowledged comment with no answer" in refused.output
+    assert interact.read_json(claimed / "status.json")["state"] != "idle"
+
+    comment = interact.read_events(claimed)[0]["id"]
+    assert (
+        CliRunner()
+        .invoke(interact.cli, ["reply", str(claimed), "--to", comment, "--text", "ok"])
+        .exit_code
+        == 0
+    )
     assert (
         CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
@@ -6391,20 +8522,109 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 update nobody has picked up" in refused.output
-    assert CliRunner().invoke(interact.cli, ["ack", str(claimed), "2"]).exit_code == 0
+    report = str(interact.read_events(claimed)[-1]["seq"])
+    assert (
+        CliRunner().invoke(interact.cli, ["ack", str(claimed), report]).exit_code == 0
+    )
+    # A report is the agent's own news, so acknowledging it is the whole of what
+    # it asks for; only a reader's comment owes an answer as well.
     assert (
         CliRunner().invoke(interact.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
     )
 
 
-def test_session_end_idles_the_page_and_stops_its_server(claimed):
+def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
+    page_dir, spawn
+):
+    """The pending check and idle transition are one decision.
+
+    A browser post serialized after the check but before the status write must
+    keep the page open. Otherwise Stop sees an idle page, permits the turn to
+    end, and leaves the newly appended event with no watcher to deliver it.
+    """
+    interact.cmd_status(page_dir, "waiting", "comment on the prototype")
+    marker = page_dir / "status-lock-requested"
+    comments = open(  # noqa: SIM115 - held across the child transition
+        page_dir / "comments.jsonl", "a+b"
+    )
+    fcntl.flock(comments, fcntl.LOCK_EX)
+    probe = """\
+original_flocked = interact.flocked
+comments = Path(os.environ["COMMENTS"]).resolve()
+marker = Path(os.environ["MARKER"])
+
+@contextlib.contextmanager
+def observed_flocked(path, **kwargs):
+    if Path(path).resolve() == comments:
+        marker.write_text("requested", encoding="utf-8")
+    with original_flocked(path, **kwargs) as stream:
+        yield stream
+
+interact.flocked = observed_flocked
+sys.argv = ["leaf", "status", os.environ["PAGE"], "idle"]
+interact.cli()
+"""
+    process = spawn_probe(
+        spawn,
+        page_dir,
+        probe,
+        COMMENTS=page_dir / "comments.jsonl",
+        MARKER=marker,
+    )
+
+    deadline = time.monotonic() + 10
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if not marker.exists():
+        comments.close()
+        process.kill()
+        process.communicate()
+        pytest.fail("the idle command never requested the held comments-log lock")
+
+    # The marker is immediately before the command's lock acquisition. In the
+    # broken ordering it appears only after the empty pending read; in the fixed
+    # ordering it appears before that read. Appending while this process owns the
+    # lock therefore makes the old command idle and the fixed command refuse.
+    comments.seek(0, os.SEEK_END)
+    comments.write(
+        (
+            interact.jsonl_line(
+                {
+                    "kind": "comment",
+                    "id": "c1",
+                    "author": "user",
+                    "text": "one last thing",
+                }
+            )
+            + "\n"
+        ).encode()
+    )
+    comments.flush()
+    os.fsync(comments.fileno())
+    fcntl.flock(comments, fcntl.LOCK_UN)
+    comments.close()
+
+    out, err = process.communicate(timeout=60)
+    assert process.returncode == 1, f"{out}{err}"
+    assert "1 update nobody has picked up" in err
+    assert interact.read_json(page_dir / "status.json")["state"] == "waiting"
+
+
+def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert interact.start_server(claimed)  # a real detached server to clean up
     interact.cmd_status(claimed, "waiting", "")
     interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
-    assert interact.read_json(claimed / "status.json")["state"] == "idle"
-    assert interact.running_server(claimed) is None
-    assert interact.session_pages("s1") == []
+    deadline = time.time() + 5
+    while interact.running_server(claimed):
+        assert time.time() < deadline, "the unclaimed session server stayed up"
+        time.sleep(0.05)
+    assert interact.read_json(claimed / "status.json")["state"] == "waiting"
+    assert interact.read_json(claimed / "service.json")["enabled"] is True
+    claim = interact.page_claim(claimed)
+    assert claim is not None
+    assert claim["released"] is not None
+    assert interact.owned_pages("s1") == []
 
 
 @pytest.fixture
@@ -6428,6 +8648,7 @@ def managed_server(spawn):
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
+        record_claim(page_dir, id=session_id, pid=session_pid)
         process = spawn(
             [
                 sys.executable,
@@ -6462,7 +8683,8 @@ def test_a_server_exits_when_its_session_is_hard_killed(
 
     server.wait(timeout=5)
     assert server.returncode == 0, server.stderr.read()
-    assert not (page_dir / "server.json").exists()
+    assert interact.read_json(page_dir / "service.json")["enabled"] is True
+    assert not interact.lock_is_held(page_dir / "server.lock")
 
 
 def test_a_live_session_can_take_over_an_existing_server(
@@ -6470,10 +8692,7 @@ def test_a_live_session_can_take_over_an_existing_server(
 ):
     first, second = session_process(), session_process()
     server = managed_server(page_dir, "first", first.pid)
-    interact.write_json(
-        page_dir / "session.json",
-        {"id": "second", "pid": second.pid, "agent": "Codex", "ts": "t"},
-    )
+    record_claim(page_dir, id="second", pid=second.pid, agent="Codex")
     first.terminate()
     first.wait(timeout=5)
     assert server.poll() is None
@@ -6482,9 +8701,10 @@ def test_a_live_session_can_take_over_an_existing_server(
     second.wait(timeout=5)
     server.wait(timeout=5)
     assert server.returncode == 0, server.stderr.read()
+    assert interact.read_json(page_dir / "service.json")["enabled"] is True
 
 
-def start_through_the_launcher(page_dir, *flags):
+def start_through_the_launcher(page_dir, *flags, session_id="starter"):
     """`server start` the way an agent runs it: from a host session, as a command
     that returns."""
     return subprocess.run(
@@ -6497,7 +8717,7 @@ def start_through_the_launcher(page_dir, *flags):
             str(page_dir),
         ],
         env=os.environ
-        | {"CLAUDE_CODE_SESSION_ID": "starter", "CLAUDE_PID": str(os.getpid())},
+        | {"CLAUDE_CODE_SESSION_ID": session_id, "CLAUDE_PID": str(os.getpid())},
         capture_output=True,
         text=True,
         timeout=30,
@@ -6519,28 +8739,26 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     assert "session server" in started.stderr
     info = interact.running_server(page_dir)
     assert info and info["url"] == url
-    # The child claims the page from the environment `server start` handed
-    # it, which is what the loop's hooks find the session's pages through —
-    # and records the lifetime the note is read back out of.
-    assert interact.read_json(page_dir / "session.json")["id"] == "starter"
-    assert interact.read_json(page_dir / "access.json")["lifetime"] == "session"
-    # A session of its own is the fact that says no shell holds this: nothing
-    # reaping the process group the launcher ran in reaches the server.
-    assert os.getsid(info["pid"]) != os.getsid(os.getpid())
+    # The child claims only after its refusal and bind checks, which is what lets
+    # the loop's hooks find the session's pages without a failed start taking one.
+    assert interact.page_claim(page_dir)["id"] == "starter"
+    service = interact.read_json(page_dir / "service.json")
+    assert service["lifetime"] == "session"
+    assert set(service) == {"host", "bind", "port", "enabled", "lifetime"}
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
     assert urllib.request.urlopen(state).status == 200
 
 
-def test_server_start_forwards_its_flags_and_relays_the_serves_own_words(page_dir):
+def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     """`server start` states nothing about a serve itself. The flags go verbatim
-    to the `server run` it spawns and the account comes back from there, so the
+    to the service it spawns and the account comes back from there, so the
     lifetime a flag declared and the refusal a running server earns are both that
     process's own words, carried out with its exit status."""
     standing = start_through_the_launcher(page_dir, "--standing")
     assert standing.returncode == 0, standing.stderr
     assert "standing server" in standing.stderr
-    assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
-    assert not (page_dir / "session.json").exists()
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == "standing"
+    assert interact.page_claim(page_dir) is None
 
     refused = start_through_the_launcher(page_dir, "--host", "devbox.corp.example")
     assert refused.returncode != 0
@@ -6548,6 +8766,7 @@ def test_server_start_forwards_its_flags_and_relays_the_serves_own_words(page_di
     assert "server stop" in refused.stderr
     # Nothing on stdout, so a caller reading the URL there reads no URL.
     assert not refused.stdout.strip()
+    assert interact.page_claim(page_dir) is None
 
 
 @pytest.fixture
@@ -6580,13 +8799,211 @@ def standing_server(spawn, sessionless):
     return start
 
 
+@pytest.mark.parametrize("lifetime", ["standing", "session"])
+def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
+    page_dir, spawn, monkeypatch, lifetime
+):
+    """Disabled desired state makes re-vendor replace the whole contract."""
+    publish(page_dir)
+    old_skill = page_dir.parent / "old-skill"
+    old_script = old_skill / "scripts" / "interact.py"
+    old_script.parent.mkdir(parents=True)
+    old_script.write_text(Path(interact.__file__).read_text())
+    shutil.copytree(interact.ASSETS, old_skill / "assets")
+    old_registry = interact.read_json(page_dir / "registry.json")
+    del old_registry["$events"]["kinds"]["comment"]["record"]["properties"]["attempt"]
+    interact.write_json(page_dir / "registry.json", old_registry)
+    interact.write_json(old_skill / "assets" / "registry.json", old_registry)
+
+    if lifetime == "standing":
+        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+        monkeypatch.delenv("CLAUDE_PID")
+    old_server = spawn(
+        [
+            sys.executable,
+            str(old_script),
+            "server",
+            "run",
+            str(page_dir),
+            *(["--standing"] if lifetime == "standing" else []),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    url = old_server.stdout.readline().strip()
+    assert url.startswith("http://127.0.0.1:")
+    assert f"{lifetime} server" in old_server.stderr.readline()
+    prior_status = interact.read_json(page_dir / "status.json")
+    prior_owner = interact.page_claim(page_dir)
+
+    endpoint = urllib.parse.urlsplit(url)._replace(path="/api/event").geturl()
+    comment = {
+        "kind": "comment",
+        "version": 1,
+        "text": "Can the replacement route this?",
+        "attempt": "replacement_route_1",
+    }
+    status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
+    assert status == 400
+    assert (
+        "Additional properties are not allowed ('attempt' was unexpected)"
+        in (json.loads(body)["error"])
+    )
+
+    project_layer = page_dir.parent / ".leaf"
+    project_layer.mkdir()
+    (project_layer / "theme.css").write_text(":root { --accent: red; }\n")
+    files_before = {
+        path.relative_to(page_dir): path.read_bytes()
+        for path in page_dir.rglob("*")
+        if path.is_file()
+    }
+    runner = CliRunner()
+    refused = runner.invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert refused.exit_code == 1
+    assert "cannot re-vendor" in refused.output
+    assert "server stop" in refused.output
+    assert old_server.poll() is None
+    assert {
+        path.relative_to(page_dir): path.read_bytes()
+        for path in page_dir.rglob("*")
+        if path.is_file()
+    } == files_before
+
+    stopped = runner.invoke(interact.cli, ["server", "stop", str(page_dir)])
+    assert stopped.exit_code == 0, stopped.output
+    old_server.wait(timeout=5)
+
+    revendored = runner.invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert revendored.exit_code == 0, revendored.output
+    assert b":root { --accent: red; }" in (page_dir / "theme.css").read_bytes()
+    owner_id = prior_owner["id"] if prior_owner else "starter"
+    started = start_through_the_launcher(
+        page_dir,
+        session_id=owner_id,
+    )
+    assert started.returncode == 0, started.stderr
+    assert started.stdout.strip() == url
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == lifetime
+    assert interact.page_claim(page_dir)["id"] == owner_id
+    restored = interact.read_json(page_dir / "status.json")
+    assert restored == prior_status
+
+    status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
+    assert status == 200, body
+    events = interact.read_events(page_dir)
+    assert [event["kind"] for event in events] == ["note", "comment"]
+    assert events[-1]["attempt"] == comment["attempt"]
+
+
+def test_server_stop_disables_desired_state_without_signalling_a_pid(
+    page_dir, monkeypatch
+):
+    interact.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 41000,
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
+    (page_dir / "server.lock").write_bytes(b"")
+
+    def unexpected_signal(*_args):
+        pytest.fail("an unlocked record's pid was signalled")
+
+    monkeypatch.setattr(interact.os, "kill", unexpected_signal)
+
+    assert interact.cmd_stop(page_dir) == "no server running"
+    assert interact.read_json(page_dir / "service.json")["enabled"] is False
+
+
+def test_session_end_cannot_release_a_page_claimed_by_its_successor(
+    page_dir, monkeypatch
+):
+    serving(page_dir, 41000, "session")
+    record_claim(page_dir, id="successor")
+    interact.cmd_status(page_dir, "waiting", "successor is reviewing")
+    monkeypatch.setattr(interact, "owned_pages", lambda _session_id: [page_dir])
+
+    interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "predecessor"})
+
+    assert interact.page_claim(page_dir)["id"] == "successor"
+    assert interact.read_json(page_dir / "service.json")["enabled"] is True
+    assert interact.read_json(page_dir / "status.json")["detail"] == (
+        "successor is reviewing"
+    )
+    assert interact.running_server(page_dir)
+
+
+def test_server_stop_waits_for_the_live_server_to_release_its_lease(
+    page_dir, standing_server
+):
+    server = standing_server(page_dir)
+    os.kill(server.pid, signal.SIGSTOP)
+    outcomes, errors = [], []
+
+    def stop():
+        try:
+            outcomes.append(interact.cmd_stop(page_dir))
+        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+            errors.append(error)
+
+    stopping = threading.Thread(target=stop)
+    stopping.start()
+    try:
+        deadline = time.time() + 5
+        while interact.read_json(page_dir / "service.json")["enabled"]:
+            assert time.time() < deadline, "server stop never disabled the service"
+            time.sleep(0.01)
+        returned_while_paused = not stopping.is_alive()
+    finally:
+        os.kill(server.pid, signal.SIGCONT)
+    stopping.join(timeout=5)
+    server.wait(timeout=5)
+
+    assert not returned_while_paused, "server stop returned before lock release"
+    assert not stopping.is_alive(), "server stop did not cross the release barrier"
+    assert errors == []
+    assert outcomes == ["stopped server"]
+    assert not interact.lock_is_held(page_dir / "server.lock")
+
+
+def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_server):
+    server = standing_server(page_dir)
+    service = interact.read_json(page_dir / "service.json")
+    connection = http.client.HTTPConnection(service["host"], service["port"])
+    connection.request("GET", f"/api/state?t={interact.host_key()}")
+    response = connection.getresponse()
+    assert response.status == 200
+    response.read()
+    accepted = connection.sock
+    accepted.sendall(
+        (
+            f"GET /api/state?t={interact.host_key()} HTTP/1.1\r\n"
+            f"Host: {service['host']}\r\n"
+        ).encode()
+    )
+
+    assert interact.cmd_stop(page_dir) == "stopped server"
+    server.wait(timeout=5)
+
+    accepted.settimeout(1)
+    try:
+        accepted.sendall(b"\r\n")
+        remainder = accepted.recv(1)
+    except OSError:
+        remainder = b""
+    assert remainder == b""
+
+
 def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     page_dir, dead_pid, standing_server
 ):
-    interact.write_json(
-        page_dir / "session.json",
-        {"id": "old-session", "pid": dead_pid, "agent": "Codex", "ts": "t"},
-    )
+    record_claim(page_dir, id="old-session", pid=dead_pid, agent="Codex")
     server = standing_server(page_dir)
     # The only held window in the suite, because it is the only assertion with nothing
     # to consume: a watcher that never starts states nothing, and the server going on
@@ -6620,14 +9037,14 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
     )
     assert process.stdout.readline().startswith("http://127.0.0.1:")
     assert "standing server" in process.stderr.readline()
-    assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
-    assert not (page_dir / "session.json").exists()
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == "standing"
+    assert interact.page_claim(page_dir) is None
 
 
 def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):
     """A stated lifetime contradicted by the running server is refused with the
     way out named, exactly as a stated `--host` is — not silently ignored."""
-    serving(page_dir, {"port": 1, "pid": os.getpid(), "url": "http://127.0.0.1:1/?t=x"})
+    serving(page_dir, 1, "session")
     result = CliRunner().invoke(
         interact.cli, ["server", "run", "--standing", str(page_dir)]
     )
@@ -6643,8 +9060,8 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     watch obligation and nothing else, so the session's end must take down neither the
     process it didn't start nor a leaf that outlives it."""
     server = standing_server(page_dir)
-    launched = interact.read_json(page_dir / "server.json")
-    assert interact.read_json(page_dir / "access.json")["lifetime"] == "standing"
+    launched = interact.running_server(page_dir)
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == "standing"
 
     # A session picks the page up, the way `leaf wait` does.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
@@ -6664,13 +9081,12 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
 
     interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
 
-    # The hook is synchronous, so its declining to act is complete when it returns
-    # and there is no window to hold: `cmd_stop` unlinks server.json whether or not
-    # its kill lands, so the record standing is a stop never attempted.
-    assert interact.read_json(page_dir / "server.json") == launched
+    # The synchronous hook left the standing service enabled and live.
+    assert interact.running_server(page_dir) == launched
     assert interact.read_json(page_dir / "status.json")["state"] == "waiting"
-    # And `cmd_stop` reports a stop only for a pid it finds alive, so this reads
-    # twice: the server was still running, and this is the one thing that ends it.
+    assert interact.page_claim(page_dir)["released"] is not None
+    assert page_dir not in interact.owned_pages("later")
+    # Explicit stop crosses that server's release barrier before returning.
     assert "stopped server" in interact.cmd_stop(page_dir)
     server.wait(timeout=5)
 
@@ -6679,9 +9095,7 @@ def test_state_reports_whether_the_owning_session_still_exists(claimed, dead_pid
     """The banner's one hard fact: a status.json claim outlives its session, the
     owning pid doesn't."""
     assert page_state(claimed)["session_alive"] is True
-    interact.write_json(
-        claimed / "session.json", {"id": "s1", "pid": dead_pid, "ts": "t"}
-    )
+    record_claim(claimed, pid=dead_pid)
     assert page_state(claimed)["session_alive"] is False
 
 
@@ -6918,11 +9332,11 @@ def test_no_example_writes_another_example_s_sentences():
     is not: a page that borrows one is describing another page's work in that page's
     words, and the corpus is the one place a reader sees them side by side.
 
-    A batch of them got in at once, and the cause was upstream of the corpus. SKILL.md's
-    "announce interactivity in prose" entry quoted two model sentences, and both reached
-    shipped examples word for word; a phrase sitting ready to paste is a phrase that
-    gets pasted. That entry now names what the sentence must carry instead, and this is
-    what says whether it worked.
+    A batch of them got in at once, and the cause was upstream of the corpus.
+    references/page-authoring.md's "Interactivity and evidence" entry quoted two model
+    sentences, and both reached shipped examples word for word; a phrase sitting ready
+    to paste is a phrase that gets pasted. That entry now names what the sentence must
+    carry instead, and this is what says whether it worked.
 
     Twelve words, from a measurement rather than a guess: with those rewritten, the
     longest run any two examples share is seven, and nothing at all is shared at eight.
@@ -7152,10 +9566,12 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     """Several worker sessions report to one page. Each agent-authored event
     carries its poster's display name and session id from the poster's own
     environment, so the log tells the voices apart by id; the claim — the
-    watcher the banner names — stays the hub's, untouched by a worker's post."""
+    watcher the banner names — and every publication stay the hub's, untouched
+    by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
+    _tasks_version(page_dir, 1, "active")
     interact.claim_page(page_dir)
     published(page_dir)
     interact.append_event(
@@ -7169,20 +9585,23 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
+    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
     assert reply("indexing done").exit_code == 0
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
     events = interact.read_events(page_dir)
-    note = next(e for e in events if e["kind"] == "note")
-    assert (note["agent"], note["session"]) == ("Hub", "hub")
+    notes = [e for e in events if e["kind"] == "note"]
+    assert [(e["agent"], e["session"]) for e in notes] == [("Hub", "hub")]
+    report = next(e for e in events if e["kind"] == "report")
+    assert (report["agent"], report["session"]) == ("Indexer", "worker-1")
     replies = [e for e in events if e["kind"] == "reply"]
     assert [(e["agent"], e["session"]) for e in replies] == [
         ("Indexer", "worker-1"),
         ("Crawler", "worker-2"),
     ]
-    session = interact.read_json(page_dir / "session.json")
+    session = interact.page_claim(page_dir)
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
     # The reader meets each message under the name it carried.
@@ -7290,6 +9709,19 @@ def test_export_prints_threads_and_versions(page_dir):
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
     assert "- `b`: move card=card-x to=col-done index=0 (on v1)" in result.output
+
+    # And one they took back is an outcome under its own name: left out it would
+    # read as never made, and shown plainly it would read as final.
+    moved = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
+    interact.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
+    )
+    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert (
+        "- `b`: move card=card-x to=col-done index=0 (on v1) — taken back"
+        in result.output
+    )
     assert "> “flip reads”  — resolved" in result.output
     assert "- **User**: why?" in result.output
     # The widget rides its message into the transcript, indented under the words.
@@ -7891,6 +10323,52 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
     assert result.exit_code == 0, result.output
+
+
+def test_a_decision_the_reader_took_back_hands_its_slot_back(page_dir):
+    """Withdrawing is the second way a decision stops standing, and the file's
+    reading owes it the same answer as `restated`: the retired half is on the page
+    again, so a quote reaches it. Both are read in the one fold, which is what makes
+    a single clause serve the anchor pass, the lint's state gate, and the ids a
+    version honoring the decision would have been allowed to drop."""
+    suggested(page_dir)
+    decide(page_dir, "accept")
+    retired = ["--quote", "Refill every feeder each morning.", "--text", "x"]
+    assert comment(page_dir, *retired).exit_code != 0
+
+    accepted = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
+    interact.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
+    )
+    result = comment(page_dir, *retired)
+    assert result.exit_code == 0, result.output
+
+
+def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
+    """The sharpest reading of whether a withdrawal actually undid anything, because
+    it is the one the reader never sees: honoring a decision is how a version drops
+    the ids the decision retired, and `version check` licenses that only from the
+    standing fold. The same v2 is therefore accepted while the accept stands and
+    refused the moment it is taken back — which is the file side saying the page is
+    pending again, in the one place it could not be saying it out of politeness."""
+    suggested(page_dir)
+    decide(page_dir, "accept")
+    # What honoring an accept looks like: the surviving half written straight,
+    # keeping its id, and the wrapper and the retired half gone with the decision.
+    honored = SUGGESTED.replace(
+        SUGGESTION,
+        '<p id="refill-camera">Refill when the camera shows it half-empty.</p>\n'
+        "<lf-options>",
+    )
+    assert "sug-refill" not in honored and "refill-rule" not in honored
+    (page_dir / "versions" / "v2.html").write_text(honored)
+    assert interact.cmd_check(page_dir, 2) == 0
+
+    accepted = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
+    interact.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
+    )
+    assert interact.cmd_check(page_dir, 2) == 1
 
 
 def test_what_the_reader_never_sees_is_not_quotable(page_dir):

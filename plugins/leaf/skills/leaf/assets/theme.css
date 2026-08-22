@@ -42,6 +42,10 @@
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
+  /* One timing contract for first presentation. leaf.js reads the dwell here,
+     so the paint and release cannot drift into two ideas of "shown". */
+  --lf-presentation-delay: 300ms;
+  --lf-presentation-dwell: 400ms;
   /* --rail, the comment margin, has no value here: it is the widest control row plus
      its gap, which is a fact about the controls' own words and face, so lf-suggestion.js
      measures the first row it builds and states it on the root element. The rule that
@@ -125,12 +129,15 @@
      2.38:1, which is the "the highlighting is gone" report the syntax block below
      was written for. */
   --mark: #dfd1ed66; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
-  /* The "you are here" ring: the band the ask walk's mark is drawn in
-     ([data-lf-ask], leaf.js), and the band a control focused as one thing draws
-     its own ring in (a joined choose group, bundled/theme.css). Both read these
-     two tokens because the two facts coincide — `n` lands on an ask and hands it
-     the focus in the same move — and stated apart they were one ring free to
-     become two. */
+  /* The "you are here" ring: where the reader is standing, wherever they are
+     standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
+     focused as one thing draws its own in the same band (a joined choose group,
+     bundled/theme.css), and so do the runtime's own controls, which is where a
+     reader backing out of the panel lands. One band for one fact — stated apart,
+     the same ring was free to become three, and a reader would have had to learn
+     that a blue rectangle on the banner and a blue rectangle down the page meant
+     the same thing. The gap is what the ring wants outside a box that stands on
+     its own; a control packed into a list states its own inset instead. */
   --here-ring: 2px solid var(--accent); --here-ring-gap: 3px;
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
@@ -243,6 +250,113 @@
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        padding-left: var(--strip-l, 0px); padding-right: var(--strip-r, 0px); }
+/* The document arrives with authored initial state while the log may already hold
+ * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
+ * after the first poll has either replayed the log or said the server is offline, so a
+ * version navigation never presents the old decision for one fetch-width and then
+ * replaces it. Visibility keeps the ordinary case out of the accessibility and hit-test
+ * trees, opacity closes the paint boundary under descendants that explicitly make
+ * themselves visible, and interactivity makes the whole flat-tree subtree inert even if
+ * one of those descendants opts back into focus or pointer handling. All three preserve
+ * every box: replay measures the page it will reveal rather than a display:none document
+ * with no geometry.
+ *
+ * The hold is opted into by the canonical module tag as soon as the stylesheet can paint.
+ * Waiting to infer it from JavaScript left one paint between HTML parse and module
+ * evaluation. Runtime chrome is deliberately outside main: Comments remains usable while
+ * widgets upgrade, and its panels stand above the waiting surface. A scriptless rendering
+ * therefore stays ordinary prose, while a module that never evaluates or fails before
+ * reading the log leaves a fixed recovery message rather than unread authored decisions.
+ * Screen only: paper and an exported copy carry no live log to wait for. */
+/* The anonymous layer is first in the merged theme, so its important declarations
+   outrank every later layer and unlayered stylesheet declaration without reserving a
+   named layer custom CSS could append to. Inline importance ranks higher still, so the
+   version gate refuses it on the protected properties below. */
+@layer {
+  @media screen {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main,
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main * {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      interactivity: inert !important;
+      pointer-events: none !important;
+    }
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main *::backdrop {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    /* Arriving is not a gesture, said here for the cascade as leaf.js's `motion`
+       already says it for the runtime's own Web Animations. The chrome a reader left
+       standing is put back while the page is still arriving, and every put-back is a
+       property changing: the panel opens, the board goes up, the toast steps aside
+       into the corner the open panel leaves it. Each of those is a move the reader
+       made once and is not making now, so animating it plays a decision back at
+       somebody who came here to read what follows from it. The hold above cannot
+       cover this — it hides `main`, and the chrome is deliberately outside `main` so
+       discussion stays usable while widgets upgrade, which is exactly what leaves the
+       moving parts on screen. A gesture actually made inside this window loses its
+       motion too, and should: `motion` has collapsed one to its end state for as long
+       as the boundary has existed, and one sentence with two answers would be the
+       cheaper bug.
+
+       Two selectors, because the sentence is about two things and not about every
+       element: the page's own box, which the panel's strip moves, and the runtime's
+       chrome, which wears `lf-ui` on each of the boxes it builds. Written as a
+       descendant `*` instead — which is what "nothing transitions yet" wants to say —
+       it costs the page for its whole life rather than for this window, because a
+       rule whose rightmost compound is universal is weighed against every element on
+       every recalculation and cannot know the window has closed. Measured on the
+       shipped examples: 70ms of style recalculation became 83 on design-decision and
+       896 became 955 on the gallery, where these two selectors are inside the run to
+       run spread of the same pages. `transition` does not inherit, so what an
+       unreached descendant can still play is a transition of its own declaring; that
+       is the trade, and the check that finds one is the suite's rather than this
+       rule's (test_render.py, the reader who left something standing). */
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]),
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) .lf-ui {
+      transition: none !important;
+    }
+  }
+}
+@media screen {
+  html:has(script[type="module"][src="/leaf.js"])
+    body:not([data-lf-presented])::after {
+    content: "Applying current decisions\2026  If this stays, reload the page.";
+    visibility: visible;
+    opacity: 0;
+    animation: lf-presentation-wait 1ms step-start
+      var(--lf-presentation-delay) forwards;
+    position: fixed;
+    inset: var(--lf-banner-h, 0px) 0 0;
+    z-index: 8800;
+    /* This fixed sheet is also the pointer boundary. A descendant can override an
+       inherited visibility or pointer-events value; it cannot paint through its
+       ancestor's opacity or receive a pointer through a higher stacking layer. Leaf's
+       banner and panels stand above it, so discussion remains usable while authored
+       content waits. */
+    pointer-events: auto;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 24px;
+    background: var(--paper);
+    color: var(--muted);
+    font: var(--t-5)/1.5 var(--sans);
+    text-align: center;
+  }
+}
+@keyframes lf-presentation-wait {
+  from,
+  to {
+    opacity: 1;
+  }
+}
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.
@@ -779,12 +893,32 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 }
 
 /* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
- * wrapper generates no box, so a suggestion sits inline mid-sentence or wraps
- * whole sections without disturbing either flow; the slots carry the marks,
- * inline by default and block when they hold block content. A decision is the
- * end of the matter visually: the settled slot loses every mark and reads as
- * ordinary prose, and a suggestion with nothing left to show disappears. */
-lf-suggestion { display: contents; }
+ * wrapper takes the form its content takes — inline among the words for a change of a
+ * phrase, block around the slots for one of whole paragraphs — so a suggestion sits
+ * mid-sentence or wraps whole sections without disturbing either flow, and either way
+ * the change is one box. The slots carry the marks. A decision is the end of the matter
+ * visually: the settled slot loses every mark and reads as ordinary prose, and a
+ * suggestion with nothing left to show disappears.
+ *
+ * It generated no box at all once (display: contents), which is this same reading of
+ * "follow the content" with the box left out — and a box is what anything asking where
+ * the change is has to have. An element generating none measures (0,0) at the document's
+ * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
+ * Four consumers met that separately and each worked around it where it stood: the ring
+ * had nothing to hang on, the ask walk's travel centred the document, a container's edge
+ * rule reached past the wrapper to the slots, and the widget prepends a span to itself
+ * for its controls to anchor from. None of the first three arises here now. The fourth
+ * outlived the reason it was written for and earns its place on another: what a widget
+ * builds for itself is what it can rely on, and which form this wrapper takes is a
+ * stylesheet's to say — a layer restyling it boxless would take the controls off the
+ * page altogether (see lf-suggestion.js). A wrapper that draws nothing still has to be
+ * somewhere.
+ *
+ * Having a box also puts the wrapper in front of the render gate's floors, and the
+ * width floor is written for widgets that reserve a region. This one's box is its
+ * content's in both forms, words included — a one-word swap is ~30px and correct — so
+ * the entry declares x-inline, which is the key that names whose floor is whose. */
+lf-suggestion { display: inline; }
 lf-old, lf-new { border-radius: 3px; padding: 0 3px; }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
@@ -816,27 +950,36 @@ lf-new { background: var(--add-tint); }
  * other, and it cannot see a name dropped from both.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
- * reads as a stack. A suggestion generates no box, so these slots are the flow's own
- * boxes and their outer margins are what a container reads at its own edge — which is
- * how a quoted change came to stand 10px inside the gutter marking it, with nothing
- * able to reach it: a rule for the specimen's last child finds the suggestion, and the
- * suggestion is boxless. Asking for the room on one side is what a box in a stack can
- * say without claiming a container's edge, and it costs the pair nothing, since the
- * gap between two slots and between two suggestions is the second one's either way.
- * Nor does it cost the prose around a change: collapsing already took the larger of
- * this 10px and the 13px a paragraph reserves, so the side that went was one no reader
- * ever saw. The inline form needs no guard here — a vertical margin on a non-replaced
- * inline box lays nothing out.
+ * reads as a stack. That was once the only room the slots could ask for: while the
+ * wrapper was boxless they were the flow's own boxes, their outer margins were what a
+ * container read at its own edge, and a quoted change stood 10px inside the gutter
+ * marking it with nothing able to reach it — a rule for the specimen's last child found
+ * the suggestion, and the suggestion had no box. The wrapper is that box now, and the
+ * room stays on one side because it is the better answer anyway: it costs the pair
+ * nothing, the gap between two slots and between two suggestions being the second one's
+ * either way. Nor does it cost the prose around a change: collapsing already took the
+ * larger of this 10px and the 13px a paragraph reserves, so the side that went was one
+ * no reader ever saw.
+ *
+ * Both slots take the block form together, the wrapper being what asks the question:
+ * what the reader is deciding is one change, not two halves with their own layouts. A
+ * paragraph replaced by a phrase used to render as a full-width struck field with a
+ * three-word pill under it, which is what a suggestion looks like when each slot
+ * answers for itself.
  *
  * The padding then frames what the slot holds, so the slot says so: a block change is a
  * whole paragraph in a tinted field, and the 2px it states came out 15 at each end on
  * every one in the corpus. */
-:is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
-    cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
-    label, link, map, mark, math, meta, meter, noscript, object, output, picture,
-    progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
-  display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
+lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo, br,
+    button, canvas, cite, code, data, datalist, del, dfn, em, embed, i, iframe, img,
+    input, ins, kbd, label, link, map, mark, math, meta, meter, noscript, object,
+    output, picture, progress, q, ruby, s, samp, script, select, slot, small, span,
+    strong, sub, sup, svg, template, textarea, time, u, var, video, wbr, lf-old,
+    lf-new, lf-chip, lf-suggestion)) {
+  display: block;
+  & > :is(lf-old, lf-new) {
+    display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
+}
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
@@ -853,8 +996,14 @@ lf-new { background: var(--add-tint); }
 lf-old, lf-new { transition: padding .22s ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
-lf-suggestion[data-lf-state="accept"] > lf-old,
-lf-suggestion[data-lf-state="reject"] > lf-new { display: none; }
+/* A slot the standing decision retired, marked by the runtime from the registry's own
+ * relation (data-lf-retired, leaf.js renderRetired). One rule for every family, so a
+ * holder a project declares hides what a settlement removes the day it declares it —
+ * the by-name pair that stood here was the closed list wearing CSS's clothes. A
+ * module's fold outranks this with its inline display for the length of the motion,
+ * and an exported copy keeps marker and rule with no module behind them. What no
+ * relation can say stays the family's own, like the emptied wrapper below. */
+[data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* Whose job it is to say the change is only proposed, in each medium. On screen the
@@ -906,9 +1055,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-sug-actions.lf-waiting { display: none; }
 .lf-sug-actions.lf-docked { position: static; margin: 2px 0 12px; }
 /* The controls are .lf-pill — the margin's press, stated once in the runtime's
- * document-level vocabulary, where the 💬 that shares this margin wears it too. What
- * is here is only what a suggestion's own states add to it. */
-.lf-sug-actions [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+ * document-level vocabulary, where the 💬 that shares this margin wears it too, and
+ * where the ring that says the reader is standing on one is stated with it. What is
+ * here is only what a suggestion's own states add to it. */
 /* Hover is an offer, so the coloured edge is the pending row's alone: a decided one has
  * nothing left to press and its own colour to keep. Scoped rather than unsaid
  * afterwards — a hover rule undone by a later one is the shape the row form's first

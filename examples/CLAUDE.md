@@ -2,13 +2,13 @@
 
 ## Every widget and idiom in the vocabulary stands here
 
-`test_render.py` runs eight sweeps over every page in `examples/`: each page
-renders in both palettes, holds still under a press, passes axe, gives up every
-passage to a quote, answers an anchor written from its own file, and exports with
-its scripts gone. So the examples are the corpus those sweeps read, and a widget
-that stands in no example is a widget the sweeps have never seen inside a whole
-page. That gap is easy to miss, because the widget's own tests are green — the
-missing coverage reads as coverage.
+The nightly run drives eight sweeps over every page in `examples/`. Each page renders
+in both palettes, holds still under a press, passes axe, gives up every passage to a
+quote, answers an anchor written from its own file, and exports with its scripts gone.
+So the examples are the corpus those sweeps read, and a widget that stands in no
+example is a widget the sweeps have never seen inside a whole page. That gap is easy
+to miss, because the widget's own tests are green — the missing coverage reads as
+coverage.
 
 It happened to `lf-shot` and `lf-specimen`: both were outside the corpus from the
 day they were written. A specimen stood on two `docs/` pages, and the sweeps do
@@ -108,12 +108,12 @@ The gesture vocabulary repeats, and is meant to: every board takes a drag, every
 group takes a pick. The sentence around the gesture must not repeat, because a
 page that borrows another page's sentence describes its own work in another
 page's words. The corpus is where the borrowing shows, being the one place a
-reader sees the examples side by side. The rule itself lives in SKILL.md
-("announce interactivity in prose"), since it governs every page and not only
-these; what lives here is the check.
+reader sees the examples side by side. The rule lives in
+references/page-authoring.md under "Interactivity and evidence", since it
+governs every page and not only these; what lives here is the check.
 
 A batch of borrowed sentences once arrived in a single commit, and the cause was
-upstream of the corpus: that same SKILL.md entry quoted two model sentences, and
+upstream of the corpus: the authoring guidance quoted two model sentences, and
 both reached shipped examples word for word.
 `test_no_example_writes_another_example_s_sentences` holds the corpus to at most
 twelve consecutive shared words. Today no two examples share more than seven, and

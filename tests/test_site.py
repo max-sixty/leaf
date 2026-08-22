@@ -15,6 +15,7 @@ besides. The docs pages are read as files, which is how a checkout reads them.
 """
 
 import importlib.util
+import json
 import re
 import shutil
 import threading
@@ -45,7 +46,7 @@ PHONE = {"width": 390, "height": 844}
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
-pytestmark = pytest.mark.xdist_group(name="site")
+pytestmark = [pytest.mark.nightly, pytest.mark.xdist_group(name="site")]
 
 
 def pages_under(directory):
@@ -128,9 +129,14 @@ def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     a static host reports none of it."""
     for name in ("theme.css", "registry.json", "icon.svg", "runtime.js", "leaf.js"):
         assert (site / name).is_file(), f"the site root has no {name}"
-    assert (site / "runtime.js").read_text() == (ASSETS / "leaf.js").read_text(), (
-        "the runtime the site serves is not the shipped file"
-    )
+    generation = json.loads((site / "registry.json").read_text())["$layer"][
+        "generation"
+    ]
+    source = (ASSETS / "leaf.js").read_text()
+    assert source.count('"__LEAF_LAYER_GENERATION__"') == 1
+    assert (site / "runtime.js").read_text() == source.replace(
+        '"__LEAF_LAYER_GENERATION__"', json.dumps(generation)
+    ), "the runtime the site serves is not the shipped file"
     for sub in ("widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in pages_under(EXAMPLES):

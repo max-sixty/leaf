@@ -35,6 +35,9 @@
 const KEY = `leaf-demo:${location.pathname.replace(/\/versions\/v[1-9]\d*\.html$/, "")}`;
 // Which version this document is, read the way the runtime reads it.
 const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
+const LAYER = await fetch("/registry.json")
+  .then((response) => response.json())
+  .then((registry) => registry.$layer.generation);
 
 // The name a reply in the panel wears, and nothing else. It is not the name of anyone
 // behind the page — nobody is — so the banner never speaks it: `unattended` below is what
@@ -118,6 +121,7 @@ function append(event, author, agent) {
 // this version of the runtime happens to read — a field left out is a banner seat that
 // goes blank the day it starts reading one.
 const state = () => ({
+  layer: LAYER,
   // The versions this page has, which here is the one being read: the site publishes a
   // single version of each example. A second would want the list handed to this file
   // rather than guessed from a path, since a reader on v1 has to be offered v2.
@@ -154,7 +158,7 @@ const state = () => ({
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Leaf-Layer": LAYER },
   });
 
 const realFetch = window.fetch;

@@ -142,6 +142,42 @@ invalidates a decision, the author says so with `restated` on the rewritten
 element, which retracts what rested on it — and `version check` refuses both a
 bare rewrite and an unearned `restated` (`restatement_errors`).
 
+Taking a gesture back is the same sentence read from the reader's side. `z` posts
+one event — `undo`, naming the gesture it takes back and nothing else — and every
+fold and the thread reading drop the gesture it names, so the page is the version
+plus what still stands. That is what a reload has always rendered, and what
+`restated` already writes from the author's side; the reader now has the same word
+for it. Nothing leaves the log, and nothing states a counter-gesture into it: a
+card put back on the list it came from would read as a decision to move it there,
+and there is no value "undecided" for any verb to carry, so a reader taking back
+an accept could not have been recorded at all.
+
+What the reader sees follows from that rather than being restated into it, and by
+the cheapest faithful means. Where the log still leaves the unit a state that can
+be stated — the detail a prior surviving action carried, or the placement this
+version's markup arrived showing — the widget is told it, so the card travels back
+under the reader's eye and the grip they were holding stays under their hand. That
+is why a position record names the field carrying the order as well as the
+container: a placement stated on the column alone puts a card back on the right
+list in the wrong place. Where the verb records nothing there is no such state, so
+the widget is rebuilt from the markup this version wrote and what survives is
+replayed onto it — a reload, done to one widget. The clone that makes it possible
+is taken beside the passage fences and for the same reason: the moment after the
+registry lands and before the modules import is the only one at which the page
+holds the author's markup and nothing else.
+
+Both routes are chosen by a declaration and neither knows a widget's name, which
+is the whole of why a settlement can be taken back at all. `accept` was final for
+as long as an undo could only state a value — a fact about the mechanism, wearing
+the clothes of a fact about suggestions, and written into that family's own entry
+as though it were one.
+
+One bound is real and stays: an action reaches only the version it was made
+against, a later version being free to have been written around the decision. On
+v2 the authored placement of a card moved on v1 is where the move put it, so the
+press would be live and paint nothing. Threads are not scoped that way and must
+not be, a conversation outliving the version it was opened on.
+
 Both failure modes here are invisible to the user, so the question was never which
 is worse but who can see each one. A dropped decision is visible to nobody. A
 stale decision standing over rewritten content is visible to the author at the
@@ -253,6 +289,25 @@ member's, not the mechanism's: `suggestion_errors` holds the family's markup to
 one slot of each kind, at least one, and no nesting — cardinality being the one
 thing no key states, and those sentences meaning nothing for the twelfth widget.
 
+Opening the pair to any family carried an obligation along with it. The
+settlement mark (`data-lf-state`) was the suggestion module's own write, so
+generalizing the relation turned it into a duty every holder module had to
+remember — stated in the scaffold and the key table, enforced nowhere — and a
+module that forgot would split the page's reading from the file's, with
+`leaf comment`'s refusal as the only symptom, versions later and nowhere near
+the mistake. Nothing about the mark ever needed a module: the relation and the
+log both sit in the layer's hands, so replay paints it (`markSettled`,
+leaf.js), and a scaffold module that does nothing on settle still yields a page
+whose readings agree. The visible half followed once the same question was put
+to it: hiding the retired slot needs only the relation too, so the layer marks
+the slot (`renderRetired`) and one theme rule hides it, where the shipped
+family's by-name rules had been the closed list wearing CSS's clothes. What is
+left to a module is its own choreography, and the render gate reads the result
+(`RETIRED_SLOTS`), comparing mark and shown words against the log's decision —
+the check for what no default can see. Before gating an obligation every
+adopter must remember, ask whether the declaration already states enough for
+the layer to do it once.
+
 Which kind a widget is has one question behind it: is this one of the ways leaf
 works, or one of the things a page can hold? Convenience is not an answer; a
 widget joins the first set only when the loop is written in terms of it. The
@@ -323,24 +378,19 @@ silently dropped the other ten — the natural act of declaring a shape cost the
 agent the catalog it authors from. The stamp does not care about the grain: its
 gates read the merged result (`merge_layer_entries`).
 
-An `applyAction` implementation states an absolute placement, never a relative
-mutation, because the poll replays every action — including the sender's own,
-which must therefore be a no-op when reapplied. The verb, its detail schema, its
-fold unit, and its record form are declared in the registry (`x-state`), not
-known privately to the module: absoluteness is what makes the user's standing
-state a fold over the log, and the declaration drives every consumer of it
-without teaching any of them a widget by name. For a long time nothing checked
-this, and every gate passed a relative implementation, because there is nothing
-to see: it renders perfectly, and the cost arrives later, on the poll that
-replays the sender's own action on top of the state their gesture already
-painted. So the render gate asks the page rather than the code
-(`RELATIVE_REPLAYS`): it re-applies the standing state, whole and in the log's
-order, and reports what moved — at which widget, with the fix — reading the
-result twice: `shallowSigs` for the markup state, which excludes text on purpose,
-and the unit's declared record form for the words. Checking each action on its
-own would be a different check and a wrong one, since two cards dragged to the
-head of one column fold to two standing moves. What the gate cannot reach is a
-verb nobody has used yet; the actions it replays are the log's.
+An `applyAction` implementation states an absolute placement. Poll reconciliation
+may apply any standing winner again, including the sender's, so reapplication must
+be a no-op. The verb's detail schema, semantic facet, fold unit, and record form
+come from `x-state`; no consumer knows the widget by name. These declarations make
+the log a fold of the user's standing state.
+
+A relative implementation looks correct until a poll applies the sender's action
+over the state its gesture painted. `version check --render` catches this through
+`RELATIVE_REPLAYS`: it reapplies each owner-unit-facet winner in log order and
+reports what moved. `shallowSigs` reads markup state without text, while the unit's
+record form reads the words. Testing each action alone would be wrong: two cards
+dragged to the head of one column fold to two standing moves. The gate can test
+only verbs represented in the log.
 
 A verb's record form is also the whole of what a module may write in the author's
 namespace. An entry's `additionalProperties: false` closes that namespace, and
@@ -362,14 +412,15 @@ side the second writer shows on.
 
 - **Tests are integration tests in a real browser.** What a test must assert, and
   the ways one can pass vacuously, are in `tests/CLAUDE.md`; what each file
-  covers, and the commands, are under "The suite" below.
-- **A cloud container has none of that, so set it up first.** There is no system
-  Chrome, so every browser test fails at launch — the Chromium preinstalled there
-  is a different build from the one the lockfile expects, and the suite asks for
-  `channel="chrome"`. There is no `pre-commit` either, so the lint cannot run:
+  covers, and which command to run when, are under "The suite" below.
+- **A cloud container has none of that, so set it up first.** The suite needs the
+  Chromium headless shell that matches the Playwright version in `uv.lock`. Two
+  end-to-end launcher tests also need installed Chrome. There is no `pre-commit`
+  either, so the lint cannot run:
 
   ```sh
   uv sync --frozen
+  uv run playwright install chromium --only-shell
   uv run playwright install chrome
   uv tool install pre-commit
   ```
@@ -380,7 +431,15 @@ side the second writer shows on.
   they pass.
 - **Measure before optimising, and before assuming.** The cost claims in this
   codebase came from timing the real thing on `examples/gallery.html`, not from
-  reasoning about it.
+  reasoning about it. The costliest assumption was that a suite driving browsers
+  must be what makes a busy machine unusable. Read across an idle-run-idle
+  timeline, WindowServer sat at 78% of a core before a run, 76% during it and 64%
+  after, while the headless shell went from nothing to 100-220%:
+  `chrome-headless-shell` has no platform-window layer, so it never opens a
+  connection to the compositor at all, and only the two launcher tests that ask
+  for installed Chrome do. A machine bogged down beside a green suite is
+  something else holding real windows open, and cutting the suite's concurrency
+  buys nothing against it.
 - **A page directory holds a copy of the layer, so re-vendor before believing
   it.** `page init` is what vendors, and it re-vendors an existing directory.
   Until it runs again, a page serves the assets it was created with, so
@@ -414,15 +473,20 @@ both color schemes, and asserts what a static lint cannot reach: every widget
 upgrades into a box with usable size, the document and the comment panel scroll
 in separate regions, the comment box grows without any script sizing it, and
 neither pressing a control nor news arriving on its own moves the controls beside
-it. One journey test drives the whole loop through the real UI — select a
-passage, comment, drag a card, follow the next version, find the comment still
-anchored — and pins the event log it leaves behind. `test_product_page.py` holds
+it. It then reads each example again as a reader who left something standing,
+once in every arrangement a browser can put back: the panel open, a board standing,
+design mode on. Every other reading in the suite is of a first visit. A return moves
+nothing a first visit doesn't, arriving being no gesture; that one is read off the
+animations the browser itself reports. One journey test drives the
+whole loop through the real UI — select a passage, comment, drag a card, follow
+the next version, find the comment still anchored — and pins the event log it
+leaves behind. `test_product_page.py` holds
 the pages under `docs/` to the shipped theme and widget registry.
 `test_site.py` builds the site and reads it back: the theme it serves is the
 shipped file, each example stands up as a live page that takes a comment and
 holds a decision through a reload, both palettes reach the site's own layer, and
-no page scrolls sideways on a phone. Playwright attaches to the Chrome already on
-the machine, so there is no browser download and still no build step.
+no page scrolls sideways on a phone. Playwright drives the pinned Chromium headless
+shell installed with the developer environment.
 
 The suite runs in the environment `pyproject.toml` names and `uv.lock` pins, and
 that environment is the developer's only. leaf itself declares its dependencies
@@ -434,21 +498,34 @@ packages anyway, because they load `interact.py` by path.
 uv run pytest tests
 ```
 
-About two minutes rather than eleven, because `pyproject.toml` shards the run
-across eight workers. The command is complete as written: no environment variable
-in front of it, no setup step before it. The fixtures relocate the two XDG
-directories leaf reads (`config_home`, `state_home`) and leave the rest of the
-home alone, so every `leaf` the suite shells out to finds the uv cache the
-developer already has, and a fresh checkout fills that cache the way any other
-run would.
+That everyday command needs no network after setup. It runs one shipped page through
+the browser gate, so one of `pyproject.toml`'s eight workers launches Chromium; the
+other tests cover the static lint, server, vendoring, and product pages. The fixtures
+relocate the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
+rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
+developer already has.
 
-That command needs no network. One dependency resolution sits outside `uv.lock`:
-the Playwright that `bin/leaf` supplies to `version export` on top of the
-script's header (the code there says why). uv re-asks the package index for it
-whenever the cached answer goes stale, so the tests that shell out to
-`version export` are marked `nightly` and excluded by default. `--run-nightly`
-puts them back, and that is how CI and `wt merge` run the suite — both have a
-network anyway:
+`test_render.py` and `test_site.py` are the browser integration suite, and a complete
+run puts eight workers on the machine, most of them driving a headless shell of their
+own. It takes about five minutes, measured while three sibling worktrees ran their own
+suites, as is ordinary here. So while iterating, run the tests that cover the change,
+with xdist off:
+
+```sh
+uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
+```
+
+A focused run of those two modules needs `--run-nightly` as much as the complete run
+does. Without it, the mark takes the whole module out of the run, and pytest prints a
+deselected count, no passed count, and exits 5. That is a non-zero exit off a run that
+did nothing, so a `&&` chain stops on it, and a check that flips a line of code to watch
+the suite go red reads the empty run as the catch. Only the passed count tells an empty
+run from a real one. `test_interact.py` carries no mark, so a focused run there takes
+no flag.
+
+Run the complete suite before handing the work back; CI and `wt merge` run the same
+command. It needs a network because the installed launcher's browser path may resolve
+Playwright outside `uv.lock`:
 
 ```sh
 uv run pytest tests --run-nightly
@@ -467,10 +544,9 @@ pre-commit run --all-files
 CI is also the only place either gate meets a platform other than macOS, and the
 platforms disagree about exactly the things a browser test measures: how wide a
 system font sets a word, whether a scrollbar takes a gutter out of the window.
-`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container
-carrying the runner's Chrome and its fonts, so a CI failure becomes something to
-reproduce rather than something to guess at. It takes pytest's arguments, and
-needs a Docker daemon that can run linux/amd64:
+`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container carrying
+the pinned headless shell, installed Chrome, and the runner's fonts. It takes pytest's
+arguments and needs a Docker daemon that can run linux/amd64:
 
 ```sh
 scripts/linux-suite.sh

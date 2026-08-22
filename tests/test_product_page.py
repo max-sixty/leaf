@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import click
+import pytest
 from conftest import interact
 
 ROOT = Path(__file__).parent.parent
@@ -185,6 +186,22 @@ def test_tour_walks_the_interactive_and_live_workflows():
         assert f'status="{status}"' in live
 
 
+def test_product_pages_explain_the_codex_watcher_task_without_hiding_the_fallback():
+    tour = " ".join((DOCS / "index.html").read_text().split())
+    mechanism = " ".join((DOCS / "how-it-works.html").read_text().split())
+
+    assert "an opt-in watcher task can hold that wait" in tour
+    assert "transport-neutral JSON batch" in mechanism
+    assert "adds the receiving task's instruction" in mechanism
+    assert "transfers the page's claim to the watcher" in mechanism
+    assert "Without an explicitly authorized watcher task" in mechanism
+    assert (
+        "a detached command alone has no completion that starts a future turn"
+        in mechanism
+    )
+
+
+@pytest.mark.nightly
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo.gif"
     # Not check=True: with the streams captured, the CalledProcessError it raises

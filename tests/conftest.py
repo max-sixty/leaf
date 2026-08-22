@@ -29,16 +29,18 @@ def pytest_addoption(parser):
         "--run-nightly",
         action="store_true",
         default=False,
-        help="Also run the tests that reach the package index",
+        help="Also run the complete browser and published-site integration suites",
     )
 
 
-def pytest_runtest_setup(item):
-    """Hold back the tests that reach the package index, so an everyday run needs
-    no network at all. What earns a test the mark, and what still runs it, is in
-    CLAUDE.md beside this file."""
-    if "nightly" in item.keywords and not item.config.getoption("--run-nightly"):
-        pytest.skip(f"--run-nightly not passed — skipping {item}")
+def pytest_collection_modifyitems(config, items):
+    """Leave browser integration out of the everyday worker queues. What earns the
+    mark, and what still runs it, is in CLAUDE.md beside this file."""
+    if config.getoption("--run-nightly"):
+        return
+    nightly = [item for item in items if "nightly" in item.keywords]
+    items[:] = [item for item in items if "nightly" not in item.keywords]
+    config.hook.pytest_deselected(items=nightly)
 
 
 # A host session states its identity in the environment, under names of its own.
@@ -129,22 +131,19 @@ def dead_pid(spawn):
 
 @pytest.fixture(scope="session")
 def browser():
-    """The Chrome already on the machine, driven for the tests a static read
-    can't answer: what a widget upgrades into, and what the site fits on.
+    """Playwright's pinned Chromium headless shell, driven for the tests a static
+    read can't answer: what a widget upgrades into, and what the site fits on.
 
-    Session-scoped, which under xdist is one Chrome per worker for the run.
-    Module scope launched a second whenever a worker crossed between the two
-    modules that use this fixture — eleven launches on a two-module slice where
-    eight workers need eight. Launches are all it saves: eight Chromes are alive
-    at the peak either way, each a browser process, a GPU process, and a handful
-    of windows registered with WindowServer, which sat at 130% with five suites
-    running at once.
+    With no channel named, Playwright uses its separate headless shell rather than
+    installed Chrome's platform-window path. Session scope gives xdist one browser
+    per worker that requests it; the everyday smoke requests one, and the complete
+    run can occupy all eight.
 
     The scope does not reach isolation, which is per context: `new_page` opens a
     fresh context per call, and a fresh context has empty `localStorage` and
     `sessionStorage` — the state a `goto` inside one would carry over
     (tests/CLAUDE.md, "Reloading is not resetting")."""
     with sync_playwright() as p:
-        b = p.chromium.launch(channel="chrome")
+        b = p.chromium.launch()
         yield b
         b.close()

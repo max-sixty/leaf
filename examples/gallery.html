@@ -765,8 +765,7 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="options">
-        <h2>Options</h2>
-        <lf-options id="session-options" choose>
+        <lf-options id="session-options" choose label="Where should a session live?">
           <lf-option id="opt-jwt"
             ><lf-chip>effort: low</lf-chip
             ><lf-chip id="chip-jwt-risk" tone="danger">risk: high</lf-chip>
@@ -1668,21 +1667,22 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
       <section id="hub-fleet">
         <h2>The fleet</h2>
         <p id="hub-fleet-intro">
-          Where each session stands, reported by the session itself rather than written
-          down here — the state and the clause after it move between versions, and the
-          line at the right is how long since that session last moved its own row, or
-          since I published the row where one never has. It is the one thing on this
-          page I could not write down and have still be true by the time you read it.
+          Where each session stands. Its current activity appears only while that
+          session's report stands; the state can enter the next version, while the
+          activity leaves when the version answers it. The line at the right is how long
+          since that session last moved its own row, or since I published the row where
+          one never has. It is the one thing on this page I could not write down and
+          have still be true by the time you read it.
           <em>quiet</em> is a session that claimed work and then stopped saying
-          anything, which is the shape a dead worker makes. Select a row and comment on
-          it to address that session; I relay it to whoever holds the row, and the
-          answer comes back in the thread you opened.
+          anything, which is the shape a dead worker makes. Where I still hold the
+          session behind an assigned row, select the row and comment to address that
+          worker; I relay your words and the answer comes back in your thread. Idle and
+          done rows stay as handover history, so comments on them come to me.
         </p>
         <lf-roster id="hub-roster">
           <lf-agent
             id="hub-agent-wren"
             state="working"
-            doing="running the encoding-declaration cases against the 4 GB export"
             on="t-parser-decl"
             branch="atlas-parser"
           >
@@ -1691,7 +1691,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-finch"
             state="waiting"
-            doing="holding at the schema gate"
             on="t-schema"
             branch="atlas-schema"
           >
@@ -1701,7 +1700,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-junco"
             state="blocked"
-            doing="stopped for the partially-refunded fixture"
             on="t-ledger-export"
             branch="atlas-ledger"
           >
@@ -2003,15 +2001,15 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
 </lf-tab>
 
 <lf-tab id="gal-parallel-workstreams" label="Parallel workstreams">
-<h1>Aviary projects, week 3</h1>
+<h1>Winter aviary, week 3</h1>
       <p class="lede" id="workstreams-lede">
-        Three mini-projects run side by side; each tab below is one project's full
-        context — status, board, decisions. Which tab is open is your view alone:
-        switching isn't a comment and doesn't reach the agent.
+        The work began with a broad plan for food, water, and observation through
+        winter. Bracket installation is now the work in hand, so it opens first; the
+        vision and field evidence stay one tab away. Comments and Asks cover every tab.
       </p>
 
       <lf-tabs id="projects">
-        <lf-tab id="tab-feeders" label="Feeders">
+        <lf-tab id="tab-feeders" label="Bracket installation">
           <lf-metrics id="feeder-kpis">
             <lf-metric id="k-mounted" value="2 of 4" delta="+1" direction="up-good"
               >feeders mounted</lf-metric
@@ -2047,7 +2045,12 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
             The bracket order goes in on Friday and there is room in it. These are the
             extras the south pair turned out to want.
           </p>
-          <lf-options id="feeder-extras" choose multiple>
+          <lf-options
+            id="feeder-extras"
+            label="Which extras should join the bracket order?"
+            choose
+            multiple
+          >
             <lf-option id="fx-tray"
               ><lf-chip>£9 the pair</lf-chip
               ><lf-chip tone="warn">more cleaning</lf-chip>
@@ -2067,12 +2070,17 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
           </lf-options>
         </lf-tab>
 
-        <lf-tab id="tab-bath" label="Bird bath">
+        <lf-tab id="tab-bath" label="Vision">
           <p id="bath-status">
-            The basin is level and holding water; the open question is how to keep it
-            liquid through January. Click an option to decide.
+            The winter habitat keeps food, water, and a camera available without adding
+            a daily round. The open question is how to keep the bird bath liquid through
+            January. Click an option to decide.
           </p>
-          <lf-options id="bath-heat" choose>
+          <lf-options
+            id="bath-heat"
+            label="How should the bird bath stay open through January?"
+            choose
+          >
             <lf-option id="heat-immersion"
               ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
               ><lf-chip tone="ok">liquid all winter</lf-chip>
@@ -2093,7 +2101,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
           </lf-options>
         </lf-tab>
 
-        <lf-tab id="tab-camera" label="Camera">
+        <lf-tab id="tab-camera" label="Field evidence">
           <p id="camera-note">
             The feed has been stable since the battery swap; one open follow-up on
             storage.

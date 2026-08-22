@@ -5,9 +5,9 @@ were a test that passed while proving nothing.
 
 ## They are integration tests in a real browser
 
-`test_render.py` drives the shipped examples through Chrome (`channel="chrome"`,
-so no browser download). Assert what a static lint can't reach. Use real mouse
-input (`page.mouse`, `locator.click()`) when the gesture is the point: a
+`test_render.py` drives the shipped examples through Playwright's pinned Chromium
+headless shell. Assert what a static lint can't reach. Use real mouse input
+(`page.mouse`, `locator.click()`) when the gesture is the point: a
 synthetic `dispatchEvent(new MouseEvent("click"))` skips the mousedown, and the
 runtime is built around what happens on mousedown, so the synthetic click sails
 past a whole class of bug. Assert the outcome with `expect(...)`, never a bare
@@ -17,8 +17,18 @@ is worse than failing outright.
 
 A render invariant belongs in `render_version`, not in a test. That function is
 what `version check --render` runs at handover, and `test_example_renders` drives
-it over the examples — so the gate a user's page passes and the suite the
-examples pass are one implementation, and cannot drift apart.
+it over the examples, so the gate a user's page passes and the suite the examples
+pass share one implementation. The end-to-end render-check tests cover its installed
+Chrome launch path separately.
+
+Which of the two a reading belongs to follows from whose fault its findings are.
+The gate reads a version, and everything it reports is something the page's
+author wrote and can change. A reading whose answer is the same under every
+version is about the layer instead, and an agent running the gate at handover
+would be paying for a verdict on code it neither wrote nor can fix. That reading
+lives here, swept over the corpus like any other. `arrival_findings` is the one
+that does: what a page does for a reader who left the comment panel open or a
+board standing is the restore's answer, and no markup changes it.
 
 ## A synthetic drag presses on a whole pixel
 
@@ -32,19 +42,21 @@ hit this. The failure reads as the widget under the pointer refusing the gesture
 and it is neither that nor Playwright's interpolation — plain prose in a bare
 document does it.
 
-## The everyday run asks nothing of the network
+## The everyday run opens one browser
 
-The browser is the machine's own and the page it opens is on disk, so the suite
-needs nothing from the network — except where a test drives `bin/leaf` on a
-subcommand that opens Chrome. The launcher supplies Playwright to those
+`test_render.py` and `test_site.py` carry a module-wide `pytest.mark.nightly`, which
+`tests/conftest.py` deselects unless `--run-nightly` is passed. The everyday run covers
+the static lint, server, vendoring, and product pages, plus one `ship-review` render
+through the real gate. Its worker is the only one that launches Chromium. Which run to
+reach for when is under "The suite" in the repo's CLAUDE.md.
+
+The suite browser is the headless shell that matches the Playwright version in
+`uv.lock`, and the page it opens is on disk. Two tests also drive `bin/leaf` on a
+subcommand that opens installed Chrome. The launcher supplies Playwright to those
 subcommands from outside the script's lock (`uv run --with playwright`), and an
-unlocked requirement has no recorded resolution to install from, so uv asks pypi
-for one every time its cached answer goes stale. With pypi unreachable, the tests
-that run the shim's own `--render` or `version export` fail on the shim's exit
-status, and a suite of six hundred passing browser tests reports as broken. So
-those tests carry `pytest.mark.nightly`: an everyday run skips them, and CI and
-`wt merge` pass `--run-nightly` to put them back. A new test that shells out to
-the launcher's browser path wants the mark too.
+unlocked requirement has no recorded resolution to install from, so uv asks pypi for
+one every time its cached answer goes stale. Those tests therefore need the network
+available to the nightly run.
 
 To prove a run works offline, give uv an index that isn't there —
 `UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also
@@ -112,7 +124,7 @@ log instead only ever asks after the send the test names — a stray send, from 
 widget that was supposed to stay quiet, passes straight through such a poll.
 
 A file the test writes is the same trip run the other way, and there `expect`'s
-own timeout becomes the hold in disguise. A declared status, a bumped heartbeat,
+own timeout becomes the hold in disguise. A declared status, a changed wait lease,
 an appended event: none of them announce themselves, so the page learns of each
 when its next poll asks. An assertion made straight after the write therefore
 spends a whole poll interval out of whatever budget `expect` was given — 1.8 to
@@ -134,10 +146,14 @@ So a wait asks for a fact the system declares: an element existing,
 `document.body.getAnimations()` emptying, a request coming back, a resize
 reaching its listeners. Where stillness is itself the assertion, an observed edge
 comes first — the press sweep measures "nothing moved" only after `round_trip`
-has watched the response land. And a timing flake can be reproduced by emulating
-the poller's own schedule in the page: `wait_for_function` runs its predicate
-once at injection and then once per animation frame, which turns the failure into
-a rate to measure rather than a rerun to hope for.
+has watched the response land. Its geometry then crosses one rendered frame,
+waits for finite animations to end, and crosses the ending frame. An elapsed
+quiet window cannot stand for that sequence: under parallel load, one animation
+frame can take the whole window, so a predicate returns before that frame's
+layout paints. A timing flake can be reproduced by emulating the poller's own
+schedule in the page: `wait_for_function` runs its predicate once at injection
+and then once per animation frame, which turns the failure into a rate to measure
+rather than a rerun to hope for.
 
 An edge is not the same fact as arrival, and a gesture that moves the page twice
 is where the two come apart. Clicking a quote scrolls instantly to bring the
@@ -147,6 +163,17 @@ genuine statement from the browser, and it is 232 pixels short of where the clic
 was aimed. The fact worth waiting on is the destination itself: the mark reaching
 the middle, which is the position `scrollToThread` computed. A glide approaching
 that position passes through no earlier position that could be mistaken for it.
+
+A destination stated as a region rather than a position is the same mistake in a
+weaker disguise. "Some part of the change is inside the window" is as true where
+the walk starts as where it is going, and the ask the boxless-travel test walks
+to sits a few dozen pixels below the fold — so the predicate went true on the
+focus move that precedes the glide, and the test passed with the travel bug put
+back. It had been passing that way under the suite's own parallel run while
+failing the same bug when run alone, which is the shape of a test measuring the
+machine's load rather than the product's behaviour: the reading it took was
+whichever transient it was quick enough to catch. The scroll stopping is the
+fact to wait on; where it stopped is the assertion.
 
 Where nothing will happen, there is no fact to consume and polling has no end. An
 assertion of absence holds a window instead, and the window's length is derived
@@ -204,6 +231,18 @@ with no second chance — `expect` re-asks for five seconds, but a keystroke is
 simply gone. So navigation waits for the load event, which says the resources
 shaping the page have arrived, and `open_page` waits for `lf-applied`, which says
 the log has — two stated facts replacing a quiet window for state readiness.
+
+Traffic is not the only thing the browser will report. The inspector's animation
+agent names every animation and transition as it is created, whoever created it,
+and that is what lets an arrival be held to painting no motion at all — a claim
+about something that does not happen, which read from inside the page would be
+`getAnimations` against a 200ms slide, a race this machine wins and a loaded one
+loses. The report outlives the motion it describes, so what has to be caught is
+the frame the motion begins on and never the fifth of a second it runs for — and
+that frame does have to be waited for, the report being made by the rendering
+update that starts the animation rather than by the script call that created it.
+A command on the same session is then the flush, replies and events travelling
+one connection in order.
 
 ## A race this machine won't lose is stated rather than run for
 
@@ -309,6 +348,17 @@ ahead of that next frame, and that is where the reading is taken now
 (`test_the_room_is_measured_after_a_late_rail`). The injection buys the record
 again; the wait is still the stamp's.
 
+Holding a motion holds whatever its ending drives, and that is the way past a
+window too short to drive from outside. The record of a folding thread lives until
+`finished` settles, and a paused animation never settles it, so the 220ms a reader
+has to reopen a thread mid-fold becomes a state that lasts as long as the
+assertions need — which is what
+`test_a_thread_reopened_mid_fold_folds_again_when_it_settles` reads, and it steps
+the held fold to its end afterwards to read what that ending clears. What the suite
+could not drive was the timing; the states either side of it were in reach the whole
+time. So before writing a race off as untestable, ask which of its ends can be
+stopped.
+
 ## A page's source is formatted, so ask what it says
 
 Prettier formats the `.html` under `docs/` and `examples/`, and it re-derives
@@ -355,6 +405,15 @@ nothing in a left-to-right page, so what went past that edge is gone rather than
 merely out of view. A change that alters which way a fault can point owes its
 existing tests a bug-back, not only its new ones — and the question to put to
 each test is which edge the fault lands on now.
+
+A gate can also be born vacuous, when a layer below it already prevents what the
+assertion names. `post` sends one action at a time, so a second gesture made
+while the first is held in the wire never reaches `page.route`: counting the held
+requests reads one whether or not the widget refuses that second press, and an
+assertion saying a press in flight had sent a second one could never have failed
+for the reason it gave. What the second press would leave is a line in the log
+once the queue drains, which is where a gate on it reads. Before asserting that a
+gesture did not travel, ask what would have stopped it anyway.
 
 ## An assertion that nothing moved must straddle the change that could move it
 

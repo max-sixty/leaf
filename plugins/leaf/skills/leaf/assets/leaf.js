@@ -10344,7 +10344,11 @@ function applyActions() {
     // answered only once it has been, or it is spent on a widget that never took it
     // and that tab holds the withdrawn words for the rest of its life, with the
     // pending mark cleared because the fold agrees the gesture is gone.
-    if (actionPending(target.widget) || deferredWidgets.has(target.widget)) continue;
+    if (
+      actionPending(target.widget, readAttempts) ||
+      deferredWidgets.has(target.widget)
+    )
+      continue;
     if (put.state) {
       if (put.el.applyAction(put.state.action, put.state.detail) === false) {
         deferredWidgets.add(target.widget);

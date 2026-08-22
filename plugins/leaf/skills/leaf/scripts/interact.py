@@ -10095,11 +10095,11 @@ BAKE = """() => {
     // that is wrong here and a rule written around it would leave it there to be read by
     // the next thing that asks.
     //
-    // The width the panel stands at is the second such number and goes for the same
-    // reason rather than because anything in a copy reads it: it is stated on the root
-    // by the same hand, and it is a fact about a panel this file hasn't got and about a
-    // reader who is not the one opening it.
-    for (const stale of ['--lf-room', '--lf-panel-w'])
+    // The width each edge stands at is the same kind of number and goes for the same
+    // reason rather than because anything in a copy reads it: both are stated on the
+    // root by the same hand, and each is a fact about a region this file hasn't got and
+    // about a reader who is not the one opening it.
+    for (const stale of ['--lf-room', '--lf-panel-w', '--lf-board-w'])
         document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has
     // no session behind it — a copy keeping the tone it was exported under would claim

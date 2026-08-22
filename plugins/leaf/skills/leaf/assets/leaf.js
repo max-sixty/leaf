@@ -1801,8 +1801,8 @@ const POLL_MS = 2000;
 // scale its width away, and 360 crowded them. A default rather than the width, because
 // what a conversation needs is a fact about the conversation: a thread quoting a table
 // wants room the same thread quoting a sentence does not, and only the reader looking at
-// it knows which this is. So the edge is a thing they take hold of (`grip`), and this is
-// where it stands until they do.
+// it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
+// this is where it stands until they do.
 const PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
 // standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
@@ -1821,14 +1821,43 @@ const PANEL_MIN = 320;
 // flip the posture out from under the hand doing it: a panel dragged past half its window
 // would otherwise stop standing beside the page and cover it instead, which is the whole
 // page rearranging itself in answer to one pixel of a drag. What the reader's width does
-// answer to is `panelCap`, which holds it to the same bargain this line strikes — the
-// page keeps at least what the panel takes — without putting the posture itself in play.
+// answer to is the edge's own `cap`, which holds it to the same bargain this line
+// strikes — the page keeps at least what the panel takes — without putting the posture
+// itself in play.
 const COVERING = `(width <= ${PANEL_W * 2}px)`;
-// The left edge's width, and the window below which its board covers the page rather than
-// standing beside it — the same bargain the comment panel makes on the right, struck at
-// the same ratio, so a reader who has learned one edge has learned the other.
-const EDGE_W = 300;
-const EDGE_COVERING = `(width <= ${EDGE_W * 2}px)`;
+// The boards' edge, on the left, and everything said above said again for it: the width
+// it stands at until the reader moves it, how narrow they may draw it, and the window
+// under which a board covers the page rather than standing beside it. The same bargain at
+// the same ratio, because a reader who has learned one edge has learned the other.
+//
+// 220 is where the board's own row stops being one. A leaf's row spends 45px before any
+// word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
+// and the board take for padding — and what is left holds a title that ellipsizes rather
+// than wrapping, so under this the board is furniture showing the first syllable of every
+// name on it. The asks board's rows clamp to three lines instead and would go on reading
+// further down, which is why the floor is the leaves board's to set.
+const BOARD_W = 300;
+const BOARD_MIN = 220;
+const BOARD_COVERING = `(width <= ${BOARD_W * 2}px)`;
+// Where each standing width is written, and where the cascade reads it. Named rather than
+// spelled, because the stylesheet below and the runtime's writer are two ends of one fact
+// and a property spelled twice is two facts the day one of them moves.
+const PANEL_PROP = "--lf-panel-w";
+const BOARD_PROP = "--lf-board-w";
+// Which boards take their room out of the page rather than lying over it, read by the rule
+// that takes the strip and by the runtime for what the page has left — so the two cannot
+// disagree about whether the page is yielding one.
+//
+// The leaves board is not on the list, and that is not an inconsistency between two twins:
+// a leaf's row is a way out of this page and an ask's row is a way around it, so pressing
+// an ask's row scrolls the document to the ask and stands you on the control that answers
+// it — and a board lying over the document would be hiding the very thing it just sent you
+// to. A 300px board and a 720px column overlap on any window under about 1320px, which is
+// most of them, so this is the common case rather than the narrow one.
+const STRIP_BOARDS = ["asks"];
+const STRIP_BOARD_RULE = `body:is(${STRIP_BOARDS.map(
+  (board) => `[data-lf-board="${board}"]`,
+).join(",")})`;
 // The width the theme wants a page's box to have before it takes a strip of it for the
 // margin (theme.css's --strip-min, stated there because that is where the strips and
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
@@ -1969,7 +1998,7 @@ style.textContent = `
      keyed on the stamp for the reasons given there — because an eye can follow a sentence
      that slides and cannot find one that teleports. */
   @media screen and (not ${COVERING}) {
-    body[data-lf-panel] { margin-right: var(--lf-panel-w); }
+    body[data-lf-panel] { margin-right: var(${PANEL_PROP}); }
   }
   @media screen and ${COVERING} {
     body[data-lf-panel] { overflow-y: hidden; }
@@ -1981,24 +2010,17 @@ style.textContent = `
      moves still wants the slide, an arrow step on the edge included: a step is one
      discrete move the eye can follow, which is what the rule above is for. */
   body[data-lf-sizing] { transition: none; }
-  /* The asks board takes its room out of the page the same way, and the leaves board
-     beside it does not. That is not an inconsistency between two twins: a leaf's row is
-     a way out of this page and an ask's row is a way around it, so pressing an ask's row
-     scrolls the document to the ask and stands you on the control that answers it — and
-     a board lying over the document would be hiding the very thing it just sent you to.
-     A 300px board and a 720px column overlap on any window under about 1320px, which is
-     most of them, so this is the common case rather than the narrow one.
-
-     The rule names the board and not the edge for that reason, off the one attribute
-     showEdge writes to say which board is up. Everything else about the strip — that it
-     comes out of the page rather than being held aside, that it is carried as motion,
-     what it costs on a window narrow enough to rewrap — is the panel's story above,
-     told once for both sides. */
-  @media screen and (not ${EDGE_COVERING}) {
-    body[data-lf-edge="asks"] { margin-left: ${EDGE_W}px; }
+  /* A board that takes its room out of the page takes it the same way, off the one
+     attribute showBoard writes to say which board is up and the one list that says which
+     of them the page yields to (STRIP_BOARDS, where the reasons are). Everything else
+     about the strip — that it comes out of the page rather than being held aside, that it
+     is carried as motion, what it costs on a window narrow enough to rewrap — is the
+     panel's story above, told once for both sides. */
+  @media screen and (not ${BOARD_COVERING}) {
+    ${STRIP_BOARD_RULE} { margin-left: var(${BOARD_PROP}); }
   }
-  @media screen and ${EDGE_COVERING} {
-    body[data-lf-edge="asks"] { overflow-y: hidden; }
+  @media screen and ${BOARD_COVERING} {
+    ${STRIP_BOARD_RULE} { overflow-y: hidden; }
   }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -2372,14 +2394,27 @@ ${MARK_RULES}
        the rows rather than the presses because the rows are the run that touch. */
     .lf-version-row.lf-compared::before { content: ""; position: absolute;
       left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-    /* The leaves panel: the comment panel's mirror on the left, a board of the
-       machine's live pages that stands while the reader works. Fixed over the content —
-       opening it moves nothing — and its own scroll region, so one wheel gesture moves
-       one region. */
-    .lf-others-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0; z-index: 8900;
-      width: min(300px, 100vw); background: var(--card); border-right: 1px solid var(--rule);
-      display: none; padding: 6px 4px; overflow-y: auto; overscroll-behavior: contain; }
-    .lf-others-panel.open { display: block; }
+    /* The boards' edge: the comment panel's mirror on the left, holding one board at a
+       time (showBoard), each its own scroll region so one wheel gesture moves one region.
+       Every metric is the edge's rather than either board's — a reader who has both keys
+       should not find two different regions where they learned one — and it is stated once
+       here for both. It used to be stated twice, in two rules with every declaration
+       duplicated, and by the time anyone looked one copy was carrying a literal 300 where
+       the other read the constant; what the two boards differ in is the row, below. */
+    .lf-board-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
+      z-index: 8900; width: var(${BOARD_PROP}); background: var(--card);
+      border-right: 1px solid var(--rule); display: none; flex-direction: column; }
+    .lf-board-panel.open { display: flex; }
+    /* The rows scroll in a box of their own rather than in the board, which is the comment
+       panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
+       all: a scroll container clips to its padding box, so an edge straddling the border
+       was cut to the three pixels inside it, and an absolutely positioned child of a
+       scroller travels with the content — the edge would have scrolled away down a long
+       list, an edge being a fact about the region rather than about how far down it the
+       reader has read. contain, so reaching the end of the list does not start scrolling
+       the page behind it: one wheel gesture moves one region. */
+    .lf-board-list { flex: 1; min-height: 0; padding: 6px 4px; overflow-y: auto;
+      overscroll-behavior: contain; }
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
     a.lf-others-row:hover { background: var(--chip); }
@@ -2392,16 +2427,9 @@ ${MARK_RULES}
        nothing. */
     .lf-others-line { color: var(--ink-2); margin-left: 17px; white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; }
-    /* The asks board: the leaves board's twin, on the same edge and one at a time with it
-       (showEdge), because the two are the same furniture at two scopes. Every metric here
-       is that board's, said once for both — a reader who has both keys should not find
-       two different regions where they learned one. What differs is the row: a leaf's row
-       is a link out to another page, and an ask's is a press that moves this one, so it is
-       a button and takes the button's own reset. */
-    .lf-asks-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0; z-index: 8900;
-      width: min(${EDGE_W}px, 100vw); background: var(--card); border-right: 1px solid var(--rule);
-      display: none; padding: 6px 4px; overflow-y: auto; overscroll-behavior: contain; }
-    .lf-asks-panel.open { display: block; }
+    /* An ask's row, against a leaf's above: a leaf's is a link out to another page and an
+       ask's is a press that moves this one, so it is a button and takes the button's own
+       reset. */
     .lf-asks-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
       border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
       cursor: pointer; }
@@ -2423,29 +2451,41 @@ ${MARK_RULES}
        was the exception, so a row with no room left took the width it states back off it,
        which put every reservation above back in play on any narrow enough window. */
     .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(--lf-panel-w); z-index: 8900;
+    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(${PANEL_PROP}); z-index: 8900;
       background: var(--card); border-left: 1px solid var(--rule); display: none; flex-direction: column; }
     .lf-panel.open { display: flex; }
-    /* The edge, offered as a thing to take hold of. It draws nothing of its own: the
-       panel's left border is the line the reader already sees, and the grip is the room
-       around that line in which a pointer counts as being on it. It straddles the border
-       rather than sitting inside it, because the reader aims at the line and arrives from
-       whichever side they were reading — and where the panel stands beside the page, the
-       3px of it outside the panel is body's own margin, which holds no words.
+    /* An edge, offered as a thing to take hold of — the comment panel's on the right of
+       the page, the boards' on the left, and nothing here knows which it is drawing except
+       the two lines that place it. It draws nothing of its own: the region's inner border
+       is the line the reader already sees, and this is the room around that line in which
+       a pointer counts as being on it. It straddles the border rather than sitting inside
+       it, because the reader aims at the line and arrives from whichever side they were
+       reading — and where the region stands beside the page, the 3px of it outside is
+       body's own margin, which holds no words.
        What hover and focus add is a line drawn over the border, growing a pixel each way
-       into room that was already the border's and the panel's padding; never a thicker
-       border, which would move every thread in the panel under the pointer that had just
+       into room that was already the border's and the region's padding; never a thicker
+       border, which would move everything in the region under the pointer that had just
        arrived (CLAUDE.md, "The page holds still under the user's aim"). touch-action, so a
        finger on the edge resizes rather than scrolling the region behind it, and z-index
-       because a thread is positioned too and stands later in the panel than this does. */
-    .lf-grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; z-index: 1;
+       because a thread is positioned too and stands later in the panel than this does.
+
+       Named for what it is rather than for the gesture: a card's drag handle is a grip
+       (lf-board.js), and one word for a thing you pick up and a boundary you draw would
+       have been two meanings a selector cannot tell apart. */
+    .lf-edge { position: absolute; top: 0; bottom: 0; width: 8px; z-index: 1;
       cursor: col-resize; touch-action: none; }
-    .lf-grip::before { content: ""; position: absolute; left: 2px; top: 0; bottom: 0;
+    .lf-edge::before { content: ""; position: absolute; top: 0; bottom: 0;
       width: 2px; background: var(--accent); opacity: 0; transition: opacity .12s; }
+    /* Which side of the window the region is fixed to, so the edge is its inner one: a
+       region held to the right is drawn by its left border and the other way about. */
+    .lf-edge[data-lf-side="right"] { left: -4px; }
+    .lf-edge[data-lf-side="right"]::before { left: 2px; }
+    .lf-edge[data-lf-side="left"] { right: -4px; }
+    .lf-edge[data-lf-side="left"]::before { right: 2px; }
     /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
        drag that follows it. */
-    .lf-grip:hover::before, .lf-grip:focus-visible::before { opacity: 1; }
-    .lf-grip:focus-visible { outline: var(--here-ring); }
+    .lf-edge:hover::before, .lf-edge:focus-visible::before { opacity: 1; }
+    .lf-edge:focus-visible { outline: var(--here-ring); }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* contain: reaching the end of the thread list must not start scrolling the page
        behind it — one wheel gesture moves one region.
@@ -2721,6 +2761,204 @@ const el = (tag, cls, text) => {
   return node;
 };
 
+// The step an arrow takes, in the column's own gutter: the smallest move that shows in a
+// page of prose.
+const EDGE_STEP = 24;
+/** A region held to one side of the window, and the boundary the reader draws it by.
+ *
+ * The page has two — the comment panel on the right, the board panel on the left — and
+ * they are the same furniture reflected, so this is one function rather than two
+ * near-copies. What differs is what it is handed: which side the region is held to, the
+ * width it stands at until the reader says otherwise, how narrow they may draw it, the
+ * property the cascade reads the standing width from, the key their store keeps the choice
+ * under, and one noun, which every surface that names the region says in its own sentence.
+ * Nothing below differs, which is the point: the second edge cost a call rather than a
+ * copy, and a third would too.
+ *
+ * The width the reader asked for and the width the region stands at are two facts rather
+ * than one. A window too narrow to honour a choice does not un-make it, and widening that
+ * window again is not a request to be told what the reader once said — so the choice is
+ * kept and the standing width is derived from it. Everything reads `width`; nothing holds
+ * the number.
+ *
+ * One width, and a handle for each region on that side: the left edge holds two boards one
+ * at a time, and each wears the edge it is drawn by, because a handle outside them both
+ * would not slide in with the board it belongs to. They are handles onto one fact rather
+ * than two facts — `state` is the one writer, and it says the same thing on every one.
+ */
+function drawnEdge({ side, noun, wide, min, prop, key, covering, when }) {
+  // Whether the region stands over the page rather than beside it — the same fact as
+  // which of the two rules that take the strip the page is under. Asked of the query
+  // rather than stored, so no reader of it can hold an answer from a window that has gone.
+  const over = matchMedia(covering);
+  const handles = new Set();
+  let chosen = wide;
+  // What the window will allow. Beside the page, half of it, which is the bargain the
+  // covering query already strikes for the default width — the page keeps at least what
+  // the region takes — asked here of whatever width this reader chose. Over the page the
+  // region takes nothing from it, so the only bound there is the window itself.
+  const cap = () => document.documentElement.clientWidth / (over.matches ? 1 : 2);
+  // The floor gives way to the cap and not the other way about: a window too narrow for
+  // the floor is still the window, and a region wider than the one it stands in has put
+  // its own controls off the screen. Asked in two places and written once — of a width the
+  // reader is dragging to, so the edge never goes anywhere their hand did not, and of the
+  // width they chose on some other day, whose window is not this one.
+  const held = (want) => Math.min(cap(), Math.max(min, want));
+  const width = () => held(chosen);
+  // The one writer of the property the cascade reads that width from: the region's own box
+  // and the strip the page yields are both stated against it. Written rather than read back
+  // off the region because a closed one measures zero, which is exactly when the page most
+  // needs to know how wide it will be. The runtime's own readers — the toast's corner, the
+  // room a wide widget spends — ask `width` instead of this property, so what the cascade
+  // lays out and what the runtime measures cannot come apart.
+  function state() {
+    document.documentElement.style.setProperty(prop, width() + "px");
+    // Where the edge stands and how far it may go, which is what a listener hears change
+    // on every step — the platform's own announcement, and the whole reason the edge is a
+    // separator. The cap moves with the window, so it is restated wherever the width is.
+    for (const handle of handles) {
+      handle.setAttribute("aria-valuenow", String(Math.round(width())));
+      handle.setAttribute("aria-valuemax", String(Math.round(cap())));
+    }
+  }
+  // The reader's answer, taken and kept. Held to the window on the way in, because a drag
+  // is direct: what they see is what they asked for, and storing a width the window
+  // refused would hand it back to them on some later window as a place they never put the
+  // edge.
+  function set(want) {
+    chosen = Math.round(held(want));
+    readerStore.set(key, String(chosen));
+    state();
+    stateStrip();
+    syncLayout();
+  }
+  /** The region's own edge, said as what it is: a separator between two regions, which is
+   * the platform's word for a boundary the reader moves. That word is worth having for
+   * what comes with it — the edge carries the width it stands at, so an arrow step is
+   * announced by the platform itself, where a press built for the job would have had to say
+   * so in words of its own and would have promised an activation an edge has not got.
+   *
+   * It goes in the region rather than beside it, so it travels with whatever the region
+   * does: the board panel's edge slides in with the board standing on it, and a closed
+   * region's edge is hidden by the same rule that hides the region.
+   */
+  function handle(region) {
+    const edge = el("div", "lf-ui lf-edge");
+    edge.dataset.lfSide = side;
+    edge.setAttribute("role", "separator");
+    edge.setAttribute("aria-orientation", "vertical");
+    // The name a listener hears, and the one design mode shows under the pointer, where
+    // it is cut at CONTROL_WORD_CAP — so the noun leads and the word for what is being
+    // measured follows it, which is what keeps the longer of the two inside the cut.
+    edge.setAttribute("aria-label", `${noun[0].toUpperCase()}${noun.slice(1)} width`);
+    edge.setAttribute("aria-valuemin", String(min));
+    edge.tabIndex = 0;
+    // Where on the edge the reader took hold, kept for the length of the drag so the
+    // boundary stays under the point they grabbed. Without it the region jumps by up to
+    // the handle's own width on the first move, which is the page moving under an aim that
+    // had just arrived.
+    let grab = 0;
+    edge.addEventListener("pointerdown", (event) => {
+      // Refusing the press stops the compatibility mouse events, and with them the
+      // selection a drag makes: without it a gesture about the edge would drop whatever the
+      // reader had selected and paint a new one over the paragraphs it passed. Focus is
+      // then taken by hand, refusing the press having refused that too, so the arrows are
+      // live on the edge the reader is holding.
+      event.preventDefault();
+      edge.setPointerCapture(event.pointerId);
+      const box = region.getBoundingClientRect();
+      grab = event.clientX - (side === "right" ? box.left : box.right);
+      edge.focus({ preventScroll: true });
+      document.body.toggleAttribute("data-lf-sizing", true);
+    });
+    edge.addEventListener("pointermove", (event) => {
+      if (!edge.hasPointerCapture(event.pointerId)) return;
+      // The region's far edge is the window's, so the width is what the pointer leaves
+      // between the two — read off the window rather than off the region, which is the box
+      // this is about to resize.
+      const at = event.clientX - grab;
+      set(side === "right" ? document.documentElement.clientWidth - at : at);
+    });
+    // Both ends of the gesture, because a drag the browser takes away — a window losing the
+    // pointer, a touch cancelled — leaves the page in the sizing posture otherwise, and the
+    // slide would be gone for the rest of the session with nothing to say why.
+    for (const ending of ["pointerup", "pointercancel"])
+      edge.addEventListener(ending, () =>
+        document.body.toggleAttribute("data-lf-sizing", false),
+      );
+    // Arrows, and not a pair of letters, because the reader is standing on the edge
+    // itself — the direction is the whole of what they have left to say. Away from the
+    // side the region is held to widens it, which is the same reading the pointer makes of
+    // the same gesture.
+    const wider = side === "right" ? "ArrowLeft" : "ArrowRight";
+    keys(
+      edge,
+      `On the ${noun}'s edge`,
+      [
+        {
+          keys: ["ArrowLeft", "ArrowRight"],
+          label: "arrows",
+          does: `Resize the ${noun}`,
+          line: `resize the ${noun}`,
+          repeat: true,
+          run: (binding) => set(width() + (binding === wider ? EDGE_STEP : -EDGE_STEP)),
+        },
+      ],
+      when,
+    );
+    handles.add(edge);
+    region.prepend(edge);
+    state();
+    return edge;
+  }
+  // The reader's own answer, put back over the default at the foot of the module, where
+  // every other remembered arrangement is restored. Stated whether or not they have chosen
+  // one, since a reader who has said nothing is a reader whose answer is the default.
+  function restore() {
+    chosen = parseFloat(readerStore.get(key)) || wide;
+    state();
+  }
+  return { width, state, restore, handle, key, over };
+}
+// The rows' own box, one per board. Collected as they are made, because what syncLayout
+// reserves at the foot of one it reserves at the foot of every one — and a second place
+// to remember that is exactly where the asks board was left out of it: its walk parked
+// the last row 47px under the key line, on the one board nothing had ever walked to the
+// end of.
+const boardLists = [];
+function boardList(panel) {
+  const list = el("div", "lf-board-list");
+  panel.append(list);
+  boardLists.push(list);
+  return list;
+}
+// The comment panel's edge, on the right, and the board panel's, on the left. Each keeps
+// the reader's choice in their own store rather than the tab's, because where a reader
+// keeps their conversations, and how much of the page they will give a board, is the
+// chrome they arrange and expect to find arranged wherever they are reading (see
+// `readerStore`) — and a version switch is a reload, so a width set by hand would
+// otherwise be set again on every revision.
+const commentsEdge = drawnEdge({
+  side: "right",
+  noun: "comment panel",
+  wide: PANEL_W,
+  min: PANEL_MIN,
+  prop: PANEL_PROP,
+  key: "lf-panel-width",
+  covering: COVERING,
+});
+const boardsEdge = drawnEdge({
+  side: "left",
+  noun: "board panel",
+  wide: BOARD_W,
+  min: BOARD_MIN,
+  prop: BOARD_PROP,
+  key: "lf-board-width",
+  covering: BOARD_COVERING,
+  // A page with no board to open has no edge to draw, so the reference does not name one.
+  when: () => leavesOffered() || asksOffered(),
+});
+
 const banner = el("div", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
@@ -2765,15 +3003,19 @@ const othersBtn = el("button", "lf-btn lf-others", "");
 othersBtn.title = "Leaves live on this machine, and what each is doing";
 // A nav, because navigation is what it is and a bare div may not carry the
 // aria-label the card needs (axe: aria-prohibited-attr, serious).
-const othersPanel = el("nav", "lf-ui lf-others-panel");
+const othersPanel = el("nav", "lf-ui lf-board-panel lf-others-panel");
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
+boardsEdge.handle(othersPanel);
+const leavesList = boardList(othersPanel);
 let others = [];
 // A board of the page's own open asks, on the same edge: one row per thing the page is
 // waiting on the reader for, in the order the page asks them. The list is openAsks() and
 // nothing else, so a widget joins the board by declaring x-awaits and no row here knows
 // what kind of thing it is standing for.
-const asksPanel = el("nav", "lf-ui lf-asks-panel");
+const asksPanel = el("nav", "lf-ui lf-board-panel lf-asks-panel");
 asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
+boardsEdge.handle(asksPanel);
+const asksList = boardList(asksPanel);
 
 // The left edge holds one board at a time. Leaves and asks are the same furniture asking
 // at two scopes — which page needs me, and what this page needs of me — and each has to
@@ -2786,8 +3028,8 @@ asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
 // Registered rather than listed, for the same reason the widgets are: the toggle, the
 // press, the reload and the Escape rung all read this map, so a third board joins by
 // registering and none of them names a board to do its job.
-const edges = new Map();
-const EDGE_KEY = "lf-edge-board";
+const boards = new Map();
+const BOARD_KEY = "lf-board-up";
 // The board survives a reload like the comment panel does (see PANEL_KEY): reloading is
 // not resetting, and a board someone stood up to watch stays stood. Null until the
 // restore at the foot of this module puts it back, which it does by opening the board
@@ -2796,12 +3038,12 @@ const EDGE_KEY = "lf-edge-board";
 // runs while this module is still evaluating, so the page's own asks — declared
 // thousands of lines below — are not initialized yet, and the reader who had left the
 // board standing got a ReferenceError where their page should have been.
-let edgeUp = null;
-const openEdge = (key) => edgeUp === key;
-function showEdge(key) {
-  if (edgeUp === key) return;
-  edgeUp = key;
-  for (const [name, { panel, btn, paint }] of edges) {
+let boardUp = null;
+const openBoard = (key) => boardUp === key;
+function showBoard(key) {
+  if (boardUp === key) return;
+  boardUp = key;
+  for (const [name, { panel, btn, paint }] of boards) {
     const open = name === key;
     btn.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -2825,7 +3067,7 @@ function showEdge(key) {
         160,
       );
       const hide = () => {
-        if (edgeUp === name) return; // reopened mid-slide; it stays up, list and all
+        if (boardUp === name) return; // reopened mid-slide; it stays up, list and all
         panel.classList.remove("open");
         paint?.();
       };
@@ -2834,36 +3076,43 @@ function showEdge(key) {
       if (panel.contains(document.activeElement)) btn.focus();
     }
   }
-  readerStore.set(EDGE_KEY, key ?? "");
+  // Both of the page's answers to the board are made here rather than left to the
+  // observation, for the reasons setPanel gives at the same two lines: the strip the
+  // idioms hang in is body's own padding, which the observation's writer may not touch,
+  // and a board that covers the page moves body's box by nothing at all, so there is no
+  // observation to deliver.
+  stateStrip();
+  syncLayout();
+  readerStore.set(BOARD_KEY, key ?? "");
   // Which board is up, on the document, so the stylesheet can say what each one costs the
   // page's own box. One writer for it, here, beside the one variable that holds the fact.
-  if (key) document.body.dataset.lfEdge = key;
-  else delete document.body.dataset.lfEdge;
+  if (key) document.body.dataset.lfBoard = key;
+  else delete document.body.dataset.lfBoard;
   paintHere();
 }
 // Registration and nothing else: no board is up while this module is evaluating, and
 // the one the reader left standing goes up in the restore section at the foot of the
-// file, through showEdge. So there is one opener, and every fact that carries "this
+// file, through showBoard. So there is one opener, and every fact that carries "this
 // board is up" is written where it is decided.
-function edgeIs(key, panel, btn, paint) {
-  edges.set(key, { panel, btn, paint });
-  btn.onclick = () => showEdge(openEdge(key) ? null : key);
+function boardIs(key, panel, btn, paint) {
+  boards.set(key, { panel, btn, paint });
+  btn.onclick = () => showBoard(openBoard(key) ? null : key);
   btn.setAttribute("aria-expanded", "false");
 }
-edgeIs("leaves", othersPanel, othersBtn);
-edgeIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
+boardIs("leaves", othersPanel, othersBtn);
+boardIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
 // A persisted board is state-dependent chrome: Asks folds the log and Leaves comes from
-// the first state response. Keep the remembered intent in edgeUp, but restore its pixels
-// only once that response has produced the page's presentation. Unlike showEdge, this
+// the first state response. Keep the remembered intent in boardUp, but restore its pixels
+// only once that response has produced the page's presentation. Unlike showBoard, this
 // first paint does not animate — it is part of the page arriving, not a reader gesture.
-function restoreEdge() {
-  if (!edgeUp) return;
-  const edge = edges.get(edgeUp);
-  if (!edge) return;
-  edge.btn.setAttribute("aria-expanded", "true");
-  edge.paint?.();
-  edge.panel.classList.add("open");
-  document.body.dataset.lfEdge = edgeUp;
+function restoreBoard() {
+  if (!boardUp) return;
+  const board = boards.get(boardUp);
+  if (!board) return;
+  board.btn.setAttribute("aria-expanded", "true");
+  board.paint?.();
+  board.panel.classList.add("open");
+  document.body.dataset.lfBoard = boardUp;
 }
 // Each board's one offer: something to show, or the board already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
@@ -2871,9 +3120,10 @@ function restoreEdge() {
 // disagree about whether there is a board to open. A leaves board of one — the page the
 // reader is already on — is not worth a control; an asks board of none is the same.
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
-const boardOffered = () => pagePresented() && (others.length > 0 || openEdge("leaves"));
+const leavesOffered = () =>
+  pagePresented() && (others.length > 0 || openBoard("leaves"));
 const asksOffered = () =>
-  pagePresented() && (openAsks().length > 0 || openEdge("asks"));
+  pagePresented() && (openAsks().length > 0 || openBoard("asks"));
 // The board's own scope. The walk is the board's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
@@ -2899,7 +3149,7 @@ keys(asksPanel, "In the asks board", [
 ]);
 keys(
   othersPanel,
-  "In the leaves panel",
+  "In the leaves board",
   [
     {
       keys: ["ArrowUp", "ArrowDown"],
@@ -2914,7 +3164,7 @@ keys(
     // the line is for.
     { keys: ["Enter"], does: "Open that leaf in a tab", line: "open it in a tab" },
   ],
-  boardOffered, // the scope's own liveness: a board with something to walk
+  leavesOffered, // the scope's own liveness: a board with something to walk
 );
 // A row's whole account of a page: the dot's tone and one line of words, from the
 // same judgment the banner's sentences come from — the judgment is shared, the
@@ -2990,7 +3240,7 @@ function renderOthers(state) {
   // never dropped: a reader looking at a closed page is still looking at it.
   others = (state.others ?? []).filter((entry) => presented(entry).kind !== "closed");
   // While the panel stands its button stands too, whatever the count just did.
-  showNews(othersBtn, boardOffered());
+  showNews(othersBtn, leavesOffered());
   const wanted = [
     { key: "self", title: document.title, entry: state },
     ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
@@ -3032,8 +3282,8 @@ function renderOthers(state) {
     // Everything the row was too narrow to say, on the row itself (see rowAccount).
     const account = rowAccount(entry, title, line);
     if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : othersPanel.firstElementChild;
-    if (place !== row) othersPanel.insertBefore(row, place);
+    const place = anchor ? anchor.nextElementSibling : leavesList.firstElementChild;
+    if (place !== row) leavesList.insertBefore(row, place);
     anchor = row;
   }
   for (const [key, row] of othersRows)
@@ -3230,17 +3480,7 @@ const closeBtn = Object.assign(el("button", "lf-btn", "×"), {
 });
 closeBtn.setAttribute("aria-label", "Close comments");
 panelHead.append(el("span", "", "Comments"), closeBtn);
-// The panel's own edge, said as what it is: a separator between two regions, which is
-// the platform's word for a boundary the reader moves. That word is worth having for what
-// comes with it — the edge carries the width it stands at, so an arrow step is announced
-// by the platform itself, where a press built for the job would have had to say so in
-// words of its own and would have promised an activation an edge has not got.
-const grip = el("div", "lf-ui lf-grip");
-grip.setAttribute("role", "separator");
-grip.setAttribute("aria-orientation", "vertical");
-grip.setAttribute("aria-label", "Comments panel width");
-grip.setAttribute("aria-valuemin", String(PANEL_MIN));
-grip.tabIndex = 0;
+commentsEdge.handle(panel);
 const threadsBox = el("div", "lf-threads");
 // An Escape rung: backing out of the general box lands on the list (visible ring,
 // j/k walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
@@ -3249,7 +3489,7 @@ const generalRow = el("div", "lf-general");
 const generalInput = document.createElement("textarea");
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-panel.append(grip, panelHead, threadsBox, generalRow);
+panel.append(panelHead, threadsBox, generalRow);
 
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
@@ -3773,113 +4013,19 @@ function mirrorDraft(ta, sync, ctx) {
 // Panel open/closed is remembered too: a version switch reloads the document, and
 // reopening the panel by hand after every revision gets old fast.
 const PANEL_KEY = "lf-panel-open";
-// And the width, for the same reason: a version switch reloads the document, and a reader
-// who has set the panel where they want it has not asked to set it again on every
-// revision. The reader's store rather than the tab's, because where a reader keeps their
-// conversations is the chrome they arrange and expect to find arranged, wherever they are
-// reading (see `readerStore`).
-const PANEL_W_KEY = "lf-panel-width";
 // Whether the panel stands over the page rather than beside it — the same fact as which
 // of the two rules that take the strip the page is under, and as which region the
-// reader's own scrolling moves. Asked of the query rather than stored, so no reader of it
-// can hold an answer from a window that has gone.
-const covering = matchMedia(COVERING);
-const panelCovers = () => panelOpen && covering.matches;
-// The width the reader has asked the panel to stand at, and the width it stands at,
-// which are two facts rather than one. A window too narrow to honour a choice does not
-// un-make it, and widening that window again is not a request to be told what the reader
-// once said — so the choice is kept and the standing width is derived from it. Everything
-// reads the function; nothing holds the number.
-let chosenWidth = PANEL_W;
-// What the window will allow. Beside the page, half of it, which is the bargain COVERING
-// already strikes for the default width — the page keeps at least what the panel takes —
-// asked here of whatever width this reader chose. Over the page the panel takes nothing
-// from it, so the only bound there is the window itself.
-const panelCap = () =>
-  document.documentElement.clientWidth / (covering.matches ? 1 : 2);
-// The floor gives way to the cap and not the other way about: a window too narrow for the
-// floor is still the window, and a panel wider than the one it stands in has put its own
-// controls off the screen. Asked in two places and written once — of a width the reader is
-// dragging to, so the edge never goes anywhere their hand did not, and of the width they
-// chose on some other day, whose window is not this one.
-const heldWidth = (width) => Math.min(panelCap(), Math.max(PANEL_MIN, width));
-const panelWidth = () => heldWidth(chosenWidth);
-// The one writer of the property the cascade reads that width from: the panel's own box
-// and the strip the page yields are both stated against it. Written rather than read back
-// off the panel because the panel measures zero for as long as it is closed, which is
-// exactly when the page most needs to know how wide it will be. The runtime's own readers
-// — the toast's corner, the room a wide widget spends — ask `panelWidth` instead of this
-// property, so what the cascade lays out and what the runtime measures cannot come apart.
-function statePanelWidth() {
-  const width = panelWidth();
-  document.documentElement.style.setProperty("--lf-panel-w", width + "px");
-  // Where the edge stands and how far it may go, which is what a listener hears change on
-  // every step — the platform's own announcement, and the whole reason the edge is a
-  // separator. The cap moves with the window, so it is restated wherever the width is.
-  grip.setAttribute("aria-valuenow", String(Math.round(width)));
-  grip.setAttribute("aria-valuemax", String(Math.round(panelCap())));
-}
-// The reader's answer, taken and kept. Held to the window on the way in, because a drag is
-// direct: what they see is what they asked for, and storing a width the window refused
-// would hand it back to them on some later window as a place they never put the edge.
-function setPanelWidth(width) {
-  chosenWidth = Math.round(heldWidth(width));
-  readerStore.set(PANEL_W_KEY, String(chosenWidth));
-  statePanelWidth();
-  stateStrip();
-  syncLayout();
-}
-// Where on the grip the reader took hold, kept for the length of the drag so the edge
-// stays under the point they grabbed. Without it the panel jumps by up to the grip's own
-// width on the first move, which is the page moving under an aim that had just arrived.
-let gripGrab = 0;
-grip.addEventListener("pointerdown", (event) => {
-  // Refusing the press stops the compatibility mouse events, and with them the selection a
-  // drag makes: without it a gesture about the edge would drop whatever the reader had
-  // selected and paint a new one over the paragraphs it passed. Focus is then taken by
-  // hand, refusing the press having refused that too, so the arrows are live on the edge
-  // the reader is holding.
-  event.preventDefault();
-  grip.setPointerCapture(event.pointerId);
-  gripGrab = event.clientX - panel.getBoundingClientRect().left;
-  grip.focus({ preventScroll: true });
-  document.body.toggleAttribute("data-lf-sizing", true);
-});
-grip.addEventListener("pointermove", (event) => {
-  if (!grip.hasPointerCapture(event.pointerId)) return;
-  // The panel's right edge is the viewport's, so the width is what the pointer leaves to
-  // the right of it — read off the window rather than off the panel, which is the box this
-  // is about to resize.
-  setPanelWidth(document.documentElement.clientWidth - (event.clientX - gripGrab));
-});
-// Both ends of the gesture, because a drag the browser takes away — a window losing the
-// pointer, a touch cancelled — leaves the page in the sizing posture otherwise, and the
-// slide would be gone for the rest of the session with nothing to say why.
-for (const ending of ["pointerup", "pointercancel"])
-  grip.addEventListener(ending, () =>
-    document.body.toggleAttribute("data-lf-sizing", false),
-  );
-// The step, in the column's own gutter: the smallest move that shows in a page of prose.
-const GRIP_STEP = 24;
-// Arrows, and not a pair of letters, because the reader is standing on the edge itself —
-// the direction is the whole of what they have left to say. Left widens: the edge is what
-// moves, and moving it left is the panel growing, which is the same reading the pointer
-// makes of the same gesture.
-keys(grip, "On the panel's edge", [
-  {
-    keys: ["ArrowLeft", "ArrowRight"],
-    label: "arrows",
-    does: "Resize the panel",
-    line: "resize the panel",
-    repeat: true,
-    run: (binding) =>
-      setPanelWidth(panelWidth() + (binding === "ArrowLeft" ? GRIP_STEP : -GRIP_STEP)),
-  },
-]);
-// The strip the panel holds, which is the panel's width until the window is too narrow
-// to give one up — one expression, because the margin the rule takes and the room
-// measured against it have to mean the same thing by it.
-const panelStrip = () => (panelOpen && !panelCovers() ? panelWidth() : 0);
+// reader's own scrolling moves. Asked of the edge's query rather than stored, so no reader
+// of it can hold an answer from a window that has gone.
+const panelCovers = () => panelOpen && commentsEdge.over.matches;
+// The strip each side of the page yields, which is that edge's width until the window is
+// too narrow to give one up — one expression each, because the margin the rule takes and
+// the room measured against it have to mean the same thing by it. The board panel yields
+// one only for the boards the page gives room to at all, which is the same list the rule
+// reads (STRIP_BOARDS).
+const panelStrip = () => (panelOpen && !panelCovers() ? commentsEdge.width() : 0);
+const boardStrip = () =>
+  STRIP_BOARDS.includes(boardUp) && !boardsEdge.over.matches ? boardsEdge.width() : 0;
 // Whether the page still has room for the margin the theme's idioms hang in. The strips
 // are granted by a media query, which asks the window; the page's box is the window less
 // whatever the panel holds of it, and this is the only thing that knows the difference. So
@@ -3904,14 +4050,15 @@ const panelStrip = () => (panelOpen && !panelCovers() ? panelWidth() : 0);
 function stateStrip() {
   document.body.toggleAttribute(
     "data-lf-cramped",
-    document.documentElement.clientWidth - panelStrip() < STRIP_MIN,
+    document.documentElement.clientWidth - panelStrip() - boardStrip() < STRIP_MIN,
   );
 }
-// A window that has changed is a cap that has changed, so the width the panel stands at
-// is restated beside the veto — one listener, both facts being answers to the same event,
-// and neither of them a reading of the box syncLayout measures.
+// A window that has changed is a cap that has changed, so the width each edge stands at
+// is restated beside the veto — one listener, every fact on it being an answer to the same
+// event, and none of them a reading of the box syncLayout measures.
 addEventListener("resize", () => {
-  statePanelWidth();
+  commentsEdge.state();
+  boardsEdge.state();
   stateStrip();
 });
 // Every writer here is a writer of the chrome, so nothing this function does resizes the
@@ -3922,7 +4069,7 @@ function syncLayout() {
   // The toast lives in the same corner as the panel's Send button. Beside a wide
   // panel it steps left; over a covering sheet it stays inside the viewport and
   // rises above the whole composer, including a textarea grown by an unsent draft.
-  toastEl.style.right = (panelBeside ? panelWidth() + 18 : 18) + "px";
+  toastEl.style.right = (panelBeside ? commentsEdge.width() + 18 : 18) + "px";
   toastEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 18 : 18) + "px";
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
@@ -3940,8 +4087,8 @@ function syncLayout() {
   // in the flow, holds nothing but out-of-flow chrome, and is watched by nobody, so what
   // it takes is room the document has and no measurement's business.
   chromeRoot.style.paddingBottom = clear;
-  // The board is the page's other scroll region, in the corner the line is written
-  // into, so it reserves the same room — and states it twice, because its list reaches
+  // A board's list is the page's other scroll region, in the corner the line is
+  // written into, so it reserves the same room — and states it twice, because it reaches
   // the bottom two ways that take their room from different places. A wheel to the end
   // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
   // scroll-into-view stops short of, and without it the last row's clearance is however
@@ -3949,9 +4096,11 @@ function syncLayout() {
   // line standing there. Stepping the line clear instead was the other answer, and it
   // takes the board's width off the line's: a busy scope already fills a laptop's, so
   // the room it gives up is chips clipped off the right-hand end.
-  othersPanel.style.paddingBottom = clear;
-  othersPanel.style.scrollPaddingBottom = clear;
-  stateRoom(panelStrip());
+  for (const list of boardLists) {
+    list.style.paddingBottom = clear;
+    list.style.scrollPaddingBottom = clear;
+  }
+  stateRoom();
   syncFloats();
 }
 // The room a widget declared wide may take: the document's own content box, less the
@@ -3971,12 +4120,22 @@ function syncLayout() {
 // two coincide exactly, so the rule that spends this is a no-op on a narrow window rather
 // than a case anyone has to write.
 //
-// The strip the panel holds is the one part of that box which isn't settled when this
-// runs: it is handed over as motion, so body's margin is still the old one for the length
-// of the transition and the box in front of us is neither the width the page has nor the
-// one it is going to. Both readings are wrong, in opposite directions and at different
-// prices, so the room takes whichever of the two is smaller and the page never owes room
-// it hasn't got. Opening, that is the width being arrived at, stated at once: the strip
+// The strips the chrome holds are the part of that box which isn't settled when this
+// runs: each is handed over as motion, so body's margins are still the old ones for the
+// length of the transition and the box in front of us is neither the width the page has
+// nor the one it is going to. Both readings are wrong, in opposite directions and at
+// different prices, so the room takes whichever of the two is smaller and the page never
+// owes room it hasn't got. Both sides, because both yield one: the board panel's margin
+// eases exactly as the comment panel's does, and reading it off the box alone left every
+// exhibit a board's width too wide for the fifth of a second the board took to arrive.
+//
+// The two readings are compared rather than added, which is the same arithmetic done in
+// whole pixels. Subtracting the margin the box has already taken from the strip it is
+// going to take says the same thing and says it in two number systems at once: a client
+// box is an integer and a transitioning margin is not, so their sum flickered a pixel
+// either way on every frame of a slide — and a property every wide exhibit is laid out
+// from cannot flicker, because each flicker is a relayout inside the observation that
+// asked for it. Opening, that is the width being arrived at, stated at once: the strip
 // is being taken away, and an exhibit that waited out the slide would spend it hanging
 // over the panel with a sideways scrollbar underneath. Closing, it is the width in front
 // of us: the strip is coming back, and an exhibit that took it before the page had it
@@ -3984,14 +4143,21 @@ function syncLayout() {
 // is what the suggestion sweep caught, on a window narrow enough for the returning strip
 // to matter. What is given back is picked up as it is given: the box is watched, so every
 // frame of the slide is a reading of it, and the growth lands the frame the room is real.
-function stateRoom(strip) {
+function stateRoom() {
   const main = document.querySelector("main");
   if (!main) return;
   const body = getComputedStyle(document.body);
   const column = getComputedStyle(main);
+  // The gutter body reserves for its own scrollbar, which the window does not know about
+  // and the box in front of us has already given up. Read as the difference between the
+  // two boxes rather than asked of the platform, which has no way to be asked; it is a
+  // constant through a slide, both boxes moving with the margin together.
+  const gutter = document.body.offsetWidth - document.body.clientWidth;
   const room =
-    document.body.clientWidth -
-    Math.max(0, strip - parseFloat(body.marginRight)) -
+    Math.min(
+      document.body.clientWidth,
+      document.documentElement.clientWidth - panelStrip() - boardStrip() - gutter,
+    ) -
     parseFloat(body.paddingLeft) -
     parseFloat(body.paddingRight) -
     parseFloat(column.paddingLeft) -
@@ -7226,7 +7392,7 @@ document.addEventListener("keyup", (ev) => {
 // the composer that press just opened. Hence one function, called from both.
 // The two side panels are absent from it on purpose. A float answers the press in front
 // of it and stands down behind it; the comment panel and the leaves board are
-// workspaces the reader stood up, kept through a reload (PANEL_KEY, EDGE_KEY) and so
+// workspaces the reader stood up, kept through a reload (PANEL_KEY, BOARD_KEY) and so
 // through a click all the more — a board any press removes cannot be watched while
 // working, which is the board's point. Each closes by its own button, its key, or Esc.
 function standDown(target) {
@@ -8274,11 +8440,11 @@ function rung() {
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever board holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the board" over two of them.
-  if (edgeUp && !panel.contains(active))
+  if (boardUp && !panel.contains(active))
     return {
-      says: `close ${edgeUp}`,
-      does: `Close the ${edgeUp} board`,
-      out: () => showEdge(null),
+      says: `close ${boardUp}`,
+      does: `Close the ${boardUp} board`,
+      out: () => showBoard(null),
     };
   if (panelOpen)
     return {
@@ -8694,16 +8860,16 @@ const PAGE = {
       // there was no way to see what was waiting without visiting each one in turn.
       keys: ["a"],
       does: () =>
-        `${openEdge("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
-      line: () => `${openEdge("asks") ? "hide" : "show"} asks`,
+        `${openBoard("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
+      line: () => `${openBoard("asks") ? "hide" : "show"} asks`,
       also: asksBtn, // the banner count opens the same board, which then names this key
       when: asksOffered,
       run: () => {
-        showEdge(openEdge("asks") ? null : "asks");
+        showBoard(openBoard("asks") ? null : "asks");
         // Opening lands on the first row, so the board's own keys are the next press
         // rather than a Tab-hunt across the banner — the move `l` makes into the leaves.
-        // Closing hands focus back, which showEdge owns.
-        if (openEdge("asks")) askRows()[0]?.focus();
+        // Closing hands focus back, which showBoard owns.
+        if (openBoard("asks")) askRows()[0]?.focus();
       },
     },
     {
@@ -8719,17 +8885,17 @@ const PAGE = {
       // it promised — so the key went on spelling a word nothing on screen said, and
       // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
       keys: ["l"],
-      does: () => `${openEdge("leaves") ? "Hide" : "Show"} the machine's leaves`,
-      line: () => `${openEdge("leaves") ? "hide" : "show"} leaves`,
+      does: () => `${openBoard("leaves") ? "Hide" : "Show"} the machine's leaves`,
+      line: () => `${openBoard("leaves") ? "hide" : "show"} leaves`,
       also: othersBtn,
-      when: boardOffered,
+      when: leavesOffered,
       run: () => {
-        showEdge(openEdge("leaves") ? null : "leaves");
+        showBoard(openBoard("leaves") ? null : "leaves");
         // Opening lands on the first neighbour, so the board's own keys are the next press
         // rather than a Tab-hunt across the banner — the move c makes into the comment
-        // panel's box. Closing hands focus back, which showEdge owns. The key is dead
+        // panel's box. Closing hands focus back, which showBoard owns. The key is dead
         // with nothing to show, so an open always has a row to land on.
-        if (openEdge("leaves")) othersLinks()[0].focus();
+        if (openBoard("leaves")) othersLinks()[0].focus();
       },
     },
     {
@@ -9420,13 +9586,13 @@ function syncAsks() {
   // Only while the board is up: the count above is what a closed board says, and these
   // rows are what an open one says. A closed board reconciling a list on every poll is
   // work for a reader who cannot see it, and rows in a document nothing can press.
-  if (openEdge("asks")) renderAsks(asks);
+  if (openBoard("asks")) renderAsks(asks);
   for (const { btn, label, n } of blanketAnswers(asks)) {
     showNews(btn, Boolean(n));
     btn.textContent = `✓ ${label} all (${n})`;
   }
   // The n/p and A rows stand on this list, so the surfaces reading them are repainted
-  // where it changes — the rule showFab and showEdge already keep for the words
+  // where it changes — the rule showFab and showBoard already keep for the words
   // they write.
   paintHere();
 }
@@ -9456,7 +9622,7 @@ document.addEventListener("lf-actions", syncAsks);
 const askRowsById = new Map();
 function renderAsks(asks) {
   let anchor = null;
-  if (!openEdge("asks")) {
+  if (!openBoard("asks")) {
     for (const [, row] of askRowsById) row.remove();
     askRowsById.clear();
     return;
@@ -9486,8 +9652,8 @@ function renderAsks(asks) {
     if (says.textContent !== said) says.textContent = said;
     const account = `${word} · ${said}`;
     if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : asksPanel.firstElementChild;
-    if (place !== row) asksPanel.insertBefore(row, place);
+    const place = anchor ? anchor.nextElementSibling : asksList.firstElementChild;
+    if (place !== row) asksList.insertBefore(row, place);
     anchor = row;
   }
   const live = new Set(asks.map((a) => a.id));
@@ -9610,7 +9776,7 @@ function markHere() {
   // A walk that runs past the foot of an open board leaves its mark off screen, which is
   // the board saying nothing exactly while the reader is using it. `nearest` so a row
   // already in view moves nothing.
-  if (row && openEdge("asks")) row.scrollIntoView({ block: "nearest" });
+  if (row && openBoard("asks")) row.scrollIntoView({ block: "nearest" });
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent !== here) lend(null);
@@ -11452,19 +11618,18 @@ async function receiveState(state) {
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general") ?? "";
-// The width first, so a panel put back open is open at the width the reader left it at
-// rather than sliding to it afterwards. Stated whether or not they have chosen one, this
-// being the one place the property the stylesheet reads is written from a standing start.
-chosenWidth = parseFloat(readerStore.get(PANEL_W_KEY)) || PANEL_W;
-statePanelWidth();
+// The widths first, so a panel or a board put back open is open at the width the reader
+// left it at rather than sliding to it afterwards.
+commentsEdge.restore();
+boardsEdge.restore();
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
 // Remembered board intent is staged here, after every declaration exists. Its strip is
 // part of the arrival geometry, but its state-dependent rows stay hidden until the first
-// replay presents the page and restoreEdge paints them. An already-presented document
+// replay presents the page and restoreBoard paints them. An already-presented document
 // (an exported or pre-presented DOM) can restore immediately through the same function.
-edgeUp = readerStore.get(EDGE_KEY) || null;
-if (edgeUp) document.body.dataset.lfEdge = edgeUp;
-if (pagePresented()) restoreEdge();
+boardUp = readerStore.get(BOARD_KEY) || null;
+if (boardUp) document.body.dataset.lfBoard = boardUp;
+if (pagePresented()) restoreBoard();
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // Every way this page can come up that is not a first visit — the restores above, each
 // named by the fact its store holds. The browser gate arrives once in each, because
@@ -11481,12 +11646,17 @@ export const ARRANGEMENTS = [
   { name: "the comment panel open", ...readerStore.where(PANEL_KEY), value: "1" },
   {
     name: "the comment panel at the width the reader drew it to",
-    ...readerStore.where(PANEL_W_KEY),
+    ...readerStore.where(commentsEdge.key),
     value: "560",
   },
-  ...[...edges.keys()].map((board) => ({
+  {
+    name: "the board panel at the width the reader drew it to",
+    ...readerStore.where(boardsEdge.key),
+    value: "260",
+  },
+  ...[...boards.keys()].map((board) => ({
     name: `the ${board} board standing`,
-    ...readerStore.where(EDGE_KEY),
+    ...readerStore.where(BOARD_KEY),
     value: board,
   })),
   { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
@@ -11590,8 +11760,8 @@ async function presentPage() {
   // Repaint state-dependent chrome in this same task. The presentation attribute opens
   // the gate, replay is already complete, and no frame can expose the authored count or
   // an empty persisted board between those facts.
-  restoreEdge();
-  showNews(othersBtn, boardOffered());
+  restoreBoard();
+  showNews(othersBtn, leavesOffered());
   syncAsks();
   paintApproval();
   promoteDeferredModals();

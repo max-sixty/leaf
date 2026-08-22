@@ -9169,7 +9169,19 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
 def test_loop_guard_agrees_on_claim_home_and_active_ownership(
     tmp_path, monkeypatch, dead_pid
 ):
-    """The plain-Python preflight reads the canonical active-claim rule."""
+    """The plain-Python preflight reads the canonical active-claim rule.
+
+    Two questions, and only one of them may be asked of the developer's own machine.
+    Where the claims directory is has to be asked with nothing relocating it, since that
+    is the arrangement a real session runs under. What counts as an active claim is asked
+    of a relocated home, because asking it writes claims — and this test wrote them into
+    `~/.local/state/leaf/claims`, one per run, each under this same id and none of them
+    released, `tmp_path` naming a new page every time and nothing ever sweeping the old
+    ones. Seventy-six had collected when one of their pids came round again on a live
+    process, and the rule below read as true for a claim no run of this test had made.
+    A record left in a shared directory outlives the run that made it; a constant id in
+    one is a name every run answers to.
+    """
 
     def load(path):
         spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
@@ -9186,14 +9198,17 @@ def test_loop_guard_agrees_on_claim_home_and_active_ownership(
             monkeypatch.setenv(key, value)
         guard = load(PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py")
         assert guard.CLAIMS == interact.state_home() / "claims"
-        page = tmp_path / f"page-{len(env)}"
-        page.mkdir(exist_ok=True)
-        record_claim(page, id="guarded")
-        assert guard.session_has_active_claim("guarded")
-        record_claim(page, id="guarded", released=interact.now_iso())
-        assert not guard.session_has_active_claim("guarded")
-        record_claim(page, id="guarded", pid=dead_pid)
-        assert not guard.session_has_active_claim("guarded")
+
+    # The loop ends on the relocated home deliberately: `guard` reads what this test
+    # writes, and the only claims directory it may write into is this one.
+    page = tmp_path / "page"
+    page.mkdir()
+    record_claim(page, id="guarded")
+    assert guard.session_has_active_claim("guarded")
+    record_claim(page, id="guarded", released=interact.now_iso())
+    assert not guard.session_has_active_claim("guarded")
+    record_claim(page, id="guarded", pid=dead_pid)
+    assert not guard.session_has_active_claim("guarded")
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):

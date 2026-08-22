@@ -37,7 +37,8 @@ Each mutable fact has one writer:
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
-| edge board visibility | `edgeUp` | `showEdge` |
+| board visibility | `boardUp` | `showBoard` |
+| region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
@@ -56,7 +57,7 @@ do not broaden the exclusion to every `data-lf-*` attribute.
 Layout follows the same ownership rule. `syncLayout` may measure
 `document.body`, but it writes only chrome boxes. The banner's reservation is
 `body::before`, and the key line's reservation is padding on the chrome
-container. Panel and edge strips come from attributes and media queries. A
+container. Panel and board strips come from attributes and media queries. A
 `ResizeObserver` callback must not resize the box it observes, directly or
 through a class or attribute that changes that box.
 
@@ -737,10 +738,32 @@ listener when body observation already represents them.
 The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
 `document.scrollingElement` must be given `pageScroller` explicitly. The open
-panel and edge board each occupy their own strip when the viewport can hold it
-and cover the page under their respective media query otherwise. `stateStrip`
-and `stateRoom` are the geometry readings; CSS owns the body's corresponding
-layout.
+comment panel and board panel each occupy their own strip when the viewport can
+hold it and cover the page under their respective media query otherwise.
+`stateStrip` and `stateRoom` are the geometry readings, and both count every
+strip the chrome holds; CSS owns the body's corresponding layout.
+
+Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
+is the one implementation: each caller supplies the side its region is held to, a
+default width, a floor, the custom property the cascade reads the standing width
+from, a store key, and one noun that every surface naming the region says in its
+own sentence. Nothing else differs, and no consumer names a region. A handle
+carries `role="separator"` with the width it stands at, so an arrow step is the
+platform's own announcement. The width the reader chose and the width a region
+stands at are separate facts: a window too narrow to honour a choice does not
+overwrite it, and a region beside the page is capped at half that window. Ask the
+covering media query of the default width and never of the reader's, or a drag
+changes the page's posture under the hand making it. Both boards share one width,
+which belongs to the side rather than to either board.
+
+A handle lives inside the region it draws, so a drawn region must not be its own
+scroll container: a scroller clips a handle straddling its border and carries it
+away with the content. A board is a shell holding a `.lf-board-list`, and every
+board list reserves the key line's room. `stateRoom` compares whole-pixel
+readings — the measured box against the window less every strip — rather than
+subtracting a transitioning margin from an integer box. Mixing the two flickers
+`--lf-room` by a pixel per frame, and each flip relayouts the page from inside
+the observation that asked for it.
 
 The banner and key line reserve their space in normal flow. A fixed or absolute
 chrome surface may lie above that reservation, but the reservation itself
@@ -749,8 +772,8 @@ serves.
 
 ### Presentation and state motion
 
-Arrival is not a gesture. Restored panel, edge-board, design-mode, widget, and
-reading-position state appears at rest. `motion` finishes Web Animations
+Arrival is not a gesture. Restored panel, board, drawn-width, design-mode, widget,
+and reading-position state appears at rest. `motion` finishes Web Animations
 immediately before `data-lf-presented`; theme transitions use the same
 presentation stamp. `ARRANGEMENTS` declares each stored runtime arrangement the
 render suite must visit. Add a new remembered surface there when the surface is
@@ -1001,14 +1024,14 @@ the only navigation door for those controls. The view record carries reading
 position and the ask-walk landmark; focus and a selection do not cross to a new
 document.
 
-The status edge holds one board at a time. `showEdge` owns `edgeUp` and renders
+The left side holds one board at a time. `showBoard` owns `boardUp` and renders
 the complete outcome for leaves and asks. The leaves board overlays the
 document because its rows leave the page. The asks board takes a strip because
 its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same board setter.
 
-`restoreEdge` runs after all declarations exist and after the first projection
-can populate state-dependent rows. It restores intent through `showEdge` without
+`restoreBoard` runs after all declarations exist and after the first projection
+can populate state-dependent rows. It restores intent through `showBoard` without
 replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
 each persisted board.
 
@@ -1077,7 +1100,7 @@ there.
 
 ## Chrome, conversations, and text input
 
-`.lf-chrome` is one fixed runtime root containing the banner, edge boards,
+`.lf-chrome` is one fixed runtime root containing the banner, the board panel,
 comment panel, composer, floating comment control, toast, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates

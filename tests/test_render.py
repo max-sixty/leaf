@@ -1271,7 +1271,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     that replays the decisions on arrival would be showing the reader a fifth of a
     second of furniture instead of what they came back to read. The runtime says so in
     two places, and neither had anything holding it: `motion` refuses to animate behind
-    the presentation boundary, and `restoreEdge` paints the board without going through
+    the presentation boundary, and `restoreBoard` paints the board without going through
     the opener a press uses. Route the restore through that opener — the natural tidy,
     since it is otherwise two writers of one fact — and the board slides on every load,
     with every gate here green.
@@ -2187,34 +2187,97 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert errors == []
 
 
-# What the panel's edge reads back as, and what the page has left beside it. The two
-# numbers are one fact asked from both sides: the strip is body's margin and the panel's
-# own box, and the whole point of the width being the reader's is that nothing may hold a
-# copy of it that their gesture doesn't reach.
-PANEL_GEOMETRY = """() => {
-    const panel = document.querySelector('.lf-panel').getBoundingClientRect();
-    return {
-        width: Math.round(panel.width),
-        edge: Math.round(panel.left),
-        page: Math.round(document.body.getBoundingClientRect().right),
-        chosen: localStorage.getItem('lf-panel-width'),
-    };
-}"""
+# The two edges the reader draws, and what a reading of either has to know: a page that
+# offers the region, what puts it up, the region's own selector, which side of the window
+# it is held to, and the numbers the runtime holds it to. Two records rather than two
+# tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
+# reflected — a reading written for the panel alone would go on passing on the day the
+# board's edge stopped working, and the board's edge exists precisely because the panel's
+# did not have to be written a second time.
+#
+# `html` is a call rather than the markup, because the page the boards need is declared
+# with the other board readings a long way below here, and a parametrize list is read at
+# import. `squeeze` is the window that has no room for what the reader chose and the width
+# the region stands at there — per edge, because each is capped against its own half of a
+# window and covers the page at a different one.
+EDGES = [
+    SimpleNamespace(
+        name="comments",
+        html=lambda: LONG_PAGE,
+        comments=1,
+        stand=lambda page: page.locator(".lf-comments").click(),
+        region=".lf-panel",
+        side="right",
+        store="lf-panel-width",
+        wide=420,
+        squeeze=(1000, 500),
+    ),
+    SimpleNamespace(
+        name="boards",
+        html=lambda: ASKS_PAGE,
+        comments=0,
+        stand=lambda page: page.keyboard.press("a"),
+        region=".lf-asks-panel",
+        side="left",
+        store="lf-board-width",
+        wide=300,
+        squeeze=(800, 400),
+    ),
+]
+EDGE_IDS = [edge.name for edge in EDGES]
 
 
-def drag_grip(page, by):
-    """Draw the panel's edge `by` pixels to the left, as a hand on it would.
+def edge_settled(page, edge):
+    """Wait for the region to stand and for the page to finish making room for it.
+
+    Two animations, on two elements, and `panel_settled`'s reasoning covers both: the
+    strip the page yields is a transition on body, and the region's arrival is its own
+    slide. A geometry read between them is a read of a box still under a transform.
+    """
+    expect(page.locator(edge.region)).to_be_visible()
+    page.wait_for_function(
+        "(region) => document.body.getAnimations().length === 0"
+        " && document.querySelector(region).getAnimations().length === 0",
+        arg=edge.region,
+    )
+
+
+def geometry(page, edge):
+    """What the edge reads back as, and what the page has left beside it.
+
+    The two numbers are one fact asked from both sides: the strip is body's margin and
+    the region's own box, and the whole point of the width being the reader's is that
+    nothing may hold a copy of it their gesture doesn't reach.
+    """
+    return page.evaluate(
+        """([region, side, store]) => {
+            const box = document.querySelector(region).getBoundingClientRect();
+            const body = document.body.getBoundingClientRect();
+            return {
+                width: Math.round(box.width),
+                edge: Math.round(side === 'right' ? box.left : box.right),
+                page: Math.round(side === 'right' ? body.right : body.left),
+                chosen: localStorage.getItem(store),
+            };
+        }""",
+        [edge.region, edge.side, edge.store],
+    )
+
+
+def draw_edge(page, edge, by):
+    """Draw the region's edge `by` pixels wider, as a hand on it would.
 
     Whole pixels, per `select`'s reason (tests/CLAUDE.md): a press on a fractional point
     is a press the browser is free to round somewhere else. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
-    is the whole of what this gesture is made of.
+    is the whole of what this gesture is made of. Wider is away from the side the region
+    is held to, which is the reading the runtime makes of the same gesture.
     """
-    box = page.locator(".lf-grip").bounding_box()
+    box = page.locator(f"{edge.region} .lf-edge").bounding_box()
     x, y = math.floor(box["x"] + box["width"] / 2), math.floor(box["y"] + 200)
     page.mouse.move(x, y)
     page.mouse.down()
-    page.mouse.move(x - by, y, steps=8)
+    page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
     page.mouse.up()
     # The slide stands down for the length of a drag and comes back at its end, so what
     # is waited on is the page holding still rather than a transition finishing — which
@@ -2222,52 +2285,59 @@ def drag_grip(page, by):
     page.wait_for_function("() => document.body.getAnimations().length === 0")
 
 
-def test_the_reader_draws_the_comment_panel_to_the_width_they_want(browser, serve):
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A conversation about a table wants room a conversation about a sentence does not,
-    and only the reader looking at one knows which this is. So the panel's edge is a
-    thing they take hold of, and the page yields exactly the strip they leave it.
+    and a board of long names wants room a board of short ones does not; only the reader
+    looking at one knows which this is. So each region's edge is a thing they take hold
+    of, and the page yields exactly the strip they leave it.
 
     Both sides of that strip are read, because the failure this is written against does
-    not show on either alone: a panel that resizes while the page keeps yielding the old
-    margin lays out perfectly well, with a band of page under the panel or a band of
-    nothing beside it, and either is a width stated twice by two writers who have come
-    apart. They are one number here — the property the runtime writes — and the reading
-    is what says so.
+    not show on either alone: a region that resizes while the page keeps yielding the old
+    margin lays out perfectly well, with a band of page underneath it or a band of nothing
+    beside it, and either is a width stated twice by two writers who have come apart. They
+    are one number here — the property the runtime writes — and the reading is what says
+    so.
 
-    Then the same edge from the keyboard, because a reader who is not holding a pointer
-    is still reading the same threads, and then a reload, because a width set once and
-    lost on the next version is a width they would have to set on every revision."""
-    url = serve(LONG_PAGE, comments=1)
-    page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
-    panel_settled(page)
-    default = page.evaluate(PANEL_GEOMETRY)
+    Then the same edge from the keyboard, because a reader who is not holding a pointer is
+    still reading the same page, and then a reload, because a width set once and lost on
+    the next version is a width they would have to set on every revision."""
+    page, errors = open_page(browser, serve(edge.html(), comments=edge.comments))
+    edge.stand(page)
+    edge_settled(page, edge)
+    default = geometry(page, edge)
 
-    drag_grip(page, 160)
-    drawn = page.evaluate(PANEL_GEOMETRY)
+    draw_edge(page, edge, 160)
+    drawn = geometry(page, edge)
 
     # Focus lands on the edge with the drag, so the arrows are live on what the hand was
     # just holding; the press states that in the form a reader without a pointer makes it.
-    page.locator(".lf-grip").press("ArrowRight")
+    # Toward the side the region is held to narrows it.
+    page.locator(f"{edge.region} .lf-edge").press(
+        "ArrowRight" if edge.side == "right" else "ArrowLeft"
+    )
     page.wait_for_function("() => document.body.getAnimations().length === 0")
-    stepped = page.evaluate(PANEL_GEOMETRY)
+    stepped = geometry(page, edge)
 
     page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
-    panel_settled(page)
-    returned = page.evaluate(PANEL_GEOMETRY)
+    edge_settled(page, edge)
+    returned = geometry(page, edge)
     page.close()
 
-    assert default["width"] == 420, (
-        f"the panel did not start at the width a reader who has said nothing gets: {default}"
+    assert default["width"] == edge.wide, (
+        f"the region did not start at the width a reader who has said nothing gets: "
+        f"{default}"
     )
-    assert drawn["width"] == default["width"] + 160, (
+    assert drawn["width"] == edge.wide + 160, (
         f"the edge did not follow the hand: {default} then {drawn}"
     )
     assert drawn["page"] == drawn["edge"], (
-        f"the page yielded a strip of its own rather than the one the panel took: {drawn}"
+        f"the page yielded a strip of its own rather than the one the region took: {drawn}"
     )
-    assert drawn["chosen"] == "580", f"the reader's width was not kept: {drawn}"
+    assert drawn["chosen"] == str(edge.wide + 160), (
+        f"the reader's width was not kept: {drawn}"
+    )
     assert (stepped["width"], stepped["page"]) == (
         drawn["width"] - 24,
         stepped["edge"],
@@ -2278,45 +2348,171 @@ def test_the_reader_draws_the_comment_panel_to_the_width_they_want(browser, serv
     assert errors == []
 
 
-def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(browser, serve):
-    """The panel may take half of a window it stands beside and no more — the same
-    bargain the covering breakpoint strikes one window down, that the page keeps at
-    least what the panel takes. A window that shrinks past that is a window, not a
-    retraction: the reader said 580 once, and a laptop lid opened narrower is not them
-    saying 400 instead.
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
+    browser, serve, edge
+):
+    """A region may take half of a window it stands beside and no more — the same bargain
+    the covering breakpoint strikes one window down, that the page keeps at least what the
+    region takes. A window that shrinks past that is a window, not a retraction: the reader
+    said 580 once, and a laptop lid opened narrower is not them saying 400 instead.
 
-    So the choice and the standing width are two facts. Clamping the stored one would
-    read identically on the narrow window and lose the reader's answer for good on the
-    wide one they came back to, which is the failure this reading is here to catch —
-    the third geometry below is the whole of it."""
-    url = serve(LONG_PAGE, comments=1)
-    page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
-    panel_settled(page)
-    drag_grip(page, 160)
-    drawn = page.evaluate(PANEL_GEOMETRY)
+    So the choice and the standing width are two facts. Clamping the stored one would read
+    identically on the narrow window and lose the reader's answer for good on the wide one
+    they came back to, which is the failure this reading is here to catch — the third
+    geometry below is the whole of it."""
+    narrow, stands = edge.squeeze
+    page, errors = open_page(browser, serve(edge.html(), comments=edge.comments))
+    edge.stand(page)
+    edge_settled(page, edge)
+    draw_edge(page, edge, 160)
+    drawn = geometry(page, edge)
 
-    resized(page, 1000, 900)
+    resized(page, narrow, 900)
     page.wait_for_function("() => document.body.getAnimations().length === 0")
-    squeezed = page.evaluate(PANEL_GEOMETRY)
+    squeezed = geometry(page, edge)
 
     resized(page, 1400, 900)
     page.wait_for_function("() => document.body.getAnimations().length === 0")
-    roomy = page.evaluate(PANEL_GEOMETRY)
+    roomy = geometry(page, edge)
     page.close()
 
-    assert drawn["width"] == 580, f"the drag did not land: {drawn}"
-    assert squeezed["width"] == 500, (
-        f"a 1000px window left the page less than the panel took: {squeezed}"
+    assert drawn["width"] == edge.wide + 160, f"the drag did not land: {drawn}"
+    assert squeezed["width"] == stands, (
+        f"a {narrow}px window left the page less than the region took: {squeezed}"
     )
     assert squeezed["page"] == squeezed["edge"], (
-        f"the page yielded a strip the panel was not standing in: {squeezed}"
+        f"the page yielded a strip the region was not standing in: {squeezed}"
     )
-    assert squeezed["chosen"] == "580", (
+    assert squeezed["chosen"] == str(edge.wide + 160), (
         f"the narrow window un-said what the reader had said: {squeezed}"
     )
-    assert roomy["width"] == 580, (
+    assert roomy["width"] == edge.wide + 160, (
         f"the width the reader chose did not come back with the room for it: {roomy}"
+    )
+    assert errors == []
+
+
+def test_both_boards_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
+    """Leaves and asks are the same furniture at two scopes, one at a time on one side of
+    the window, so the width is the side's rather than either board's. A reader who drew
+    the edge out to read long names has drawn the edge, and finding the other board back
+    at its default would be one fact kept in two places — which is what a width per board
+    would have been, and what the shared property is instead.
+
+    The `other_leaf` fixture is the whole reason there is a second board to swap to: a
+    board of one — the page the reader is already on — is not worth a control, so without
+    a neighbour `l` is dead."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    boards = EDGES[1]
+    boards.stand(page)
+    edge_settled(page, boards)
+    draw_edge(page, boards, 160)
+
+    page.keyboard.press("l")
+    expect(page.locator(".lf-others-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-others-panel').getAnimations().length === 0"
+    )
+    leaves = page.evaluate(
+        "() => document.querySelector('.lf-others-panel').getBoundingClientRect().width"
+    )
+    page.close()
+
+    assert round(leaves) == boards.wide + 160, (
+        f"the second board came up at a width the reader had already moved: {leaves}"
+    )
+    assert errors == []
+
+
+def test_a_board_that_takes_a_strip_is_counted_against_the_margins_floor(
+    browser, serve
+):
+    """The theme's margin idioms are granted by a media query, which asks the window; what
+    they hang in is the page's own box, which is the window less whatever the chrome holds
+    of it. The panel's strip was counted there and the board's was not, so a 1200px window
+    with a board standing granted a sidenote its margin against a 900px page — 84px under
+    the floor the theme states, on the most ordinary window there is.
+
+    Read as the veto rather than as a note's position, because the veto is the fact and a
+    note is one idiom that spends it: a reading of the note would go on passing the day a
+    second idiom stopped asking. Both states, because the attribute standing permanently
+    would read the same way here and would cost every wide page its margins."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 900)
+    cramped = "() => document.body.hasAttribute('data-lf-cramped')"
+    room = page.evaluate(cramped)
+
+    page.keyboard.press("a")
+    edge_settled(page, EDGES[1])
+    standing = page.evaluate(cramped)
+
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    given_back = page.evaluate(cramped)
+    page.close()
+
+    assert not room, "a 1200px window with no board was already short of the floor"
+    assert standing, (
+        "the board took 300px out of a 1200px page and the margins were granted anyway"
+    )
+    assert not given_back, "the page kept the veto after the board gave its strip back"
+    assert errors == []
+
+
+# The room, sampled every frame for as long as a slide lasts. A property is asked of the
+# root rather than of any element that spends it, because it is the fact and an exhibit is
+# one reader of it.
+ROOM_EVERY_FRAME = """(frames) => {
+  window.__room = [];
+  // The first sample is taken now rather than on the first frame, so the width before the
+  // press is always in the trace: a frame is free to land after the keypress that follows
+  // this call, and a trace that opens after the strip is taken has one value in it and
+  // nothing to compare.
+  const tick = () => {
+    window.__room.push(
+      getComputedStyle(document.documentElement).getPropertyValue('--lf-room'));
+    if (window.__room.length < frames) requestAnimationFrame(tick);
+  };
+  tick();
+}"""
+
+
+def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
+    """The room a wide exhibit may take is the page's box less the strips the chrome
+    holds, and for the fifth of a second a strip takes to arrive that box is neither the
+    width the page has nor the one it is going to. Written as the box minus the strip the
+    margin has not taken yet, the two readings are in different number systems — a client
+    box is an integer and a transitioning margin is not — and the sum landed a pixel either
+    way on alternate frames.
+
+    A pixel is nothing to look at and the flicker is not the failure. Each flip is a
+    relayout of every exhibit on the page, made from inside the observation that asked for
+    it, and Chrome answers a loop of those on the window's error channel and nowhere else:
+    the first sight of it was a press sweep going red on one example with nothing on screen
+    to say why.
+
+    So the reading is of the property rather than of anything laid out from it, and what it
+    asks is that the room never returns to a value it has left. That is true of a slide
+    both ways — arriving, the room is stated at once and holds; leaving, it grows back
+    frame by frame — and it is false the moment two readings disagree by a pixel."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 900)
+    page.evaluate(ROOM_EVERY_FRAME, 60)
+    page.keyboard.press("a")
+    edge_settled(page, EDGES[1])
+    page.wait_for_function("() => window.__room.length >= 60")
+    trace = page.evaluate("() => window.__room")
+    page.close()
+
+    steps = [room for i, room in enumerate(trace) if i == 0 or room != trace[i - 1]]
+    assert len(steps) > 1, (
+        f"the board took no room out of the page, so nothing here was measured: {steps}"
+    )
+    assert len(steps) == len(set(steps)), (
+        "the room went back to a width it had already left, which is a relayout of every "
+        f"exhibit on the page on alternate frames: {steps}"
     )
     assert errors == []
 
@@ -3311,28 +3507,30 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page.close()
 
 
-def test_design_mode_takes_the_panels_edge_rather_than_drawing_it(browser, serve):
+def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     """The mode promises that a press comments on what it lands on and does nothing else,
-    and the panel's edge is the first piece of chrome whose press moves the page rather
-    than the page's content. A drag on it under the mode leaves the panel where it was
-    and opens a composer naming the edge, which is what a reader remarking on the grip
-    has to be able to do.
+    and a region's edge is the piece of chrome whose press moves the page rather than the
+    page's content. A drag on it under the mode leaves the region where it was and opens a
+    composer naming the edge, which is what a reader remarking on it has to be able to do.
 
     Neither half is anything the edge knows: the mode takes the press above the runtime's
     own handler, and the name comes of the platform's word for what the press landed on.
     So this is a reading of whether a new control joins the mode by being one — which is
-    what it would stop doing the day the edge answered a press for itself."""
+    what it would stop doing the day an edge answered a press for itself. One edge is the
+    whole reading, both being one handler (`drawnEdge`); what the second edge could break
+    here it would break for the first too."""
+    edge = EDGES[0]
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
     page.locator(".lf-comments").click()
     panel_settled(page)
-    standing = page.evaluate(PANEL_GEOMETRY)
+    standing = geometry(page, edge)
     page.keyboard.press("i")
-    drag_grip(page, 160)
-    held = page.evaluate(PANEL_GEOMETRY)
+    draw_edge(page, edge, 160)
+    held = geometry(page, edge)
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · Comments panel width · comments"
+        "layer · Comment panel width · comments"
     )
     page.close()
 
@@ -4424,7 +4622,7 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     expect(btn).to_be_focused()
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
-    expect(help_el).to_contain_text("In the leaves panel")
+    expect(help_el).to_contain_text("In the leaves board")
     expect(help_el).to_contain_text("Walk the leaves")
     assert errors == []
     page.close()
@@ -4606,9 +4804,72 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
     for _ in names:
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    board = page.locator(".lf-others-panel")
+    board = page.locator(".lf-others-panel .lf-board-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-others-panel');"
+        "() => { const b = document.querySelector('.lf-others-panel .lf-board-list');"
+        "        return b.scrollHeight > b.clientHeight; }"
+    ), (
+        "the board never overflowed, so the walk had nothing to scroll and proves nothing"
+    )
+    last = rows.last.bounding_box()
+    line = page.locator(".lf-keyline").bounding_box()
+    assert last["y"] + last["height"] <= line["y"], (
+        f"the walk parked the last row at {last} under the key line at {line}"
+    )
+    # And a reader who scrolls the board to its end by hand lands in the same place:
+    # scroll-padding answers the walk, the padding under it answers the wheel.
+    board.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
+    last = rows.last.bounding_box()
+    assert last["y"] + last["height"] <= line["y"], (
+        f"scrolled to its end the board put its last row at {last}, under the key "
+        f"line at {line}"
+    )
+    assert errors == []
+    page.close()
+
+
+# Twelve things waiting, which is more than any shipped example asks and the point: the
+# room a list reserves at its foot is invisible until the list is longer than the board.
+MANY_ASKS_PAGE = leaf_page(
+    "many asks",
+    """
+<h1>Many asks</h1>
+<p>A board long enough to scroll.</p>
+<lf-tasks id="plan">
+"""
+    + "\n".join(
+        f'<lf-task id="t-{i}" status="review" owner="wren">'
+        f"<strong>Waiting on you, item {i}</strong>"
+        f"<p>Something to decide about item {i}.</p></lf-task>"
+        for i in range(12)
+    )
+    + """
+</lf-tasks>
+""",
+)
+
+
+def test_a_walk_down_the_asks_board_stops_clear_of_the_key_line(browser, serve):
+    """The leaves board's reading above, made of the board beside it. The room is one
+    fact — the key line stands in the corner both lists reach — and it was written to one
+    list, so the asks board's walk parked its last row 47px under the line. Nothing said
+    so, because no example ships enough asks to fill a board and the walk that would have
+    shown it had only ever been made down the other one.
+
+    So the two lists reserve it together (`boardLists`), and this is the half of that the
+    leaves reading could not cover: a fact stated per board is a fact the second board
+    goes without, and the second board is the one nobody looks at."""
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
+    resized(page, 900, 420)
+    page.keyboard.press("a")
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(12)
+    for _ in range(12):
+        page.keyboard.press("ArrowDown")
+    expect(rows.last).to_be_focused()
+    board = page.locator(".lf-asks-panel .lf-board-list")
+    assert page.evaluate(
+        "() => { const b = document.querySelector('.lf-asks-panel .lf-board-list');"
         "        return b.scrollHeight > b.clientHeight; }"
     ), (
         "the board never overflowed, so the walk had nothing to scroll and proves nothing"
@@ -22376,7 +22637,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-edge-board', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-board-up', 'asks')")
     priming.close()
 
     held = []

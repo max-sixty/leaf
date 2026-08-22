@@ -387,7 +387,7 @@ customElements.define(
           // silent both ways: a superseded grab compares its own card index
           // against a child index, so a card dragged one place up from where it
           // was grabbed reads as unmoved and the move is never sent, and a
-          // a cancelled move restores through #place, which counts cards, one slot
+          // cancelled move restores through #place, which counts cards, one slot
           // late.
           const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;

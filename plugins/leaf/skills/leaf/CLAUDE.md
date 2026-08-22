@@ -78,12 +78,13 @@ words only the open box ever had: the page cannot un-show either, so those paint
 themselves. Their declared record is an absolute state, and the runtime treats every
 unresolved recorded action as an overlay on the authoritative log. If the server
 refuses one, the runtime derives the whole widget again from its authored records,
-the surviving log in chronological order, and the surviving outbox actions. The widget is the boundary because
-position units share an ordered container: restoring one card's authored index can
-overwrite a sibling's logged reorder. No widget rewinds to a DOM snapshot: with queued
-gestures, that snapshot may itself be a gesture the server refused. A press has shown nothing yet.
-It asks for a decision, the decision is the log's to make, and no decision is painted
-until the log has made it.
+the surviving log in chronological order, and the surviving outbox actions. The
+widget is the boundary because position units share an ordered container:
+restoring one card's authored index can overwrite a sibling's logged reorder. No
+widget rewinds to a DOM snapshot: with queued gestures, that snapshot may itself
+be a gesture the server refused. A press has shown nothing yet. It asks for a
+decision, the decision is the log's to make, and no decision is painted until the
+log has made it.
 
 What decides which kind a gesture is: whether the reader's next gesture computes
 from the paint. A toggle's does — the next press on an `lf-options` mark reads the
@@ -144,13 +145,12 @@ absolute action detail; absence is an explicit admitted value rather than an unp
 DOM state. The correction stays until it applies: a live drag or an `applyAction` returning
 false defers it without releasing replay or undo. Synthetic intermediate placements are
 silent, then one final FLIP shows the visible optimistic-to-authoritative correction. This
-needs neither a reverse operation nor a widget-specific snapshot. Replaying an older
-action while the overlay stands would hand
-the reader their older state back — and the next gesture would then compute from what
-that replay painted. A `multiple` group two picks in, repainted
-holding one, sends the next toggle as a set the reader never chose. Applying each action
-exactly once is what makes replay converge, and "exactly once" says nothing about
-*when*.
+needs neither a reverse operation nor a widget-specific snapshot. Replaying an
+older action while the overlay stands would hand the reader their older state
+back — and the next gesture would then compute from what that replay painted. A
+`multiple` group two picks in, repainted holding one, sends the next toggle as a
+set the reader never chose. Applying each action exactly once is what makes
+replay converge, and "exactly once" says nothing about *when*.
 
 The outbox is the one representation of unresolved browser work. It mints an
 attempt before sending, preserves the reader's event order, tells replay which
@@ -164,8 +164,9 @@ A lost or incomplete answer retries the same entry; a periodic read can account 
 it only by carrying the attempt through a complete application. Later gestures wait
 behind an unanswered entry, so a slow first handler cannot append after them, but
 not behind one whose acceptance is already known. Concurrent server requests with
-the same attempt share one execution. An accepted attempt lives in the log, and the
-server retains a refused attempt's outcome for its lifetime.
+the same attempt share one execution. An accepted attempt lives in the log; a completed
+refusal leaves no receipt behind, because a browser that received it drops the attempt
+and one that lost it can safely retry once no original handler remains alive.
 
 The hold belongs to the layer, and no module writes one of its own. `lf-draft`
 once did, privately (`#sending`), and was the only widget that had a hold — written

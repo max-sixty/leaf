@@ -2354,17 +2354,15 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             execution.result = result
             execution.done.set()
-            # Acceptance is remembered durably by the log, and a retryable fault must
-            # execute again. A definitive refusal has no log record, so retain this
-            # completed receipt for the server's lifetime: one attempt cannot be refused
-            # to one tab and later accepted from another after validation state moves.
-            # A 409 means this identity is already owned by a durable accepted event.
-            # Retryable faults and successes also have another source of truth, so only
-            # an ordinary state-dependent refusal needs the in-memory receipt.
-            if result[0] != 400:
-                with self.event_attempts_lock:
-                    if self.event_attempts.get(attempt) is execution:
-                        del self.event_attempts[attempt]
+            # Existing waiters hold this object and read the result above. Nothing else
+            # needs a completed receipt: acceptance lives durably in the log, a delivered
+            # final refusal is never retried, and a lost refusal may be evaluated again
+            # once no original handler remains free to append. Retryable faults must run
+            # again too. Keeping any of them here would make the map grow for the life of
+            # the server.
+            with self.event_attempts_lock:
+                if self.event_attempts.get(attempt) is execution:
+                    del self.event_attempts[attempt]
         return result
 
     def execute_event(self, event: dict) -> tuple:

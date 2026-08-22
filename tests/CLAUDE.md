@@ -185,14 +185,14 @@ subject is read rather than pointed at, so it is dead while the page holds a
 gesture no log read has accounted for — its predecessor's trip included. Every
 other press can be made the moment the paint is there, and the paint arrives a
 turn before the trip it was made on is over, so a `z` made on it is refused; what
-the refusal
-leaves behind is the page an assertion on the un-undone state would find anyway.
-Nothing distinguishes that from an undo that did the wrong thing, and the suite's
-undo tests were failing that way one at a time, a different one per run. The line
-and the dispatcher ask one predicate (`live`), so the offer standing on the line is
-the page saying this press will be taken — which is what `undo(page)` waits for
-before pressing. Where a gesture has a liveness of its own, wait for the page to
-state it rather than for the gesture before it to have painted.
+the refusal leaves behind is the page an assertion on the un-undone state would
+find anyway. Nothing distinguishes that from an undo that did the wrong thing,
+and the suite's undo tests were failing that way one at a time, a different one
+per run. The line and the dispatcher ask one predicate (`live`), so the offer
+standing on the line is the page saying this press will be taken — which is what
+`undo(page)` waits for before pressing. Where a gesture has a liveness of its
+own, wait for the page to state it rather than for the gesture before it to have
+painted.
 
 Where nothing will happen, there is no fact to consume and polling has no end. An
 assertion of absence holds a window instead, and the window's length is derived

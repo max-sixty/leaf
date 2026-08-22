@@ -5628,7 +5628,7 @@ def test_concurrent_retries_share_one_attempt_execution(server, page_dir, monkey
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
     assert status == 400 and json.loads(body) == answers[0]
-    assert calls == 1, "a later copy of a final attempt was evaluated again"
+    assert calls == 2, "a completed refusal left a receipt behind"
     assert [
         event for event in interact.read_events(page_dir) if event["kind"] == "action"
     ] == []

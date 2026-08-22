@@ -4348,7 +4348,11 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
         try:
             page.wait_for_function(SCROLLED)
         except PlaywrightTimeout:
-            pytest.fail(f"{key} moved nothing on a page nobody had clicked in")
+            # The console with it: the press can move nothing because the runtime
+            # threw, and the `errors == []` below never runs once this fires.
+            pytest.fail(
+                f"{key} moved nothing on a page nobody had clicked in: {errors}"
+            )
         # And then the rest of the glide, so the next key's reset lands on a scroll
         # that is over rather than on one still on its way somewhere.
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)

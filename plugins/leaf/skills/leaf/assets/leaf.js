@@ -1796,20 +1796,33 @@ const PINNED = new URLSearchParams(location.search).has("pin");
 const SIGNOFF =
   document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 const POLL_MS = 2000;
-// The panel's width, and so also the strip the page yields to it and the breakpoint
-// under which yielding one is worse than being covered by it. One number, written
-// into the stylesheet below rather than read back off the panel: the two have to
-// agree, and the panel measures zero for as long as it is closed, which is exactly
-// when the page most needs to know how wide it will be. 420 since threads carry
-// questions — option rows are the one thread content that can't scroll or scale
-// its width away, and 360 crowded them.
+// The width the panel stands at for a reader who has not moved its edge. 420 since
+// threads carry questions — option rows are the one thread content that can't scroll or
+// scale its width away, and 360 crowded them. A default rather than the width, because
+// what a conversation needs is a fact about the conversation: a thread quoting a table
+// wants room the same thread quoting a sentence does not, and only the reader looking at
+// it knows which this is. So the edge is a thing they take hold of (`grip`), and this is
+// where it stands until they do.
 const PANEL_W = 420;
+// How narrow they may draw it in. 320 is the narrowest window the panel is held to
+// standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
+// so it is the narrowest width anything has laid a thread's reply box and its two
+// actions out at; below it nothing says they still fit. Wanting the panel gone is what
+// closing it is for, and narrowing it to nothing is not the same wish.
+const PANEL_MIN = 320;
 // The window under which yielding the strip is worse than being covered by it, as a
 // query rather than a number, because three things ask it: the rule that takes the strip,
 // the rule that hands scrolling to the sheet instead, and the runtime, for what follows
 // from which of those the page is under. Written as the covering half, since that is the
 // half the runtime asks about; the strip is its complement, spelled `not` where it is
 // taken.
+//
+// Asked of the default width and not of the reader's own, so widening the panel can never
+// flip the posture out from under the hand doing it: a panel dragged past half its window
+// would otherwise stop standing beside the page and cover it instead, which is the whole
+// page rearranging itself in answer to one pixel of a drag. What the reader's width does
+// answer to is `panelCap`, which holds it to the same bargain this line strikes — the
+// page keeps at least what the panel takes — without putting the posture itself in play.
 const COVERING = `(width <= ${PANEL_W * 2}px)`;
 // The left edge's width, and the window below which its board covers the page rather than
 // standing beside it — the same bargain the comment panel makes on the right, struck at
@@ -1952,11 +1965,18 @@ style.textContent = `
      keyed on the stamp for the reasons given there — because an eye can follow a sentence
      that slides and cannot find one that teleports. */
   @media screen and (not ${COVERING}) {
-    body[data-lf-panel] { margin-right: ${PANEL_W}px; }
+    body[data-lf-panel] { margin-right: var(--lf-panel-w); }
   }
   @media screen and ${COVERING} {
     body[data-lf-panel] { overflow-y: hidden; }
   }
+  /* The slide stands down for as long as the reader is holding the edge. A drag is a hand
+     on that edge, and 180ms of easing behind it is the page sliding out from under the
+     gesture that is moving it — the panel's own box follows the pointer exactly, so an
+     eased margin is the two edges of one edge coming apart. Every other way the margin
+     moves still wants the slide, an arrow step on the edge included: a step is one
+     discrete move the eye can follow, which is what the rule above is for. */
+  body[data-lf-sizing] { transition: none; }
   /* The asks board takes its room out of the page the same way, and the leaves board
      beside it does not. That is not an inconsistency between two twins: a leaf's row is
      a way out of this page and an ask's row is a way around it, so pressing an ask's row
@@ -2399,9 +2419,29 @@ ${MARK_RULES}
        was the exception, so a row with no room left took the width it states back off it,
        which put every reservation above back in play on any narrow enough window. */
     .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: min(${PANEL_W}px, 100vw); z-index: 8900;
+    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(--lf-panel-w); z-index: 8900;
       background: var(--card); border-left: 1px solid var(--rule); display: none; flex-direction: column; }
     .lf-panel.open { display: flex; }
+    /* The edge, offered as a thing to take hold of. It draws nothing of its own: the
+       panel's left border is the line the reader already sees, and the grip is the room
+       around that line in which a pointer counts as being on it. It straddles the border
+       rather than sitting inside it, because the reader aims at the line and arrives from
+       whichever side they were reading — and where the panel stands beside the page, the
+       3px of it outside the panel is body's own margin, which holds no words.
+       What hover and focus add is a line drawn over the border, growing a pixel each way
+       into room that was already the border's and the panel's padding; never a thicker
+       border, which would move every thread in the panel under the pointer that had just
+       arrived (CLAUDE.md, "The page holds still under the user's aim"). touch-action, so a
+       finger on the edge resizes rather than scrolling the region behind it, and z-index
+       because a thread is positioned too and stands later in the panel than this does. */
+    .lf-grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; z-index: 1;
+      cursor: col-resize; touch-action: none; }
+    .lf-grip::before { content: ""; position: absolute; left: 2px; top: 0; bottom: 0;
+      width: 2px; background: var(--accent); opacity: 0; transition: opacity .12s; }
+    /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
+       drag that follows it. */
+    .lf-grip:hover::before, .lf-grip:focus-visible::before { opacity: 1; }
+    .lf-grip:focus-visible { outline: var(--here-ring); }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* contain: reaching the end of the thread list must not start scrolling the page
        behind it — one wheel gesture moves one region.
@@ -3167,6 +3207,17 @@ const closeBtn = Object.assign(el("button", "lf-btn", "×"), {
 });
 closeBtn.setAttribute("aria-label", "Close comments");
 panelHead.append(el("span", "", "Comments"), closeBtn);
+// The panel's own edge, said as what it is: a separator between two regions, which is
+// the platform's word for a boundary the reader moves. That word is worth having for what
+// comes with it — the edge carries the width it stands at, so an arrow step is announced
+// by the platform itself, where a press built for the job would have had to say so in
+// words of its own and would have promised an activation an edge has not got.
+const grip = el("div", "lf-ui lf-grip");
+grip.setAttribute("role", "separator");
+grip.setAttribute("aria-orientation", "vertical");
+grip.setAttribute("aria-label", "Comments panel width");
+grip.setAttribute("aria-valuemin", String(PANEL_MIN));
+grip.tabIndex = 0;
 const threadsBox = el("div", "lf-threads");
 // An Escape rung: backing out of the general box lands on the list (visible ring,
 // j/k walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
@@ -3175,7 +3226,7 @@ const generalRow = el("div", "lf-general");
 const generalInput = document.createElement("textarea");
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-panel.append(panelHead, threadsBox, generalRow);
+panel.append(grip, panelHead, threadsBox, generalRow);
 
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
@@ -3685,16 +3736,113 @@ function mirrorDraft(ta, sync, ctx) {
 // Panel open/closed is remembered too: a version switch reloads the document, and
 // reopening the panel by hand after every revision gets old fast.
 const PANEL_KEY = "lf-panel-open";
+// And the width, for the same reason: a version switch reloads the document, and a reader
+// who has set the panel where they want it has not asked to set it again on every
+// revision. The reader's store rather than the tab's, because where a reader keeps their
+// conversations is the chrome they arrange and expect to find arranged, wherever they are
+// reading (see `readerStore`).
+const PANEL_W_KEY = "lf-panel-width";
 // Whether the panel stands over the page rather than beside it — the same fact as which
 // of the two rules that take the strip the page is under, and as which region the
 // reader's own scrolling moves. Asked of the query rather than stored, so no reader of it
 // can hold an answer from a window that has gone.
 const covering = matchMedia(COVERING);
 const panelCovers = () => panelOpen && covering.matches;
+// The width the reader has asked the panel to stand at, and the width it stands at,
+// which are two facts rather than one. A window too narrow to honour a choice does not
+// un-make it, and widening that window again is not a request to be told what the reader
+// once said — so the choice is kept and the standing width is derived from it. Everything
+// reads the function; nothing holds the number.
+let chosenWidth = PANEL_W;
+// What the window will allow. Beside the page, half of it, which is the bargain COVERING
+// already strikes for the default width — the page keeps at least what the panel takes —
+// asked here of whatever width this reader chose. Over the page the panel takes nothing
+// from it, so the only bound there is the window itself.
+const panelCap = () =>
+  document.documentElement.clientWidth / (covering.matches ? 1 : 2);
+// The floor gives way to the cap and not the other way about: a window too narrow for the
+// floor is still the window, and a panel wider than the one it stands in has put its own
+// controls off the screen. Asked in two places and written once — of a width the reader is
+// dragging to, so the edge never goes anywhere their hand did not, and of the width they
+// chose on some other day, whose window is not this one.
+const heldWidth = (width) => Math.min(panelCap(), Math.max(PANEL_MIN, width));
+const panelWidth = () => heldWidth(chosenWidth);
+// The one writer of the property the cascade reads that width from: the panel's own box
+// and the strip the page yields are both stated against it. Written rather than read back
+// off the panel because the panel measures zero for as long as it is closed, which is
+// exactly when the page most needs to know how wide it will be. The runtime's own readers
+// — the toast's corner, the room a wide widget spends — ask `panelWidth` instead of this
+// property, so what the cascade lays out and what the runtime measures cannot come apart.
+function statePanelWidth() {
+  const width = panelWidth();
+  document.documentElement.style.setProperty("--lf-panel-w", width + "px");
+  // Where the edge stands and how far it may go, which is what a listener hears change on
+  // every step — the platform's own announcement, and the whole reason the edge is a
+  // separator. The cap moves with the window, so it is restated wherever the width is.
+  grip.setAttribute("aria-valuenow", String(Math.round(width)));
+  grip.setAttribute("aria-valuemax", String(Math.round(panelCap())));
+}
+// The reader's answer, taken and kept. Held to the window on the way in, because a drag is
+// direct: what they see is what they asked for, and storing a width the window refused
+// would hand it back to them on some later window as a place they never put the edge.
+function setPanelWidth(width) {
+  chosenWidth = Math.round(heldWidth(width));
+  readerStore.set(PANEL_W_KEY, String(chosenWidth));
+  statePanelWidth();
+  stateStrip();
+  syncLayout();
+}
+// Where on the grip the reader took hold, kept for the length of the drag so the edge
+// stays under the point they grabbed. Without it the panel jumps by up to the grip's own
+// width on the first move, which is the page moving under an aim that had just arrived.
+let gripGrab = 0;
+grip.addEventListener("pointerdown", (event) => {
+  // Refusing the press stops the compatibility mouse events, and with them the selection a
+  // drag makes: without it a gesture about the edge would drop whatever the reader had
+  // selected and paint a new one over the paragraphs it passed. Focus is then taken by
+  // hand, refusing the press having refused that too, so the arrows are live on the edge
+  // the reader is holding.
+  event.preventDefault();
+  grip.setPointerCapture(event.pointerId);
+  gripGrab = event.clientX - panel.getBoundingClientRect().left;
+  grip.focus({ preventScroll: true });
+  document.body.toggleAttribute("data-lf-sizing", true);
+});
+grip.addEventListener("pointermove", (event) => {
+  if (!grip.hasPointerCapture(event.pointerId)) return;
+  // The panel's right edge is the viewport's, so the width is what the pointer leaves to
+  // the right of it — read off the window rather than off the panel, which is the box this
+  // is about to resize.
+  setPanelWidth(document.documentElement.clientWidth - (event.clientX - gripGrab));
+});
+// Both ends of the gesture, because a drag the browser takes away — a window losing the
+// pointer, a touch cancelled — leaves the page in the sizing posture otherwise, and the
+// slide would be gone for the rest of the session with nothing to say why.
+for (const ending of ["pointerup", "pointercancel"])
+  grip.addEventListener(ending, () =>
+    document.body.toggleAttribute("data-lf-sizing", false),
+  );
+// The step, in the column's own gutter: the smallest move that shows in a page of prose.
+const GRIP_STEP = 24;
+// Arrows, and not a pair of letters, because the reader is standing on the edge itself —
+// the direction is the whole of what they have left to say. Left widens: the edge is what
+// moves, and moving it left is the panel growing, which is the same reading the pointer
+// makes of the same gesture.
+keys(grip, "On the panel's edge", [
+  {
+    keys: ["ArrowLeft", "ArrowRight"],
+    label: "arrows",
+    does: "Resize the panel",
+    line: "resize the panel",
+    repeat: true,
+    run: (binding) =>
+      setPanelWidth(panelWidth() + (binding === "ArrowLeft" ? GRIP_STEP : -GRIP_STEP)),
+  },
+]);
 // The strip the panel holds, which is the panel's width until the window is too narrow
 // to give one up — one expression, because the margin the rule takes and the room
 // measured against it have to mean the same thing by it.
-const panelStrip = () => (panelOpen && !panelCovers() ? PANEL_W : 0);
+const panelStrip = () => (panelOpen && !panelCovers() ? panelWidth() : 0);
 // Whether the page still has room for the margin the theme's idioms hang in. The strips
 // are granted by a media query, which asks the window; the page's box is the window less
 // whatever the panel holds of it, and this is the only thing that knows the difference. So
@@ -3722,7 +3870,13 @@ function stateStrip() {
     document.documentElement.clientWidth - panelStrip() < STRIP_MIN,
   );
 }
-addEventListener("resize", stateStrip);
+// A window that has changed is a cap that has changed, so the width the panel stands at
+// is restated beside the veto — one listener, both facts being answers to the same event,
+// and neither of them a reading of the box syncLayout measures.
+addEventListener("resize", () => {
+  statePanelWidth();
+  stateStrip();
+});
 // Every writer here is a writer of the chrome, so nothing this function does resizes the
 // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
 // it yields to a margin idiom is stated above.
@@ -3731,7 +3885,7 @@ function syncLayout() {
   // The toast lives in the same corner as the panel's Send button. Beside a wide
   // panel it steps left; over a covering sheet it stays inside the viewport and
   // rises above the whole composer, including a textarea grown by an unsent draft.
-  toastEl.style.right = (panelBeside ? PANEL_W + 18 : 18) + "px";
+  toastEl.style.right = (panelBeside ? panelWidth() + 18 : 18) + "px";
   toastEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 18 : 18) + "px";
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
@@ -3768,11 +3922,12 @@ function syncLayout() {
 // axis and stops where the page stops.
 //
 // Measured, and measured here, because the panel is the thing no stylesheet can see: it
-// is 420px of the window while it is open and nothing in CSS says so, and a rule written
-// against 100vw would also spend the rail a suggestion hangs in and the classic scrollbar
-// this platform doesn't draw. The three of them come off body's own box for free. That box
-// is watched (layoutSizes), so the room is restated whenever it changes shape whatever
-// changed it, for the same reason the floats are placed again.
+// holds whatever of the window the reader has drawn it to while it is open, and no query
+// can ask that, and a rule written against 100vw would also spend the rail a suggestion
+// hangs in and the classic scrollbar this platform doesn't draw. The three of them come
+// off body's own box for free. That box is watched (layoutSizes), so the room is restated
+// whenever it changes shape whatever changed it, for the same reason the floats are
+// placed again.
 //
 // The gutter is read off the column rather than stated, since 24px is theme.css's number
 // and a second copy here would be a release behind it. Below the column's own width the
@@ -4332,7 +4487,7 @@ function buildMsgBody(m) {
     // markWide is the pass that deliberately stays behind, and the reason is what
     // it hands out: the room the *document* has, which is not the room in here. A
     // diagram in a reply is a widget the vocabulary calls wide, and marked as one
-    // it would lay itself out to the page's measure inside a 420px panel. The room
+    // it would lay itself out to the page's measure inside the panel. The room
     // a message has is the message's, and it already has it.
     if (m.markup) {
       const authored = document.createElement("template");
@@ -7324,8 +7479,13 @@ function paintLegend() {
 // are different remarks. Nothing where the press is the mode's own machinery: the
 // composer being typed into, the 💬 that opens it, the name floating under the pointer.
 const DESIGN_OWN = ".lf-composer, .lf-fab, .lf-inspect";
+// The platform's own words for a thing the user works, which is what design mode names a
+// press by. A separator is on the list because a focusable one is a window splitter — the
+// panel's edge is the case — and a press that lands on it has landed on something the
+// reader can point at by name rather than on the region behind it.
 const CONTROLS =
-  "[data-lf-offer], button, [role=button], a, select, summary, input, textarea, label";
+  "[data-lf-offer], button, [role=button], [role=separator], a, select, summary," +
+  " input, textarea, label";
 function designTarget(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || closestAcross(at, DESIGN_OWN)) return null;
@@ -11175,6 +11335,11 @@ async function receiveState(state) {
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general") ?? "";
+// The width first, so a panel put back open is open at the width the reader left it at
+// rather than sliding to it afterwards. Stated whether or not they have chosen one, this
+// being the one place the property the stylesheet reads is written from a standing start.
+chosenWidth = parseFloat(readerStore.get(PANEL_W_KEY)) || PANEL_W;
+statePanelWidth();
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
 // Remembered board intent is staged here, after every declaration exists. Its strip is
 // part of the arrival geometry, but its state-dependent rows stay hidden until the first
@@ -11197,6 +11362,11 @@ if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // would add is measured on the first visit already.
 export const ARRANGEMENTS = [
   { name: "the comment panel open", ...readerStore.where(PANEL_KEY), value: "1" },
+  {
+    name: "the comment panel at the width the reader drew it to",
+    ...readerStore.where(PANEL_W_KEY),
+    value: "560",
+  },
   ...[...edges.keys()].map((board) => ({
     name: `the ${board} board standing`,
     ...readerStore.where(EDGE_KEY),

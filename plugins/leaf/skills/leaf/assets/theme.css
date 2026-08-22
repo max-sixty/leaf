@@ -435,13 +435,13 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
  * needs — the same bargain it already has with every affordance a copy keeps. A copy is a
  * screen and does keep this, on its own reading of the room: it has no comment panel to
  * yield a strip to and no session to grow one in, so the viewport is an honest answer
- * there where on the live page it is 420px of lie. It is an estimate all the same, since
- * `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet can ask
- * how wide one is; 96px covers a gutter and any scrollbar a platform has, and the floor
- * above covers the estimate coming in under the column on a narrow window. The strips are
- * the half of it a window cannot show — an exported board stood 35px into a decided
- * change's rail at a laptop's width — so the room subtracts the same pair the padding
- * added, which is what those tokens are for. */
+ * there where on the live page it is a panel's width of lie. It is an estimate all the
+ * same, since `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet
+ * can ask how wide one is; 96px covers a gutter and any scrollbar a platform has, and the
+ * floor above covers the estimate coming in under the column on a narrow window. The
+ * strips are the half of it a window cannot show — an exported board stood 35px into a
+ * decided change's rail at a laptop's width — so the room subtracts the same pair the
+ * padding added, which is what those tokens are for. */
 @media screen {
   html.lf-copy body {
     --lf-room: calc(100vw - 96px - var(--strip-l, 0px) - var(--strip-r, 0px));
@@ -754,13 +754,14 @@ dd { margin: 0 0 8px 0; }
    The strip comes out of body's padding, as --rail does on the other side, so the column
    centres in what is left rather than hanging the note in whatever the centring happened
    to leave over. It is held for as long as the page can afford it and no longer, and the
-   panel is what takes the room without the window saying so: 420px off the page's box at
-   an unchanged window width. Held through that, a 1024px window left the column 151px
-   and its widest widgets painting out past the edge of it — and `version check --render`
-   cannot see any of it, rendering at 1200 with no panel to open. Handing the strip back
-   the moment the panel opens is the other wrong answer, since on a wide window that
-   moves every note on the page for room the page still has. So the floor is a width
-   rather than a state (--strip-min), and syncLayout asks it of the box the panel left.
+   panel is what takes the room without the window saying so: its own width off the page's
+   box at an unchanged window width, and a width the reader is free to draw wider still.
+   Held through that, a 1024px window left the column 151px and its widest widgets painting
+   out past the edge of it — and `version check --render` cannot see any of it, rendering at
+   1200 with no panel to open. Handing the strip back the moment the panel opens is the
+   other wrong answer, since on a wide window that moves every note on the page for room the
+   page still has. So the floor is a width rather than a state (--strip-min), and syncLayout
+   asks it of the box the panel left.
 
    The breakpoint below is that same width asked of the window; under it the strip would
    come out of the column's own width. Under it, and on paper, the note is a small

@@ -2257,6 +2257,140 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert errors == []
 
 
+# What the panel's edge reads back as, and what the page has left beside it. The two
+# numbers are one fact asked from both sides: the strip is body's margin and the panel's
+# own box, and the whole point of the width being the reader's is that nothing may hold a
+# copy of it that their gesture doesn't reach.
+PANEL_GEOMETRY = """() => {
+    const panel = document.querySelector('.lf-panel').getBoundingClientRect();
+    return {
+        width: Math.round(panel.width),
+        edge: Math.round(panel.left),
+        page: Math.round(document.body.getBoundingClientRect().right),
+        chosen: localStorage.getItem('lf-panel-width'),
+    };
+}"""
+
+
+def drag_grip(page, by):
+    """Draw the panel's edge `by` pixels to the left, as a hand on it would.
+
+    Whole pixels, per `select`'s reason (tests/CLAUDE.md): a press on a fractional point
+    is a press the browser is free to round somewhere else. In steps, because one jump
+    from press to release is a drag with no `pointermove` between its ends, and the move
+    is the whole of what this gesture is made of.
+    """
+    box = page.locator(".lf-grip").bounding_box()
+    x, y = math.floor(box["x"] + box["width"] / 2), math.floor(box["y"] + 200)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - by, y, steps=8)
+    page.mouse.up()
+    # The slide stands down for the length of a drag and comes back at its end, so what
+    # is waited on is the page holding still rather than a transition finishing — which
+    # `panel_settled` reads the same way, and which is empty here on both counts.
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+
+
+def test_the_reader_draws_the_comment_panel_to_the_width_they_want(browser, serve):
+    """A conversation about a table wants room a conversation about a sentence does not,
+    and only the reader looking at one knows which this is. So the panel's edge is a
+    thing they take hold of, and the page yields exactly the strip they leave it.
+
+    Both sides of that strip are read, because the failure this is written against does
+    not show on either alone: a panel that resizes while the page keeps yielding the old
+    margin lays out perfectly well, with a band of page under the panel or a band of
+    nothing beside it, and either is a width stated twice by two writers who have come
+    apart. They are one number here — the property the runtime writes — and the reading
+    is what says so.
+
+    Then the same edge from the keyboard, because a reader who is not holding a pointer
+    is still reading the same threads, and then a reload, because a width set once and
+    lost on the next version is a width they would have to set on every revision."""
+    url = serve(LONG_PAGE, comments=1)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    default = page.evaluate(PANEL_GEOMETRY)
+
+    drag_grip(page, 160)
+    drawn = page.evaluate(PANEL_GEOMETRY)
+
+    # Focus lands on the edge with the drag, so the arrows are live on what the hand was
+    # just holding; the press states that in the form a reader without a pointer makes it.
+    page.locator(".lf-grip").press("ArrowRight")
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    stepped = page.evaluate(PANEL_GEOMETRY)
+
+    page.reload(wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+    panel_settled(page)
+    returned = page.evaluate(PANEL_GEOMETRY)
+    page.close()
+
+    assert default["width"] == 420, (
+        f"the panel did not start at the width a reader who has said nothing gets: {default}"
+    )
+    assert drawn["width"] == default["width"] + 160, (
+        f"the edge did not follow the hand: {default} then {drawn}"
+    )
+    assert drawn["page"] == drawn["edge"], (
+        f"the page yielded a strip of its own rather than the one the panel took: {drawn}"
+    )
+    assert drawn["chosen"] == "580", f"the reader's width was not kept: {drawn}"
+    assert (stepped["width"], stepped["page"]) == (
+        drawn["width"] - 24,
+        stepped["edge"],
+    ), f"the arrow moved something other than the edge and the page with it: {stepped}"
+    assert returned["width"] == stepped["width"], (
+        f"the width did not survive the reload a version switch makes: {returned}"
+    )
+    assert errors == []
+
+
+def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(browser, serve):
+    """The panel may take half of a window it stands beside and no more — the same
+    bargain the covering breakpoint strikes one window down, that the page keeps at
+    least what the panel takes. A window that shrinks past that is a window, not a
+    retraction: the reader said 580 once, and a laptop lid opened narrower is not them
+    saying 400 instead.
+
+    So the choice and the standing width are two facts. Clamping the stored one would
+    read identically on the narrow window and lose the reader's answer for good on the
+    wide one they came back to, which is the failure this reading is here to catch —
+    the third geometry below is the whole of it."""
+    url = serve(LONG_PAGE, comments=1)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    drag_grip(page, 160)
+    drawn = page.evaluate(PANEL_GEOMETRY)
+
+    resized(page, 1000, 900)
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    squeezed = page.evaluate(PANEL_GEOMETRY)
+
+    resized(page, 1400, 900)
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    roomy = page.evaluate(PANEL_GEOMETRY)
+    page.close()
+
+    assert drawn["width"] == 580, f"the drag did not land: {drawn}"
+    assert squeezed["width"] == 500, (
+        f"a 1000px window left the page less than the panel took: {squeezed}"
+    )
+    assert squeezed["page"] == squeezed["edge"], (
+        f"the page yielded a strip the panel was not standing in: {squeezed}"
+    )
+    assert squeezed["chosen"] == "580", (
+        f"the narrow window un-said what the reader had said: {squeezed}"
+    )
+    assert roomy["width"] == 580, (
+        f"the width the reader chose did not come back with the room for it: {roomy}"
+    )
+    assert errors == []
+
+
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 COLORED_CODE_PAGE = LONG_PAGE.replace(
@@ -3245,6 +3379,40 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     ), "the aim's box does not stand on the panel it names"
     assert errors == []
     page.close()
+
+
+def test_design_mode_takes_the_panels_edge_rather_than_drawing_it(browser, serve):
+    """The mode promises that a press comments on what it lands on and does nothing else,
+    and the panel's edge is the first piece of chrome whose press moves the page rather
+    than the page's content. A drag on it under the mode leaves the panel where it was
+    and opens a composer naming the edge, which is what a reader remarking on the grip
+    has to be able to do.
+
+    Neither half is anything the edge knows: the mode takes the press above the runtime's
+    own handler, and the name comes of the platform's word for what the press landed on.
+    So this is a reading of whether a new control joins the mode by being one — which is
+    what it would stop doing the day the edge answered a press for itself."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 1280, 800)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    standing = page.evaluate(PANEL_GEOMETRY)
+    page.keyboard.press("i")
+    drag_grip(page, 160)
+    held = page.evaluate(PANEL_GEOMETRY)
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · Comments panel width · comments"
+    )
+    page.close()
+
+    assert held["width"] == standing["width"], (
+        f"the mode moved the edge it was asked to comment on: {standing} then {held}"
+    )
+    assert held["chosen"] is None, (
+        f"a press the mode took was still recorded as the reader's width: {held}"
+    )
+    assert errors == []
 
 
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):
@@ -25856,6 +26024,12 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     own, from a viewport that is honest there: a file has no comment panel to yield a
     strip to.
 
+    The width that panel stands at is stated on the root by the same hand, and goes the
+    same way — not because a copy reads it, having no panel, but because both numbers
+    belong to a window and a reader that are not this file's. The reading asks for the
+    root's whole style rather than for either name, so the day a third number is stated
+    there is the day this says so.
+
     Both windows, because that estimate is the half that can be wrong in either
     direction, and it was: reading 96px off the viewport puts it under the true room on a
     narrow window, and the first draft of this stood every copied board 24px inside the
@@ -25869,9 +26043,11 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    assert "--lf-room" not in page.evaluate(
-        "() => document.documentElement.getAttribute('style') ?? ''"
-    ), "the copy carries this window's measurement into every window it is opened in"
+    stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
+    assert stated.strip() == "", (
+        "the copy carries this window's measurements into every window it is opened "
+        f"in: {stated}"
+    )
 
     wide = page.evaluate(ROOM_GEOMETRY)
     assert wide["board"]["width"] > wide["column"]["width"], (

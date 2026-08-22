@@ -242,6 +242,13 @@ to click belongs on a page you are going to serve.
   id does. The reader's place on the page falls back to those same ids when the text
   around it was rewritten. Keep ids stable across versions so neither detaches, and out
   of the `lf-` prefix, which the runtime coins its own ARIA targets in.
+- **Branch a live page with workstream tabs.** When broad context gives way to focused
+  work, keep the shared title and lede before one `lf-tabs`, and move the earlier context
+  intact into another `lf-tab` so its ids keep their comments and decisions. Put the
+  current stream first: ordering gives it emphasis and makes it the default for a reader
+  with no remembered panel or reading position. A saved panel or restored position takes
+  precedence because the open tab is the reader's view. Comments, Asks, versions, and
+  sign-off still cover the whole page, so none of that chrome belongs inside a panel.
 - **Edits to already-seen content ship as suggestions.** Changing a passage the reader
   has already seen — a rewrite, a deletion, above all the fix a comment asked for —
   goes in a `lf-suggestion`: `lf-old` carries the current markup verbatim (its ids

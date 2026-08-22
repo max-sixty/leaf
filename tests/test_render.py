@@ -13112,6 +13112,8 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
         (event["widget"], event["action"]) for event in actions(serve.page_dir)
     ] == [("tq-set", "answer")]
     assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
     page.close()
 
 
@@ -15745,6 +15747,8 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
     page.close()
 
 
@@ -15791,6 +15795,8 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
     page.close()
 
 
@@ -15836,6 +15842,8 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
     page.close()
 
 
@@ -15849,7 +15857,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     with page.expect_request("**/api/event"):
         page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     page.wait_for_timeout(0)
-    held[0].fetch()  # append the accept while its browser response remains held
+    # Append the accept while its browser response remains held.
+    accepted_answer = held[0].fetch()
     interact.append_event(
         serve.page_dir,
         {
@@ -15875,6 +15884,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
         ("sug-refill", "reject"),
     ]
     assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
     page.close()
 
 

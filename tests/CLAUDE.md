@@ -294,6 +294,14 @@ whenever the request happens to arrive
 unconditional instead, `Traffic` counting the request out is what precedes the
 reach.
 
+A hold remains a resource after the page has proved it no longer governs product
+state. `route.fetch()` lets the server answer while keeping that answer from the
+browser; a later poll may then account for the event and settle the page, but the
+route handler is still alive. Leaving it there stranded Chromium during the Linux
+worker's session teardown, after every assertion had passed. A test whose verdict
+requires the answer to remain lost releases it only after that verdict, then removes
+the route before closing the page.
+
 A refusal states the other timing a busy machine supplies. Where the send race
 needs one request held in the wire, a page that has not yet heard the log needs
 its first `/api/state` stopped, so that replay lands on the 2s retry — after the

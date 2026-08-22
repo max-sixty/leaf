@@ -92,6 +92,12 @@ the proposed replacement, and `resolves="<comment-id>"` connects a requested fix
 to its thread. Introduce the first suggestion in prose so the reader knows its
 new words can also receive comments.
 
+A correction is not a proposal. Where the page got something wrong — a number, a
+misread source, a unit — rejecting the fix would only restore the error, so the
+reader has nothing to weigh: write the true thing straight and name the correction
+in the version note. Suggest wording the reader could reasonably prefer as it
+stands.
+
 Use `lf-draft` for a passage whose wording belongs to the reader. Carry their
 submitted words verbatim into the next version. A draft never sits inside a
 suggestion, and a suggestion does not propose a widget's state.

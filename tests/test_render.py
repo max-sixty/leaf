@@ -11566,13 +11566,13 @@ RELATIVE_WIDGET_PAGE = """<!doctype html>
 <lf-tally id="tally-fitted" count="2">
   <strong>Baffles fitted</strong> Counted on the last walk round.
 </lf-tally>
-<lf-tally id="tally-seen" count="0">Nothing at the feeders this week.</lf-tally>
+<lf-caption id="tally-seen"><pre>Nothing at the feeders this week.</pre></lf-caption>
 </main>
 </body>
 </html>
 """
 
-RELATIVE_WIDGET_MODULE = """\
+RELATIVE_TALLY_MODULE = """\
 import { once } from "/leaf.js";
 
 customElements.define(
@@ -11582,12 +11582,24 @@ customElements.define(
       once(this);
     }
     applyAction(action, detail) {
-      // Both relative, one in markup the signature reads and one in words it
-      // looks away from: the count steps by the detail instead of stating it,
-      // and the caption is appended instead of replacing what stood there.
       if (action === "step")
         this.setAttribute("count", Number(this.getAttribute("count")) + detail.count);
-      if (action === "caption") this.append(detail.text);
+    }
+  },
+);
+"""
+
+RELATIVE_CAPTION_MODULE = """\
+import { once } from "/leaf.js";
+
+customElements.define(
+  "lf-caption",
+  class extends HTMLElement {
+    connectedCallback() {
+      once(this);
+    }
+    applyAction(action, detail) {
+      if (action === "caption") this.querySelector("pre").append(detail.text);
     }
   },
 );
@@ -11598,24 +11610,29 @@ def test_the_render_gate_catches_a_relative_apply_action(
     browser, serve, tmp_path, monkeypatch
 ):
     """Bug-back for the contract the widget scaffold's own comment names first, and for
-    both readings the gate takes of it. A project widget steps its count from the count
-    it reads and appends its caption to the caption it reads: right once, and wrong
+    both readings the gate takes of it. One project widget steps its count from the count
+    it reads and another appends its caption to the caption it reads: right once, and wrong
     every time after, because the page has already replayed the action and the poll
     replays the user's own gesture back at them. Each finding names its widget, its verb
     and what moved.
 
-    Two verbs on two instances, because a fold is keyed by unit and the two readings
+    Two verbs on two widgets, because one fold unit has one record form and the two readings
     catch different things. The count is markup, so `shallowSigs` sees it; the caption
     is text, which that signature excludes on purpose, so only the unit's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-tally", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    for tag in ("lf-tally", "lf-caption"):
+        result = CliRunner().invoke(
+            interact.cli, ["customize", "widget", tag, "--upgrade"]
+        )
+        assert result.exit_code == 0, result.output
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-tally"]["properties"]["count"] = {"type": "integer", "minimum": 0}
+    entries["lf-tally"]["properties"]["count"] = {"type": "string"}
+    entries["lf-tally"]["required"].append("count")
+    entries["lf-tally"]["x-example"] = (
+        '<lf-tally id="tally-example" count="0">Nothing yet.</lf-tally>'
+    )
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
     entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
@@ -11623,13 +11640,20 @@ def test_the_render_gate_catches_a_relative_apply_action(
         "step": {
             "detail": {
                 "type": "object",
-                "properties": {"count": {"type": "integer", "minimum": 0}},
+                "properties": {"count": {"type": "string"}},
                 "required": ["count"],
                 "additionalProperties": False,
             },
             "unit": "widget",
             "record": {"kind": "value", "attr": "count", "value": "count"},
-        },
+        }
+    }
+    entries["lf-caption"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-caption"]["x-content"] = "data"
+    entries["lf-caption"]["x-example"] = (
+        '<lf-caption id="caption-example"><pre>Nothing yet.</pre></lf-caption>'
+    )
+    entries["lf-caption"]["x-state"] = {
         "caption": {
             "detail": {
                 "type": "object",
@@ -11642,10 +11666,13 @@ def test_the_render_gate_catches_a_relative_apply_action(
         },
     }
     registry_path.write_text(json.dumps(entries, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
+    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_TALLY_MODULE)
+    (tmp_path / ".leaf" / "widgets" / "lf-caption.js").write_text(
+        RELATIVE_CAPTION_MODULE
+    )
     url = serve(RELATIVE_WIDGET_PAGE)
     for widget, action, detail in [
-        ("tally-fitted", "step", {"count": 3}),
+        ("tally-fitted", "step", {"count": "3"}),
         ("tally-seen", "caption", {"text": "Two greys at the north feeder."}),
     ]:
         interact.append_event(
@@ -11670,7 +11697,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
     assert [f for f in failures if "is relative" in f] == [
         "[light] <lf-tally id=tally-fitted> applyAction(step) is relative — "
         "re-applying the standing log moved tally-fitted" + tail,
-        "[light] <lf-tally id=tally-seen> applyAction(caption) is relative — "
+        "[light] <lf-caption id=tally-seen> applyAction(caption) is relative — "
         "re-applying the standing log moved the state recorded on tally-seen" + tail,
     ], failures
 
@@ -15547,15 +15574,16 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     ):
         pass
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
-        heater.focus()
-        for key in ["Enter", "ArrowLeft", "Enter"]:
-            page.keyboard.press(key)
-    attempt = held[0].request.post_data_json["attempt"]
-    with page.expect_response(lambda response: "/api/event" in response.url):
-        held[0].fulfill(
+    refused = []
+
+    def refuse_move(route):
+        body = route.request.post_data_json or {}
+        if body.get("kind") != "action":
+            route.continue_()
+            return
+        attempt = body["attempt"]
+        refused.append(attempt)
+        route.fulfill(
             status=400,
             json={
                 "ok": False,
@@ -15564,6 +15592,20 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
                 "final": True,
             },
         )
+
+    page.route("**/api/event", refuse_move)
+    with page.expect_response(
+        lambda response: (
+            "/api/event" in response.url
+            and (response.request.post_data_json or {}).get("kind") == "action"
+        )
+    ):
+        heater.focus()
+        for key in ["Enter", "ArrowLeft", "Enter"]:
+            page.keyboard.press(key)
+    assert len(refused) == 1
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
 
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"

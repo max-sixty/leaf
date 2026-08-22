@@ -912,11 +912,12 @@ export const pageScroller = document.body;
 // A second pending map used to mirror part of the same lifecycle and then needed a
 // protocol of its own to agree with the send queue and the polling loop.
 const outbox = [];
-const actionPending = (widget) =>
+const actionPending = (widget, readAttempts) =>
   outbox.some(
     (entry) =>
       entry.event.kind === "action" &&
-      (widget === undefined || entry.event.widget === widget),
+      (widget === undefined || entry.event.widget === widget) &&
+      (!readAttempts || !readAttempts.has(entry.event.attempt)),
   );
 export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
@@ -3921,8 +3922,18 @@ function accountOutbox(readEvents) {
     entry.readEvent = accepted;
     entry.resolveRead(accepted);
     if (!entry.answered) continue;
-    if (entry.event.kind === "action") entry.needsProjection = true;
-    else {
+    if (entry.event.kind === "action") {
+      // Ordinary replay already projected an accepted action when this complete
+      // read contained every optimistic action on its widget. Keep the local
+      // projector only for the sharp case: a newer outbox overlay made replay hold
+      // the widget, so accounting this older attempt must reconstruct the log and
+      // put that overlay back before the hold can leave.
+      entry.needsProjection = !appliedActions.has(accepted.seq);
+      if (!entry.needsProjection) {
+        removeOutbox(entry);
+        removed = true;
+      }
+    } else {
       removeOutbox(entry);
       removed = true;
     }
@@ -4015,7 +4026,10 @@ async function drainOutbox() {
       entry.rejected = !answer && actionNeedsReconciliation(entry.event);
       entry.needsProjection =
         entry.event.kind === "action" &&
-        (entry.rejected || Boolean(answer && entry.readEvent));
+        (entry.rejected ||
+          Boolean(
+            answer && entry.readEvent && !appliedActions.has(entry.readEvent.seq),
+          ));
       if (accounted && !entry.needsProjection) removeOutbox(entry);
       // An accounted or rejected action stays in this same outbox until the widget
       // has accepted the authoritative log plus its surviving optimistic overlay.
@@ -10289,13 +10303,16 @@ function applyActions() {
   // Never mutate the page under a live gesture — a replayed foreign action could
   // move the nodes a drag preview is holding. Retry next poll.
   if (document.querySelector(".lf-dragging")) return;
-  // An outbox action is ahead of the last state the page applied whole, so its widget
-  // stays untouched. Definitive refusals are reconciled at the outbox boundary from
-  // the log plus the surviving overlay; replay never has to infer which local snapshot
-  // a widget callback may have restored.
+  // An outbox action absent from this read is ahead of the state the page is applying,
+  // so its widget stays untouched. Once the read contains every optimistic action on
+  // that widget, ordinary replay can apply their absolute values in log order and keep
+  // the module's choreography. Definitive refusals are reconciled at the outbox
+  // boundary from the log plus the surviving overlay; replay never has to infer which
+  // local snapshot a widget callback may have restored.
   const floors = retractionFloors(VNUM);
   const withdrawn = takenBack();
   const answered = answeredReports(VNUM);
+  const readAttempts = new Set(events.map((event) => event.attempt).filter(Boolean));
   const deferredWidgets = new Set();
   let applied = false;
   const started = [];
@@ -10375,14 +10392,14 @@ function applyActions() {
     const priorMotion = before && new Set(document.getAnimations());
     let wrote = false;
     for (const e of batch.events) {
-      // Held rather than decided, both of them: a widget with any outbox action stays
-      // on its local overlay until that entry is accounted; a widget that asked for
-      // time gets the next state —
+      // Held rather than decided, both of them: a widget with an outbox action this
+      // read does not contain stays on its local overlay; a widget that asked for time
+      // gets the next state —
       // so nothing here is retired on a page state that was temporary.
       if (
         appliedActions.has(e.seq) ||
         deferredWidgets.has(e.widget) ||
-        actionPending(e.widget)
+        actionPending(e.widget, readAttempts)
       )
         continue;
       const el = elementById(e.widget);

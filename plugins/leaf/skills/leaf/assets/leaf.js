@@ -10330,7 +10330,20 @@ function applyActions() {
   // that merely heard it.
   for (const e of events) {
     if (e.kind !== "undo" || appliedActions.has(e.seq)) continue;
-    const target = logRendered && eventById(e.undoes);
+    const candidate = eventById(e.undoes);
+    // Before the first successful read, a logged action this tab never saw needs no
+    // inverse: authored markup is already its correct withdrawn state. This tab's own
+    // recorded outbox action is different—its widget painted the optimistic value even
+    // though the log had not rendered yet. If the first complete read brings both that
+    // action and its withdrawal, restore it by the same route as any later withdrawal.
+    const paintedHere =
+      candidate?.kind === "action" &&
+      outbox.some(
+        (entry) =>
+          entry.event.attempt === candidate.attempt &&
+          actionNeedsReconciliation(entry.event),
+      );
+    const target = (logRendered || paintedHere) && candidate;
     const put = target && target.kind === "action" && restoreFor(target);
     if (!put) {
       appliedActions.add(e.seq); // nothing to put right, now or ever

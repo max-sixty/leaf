@@ -15709,6 +15709,52 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     page.close()
 
 
+def test_a_first_complete_read_restores_its_own_already_undone_action(browser, serve):
+    """Offline presentation has not replayed the log, but a recorded local action is
+    still optimistic DOM. If the first successful read contains both that action and an
+    undo from another tab, the startup guard must not mistake the painted action for one
+    this page never saw."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.lf_traffic = Traffic(page)
+    errors = watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(serve(BOARD_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_request("**/api/event"):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    page.unroute("**/api/state*")
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(0)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    page.close()
+
+
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
     """A complete poll containing an attempt is authoritative delivery evidence. Once
     it accounts for A, the ordered outbox may send queued B even if A's original browser

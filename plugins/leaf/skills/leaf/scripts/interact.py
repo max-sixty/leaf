@@ -2112,6 +2112,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2124,14 +2126,11 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._get)
 
     def do_POST(self):
-        # The body is read ahead of the key gate, which is the one refusal at the event
-        # door the door does not produce itself. What shapes an answer there is the door
-        # it came through rather than the branch that decided it, and every refusal has
-        # to name the attempt it refuses: a browser holding that gesture in its outbox
-        # reads a `final` refusal naming that attempt, and nothing else, as leave to put
-        # the gesture back, so a refusal in any other shape is re-sent every poll for the
-        # life of the tab. Ahead of the gate is not outside the boundary, which is what
-        # `prepare` is for.
+        # The body is route preparation: inside the answer boundary, but after the one
+        # shared key gate. An unauthenticated peer therefore cannot choose an allocation
+        # or park a handler in a body read. Its refusal names no attempt because no body
+        # was trusted enough to read one from; the browser accepts that attempt-less
+        # final answer because the refusal happened before any append could have begun.
         self._answer(self._post, prepare=self._read_posted)
 
     def _read_posted(self) -> tuple:
@@ -2155,9 +2154,9 @@ class Handler(BaseHTTPRequestHandler):
             # rather than out of the parse. A length that cannot be allocated is a
             # length that cannot be used, so this is the true word for it. Like the two
             # refusals below it names no attempt — the body one would have been read out
-            # of is the thing that could not be read — so `final` does not put this
-            # gesture back either; what it buys over the 500 the raise would otherwise
-            # earn is an answer in the door's own shape, saying what defeated the read.
+            # of is the thing that could not be read. That attempt-less `final` safely
+            # puts the gesture back because this failure precedes any possible append;
+            # it also names what defeated the read instead of returning a bare 500.
             return {}, "invalid Content-Length"
         try:
             posted = json.loads(body)
@@ -2173,8 +2172,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _refuse(self, error: str, status: int = 400) -> None:
         """A refusal in the shape the door it came through speaks. The event door's
-        answers are final and name the attempt; every other route says what went wrong
-        and nothing more."""
+        answers are final and name the attempt once its body was read; an earlier
+        refusal is safely attempt-less. Every other route says what went wrong and
+        nothing more."""
         if self.command == "POST" and urlsplit(self.path).path == "/api/event":
             status, body = self.event_rejection(self.posted, error, status)
             self._json(body, status)
@@ -2191,16 +2191,23 @@ class Handler(BaseHTTPRequestHandler):
         request passes through, so there is one gate rather than one per method, and a
         route added later cannot be the one that forgot to ask.
 
-        `prepare` is whatever the key gate itself needs read first — the POSTed body,
-        which `_refuse` names the refused attempt out of. Read at the call site instead,
-        it sat outside this try, and every raise it had not enumerated dropped the
-        socket in front of a reader whose banner then blamed a server that was up."""
+        `prepare` is route-specific input work that still belongs inside this boundary.
+        For a POST that is the body read, after authentication so an unknown peer cannot
+        choose its cost. Read at the call site instead, it sat outside this try, and
+        every raise it had not enumerated dropped the socket in front of a reader whose
+        banner then blamed a server that was up."""
         try:
             if prepare:
-                self.posted, self.posted_error = prepare()
+                self.posted, self.posted_error = {}, None
             if not self.authorized():
+                # The HTTP/1.1 connection cannot be reused after refusing before a
+                # declared body: its unread bytes would be parsed as the next request.
+                if prepare:
+                    self.close_connection = True
                 self._refuse(NO_KEY, 403)
                 return
+            if prepare:
+                self.posted, self.posted_error = prepare()
             route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
             # Not a refusal: a fault may have landed either side of the append, so the

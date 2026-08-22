@@ -6043,12 +6043,42 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
         "error": interact.NO_KEY,
         "final": True,
     }
+
+    # The key gate precedes the body read. A peer that cannot open the page must not
+    # get to choose how much a handler allocates or park it waiting for bytes that never
+    # arrive merely by declaring a large body before authentication.
+    http11 = interact.LeafHTTPServer(
+        ("127.0.0.1", 0),
+        interact.handler_for(page_dir, TOKEN, protocol_version="HTTP/1.1"),
+    )
+    thread = threading.Thread(target=http11.serve_forever, daemon=True)
+    thread.start()
+    peer = http.client.HTTPConnection(
+        f"127.0.0.1:{http11.server_address[1]}", timeout=2
+    )
+    try:
+        peer.putrequest("POST", "/api/event")
+        peer.putheader("Content-Length", str(1 << 30))
+        peer.putheader("Content-Type", "application/json")
+        peer.endheaders()
+        refused = peer.getresponse()
+        refusal = json.loads(refused.read())
+    finally:
+        peer.close()
+        http11.shutdown()
+    assert (refused.status, refusal) == (
+        403,
+        {"ok": False, "error": interact.NO_KEY, "final": True},
+    )
+    assert refused.version == 11
+    assert refused.getheader("Connection") == "close"
+    assert refused.will_close
     assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
 
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
 
 
-def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
+def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     server, page_dir
 ):
     """`final` is the only word that ends a retry, so a refusal that leaves it out is
@@ -6060,9 +6090,11 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
     The state-dependent refusals were written through `event_rejection` from the start
     and the gates in front of them were not, which is the split this asserts away: the
     key, the read-only preview server, and each shape gate answer in the door's own
-    shape rather than in the shape of whichever branch decided them. A page's runtime is
-    vendored at `page init` and the layer around it moves, so the shape gates are
-    reachable by an older page's honest event, not only by a hand-written POST."""
+    shape rather than in the shape of whichever branch decided them. The key gate runs
+    before the body read, so its refusal is safely attempt-less; every authenticated
+    refusal can and must name the attempt it read. A page's runtime is vendored at
+    `page init` and the layer around it moves, so the shape gates are reachable by an
+    older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "version": 1, "text": "hello", "attempt": attempt}
@@ -6072,8 +6104,19 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
     thread = threading.Thread(target=preview.serve_forever, daemon=True)
     thread.start()
     try:
+        status, body = fetch(
+            f"{server}/api/event", data=json.dumps(comment).encode(), token=None
+        )
+        answer = json.loads(body)
+        assert (status, answer.get("ok"), answer.get("final")) == (
+            403,
+            False,
+            True,
+        )
+        assert "attempt" not in answer
+        assert answer.get("error") == interact.NO_KEY
+
         refusals = [
-            ("no key", 403, comment, None, server),
             (
                 "the preview server",
                 403,
@@ -6117,16 +6160,15 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
     finally:
         preview.shutdown()
 
-    # The refusals decided before the body is a dict at all, which the eight above
-    # cannot reach: every one of them parses. These name no attempt — the door has
-    # nothing to read one out of — so the browser cannot put that gesture back, and the
-    # weaker assertion is the whole of what the door can promise here. What it must
-    # still be is an answer: a body defeats the parse in more ways than the parse was
-    # written for — bytes that are not UTF-8 raise UnicodeDecodeError, since `json.loads`
-    # decodes before it parses, and nesting past the parser's own stack raises
-    # RecursionError, which is not even a ValueError. Uncaught, each left the request
-    # unanswered — which the outbox reads as a lost connection and re-posts every poll
-    # for the life of the tab, the same permanent loop reached from the other side.
+    # The refusals decided before the body is a dict at all, which the parsed rows above
+    # cannot reach. These name no attempt because the door has nothing to read one out
+    # of, but each is safely final: parsing failed before an append could begin, so the
+    # browser may put the gesture back. What it must still receive is an answer: a body
+    # defeats the parse in more ways than the parse was written for — bytes that are not
+    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and
+    # nesting past the parser's own stack raises RecursionError, which is not even a
+    # ValueError. Uncaught, each left the request unanswered — which the outbox reads as
+    # a lost connection and re-posts every poll for the life of the tab.
     #
     # Each row names the refusal it must earn rather than asking for any refusal at all.
     # The depth the parser gives up at is the interpreter's to choose, so a platform

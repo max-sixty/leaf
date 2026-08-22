@@ -3981,10 +3981,14 @@ async function deliver(entry) {
       // are stored, the retry would not even end at the top of this loop — the
       // attempt is in no list to be found — so the page would post forever and this
       // gesture would never settle.
-      void receiveState(answer.state).catch((error) =>
+      const settled = receiveState(answer.state).catch((error) =>
         console.error("leaf: state in event response", error),
       );
-      return { answer: acceptedEvent, accounted: Boolean(entry.readEvent) };
+      return {
+        answer: acceptedEvent,
+        accounted: Boolean(entry.readEvent),
+        settled,
+      };
     }
     if (
       answer?.final === true &&
@@ -4006,7 +4010,7 @@ async function drainOutbox() {
     for (;;) {
       const entry = outbox.find((candidate) => !candidate.answered);
       if (!entry) break;
-      const { answer, accounted } = await deliver(entry);
+      const { answer, accounted, settled } = await deliver(entry);
       entry.answered = true;
       entry.rejected = !answer && actionNeedsReconciliation(entry.event);
       entry.needsProjection =
@@ -4021,7 +4025,14 @@ async function drainOutbox() {
       // either edge. Repaint before resolving the caller, whose own settlement may
       // move a second row on the same frame.
       paintKeys();
-      entry.resolve(answer);
+      // Acceptance opens the delivery queue immediately, but a successful caller
+      // resumes only after this answer's state has either painted or reported why it
+      // could not. Comment callers reveal and focus the thread that state creates;
+      // tying their continuation to POST delivery made that focus a race. A failed
+      // render still resolves with the accepted event and leaves this outbox entry
+      // holding replay and undo for the next complete poll.
+      if (settled) void settled.then(() => entry.resolve(answer));
+      else entry.resolve(answer);
     }
   } finally {
     drainingOutbox = false;

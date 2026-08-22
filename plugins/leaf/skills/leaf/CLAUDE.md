@@ -156,8 +156,10 @@ The outbox is the one representation of unresolved browser work. It mints an
 attempt before sending, preserves the reader's event order, tells replay which
 actions are ahead of its current read, and keeps undo dead while its subject is uncertain. A
 successful POST proves acceptance by returning state containing that attempt. It
-answers the caller and advances delivery order immediately, but removes the entry
-only after that state, or a later one carrying the attempt, has been applied whole.
+advances delivery order immediately. The successful caller resumes after that answer's
+state has either applied or reported its local render fault, because comment callers
+reveal and focus the thread that state creates. The entry itself leaves only after that
+state, or a later one carrying the attempt, has been applied whole.
 A lost or incomplete answer retries the same entry; a periodic read can account for
 it only by carrying the attempt through a complete application. Later gestures wait
 behind an unanswered entry, so a slow first handler cannot append after them, but

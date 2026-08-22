@@ -4,10 +4,11 @@
 The loop asks the agent to restart `leaf wait` after every round, and a page
 whose watcher never came back is invisible from the browser: it looks exactly like a
 page whose user has said nothing yet. These hooks make the loop the harness's
-business rather than the model's memory. Stop protects Claude Code's background wait
-and keeps Codex inside the active turn that polls its exact unified-exec session;
-UserPromptSubmit surfaces unacknowledged events; SessionEnd idles the pages and stops
-their servers.
+business rather than the model's memory. Stop protects a background wait where the
+host can return its result, and keeps a foreground-only host's page owner inside the
+turn polling the exact wait session. A named wait transfers that duty to the task that
+runs it. UserPromptSubmit surfaces unacknowledged events; SessionEnd idles the pages and
+stops their servers.
 
 The decision lives in interact.py, which owns the page-directory model. This
 script exists to keep the common case cheap: it fires on every turn of every

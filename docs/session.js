@@ -35,6 +35,9 @@
 const KEY = `leaf-demo:${location.pathname.replace(/\/versions\/v[1-9]\d*\.html$/, "")}`;
 // Which version this document is, read the way the runtime reads it.
 const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
+const LAYER = await fetch("/registry.json")
+  .then((response) => response.json())
+  .then((registry) => registry.$layer.generation);
 
 // The name a reply in the panel wears, and nothing else. It is not the name of anyone
 // behind the page — nobody is — so the banner never speaks it: `unattended` below is what
@@ -118,6 +121,7 @@ function append(event, author, agent) {
 // this version of the runtime happens to read — a field left out is a banner seat that
 // goes blank the day it starts reading one.
 const state = () => ({
+  layer: LAYER,
   // The versions this page has, which here is the one being read: the site publishes a
   // single version of each example. A second would want the list handed to this file
   // rather than guessed from a path, since a reader on v1 has to be offered v2.
@@ -154,7 +158,7 @@ const state = () => ({
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Leaf-Layer": LAYER },
   });
 
 const realFetch = window.fetch;
@@ -170,6 +174,14 @@ window.fetch = (input, init) => {
   if (url.pathname === "/api/state") return Promise.resolve(json(state()));
   if (url.pathname === "/api/event") {
     const event = JSON.parse(init.body);
+    // The execution record the door keeps per attempt, which is the whole of what a
+    // retry meets: a browser whose answer was lost re-posts the same attempt, and an
+    // attempt already in the log is answered with the state holding it rather than
+    // appended a second time. One line, because the log is this tab's own — what the
+    // server spends a lock on here is the ordering two writers would need.
+    if (event.attempt && events.some((e) => e.attempt === event.attempt)) {
+      return Promise.resolve(json({ ok: true, state: state() }));
+    }
     const minted = append(event, event.kind === "error" ? "page" : "user");
     // The reply is written after the send has been answered, and lands on a later poll,
     // because that is when an answer arrives: written into the same response, it would
@@ -187,7 +199,11 @@ window.fetch = (input, init) => {
         1200,
       );
     }
-    return Promise.resolve(json({ event: minted }));
+    // An accepted POST hands back the state holding the event it minted, so the sender
+    // crosses one boundary rather than "the append succeeded" followed by a read that
+    // could fail on its own. The minted event is in there: this file's log and the
+    // state's are one list.
+    return Promise.resolve(json({ ok: true, state: state() }));
   }
   return realFetch(input, init);
 };

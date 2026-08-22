@@ -27,3 +27,19 @@
     page; the tag is otherwise one join from the version file.
   - Add a panel inventory only when a page becomes long enough that its items are hard
     to find by scrolling.
+
+- **What reach would cost, and what the contract is.** leaf runs on two hosts because
+  the loop needs three things from a harness, and only the third is scarce: run a
+  command and get its complete output into model context; hold a session identity and
+  lifetime to hang the page's life on; and wait without burning the turn, through a
+  harness-native tracked job whose completion resumes or notifies the same agent. leaf
+  has all three already — `CLAUDE_PID`, the walk up to a `codex` ancestor,
+  `session.json`, and the three hooks — but written per host rather than against a
+  named contract, so a third host is a rewrite rather than an implementation.
+  Plannotator bought nine hosts one hook at a time behind an installer that detects
+  what is on the machine (`notes/comparisons.md`), so the price is known and payable.
+  The cheaper half is a foreground mode: `leaf wait` is already a plain command, and a
+  documented path that blocks the turn and does without the hooks would reach any agent
+  that can run one, at the cost of a turn sitting open. AG-UI is not the lever here —
+  it standardises agent-to-UI streaming for a client-initiated run, where leaf's need
+  is a harness waking an already-running session.

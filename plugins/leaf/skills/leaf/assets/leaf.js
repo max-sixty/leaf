@@ -262,12 +262,34 @@ export function failSoft(el, err, source) {
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
-const postEvent = (event) =>
-  fetch("/api/event", {
+const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
+let layerGeneration = vendoredLayerGeneration;
+let revealLayer;
+const layerReady = new Promise((resolve) => (revealLayer = resolve));
+let layerReloading = false;
+function sameLayer(generation) {
+  if (generation === layerGeneration) return true;
+  if (!layerReloading) {
+    layerReloading = true;
+    location.reload();
+  }
+  return false;
+}
+
+const postEvent = async (event) => {
+  await layerReady;
+  const response = await fetch("/api/event", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Leaf-Layer": layerGeneration,
+    },
     body: JSON.stringify(event),
   });
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
+  return response;
+};
 
 // The page reporting itself broken, to the party who can fix it: the agent
 // authored the page and its widgets, and before this the only route for a
@@ -1526,7 +1548,13 @@ async function upgradeWidgets() {
   const response = await fetch("/registry.json");
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (responseGeneration && !sameLayer(responseGeneration)) return;
   registry = await response.json();
+  const registryGeneration = registry.$layer?.generation;
+  if (typeof registryGeneration !== "string" || !registryGeneration)
+    throw new Error("leaf: registry lacks $layer.generation");
+  if (!sameLayer(registryGeneration)) return;
   if (
     !registry.$events?.kinds ||
     !registry.$languages?.names ||
@@ -1534,6 +1562,7 @@ async function upgradeWidgets() {
     !registry.$tones?.names
   )
     throw new Error("leaf: registry lacks $events, $languages or $tones");
+  revealLayer();
   rememberPassageParts();
   rememberAuthoredMarkup();
   markWide(document.body);
@@ -3888,6 +3917,11 @@ async function deliver(entry) {
       await retryPause();
       continue;
     }
+    // A newer layer is taking this tab over, and `postEvent` has already started the
+    // reload. The server refused to read this body in a vocabulary it no longer
+    // speaks, so nothing was appended and there is nothing here to retry: the page
+    // comes back from the log, under the layer it is reloading into.
+    if (!res) return null;
     let answer;
     try {
       answer = await res.json();
@@ -5924,6 +5958,16 @@ const HTML_WORDS = {
 function itemWord(item) {
   if (!item) return "";
   const tag = item.tagName.toLowerCase();
+  // A widget whose kind is not its tag says which it is. Three shapes of change are all
+  // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks board
+  // under the words it proposed to remove, reading exactly like the insertion above it.
+  // Asked only where an entry says there is something to ask, and answered only by an
+  // element that has upgraded — before that, and for every widget that declares nothing,
+  // the tag is the word.
+  if (registry[tag]?.["x-word"] === "module") {
+    const own = item.lfWord?.();
+    if (own) return own;
+  }
   if (tag.startsWith("lf-")) return tag.slice(3);
   // A <pre> is a block of something and the something is in the markup: the documented
   // shape for source is <pre><code class="language-*">, and a <pre> without the <code> is
@@ -9677,8 +9721,8 @@ function presented(state) {
     status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
   );
   // Nothing is behind the claim. The claimant pid settles it where there is one: gone
-  // is gone, whatever the claim says and however lately a stray `leaf wait` bumped
-  // the heartbeat for a session that can no longer read it. Where nothing claimed the
+  // is gone, whatever the claim says and whether a stray `leaf wait` still holds
+  // a lease for a session that can no longer read it. Where nothing claimed the
   // page — a server started outside an agent host — there is no pid to look for, so a
   // live watcher or a claim still inside its grace is the whole of the evidence, and
   // once both are spent the page is unheld too.
@@ -10857,6 +10901,8 @@ async function poll() {
     // JSON or processing errors escape so the caller retains the recovery boundary.
     res = null;
   }
+  const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
+  if (responseGeneration && !sameLayer(responseGeneration)) return;
   // A refusal is not state: the server answers a missing key with error-shaped JSON at
   // 403. A live server refusing the key and a dead one both leave the page unreachable
   // from here, and the terminal link is the recourse for both.
@@ -10878,6 +10924,10 @@ async function poll() {
   return receiveState(state);
 }
 async function receiveState(state) {
+  // Every state this page reads passes here — the poll's, and the one an accepted
+  // event response carries — so the generation is checked once for both rather than
+  // at each door it arrives through.
+  if (!sameLayer(state.layer)) return;
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
   // post() and the timer can poll together. The log is append-only, so a response

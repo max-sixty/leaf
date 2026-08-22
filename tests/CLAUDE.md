@@ -128,7 +128,7 @@ after the send the test names — a stray send, from a widget that was supposed 
 stay quiet, passes straight through such a poll.
 
 A file the test writes is the same trip run the other way, and there `expect`'s
-own timeout becomes the hold in disguise. A declared status, a bumped heartbeat,
+own timeout becomes the hold in disguise. A declared status, a changed wait lease,
 an appended event: none of them announce themselves, so the page learns of each
 when its next poll asks. An assertion made straight after the write therefore
 spends a whole poll interval out of whatever budget `expect` was given — 1.8 to
@@ -150,10 +150,14 @@ So a wait asks for a fact the system declares: an element existing,
 `document.body.getAnimations()` emptying, a request coming back, a resize
 reaching its listeners. Where stillness is itself the assertion, an observed edge
 comes first — the press sweep measures "nothing moved" only after `round_trip`
-has watched the response land. And a timing flake can be reproduced by emulating
-the poller's own schedule in the page: `wait_for_function` runs its predicate
-once at injection and then once per animation frame, which turns the failure into
-a rate to measure rather than a rerun to hope for.
+has watched the response land. Its geometry then crosses one rendered frame,
+waits for finite animations to end, and crosses the ending frame. An elapsed
+quiet window cannot stand for that sequence: under parallel load, one animation
+frame can take the whole window, so a predicate returns before that frame's
+layout paints. A timing flake can be reproduced by emulating the poller's own
+schedule in the page: `wait_for_function` runs its predicate once at injection
+and then once per animation frame, which turns the failure into a rate to measure
+rather than a rerun to hope for.
 
 An edge is not the same fact as arrival, and a gesture that moves the page twice
 is where the two come apart. Clicking a quote scrolls instantly to bring the

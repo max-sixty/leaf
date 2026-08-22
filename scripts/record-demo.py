@@ -361,7 +361,7 @@ def shoot_stills(
     Getting the banner to say "Claude awaits" takes stating both halves of it.
     `record` has received and acknowledged the board action through the waiter it
     started, so no user event remains to make this fresh waiter return immediately.
-    State the scene, then start that waiter: its heartbeat is the proof the browser
+    State the scene, then start that waiter: its held lease is the proof the browser
     renders."""
     run_leaf("status", str(page_dir), "waiting")
     waiters.append(start_waiter(page_dir))

@@ -32,6 +32,12 @@ widget adds its entry without copying the shipped registry, overriding a tag sup
 whole schema, and an idiom declared under `$idioms` joins the shipped catalog beside the
 theme rules that style it. The merged vocabulary is validated before vendoring.
 
+A replacement `leaf.js` must retain the quoted
+`"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
+with the same fresh epoch it writes into the merged registry; without that pair,
+a runtime loaded before a re-vendor could speak the replacement registry as though
+the two files were one contract.
+
 ## The commands
 
 ```bash

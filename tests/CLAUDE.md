@@ -429,6 +429,22 @@ for the reason it gave. What the second press would leave is a line in the log
 once the queue drains, which is where a gate on it reads. Before asserting that a
 gesture did not travel, ask what would have stopped it anyway.
 
+The same question is owed to a paint, and there it is asked of whoever else was
+going to draw the frame. What the line says the instant a gesture leaves is the
+door's own statement (`sendAction`), and the first gate written on it was a pick,
+made with the send held in the wire and the line read a frame later — which passed
+with the door's paint deleted. A pick announces `lf-answered` before its send
+leaves, and the paint that announcement schedules runs *after* the handler that
+started the send, so it drew the answer the gate was there to demand. Every
+neighbouring gesture had a writer of its own: a click focuses what it lands on and
+focusin paints, a dropped card repaints its grips, a poll two seconds later paints
+whatever else did not. So the gesture the gate ended up on is the one whose widget
+does nothing until the log answers (a suggestion's accept, pressed on a control
+already focused, on a page settled first), and the reading is taken once rather
+than through a retrying `expect`, which the next poll would answer either way.
+Where the fact under test is what the page says at an instant, list who else
+paints that frame before believing the green.
+
 ## An assertion that nothing moved must straddle the change that could move it
 
 A geometry assertion is worth only as much as the transition it is measured

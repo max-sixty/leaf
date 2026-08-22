@@ -14653,6 +14653,102 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     page.close()
 
 
+# What the next two read is the line at one instant, and both of them had to be written
+# around the ways a gate on that instant is born vacuous — every one of which is some
+# other writer painting for the door and the assertion never noticing.
+#
+# The press is a key on a control already focused, never a click: a click focuses what it
+# lands on, and focusin's paint is scheduled before the handler that starts the send and
+# runs after it, so the line would draw the moved store whichever way the door behaved.
+# The widget is the suggestion for the same reason from the other side — a pick announces
+# `lf-answered` and a dropped card repaints its own grips, both of them before their send
+# leaves, where a decision's whole choreography waits for the log. And the page is settled
+# first (`page_at_rest`), because a paint already scheduled when the press lands reads the
+# moved store on the door's behalf too.
+#
+# The reading itself is taken once, a frame after the press, rather than through a
+# retrying `expect`: every poll ends in a paint, so a retry is answered inside two seconds
+# whether or not the door painted anything — on a line that spent that window saying the
+# wrong thing, which is the whole of what these two are here to catch.
+def decided(page, sug):
+    """Press the accept the reader is standing on, and say where they were standing."""
+    accept = page.locator(f"[data-lf-for='{sug}'] .lf-sug-accept")
+    accept.focus()
+    page_at_rest(page)
+    expect(accept).to_be_focused()
+    page.keyboard.press("Enter")
+
+
+def test_the_line_drops_undo_as_the_gesture_goes_into_the_wire(browser, serve):
+    """`sending` moves the moment a gesture leaves, and the dispatcher reads it at once
+    — so between that instant and whatever paints next, the line stands offering a press
+    the page would refuse. Nothing else reports the store moving: it is not the DOM, and
+    no focus event fires for it, so the paint is owed by the door the gesture goes out
+    through (sendAction) rather than by whoever happens past next."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    line = page.locator(".lf-keyline")
+    decided(page, "sug-refill")
+    round_trip(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    page_at_rest(page)
+    assert "undo" in line.inner_text()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    # Held in the wire, so the store stays moved for as long as the reading takes — and
+    # the reading is taken where the reader's next press would land, a poll interval away
+    # from the nearest thing that paints for its own reasons.
+    with page.expect_request("**/api/event"):
+        decided(page, "sug-thistle")
+    page.evaluate(RENDERED)
+    assert "undo" not in line.inner_text(), (
+        "the line offered a press the dispatcher was already refusing"
+    )
+
+    held[0].continue_()
+    round_trip(page)
+    page.unroute("**/api/event")
+    assert errors == []
+    page.close()
+
+
+def test_the_line_offers_undo_again_when_a_send_the_server_refused_ends(browser, serve):
+    """The other edge of the same store, and the one path where it is the door that has
+    to report it: a send the server takes is answered by a poll, and that poll paints on
+    its own account. A refused send returns before ever polling — the page says so with a
+    toast and puts back whatever the gesture painted — so the press that was live the
+    whole time goes unoffered until some later signal happens past.
+
+    Live is the log's word and the refusal wrote nothing to it: the decision standing in
+    it is the earlier one, which is the gesture `z` would take back."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    line = page.locator(".lf-keyline")
+    decided(page, "sug-refill")
+    round_trip(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    page_at_rest(page)
+    assert "undo" in line.inner_text()
+
+    # Aborted plainly rather than cancelled: the send failing is this test's subject, and
+    # the console entry it leaves is one of the things the page says about it.
+    page.route("**/api/event", lambda route: route.abort())
+    decided(page, "sug-thistle")
+    # The toast is the page stating the send is over, and post writes it on the way out —
+    # before the door's own edge, which is what makes it a fact to read the line from.
+    expect(page.locator(".lf-toast")).to_contain_text("Couldn't send")
+    page.evaluate(RENDERED)
+    assert "undo" in line.inner_text(), (
+        "the line withheld a press the dispatcher was ready to take"
+    )
+    # And nothing was decided by the press that failed, so what the offer names is the
+    # accept before it.
+    expect(page.locator("#sug-thistle lf-new")).to_be_visible()
+    assert [e["action"] for e in actions(serve.page_dir)] == ["accept"]
+    page.unroute("**/api/event")
+    assert [e for e in errors if "net::ERR_FAILED" not in e] == []
+    page.close()
+
+
 def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     """The walk steps past what it has already taken and reaches the gesture before
     it — the edit here, whose authored text comes back with its paragraphs, where

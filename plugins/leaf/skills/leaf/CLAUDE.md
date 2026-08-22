@@ -132,28 +132,27 @@ per six hundred comments.
 
 ## An unresolved gesture outranks every older log read
 
-A widget that paints its own gesture holds state no complete read accounts for
-while that gesture remains in the outbox. Replay leaves the widget alone until
-every action on it has been accounted by a complete read; the page's overlay is
-newer than the log state being applied. A refusal is the other edge: the runtime
-tombstones that action in the same outbox and projects the widget from its
-authored records, every surviving log event in chronological order, and every
-surviving outbox action in gesture order. The full stream matters: a record-less
-action can follow a recorded action on the same fold unit without erasing the
-state it recorded. Thread widgets take the same authored capture when their
-frozen markup first enters the panel. Value records require their authored
-attribute and a string-valued schema, so every baseline can be stated through the
-same absolute action detail; absence is an explicit admitted value rather than an
-unprojectable DOM state. The correction stays until it applies: a live drag or an
-`applyAction` returning false defers it without releasing replay or undo.
-Synthetic intermediate placements are silent, then one final FLIP shows the
-visible optimistic-to-authoritative correction. This needs neither a reverse
-operation nor a widget-specific snapshot. Replaying an older action while the
-overlay stands would hand the reader their older state back — and the next
-gesture would then compute from what that replay painted. A `multiple` group
-two picks in, repainted holding one, sends the next toggle as a set the reader
-never chose. Applying each action exactly once is what makes replay converge,
-and "exactly once" says nothing about *when*.
+A widget that paints its own gesture holds a local answer for one semantic
+coordinate: the owning widget, the declared fold unit, and the record facet the
+gesture states. Until a complete read accounts for that gesture, the outbox's
+answer outranks an older log winner on the same coordinate. Applying the older
+winner would hand the reader their old state back, and the next gesture would
+then compute from what that replay painted. A `multiple` group two picks in,
+repainted holding one, sends the next toggle as a set the reader never chose.
+
+A refusal removes that local winner and makes the coordinate dirty. The one
+reconciler projects the widget from its authored facets, the surviving log
+winners, and surviving recorded outbox gestures in their order. Coordinates that
+do not collide still compose; on one coordinate a reader action outranks a later
+report, and the latest surviving action wins. Thread widgets capture the same
+authored baseline from their inert frozen markup when it enters the panel. Value
+records require a present string-valued authored attribute, so every baseline can
+be stated through the same absolute action detail rather than an unprojectable
+absence. A live drag or an `applyAction` returning false defers correction without
+releasing replay or undo. Synthetic intermediate placements are silent, then one
+final FLIP shows the optimistic-to-authoritative correction. Reapplying a
+committed absolute winner is a no-op; the checkpoint decides when reconciliation
+can skip work, not what the state means.
 
 The outbox is the one representation of unresolved browser work. It mints an
 attempt before sending, preserves the reader's event order, tells replay which

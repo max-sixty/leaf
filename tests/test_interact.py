@@ -3278,6 +3278,39 @@ def test_check_reports_record_lag_without_erroring(page_dir):
     assert "record behind the log" in result.output  # CliRunner folds stderr in
 
 
+def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
+    """The file-side facet is the runtime's same ownership reading. An inner chosen
+    option is not part of the outer group's record, so an outer log choice that matches
+    its own authored option carries no phantom lag."""
+    nested = """<lf-options id="outer" choose multiple>
+  <lf-option id="outer-a" chosen><strong>Outer A</strong>
+    <lf-options id="inner" choose>
+      <lf-option id="inner-a" chosen>Inner A</lf-option>
+      <lf-option id="inner-b">Inner B</lf-option>
+    </lf-options>
+  </lf-option>
+  <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
+</lf-options>"""
+    html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
+    (page_dir / "versions" / "v1.html").write_text(html)
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "outer",
+            "action": "choose",
+            "detail": {"options": ["outer-a"]},
+        },
+    )
+
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert "record behind the log" not in result.output
+
+
 def state_json(d):
     result = CliRunner().invoke(interact.cli, ["page", "state", str(d)])
     assert result.exit_code == 0, result.output
@@ -3637,7 +3670,9 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400, bad
-        assert says in json.loads(body)["error"], body
+        answer = json.loads(body)
+        assert answer["ok"] is False and answer["final"] is True, bad
+        assert says in answer["error"], body
 
     undone = {"kind": "undo", "undoes": resolved["id"]}
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
@@ -4190,8 +4225,10 @@ def _report_undeclared_attr(registry):
 
 
 def _report_says_attr(registry):
-    registry["lf-task"]["x-says"] = {"owner": "before"}
-    registry["lf-task"]["x-report"]["status"] = {
+    task = registry["lf-task"]
+    task["required"].append("owner")
+    task["x-says"] = {"owner": "before"}
+    task["x-report"]["status"] = {
         "detail": {
             "type": "object",
             "properties": {"owner": {"type": "string"}},
@@ -4217,6 +4254,59 @@ def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
 
 
+def _state_with_optional_value_record(registry):
+    task = registry["lf-task"]
+    task["properties"]["restated"] = {"type": "boolean"}
+    task["x-state"] = {
+        "assign": {
+            "detail": {
+                "type": "object",
+                "properties": {"owner": task["properties"]["owner"]},
+                "required": ["owner"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        }
+    }
+
+
+def _state_with_non_string_value_record(registry):
+    task = registry["lf-task"]
+    task["properties"]["rank"] = {"type": "integer"}
+    task["required"].append("rank")
+    report = task["x-report"]["status"]
+    report["detail"]["properties"] = {"rank": {"type": "integer"}}
+    report["detail"]["required"] = ["rank"]
+    report["record"] = {"kind": "value", "attr": "rank", "value": "rank"}
+
+
+def _two_record_forms_for_one_unit(registry):
+    task = registry["lf-task"]
+    task["properties"]["restated"] = {"type": "boolean"}
+    task["required"].append("owner")
+    task["x-state"] = {
+        "assign": {
+            "detail": {
+                "type": "object",
+                "properties": {"owner": task["properties"]["owner"]},
+                "required": ["owner"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        }
+    }
+
+
+def _body_record_with_prose(registry):
+    registry["lf-draft"]["x-content"] = "prose"
+
+
+def _body_record_with_nested_widget(registry):
+    registry["lf-option"]["x-parent"].append("lf-draft")
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
@@ -4238,6 +4328,17 @@ def _report_without_upgrade(registry):
         (_report_without_overruled, "not the boolean `overruled`"),
         # Reports replay through applyAction, so the widget must upgrade.
         (_report_without_upgrade, "declares x-report"),
+        # A value record has no action detail for an absent attribute. Requiring the
+        # attribute makes every authored state projectable through applyAction.
+        (_state_with_optional_value_record, "records optional attribute `owner`"),
+        # HTML authored attributes are strings; the action detail must carry the
+        # same representation or authored and folded facets cannot compare.
+        (_state_with_non_string_value_record, "records non-string attribute `rank`"),
+        # A fold unit is one fact, so its two channels cannot give it two different
+        # markup representations under the same id.
+        (_two_record_forms_for_one_unit, "has incompatible record forms"),
+        (_body_record_with_prose, "x-content must be data"),
+        (_body_record_with_nested_widget, "admits nested widgets"),
     ],
 )
 def test_an_x_report_declaration_is_checked_whole(page_dir, mutate, message):
@@ -5316,6 +5417,16 @@ def test_server_round_trip(server, page_dir):
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400, bad
+        answer = json.loads(body)
+        assert answer["ok"] is False and answer["final"] is True, bad
+
+    status, body = fetch(f"{server}/api/event", data=b"{")
+    assert status == 400
+    assert json.loads(body) == {
+        "ok": False,
+        "error": "invalid JSON",
+        "final": True,
+    }
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -5921,16 +6032,17 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
     assert fetch(f"{server}/api/state", token=None)[0] == 403
     assert fetch(f"{server}/", token=None)[0] == 403
-    assert (
-        fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {"kind": "comment", "version": 1, "text": "not mine"}
-            ).encode(),
-            token=None,
-        )[0]
-        == 403
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "version": 1, "text": "not mine"}).encode(),
+        token=None,
     )
+    assert status == 403
+    assert json.loads(body) == {
+        "ok": False,
+        "error": interact.NO_KEY,
+        "final": True,
+    }
     assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
 
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
@@ -6030,7 +6142,7 @@ def test_every_refusal_at_the_event_door_is_final_and_names_the_attempt(
         ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
         (
             "a body nested past the parser's stack",
-            b"[" * 20000 + b"]" * 20000,
+            b"[" * 100000 + b"]" * 100000,
             "invalid JSON",
         ),
     ]

@@ -4202,7 +4202,7 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
     for unit, reports in standing_reports(events, byid, registry, None).items():
         last, spec = reports[-1]
         if unit in parser.overruled or markup_facet(
-            unit, spec, byid, spk
+            unit, spec, byid, spk, registry
         ) == folded_facet(last, spec):
             answered.extend(r["id"] for r, _ in reports)
     event = {
@@ -6590,7 +6590,12 @@ def declares_string(field_schema) -> bool:
     """Whether a detail field allows a string and nothing else, however it says so."""
     declared = field_schema.get("type") if isinstance(field_schema, dict) else None
     allowed = {declared} if isinstance(declared, str) else set(declared or [])
-    return allowed == {"string"}
+    if allowed:
+        return allowed == {"string"}
+    enum = field_schema.get("enum") if isinstance(field_schema, dict) else None
+    if isinstance(enum, list) and enum:
+        return all(isinstance(value, str) for value in enum)
+    return isinstance(field_schema, dict) and isinstance(field_schema.get("const"), str)
 
 
 def validate_registry(registry: dict, source) -> dict:
@@ -6872,8 +6877,9 @@ def validate_registry(registry: dict, source) -> dict:
                 "but not the boolean `restated` attribute a version retracts a "
                 "decision with"
             )
-        # One rule set for both channels: x-state and x-report differ in
-        # precedence, not in how a verb, its unit, and its record hang together.
+        # One rule set for both channels: x-state and x-report differ in how a
+        # statement ends, not in how a verb, its unit, and its record hang together.
+        unit_records = {}
         for channel in ("x-state", "x-report"):
             for verb, spec in entry.get(channel, {}).items():
                 detail_properties = spec["detail"].get("properties", {})
@@ -6882,6 +6888,18 @@ def validate_registry(registry: dict, source) -> dict:
                 fields = [] if unit == "widget" else [unit]
                 record = spec.get("record")
                 if record:
+                    form = {
+                        key: value
+                        for key, value in record.items()
+                        if key not in {"value", "order"}
+                    }
+                    prior = unit_records.setdefault(unit, form)
+                    if prior != form:
+                        raise RegistryError(
+                            f"{path}: <{tag}> unit `{unit}` has incompatible record "
+                            f"forms {prior!r} and {form!r} — one fold unit must name "
+                            "one markup fact"
+                        )
                     fields.append(record["value"])
                     if record["kind"] == "position":
                         fields.append(record["order"])
@@ -6890,12 +6908,48 @@ def validate_registry(registry: dict, source) -> dict:
                                 f"{path}: <{tag}> {channel} verb `{verb}` records a "
                                 f"position within unknown widget <{record['within']}>"
                             )
+                    if record["kind"] == "body":
+                        if entry.get("x-content") != "data":
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                "its body, so x-content must be data — projection "
+                                "states text, not a prose subtree"
+                            )
+                        nested = sorted(
+                            child
+                            for child, child_entry in widgets.items()
+                            if tag in child_entry.get("x-parent", [])
+                        )
+                        if nested:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"its body but admits nested widgets {nested} — a "
+                                "text statement cannot reconstruct their state"
+                            )
                     if record["kind"] == "value":
                         attr = record["attr"]
                         if attr not in properties:
                             raise RegistryError(
                                 f"{path}: <{tag}> {channel} verb `{verb}` records "
                                 f"undeclared attribute `{attr}`"
+                            )
+                        # Rejection projection starts from what the markup wrote and
+                        # speaks through this verb's own detail. An optional scalar has
+                        # an authored state (absence) that detail cannot state, forcing
+                        # a partial DOM reverse or a destructive subtree rebuild. Name
+                        # "none" as an admitted required value instead; then every
+                        # reachable authored state has one absolute statement.
+                        if attr not in entry.get("required", []):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"optional attribute `{attr}` — recorded state must be "
+                                "required so its authored value can be replayed"
+                            )
+                        if not declares_string(properties[attr]):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"non-string attribute `{attr}` — HTML authored values "
+                                "are strings, so the action detail must be string-valued"
                             )
                         # An x-says value is words the reader sees, and the file's
                         # reading takes them from the markup — replay writing one
@@ -7725,7 +7779,21 @@ def state_fold(
     return fold
 
 
-def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
+def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
+    """The nearest enclosing widget whose registry entry records state."""
+    for candidate in reversed(spk.get(unit, EMPTY).within):
+        rec = byid.get(candidate)
+        entry = registry.get(rec["tag"], {}) if rec else {}
+        if any(
+            spec.get("record")
+            for channel in ("x-state", "x-report")
+            for spec in entry.get(channel, {}).values()
+        ):
+            return candidate
+    return None
+
+
+def markup_facet(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     """What one version's markup shows for a unit's declared record form: every
     element inside it carrying the attribute, the unit's own attribute's value,
     the declared container enclosing it, or its body's words — the empty list
@@ -7743,6 +7811,7 @@ def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
             for oid, orec in byid.items()
             if record["attr"] in orec["attrs"]
             and unit in spk.get(oid, EMPTY).within[:-1]
+            and recorded_owner(oid, byid, spk, registry) == unit
         )
     if record["kind"] == "value":
         rec = byid.get(unit)
@@ -7836,7 +7905,7 @@ def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
         e, spec = fold[unit]
         if unit not in byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, spk)
+        f_cur = markup_facet(unit, spec, byid, spk, registry)
         f_log = folded_facet(e, spec)
         if f_cur is NO_RECORD or f_cur == f_log:
             continue
@@ -7856,7 +7925,7 @@ def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
         e, spec = reports[-1]
         if unit not in byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, spk)
+        f_cur = markup_facet(unit, spec, byid, spk, registry)
         f_rep = folded_facet(e, spec)
         if f_cur == f_rep:
             continue
@@ -7905,18 +7974,28 @@ def replayed_attrs(rec: dict, fold: dict, reports: dict) -> dict:
     """An element's attributes as replay leaves them: the authored markup
     overlaid with the surviving value-kind record — the browser evaluates an
     ask's `when` against the replayed DOM, so a status a report moved reads
-    here the way it reads there. The user's action holds the unit over a
-    standing report, the channel precedence the registry states."""
+    here the way it reads there. Both channels share the log's sequence, so the
+    newest standing absolute statement holds the unit."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
-    held = fold.get(unit) or (reports.get(unit) or [(None, None)])[-1]
+    held = max(
+        [
+            candidate
+            for candidate in [fold.get(unit), *(reports.get(unit) or [])]
+            if candidate
+        ],
+        key=lambda candidate: candidate[0]["seq"],
+        default=(None, None),
+    )
     e, spec = held if held[0] else (None, None)
     if e and (spec.get("record") or {}).get("kind") == "value":
         return {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
     return attrs
 
 
-def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> bool:
+def answered_ask(
+    rec: dict, entry: dict, fold: dict, byid: dict, spk: dict, registry: dict
+) -> bool:
     """The runtime's `answeredAsk`: a verb that records as an attribute answers
     on the record the replayed page carries — the fold's where an action
     survives on the unit, the authored markup's otherwise, so a version that
@@ -7931,7 +8010,7 @@ def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> b
             if held and (held[1].get("record") or {}).get("kind") == "attribute":
                 facet = folded_facet(*held)
             else:
-                facet = markup_facet(unit, spec, byid, spk) if unit else []
+                facet = markup_facet(unit, spec, byid, spk, registry) if unit else []
             if facet:
                 return True
         elif held and held[0]["action"] == verb:
@@ -7978,7 +8057,7 @@ def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) ->
             continue
         if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
             continue
-        if answered_ask(rec, entry, fold, byid, spk):
+        if answered_ask(rec, entry, fold, byid, spk, registry):
             continue
         asks.append({"id": unit, "tag": rec["tag"], "thread": None})
     return asks
@@ -8036,7 +8115,7 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
                     for a in events
                 )
             else:
-                answered = answered_ask(rec, entry, fold, byid, spk)
+                answered = answered_ask(rec, entry, fold, byid, spk, registry)
             if not answered:
                 asks.append(
                     {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
@@ -8147,8 +8226,8 @@ def restatement_errors(
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, now)
-        f_prev = markup_facet(unit, spec, prev_byid, was)
+        f_cur = markup_facet(unit, spec, byid, now, registry)
+        f_prev = markup_facet(unit, spec, prev_byid, was, registry)
         if f_cur is NO_RECORD or f_cur == f_prev:
             continue  # no record form, or no active change — replay resolves silence
         f_fold = folded_facet(e, spec)
@@ -8249,7 +8328,7 @@ def report_errors(
     earned = set()
     for unit in sorted(standing):
         e, spec = standing[unit][-1]
-        f_cur = markup_facet(unit, spec, byid, now)
+        f_cur = markup_facet(unit, spec, byid, now, registry)
         f_rep = folded_facet(e, spec)
         # Whether an `overruled` is earned is this version's markup against the
         # report, so it is settled ahead of the skip below: a unit the gate declines
@@ -8264,7 +8343,7 @@ def report_errors(
             continue
         if f_cur == f_rep:
             continue  # honoring: publishing absorbs the report by id
-        if f_cur == markup_facet(unit, spec, prev_byid, was):
+        if f_cur == markup_facet(unit, spec, prev_byid, was, registry):
             continue  # blessed silence: the report keeps painting
         where = at(rec, f"id={unit!r}")
         who = e.get("agent", "a worker")

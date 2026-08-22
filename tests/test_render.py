@@ -473,9 +473,10 @@ class Traffic:
     """One page's trips to the server, counted as the browser reports them.
 
     `pending` is keyed by the attempt the runtime sends, not by physical requests. A
-    failed request therefore stays pending while the outbox retries it; an accepted or
-    definitive response clears it, as does a state response that contains the attempt.
-    This is the same evidence the runtime accepts, observed outside the page.
+    failed request therefore stays pending while the outbox retries it; a definitive
+    refusal or a response naming the accepted attempt clears it. This tracks delivery,
+    observed outside the page. Whether the page then applied the returned state is a
+    separate product fact asserted on the surface that needs it.
 
     The count is the page's whole life, reloads included, where the init script started
     over at each navigation. Navigation clears unresolved attempts because it destroys
@@ -486,11 +487,12 @@ class Traffic:
         self.acked = 0  # posts the server has answered
         self.asked = 0  # state the page has gone out for
         self.heard = 0  # ... and been given
-        self.pending = set()  # browser attempt ids not yet accounted for by a read
+        self.pending = set()  # browser attempt ids with no known delivery outcome
         self._token = {}  # outbox request -> its browser attempt
         self._flying = (
             set()
         )  # event posts in the air, each counted once whichever way it ends
+        self._responses = []  # bodies are read outside Playwright's response callback
         page.on("request", self._out)
         page.on("response", self._responded)
         page.on("requestfailed", self._back)
@@ -528,26 +530,43 @@ class Traffic:
     def _responded(self, response):
         request = response.request
         self._back(request)
+        self._responses.append(response)
+
+    def settle(self):
+        """Read queued bodies from ordinary test control flow, never an event callback.
+
+        Playwright may yield while `response.json()` asks its driver for the body. Doing
+        that inside `_responded` let the test re-enter between `acked` and `pending`,
+        after the response event that could wake it had already fired."""
+        while self._responses:
+            responses, self._responses = self._responses, []
+            for response in responses:
+                self._settle(response)
+
+    def _settle(self, response):
+        request = response.request
         if "/api/event" in request.url:
             try:
                 answer = response.json()
             except Exception:  # noqa: BLE001 - malformed answers are retryable evidence
                 return
             token = self._token.get(request)
-            state_attempts = {
-                event.get("attempt")
-                for event in (answer.get("state") or {}).get("events", [])
-                if event.get("attempt")
-            }
-            accepted = (
-                answer.get("ok") is True
-                and answer.get("state") is not None
-                and token in state_attempts
+            state = answer.get("state")
+            state_events = state.get("events") if isinstance(state, dict) else None
+            state_attempts = (
+                {
+                    event.get("attempt")
+                    for event in state_events
+                    if isinstance(event, dict) and event.get("attempt")
+                }
+                if isinstance(state_events, list)
+                else set()
             )
+            accepted = answer.get("ok") is True and token in state_attempts
             refused = (
                 answer.get("ok") is False
                 and answer.get("final") is True
-                and answer.get("attempt") == token
+                and ("attempt" not in answer or answer.get("attempt") == token)
             )
             if accepted or refused:
                 self.pending.discard(token)
@@ -556,10 +575,13 @@ class Traffic:
                 state = response.json()
             except Exception:  # noqa: BLE001 - it accounted for nothing the page can read
                 return
+            state_events = state.get("events") if isinstance(state, dict) else None
+            if not isinstance(state_events, list):
+                return
             attempts = {
                 event.get("attempt")
-                for event in state.get("events", [])
-                if event.get("attempt")
+                for event in state_events
+                if isinstance(event, dict) and event.get("attempt")
             }
             self.pending.difference_update(attempts)
 
@@ -570,6 +592,7 @@ class Traffic:
         self._flying.clear()
         self.pending.clear()
         self._token.clear()
+        self._responses.clear()
 
     def __str__(self):
         return (
@@ -580,6 +603,7 @@ class Traffic:
 
 def _traffic(page):
     """The watcher `open_page` hung on this page when it made it."""
+    page.lf_traffic.settle()
     return page.lf_traffic
 
 
@@ -587,8 +611,10 @@ def _until(page, fact, wanted):
     """Block until `fact` holds of the page's traffic.
 
     The events the counters are built from arrive while the client is blocked inside a
-    Playwright call, so this blocks on the next response and asks again — no polling
-    interval to pick, and nothing added to the page.
+    Playwright call, so this blocks on each next response and asks again — no polling
+    interval to pick, and nothing added to the page. Response bodies are settled only
+    after that event returns, so the delivery fact changes atomically from this caller's
+    point of view.
 
     It wakes on responses alone, where the counters answer to failures too, so a fact that
     came true through a failed request waits for the next poll that is answered to be
@@ -606,8 +632,11 @@ def _until(page, fact, wanted):
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
+    deadline = time.monotonic() + 30
     try:
-        page.wait_for_event("response", predicate=lambda _: fact(_traffic(page)))
+        while not fact(_traffic(page)):
+            remaining = max(1, int((deadline - time.monotonic()) * 1000))
+            page.wait_for_event("response", timeout=remaining)
     except PlaywrightTimeout as ran_out:
         raise AssertionError(
             f"the page never {wanted}: the wait began on {began} and gave up on "
@@ -615,11 +644,12 @@ def _until(page, fact, wanted):
         ) from ran_out
 
 
-# A gesture is over when the response carrying authoritative state lands, or when a
-# periodic poll observes its attempt after that response was lost. Traffic records both
-# as one fact: every send through this page has been answered back into this page. A
-# request failure does not finish it, because the outbox keeps the same attempt and
-# retries; waiting merely for `acked` would return on that ambiguous edge.
+# A browser trip is over when the response names the accepted attempt, definitively
+# refuses it, or a periodic poll observes it after the response was lost. Traffic records
+# those delivery outcomes as one fact. It deliberately says nothing about whether the
+# runtime then applied the response state; tests assert that on the affected page surface.
+# A request failure does not finish delivery, because the outbox keeps the same attempt
+# and retries; waiting merely for `acked` would return on that ambiguous edge.
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
     _until(page, lambda t: not t.pending, "heard back what it sent")
@@ -7202,6 +7232,35 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     page.close()
 
 
+def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
+    """Attribute records are sets owned by one recorded widget. A chosen option in a
+    nested question must not enter the outer question's authored facet, or an outer log
+    choice that exactly matches its markup is falsely painted as awaiting the author."""
+    nested_choices = NESTED_ASK_PAGE.replace(
+        '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
+    ).replace('<lf-option id="in-now">', '<lf-option id="in-now" chosen>')
+    url = serve(nested_choices)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "outer",
+            "action": "choose",
+            "detail": {"options": ["out-drill"]},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#inner")).not_to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#out-drill")).to_have_attribute("chosen", "")
+    expect(page.locator("#in-now")).to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+
 # An option arguing its case with the evidence inside it, which is the whole reason the
 # card is more than a label. Three things to work stand in one option, one per vocabulary
 # the guard reads: a widget's own control (the shot's frame, a label injected through
@@ -7629,6 +7688,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     )
 
     held[0].continue_()
+    _until(page, lambda traffic: traffic.sends == 2, "sent the queued second pick")
     round_trip(page)
     assert [
         e["detail"]["options"]
@@ -7662,8 +7722,10 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
             held.append(route)
 
     page.route("**/api/event", hold_answers)
-    page.locator("#job-mounts").click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the first pick's answer")
+    with page.expect_request("**/api/event"):
+        page.locator("#job-mounts").click()
+    page.wait_for_timeout(0)
+    assert len(held) == 1
     page.locator("#job-camera").click()
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
     assert _traffic(page).sends == 1, (
@@ -9252,12 +9314,10 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
 
     def refuse_attempt(route):
-        attempt = route.request.post_data_json["attempt"]
         route.fulfill(
             status=400,
             json={
                 "ok": False,
-                "attempt": attempt,
                 "error": "refused before append",
                 "final": True,
             },
@@ -9309,7 +9369,7 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     assert logged[0]["attempt"]
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    assert len(errors) == 2 and all("400" in error for error in errors)
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -11526,7 +11586,7 @@ customElements.define(
 """
 
 
-def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
+def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False, report=False):
     """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
@@ -11535,7 +11595,14 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     assert result.exit_code == 0, result.output
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-drift"]["properties"]["offset"] = {"type": "integer", "minimum": 0}
+    entries["lf-drift"]["properties"]["offset"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
+    entries["lf-drift"].setdefault("required", []).append("offset")
+    entries["lf-drift"]["x-example"] = entries["lf-drift"]["x-example"].replace(
+        'id="drift-example"', 'id="drift-example" offset="120"'
+    )
     entries["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
     entries["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare
@@ -11551,7 +11618,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
         "settle": {
             "detail": {
                 "type": "object",
-                "properties": {"offset": {"type": "integer", "minimum": 0}},
+                "properties": {"offset": {"type": "string", "pattern": "^[0-9]+$"}},
                 "required": ["offset"],
                 "additionalProperties": False,
             },
@@ -11559,12 +11626,71 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
             "record": {"kind": "value", "attr": "offset", "value": "offset"},
         }
     }
+    if report:
+        entries["lf-drift"]["properties"]["overruled"] = {"type": "boolean"}
+        entries["lf-drift"]["x-report"] = {
+            "observe": {
+                "detail": {
+                    "type": "object",
+                    "properties": {"offset": {"type": "string", "pattern": "^[0-9]+$"}},
+                    "required": ["offset"],
+                    "additionalProperties": False,
+                },
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "offset", "value": "offset"},
+            }
+        }
     registry_path.write_text(json.dumps(entries, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(DRIFT_MODULE)
+    module = (
+        DRIFT_MODULE.replace(
+            'if (action !== "settle") return;',
+            'if (action !== "settle" && action !== "observe") return;',
+        )
+        if report
+        else DRIFT_MODULE
+    )
+    (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(module)
     if not deep:
         return DRIFT_PAGE
     opens = "<lf-drift deep bare id=" if bare else "<lf-drift deep id="
     return DRIFT_PAGE.replace("<lf-drift id=", opens)
+
+
+def test_actions_and_reports_replay_in_the_logs_one_chronology(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The two channels may state one declared unit. Their absolute statements obey
+    the log's shared sequence, so a newer reader action outranks an older report rather
+    than channel batching painting the report last."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, report=True))
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "wren",
+            "version": 1,
+            "widget": "drift-note",
+            "action": "observe",
+            "detail": {"offset": "40"},
+        },
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "drift-note",
+            "action": "settle",
+            "detail": {"offset": "20"},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#drift-note")).to_have_attribute("offset", "20")
+    assert errors == []
+    page.close()
 
 
 def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
@@ -11677,7 +11803,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         "version": 1,
         "widget": "drift-note",
         "action": "settle",
-        "detail": {"offset": 0},
+        "detail": {"offset": "0"},
     }
 
     class TheLogArrivesLate(interact.handler_for(serve.page_dir, TOKEN)):
@@ -12746,6 +12872,141 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert sent[-1]["action"] == "answer", "the chord's digit must not pick"
     assert errors == []
+    page.close()
+
+
+def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
+    """Thread widgets arrive after page startup, but their comment markup is still
+    their authored baseline. A definitive refusal removes the optimistic choice from
+    that baseline instead of leaving a decision the log never took."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    with page.expect_request("**/api/event"):
+        page.locator("#tq-logs").click()
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
+    browser, serve
+):
+    """A final fold entry is not a replay: `answer` shares the widget unit with
+    `choose` but records no picks. Reconstructing after a later refusal must replay
+    both accepted actions and retain both their visible facts."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    page.locator("#tq-logs").click()
+    round_trip(page)
+    page.locator("#tq-set .lf-done").click()
+    round_trip(page)
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#tq-metrics").click()
+    expect(page.locator("#tq-metrics")).to_have_attribute("chosen", "")
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-metrics")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
+    assert [
+        (event["action"], event["detail"]) for event in actions(serve.page_dir)
+    ] == [
+        ("choose", {"options": ["tq-logs"]}),
+        ("answer", {}),
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve):
+    """The outbox is delivery order, not wholly an optimistic overlay. A recorded
+    choice is already painted, but the record-less Done press waits for acceptance;
+    correcting the older choice must not paint that queued press early."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#tq-logs").click()
+    done = page.locator("#tq-set .lf-done")
+    done.click()
+    expect(done).to_have_attribute("aria-busy", "true")
+    expect(done).to_have_attribute("aria-pressed", "false")
+
+    first_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": first_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    expect(done).to_have_attribute("aria-pressed", "false")
+    second_attempt = held[1].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[1].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": second_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    expect(done).to_have_attribute("aria-pressed", "false")
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -14598,6 +14859,690 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     page.close()
 
 
+def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, serve):
+    """Acceptance and rendering are separate outcomes. A malformed response state
+    cannot be repaired by re-posting its accepted attempt, so delivery advances, while
+    replay and undo remain held until a later complete response accounts for it."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    older = []
+
+    def hold_older_state(route):
+        if older:
+            refuse(route)
+            return
+        older.append(route)
+
+    page.route("**/api/state*", hold_older_state)
+    with page.expect_request("**/api/state"):
+        pass
+    page.wait_for_timeout(0)
+    assert len(older) == 1
+    old_route = older[0]
+    old_state = old_route.fetch().json()
+
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    requests = []
+    first_attempt = []
+
+    def break_first_state(route):
+        event = route.request.post_data_json
+        if "attempt" not in event:
+            route.continue_()
+            return
+        requests.append(event)
+        response = route.fetch()
+        answer = response.json()
+        if not first_attempt:
+            first_attempt.append(event["attempt"])
+        if event["attempt"] == first_attempt[0]:
+            # A valid event list proves delivery, but the invalid neighbour makes
+            # receiveState fail after assigning that list globally. It is deliberately
+            # not a complete read, and a later stale response must not account from it.
+            answer["state"]["others"] = [None]
+        route.fulfill(status=response.status, json=answer)
+
+    page.route("**/api/event", break_first_state)
+    with page.expect_console_message(
+        lambda message: (
+            message.type == "error" and "leaf: state in event response" in message.text
+        )
+    ) as reported:
+        page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    expect(page.locator("#sug-thistle")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+
+    old_route.fulfill(json=old_state)
+    page.title()  # let the stale response run before reading the undo surface
+
+    # The caller knows the send succeeded, but no whole state containing it has been
+    # adopted. The stale response must not release the hold merely because the failed
+    # application assigned an event list containing the attempt before it threw.
+    assert first_attempt[0] not in _traffic(page).pending
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    sent = _traffic(page).sends
+    page.keyboard.press("z")
+    assert _traffic(page).sends == sent
+
+    # A later send does not wait behind known acceptance. Its valid state includes both
+    # attempts, accounts for the older entry, and makes the newest gesture safe to undo.
+    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
+    round_trip(page)
+
+    assert [request["attempt"] for request in requests].count(first_attempt[0]) == 1
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [
+        ("sug-refill", "accept"),
+        ("sug-thistle", "accept"),
+        ("sug-in-card", "accept"),
+    ]
+
+    undo(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator("#sug-in-card")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#sug-in-card lf-old")).to_be_visible()
+    assert "leaf: state in event response" in reported.value.text
+    assert errors == [reported.value.text]
+    page.close()
+
+
+def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
+    """A later absolute action on the same widget is already painted while an older
+    send waits. Refusing the older action must preserve that outbox overlay, including
+    while an accepted intermediate answer is older than the newest local gesture."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.locator("#card-heater .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+
+    page.route("**/api/state*", refuse)
+    held = []
+
+    page.route("**/api/event", lambda route: held.append(route))
+    baffle = page.locator("#card-baffle .lf-grip")
+    with page.expect_request("**/api/event"):
+        baffle.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+
+    # Reorder the same card twice while its move waits. Each action is queued locally
+    # and describes its placement whole; the newest says Done, before the heater.
+    baffle.focus()
+    for key in ["Enter", "ArrowDown", "Enter"]:
+        page.keyboard.press(key)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-heater", "card-baffle"]
+    assert _traffic(page).sends == 2
+    baffle.focus()
+    for key in ["Enter", "ArrowUp", "Enter"]:
+        page.keyboard.press(key)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    assert (
+        _traffic(page).sends == 2
+    )  # the later two actions are queued, not on the wire
+
+    first_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ) as second_request:
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": first_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    page.wait_for_timeout(0)
+    assert len(held) == 2
+    second_attempt = second_request.value.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt")
+            not in {first_attempt, second_attempt}
+        )
+    ):
+        held[1].continue_()
+    page.wait_for_timeout(0)
+    assert len(held) == 3
+
+    # The accepted second response states "after heater", but the third gesture is
+    # still unresolved and already painted "before heater". The older refusal and
+    # intermediate answer may disturb neither half of that local placement.
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+
+    held[2].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    assert [
+        (event["detail"]["card"], event["detail"]["to"], event["detail"]["index"])
+        for event in actions(serve.page_dir)
+    ] == [
+        ("card-heater", "col-done", 0),
+        ("card-baffle", "col-done", 1),
+        ("card-baffle", "col-done", 0),
+    ]
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+
+    undo(page)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-heater", "card-baffle"]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
+    browser, serve
+):
+    """Rollback snapshots compose the wrong state: B captures optimistic A, so if
+    both are refused, B's snapshot resurrects A. The runtime instead removes each
+    action from one overlay and derives the widget from the log plus what survives."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.locator("#card-heater .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    baffle = page.locator("#card-baffle .lf-grip")
+    with page.expect_request("**/api/event"):
+        baffle.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    baffle.focus()
+    for key in ["Enter", "ArrowDown", "Enter"]:
+        page.keyboard.press(key)
+    baffle.focus()
+    for key in ["Enter", "ArrowUp", "Enter"]:
+        page.keyboard.press(key)
+    assert (
+        _traffic(page).sends == 2
+    )  # the later two actions are queued, not on the wire
+
+    for at in range(3):
+        attempt = held[at].request.post_data_json["attempt"]
+        if at < 2:
+            with page.expect_request(
+                lambda request, attempt=attempt: (
+                    "/api/event" in request.url
+                    and request.post_data_json.get("attempt") != attempt
+                )
+            ):
+                held[at].fulfill(
+                    status=400,
+                    json={
+                        "ok": False,
+                        "attempt": attempt,
+                        "error": "refused before append",
+                        "final": True,
+                    },
+                )
+            page.wait_for_timeout(0)
+        else:
+            with page.expect_response(lambda response: "/api/event" in response.url):
+                held[at].fulfill(
+                    status=400,
+                    json={
+                        "ok": False,
+                        "attempt": attempt,
+                        "error": "refused before append",
+                        "final": True,
+                    },
+                )
+        if at < 2:
+            assert len(held) == at + 2
+            assert page.eval_on_selector_all(
+                "#col-done > lf-card", "cards => cards.map(card => card.id)"
+            ) == ["card-baffle", "card-heater"]
+
+    round_trip(page)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater"
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
+    browser, serve
+):
+    """A position unit shares an ordered container with its siblings. Restoring only
+    the refused card's authored index can overwrite a different card's logged reorder;
+    reconciliation must fold the board whole in action order."""
+    page, errors = open_page(browser, serve(BOARD_PAGE), init_script=HOLD_MOTION)
+    baffle = page.locator("#card-baffle .lf-grip")
+    baffle.focus()
+    for key in ["Enter", "ArrowUp", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+    assert page.eval_on_selector_all(
+        "#col-todo > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    page.evaluate(
+        "() => { for (const a of window.__lfHeld) a.cancel(); window.__lfHeld = []; }"
+    )
+
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#card-heater .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+
+    assert page.eval_on_selector_all(
+        "#col-todo > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle"
+    ]
+    motions = page.evaluate(
+        """() => window.__lfHeld.map(animation => ({
+          target: animation.effect.target.id,
+          state: animation.playState,
+        }))"""
+    )
+    assert motions and motions[0] == {"target": "card-heater", "state": "idle"}, (
+        "the optimistic move was not the cancelled animation positive control"
+    )
+    active = [motion["target"] for motion in motions if motion["state"] != "idle"]
+    assert len(motions) <= 3 and len(active) == len(set(active)), (
+        "reconstruction exposed synthetic authored/log placements as gestures: "
+        f"{motions}"
+    )
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A recorded container owns only its nearest stateful parts. Projecting a
+    project's outer board must not capture cards owned by a nested shipped board merely
+    because both record positions within lf-column."""
+    monkeypatch.chdir(tmp_path)
+    made = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-outer-board", "--upgrade"]
+    )
+    assert made.exit_code == 0, made.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    outer = entries["lf-outer-board"]
+    outer["properties"]["restated"] = {"type": "boolean"}
+    outer["x-content"] = "items"
+    outer["x-example"] = (
+        '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
+        '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
+        "</lf-outer-board>"
+    )
+    outer["x-state"] = {
+        "move": {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "card": {"type": "string"},
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["card", "to", "index"],
+                "additionalProperties": False,
+            },
+            "unit": "card",
+            "record": {
+                "kind": "position",
+                "within": "lf-column",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    }
+    bundled = json.loads((interact.BUNDLED / "registry.json").read_text())
+    entries["lf-column"] = bundled["lf-column"]
+    entries["lf-column"]["x-parent"].append("lf-outer-board")
+    registry_path.write_text(json.dumps(entries))
+    (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
+        """import { once } from "/leaf.js";
+customElements.define("lf-outer-board", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(action, detail) {
+    if (action !== "move") return;
+    const card = document.getElementById(detail.card);
+    const col = document.getElementById(detail.to);
+    if (!card?.matches("lf-card") || !col?.matches("lf-column") || !this.contains(col)) return;
+    const cards = [...col.children].filter(node => node.matches("lf-card") && node !== card);
+    col.insertBefore(card, cards[detail.index] ?? null);
+  }
+});
+"""
+    )
+    nested = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>nested owners</title><link rel="stylesheet" href="/theme.css">
+<script type="module" src="/leaf.js"></script></head><body><main>
+<h1 id="h">Nested owners</h1>
+<lf-outer-board id="outer">
+  <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card"><strong>Outer</strong>
+    <lf-board id="inner"><lf-column id="inner-todo" label="Todo">
+      <lf-card id="inner-card"><strong>Inner</strong></lf-card></lf-column>
+      <lf-column id="inner-done" label="Done"></lf-column></lf-board>
+  </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
+</lf-outer-board></main></body></html>"""
+    page, errors = open_page(browser, serve(nested))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    with page.expect_request("**/api/event"):
+        page.evaluate(
+            """() => { void import('/leaf.js').then(({sendAction}) => {
+              const widget = document.querySelector('#outer');
+              const detail = {card: 'outer-card', to: 'outer-done', index: 0};
+              widget.applyAction('move', detail);
+              void sendAction(widget, 'move', detail);
+            }); }"""
+        )
+    page.wait_for_timeout(0)
+    page.evaluate(
+        """() => { void import('/leaf.js').then(({sendAction}) => {
+          const widget = document.querySelector('#inner');
+          const detail = {card: 'inner-card', to: 'inner-done', index: 0};
+          widget.applyAction('move', detail);
+          void sendAction(widget, 'move', detail);
+        }); }"""
+    )
+    expect(page.locator("#inner-done #inner-card")).to_have_count(1)
+
+    outer_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != outer_attempt
+        )
+    ):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": outer_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#outer-todo > #outer-card")).to_have_count(1)
+    expect(page.locator("#inner-done #inner-card")).to_have_count(1)
+    held[1].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("#inner-done #inner-card")).to_have_count(1)
+    assert [
+        (event["widget"], event["detail"]["card"]) for event in actions(serve.page_dir)
+    ] == [("inner", "inner-card")]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
+    browser, serve
+):
+    """Acceptance may be known while a malformed state keeps the outbox hold. If
+    later log events arrive before another refusal, the retained accepted attempt is
+    replayed at its log sequence—not overlaid again as though it were newest."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+
+    def malformed_poll_state(route):
+        response = route.fetch()
+        state = response.json()
+        state["others"] = [None]
+        route.fulfill(status=response.status, json=state)
+
+    def malformed_event_state(route):
+        response = route.fetch()
+        answer = response.json()
+        answer["state"]["others"] = [None]
+        route.fulfill(status=response.status, json=answer)
+
+    page.route("**/api/state*", malformed_poll_state)
+    page.route("**/api/event", malformed_event_state)
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_console_message(
+        lambda message: "leaf: state in event response" in message.text
+    ):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    page.unroute("**/api/event")
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+        },
+    )
+    with (
+        page.expect_console_message(lambda message: "poll failed" in message.text),
+        page.expect_request("**/api/state*"),
+    ):
+        pass
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        heater.focus()
+        for key in ["Enter", "ArrowLeft", "Enter"]:
+            page.keyboard.press(key)
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater",
+        "card-baffle",
+    ]
+    assert errors
+    page.close()
+
+
+def test_accounting_an_action_projects_newer_same_widget_news_before_release(
+    browser, serve
+):
+    """A complete poll can account for held A while also carrying newer B. Replay
+    skips the widget under A's outbox hold; releasing A must project A+B before that
+    hold disappears, or the page offers its next gesture against stale optimistic A."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_request("**/api/event"):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    older_answer = held[
+        0
+    ].fetch()  # the server appends A; its browser response stays held
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+        },
+    )
+    told(page)  # a complete state accounts A and projects A+B before release
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    page.route("**/api/state*", refuse)
+
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(response=older_answer)
+    page.title()  # let the stale response settle before reading the page again
+
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater",
+        "card-baffle",
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
+    """A complete poll containing an attempt is authoritative delivery evidence. Once
+    it accounts for A, the ordered outbox may send queued B even if A's original browser
+    response never finishes; the server append A was already observed before B starts."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#card-baffle .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    first_answer = held[0].fetch()  # append A, but leave its response unresolved
+
+    page.locator("#card-heater .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    first_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        told(page)
+
+    assert len(held) == 2
+    held[0].fulfill(response=first_answer)  # cleanup after B has proved release
+    with page.expect_response(
+        lambda response: (
+            "/api/event" in response.url
+            and response.request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        held[1].continue_()
+    page.unroute("**/api/event")
+
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle",
+        "card-heater",
+    ]
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, serve):
+    """A board grab owns its captured origin until release. A refusal arriving under
+    that grab must remain in the outbox, then reconcile after Escape, or the cancel can
+    resurrect the move the server refused."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    baffle = page.locator("#card-baffle .lf-grip")
+    with page.expect_request("**/api/event"):
+        baffle.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+
+    baffle.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#sprint")).to_have_class(re.compile(r"\blf-dragging\b"))
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+
+    # The live gesture still owns the DOM; its origin must not move under it.
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
 def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     """The outbox retries an accepted gesture whose response was lost before it
     sends the next gesture. Both arrive once, in the order the reader made them."""
@@ -14653,6 +15598,63 @@ def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     assert errors == []
+    page.close()
+
+
+def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
+    browser, serve
+):
+    """The centralized projector runs before a refused send resolves. A draft caller
+    may reopen the unsent text, but must not restore its stale pre-send body over a newer
+    remote edit the projector just applied and marked complete."""
+    page, errors = open_page(browser, serve(UNDO_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft = page.locator("#note-cli")
+    with page.expect_request("**/api/event"):
+        draft.locator(".lf-draft-pencil").click()
+        draft.locator("textarea").fill("Local C")
+        page.keyboard.press("Meta+Enter")
+    page.wait_for_timeout(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "note-cli",
+            "action": "edit",
+            "detail": {"text": "Remote B"},
+        },
+    )
+    told(page)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
+    page.route("**/api/state*", refuse)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+
+    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
+    page.keyboard.press("Escape")
+    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
+    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+        "Remote B"
+    ]
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -21761,6 +22763,58 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     expect(
         page.locator(".lf-thread", has_text="Newest snapshot stays rendered")
     ).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
+    """Sequence order is judged again after the lazy Markdown import. A newer POST
+    response can enter that await before an older held poll; when the shared import
+    finishes, the older continuation must not repaint the log backwards."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    panel_settled(page)
+
+    older = []
+
+    def hold_older_state(route):
+        if older:
+            refuse(route)
+            return
+        older.append(route)
+
+    page.route("**/api/state*", hold_older_state)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Older **snapshot**",
+        },
+    )
+    with page.expect_request("**/api/state"):
+        pass
+    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    assert len(older) == 1
+    old_route = older[0]
+    old_state = old_route.fetch().json()
+
+    marked = []
+    page.route("**/vendor/marked.esm.js", lambda route: marked.append(route))
+    page.locator(".lf-general textarea").fill("Newest **snapshot**")
+    with page.expect_request("**/vendor/marked.esm.js"):
+        page.locator(".lf-general button").click()
+    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    assert len(marked) == 1
+
+    old_route.fulfill(json=old_state)
+    page.title()  # let the old response join the shared import before releasing it
+    marked[0].continue_()
+    page.unroute("**/vendor/marked.esm.js")
+
+    expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
+    expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
     assert errors == []
     page.close()
 

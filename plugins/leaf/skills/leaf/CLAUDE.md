@@ -70,15 +70,20 @@ The general form is that a fact derived from a box is not derived by a writer of
 that box. Where one function has to be both reader and writer, the write moves
 to a box nobody is measuring — or to the cascade, which is not that function.
 
-## A press waits for the log; a gesture that already moved something puts it back
+## A press waits for the log; a gesture that already moved is an outbox overlay
 
 Two kinds of gesture reach the action channel and they owe the reader different
 things. A drag has already put the card where the hand let go, and an edit holds
 words only the open box ever had: the page cannot un-show either, so those paint
-themselves and restore the old state when the send fails (`lf-board`'s `#place`,
-`lf-draft`'s `#restore`). A press has shown nothing yet. It asks for a decision,
-the decision is the log's to make, and no decision is painted until the log has
-made it.
+themselves. Their declared record is an absolute state, and the runtime treats every
+unresolved recorded action as an overlay on the authoritative log. If the server
+refuses one, the runtime derives the whole widget again from its authored records,
+the surviving log in chronological order, and the surviving outbox actions. The widget is the boundary because
+position units share an ordered container: restoring one card's authored index can
+overwrite a sibling's logged reorder. No widget rewinds to a DOM snapshot: with queued
+gestures, that snapshot may itself be a gesture the server refused. A press has shown nothing yet.
+It asks for a decision, the decision is the log's to make, and no decision is painted
+until the log has made it.
 
 What decides which kind a gesture is: whether the reader's next gesture computes
 from the paint. A toggle's does — the next press on an `lf-options` mark reads the
@@ -114,33 +119,51 @@ network round trip rather than a local one, and it is the delayed acknowledgment
 rather than the deferred paint that carries that case.
 
 An accepted POST carries the page's state through the event it minted. That one
-answer is both the log deciding and this tab reading the decision; a follow-up
-GET used to split those facts across two requests and made a successful gesture
-look failed whenever the read was the half that broke. Periodic polls now carry
-only other writers' news and recovery when a POST response was lost. What still
-grows is the log the request appends to, at about a millisecond per six hundred
-comments.
+answer settles delivery and normally accounts for the decision in the same trip;
+a follow-up GET used to split those facts across two requests and made a successful
+gesture look failed whenever the read was the half that broke. If applying the
+answer's state fails locally, acceptance still answers the caller and releases the
+next send, but the outbox keeps the gesture unresolved for replay and undo until a
+later complete read accounts for it. Periodic polls also carry other writers' news
+and recover an accepted event whose POST response was lost. What still grows is the
+log the request appends to, at about a millisecond per six hundred comments.
 
 ## An unresolved gesture outranks every older log read
 
-A widget that paints its own gesture holds state no authoritative answer accounts
-for while that gesture remains in the outbox. Replay leaves the widget alone for
-exactly that long. Every `applyAction` states the widget whole, so replaying an
-action from before the gesture hands the reader their older state back — and the
-next gesture then computes from what that replay painted. A `multiple` group two
-picks in, repainted holding one, sends the next toggle as a set the reader never
-chose. Applying each action exactly once is what makes replay converge, and
-"exactly once" says nothing about *when*.
+A widget that paints its own gesture holds state no complete read accounts for while
+that gesture remains in the outbox. Replay leaves the widget alone until every action
+on it has been accounted by a complete read; the page's overlay is newer than the log
+state being applied. A refusal is the other edge: the runtime tombstones that action in
+the same outbox and projects the widget from its authored records, every surviving log
+event in chronological order, and every surviving outbox action in gesture order. The
+full stream matters: a record-less action can follow a recorded action on the same fold
+unit without erasing the state it recorded. Thread widgets take the same authored capture
+when their frozen markup first enters the panel. Value records require their authored
+attribute and a string-valued schema, so every baseline can be stated through the same
+absolute action detail; absence is an explicit admitted value rather than an unprojectable
+DOM state. The correction stays until it applies: a live drag or an `applyAction` returning
+false defers it without releasing replay or undo. Synthetic intermediate placements are
+silent, then one final FLIP shows the visible optimistic-to-authoritative correction. This
+needs neither a reverse operation nor a widget-specific snapshot. Replaying an older
+action while the overlay stands would hand
+the reader their older state back — and the next gesture would then compute from what
+that replay painted. A `multiple` group two picks in, repainted
+holding one, sends the next toggle as a set the reader never chose. Applying each action
+exactly once is what makes replay converge, and "exactly once" says nothing about
+*when*.
 
 The outbox is the one representation of unresolved browser work. It mints an
 attempt before sending, preserves the reader's event order, tells replay which
-widgets to leave alone, and keeps undo dead while its subject is uncertain. A
-successful POST removes its head only after applying state containing that
-attempt. A lost or incomplete answer retries the same head; a periodic read can
-remove it only by carrying the attempt. Later gestures wait behind it, so a slow
-first handler cannot append after them. Concurrent server requests with the same
-attempt share one execution. An accepted attempt lives in the log, and the server
-retains a refused attempt's outcome for its lifetime.
+actions are ahead of its current read, and keeps undo dead while its subject is uncertain. A
+successful POST proves acceptance by returning state containing that attempt. It
+answers the caller and advances delivery order immediately, but removes the entry
+only after that state, or a later one carrying the attempt, has been applied whole.
+A lost or incomplete answer retries the same entry; a periodic read can account for
+it only by carrying the attempt through a complete application. Later gestures wait
+behind an unanswered entry, so a slow first handler cannot append after them, but
+not behind one whose acceptance is already known. Concurrent server requests with
+the same attempt share one execution. An accepted attempt lives in the log, and the
+server retains a refused attempt's outcome for its lifetime.
 
 The hold belongs to the layer, and no module writes one of its own. `lf-draft`
 once did, privately (`#sending`), and was the only widget that had a hold — written

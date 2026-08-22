@@ -201,9 +201,6 @@ customElements.define(
         sendAction(this, "choose", { options: [...next].map((o) => o.id) }).then(
           (ok) => {
             if (ok) toast(`${said} — sent to ${agentName()}`);
-            // Unsent means unrecorded: rewind rather than show a pick Claude will never
-            // see. (post already toasted the failure.)
-            else this.#pick(was);
           },
         );
       });

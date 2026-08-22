@@ -889,6 +889,20 @@ class AttemptConflict(ValueError):
     """One browser attempt was reused for a different event payload."""
 
 
+class AttemptExecution:
+    """One execution shared by concurrent HTTP requests for the same attempt.
+
+    Success is durable in the event log. The record coordinates requests while a
+    handler is executing and is released once that handler finishes, so a concurrent
+    retry receives the same outcome and a later one is free to be evaluated again.
+    """
+
+    def __init__(self, payload: dict):
+        self.payload = payload
+        self.done = threading.Event()
+        self.result = None
+
+
 def _attempt_payload(event: dict) -> dict:
     # Kind is part of the gesture. Only fields the append boundary itself assigns
     # disappear from the equality check.
@@ -1947,6 +1961,8 @@ def full_state(
 class Handler(BaseHTTPRequestHandler):
     page_dir = None
     token = None
+    event_attempts = None
+    event_attempts_lock = None
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
@@ -1966,6 +1982,20 @@ class Handler(BaseHTTPRequestHandler):
             for version in list_versions(self.page_dir)
             if version <= self.preview_upto
         ]
+
+    def page_state(self) -> dict:
+        """The current log reading used by GET and accepted POST responses."""
+        events = read_events(self.page_dir)
+        state = full_state(
+            self.page_dir,
+            events,
+            self.versions_live(events),
+            layer=self.layer,
+        )
+        # Every URL in `others` carries the machine key (`host_key`), so the list
+        # reaches neighbouring pages without creating another authorization path.
+        state["others"] = other_leaves(self.page_dir)
+        return state
 
     def log_message(self, *args):
         pass
@@ -2024,6 +2054,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2036,22 +2068,68 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._get)
 
     def do_POST(self):
-        self._answer(self._post)
+        # The body is route preparation: inside the answer boundary, but after the one
+        # shared key gate. An unauthenticated peer therefore cannot choose an allocation
+        # or park a handler in a body read. Its refusal names no attempt because no body
+        # was trusted enough to read one from; the browser accepts that attempt-less
+        # final answer because the refusal happened before any append could have begun.
+        self._answer(self._post, prepare=self._read_posted)
 
-    def _answer(self, route) -> None:
-        """One boundary for the key and for what a route raises. Unanswered, a fault
+    def _read_posted(self) -> tuple:
+        """The POSTed body as a dict, or the refusal it has already earned.
+
+        Reading and parsing can fail in different ways, all before an append is
+        possible. Naming those failures as final lets the outbox put the gesture back;
+        an unexpected exception remains inside `_answer` and is therefore retryable.
+        """
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        except (TypeError, ValueError, MemoryError):
+            return {}, "invalid Content-Length"
+        try:
+            posted = json.loads(body)
+        except (ValueError, RecursionError):
+            return {}, "invalid JSON"
+        if not isinstance(posted, dict):
+            return {}, "event must be a JSON object"
+        return posted, None
+
+    def _refuse(self, error: str, status: int = 400) -> None:
+        """Answer a refusal in the shape spoken by the route that produced it."""
+        if self.command == "POST" and urlsplit(self.path).path == "/api/event":
+            status, body = self.event_rejection(self.posted, error, status)
+            self._json(body, status)
+        else:
+            self._json({"error": error}, status)
+
+    def _answer(self, route, prepare=None) -> None:
+        """One boundary for authorization, route preparation, and route faults.
+
+        Unanswered, a fault
         drops the socket, socketserver buries the traceback in stderr nothing reads, and
         the banner says "Server offline" about a server that is up — so every
         fault becomes a 500 naming itself, which the banner can show to the one
         person still looking. The key is checked here for `end_headers`'s reason: every
         request passes through, so there is one gate rather than one per method, and a
-        route added later cannot be the one that forgot to ask."""
+        route added later cannot be the one that forgot to ask. POST preparation is
+        deliberately after that gate, so an unknown peer cannot choose a body-read cost.
+        """
         try:
+            if prepare:
+                self.posted, self.posted_error = {}, None
             if not self.authorized():
-                self._json({"error": NO_KEY}, 403)
+                # HTTP/1.1 cannot reuse a connection whose declared request body was
+                # never consumed: those bytes would be parsed as the next request.
+                if prepare:
+                    self.close_connection = True
+                self._refuse(NO_KEY, 403)
                 return
+            if prepare:
+                self.posted, self.posted_error = prepare()
             route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+            # Not a refusal: a fault may have landed either side of the append, so the
+            # browser must retry the same attempt instead of putting its gesture back.
             try:
                 self._json({"error": f"{type(error).__name__}: {error}"}, 500)
             except OSError:
@@ -2084,20 +2162,9 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 cls.viewed_at = time.time()
                 write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
-            # versions through the handler's own view, so a preview server's
-            # state agrees with what it serves (identical when not previewing).
-            events = read_events(self.page_dir)
-            state = full_state(
-                self.page_dir,
-                events,
-                self.versions_live(events),
-                layer=self.layer,
-            )
-            # Every URL in `others` carries the key this reader arrived on, since
-            # there is one key for the machine (`host_key`) — so the list is a
-            # way to the neighbours rather than a way past anything.
-            state["others"] = other_leaves(self.page_dir)
-            self._json(state)
+            # Versions pass through the handler's own view, so a preview state
+            # agrees with the version it serves.
+            self._json(self.page_state())
             return
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
@@ -2131,42 +2198,158 @@ class Handler(BaseHTTPRequestHandler):
                 return
         self._json({"error": "not found"}, 404)
 
+    @staticmethod
+    def event_rejection(event: dict, error: str, status: int = 400) -> tuple:
+        """A final answer proving that this execution appended no event."""
+        body = {"ok": False, "error": error, "final": True}
+        if event.get("attempt"):
+            body["attempt"] = event["attempt"]
+        return status, body
+
+    def accepted_state(self) -> tuple:
+        return 200, {"ok": True, "state": self.page_state()}
+
+    def coordinate_event(self, event: dict) -> tuple:
+        """Run one copy of an attempt and share its outcome with concurrent copies."""
+        attempt = event.get("attempt")
+        if not attempt:
+            return self.execute_event(event)
+        payload = _attempt_payload(event)
+        with self.event_attempts_lock:
+            execution = self.event_attempts.get(attempt)
+            if execution is None:
+                execution = AttemptExecution(payload)
+                self.event_attempts[attempt] = execution
+                owner = True
+            else:
+                owner = False
+                if execution.payload != payload:
+                    return self.event_rejection(
+                        event,
+                        f"attempt {attempt!r} already belongs to another event",
+                        409,
+                    )
+        if not owner:
+            execution.done.wait()
+            return execution.result
+        try:
+            result = self.execute_event(event)
+        except Exception as error:  # noqa: BLE001 - every waiter needs an outcome
+            # A fault may occur after append. Withholding `final` makes the next
+            # identical request find the accepted event or execute the attempt again.
+            result = (
+                500,
+                {
+                    "ok": False,
+                    "attempt": attempt,
+                    "error": f"{type(error).__name__}: {error}",
+                },
+            )
+        finally:
+            execution.result = result
+            execution.done.set()
+            # Waiters retain the execution object. Acceptance is durable in the log;
+            # every other outcome must be evaluated again if it is posted later.
+            with self.event_attempts_lock:
+                if self.event_attempts.get(attempt) is execution:
+                    del self.event_attempts[attempt]
+        return result
+
+    def execute_event(self, event: dict) -> tuple:
+        """Validate mutable page state and append as one log transaction.
+
+        `_post` checks the payload's declared shape before attempt coordination. A
+        re-vendor can replace that declaration before this transaction is acquired,
+        so an action's contract is deliberately read again inside the lease: this
+        reading, not the admission reading, is the one allowed to append beside the
+        page's current vocabulary.
+        """
+        kind = event["kind"]
+        # Every decision whose validity depends on the log stays under the append
+        # lock through the write. In particular, two tabs cannot both validate an
+        # undo against the same standing target and append after either lock is gone.
+        with PageTransaction(self.page_dir) as page:
+            # Acceptance outranks mutable state validation. A retry for an accepted
+            # attempt asks for its state; it does not repeat the gesture.
+            if "attempt" in event:
+                event["author"] = "user"
+                try:
+                    existing = page.matching_attempt(event)
+                except AttemptConflict as error:
+                    return self.event_rejection(event, str(error), 409)
+                if existing:
+                    return self.accepted_state()
+            events = page.events
+            if "version" in event:
+                live_versions = self.versions_live(events)
+                if event["version"] not in live_versions:
+                    return self.event_rejection(
+                        event, f"{kind} version must be one of {live_versions}"
+                    )
+            if kind == "done":
+                mode = version_review_mode(self.page_dir, event["version"])
+                if mode != "sign-off":
+                    return self.event_rejection(
+                        event,
+                        f"version {event['version']} does not declare "
+                        '<meta name="lf-review" content="sign-off">, so it has no '
+                        "approval to record",
+                    )
+            if kind == "action":
+                # This is not the static admission read in `_post`: re-vendoring and
+                # this transaction have now chosen an order, so only this registry
+                # can authorize an action that will be appended under the same lease.
+                try:
+                    registry = load_registry(self.page_dir)
+                except RegistryError as error:
+                    return self.event_rejection(event, str(error))
+                if registry is None:
+                    return self.event_rejection(event, "the page has no registry.json")
+                if error := action_contract_error(
+                    self.page_dir, event, events, registry
+                ):
+                    return self.event_rejection(event, error)
+            if "parent" in event and event["parent"] not in {
+                e["id"] for e in events if e["kind"] in {"comment", "reply"}
+            }:
+                return self.event_rejection(
+                    event, f"unknown parent {event['parent']!r}"
+                )
+            if kind == "undo" and (error := undo_error(event, events)):
+                return self.event_rejection(event, error)
+            event["author"] = "page" if kind == "error" else "user"
+            try:
+                append_event(page, event)
+            except AttemptConflict as error:
+                return self.event_rejection(event, str(error), 409)
+        return self.accepted_state()
+
     def _post(self):
-        # The preview window is the gate's own browser over a maybe-unpublished
-        # version, not the reader: an error event it minted would stand in the
-        # real log as the agent's debt, diagnostics the lint generated about
-        # itself. Nothing it does is the page's to keep.
-        if self.preview_upto is not None:
-            self._json({"error": "the preview server is read-only"}, 403)
-            return
         if urlsplit(self.path).path != "/api/event":
             self._json({"error": "not found"}, 404)
             return
+        # Preview requests have passed authentication and body preparation, so
+        # their refusal can name the attempt without writing to the real log.
+        if self.preview_upto is not None:
+            self._refuse("the preview server is read-only", 403)
+            return
         current_layer = self.layer
         if self.headers.get("Leaf-Layer") != current_layer:
-            # Consume the request so this HTTP/1.1 connection remains a valid
-            # stream. The body is deliberately not parsed: a runtime from an old
-            # layer has no event vocabulary this server may interpret.
-            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            # Preparation already consumed the body. A stale runtime needs the
+            # current generation, not a verdict in a vocabulary it no longer speaks.
             self._json({"layer": current_layer})
             return
-        try:
-            event = json.loads(
-                self.rfile.read(int(self.headers.get("Content-Length", 0)))
-            )
-        except json.JSONDecodeError:
-            self._json({"error": "invalid JSON"}, 400)
+        if self.posted_error:
+            self._refuse(self.posted_error)
             return
-        if not isinstance(event, dict):
-            self._json({"error": "event must be a JSON object"}, 400)
-            return
+        event = self.posted
         try:
             registry = load_registry(self.page_dir)
         except RegistryError as error:
-            self._json({"error": str(error)}, 400)
+            self._refuse(str(error))
             return
         if registry is None:
-            self._json({"error": "the page has no registry.json"}, 400)
+            self._refuse("the page has no registry.json")
             return
         contracts = registry["$events"]["kinds"]
         browser_kinds = sorted(
@@ -2174,96 +2357,17 @@ class Handler(BaseHTTPRequestHandler):
         )
         kind = event.get("kind")
         if not isinstance(kind, str) or kind not in browser_kinds:
-            self._json({"error": f"kind must be one of {browser_kinds}"}, 400)
+            self._refuse(f"kind must be one of {browser_kinds}")
             return
-        # Identity, authorship, time, and sequence belong to the server. Drop client
-        # copies before checking the declared payload, so none can be forged into
-        # the append-only record or its reading.
+        # The server owns the record envelope and agent identity. Removing client
+        # copies before validation prevents them from entering attempt identity too.
         for field in ("id", "author", "agent", "session", "ts", "seq"):
             event.pop(field, None)
         if error := event_record_error(contracts[kind], event, browser=True):
-            self._json({"error": f"{kind} event is invalid: {error}"}, 400)
+            self._refuse(f"{kind} event is invalid: {error}")
             return
-        status, payload = self._commit_browser_event(event)
-        self._json(payload, status)
-
-    def _commit_browser_event(self, event: dict) -> tuple[int, dict]:
-        """Validate mutable page state and append as one page transaction.
-
-        Static browser payload shape is checked once in `_post`, before this
-        boundary. Everything whose answer can change with the log or vendored
-        contract is read here under the same lease that commits the event, so a
-        re-vendor and a browser writer have one order.
-        """
-        kind = event["kind"]
-        with PageTransaction(self.page_dir) as page:
-            # An accepted attempt outranks mutable validation state. A
-            # replacement tab may retry after a newer version retired the
-            # sender's version; this is a request for the event already durably
-            # accepted, not a new event for that retired version.
-            if "attempt" in event:
-                event["author"] = "user"
-                try:
-                    existing = page.matching_attempt(event)
-                except AttemptConflict as error:
-                    return 409, {"error": str(error)}
-                if existing:
-                    return 200, {"ok": True, "event": existing}
-
-            events = page.events
-            if "version" in event:
-                live_versions = self.versions_live(events)
-                if event["version"] not in live_versions:
-                    return 400, {
-                        "error": f"{kind} version must be one of {live_versions}"
-                    }
-
-            # Approval is the page's ask, so a version that never asked cannot
-            # record one: the banner offers the button only where the meta
-            # declares sign-off, and the door says the same thing to anything
-            # posting past it.
-            if kind == "done":
-                mode = version_review_mode(self.page_dir, event["version"])
-                if mode != "sign-off":
-                    return 400, {
-                        "error": f"version {event['version']} does not declare "
-                        '<meta name="lf-review" content="sign-off">, so it has no '
-                        "approval to record"
-                    }
-
-            if kind == "action":
-                # A page's vendored registry is frozen at `page init` and the
-                # layer around it is not, so a broken or incompatible stamp is
-                # state the reader can reach by clicking and theirs to hear.
-                try:
-                    registry = load_registry(self.page_dir)
-                except RegistryError as error:
-                    return 400, {"error": str(error)}
-                if registry is None:
-                    return 400, {"error": "the page has no registry.json"}
-                if error := action_contract_error(
-                    self.page_dir, event, events, registry
-                ):
-                    return 400, {"error": error}
-
-            # A parent names a message in a thread, the same rule `leaf reply`
-            # holds Claude to. Enforced so a walk up the log terminates at a
-            # comment.
-            if "parent" in event and event["parent"] not in {
-                e["id"] for e in events if e["kind"] in {"comment", "reply"}
-            }:
-                return 400, {"error": f"unknown parent {event['parent']!r}"}
-            if kind == "undo" and (error := undo_error(event, events)):
-                return 400, {"error": error}
-
-            event["author"] = "page" if kind == "error" else "user"
-            try:
-                # Keep the established append seam for instrumentation while
-                # passing the transaction tells it not to re-enter this flock.
-                accepted = append_event(page, event)
-            except AttemptConflict as error:
-                return 409, {"error": str(error)}
-            return 200, {"ok": True, "event": accepted}
+        status, answer = self.coordinate_event(event)
+        self._json(answer, status)
 
 
 def handler_for(
@@ -2280,6 +2384,8 @@ def handler_for(
             "token": token,
             "preview_upto": preview_upto,
             "protocol_version": protocol_version,
+            "event_attempts": {},
+            "event_attempts_lock": threading.Lock(),
             "layer": layer_generation(page_dir),
         },
     )
@@ -3964,7 +4070,7 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
         for (_widget, unit, _facet), reports in projection.reports.items():
             last, spec = reports[-1]
             if unit in parser.overruled or markup_facet(
-                unit, spec, byid, spk
+                unit, spec, byid, spk, registry
             ) == folded_facet(last, spec):
                 answered.extend(report["id"] for report, _ in reports)
         event = {
@@ -4269,7 +4375,7 @@ def cmd_page_state(page_dir: Path) -> None:
             registry,
             set(passages.retired) | set(passages.gone),
         )
-        state["lag"] = record_lag_entries(projection, byid, spk)
+        state["lag"] = record_lag_entries(projection, byid, spk, registry)
     elif written:
         state["title"] = parse_version(page_dir, written[-1]).title.strip()
     state["asks"] += thread_asks(
@@ -6354,12 +6460,39 @@ def validate_registry(registry: dict, source) -> dict:
                                 f"{path}: <{tag}> {channel} verb `{verb}` records a "
                                 f"position within unknown widget <{record['within']}>"
                             )
+                    if record["kind"] == "body":
+                        if entry.get("x-content") != "data":
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                "its body, so x-content must be data; projection "
+                                "states text rather than a prose subtree"
+                            )
+                        nested = sorted(
+                            child
+                            for child, child_entry in widgets.items()
+                            if tag in child_entry.get("x-parent", [])
+                        )
+                        if nested:
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"its body but admits nested widgets {nested}; a "
+                                "text statement cannot reconstruct their state"
+                            )
                     if record["kind"] == "value":
                         attr = record["attr"]
                         if attr not in properties:
                             raise RegistryError(
                                 f"{path}: <{tag}> {channel} verb `{verb}` records "
                                 f"undeclared attribute `{attr}`"
+                            )
+                        # Projection rebuilds a refused gesture from authored state.
+                        # A required string value gives every baseline an absolute
+                        # action detail; absence is represented by an admitted value.
+                        if attr not in entry.get("required", []):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` records "
+                                f"optional attribute `{attr}`; recorded state must be "
+                                "required so its authored value can be replayed"
                             )
                         # An x-says value is words the reader sees, and the file's
                         # reading takes them from the markup — replay writing one
@@ -7231,7 +7364,21 @@ def state_projection(
     )
 
 
-def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
+def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
+    """The nearest enclosing widget whose registry entry records state."""
+    for candidate in reversed(spk.get(unit, EMPTY).within):
+        rec = byid.get(candidate)
+        entry = registry.get(rec["tag"], {}) if rec else {}
+        if any(
+            spec.get("record")
+            for channel in ("x-state", "x-report")
+            for spec in entry.get(channel, {}).values()
+        ):
+            return candidate
+    return None
+
+
+def markup_facet(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     """What one version's markup shows for a unit's declared record form: every
     element inside it carrying the attribute, the unit's own attribute's value,
     the declared container enclosing it, or its body's words — the empty list
@@ -7249,6 +7396,7 @@ def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
             for oid, orec in byid.items()
             if record["attr"] in orec["attrs"]
             and unit in spk.get(oid, EMPTY).within[:-1]
+            and recorded_owner(oid, byid, spk, registry) == unit
         )
     if record["kind"] == "value":
         rec = byid.get(unit)
@@ -7327,7 +7475,7 @@ def decisions(actions: dict, registry: dict) -> dict:
     }
 
 
-def record_lag_entries(projection: StateProjection, byid, spk) -> list:
+def record_lag_entries(projection: StateProjection, byid, spk, registry: dict) -> list:
     """Coordinates whose markup lags the user's standing state — the record debt a
     log-less reader would miss. Advice, never errors: a version is free to stay
     silent (replay resolves it), but references/page-authoring.md's "Honoring
@@ -7342,7 +7490,7 @@ def record_lag_entries(projection: StateProjection, byid, spk) -> list:
         e, spec = projection.desired[coordinate]
         if unit not in byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, spk)
+        f_cur = markup_facet(unit, spec, byid, spk, registry)
         f_log = folded_facet(e, spec)
         if f_cur is NO_RECORD or f_cur == f_log:
             continue
@@ -7366,7 +7514,7 @@ def record_lag(html: str, events: list, registry: dict) -> list:
         return []
     projection, parser, spk = page_projection(html, events, registry, None)
     lag = []
-    for n in record_lag_entries(projection, parser.by_id, spk):
+    for n in record_lag_entries(projection, parser.by_id, spk, registry):
         who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
             f"`{n['unit']}` ({n['facet']} facet): {who} {n['action']} → "
@@ -7410,7 +7558,12 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
 
 
 def answered_ask(
-    rec: dict, entry: dict, projection: StateProjection, byid: dict, spk: dict
+    rec: dict,
+    entry: dict,
+    projection: StateProjection,
+    byid: dict,
+    spk: dict,
+    registry: dict,
 ) -> bool:
     """The runtime's `answeredAsk`: a verb that records as an attribute answers
     on the record the replayed page carries — the fold's where an action
@@ -7426,7 +7579,7 @@ def answered_ask(
             if held and (held[1].get("record") or {}).get("kind") == "attribute":
                 facet = folded_facet(*held)
             else:
-                facet = markup_facet(unit, spec, byid, spk) if unit else []
+                facet = markup_facet(unit, spec, byid, spk, registry) if unit else []
             if facet:
                 return True
         elif held and held[0]["action"] == verb:
@@ -7473,7 +7626,7 @@ def page_asks(parser, projection, byid, spk, registry: dict, dropped: set) -> li
             continue
         if not asking(replayed_attrs(rec, projection), awaits.get("when")):
             continue
-        if answered_ask(rec, entry, projection, byid, spk):
+        if answered_ask(rec, entry, projection, byid, spk, registry):
             continue
         asks.append({"id": unit, "tag": rec["tag"], "thread": None})
     return asks
@@ -7526,7 +7679,7 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
                     for action, _spec in projection.actions.values()
                 )
             else:
-                answered = answered_ask(rec, entry, projection, byid, spk)
+                answered = answered_ask(rec, entry, projection, byid, spk, registry)
             if not answered:
                 asks.append(
                     {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
@@ -7639,8 +7792,8 @@ def restatement_errors(
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, now)
-        f_prev = markup_facet(unit, spec, prev_byid, was)
+        f_cur = markup_facet(unit, spec, byid, now, registry)
+        f_prev = markup_facet(unit, spec, prev_byid, was, registry)
         if f_cur is NO_RECORD or f_cur == f_prev:
             continue  # no record form, or no active change — replay resolves silence
         f_fold = folded_facet(e, spec)
@@ -7747,7 +7900,7 @@ def report_errors(
     for coordinate in sorted(effective_standing):
         _widget, unit, _facet = coordinate
         e, spec = effective_standing[coordinate][-1]
-        f_cur = markup_facet(unit, spec, byid, now)
+        f_cur = markup_facet(unit, spec, byid, now, registry)
         f_rep = folded_facet(e, spec)
         # Whether an `overruled` is earned is this version's markup against the
         # report, so it is settled ahead of the skip below: a unit the gate declines
@@ -7762,7 +7915,7 @@ def report_errors(
             continue
         if f_cur == f_rep:
             continue  # honoring: publishing absorbs the report by id
-        if f_cur == markup_facet(unit, spec, prev_byid, was):
+        if f_cur == markup_facet(unit, spec, prev_byid, was, registry):
             continue  # blessed silence: the report keeps painting
         where = at(rec, f"id={unit!r}")
         who = e.get("agent", "a worker")

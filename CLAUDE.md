@@ -431,7 +431,15 @@ side the second writer shows on.
   they pass.
 - **Measure before optimising, and before assuming.** The cost claims in this
   codebase came from timing the real thing on `examples/gallery.html`, not from
-  reasoning about it.
+  reasoning about it. The costliest assumption was that a suite driving browsers
+  must be what makes a busy machine unusable. Read across an idle-run-idle
+  timeline, WindowServer sat at 78% of a core before a run, 76% during it and 64%
+  after, while the headless shell went from nothing to 100-220%:
+  `chrome-headless-shell` has no platform-window layer, so it never opens a
+  connection to the compositor at all, and only the two launcher tests that ask
+  for installed Chrome do. A machine bogged down beside a green suite is
+  something else holding real windows open, and cutting the suite's concurrency
+  buys nothing against it.
 - **A page directory holds a copy of the layer, so re-vendor before believing
   it.** `page init` is what vendors, and it re-vendors an existing directory.
   Until it runs again, a page serves the assets it was created with, so

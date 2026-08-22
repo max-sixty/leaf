@@ -2354,11 +2354,21 @@ class Handler(BaseHTTPRequestHandler):
             execution.result = result
             execution.done.set()
             # Existing waiters hold this object and read the result above. Nothing else
-            # needs a completed receipt: acceptance lives durably in the log, a delivered
-            # final refusal is never retried, and a lost refusal may be evaluated again
-            # once no original handler remains free to append. Retryable faults must run
-            # again too. Keeping any of them here would make the map grow for the life of
-            # the server.
+            # needs a completed receipt: acceptance lives durably in the log, and a
+            # refusal — lost, or delivered and later asked again — may be evaluated
+            # again once no original handler remains free to append. Retryable faults
+            # must run again too. Keeping any of them here would make the map grow for
+            # the life of the server.
+            #
+            # "Asked again" is not hypothetical, and it is what makes the release
+            # load-bearing rather than merely tidy. The outbox drops a delivered final
+            # refusal, but a draft's attempt is stored with its words and reminted only
+            # on a keystroke, so a second press of Send is the same attempt arriving
+            # after that drop. A comment refused for naming a version the page has since
+            # retired is exactly that press, and the kept receipt answered it the stale
+            # verdict on an identical payload and 409 `already belongs to another event`
+            # — naming an event that does not exist — on the payload the reload had
+            # moved on: the reader's words were unsendable until they typed a character.
             with self.event_attempts_lock:
                 if self.event_attempts.get(attempt) is execution:
                     del self.event_attempts[attempt]

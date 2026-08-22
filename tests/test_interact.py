@@ -5540,6 +5540,54 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     )
 
 
+def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
+    server, page_dir
+):
+    """A draft's attempt is stored with its words and reminted only on a keystroke,
+    so the same attempt is what a reader's second press sends. A refusal the server
+    remembered therefore outlived the state that produced it: the draft was refused
+    for naming a version the page had retired, and after the tab followed the new one
+    the identical payload read back the stale verdict while the payload the reload had
+    moved on read `already belongs to another event`, naming an event that never
+    existed. Either way the reader's words were unsendable until they typed."""
+    publish(page_dir, 1)
+    draft = {
+        "kind": "comment",
+        "version": 2,
+        "anchor": {"quote": "hello"},
+        "text": "The words a reader typed before the version moved.",
+        "attempt": "attempt-draft-0001",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
+    assert status == 400
+    assert json.loads(body)["error"] == "comment version must be one of [1]"
+
+    (page_dir / "versions" / "v2.html").write_text(PAGE)
+    publish(page_dir, 2)
+
+    # The same press, once v2 is live: the refusal was about the page, and the page
+    # has moved.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
+    assert status == 200, body
+    accepted = next(
+        event
+        for event in json.loads(body)["state"]["events"]
+        if event.get("attempt") == draft["attempt"]
+    )
+    assert accepted["text"] == draft["text"]
+
+    # And the version the reload would have rewritten still meets the durable
+    # conflict, which is the log's answer rather than a receipt's.
+    moved = {**draft, "version": 1}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(moved).encode())
+    assert status == 409
+    assert "already belongs to another event" in json.loads(body)["error"]
+    comments = [
+        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+    ]
+    assert [event["id"] for event in comments] == [accepted["id"]]
+
+
 def test_an_accepted_event_response_is_state_through_that_event(server, page_dir):
     """The POST answer is the sender's authoritative read, not half of a
     transaction completed by a second request. A response cannot acknowledge an

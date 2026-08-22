@@ -65,6 +65,7 @@
  * a control line under the block it follows; and whether two rows land on top of
  * each other, which a translate nudges apart without touching layout. */
 import {
+  actionStands,
   agentName,
   FOLD_MS,
   motion,
@@ -359,10 +360,13 @@ customElements.define(
       // disagreeing with no repair path.
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
-      const sent = sendAction(this, outcome, detail).then((ok) => {
+      const sent = sendAction(this, outcome, detail).then((accepted) => {
         this.#inFlight(null);
-        if (!ok) return false; // unsent means unrecorded, and nothing was painted
-        this.#settle(outcome);
+        if (!accepted) return false; // unsent means unrecorded, and nothing was painted
+        // Usually the accepted state has already replayed this decision. Paint is
+        // still owed if another part of that state failed to render, but not if the
+        // same event list also carried a later undo: authored state then stands.
+        if (actionStands(accepted)) this.#settle(outcome);
         toast(
           `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent to ${agentName()}`,
         );
@@ -396,8 +400,9 @@ customElements.define(
       const fold = this.#fold(outcome);
       this.dataset.lfState = outcome;
       // The retired slot's marker is the layer's rendering of that state, and the
-      // theme's one hide rule reads it; painted here as well as at replay so the
-      // gesture's own tab hides the slot in the frame the decision lands.
+      // theme's one hide rule reads it. The accepted response replays through this
+      // method on the gesture's own tab, so it hides the slot in the frame the
+      // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this);
       if (this.#row) {
         // The row stays; what changes is which of the two controls is speaking. A

@@ -13076,6 +13076,45 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.close()
 
 
+def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
+    browser, serve
+):
+    """The Done press paints only from replay. If one read first reveals both the
+    answer and its undo, the send continuation must not overwrite that authoritative
+    authored state after replay has accounted for the action."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    done = page.locator("#tq-set .lf-done")
+    with page.expect_request("**/api/event"):
+        done.click()
+    page.wait_for_timeout(0)
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    expect(done).to_have_attribute("aria-pressed", "false")
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [("tq-set", "answer")]
+    assert errors == []
+    page.close()
+
+
 def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     """Thread widgets arrive after page startup, but their comment markup is still
     their authored baseline. A definitive refusal removes the optimistic choice from
@@ -15751,6 +15790,90 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    page.close()
+
+
+def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
+    browser, serve
+):
+    """A record-less decision waits for the log instead of painting optimistically.
+    If the first complete read contains both that decision and its undo, replay leaves
+    authored markup standing. The send continuation must not paint the withdrawn
+    decision after that authoritative read has released it."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.lf_traffic = Traffic(page)
+    errors = watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.wait_for_timeout(0)
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    page.unroute("**/api/state*")
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    page.close()
+
+
+def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve):
+    """A later record-less action on the same declared unit supersedes the first.
+    When one complete read accounts the held accept and also replays another tab's
+    reject, the older send continuation must not paint accept over that chronology."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.wait_for_timeout(0)
+    held[0].fetch()  # append the accept while its browser response remains held
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-refill",
+            "action": "reject",
+            "detail": {},
+        },
+    )
+
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(page.locator("#sug-refill lf-new")).to_be_hidden()
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [
+        ("sug-refill", "accept"),
+        ("sug-refill", "reject"),
+    ]
     assert errors == []
     page.close()
 

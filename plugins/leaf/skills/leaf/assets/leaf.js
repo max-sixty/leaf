@@ -941,6 +941,41 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
   });
 }
 
+// Whether the latest event list this tab has seen still leaves an accepted action as
+// the last statement of its declared facet. Record-less and recorded verbs are separate
+// facets even when they share a unit: an options `answer` does not erase its recorded
+// picks, while a later suggestion `reject` does supersede its record-less `accept`.
+// A response can fail before installing its event list at all; acceptance is then the
+// only statement this tab knows, so its caller may paint while the outbox keeps replay
+// and undo held for a complete read.
+export function actionStands(event) {
+  if (!events.some((candidate) => candidate.id === event.id)) return true;
+  const el = elementById(event.widget);
+  const spec = el && registry[el.localName]?.["x-state"]?.[event.action];
+  if (!el || !spec) return false;
+  const unit = unitOf(event, spec);
+  const recorded = Boolean(spec.record);
+  const context = {
+    floors: retractionFloors(VNUM),
+    withdrawn: takenBack(),
+    answered: answeredReports(VNUM),
+  };
+  let latest = null;
+  for (const candidate of events) {
+    if (candidate.kind !== "action" || candidate.widget !== event.widget) continue;
+    const candidateSpec = registry[el.localName]?.["x-state"]?.[candidate.action];
+    if (
+      !candidateSpec ||
+      Boolean(candidateSpec.record) !== recorded ||
+      unitOf(candidate, candidateSpec) !== unit ||
+      !replayDisposition(candidate, el, context).apply
+    )
+      continue;
+    latest = candidate;
+  }
+  return latest?.id === event.id;
+}
+
 // The page seat of a widget's conversation (x-conversation). A module places the seat;
 // the comment layer fills it from the whole log. Before a thread exists it is a box for
 // an answer the widget's own controls do not cover. Sending starts an ordinary comment

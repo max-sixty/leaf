@@ -79,13 +79,12 @@ themselves. Their declared record is an absolute state, and the runtime treats
 every unresolved recorded action as an overlay on the authoritative log. If the
 server refuses one, the runtime derives the whole widget again from its authored
 records, the surviving log in chronological order, and the surviving outbox
-actions. The
-widget is the boundary because position units share an ordered container:
-restoring one card's authored index can overwrite a sibling's logged reorder. No
-widget rewinds to a DOM snapshot: with queued gestures, that snapshot may itself
-be a gesture the server refused. A press has shown nothing yet. It asks for a
-decision, the decision is the log's to make, and no decision is painted until the
-log has made it.
+actions. The widget is the boundary because position units share an ordered
+container: restoring one card's authored index can overwrite a sibling's logged
+reorder. No widget rewinds to a DOM snapshot: with queued gestures, that
+snapshot may itself be a gesture the server refused. A press has shown nothing
+yet. It asks for a decision, the decision is the log's to make, and no decision
+is painted until the log has made it.
 
 What decides which kind a gesture is: whether the reader's next gesture computes
 from the paint. A toggle's does — the next press on an `lf-options` mark reads the
@@ -149,12 +148,12 @@ unprojectable DOM state. The correction stays until it applies: a live drag or a
 `applyAction` returning false defers it without releasing replay or undo.
 Synthetic intermediate placements are silent, then one final FLIP shows the
 visible optimistic-to-authoritative correction. This needs neither a reverse
-operation nor a widget-specific snapshot. Replaying an
-older action while the overlay stands would hand the reader their older state
-back — and the next gesture would then compute from what that replay painted. A
-`multiple` group two picks in, repainted holding one, sends the next toggle as a
-set the reader never chose. Applying each action exactly once is what makes
-replay converge, and "exactly once" says nothing about *when*.
+operation nor a widget-specific snapshot. Replaying an older action while the
+overlay stands would hand the reader their older state back — and the next
+gesture would then compute from what that replay painted. A `multiple` group
+two picks in, repainted holding one, sends the next toggle as a set the reader
+never chose. Applying each action exactly once is what makes replay converge,
+and "exactly once" says nothing about *when*.
 
 The outbox is the one representation of unresolved browser work. It mints an
 attempt before sending, preserves the reader's event order, tells replay which
@@ -176,13 +175,20 @@ safely retry once no original handler remains free to append.
 The outbox is not the only place an attempt is kept, which is what makes the
 absent receipt load-bearing rather than merely tidy. A draft's attempt is stored
 with its words and reminted only on a keystroke, so a second press of Send is the
-same attempt arriving after the refusal was delivered and the entry dropped. A
-comment refused for naming a version the page has since retired is exactly that
-press: a remembered refusal answered the stale verdict to an identical payload,
-and 409 `already belongs to another event` — naming an event that does not
-exist — to the payload the reload had moved on, and the reader's words were
-unsendable until they typed a character
-(`test_a_refused_attempt_is_re_read_against_the_page_that_refused_it`).
+same attempt arriving after the refusal was delivered and the entry dropped. That
+press needs the door to evaluate it again, because the ground a refusal stood on
+moves as the log grows: a reply refused for an `unknown parent` its tab had not
+read yet, an action refused by a registry the page has since re-vendored. A
+remembered refusal would answer the stale verdict to an identical payload, and
+409 `already belongs to another event` — naming an event that does not exist — to
+the payload a reload had moved on, leaving the reader's words unsendable until
+they typed a character. The regression drives the version gate rather than either
+of those, that gate being the one a test can walk the door through directly: a
+comment refused for naming a version not yet published, re-pressed once it is
+(`test_a_refused_attempt_is_re_read_against_the_page_that_refused_it`). The
+direction it does not take is retirement, which the door cannot produce —
+`published_versions` only ever grows, so a version a tab was served stays live
+for as long as the page does.
 
 The hold belongs to the layer, and no module writes one of its own. `lf-draft`
 once did, privately (`#sending`), and was the only widget that had a hold — written

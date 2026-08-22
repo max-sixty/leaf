@@ -5546,10 +5546,16 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     """A draft's attempt is stored with its words and reminted only on a keystroke,
     so the same attempt is what a reader's second press sends. A refusal the server
     remembered therefore outlived the state that produced it: the draft was refused
-    for naming a version the page had retired, and after the tab followed the new one
-    the identical payload read back the stale verdict while the payload the reload had
+    for naming a version the page had not published yet, and after the publish the
+    identical payload read back the stale verdict while the payload the reload had
     moved on read `already belongs to another event`, naming an event that never
-    existed. Either way the reader's words were unsendable until they typed."""
+    existed. Either way the reader's words were unsendable until they typed.
+
+    The door refuses a version in that direction only. `published_versions` grows and
+    never shrinks, so no version a tab was served is later refused for liveness, and
+    this gate is the mirror of the one a reader meets — cheapest to walk the door
+    through, standing in for the refusals whose ground the log really does move under
+    (`unknown parent`, `undo_error`, `action_contract_error` behind a re-vendor)."""
     publish(page_dir, 1)
     draft = {
         "kind": "comment",

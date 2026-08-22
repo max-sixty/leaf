@@ -2364,11 +2364,13 @@ class Handler(BaseHTTPRequestHandler):
             # load-bearing rather than merely tidy. The outbox drops a delivered final
             # refusal, but a draft's attempt is stored with its words and reminted only
             # on a keystroke, so a second press of Send is the same attempt arriving
-            # after that drop. A comment refused for naming a version the page has since
-            # retired is exactly that press, and the kept receipt answered it the stale
-            # verdict on an identical payload and 409 `already belongs to another event`
-            # — naming an event that does not exist — on the payload the reload had
-            # moved on: the reader's words were unsendable until they typed a character.
+            # after that drop. That press needs the gates read again, because the ground
+            # a refusal stood on moves as the log grows — a reply refused for an unknown
+            # parent its tab had not read yet, an action refused by a registry the page
+            # has since re-vendored. A kept receipt would answer it the stale verdict on
+            # an identical payload and 409 `already belongs to another event` — naming an
+            # event that does not exist — on the payload a reload had moved on: the
+            # reader's words unsendable until they typed a character.
             with self.event_attempts_lock:
                 if self.event_attempts.get(attempt) is execution:
                     del self.event_attempts[attempt]
@@ -2378,10 +2380,11 @@ class Handler(BaseHTTPRequestHandler):
         """Validate and append one browser event, returning its complete answer."""
         kind = event["kind"]
         # An accepted attempt outranks mutable validation state. A replacement tab may
-        # retry after a newer version retired the sender's version; this request is not
-        # a new event for that retired version, but a request for the event the log
-        # already durably accepted. Absence continues through every state-dependent
-        # gate below, and the append lock repeats this lookup at the write boundary.
+        # retry an undo the first request already appended, which `undo_error` would now
+        # refuse as a gesture already taken back; this request is not a second undo, but
+        # a request for the event the log already durably accepted. Absence continues
+        # through every state-dependent gate below, and the append lock repeats this
+        # lookup at the write boundary.
         if "attempt" in event:
             event["author"] = "user"
             try:

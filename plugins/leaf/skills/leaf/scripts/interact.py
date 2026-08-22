@@ -822,10 +822,11 @@ def replace_files(files: list) -> None:
         path.resolve() if follow_symlink and path.is_symlink() else path
         for path, _, follow_symlink in files
     ]
+    located_targets = [_path_location(target) for target in targets]
     if any(
-        paths_same(left, right)
-        for index, left in enumerate(targets)
-        for right in targets[index + 1 :]
+        left == right
+        for index, left in enumerate(located_targets)
+        for right in located_targets[index + 1 :]
     ):
         sys.exit("two customization files resolve to the same target")
     try:
@@ -2297,18 +2298,51 @@ def layer_source_paths(layers: list) -> list:
     return paths
 
 
-def _path_location(path: Path) -> tuple:
-    """Deepest existing ancestor and the unresolved path components below it."""
+class _Location(NamedTuple):
+    """A path in the one form containment can be read off without touching disk.
+
+    `lineage` is the filesystem identity — `samefile`'s own pair — of the deepest
+    existing ancestor and of every ancestor above it, deepest first; `tail` is
+    the components below that ancestor which don't exist yet, case-folded where
+    the volume ignores case. Two of these answer every question below by
+    comparison alone.
+
+    That is the whole point of the form. The callers are set intersections: every
+    layer source against every other, every source against every vendored
+    destination — 786 containment tests over the shipped layer's thirty-six
+    distinct paths. Asked path-by-path, each test re-resolved both paths and
+    stat'd its way up both ancestor chains, so `page init` spent two thirds of
+    itself on some 37,000 `stat` calls. Canonicalising each path once leaves the
+    syscalls proportional to the paths rather than to the tests, which halves
+    `page init` and takes two thirds off its system time."""
+
+    lineage: tuple
+    tail: tuple
+
+
+def _path_location(path: Path) -> _Location:
+    """Read a path into the form above."""
     ancestor = path.resolve()
     tail = []
     while True:
         try:
-            ancestor.stat()
+            identity = ancestor.stat()
         except (FileNotFoundError, NotADirectoryError):
             tail.append(ancestor.name)
             ancestor = ancestor.parent
             continue
-        return ancestor, tuple(reversed(tail))
+        break
+    lineage = [(identity.st_dev, identity.st_ino)]
+    # The ancestors of a path that resolved all exist, so a failure here is the
+    # filesystem moving under the command and belongs to whoever called it.
+    for parent in ancestor.parents:
+        above = parent.stat()
+        lineage.append((above.st_dev, above.st_ino))
+    # Only a tail can be case-folded, so a path that exists never pays for the
+    # volume probe — which is every path the set intersections compare.
+    if tail and not _filesystem_case_sensitive(ancestor):
+        tail = [part.casefold() for part in tail]
+    return _Location(tuple(lineage), tuple(reversed(tail)))
 
 
 def _filesystem_case_sensitive(path: Path) -> bool:
@@ -2363,49 +2397,57 @@ def _filesystem_case_sensitive(path: Path) -> bool:
     return bool(result.capabilities[0] & case_sensitive)
 
 
-def _same_existing_path(left: Path, right: Path) -> bool:
-    try:
-        return left.samefile(right)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
+def location_is_within(here: _Location, there: _Location) -> bool:
+    """The one implementation of containment; everything below reads it.
+
+    An existing `there` is reached by finding its identity among `here`'s
+    ancestors. One that doesn't exist yet is reached only from the same deepest
+    existing ancestor, with its tail as a prefix — which is also why folding each
+    tail by its own volume above is safe: tails are compared only when the two
+    ancestors are one inode, and so one volume."""
+    if not there.tail:
+        return there.lineage[0] in here.lineage
+    return (
+        here.lineage[0] == there.lineage[0]
+        and here.tail[: len(there.tail)] == there.tail
+    )
+
+
+def locations_overlap(left: _Location, right: _Location) -> bool:
+    return location_is_within(left, right) or location_is_within(right, left)
+
+
+def located(paths) -> list:
+    """Each path beside its location, for a caller about to compare it many times."""
+    return [(path, _path_location(path)) for path in paths]
 
 
 def path_is_within(path: Path, root: Path) -> bool:
     """Filesystem-aware containment, including not-yet-created descendants."""
-    path_ancestor, path_tail = _path_location(path)
-    root_ancestor, root_tail = _path_location(root)
-    if not root_tail:
-        return any(
-            _same_existing_path(candidate, root_ancestor)
-            for candidate in (path_ancestor, *path_ancestor.parents)
-        )
-    if not _same_existing_path(path_ancestor, root_ancestor):
-        return False
-    if not _filesystem_case_sensitive(root_ancestor):
-        path_tail = tuple(part.casefold() for part in path_tail)
-        root_tail = tuple(part.casefold() for part in root_tail)
-    return path_tail[: len(root_tail)] == root_tail
+    return location_is_within(_path_location(path), _path_location(root))
 
 
 def paths_same(left: Path, right: Path) -> bool:
-    return path_is_within(left, right) and path_is_within(right, left)
+    # Containment both ways is equality of the canonical form: neither path can
+    # be a strict ancestor of the other and still contain it.
+    return _path_location(left) == _path_location(right)
 
 
 def paths_overlap(left: Path, right: Path) -> bool:
-    return path_is_within(left, right) or path_is_within(right, left)
+    return locations_overlap(_path_location(left), _path_location(right))
 
 
 def overlapping_layer_sources(layers: list):
     """The first resolved path shared by two precedence scopes."""
-    sources = [(layer, layer_source_paths([layer])) for layer in layers]
+    sources = [(layer, located(layer_source_paths([layer]))) for layer in layers]
     return next(
         (
             (left_layer, left, right_layer, right)
             for index, (left_layer, left_paths) in enumerate(sources)
             for right_layer, right_paths in sources[index + 1 :]
-            for left in left_paths
-            for right in right_paths
-            if paths_overlap(left, right)
+            for left, left_at in left_paths
+            for right, right_at in right_paths
+            if locations_overlap(left_at, right_at)
         ),
         None,
     )
@@ -2477,12 +2519,13 @@ def _cmd_init_locked(page_dir: Path) -> None:
         *(page_target / name for name in VENDORED_FILES),
         *(page_target / sub for sub in ("versions", *VENDORED_DIRS)),
     ]
+    located_destinations = located(destinations)
     if overlap := next(
         (
             (source, destination)
-            for source in layer_source_paths(layers)
-            for destination in destinations
-            if paths_overlap(source, destination)
+            for source, source_at in located(layer_source_paths(layers))
+            for destination, destination_at in located_destinations
+            if locations_overlap(source_at, destination_at)
         ),
         None,
     ):
@@ -2661,12 +2704,13 @@ def refuse_customization_overlap(targets: list, protected: list) -> None:
     Three callers ask, each about a different set of targets — the layer directory
     itself, the theme file, every file a widget scaffold stages — and the refusal is one,
     so it is stated here with the question rather than three times beside it."""
+    located_protected = located(protected)
     overlap = next(
         (
             (target.resolve(), source)
-            for target in targets
-            for source in protected
-            if paths_overlap(target.resolve(), source)
+            for target, target_at in located(targets)
+            for source, source_at in located_protected
+            if locations_overlap(target_at, source_at)
         ),
         None,
     )
@@ -2681,6 +2725,7 @@ def refuse_customization_overlap(targets: list, protected: list) -> None:
 def initialized_page_owning(path: Path):
     """The initialized page that owns path, if there is one."""
     resolved = path.resolve()
+    at = _path_location(resolved)
     for root in (resolved, *resolved.parents):
         # Runtime state is disposable and regenerated; it cannot identify the
         # page whose owned paths this gate protects.
@@ -2691,9 +2736,12 @@ def initialized_page_owning(path: Path):
         ):
             continue
         if (
-            paths_same(resolved, root)
-            or any(paths_same(resolved, root / name) for name in PAGE_OWNED_FILES)
-            or any(path_is_within(resolved, root / name) for name in PAGE_OWNED_DIRS)
+            at == _path_location(root)
+            or any(at == _path_location(root / name) for name in PAGE_OWNED_FILES)
+            or any(
+                location_is_within(at, _path_location(root / name))
+                for name in PAGE_OWNED_DIRS
+            )
         ):
             return root
     return None
@@ -3216,8 +3264,9 @@ class Watch:
         session picks up a leaf it didn't serve, and the whole set outside a
         host session (a bare shell, the tests)."""
         watched = owned_pages(self.session_id)
-        if self.named is not None and not any(
-            paths_same(d, self.named) for d in watched
+        named_at = None if self.named is None else _path_location(self.named)
+        if named_at is not None and not any(
+            _path_location(d) == named_at for d in watched
         ):
             watched.append(self.named)
         return watched

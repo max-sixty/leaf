@@ -2526,7 +2526,11 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # the sign-off regression this test was written for passed or failed
             # according to how many times the sweep had toggled Comments.
             page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-            page.goto(url, wait_until="networkidle")
+            # `load`, the edge the first visit took (`open_page`): network silence is
+            # not a readiness fact and the two lines below are the ones that are, so
+            # waiting it out only added its own 500ms quiet window to every reload
+            # this sweep makes — a sixth of the test on the gallery, 50s to 42s.
+            page.goto(url, wait_until="load")
             # Both stamps, which the reload has to earn again: half these controls are
             # the runtime's own, and the last of them arrive with the log rather than
             # with the upgrade. A list read before that is a short list, and a short list

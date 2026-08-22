@@ -1860,6 +1860,10 @@ const MARK_RULES = `
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
 const style = document.createElement("style");
+// The chrome's whole stylesheet, and a template literal, so a backtick anywhere in
+// it — a CSS comment naming a command — ends the string and the rest of the sheet
+// parses as code. `node --check` accepts the result and the browser refuses it, so a
+// syntax check is not the gate here; the render suite is.
 style.textContent = `
   /* The document and the panel are two scroll regions side by side. If the document
      scrolled the viewport, its scrollbar would paint at the viewport's right edge —
@@ -2524,6 +2528,22 @@ ${MARK_RULES}
     /* The general Send stays beside its field; a thread gives the field its own row. */
     .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-general textarea { flex: 1; min-width: 0; }
+    /* What the agent says it is doing about this thread (leaf status --on).
+       Provisional news, so it wears the amber dashed edge the page's own reported
+       state wears ([data-lf-reported] in theme.css) rather than a message's ink: it
+       is a claim somebody renews every few minutes, not something said to the reader,
+       and the answer when it comes is a message under it. The age is the half that
+       makes it worth reading, so it is on the line rather than in a hover — a note
+       nobody has renewed for twenty minutes is the case this exists to show. */
+    .lf-thread-note { display: flex; gap: 6px; align-items: baseline; margin: 8px 0 0;
+      padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
+      border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
+    .lf-thread-note span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    /* The age is two words wide and the detail is a sentence, so the words wrap and the
+       clock does not: broken over two lines it read as "just / now" down the right
+       edge, which is the one part of the line the eye goes to first. No width is
+       stated anywhere here, the panel's being the reader's to drag. */
+    .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-thread-action:hover { color: var(--ok); }
@@ -2902,6 +2922,7 @@ keys(
 const TONE = {
   working: "working",
   listening: "listening",
+  stalled: "away",
   away: "away",
   unheld: "",
   unattended: "",
@@ -2920,15 +2941,17 @@ function rowPresence(entry) {
       ? stated("Working")
       : kind === "listening"
         ? stated("Awaits")
-        : kind === "away"
-          ? quiet
-            ? `Quiet (${ago(entry.status.ts)})`
-            : "Away"
-          : kind === "unheld"
-            ? "Unheld"
-            : kind === "unattended"
-              ? "Unattended"
-              : "Closed";
+        : kind === "stalled"
+          ? stated(`Quiet (${ago(entry.status.ts)})`)
+          : kind === "away"
+            ? quiet
+              ? `Quiet (${ago(entry.status.ts)})`
+              : "Away"
+            : kind === "unheld"
+              ? "Unheld"
+              : kind === "unattended"
+                ? "Unattended"
+                : "Closed";
   return { tone: TONE[kind], line };
 }
 // The whole of what the board knows about one page, for its hover. Everything drawn
@@ -3355,6 +3378,20 @@ let lastVersionsKey = "";
 let latestVersion = null;
 let versions = [];
 let agentMsgCount = -1;
+// The agent's dated claim that it is working on one thread (`leaf status … --on`),
+// keyed by that thread's root id. It is the banner's own claim read at a second seat:
+// the page's line says what the agent is doing, and the thread it is doing it about
+// says so under the words that asked for it. It lives in status.json beside the page's
+// claim rather than in the log, because it is a sentence somebody revises every few
+// minutes and the log is the record of what happened — and because one writer for the
+// two seats is what makes a delegate's check-in keep the banner true (set_status).
+let agentNotes = {};
+// The threads the panel last reconciled. The note line repaints on the poll's clock and
+// not only on the log's, because its age is half of what it says and a note nobody
+// renews is exactly the one whose age has stopped moving. Keeping the last fold is what
+// makes that cheap: buildThreads walks the log and the page, and a second walk every two
+// seconds would answer nothing the last one didn't.
+let threadList = [];
 let panelOpen = false;
 let pendingAnchor = null;
 
@@ -4786,7 +4823,10 @@ function threadNode(t, grow) {
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
     const compose = existing.querySelector(":scope > .lf-compose");
-    const tail = compose ?? existing.querySelector(":scope > .lf-thread-actions");
+    const tail =
+      existing.querySelector(":scope > .lf-thread-note") ??
+      compose ??
+      existing.querySelector(":scope > .lf-thread-actions");
     for (const m of t.msgs) {
       let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
       if (!msg) {
@@ -4976,6 +5016,48 @@ function foldOut(t) {
   return node;
 }
 
+// A note stands until the agent's own next word in this thread. Nothing writes one off:
+// answering is what ends the work, so a second act saying so would be a second writer
+// for one fact — and a note whose answer landed while this tab was asleep is settled by
+// the next poll with no help from anyone. A resolved thread shows none for the same
+// reason its reply box is gone: the conversation is over, whoever closed it.
+function standingNote(t) {
+  const note = agentNotes[t.root.id];
+  if (!note || t.resolved) return null;
+  const since = Date.parse(note.ts);
+  return t.msgs.some((m) => m.author === "claude" && Date.parse(m.ts) > since)
+    ? null
+    : note;
+}
+
+// One writer for the line, called from the reconcile that builds the thread nodes and
+// from every poll after it — the first because a new node has none, the second because
+// a note arrives and ages without the log changing at all.
+function paintNotes() {
+  for (const t of threadList) {
+    const div = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
+    if (!div) continue;
+    const note = standingNote(t);
+    let line = div.querySelector(":scope > .lf-thread-note");
+    if (!note) {
+      line?.remove();
+      continue;
+    }
+    if (!line) {
+      line = el("div", "lf-thread-note");
+      line.append(el("span"), el("time"));
+      div.insertBefore(line, div.querySelector(":scope > .lf-compose"));
+    }
+    const [what, when] = line.children;
+    // Written only on change, like the message clocks beside it: an unchanged poll must
+    // not hand the reader's screen reader the same sentence every two seconds.
+    const said = `${agentName()} is on this — ${note.detail}`;
+    if (what.textContent !== said) what.textContent = said;
+    const age = ago(note.ts);
+    if (when.textContent !== age) when.textContent = age;
+  }
+}
+
 // The DOM is the one record of what's rendered, reconciled against the log: nodes the
 // list already holds are kept, and only what the log changed is added, moved, or
 // dropped. The rebuild this replaced destroyed every node on every render and then
@@ -5056,6 +5138,7 @@ function renderThreads(threads) {
   // just written, which is why the loop is here and not where the boxes were built.
   for (const div of openThreads()) div.lfSync();
   toggleBtn.textContent = `Comments (${open.length})`;
+  paintNotes();
   paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
 }
 
@@ -5075,10 +5158,12 @@ function renderPanel() {
         : "Loading current comments…";
     setChildren(threadsBox, [waitingNote]);
     toggleBtn.textContent = "Comments";
+    threadList = [];
     paintHere();
     return;
   }
   const threads = buildThreads();
+  threadList = threads;
   renderThreads(threads);
   renderConversations(threads);
   paintAnchors(threads);
@@ -9885,15 +9970,21 @@ const WORKING_GRACE_MS = 15 * 60 * 1000;
 // only one of.
 export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
   Boolean(ts) && Date.now() - new Date(ts).getTime() > grace;
-// Which claim each kind reads out, and so whose detail it may speak. A `working`
-// claim gone quiet under a live watcher is judged `listening` too, and that detail
-// names what the agent was doing rather than what it wants back — the wrong half of
-// the loop to read out after "awaits". The question sits here rather than at each
-// seat, for the reason `kind` does: two seats answering it separately is two answers
-// to what the page may say it is waiting for. A kind absent here is a judgment
-// against the claim — nobody is behind the page, or the page is closed — and the
-// claim's words about the work are not the news there.
-const DETAIL_FROM = { working: "working", listening: "waiting" };
+// Which claim each kind reads out, and so whose detail it may speak. The question
+// sits here rather than at each seat, for the reason `kind` does: two seats answering
+// it separately is two answers to what the page may say it is waiting for. A kind
+// absent here is a judgment against the claim — nobody is behind the page, or the page
+// is closed — and the claim's words about the work are not the news there.
+//
+// `stalled` reads a `working` claim's detail like `working` does, and that is the whole
+// difference between the two: same words, a sentence that dates them. They were one
+// judgment once, folded into `listening` because a watcher was live, and the detail was
+// dropped on the way — so a page whose agent had said "revising the plan" and then
+// spent twenty minutes in a delegate's hands read "Claude awaits — select text to
+// comment", inviting the reader to start something over a page already mid-answer. The
+// dropping was right for the sentence it was under: what the agent was doing is the
+// wrong half of the loop to read out after "awaits". The sentence was the mistake.
+const DETAIL_FROM = { working: "working", listening: "waiting", stalled: "working" };
 // The claim-against-proof judgment, one function for every surface that shows a
 // status: the banner's sentence about this page and a panel row about a neighbour
 // read the same fields the server gathers in one place (`presence`), so the two can
@@ -9924,14 +10015,33 @@ function presented(state) {
       ? "closed"
       : unheld
         ? "unheld"
-        : status.state === "working" && !quiet
-          ? "working"
+        : status.state === "working"
+          ? // A claim of work outranks the watcher under it, fresh or stale: what the
+            // agent said it was doing is the news either way, and going quiet on it is
+            // the news the reader is least able to work out for themselves. The rope is
+            // the same one a roster row holds a worker to, so "gone quiet" means one
+            // thing on the page whoever is being judged — and a note on a thread
+            // (`leaf status … --on`) renews the claim, which is how work handed to a
+            // delegate stays true across a turn boundary the session cannot write over.
+            !quiet
+            ? "working"
+            : listening
+              ? "stalled"
+              : "away"
           : listening
             ? "listening"
             : "away";
   return {
     kind,
     quiet,
+    // Whether anything at all answers for the claim. The banner drops a claim
+    // nothing is behind rather than repeating it, and every other seat reading
+    // the same claim has to drop it on the same evidence: a note left on a
+    // thread by a session that has since died would sit under a line saying no
+    // session holds the page, each half arguing with the other about the same
+    // fact. Not the same question as `quiet`, which is about a claim going
+    // unrenewed by somebody who is still there.
+    held: kind !== "unheld" && kind !== "unattended",
     detail: status.state === DETAIL_FROM[kind] ? status.detail : "",
   };
 }
@@ -10078,6 +10188,17 @@ function renderStatus(state) {
     // per `presented`, so a row in the leaves panel leads with the bare word and
     // carries the same ask behind it.
     text = `${agentName()} awaits — ${detail || "select text to comment"}`;
+  } else if (kind === "stalled") {
+    // The claim stands, dated, with no remedy attached: a watcher is live, so the
+    // reader's next word reaches the agent without anyone touching a terminal. What
+    // they are owed is the age, which is the one thing they cannot see for themselves
+    // and the whole of what separates a delegate mid-answer from a dropped thread. It
+    // is spoken in the same words the branch below uses for the same silence, rather
+    // than in the muted parenthesis a live `working` claim wears: there the age is a
+    // footnote to news, and here it is the news.
+    text =
+      `${agentName()} last checked in ${ago(status.ts)}` +
+      `${detail ? ": " + detail : ""}. ${saved}`;
   } else {
     // Somebody is behind the page and isn't attending: say which and what to do. A
     // long silence means Claude lost the thread; a recent check-in means it is
@@ -11274,6 +11395,7 @@ async function receiveState(state) {
     statePhase = "ready";
     settleAcceptedDrafts();
     agent = state.agent || "Claude";
+    agentNotes = presented(state).held ? state.status.on || {} : {};
     renderStatus(state);
     renderVersions(state);
     renderOthers(state);
@@ -11292,6 +11414,11 @@ async function receiveState(state) {
         );
       agentMsgCount = agentReplies.length;
     }
+    // Outside the block above, which only the log's own growth enters: a note lands,
+    // ages and is settled by an answer, and the first two of those change no event
+    // this tab holds. Inside the try with the rest, so a paint that refuses the state
+    // rolls the whole reading back like any other.
+    paintNotes();
     // Last, because the panel has just rendered the log: a widget carried by a reply is
     // on the page by now, so an action naming one that isn't names a widget no version
     // holds, and reconciliation can retire it instead of looking for it forever.

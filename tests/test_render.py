@@ -23541,11 +23541,23 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text("Claude awaits — select text to comment")
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
-        # A working claim gone quiet under a live watcher lands in this same branch,
-        # and its detail says what the agent was doing — the wrong half of the loop to
-        # read out after "awaits", so only a waiting claim's detail speaks here.
+        # A claim of work that has gone quiet is still a claim of work, and a live
+        # watcher does not turn it into one. This read "Claude awaits — select text to
+        # comment" once, which invited the reader to start something on a page already
+        # mid-answer and dropped the only news it had: a delegate had been holding the
+        # question for twenty minutes and nothing on the page said so. The words are
+        # the ones the branch with no watcher uses for the same silence, minus its
+        # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
-        expect(text).to_have_text("Claude awaits — select text to comment")
+        expect(text).to_have_text(
+            "Claude last checked in 20m ago: revising the plan. 1 update waiting."
+        )
+        expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        # And with no detail it is the bare silence, which is the same sentence with
+        # nothing to say after the colon rather than a second wording for it.
+        declare("working", quiet_for=20 * 60)
+        expect(text).to_have_text("Claude last checked in 20m ago. 1 update waiting.")
 
         # What the page wants back, in the agent's words, where the reader arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
@@ -23595,6 +23607,117 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     declare("idle")
     expect(text).to_have_text("Leaf closed")
+    page.close()
+
+
+def test_a_thread_says_what_the_agent_is_doing_about_it(
+    browser, serve, tmp_path, dead_pid
+):
+    """The banner says what the agent is doing; a note says which of the reader's
+    questions it is doing it about. Both are one claim written by one command
+    (`leaf status … --on`), which is what makes a delegate's check-in keep the page's
+    line true as well as its own thread's.
+
+    A reader with three questions open and no replies under any of them cannot tell a
+    question being worked from a question nobody has looked at, and the page holds the
+    answer: the agent said so. What the log holds is what happened, so this is not in
+    it — a sentence somebody rewrites every few minutes is a claim, and it is painted
+    as provisional news rather than as a message, because the answer is still owed.
+
+    Nothing writes a note off. Answering is what ends the work, so the agent's own next
+    word in the thread settles it, and a second act saying so would be a second writer
+    for one fact."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    d = tmp_path / "page"
+    comments = [e for e in interact.read_events(d) if e["kind"] == "comment"]
+    held, other = comments[0]["id"], comments[1]["id"]
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    note = page.locator(".lf-thread-note")
+    expect(note).to_have_count(0)
+
+    def status(*args):
+        assert (
+            CliRunner().invoke(interact.cli, ["status", str(d), *args]).exit_code == 0
+        )
+        told(page)
+
+    status("working", "reading the reconnect traces", "--on", held)
+    # One note, on the thread it names: a mark that stood on every open thread would
+    # say only that the agent is busy, which the banner above already says.
+    expect(note).to_have_count(1)
+    expect(note).to_have_text(
+        re.compile(r"^Claude is on this — reading the reconnect traces\s*just now$")
+    )
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-thread-note')).to_have_count(
+        1
+    )
+    expect(
+        page.locator(f'.lf-thread[data-id="{other}"] .lf-thread-note')
+    ).to_have_count(0)
+    # Under the words that asked and above the box that answers, so it reads in the
+    # thread's own order: what you said, what has been said back, what is being done.
+    assert page.evaluate(
+        f"""() => {{
+        const thread = document.querySelector('.lf-thread[data-id="{held}"]');
+        const kids = [...thread.children].map((el) => el.className);
+        return kids.indexOf('lf-thread-note') > kids.lastIndexOf('lf-msg user')
+            && kids.indexOf('lf-thread-note') < kids.indexOf('lf-compose');
+    }}"""
+    ), "the note is not between the thread's last message and its reply box"
+
+    # A later claim about the page as a whole is not an answer to the thread, so the
+    # note stands: the two seats are one claim, and only one of them has been rewritten.
+    status("working", "drafting v2")
+    expect(page.locator(".lf-status-text")).to_have_text(
+        re.compile(r"^Claude is working — drafting v2")
+    )
+    expect(note).to_have_count(1)
+    expect(note).to_contain_text("reading the reconnect traces")
+
+    # The answer is what ends it.
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": held,
+            "version": 1,
+            "text": "The traces say it is the vendor's timer, not ours.",
+        },
+    )
+    told(page)
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.claude')).to_have_count(
+        1
+    )
+    expect(note).to_have_count(0)
+
+    # And a note the agent renews after answering stands again: it is on the thread
+    # a second time, which is a fact about now rather than about what was said.
+    status("working", "re-running it against the rolling deploy", "--on", held)
+    expect(note).to_have_count(1)
+
+    # A conversation the reader has closed asks nothing and shows nothing, for the same
+    # reason its reply box is gone.
+    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    told(page)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(note).to_have_count(0)
+
+    # And a note goes with the claim it is part of. The banner drops a claim nothing
+    # is behind rather than repeating it, and a note that outlived that judgment would
+    # sit under a line saying no session holds the page, the two halves of one claim
+    # arguing about it.
+    interact.append_event(d, {"kind": "unresolve", "author": "user", "parent": held})
+    told(page)
+    expect(note).to_have_count(1)
+    record_claim(d, pid=dead_pid)
+    told(page)
+    expect(page.locator(".lf-status-text")).to_have_text(
+        re.compile(r"^No session holds this page\.")
+    )
+    expect(note).to_have_count(0)
+    assert errors == []
     page.close()
 
 

@@ -7533,6 +7533,71 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     )
 
 
+def _status(page_dir, *args):
+    return CliRunner().invoke(interact.cli, ["status", str(page_dir), *args])
+
+
+def test_a_working_note_says_which_thread_the_agent_is_on(page_dir, capsys):
+    """`leaf status --on` writes one claim at two seats: the page's line, which the
+    banner reads, and a note on the thread the work is about, which the reader sees
+    under their own words. One command writes both because they are one sentence — a
+    delegate that reports its thread is the agent checking in, and the shared timestamp
+    is what keeps a `working` claim believed across a turn boundary the session that
+    made the claim can no longer write across.
+
+    The note carries across every later write but its own. That is the case it exists
+    for: a wait handing over mid-delegation writes "picking up 1 update" over the
+    page's line, and a note dropped there would take the reader's only sign that their
+    question is in hand with it. `idle` is the end of the agent's side, and clears them
+    with the leaf."""
+    interact.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
+    )
+    # A note names a thread, says what is being done, and says it about work in hand:
+    # the two other states have nothing to put on a thread, and a note with no words
+    # says nothing the thread does not already show.
+    assert (
+        "not a comment thread"
+        in _status(page_dir, "working", "reading the traces", "--on", "nope").output
+    )
+    assert (
+        "use it with `working`"
+        in _status(page_dir, "waiting", "your read on this", "--on", "c1").output
+    )
+    assert "needs a detail" in _status(page_dir, "working", "--on", "c1").output
+    assert "on" not in interact.read_json(page_dir / "status.json")
+
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    status = interact.read_json(page_dir / "status.json")
+    assert (status["state"], status["detail"]) == ("working", "reading the traces")
+    assert status["on"] == {"c1": {"detail": "reading the traces", "ts": status["ts"]}}
+    # And it reaches the page the way the claim beside it does, on the one poll answer.
+    assert page_state(page_dir)["status"]["on"]["c1"]["detail"] == "reading the traces"
+
+    # A later claim about the page as a whole answers nothing on the thread.
+    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
+    waiting = interact.read_json(page_dir / "status.json")
+    assert (waiting["state"], waiting["detail"]) == ("waiting", "look at v2")
+    assert waiting["on"]["c1"]["detail"] == "reading the traces"
+
+    # Nor does the handoff a wait writes on its way out, which is the whole point of
+    # carrying them: the pickup interrupts the delegate rather than replacing it.
+    serving(page_dir, 1)
+    interact.append_event(
+        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "and this?"}
+    )
+    assert interact.cmd_wait(page_dir) == 0
+    capsys.readouterr()
+    handed = interact.read_json(page_dir / "status.json")
+    assert (handed["state"], handed["handoff"]) == ("working", True)
+    assert handed["on"]["c1"]["detail"] == "reading the traces"
+
+    interact.cmd_status(page_dir, "idle", "")
+    assert "on" not in interact.read_json(page_dir / "status.json")
+
+
 def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsys):
     # A held server.lock lease is what wait's liveness probe asks for.
     serving(page_dir, 1)

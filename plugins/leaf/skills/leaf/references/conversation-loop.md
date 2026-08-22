@@ -14,8 +14,26 @@ leaf status <page> waiting "<what you want back>"
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
 banner then invites the reader to select text to comment. Include the page URL
-in every handoff message. When the next move is yours, use `working` and refresh
-its detail at meaningful milestones while the wait remains alive.
+in every handoff message.
+
+While the next move is yours the page is `working`, and a comment you are
+answering takes a note naming its thread:
+
+```bash
+leaf status <page> working "reading the reconnect traces" --on <thread-id>
+```
+
+The note stands under the reader's own words in the panel until you answer that
+thread, so a question in hand reads differently from one nobody has looked at.
+It is the banner's own claim at a second seat, and one command writes both.
+
+A `working` claim nothing renews for about a quarter of an hour stops being
+believed, and the banner reports the silence instead of the work. Refresh it
+inside that for as long as the work runs, and hand that job on with the work: a
+delegate outlives the turn that started it, and no part of this session can
+write the claim once the turn has ended. Give the delegate the launcher path,
+the page path, the thread id, and the command above to run as it starts and
+whenever what it is doing changes.
 
 ## Host wait loops
 

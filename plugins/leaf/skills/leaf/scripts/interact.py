@@ -53,6 +53,9 @@ A page directory holds:
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
+                         "on" maps a comment thread id to the {"detail", "ts"} of
+                         the work in flight on it, which the panel shows under
+                         the reader's own words (`leaf status … --on`);
                          when `leaf wait` prints for a non-working page, it
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
@@ -96,6 +99,14 @@ handoff mark that survives means a dropped pickup rather than a long turn, and
 the banner gives it a much shorter rope. Wait output that lands while the agent
 is already working leaves the existing claim untouched; there is no pickup gap
 to date.
+
+So a claim of work has to be renewed, and the command that makes one renews it.
+`--on` names the comment thread the work is about, so one check-in moves both
+the page's line and the note the reader sees under their own words in the
+comment panel, where it stands until the agent's next word in that thread. That
+is how a claim crosses a turn boundary the session cannot write across: nothing
+in a session touches status.json while its turn is over, so work handed to a
+delegate is renewed from the delegate's own hands or not at all.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant pid that has exited settles the question outright;
@@ -1715,10 +1726,30 @@ class PageTransaction:
     def status(self) -> dict:
         return read_json(self.page_dir / "status.json") or {"state": "idle"}
 
-    def set_status(self, state: str, detail: str, *, handoff: bool = False) -> None:
+    def set_status(
+        self, state: str, detail: str, *, handoff: bool = False, on: str | None = None
+    ) -> None:
+        """Write the claim, and the note under it where the work has a subject.
+
+        A note is the same sentence read at a second seat: the page's one line
+        says what the agent is doing, and the thread it is doing it about says
+        so where the reader asked. One command writes both, because they are
+        one claim — a delegate reporting its thread is also the agent checking
+        in, which is what keeps a `working` claim believed across a turn
+        boundary the session itself cannot write across.
+
+        Notes carry across every other write, so a handoff's "picking up 2
+        updates" does not silently drop what a helper is holding, and `idle`
+        clears them with the leaf.
+        """
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if handoff:
             status["handoff"] = True
+        notes = {} if state == "idle" else dict(self.status.get("on", {}))
+        if on:
+            notes[on] = {"detail": detail, "ts": status["ts"]}
+        if notes:
+            status["on"] = notes
         write_json(self.page_dir / "status.json", status)
 
     @property
@@ -3335,9 +3366,25 @@ def cmd_serve(
         lease.close()
 
 
-def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -> None:
+def cmd_status(
+    page_dir: Path,
+    state: str,
+    detail: str,
+    handoff: bool = False,
+    on: str | None = None,
+) -> None:
     with PageTransaction(page_dir) as page:
-        page.set_status(state, detail, handoff=handoff)
+        if on is not None:
+            # A note says "I am on this now", so the two other states have
+            # nothing to put on a thread: `waiting` is the reader's move, and
+            # `idle` is the end of the agent's side.
+            if state != "working":
+                sys.exit("--on says what you are working on; use it with `working`")
+            if not detail:
+                sys.exit("--on needs a detail; a note with no words says nothing")
+            if on not in build_threads(page.events, {}):
+                sys.exit(f"{on} is not a comment thread on this page")
+        page.set_status(state, detail, handoff=handoff, on=on)
 
 
 def start_server(
@@ -10565,13 +10612,26 @@ def stop(dir: str) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
 @click.argument("detail", required=False, default="")
-def status(dir: str, state: str, detail: str) -> None:
+@click.option(
+    "--on",
+    "on",
+    metavar="THREAD",
+    help="The comment thread this working detail is about.",
+)
+def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
 
     DETAIL is what the banner says after the state: what you are doing while
     `working`, and what you want back from the reader while `waiting` ("pick a
     storage engine"). A waiting page that declares none falls back to the
     standing "select text to comment".
+
+    --on names the comment thread that detail is about, and the reader sees it
+    under their own words as well as in the banner. It stands until you answer
+    that thread, so work in flight — a delegate, a long tool run — reads as
+    picked up rather than as silence. A `working` claim nothing renews goes
+    quiet on the banner in about a quarter of an hour, so refresh it inside
+    that for as long as the work runs.
     """
     page_dir = resolve_dir(dir)
     # Idling over an event nobody has answered ends the leaf on a user still
@@ -10581,7 +10641,7 @@ def status(dir: str, state: str, detail: str) -> None:
     # the log lock gives the check and the transition one order with an event
     # arriving or an acknowledgement advancing the cursor.
     if state != "idle":
-        cmd_status(page_dir, state, detail)
+        cmd_status(page_dir, state, detail, on=on)
         return
     with PageTransaction(page_dir) as page:
         events = page.events

@@ -2256,7 +2256,14 @@ class Handler(BaseHTTPRequestHandler):
         return result
 
     def execute_event(self, event: dict) -> tuple:
-        """Validate and append one browser event as one log transaction."""
+        """Validate mutable page state and append as one log transaction.
+
+        `_post` checks the payload's declared shape before attempt coordination. A
+        re-vendor can replace that declaration before this transaction is acquired,
+        so an action's contract is deliberately read again inside the lease: this
+        reading, not the admission reading, is the one allowed to append beside the
+        page's current vocabulary.
+        """
         kind = event["kind"]
         # Every decision whose validity depends on the log stays under the append
         # lock through the write. In particular, two tabs cannot both validate an
@@ -2289,6 +2296,9 @@ class Handler(BaseHTTPRequestHandler):
                         "approval to record",
                     )
             if kind == "action":
+                # This is not the static admission read in `_post`: re-vendoring and
+                # this transaction have now chosen an order, so only this registry
+                # can authorize an action that will be appended under the same lease.
                 try:
                     registry = load_registry(self.page_dir)
                 except RegistryError as error:

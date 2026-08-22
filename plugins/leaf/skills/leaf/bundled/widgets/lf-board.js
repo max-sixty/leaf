@@ -33,7 +33,7 @@ import {
   keys,
   labelOf,
   saying,
-  paintKeys,
+  dragging,
   motion,
   pageScroller,
   PRESS,
@@ -237,9 +237,8 @@ customElements.define(
       const cards = this.#cards(from);
       const index = cards.indexOf(card);
       this.#grabbed = { card, grip, from, index };
-      this.classList.add("lf-dragging");
+      dragging(this, true);
       card.classList.add("lf-lift");
-      paintKeys(); // a grab is a press on an already-focused grip, so no focus event fires
       // Where the card starts, in the idiom every arrow step announces — a reader about to
       // move it needs the position the moves count from.
       announce(
@@ -296,8 +295,7 @@ customElements.define(
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;
-      this.classList.remove("lf-dragging");
-      paintKeys();
+      dragging(this, false);
     }
 
     // The one writer of "card X sits at index i among column C's cards": arrow steps,
@@ -375,10 +373,13 @@ customElements.define(
               this.#release();
             } else this.#cancel();
           }
-          this.classList.add("lf-dragging");
+          dragging(this, true);
         },
         onEnd: (evt) => {
-          this.classList.remove("lf-dragging");
+          // Ahead of the branches below, because the one that returns early sends
+          // nothing: a card dropped where it was picked up puts the hand down with
+          // nothing following it to say so.
+          dragging(this, false);
           const sup = this.#superseded;
           this.#superseded = null;
           // The *draggable* indexes, which count cards; Sortable's plain

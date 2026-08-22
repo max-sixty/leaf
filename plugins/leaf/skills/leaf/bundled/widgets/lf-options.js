@@ -89,6 +89,7 @@
  * Authored content is never replaced, so there is no failSoft. */
 import {
   HIDDEN,
+  actionStands,
   agentName,
   conversationBox,
   inChrome,
@@ -201,9 +202,6 @@ customElements.define(
         sendAction(this, "choose", { options: [...next].map((o) => o.id) }).then(
           (ok) => {
             if (ok) toast(`${said} — sent to ${agentName()}`);
-            // Unsent means unrecorded: rewind rather than show a pick Claude will never
-            // see. (post already toasted the failure.)
-            else this.#pick(was);
           },
         );
       });
@@ -247,10 +245,12 @@ customElements.define(
     // the button is hit while the first is still in the wire.
     #answer() {
       if (this.#answering) return this.#answering;
-      const sent = sendAction(this, "answer", {}).then((ok) => {
+      const sent = sendAction(this, "answer", {}).then((accepted) => {
         this.#sending(null);
-        if (!ok) return false; // unsent means unrecorded, and nothing was painted
-        this.#answered(true);
+        if (!accepted) return false; // unsent means unrecorded, and nothing was painted
+        // Usually replay has painted the accepted answer already. Repeat the absolute
+        // paint for a partial render, but never over a same-read undo of this action.
+        if (actionStands(accepted)) this.#answered(true);
         toast(`Marked answered — sent to ${agentName()}`);
         return true;
       });
@@ -270,8 +270,8 @@ customElements.define(
     }
 
     // Absolute: answered is the whole statement, so replaying this tab's own press
-    // is the same call again. Painted when the log takes the answer: the log holds
-    // it, and the pressed state is what the page shows for it (see the header).
+    // is the same call again. Replay paints it when the log takes the answer: the log
+    // holds it, and the pressed state is what the page shows for it (see the header).
     #answered(on) {
       this.#done?.setAttribute("aria-pressed", String(on));
       document.dispatchEvent(new CustomEvent("lf-answered"));

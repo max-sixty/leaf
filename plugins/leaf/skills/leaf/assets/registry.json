@@ -147,7 +147,8 @@
             "seq": {"type": "integer", "minimum": 1},
             "parent": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1}
+            "session": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
           "required": ["id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false
@@ -163,7 +164,8 @@
             "author": {"type": "string", "minLength": 1},
             "kind": {"const": "unresolve"},
             "seq": {"type": "integer", "minimum": 1},
-            "parent": {"type": "string", "minLength": 1}
+            "parent": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
           "required": ["id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false
@@ -180,7 +182,8 @@
             "kind": {"const": "done"},
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
-            "text": {"type": "string", "minLength": 1}
+            "text": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
           "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
           "additionalProperties": false
@@ -216,7 +219,8 @@
             "author": {"type": "string", "minLength": 1},
             "kind": {"const": "undo"},
             "seq": {"type": "integer", "minimum": 1},
-            "undoes": {"type": "string", "minLength": 1}
+            "undoes": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
           "required": ["id", "ts", "author", "kind", "seq", "undoes"],
           "additionalProperties": false

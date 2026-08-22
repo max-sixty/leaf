@@ -5559,10 +5559,13 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
-def test_concurrent_retries_share_one_attempt_execution(server, page_dir, monkeypatch):
+def test_concurrent_retries_share_one_attempt_execution_then_release_it(
+    server, page_dir, monkeypatch
+):
     """A retry arriving while the original request is validating waits for that
     outcome. It cannot independently refuse while the original remains free to
-    append later, which would make the refusal a lie to the browser."""
+    append later, which would make the refusal a lie to the browser. Once complete,
+    the receipt leaves and a later retry evaluates afresh."""
     publish(page_dir)
     entered = threading.Event()
     release = threading.Event()

@@ -166,7 +166,7 @@ behind an unanswered entry, so a slow first handler cannot append after them, bu
 not behind one whose acceptance is already known. Concurrent server requests with
 the same attempt share one execution. An accepted attempt lives in the log; a completed
 refusal leaves no receipt behind, because a browser that received it drops the attempt
-and one that lost it can safely retry once no original handler remains alive.
+and one that lost it can safely retry once no original handler remains free to append.
 
 The hold belongs to the layer, and no module writes one of its own. `lf-draft`
 once did, privately (`#sending`), and was the only widget that had a hold — written

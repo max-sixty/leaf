@@ -34,8 +34,9 @@
   lifetime to hang the page's life on; and wait without burning the turn, through a
   harness-native tracked job whose completion resumes or notifies the same agent. leaf
   has all three already — `CLAUDE_PID`, the walk up to a `codex` ancestor,
-  `session.json`, and the three hooks — but written per host rather than against a
-  named contract, so a third host is a rewrite rather than an implementation.
+  the canonical claim record, and the three hooks — but written per host rather
+  than against a named contract, so a third host is a rewrite rather than an
+  implementation.
   Plannotator bought nine hosts one hook at a time behind an installer that detects
   what is on the machine (`notes/comparisons.md`), so the price is known and payable.
   The cheaper half is a foreground mode: `leaf wait` is already a plain command, and a

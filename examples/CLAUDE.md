@@ -108,12 +108,12 @@ The gesture vocabulary repeats, and is meant to: every board takes a drag, every
 group takes a pick. The sentence around the gesture must not repeat, because a
 page that borrows another page's sentence describes its own work in another
 page's words. The corpus is where the borrowing shows, being the one place a
-reader sees the examples side by side. The rule itself lives in SKILL.md
-("announce interactivity in prose"), since it governs every page and not only
-these; what lives here is the check.
+reader sees the examples side by side. The rule lives in
+references/page-authoring.md under "Interactivity and evidence", since it
+governs every page and not only these; what lives here is the check.
 
 A batch of borrowed sentences once arrived in a single commit, and the cause was
-upstream of the corpus: that same SKILL.md entry quoted two model sentences, and
+upstream of the corpus: the authoring guidance quoted two model sentences, and
 both reached shipped examples word for word.
 `test_no_example_writes_another_example_s_sentences` holds the corpus to at most
 twelve consecutive shared words. Today no two examples share more than seven, and

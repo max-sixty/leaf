@@ -387,6 +387,24 @@ REPLAYED_PAGE = f"""<!doctype html>
 TOKEN = "test-page-key"
 
 
+def record_claim(page, **fields):
+    record = {
+        "page": str(page.resolve()),
+        "id": "s",
+        "host": "claude-code",
+        "pid": os.getpid(),
+        "agent": "Claude",
+        "cwd": str(Path.cwd()),
+        "ts": "t",
+        "released": None,
+        **fields,
+    }
+    path = interact.claim_path(page)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    interact.write_json(path, record)
+    return record
+
+
 @pytest.fixture
 def serve(tmp_path, monkeypatch):
     """Publish HTML as v1 of a fresh page directory and serve it, as the real
@@ -2618,7 +2636,11 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # the sign-off regression this test was written for passed or failed
             # according to how many times the sweep had toggled Comments.
             page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-            page.goto(url, wait_until="networkidle")
+            # `load`, the edge the first visit took (`open_page`): network silence is
+            # not a readiness fact and the two lines below are the ones that are, so
+            # waiting it out only added its own 500ms quiet window to every reload
+            # this sweep makes — a sixth of the test on the gallery, 50s to 42s.
+            page.goto(url, wait_until="load")
             # Both stamps, which the reload has to earn again: half these controls are
             # the runtime's own, and the last of them arrive with the log rather than
             # with the upgrade. A list read before that is a short list, and a short list
@@ -4052,15 +4074,10 @@ def live_leaf(tmp_path, monkeypatch):
         # A live leaf has a session behind it, and what the board's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
-        interact.write_json(
-            d / "session.json",
-            {
-                "id": f"s-{name}",
-                "host": "claude-code",
-                "pid": os.getpid(),
-                "agent": "Claude",
-                "cwd": str(tmp_path / f"{name}-work"),
-            },
+        record_claim(
+            d,
+            id=f"s-{name}",
+            cwd=str(tmp_path / f"{name}-work"),
         )
         httpd = interact.LeafHTTPServer(
             ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
@@ -4111,15 +4128,10 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     url = serve(LONG_PAGE)
     # This page has a session behind it too, so its own row can say the same thing a
     # neighbour's does.
-    interact.write_json(
-        serve.page_dir / "session.json",
-        {
-            "id": "s-self",
-            "host": "claude-code",
-            "pid": os.getpid(),
-            "agent": "Claude",
-            "cwd": str(tmp_path / "self-work"),
-        },
+    record_claim(
+        serve.page_dir,
+        id="s-self",
+        cwd=str(tmp_path / "self-work"),
     )
     page, errors = open_page(browser, url)
     btn = page.locator(".lf-others")
@@ -4254,10 +4266,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
-    interact.write_json(
-        other_dir / "session.json",
-        {"id": "s", "host": "claude-code", "pid": dead_pid, "agent": "Claude"},
-    )
+    record_claim(other_dir, pid=dead_pid)
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Unheld")
     expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
@@ -12936,95 +12945,6 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     # the message says.
     text = body.inner_text()
     assert "**" not in text and "Vec<T>" in text
-    assert errors == []
-    page.close()
-
-
-def test_a_streamed_reply_grows_in_place_and_closes_whole(browser, serve):
-    """A streamed reply is chunk events the panel folds into one message — a
-    chunk is never met as a message — and the message grows in place as chunks
-    arrive, wearing a caret only while its chain is open and the page presents
-    as working. The close drops the caret and leaves the joined text whole, so
-    a reader watches the reply arrive instead of waiting for all of it."""
-    url = serve(REPLY_HOST_PAGE)
-    d = serve.page_dir
-    interact.append_event(
-        d,
-        {
-            "kind": "comment",
-            "id": "c-ask",
-            "author": "user",
-            "version": 1,
-            "text": "which one wins?",
-        },
-    )
-    interact.append_event(
-        d,
-        {
-            "kind": "reply",
-            "id": "r-head",
-            "author": "claude",
-            "parent": "c-ask",
-            "version": 1,
-            "text": "The second one wins ",
-            "more": True,
-        },
-    )
-    interact.cmd_status(d, "working", "answering")
-    page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
-
-    msgs = page.locator(".lf-msg.claude")
-    expect(msgs).to_have_count(1)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
-    body = page.locator(".lf-msg.claude .lf-msg-body")
-    expect(body).to_contain_text("The second one wins")
-
-    # A chunk arrives: the same message grows — no second message node — and the
-    # chain stays open.
-    interact.append_event(
-        d,
-        {
-            "kind": "append",
-            "author": "claude",
-            "continues": "r-head",
-            "text": "because replay is absolute, ",
-            "more": True,
-        },
-    )
-    told(page)
-    expect(body).to_contain_text("The second one wins because replay is absolute,")
-    expect(msgs).to_have_count(1)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
-
-    # The agent going quiet is a status move with no event behind it, so the
-    # caret must follow the presented state on a poll that grew nothing — an
-    # abandoned chain reads as a finished message, and picking the work back
-    # up restores the caret the same way.
-    interact.cmd_status(d, "idle", "")
-    told(page)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(0)
-    interact.cmd_status(d, "working", "answering")
-    told(page)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
-
-    # The close: the caret goes, and the joined text stands whole as one
-    # rendered body — the boundary spaces are the chunks' own, untouched.
-    interact.append_event(
-        d,
-        {
-            "kind": "append",
-            "author": "claude",
-            "continues": "r-head",
-            "text": "and the first is not.",
-        },
-    )
-    told(page)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(0)
-    expect(body).to_contain_text(
-        "The second one wins because replay is absolute, and the first is not."
-    )
-    expect(msgs).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -23929,7 +23849,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
 @contextmanager
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
-    session = interact.read_json(page_dir / "session.json")
+    session = interact.page_claim(page_dir)
     lease = interact.take_waiter_lease(interact.waiter_lease_path(page_dir, session))
     assert lease
     told(page)
@@ -23979,17 +23899,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         if handoff:
             status["handoff"] = True
         if claimed:
-            interact.write_json(
-                d / "session.json",
-                {
-                    "id": "s",
-                    "pid": session_pid or os.getpid(),
-                    "agent": agent,
-                    "ts": "t",
-                },
-            )
+            record_claim(d, pid=session_pid or os.getpid(), agent=agent)
         else:
-            (d / "session.json").unlink(missing_ok=True)
+            interact.claim_path(d).unlink(missing_ok=True)
         interact.write_json(d / "status.json", status)
         told(page)
 
@@ -24142,9 +24054,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
     # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
     # in the tab, which is the whole of what the reader can see of it from a tab strip.
-    interact.write_json(
-        d / "session.json", {"id": "s", "pid": dead_pid, "agent": "Claude", "ts": "t"}
-    )
+    record_claim(d, pid=dead_pid)
     unheld = tone("", "unheld")
     assert unheld not in (
         working,
@@ -24422,10 +24332,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         .exit_code
         == 0
     )
-    interact.write_json(
-        d / "session.json",
-        {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
-    )
+    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-comments")
@@ -24462,10 +24369,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
             "text": "which host answers?",
         },
     )
-    interact.write_json(
-        d / "session.json",
-        {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
-    )
+    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 

@@ -3481,6 +3481,39 @@ def test_check_reports_record_lag_without_erroring(page_dir):
     assert "record behind the log" in result.output  # CliRunner folds stderr in
 
 
+def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
+    """The file-side facet is the runtime's same ownership reading. An inner chosen
+    option is not part of the outer group's record, so an outer log choice that matches
+    its own authored option carries no phantom lag."""
+    nested = """<lf-options id="outer" choose multiple>
+  <lf-option id="outer-a" chosen><strong>Outer A</strong>
+    <lf-options id="inner" choose>
+      <lf-option id="inner-a" chosen>Inner A</lf-option>
+      <lf-option id="inner-b">Inner B</lf-option>
+    </lf-options>
+  </lf-option>
+  <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
+</lf-options>"""
+    html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
+    (page_dir / "versions" / "v1.html").write_text(html)
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "outer",
+            "action": "choose",
+            "detail": {"options": ["outer-a"]},
+        },
+    )
+
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert "record behind the log" not in result.output
+
+
 def state_json(d):
     result = CliRunner().invoke(interact.cli, ["page", "state", str(d)])
     assert result.exit_code == 0, result.output
@@ -3895,13 +3928,13 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             f"{server}/api/event",
             data=json.dumps({"kind": "comment", "version": 1, "text": "hi"}).encode(),
         )[1]
-    )["event"]
+    )["state"]["events"][-1]
     resolved = json.loads(
         fetch(
             f"{server}/api/event",
             data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
         )[1]
-    )["event"]
+    )["state"]["events"][-1]
     agent_closed = interact.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
     )
@@ -3923,12 +3956,14 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400, bad
-        assert says in json.loads(body)["error"], body
+        answer = json.loads(body)
+        assert answer["ok"] is False and answer["final"] is True, bad
+        assert says in answer["error"], body
 
     undone = {"kind": "undo", "undoes": resolved["id"]}
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
     assert status == 200, body
-    took_back = json.loads(body)["event"]
+    took_back = json.loads(body)["state"]["events"][-1]
 
     # Once, and never the undo itself: repeated presses walk back through the
     # reader's history rather than toggling the last gesture on and off.
@@ -3939,6 +3974,93 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
     )
     assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+
+
+def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
+    server, page_dir, monkeypatch
+):
+    """Mutable validation and append are one log transaction. Two request threads
+    may arrive together, but the second must read the first withdrawal before it can
+    validate its own; otherwise both can truthfully validate against a state neither
+    is allowed to append beside the other."""
+    publish(page_dir)
+    comment = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "comment", "version": 1, "text": "close this"}
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    target = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "resolve", "parent": comment["id"]}).encode(),
+        )[1]
+    )["state"]["events"][-1]
+
+    # The old handler validated outside the append transaction. Let its first
+    # validation wait briefly for the second: on that shape both requests read the
+    # same standing target and proceed, while the transactional handler keeps the
+    # second outside until the first append is visible. A bounded wait keeps the
+    # correct serialization from deadlocking the probe itself.
+    real_undo_error = interact.undo_error
+    validation_lock = threading.Lock()
+    second_validation = threading.Event()
+    validation_calls = 0
+
+    def expose_validation_gap(event, events):
+        nonlocal validation_calls
+        error = real_undo_error(event, events)
+        with validation_lock:
+            validation_calls += 1
+            call = validation_calls
+        if call == 1:
+            second_validation.wait(timeout=1)
+        else:
+            second_validation.set()
+        return error
+
+    monkeypatch.setattr(interact, "undo_error", expose_validation_gap)
+    start = threading.Barrier(3)
+    results = []
+
+    def withdraw(attempt):
+        start.wait(timeout=5)
+        results.append(
+            fetch(
+                f"{server}/api/event",
+                data=json.dumps(
+                    {
+                        "kind": "undo",
+                        "undoes": target["id"],
+                        "attempt": attempt,
+                    }
+                ).encode(),
+            )
+        )
+
+    threads = [
+        threading.Thread(target=withdraw, args=(f"concurrent-undo-{at}",))
+        for at in range(2)
+    ]
+    for thread in threads:
+        thread.start()
+    start.wait(timeout=5)
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert not any(thread.is_alive() for thread in threads)
+    assert validation_calls == 2
+    assert {status for status, _ in results} == {200, 400}
+    refusal = next(json.loads(body) for status, body in results if status == 400)
+    assert refusal["final"] is True and "already been taken back" in refusal["error"]
+    undos = [
+        event
+        for event in interact.read_events(page_dir)
+        if event.get("undoes") == target["id"]
+    ]
+    assert len(undos) == 1
 
 
 def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
@@ -4630,8 +4752,10 @@ def _report_undeclared_attr(registry):
 
 
 def _report_says_attr(registry):
-    registry["lf-task"]["x-says"] = {"owner": "before"}
-    registry["lf-task"]["x-report"]["status"] = {
+    task = registry["lf-task"]
+    task["required"].append("owner")
+    task["x-says"] = {"owner": "before"}
+    task["x-report"]["status"] = {
         "detail": {
             "type": "object",
             "properties": {"owner": {"type": "string"}},
@@ -4658,6 +4782,32 @@ def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
 
 
+def _state_with_optional_value_record(registry):
+    task = registry["lf-task"]
+    task["properties"]["restated"] = {"type": "boolean"}
+    task["x-state"] = {
+        "assign": {
+            "detail": {
+                "type": "object",
+                "properties": {"owner": task["properties"]["owner"]},
+                "required": ["owner"],
+                "additionalProperties": False,
+            },
+            "facet": "owner",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        }
+    }
+
+
+def _body_record_with_prose(registry):
+    registry["lf-draft"]["x-content"] = "prose"
+
+
+def _body_record_with_nested_widget(registry):
+    registry["lf-option"]["x-parent"].append("lf-draft")
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
@@ -4679,6 +4829,11 @@ def _report_without_upgrade(registry):
         (_report_without_overruled, "not the boolean `overruled`"),
         # Reports replay through applyAction, so the widget must upgrade.
         (_report_without_upgrade, "declares x-report"),
+        # A value record has no action detail for an absent attribute. Requiring the
+        # attribute makes every authored state projectable through applyAction.
+        (_state_with_optional_value_record, "records optional attribute `owner`"),
+        (_body_record_with_prose, "x-content must be data"),
+        (_body_record_with_nested_widget, "admits nested widgets"),
     ],
 )
 def test_an_x_report_declaration_is_checked_whole(page_dir, mutate, message):
@@ -4903,7 +5058,13 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     owner["detail"]["required"] = ["owner"]
     owner["record"] = {"kind": "value", "attr": "owner", "value": "owner"}
     task["properties"]["owner"] = {"type": "string"}
+    task.setdefault("required", []).append("owner")
     task["x-report"]["owner"] = owner
+    registry["lf-tasks"]["x-example"] = re.sub(
+        r"<lf-task(?![^>]*\bowner=)",
+        '<lf-task owner="test"',
+        registry["lf-tasks"]["x-example"],
+    )
 
     # Placement is one slot only for a given declared unit.
     board = registry["lf-board"]
@@ -6014,6 +6175,16 @@ def test_server_round_trip(server, page_dir):
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400, bad
+        answer = json.loads(body)
+        assert answer["ok"] is False and answer["final"] is True, bad
+
+    status, body = fetch(f"{server}/api/event", data=b"{")
+    assert status == 400
+    assert json.loads(body) == {
+        "ok": False,
+        "error": "invalid JSON",
+        "final": True,
+    }
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -6069,13 +6240,27 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     for thread in threads:
         thread.join()
     assert len(results) == 8 and {status for status, _ in results} == {200}
-    accepted_events = [json.loads(body)["event"] for _, body in results]
+    accepted_events = [
+        next(
+            event
+            for event in json.loads(body)["state"]["events"]
+            if event.get("attempt") == first["attempt"]
+        )
+        for _, body in results
+    ]
     assert len({event["id"] for event in accepted_events}) == 1
     accepted = accepted_events[0]
 
     status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
     assert status == 200
-    assert json.loads(body)["event"]["id"] == accepted["id"]
+    assert (
+        next(
+            event
+            for event in json.loads(body)["state"]["events"]
+            if event.get("attempt") == first["attempt"]
+        )["id"]
+        == accepted["id"]
+    )
     comments = [
         event for event in interact.read_events(page_dir) if event["kind"] == "comment"
     ]
@@ -6103,7 +6288,166 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     (page_dir / "versions" / "v1.html").unlink()
     status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
     assert status == 200
-    assert json.loads(body)["event"]["id"] == accepted["id"]
+    assert (
+        next(
+            event
+            for event in json.loads(body)["state"]["events"]
+            if event.get("attempt") == first["attempt"]
+        )["id"]
+        == accepted["id"]
+    )
+
+
+def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
+    server, page_dir
+):
+    """A draft's attempt is stored with its words and reminted only on a keystroke,
+    so the same attempt is what a reader's second press sends. A refusal the server
+    remembered therefore outlived the state that produced it: the draft was refused
+    for naming a version the page had not published yet, and after the publish the
+    identical payload read back the stale verdict while the payload the reload had
+    moved on read `already belongs to another event`, naming an event that never
+    existed. Either way the reader's words were unsendable until they typed.
+
+    The door refuses a version in that direction only. `published_versions` grows and
+    never shrinks, so no version a tab was served is later refused for liveness, and
+    this gate is the mirror of the one a reader meets — cheapest to walk the door
+    through, standing in for the refusals whose ground really does move under them
+    (`unknown parent`, `undo_error`, `action_contract_error` behind a re-vendor)."""
+    publish(page_dir, 1)
+    draft = {
+        "kind": "comment",
+        "version": 2,
+        "anchor": {"quote": "hello"},
+        "text": "The words a reader typed before the version moved.",
+        "attempt": "attempt-draft-0001",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
+    assert status == 400
+    assert json.loads(body)["error"] == "comment version must be one of [1]"
+
+    (page_dir / "versions" / "v2.html").write_text(PAGE)
+    publish(page_dir, 2)
+
+    # The same press, once v2 is live: the refusal was about the page, and the page
+    # has moved.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
+    assert status == 200, body
+    accepted = next(
+        event
+        for event in json.loads(body)["state"]["events"]
+        if event.get("attempt") == draft["attempt"]
+    )
+    assert accepted["text"] == draft["text"]
+
+    # And the version the reload would have rewritten still meets the durable
+    # conflict, which is the log's answer rather than a receipt's.
+    moved = {**draft, "version": 1}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(moved).encode())
+    assert status == 409
+    assert "already belongs to another event" in json.loads(body)["error"]
+    comments = [
+        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+    ]
+    assert [event["id"] for event in comments] == [accepted["id"]]
+
+
+def test_an_accepted_event_response_is_state_through_that_event(server, page_dir):
+    """The POST answer is the sender's authoritative read, not half of a
+    transaction completed by a second request. A response cannot acknowledge an
+    event while handing the page history from before it."""
+    publish(page_dir)
+    sent = {
+        "kind": "comment",
+        "version": 1,
+        "text": "The response carries the state that includes this message.",
+        "attempt": "attempt-state-0001",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+
+    assert status == 200, body
+    answer = json.loads(body)
+    assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
+
+
+def test_concurrent_retries_share_one_attempt_execution_then_release_it(
+    server, page_dir, monkeypatch
+):
+    """A retry arriving while the original request is validating waits for that
+    outcome. It cannot independently refuse while the original remains free to
+    append later, which would make the refusal a lie to the browser. Once complete,
+    the receipt leaves and a later retry evaluates afresh."""
+    publish(page_dir)
+    entered = threading.Event()
+    release = threading.Event()
+    waiter_entered = threading.Event()
+    calls = 0
+    original_attempt_init = interact.AttemptExecution.__init__
+
+    def observe_attempt(execution, payload):
+        original_attempt_init(execution, payload)
+        original_wait = execution.done.wait
+
+        def observed_wait(*args, **kwargs):
+            waiter_entered.set()
+            return original_wait(*args, **kwargs)
+
+        execution.done.wait = observed_wait
+
+    def refuse_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            entered.set()
+            assert release.wait(5), "the test never released the first attempt"
+        return "the action was refused"
+
+    monkeypatch.setattr(interact, "action_contract_error", refuse_once)
+    monkeypatch.setattr(interact.AttemptExecution, "__init__", observe_attempt)
+    sent = {
+        "kind": "action",
+        "version": 1,
+        "widget": "feeder-board",
+        "action": "move",
+        "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        "attempt": "attempt-flight-001",
+    }
+    results = []
+
+    def post():
+        results.append(fetch(f"{server}/api/event", data=json.dumps(sent).encode()))
+
+    first = threading.Thread(target=post)
+    second = threading.Thread(target=post)
+    first.start()
+    assert entered.wait(5), "the first attempt never entered validation"
+    second.start()
+    try:
+        assert waiter_entered.wait(5), "the retry never joined the active attempt"
+        assert not results, "the retry answered while the original attempt was active"
+    finally:
+        release.set()
+        first.join()
+        second.join()
+
+    assert calls == 1
+    assert len(results) == 2
+    assert {status for status, _ in results} == {400}
+    answers = [json.loads(body) for _, body in results]
+    assert answers == [answers[0], answers[0]]
+    assert answers[0] == {
+        "ok": False,
+        "attempt": sent["attempt"],
+        "error": "the action was refused",
+        "final": True,
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    assert status == 400 and json.loads(body) == answers[0]
+    assert calls == 2, "a completed refusal left a receipt behind"
+    assert [
+        event for event in interact.read_events(page_dir) if event["kind"] == "action"
+    ] == []
 
 
 def test_flocked_refuses_a_platform_without_cross_process_locking(
@@ -6504,17 +6848,204 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
     assert fetch(f"{server}/api/state", token=None)[0] == 403
     assert fetch(f"{server}/", token=None)[0] == 403
-    assert (
-        fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {"kind": "comment", "version": 1, "text": "not mine"}
-            ).encode(),
-            token=None,
-        )[0]
-        == 403
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "version": 1, "text": "not mine"}).encode(),
+        token=None,
     )
+    assert status == 403
+    assert json.loads(body) == {
+        "ok": False,
+        "error": interact.NO_KEY,
+        "final": True,
+    }
+
+    # The key gate precedes the body read. A peer that cannot open the page must not
+    # get to choose how much a handler allocates or park it waiting for bytes that never
+    # arrive merely by declaring a large body before authentication.
+    http11 = interact.LeafHTTPServer(
+        ("127.0.0.1", 0),
+        interact.handler_for(page_dir, TOKEN, protocol_version="HTTP/1.1"),
+    )
+    thread = threading.Thread(target=http11.serve_forever, daemon=True)
+    thread.start()
+    peer = http.client.HTTPConnection(
+        f"127.0.0.1:{http11.server_address[1]}", timeout=2
+    )
+    try:
+        peer.putrequest("POST", "/api/event")
+        peer.putheader("Content-Length", str(1 << 30))
+        peer.putheader("Content-Type", "application/json")
+        peer.endheaders()
+        refused = peer.getresponse()
+        refusal = json.loads(refused.read())
+    finally:
+        peer.close()
+        http11.shutdown()
+    assert (refused.status, refusal) == (
+        403,
+        {"ok": False, "error": interact.NO_KEY, "final": True},
+    )
+    assert refused.version == 11
+    assert refused.getheader("Connection") == "close"
+    assert refused.will_close
     assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
+
+    assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
+
+
+def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
+    server, page_dir
+):
+    """`final` is the only word that ends a retry, so a refusal that leaves it out is
+    not a refusal the browser can act on: the outbox reads it as an incomplete answer
+    and re-posts the same attempt every poll for the life of the tab, with one toast as
+    the reader's whole explanation. Every one of these is deterministic, so the loop
+    never ends.
+
+    The state-dependent refusals were written through `event_rejection` from the start
+    and the gates in front of them were not, which is the split this asserts away: the
+    key, the read-only preview server, and each shape gate answer in the door's own
+    shape rather than in the shape of whichever branch decided them. The key gate runs
+    before the body read, so its refusal is safely attempt-less; every authenticated
+    refusal can and must name the attempt it read. A page's runtime is vendored at
+    `page init` and the layer around it moves, so the shape gates are reachable by an
+    older page's honest event, not only by a hand-written POST."""
+    publish(page_dir)
+    attempt = "attempt-for-the-door-x"
+    comment = {"kind": "comment", "version": 1, "text": "hello", "attempt": attempt}
+    preview = interact.LeafHTTPServer(
+        ("127.0.0.1", 0), interact.handler_for(page_dir, TOKEN, preview_upto=1)
+    )
+    thread = threading.Thread(target=preview.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, body = fetch(
+            f"{server}/api/event", data=json.dumps(comment).encode(), token=None
+        )
+        answer = json.loads(body)
+        assert (status, answer.get("ok"), answer.get("final")) == (
+            403,
+            False,
+            True,
+        )
+        assert "attempt" not in answer
+        assert answer.get("error") == interact.NO_KEY
+
+        refusals = [
+            (
+                "the preview server",
+                403,
+                comment,
+                TOKEN,
+                f"http://127.0.0.1:{preview.server_address[1]}",
+            ),
+            ("an unknown kind", 400, {**comment, "kind": "nope"}, TOKEN, server),
+            ("an unexpected field", 400, {**comment, "widget": "x"}, TOKEN, server),
+            ("a field of the wrong type", 400, {**comment, "text": 7}, TOKEN, server),
+            (
+                "a bad anchor",
+                400,
+                {**comment, "anchor": {"nothing": "here"}},
+                TOKEN,
+                server,
+            ),
+            (
+                "a malformed attempt",
+                400,
+                {**comment, "attempt": "too-short"},
+                TOKEN,
+                server,
+            ),
+            # The one refusal that was always in this shape, here so the loop below is
+            # read against a case that could never have failed it.
+            ("an unlive version", 400, {**comment, "version": 9}, TOKEN, server),
+        ]
+        for name, wanted, event, token, url in refusals:
+            status, body = fetch(
+                f"{url}/api/event", data=json.dumps(event).encode(), token=token
+            )
+            answer = json.loads(body)
+            assert (status, answer.get("ok"), answer.get("final")) == (
+                wanted,
+                False,
+                True,
+            ), (name, status, answer)
+            assert answer.get("attempt") == event["attempt"], (name, answer)
+            assert answer.get("error"), (name, answer)
+    finally:
+        preview.shutdown()
+
+    # The refusals decided before the body is a dict at all, which the parsed rows above
+    # cannot reach. These name no attempt because the door has nothing to read one out
+    # of, but each is safely final: parsing failed before an append could begin, so the
+    # browser may put the gesture back. What it must still receive is an answer: a body
+    # defeats the parse in more ways than the parse was written for — bytes that are not
+    # UTF-8 raise UnicodeDecodeError, since `json.loads` decodes before it parses, and
+    # nesting past the parser's own stack raises RecursionError, which is not even a
+    # ValueError. Uncaught, each left the request unanswered — which the outbox reads as
+    # a lost connection and re-posts every poll for the life of the tab.
+    #
+    # Each row names the refusal it must earn rather than asking for any refusal at all.
+    # The depth the parser gives up at is the interpreter's to choose, so a platform
+    # that got through this nesting would fall to the next gate, be refused as not an
+    # object, and pass a row that had proved nothing about the stack it was written for.
+    unreadable = [
+        (
+            "a body that is not UTF-8",
+            b'{"kind": "comment", "text": "\xff"}',
+            "invalid JSON",
+        ),
+        ("a body that is not JSON", b"{not json", "invalid JSON"),
+        ("a body that is not an object", b"[1, 2]", "event must be a JSON object"),
+        (
+            "a body nested past the parser's stack",
+            b"[" * 100000 + b"]" * 100000,
+            "invalid JSON",
+        ),
+    ]
+    for name, body, refusal in unreadable:
+        status, answered = fetch(f"{server}/api/event", data=body)
+        answer = json.loads(answered)
+        assert (status, answer.get("ok"), answer.get("final"), answer.get("error")) == (
+            400,
+            False,
+            True,
+            refusal,
+        ), (name, status, answer)
+
+    # The fifth is the header rather than the body, and no opener will send it: a
+    # Content-Length the machine will not hand over. `BufferedReader.read(n)` allocates
+    # n bytes before it reads any, so this raises MemoryError out of the read itself —
+    # neither a ValueError nor anything the parse could have raised, and the third
+    # exception type found this way. A length that cannot be allocated is a length that
+    # cannot be used, so it earns the same word an unparsable length does. The length is
+    # past what any machine can address rather than merely large: a host that overcommits
+    # can hand over ~91 TiB inside the 128 TiB four-level paging reaches, and the read
+    # would then block until this connection's own timeout, failing the row on the wait
+    # rather than on the refusal it is about.
+    # It arrives under this page's layer, as every runtime's POST does: a request from
+    # another generation is answered with the one to reload into, ahead of any verdict
+    # on a body written in a vocabulary this server no longer speaks.
+    _, served = fetch(f"{server}/api/state")
+    door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
+    try:
+        door.putrequest("POST", f"/api/event?t={TOKEN}")
+        door.putheader("Leaf-Layer", json.loads(served)["layer"])
+        door.putheader("Content-Length", "999999999999999999")
+        door.putheader("Content-Type", "application/json")
+        door.endheaders()
+        door.send(b"")
+        answered = door.getresponse()
+        answer = json.loads(answered.read())
+    finally:
+        door.close()
+    assert (
+        answered.status,
+        answer.get("ok"),
+        answer.get("final"),
+        answer.get("error"),
+    ) == (400, False, True, "invalid Content-Length"), answer
 
     assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
 

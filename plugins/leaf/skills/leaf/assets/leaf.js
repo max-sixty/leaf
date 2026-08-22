@@ -597,6 +597,7 @@ async function highlightBlocks(root) {
 // this instead.
 export const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 export const SCROLL = REDUCED ? "instant" : "smooth";
+let projectingState = false;
 
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
@@ -608,7 +609,11 @@ export function motion(el, keyframes, ms) {
   // first frame the reader sees, not a motion from authored state they never saw; it
   // collapses exactly as reduced motion does. This one shared check reaches folds and
   // FLIP alike without a widget learning whether the page has been presented.
-  if (REDUCED || !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
+  if (
+    REDUCED ||
+    projectingState ||
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)
+  )
     return null;
   const played = el.animate(keyframes, {
     duration: ms,
@@ -899,14 +904,15 @@ export const pageScroller = document.body;
 // projection reconciler states it again once the log contains it, which is why applyAction
 // implementations must state an absolute placement, never a relative mutation.
 //
-// A map rather than a count because reconciliation needs to know which widget: from the
-// gesture until the poll that reads its action back, the page holds state no log it
-// can read accounts for, and reconciliation leaves that widget alone for exactly that long
-// (see reconcileState). midComposition asks the same store whether anything at all is
-// in flight — navigating away could lose the unrecorded edit — and it lives here
-// because every widget's action passes through this door.
-const sending = new Map(); // widget id -> sends in flight for it
-const LOCAL_ACTION = Symbol("uncommitted local action");
+// The outbox is the one representation of a gesture the page has made and has not yet
+// read back into a complete rendered state. It orders every user event, tells replay
+// which optimistic actions stand over authoritative state, and tells undo/navigation
+// whether any action is unresolved. An accepted entry may remain here after its caller is
+// answered: delivery can be certain while applying the response's state failed locally.
+// A second pending map used to mirror part of the same lifecycle and then needed a
+// protocol of its own to agree with the send queue and the polling loop.
+const outbox = [];
+let outboxOrder = 0;
 export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
@@ -919,63 +925,34 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
     );
     return null;
   }
-  // The caller may already have painted the gesture. Put that uncommitted state in
-  // the one checkpoint representation so an action and its withdrawal arriving in
-  // the same poll can still restore the authored baseline. The sentinel id is
-  // necessarily dirty; success replaces it with the minted winner, and failure with
-  // whatever the log actually holds.
-  const spec = registry[el.localName]?.["x-state"]?.[action];
-  const unit = spec && unitOf({ widget: el.id, detail }, spec);
-  if (spec && typeof unit === "string") {
-    const coordinate = stateCoordinate(el.id, unit, spec);
-    committedProjection.set(coordinate, {
-      widgetId: el.id,
-      widget: el,
-      unit: elementById(unit),
-      entry: {
-        unit,
-        spec,
-        coordinate,
-        e: { id: LOCAL_ACTION, kind: "action", widget: el.id, action, detail },
-      },
-    });
-  }
-  sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
-  let minted;
-  try {
-    minted = await post({
-      kind: "action",
-      version: VNUM,
-      widget: el.id,
-      action,
-      detail,
-      ...(attempt && { attempt }),
-    });
-    return minted;
-  } finally {
-    const left = sending.get(el.id) - 1;
-    if (left) sending.set(el.id, left);
-    else {
-      sending.delete(el.id);
-      // A successful send's forced poll may have been snapshotted before the event
-      // the server just minted. Preserve the newer local DOM until a poll contains
-      // that id; otherwise the older projection can paint over a newer gesture. A
-      // failed send has no id and reconciles back to the log immediately.
-      // The widget paints success or rolls failure back in the continuation of this
-      // promise. Reconcile in the following task so that local paint finishes first;
-      // otherwise it could overwrite a foreign winner we had just committed and no
-      // later poll would know the DOM had diverged.
-      setTimeout(() => {
-        if (
-          !sending.has(el.id) &&
-          (!minted || events.some((event) => event.id === minted.id))
-        ) {
-          reconcileState();
-          document.dispatchEvent(new Event("lf-actions"));
-        }
-      });
-    }
-  }
+  return post({
+    kind: "action",
+    version: VNUM,
+    widget: el.id,
+    action,
+    detail,
+    ...(attempt && { attempt }),
+  });
+}
+
+// Whether the latest event list this tab has seen still leaves an accepted action as
+// the reader's statement of its semantic coordinate. An options `answer` does not erase
+// its picks because completion and selection are different facets, while a later
+// suggestion `reject` supersedes `accept` because both state settlement.
+// A response can fail before installing its event list at all; acceptance is then the
+// only statement this tab knows, so its caller may paint while the outbox keeps replay
+// and undo held for a complete read.
+export function actionStands(event) {
+  if (!events.some((candidate) => candidate.id === event.id)) return true;
+  const el = elementById(event.widget);
+  const spec = el && registry[el.localName]?.["x-state"]?.[event.action];
+  if (!el || !spec) return false;
+  const unit = unitOf(event, spec);
+  if (typeof unit !== "string") return false;
+  return (
+    stateProjection(VNUM).actions.get(stateCoordinate(event.widget, unit, spec))?.e
+      .id === event.id
+  );
 }
 
 // The page seat of a widget's conversation (x-conversation). A module places the seat;
@@ -3924,55 +3901,186 @@ function showToast(msg, onClick) {
 
 // Returns the event the server minted — the id is the sender's only handle on the
 // thread or message it just created, which is what revealThread is handed — or null
-// when the send failed. The poll is awaited before returning, so by the time a caller
-// holds the minted event the panel has already rendered it.
+// when the server definitively refused it. Every event carries one browser-minted
+// attempt, so a lost answer is retried without becoming a second gesture.
 //
-// One send at a time, because the log's order is the order the user acted in and two
-// requests in flight are not: the server answers each on a thread of its own, so a pick
-// made a moment after another can be appended before it. Replay states a widget whole,
-// so the log read back then hands the reader the older decision as their standing state
-// and the gesture after that computes from it — the very drift the poll's own ordering
-// is written around, arriving through the log instead. It cost two CI runs: two clicks
-// three lines apart in a test reached the log reversed on a loaded runner, where two
-// dozen tries under the dockerised Linux suite never once managed it.
+// The outbox sends one at a time because the log's order is the order the reader acted
+// in and concurrent requests are not. It is also the page's only record of unresolved
+// work: an action in this list is the widget replay leaves alone and the fact that keeps
+// undo dead. A separate promise chain plus a pending-widget map used to describe those
+// same records twice, then reconcile them through a later poll.
 //
-// A gesture that painted itself has nothing the reader is looking at waiting on this;
-// a press has its own paint waiting, since it shows the decision only once the log has
-// taken it (see CLAUDE.md). Either way what waits behind is the next event's request,
-// until this one has been taken. A failed send is not a queue that stops: the turn
-// passes on whatever the fetch did. And only the send is ordered; the poll each one
-// ends with is a read, and no fact about the log turns on when a read lands.
-let taken = Promise.resolve();
-async function post(event) {
-  // One attempt. A send the server never took changes nothing — the page says so,
-  // and puts back whatever the gesture had painted — and a send it took whose
-  // response was lost is put back by the next poll, the log being what the page
-  // renders from. Retrying instead would need the sender to mint the id (a
-  // second send is only safe if the door can tell it from a second decision),
-  // and it would hold the queue below through its own backoff, delaying every
-  // later gesture to soften a case the log already reconciles.
-  const mine = taken.then(() => postEvent(event));
-  // The turn passes on whatever the send did, failures included — and the
-  // catch is what makes that true: a rejection left in `taken` is a promise
-  // every later send would chain onto and none would ever run from.
-  taken = mine.catch(() => {});
-  let minted;
-  try {
-    const res = await mine;
-    if (!res) return null; // a newer layer is taking this tab over
-    if (!res.ok) throw new Error(await res.text());
-    ({ event: minted } = await res.json());
-  } catch {
-    showToast("Couldn't send — server offline?");
-    return null;
+// A successful POST returns the server's state through the event it accepted. Acceptance
+// answers the caller and lets the next entry send. The entry itself leaves only after a
+// complete state application accounts for its attempt, keeping replay and undo away from
+// stale history if rendering the response fails. A periodic poll may account for the
+// attempt first after a response is lost, or later after a local render fault.
+const retryPause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS));
+let drainingOutbox = false;
+function removeOutbox(entry) {
+  const index = outbox.indexOf(entry);
+  if (index >= 0) outbox.splice(index, 1);
+}
+function accountOutbox(readEvents) {
+  let removed = false;
+  for (const entry of [...outbox]) {
+    const accepted = readEvents.find(
+      (candidate) => candidate.attempt === entry.event.attempt,
+    );
+    if (!accepted) continue;
+    entry.readEvent = accepted;
+    entry.resolveRead(accepted);
+    if (!entry.answered) continue;
+    if (entry.event.kind !== "action") {
+      removeOutbox(entry);
+      removed = true;
+    }
   }
-  // The send succeeded the moment the server minted the event. The poll only
-  // brings the panel up to date, so a fault in its render pipeline is its own
-  // news and must not claim the send failed — a caller told null takes back a pick
-  // the log already holds, or withholds a decision the log already holds, and the
-  // next timer poll paints it back two seconds later either way.
-  await poll().catch((error) => console.error("leaf: poll after send", error));
-  return minted;
+  if (releaseProjectedOutbox()) removed = true;
+  if (removed) paintKeys();
+}
+async function deliver(entry) {
+  let announced = false;
+  for (;;) {
+    const { event } = entry;
+    if (entry.readEvent) return { answer: entry.readEvent, accounted: true };
+    const sent = await Promise.race([
+      postEvent(event).then(
+        (res) => ({ res }),
+        (error) => ({ error }),
+      ),
+      entry.read.then((answer) => ({ answer })),
+    ]);
+    if (sent.answer) return { answer: sent.answer, accounted: true };
+    if (sent.error) {
+      if (!announced) showToast("Connection lost — retrying your change…");
+      announced = true;
+      await retryPause();
+      continue;
+    }
+    const res = sent.res;
+    // A newer layer is taking this tab over, and `postEvent` has already started the
+    // reload. The server refused to read this body in a vocabulary it no longer
+    // speaks, so nothing was appended and there is nothing here to retry: the page
+    // comes back from the log, under the layer it is reloading into.
+    if (!res) return { answer: null, accounted: true };
+    const decoded = await Promise.race([
+      res.json().then(
+        (answer) => ({ answer }),
+        (error) => ({ error }),
+      ),
+      entry.read.then((answer) => ({ readAnswer: answer })),
+    ]);
+    if (decoded.readAnswer) return { answer: decoded.readAnswer, accounted: true };
+    if (decoded.error) {
+      if (!announced) showToast("Couldn't read the answer — retrying your change…");
+      announced = true;
+      await retryPause();
+      continue;
+    }
+    const answer = decoded.answer;
+    const acceptedEvent = answer?.state?.events?.find(
+      (candidate) => candidate.attempt === event.attempt,
+    );
+    if (res.ok && answer?.ok === true && acceptedEvent) {
+      // The send succeeded the moment the answer named the accepted event. A fault
+      // rendering that state is its own news and must not re-send: the next poll
+      // paints it, and re-posting an attempt the log already holds is a request the
+      // server can only answer the same way. Where the throw lands before the events
+      // are stored, the retry would not even end at the top of this loop — the
+      // attempt is in no list to be found — so the page would post forever and this
+      // gesture would never settle.
+      const settled = receiveState(answer.state).catch((error) =>
+        console.error("leaf: state in event response", error),
+      );
+      return {
+        answer: acceptedEvent,
+        accounted: Boolean(entry.readEvent),
+        settled,
+      };
+    }
+    if (
+      answer?.final === true &&
+      (!("attempt" in answer) || answer.attempt === event.attempt) &&
+      answer.ok === false
+    ) {
+      showToast(`Couldn't send — ${answer.error || "the server refused it"}`);
+      return { answer: null, accounted: true };
+    }
+    if (!announced) showToast("Server answer was incomplete — retrying your change…");
+    announced = true;
+    await retryPause();
+  }
+}
+async function drainOutbox() {
+  if (drainingOutbox) return;
+  drainingOutbox = true;
+  try {
+    for (;;) {
+      const entry = outbox.find((candidate) => !candidate.answered);
+      if (!entry) break;
+      const { answer, accounted, settled } = await deliver(entry);
+      entry.answered = true;
+      entry.rejected = !answer && entry.event.kind === "action";
+      if (entry.event.kind !== "action" && accounted) removeOutbox(entry);
+      // A rejected action stops contributing its optimistic winner immediately, but
+      // stays in this outbox until the semantic projector has committed the resulting
+      // authoritative state. Delivery can advance; replay and undo cannot see the hold
+      // disappear first. Accepted entries are released by the complete read that
+      // contains their attempt, never merely by a response whose rendering failed.
+      if (entry.rejected || (accounted && entry.readEvent)) {
+        if (reconcileKnownState()) releaseProjectedOutbox();
+      }
+      // The list is an input to the key line and no focus/mouse event accompanies
+      // either edge. Repaint before resolving the caller, whose own settlement may
+      // move a second row on the same frame.
+      paintKeys();
+      // Acceptance opens the delivery queue immediately, but a successful caller
+      // resumes only after this answer's state has either painted or reported why it
+      // could not. Comment callers reveal and focus the thread that state creates;
+      // tying their continuation to POST delivery made that focus a race. A failed
+      // render still resolves with the accepted event and leaves this outbox entry
+      // holding replay and undo for the next complete poll.
+      if (settled) void settled.then(() => entry.resolve(answer));
+      else entry.resolve(answer);
+    }
+  } finally {
+    drainingOutbox = false;
+  }
+}
+function post(event) {
+  const attempted = { ...event, attempt: event.attempt || newAttempt() };
+  // One attempt names one gesture. A caller that reuses it while the first gesture
+  // is still here has made a local protocol conflict; letting both entries wait for
+  // the same attempt would make the first accepted read resolve the second with the
+  // wrong payload before that payload ever reached the server's conflict gate.
+  if (outbox.some((entry) => entry.event.attempt === attempted.attempt)) {
+    showToast(`Couldn't send — attempt ${attempted.attempt} is already in use`);
+    return Promise.resolve(null);
+  }
+  const answer = new Promise((resolve) => {
+    let resolveRead;
+    const read = new Promise((readResolve) => {
+      resolveRead = readResolve;
+    });
+    const entry = {
+      event: attempted,
+      resolve,
+      read,
+      resolveRead,
+      answered: false,
+      rejected: false,
+      readEvent: null,
+      order: ++outboxOrder,
+      localId: Symbol("uncommitted local action"),
+      projection: null,
+    };
+    outbox.push(entry);
+    stageOutboxAction(entry);
+  });
+  paintKeys();
+  void drainOutbox();
+  return answer;
 }
 
 // ---------- text inputs ----------
@@ -4212,11 +4320,14 @@ function buildMsgBody(m) {
     body.textContent = m.text;
   } else {
     body.innerHTML = renderMarkdown(m.text);
-    // The widget markup beside the text, injected as the CLI gate validated it.
-    // Already-defined widgets upgrade on insertion; the passes below don't come
-    // along with them — the said and quiet passes write a widget's declared words,
-    // spoken and silent, and a fenced block is a <pre><code class="language-…">
-    // like any the page holds.
+    // The widget markup beside the text, injected as the CLI gate validated it. A
+    // template is deliberately inert: an already-defined custom element's constructor
+    // runs even in a detached ordinary div, which would make generated state look like
+    // the thread event's authored baseline. Capture the literal event markup first,
+    // then move those same nodes into the body; they upgrade when the body is connected.
+    // The passes below don't come along with that upgrade — the said and quiet passes
+    // write a widget's declared words, spoken and silent, and a fenced block is a
+    // <pre><code class="language-…"> like any the page holds.
     //
     // markWide is the pass that deliberately stays behind, and the reason is what
     // it hands out: the room the *document* has, which is not the room in here. A
@@ -4224,12 +4335,11 @@ function buildMsgBody(m) {
     // it would lay itself out to the page's measure inside a 420px panel. The room
     // a message has is the message's, and it already has it.
     if (m.markup) {
-      body.insertAdjacentHTML("beforeend", m.markup);
-      // A reply widget has no version file to rebuild from. Bank its authored
-      // markup and record forms while the body is still detached and before its
-      // custom elements connect, exactly as upgradeWidgets does for the page.
-      rememberAuthoredMarkup(body);
-      captureAuthoredFacets(body);
+      const authored = document.createElement("template");
+      authored.innerHTML = m.markup;
+      rememberAuthoredMarkup(authored.content);
+      captureAuthoredFacets(authored.content);
+      body.append(authored.content);
     }
     renderSaid(body);
     renderQuiet(body);
@@ -4768,6 +4878,12 @@ function renderThreads(threads) {
     wanted.push(resolvedBox);
   }
   setChildren(threadsBox, wanted);
+  // A thread's widget markup is authored too, but it arrives after the page's startup
+  // capture. Take its baseline on the first frame it is connected, before a reader can
+  // act on it; later reconciles keep the first capture rather than mistaking a live
+  // choice for authored state. Thread markup is frozen in its event, so unlike page
+  // markup it has no version window to move under.
+  captureAuthoredFacets(threadsBox);
   // A comment carries whatever widget markup the gate allows, so the panel holds the
   // same scroll boxes the page does, in a column half the width — and reachScrollers
   // wants two things that are only true here, after this line. A message body is built
@@ -7530,13 +7646,28 @@ const syncGeneral = wireInput(generalInput, {
 });
 mirrorDraft(generalInput, syncGeneral, "general");
 
+let approving = false;
 function paintApproval() {
   const approved = events.some((e) => e.kind === "done");
   approveBtn.disabled =
-    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) || approved;
+    approving ||
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+    approved;
   approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
 }
-approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good" });
+approveBtn.onclick = async () => {
+  if (approving) return;
+  approving = true;
+  approveBtn.setAttribute("aria-busy", "true");
+  paintApproval();
+  try {
+    await post({ kind: "done", version: VNUM, text: "Looks good" });
+  } finally {
+    approving = false;
+    approveBtn.removeAttribute("aria-busy");
+    paintApproval();
+  }
+};
 
 // ---------- keyboard ----------
 // The register's scopes, and the one dispatcher that walks them. What a row and a scope
@@ -8388,11 +8519,11 @@ const PAGE = {
       keys: ["z"],
       does: "Take back the last change you made here",
       line: "undo",
-      // Dead while the page holds a gesture the log has not taken, this one's own
-      // send included: the walk would name the gesture *before* the one they just
-      // made and take that back instead. The line drops the chip for as long as
-      // that is true rather than promising a press that would undo the wrong thing.
-      when: () => !unrecordedGesture() && Boolean(undoable()),
+      // Dead while the page holds a gesture no log read accounts for, this one's
+      // own send included: the walk would name the gesture *before* the one they
+      // just made and take that back instead. The line drops the chip for as long
+      // as that is true rather than promising a press that would undo the wrong thing.
+      when: () => !unaccountedGesture() && Boolean(undoable()),
       run: undoLast,
     },
     // Above the page's furniture, because it is the way out of wherever the reader is
@@ -9886,7 +10017,7 @@ function renderVersions(state) {
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
 }
 /** The reader's hand on a widget, in the layer's own word: a drag the log has not taken
- * yet. The class is half of `unrecordedGesture` below, so taking it up or putting it
+ * yet. The class is half of `unaccountedGesture` below, so taking it up or putting it
  * down moves core's `z` row — a row no widget declares, and therefore the one no widget
  * would think to repaint. Both edges of a pointer drag went unpainted for exactly that
  * reason, and on a quiet board the line went on offering `undo` for as long as the
@@ -9902,18 +10033,20 @@ export const dragging = (el, on) => {
   el.classList.toggle("lf-dragging", on);
   paintKeys();
 };
-// A gesture of the reader's that the log has not taken yet, asked of the layer's own
-// signals rather than of any widget by name: a drag wears .lf-dragging (dragging, above),
-// a send in flight is sendAction's own record, and an undo in flight is its own —
-// it belongs to no widget, so `sending` cannot keep it. Two questions want the answer,
+// A gesture of the reader's that the page has not accounted for in a log read, asked of
+// the layer's own signals rather than of any widget by name: a drag wears .lf-dragging
+// (dragging, above), every unresolved browser event is in the outbox, and an undo
+// in flight is its own — it is tracked separately because the walk itself cannot be
+// offered again while its event is being answered.
+// Two questions want the answer,
 // which is why it has a name of its own: navigating away would destroy such a gesture,
 // and the undo walk reads the log to find the last thing the reader did, so it cannot
 // answer while the page is holding one. Its own press included — a second `z` landing
 // inside the first one's trip would read the log from before it and withdraw the same
 // gesture again, which the door refuses and the reader hears as a page that couldn't
 // reach its server.
-const unrecordedGesture = () =>
-  undoing || sending.size > 0 || Boolean(document.querySelector(".lf-dragging"));
+const unaccountedGesture = () =>
+  undoing || outbox.length > 0 || Boolean(document.querySelector(".lf-dragging"));
 // The user is mid-something navigation would destroy: the above, and the words they
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
@@ -9921,7 +10054,7 @@ const unrecordedGesture = () =>
 const midComposition = () =>
   composerOpen ||
   Boolean(fabAnchor) ||
-  unrecordedGesture() ||
+  unaccountedGesture() ||
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
       document.activeElement.hasAttribute("data-lf-offer")));
@@ -9938,10 +10071,13 @@ latestChip.onclick = () => goVersion(latestVersion);
 // those winners through an absolute applyAction(action, detail); when several units
 // share one ordered container, their winners are applied together in log order.
 //
-// A widget whose own send is in flight stays ahead of the log and is left alone.
-// The hold ends only when a poll contains the event the server minted; a stale poll
-// cannot paint an older winner over the newer local gesture. Live drags and widgets
-// that return false from applyAction similarly defer without advancing their commit.
+// Absolute is what makes projection converge. Reader actions outrank provisional agent
+// reports on the same coordinate; winners on different coordinates are applied in their
+// original order so sibling position units compose. Recorded outbox actions form an
+// optimistic overlay after the log until accepted or definitively refused. A refusal
+// removes only its overlay, then the same projector derives the widget from authored
+// records, authoritative winners, and every surviving local action. Live drags and
+// widgets that return false defer that correction without advancing its commit.
 //
 // The log outranks the markup, and that is the whole rule: authored state is the
 // initial condition, never a later correction, so nothing a version does or
@@ -10080,6 +10216,14 @@ function markSettled(el, action) {
   }
   return false;
 }
+function clearSettled(el, facet) {
+  const action = el.getAttribute("data-lf-state");
+  const spec = registry[el.localName]?.["x-state"]?.[action];
+  if (!action || spec?.unit !== "widget" || spec.facet !== facet) return false;
+  el.removeAttribute("data-lf-state");
+  renderRetired(el);
+  return true;
+}
 // ---------- decided, awaiting the honoring version ----------
 // The registry's x-state names each verb's fold unit and record form, so one
 // pass renders "the user decided this and no version has carried it yet"
@@ -10099,9 +10243,29 @@ function stateSpecs() {
   const specs = [];
   for (const [tag, entry] of widgetEntries())
     for (const channel of ["x-state", "x-report"])
-      for (const spec of Object.values(entry[channel] ?? {})) specs.push({ tag, spec });
+      for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
+        specs.push({ tag, channel, verb, spec });
   return specs;
 }
+
+// A recorded part belongs to the nearest widget that owns recorded state, regardless
+// of tag. Custom containers and shipped widgets compose through the same registry, so
+// same-tag scoping is too weak: an outer group must not read or reset a nested group's
+// chosen members merely because the inner owner has another name.
+const recordedOwner = (member) => {
+  const selector = [
+    ...new Set(
+      stateSpecs()
+        .filter(({ spec }) => spec.record)
+        .map(({ tag }) => tag),
+    ),
+  ].join(",");
+  return selector ? member.closest(selector) : null;
+};
+const ownedRecordMembers = (widget, selector) =>
+  [...widget.querySelectorAll(selector)].filter(
+    (member) => recordedOwner(member) === widget,
+  );
 
 // What the page shows for one unit's declared record form, asked of the live
 // DOM or of the diff's parsed base document alike. An attribute record is the
@@ -10116,7 +10280,7 @@ function stateSpecs() {
 // came out with a leading space on this one.
 function domFacet(el, record) {
   if (record.kind === "attribute")
-    return [...el.querySelectorAll(`[${record.attr}]`)]
+    return ownedRecordMembers(el, `[${record.attr}]`)
       .map((o) => o.id)
       .filter(Boolean)
       .sort()
@@ -10150,6 +10314,11 @@ function foldedFacet(e, record) {
 // back on the right list in the wrong place is the facet's answer, correct and
 // useless.
 const authoredDetails = new Map(); // (owner, unit, facet) -> the detail stating it
+// Reconciliation resets a dirty widget as one composition boundary before replaying
+// its winners. Position units share sibling order, so restoring only the unit whose
+// winner disappeared would make its authored index relative to a still-projected
+// container and then replay the other units from the wrong order.
+const authoredStatements = new Map(); // widget id -> coordinate -> absolute statement
 
 // And the markup itself, for the widgets whose state cannot be stated at all: one whose
 // durable verb has no record — a settlement, where "undecided" is a value no
@@ -10172,24 +10341,45 @@ function rememberAuthoredMarkup(root = document) {
       .filter(({ spec }) => !spec.record)
       .map(({ tag }) => tag),
   );
-  for (const tag of settlements)
-    for (const widget of root.querySelectorAll(tag))
-      if (widget.id) authoredMarkup.set(widget.id, widget.cloneNode(true));
+  for (const tag of settlements) {
+    const widgets = [
+      ...(root.matches?.(tag) ? [root] : []),
+      ...root.querySelectorAll(tag),
+    ];
+    for (const widget of widgets)
+      if (widget.id && !authoredMarkup.has(widget.id))
+        authoredMarkup.set(widget.id, widget.cloneNode(true));
+  }
 }
 
+const authoredWidgets = new Set();
 function captureAuthoredFacets(root = document) {
-  for (const { tag, spec } of stateSpecs()) {
-    if (!spec.record) continue;
-    for (const widget of root.querySelectorAll(tag)) {
-      if (spec.unit === "widget") {
-        if (widget.id) rememberAuthored(widget, widget.id, widget.id, spec);
-      } else
-        // Per-part units, at the record form's own key: a position facet is
-        // carried by the container's direct children (a column's cards), and
-        // an id'd element nested inside one — a draft in a card — is not a
-        // unit, just a passenger whose `closest()` would echo its carrier's.
-        for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
-          if (widget.id) rememberAuthored(part, widget.id, part.id, spec);
+  const byTag = new Map();
+  for (const statement of stateSpecs()) {
+    if (!statement.spec.record) continue;
+    const statements = byTag.get(statement.tag) ?? [];
+    statements.push(statement);
+    byTag.set(statement.tag, statements);
+  }
+  for (const [tag, statements] of byTag) {
+    const widgets = [
+      ...(root.matches?.(tag) ? [root] : []),
+      ...root.querySelectorAll(tag),
+    ];
+    for (const widget of widgets) {
+      if (!widget.id || authoredWidgets.has(widget.id)) continue;
+      for (const { channel, verb, spec } of statements) {
+        if (spec.unit === "widget")
+          rememberAuthored(widget, widget, widget.id, channel, verb, spec);
+        else
+          // A position facet is carried by the container's direct id'd children.
+          // Ownership stops at the nearest widget declaring recorded state, so an
+          // outer custom container cannot capture a nested widget's parts.
+          for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
+            if (recordedOwner(part.parentElement) === widget)
+              rememberAuthored(widget, part, part.id, channel, verb, spec);
+      }
+      authoredWidgets.add(widget.id);
     }
   }
 }
@@ -10197,10 +10387,16 @@ function captureAuthoredFacets(root = document) {
 // The facet and the statement that restores it are both authored facts. Reports are
 // not undoable gestures, but a report can be the projected state displaced by an
 // action; when that action is withdrawn, reconciliation needs the same baseline.
-function rememberAuthored(el, owner, unit, spec) {
-  authoredFacets.set(stateCoordinate(owner, unit, spec), domFacet(el, spec.record));
+function rememberAuthored(widget, el, unit, _channel, verb, spec) {
+  const coordinate = stateCoordinate(widget.id, unit, spec);
+  authoredFacets.set(coordinate, domFacet(el, spec.record));
   const detail = authoredDetail(el, unit, spec);
-  if (detail) authoredDetails.set(stateCoordinate(owner, unit, spec), detail);
+  if (!detail) return;
+  authoredDetails.set(coordinate, detail);
+  const statements = authoredStatements.get(widget.id) ?? new Map();
+  if (!statements.has(coordinate))
+    statements.set(coordinate, { coordinate, unit, action: verb, detail, spec });
+  authoredStatements.set(widget.id, statements);
 }
 
 // Built from the record form alone, so no widget is named here and a twelfth one is
@@ -10211,7 +10407,7 @@ function authoredDetail(el, unit, spec) {
   const record = spec.record;
   const detail = spec.unit !== "widget" ? { [spec.unit]: unit } : {};
   if (record.kind === "attribute")
-    detail[record.value] = [...el.querySelectorAll(`[${record.attr}]`)]
+    detail[record.value] = ownedRecordMembers(el, `[${record.attr}]`)
       .map((o) => o.id)
       .filter(Boolean)
       .sort();
@@ -10248,6 +10444,44 @@ const unitOf = (e, spec) => (spec.unit === "widget" ? e.widget : e.detail[spec.u
 // JSON's array form preserves the boundary even when an id contains punctuation.
 const stateCoordinate = (owner, unit, spec) =>
   JSON.stringify([owner, unit, spec.facet]);
+
+// A recorded action has already been painted by its widget when it enters this door.
+// Give that optimistic value the same semantic coordinate as authoritative state, and
+// commit it on the exact nodes that carry it. Record-less actions paint only after
+// acceptance, so putting one in this overlay would show a decision the server may refuse.
+function stageOutboxAction(entry) {
+  const e = entry.event;
+  if (e.kind !== "action") return;
+  const widget = elementById(e.widget);
+  const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
+  if (!spec?.record) return;
+  const unit = unitOf(e, spec);
+  if (typeof unit !== "string") return;
+  const coordinate = stateCoordinate(e.widget, unit, spec);
+  const projection = {
+    unit,
+    spec,
+    coordinate,
+    localOrder: entry.order,
+    e: { ...e, id: entry.localId },
+  };
+  entry.projection = projection;
+  committedProjection.set(coordinate, {
+    widgetId: e.widget,
+    widget,
+    unit: elementById(unit),
+    entry: projection,
+  });
+}
+
+function compareProjected(a, b) {
+  const aLogged = Number.isInteger(a.e.seq);
+  const bLogged = Number.isInteger(b.e.seq);
+  if (aLogged && bLogged) return a.e.seq - b.e.seq;
+  if (aLogged) return -1;
+  if (bLogged) return 1;
+  return a.localOrder - b.localOrder;
+}
 
 // Both durable channels projected in one pass. Actions holds the last surviving
 // reader action per coordinate. Reports keeps every live report because publishing
@@ -10304,6 +10538,15 @@ function stateProjection(upto, without = null) {
       reports.set(coordinate, standing);
     }
   }
+  // A retained accepted attempt already appears above at its true log position. Every
+  // other surviving recorded action is newer local state, in the order the one outbox
+  // will deliver it. Rejections are tombstones, not winners.
+  const loggedAttempts = new Set(events.map((e) => e.attempt).filter(Boolean));
+  for (const out of outbox) {
+    const entry = out.projection;
+    if (!entry || out.rejected || loggedAttempts.has(out.event.attempt)) continue;
+    actions.set(entry.coordinate, entry);
+  }
   const desired = new Map(
     [...reports].map(([coordinate, standing]) => [coordinate, standing.at(-1)]),
   );
@@ -10345,7 +10588,7 @@ export const standingState = () => {
   const projection = stateProjection(VNUM);
   return [...projection.desired]
     .filter(([, entry]) => !inChrome(elementById(entry.e.widget)))
-    .sort(([, a], [, b]) => a.e.seq - b.e.seq)
+    .sort(([, a], [, b]) => compareProjected(a, b))
     .map(([_coordinate, { unit, e, spec }]) => ({
       get widget() {
         return elementById(e.widget);
@@ -10429,7 +10672,7 @@ const UNDO_WORDS = {
   action: "Took back your last change",
 };
 
-// This press's own record of being in flight, read by unrecordedGesture with the
+// This press's own record of being in flight, read by unaccountedGesture with the
 // layer's other two.
 let undoing = false;
 
@@ -10511,6 +10754,38 @@ function projectionCommitted(projection, e) {
   );
 }
 
+function localCoordinateCommitted(projection, entry) {
+  const local = entry.projection;
+  if (!local) return true; // record-less actions never painted before acceptance
+  const widget = elementById(local.e.widget);
+  if (!widget) return true;
+  const desired = projection.desired.get(local.coordinate) ?? null;
+  const commit = committedProjection.get(local.coordinate);
+  return (
+    commit?.widget === widget &&
+    commit.unit === elementById(local.unit) &&
+    committedEvent(commit) === (desired?.e.id ?? null)
+  );
+}
+
+// Delivery and projection are separate facts. Accepted entries leave only after a
+// complete read has committed the coordinate that now represents them; rejected
+// entries leave only after their optimistic token no longer represents the DOM.
+function releaseProjectedOutbox() {
+  const projection = stateProjection(VNUM);
+  let removed = false;
+  for (const entry of [...outbox]) {
+    if (!entry.answered || entry.event.kind !== "action") continue;
+    const settled = entry.rejected
+      ? localCoordinateCommitted(projection, entry)
+      : Boolean(entry.readEvent && projectionCommitted(projection, entry.readEvent));
+    if (!settled) continue;
+    removeOutbox(entry);
+    removed = true;
+  }
+  return removed;
+}
+
 // Readiness remains event-counted even though painting is coordinate-based. Every
 // superseded action and absorbed report is settled when the one state that represents
 // its coordinate has been committed; an undo is settled by that same transition back
@@ -10543,183 +10818,230 @@ function rememberWrites(before, kind) {
   document.body.setAttribute(attr, [...new Set([...prior, ...changed])].join(" "));
 }
 
+let projectionDragObserver = null;
+function watchProjectionDrag() {
+  if (projectionDragObserver) return;
+  projectionDragObserver = new MutationObserver(() => {
+    if (document.querySelector(".lf-dragging")) return;
+    projectionDragObserver.disconnect();
+    projectionDragObserver = null;
+    if (reconcileKnownState() && releaseProjectedOutbox()) paintKeys();
+    document.dispatchEvent(new Event("lf-actions"));
+  });
+  projectionDragObserver.observe(document.body, {
+    attributes: true,
+    subtree: true,
+    attributeFilter: ["class"],
+  });
+}
+
 // Make the DOM equal the projection. A widget is the application boundary: if any of
 // its coordinates changed, all of its surviving winners are replayed in log order so
 // sibling units sharing an ordered container retain their collective placement.
 function reconcileState() {
-  if (document.querySelector(".lf-dragging")) return;
+  if (document.querySelector(".lf-dragging")) {
+    watchProjectionDrag();
+    return;
+  }
+  projectionDragObserver?.disconnect();
+  projectionDragObserver = null;
 
   const started = [];
   let painted = false;
   let projection;
-  // A recordless baseline replaces a subtree. Restarting from the pure projection is
-  // what discovers every surviving nested coordinate on the new node identities.
-  for (;;) {
-    projection = stateProjection(VNUM);
-    for (const entry of projection.classified.values())
-      for (const id of entry.restated ?? [])
-        elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
+  const priorProjectionMode = projectingState;
+  if (outbox.some((entry) => entry.rejected && entry.projection))
+    projectingState = true;
+  try {
+    // A recordless baseline replaces a subtree. Restarting from the pure projection is
+    // what discovers every surviving nested coordinate on the new node identities.
+    for (;;) {
+      projection = stateProjection(VNUM);
+      for (const entry of projection.classified.values())
+        for (const id of entry.restated ?? [])
+          elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
 
-    for (const [coordinate, commit] of committedProjection)
-      if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
+      for (const [coordinate, commit] of committedProjection)
+        if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
 
-    const coordinates = new Map();
-    for (const entry of projection.classified.values())
-      if (!entry.terminal) coordinates.set(entry.coordinate, entry);
-    for (const [coordinate, commit] of committedProjection)
-      if (!coordinates.has(coordinate)) coordinates.set(coordinate, commit.entry);
+      const coordinates = new Map();
+      for (const entry of projection.classified.values())
+        if (!entry.terminal) coordinates.set(entry.coordinate, entry);
+      for (const [coordinate, entry] of projection.desired)
+        if (!coordinates.has(coordinate)) coordinates.set(coordinate, entry);
+      for (const [coordinate, commit] of committedProjection)
+        if (!coordinates.has(coordinate)) coordinates.set(coordinate, commit.entry);
 
-    const widgets = new Map();
-    for (const [coordinate, sample] of coordinates) {
-      if (!sample) continue;
-      const widgetId = sample.e.widget;
-      const widget = elementById(widgetId);
-      if (!widget) continue;
-      const desired = projection.desired.get(coordinate) ?? null;
-      const commit = committedProjection.get(coordinate);
-      const unit = elementById(sample.unit);
-      const clean =
-        commit?.widget === widget &&
-        commit.unit === unit &&
-        committedEvent(commit) === (desired?.e.id ?? null);
-      const states = widgets.get(widgetId) ?? [];
-      states.push({ coordinate, sample, desired, commit, clean });
-      widgets.set(widgetId, states);
-    }
-
-    let rebuilt = false;
-    for (const [widgetId, states] of widgets) {
-      if (states.every((state) => state.clean) || sending.has(widgetId)) continue;
-      let widget = elementById(widgetId);
-      if (!widget) continue;
-
-      // A newly constructed thread widget or rebuilt descendant already carries its
-      // authored baseline. Only a committed winner on these exact nodes needs to be
-      // actively restored.
-      const removals = states.filter(
-        ({ desired, commit }) => !desired && commit?.entry && commit.widget === widget,
-      );
-      const recordless = removals.find(({ commit }) => !commit.entry.spec.record);
-      if (recordless) {
-        widget = rebuild(widget);
-        committedProjection.set(recordless.coordinate, {
-          widgetId,
-          widget,
-          unit: elementById(recordless.sample.unit),
-          entry: null,
-        });
-        painted = true;
-        rebuilt = true;
-        break;
+      const widgets = new Map();
+      for (const [coordinate, sample] of coordinates) {
+        if (!sample) continue;
+        const widgetId = sample.e.widget;
+        const widget = elementById(widgetId);
+        if (!widget) continue;
+        const desired = projection.desired.get(coordinate) ?? null;
+        const commit = committedProjection.get(coordinate);
+        const unit = elementById(sample.unit);
+        const clean =
+          commit?.widget === widget &&
+          commit.unit === unit &&
+          committedEvent(commit) === (desired?.e.id ?? null);
+        const states = widgets.get(widgetId) ?? [];
+        states.push({ coordinate, sample, desired, commit, clean });
+        widgets.set(widgetId, states);
       }
 
-      if (!widget.applyAction) {
-        if (document.body.dataset.lfUpgraded !== "1") continue;
-        for (const { desired } of states) {
-          if (desired?.e.kind !== "action") continue;
-          const before = inChrome(widget) ? null : shallowSigs(document.body);
-          if (!markSettled(widget, desired.e.action)) continue;
-          if (before) rememberWrites(before, desired.e.kind);
-          painted = true;
-        }
-      } else {
-        let deferred = false;
-        // Authored records are the zero point. Restore them before replaying the
-        // current winners on other facets of the same widget.
-        for (const { commit } of removals) {
-          widget = elementById(widgetId);
-          if (!widget?.applyAction) {
-            deferred = true;
-            break;
-          }
-          const entry = commit.entry;
-          const detail = authoredDetails.get(entry.coordinate);
-          if (!detail) continue;
-          const priorMotion = new Set(document.getAnimations());
-          try {
-            if (widget.applyAction(entry.e.action, detail) === false) deferred = true;
-            else if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-          } catch (error) {
-            reportPageError(
-              `<${widget.localName}> applyAction(${entry.e.action}) threw: ${error?.message ?? error}`,
-            );
-            failSoft(widget, error);
-            if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-          }
-          if (deferred) break;
-          started.push(
-            ...document
-              .getAnimations()
-              .filter((animation) => !priorMotion.has(animation)),
-          );
-          painted = true;
-        }
-        if (deferred) continue;
+      let rebuilt = false;
+      for (const [widgetId, states] of widgets) {
+        if (states.every((state) => state.clean)) continue;
+        let widget = elementById(widgetId);
+        if (!widget) continue;
 
-        const desired = states
-          .map((state) => state.desired)
-          .filter(Boolean)
-          .sort((a, b) => a.e.seq - b.e.seq);
-        for (const entry of desired) {
-          widget = elementById(widgetId);
-          if (!widget?.applyAction) {
-            deferred = true;
-            break;
+        // A newly constructed thread widget or rebuilt descendant already carries its
+        // authored baseline. A dirty recorded widget is reset whole below: its units
+        // compose through shared containers, so restoring only one authored placement
+        // would make its index relative to still-projected siblings.
+        const removals = states.filter(
+          ({ desired, commit }) =>
+            !desired && commit?.entry && commit.widget === widget,
+        );
+        const recordless = removals.find(({ commit }) => !commit.entry.spec.record);
+        if (recordless) {
+          widget = rebuild(widget);
+          committedProjection.set(recordless.coordinate, {
+            widgetId,
+            widget,
+            unit: elementById(recordless.sample.unit),
+            entry: null,
+          });
+          painted = true;
+          rebuilt = true;
+          break;
+        }
+
+        if (!widget.applyAction) {
+          if (document.body.dataset.lfUpgraded !== "1") continue;
+          for (const { commit } of removals)
+            if (commit.entry.e.kind === "action")
+              painted = clearSettled(widget, commit.entry.spec.facet) || painted;
+          for (const { desired } of states) {
+            if (desired?.e.kind !== "action") continue;
+            const before = inChrome(widget) ? null : shallowSigs(document.body);
+            if (!markSettled(widget, desired.e.action)) continue;
+            if (before) rememberWrites(before, desired.e.kind);
+            painted = true;
           }
-          const before = inChrome(widget) ? null : shallowSigs(document.body);
-          const priorMotion = new Set(document.getAnimations());
-          try {
-            if (widget.applyAction(entry.e.action, entry.e.detail) === false) {
+        } else {
+          let deferred = false;
+          // Authored records are the zero point. Restore the widget's complete authored
+          // composition before replaying every current winner in log/local order.
+          for (const statement of authoredStatements.get(widgetId)?.values() ?? []) {
+            widget = elementById(widgetId);
+            if (!widget?.applyAction) {
               deferred = true;
               break;
             }
-            if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-          } catch (error) {
-            reportPageError(
-              `<${widget.localName}> applyAction(${entry.e.action}) threw: ${error?.message ?? error}`,
+            const priorMotion = new Set(document.getAnimations());
+            try {
+              if (widget.applyAction(statement.action, statement.detail) === false)
+                deferred = true;
+              else clearSettled(widget, statement.spec.facet);
+            } catch (error) {
+              reportPageError(
+                `<${widget.localName}> applyAction(${statement.action}) threw: ${error?.message ?? error}`,
+              );
+              failSoft(widget, error);
+              clearSettled(widget, statement.spec.facet);
+            }
+            if (deferred) break;
+            started.push(
+              ...document
+                .getAnimations()
+                .filter((animation) => !priorMotion.has(animation)),
             );
-            failSoft(widget, error);
-            if (entry.e.kind === "action") markSettled(widget, entry.e.action);
+            painted = true;
           }
-          if (before) rememberWrites(before, entry.e.kind);
-          started.push(
-            ...document
-              .getAnimations()
-              .filter((animation) => !priorMotion.has(animation)),
-          );
-          painted = true;
+          if (deferred) continue;
+
+          const desired = states
+            .map((state) => state.desired)
+            .filter(Boolean)
+            .sort(compareProjected);
+          for (const entry of desired) {
+            widget = elementById(widgetId);
+            if (!widget?.applyAction) {
+              deferred = true;
+              break;
+            }
+            const before = inChrome(widget) ? null : shallowSigs(document.body);
+            const priorMotion = new Set(document.getAnimations());
+            try {
+              if (widget.applyAction(entry.e.action, entry.e.detail) === false) {
+                deferred = true;
+                break;
+              }
+              if (entry.e.kind === "action") markSettled(widget, entry.e.action);
+            } catch (error) {
+              reportPageError(
+                `<${widget.localName}> applyAction(${entry.e.action}) threw: ${error?.message ?? error}`,
+              );
+              failSoft(widget, error);
+              if (entry.e.kind === "action") markSettled(widget, entry.e.action);
+            }
+            if (before) rememberWrites(before, entry.e.kind);
+            started.push(
+              ...document
+                .getAnimations()
+                .filter((animation) => !priorMotion.has(animation)),
+            );
+            painted = true;
+          }
+          if (deferred) continue;
         }
-        if (deferred) continue;
-      }
 
-      widget = elementById(widgetId);
-      if (!widget) continue;
-      for (const { coordinate, sample } of states) {
-        const desired = projection.desired.get(coordinate) ?? null;
-        committedProjection.set(coordinate, {
-          widgetId,
-          widget,
-          unit: elementById(sample.unit),
-          entry: desired,
-        });
+        widget = elementById(widgetId);
+        if (!widget) continue;
+        for (const { coordinate, sample } of states) {
+          const desired = projection.desired.get(coordinate) ?? null;
+          committedProjection.set(coordinate, {
+            widgetId,
+            widget,
+            unit: elementById(sample.unit),
+            entry: desired,
+          });
+        }
       }
+      if (!rebuilt) break;
     }
-    if (!rebuilt) break;
-  }
 
-  if (painted) {
-    paintAnchors();
-    Promise.allSettled(started.map((animation) => animation.finished)).then(() =>
-      pageShifted(),
+    if (painted) {
+      paintAnchors();
+      Promise.allSettled(started.map((animation) => animation.finished)).then(() =>
+        pageShifted(),
+      );
+    }
+    renderQuiet(document.body);
+    paintPending();
+    projection = stateProjection(VNUM);
+    document.body.setAttribute(
+      PAGE_PAINT_ATTRIBUTE.applied,
+      String(projectionCoverage(projection)),
     );
+  } finally {
+    projectingState = priorProjectionMode;
   }
-  renderQuiet(document.body);
-  paintPending();
-  projection = stateProjection(VNUM);
-  document.body.setAttribute(
-    PAGE_PAINT_ATTRIBUTE.applied,
-    String(projectionCoverage(projection)),
-  );
+}
+
+// `events` is installed before every other state surface renders, so a later throw can
+// leave it ahead of the last complete read. Only receiveState may project that candidate
+// while completing the read itself; every asynchronous wake-up must use either the
+// authored-only starting point or an event list whose whole state already committed.
+function reconcileKnownState() {
+  const eventSeq = events.at(-1)?.seq ?? 0;
+  const complete = statePhase === "ready" && eventSeq <= lastEventSeq;
+  const authoredOnly = lastEventSeq < 0 && events.length === 0;
+  if (!complete && !authoredOnly) return false;
+  reconcileState();
+  return true;
 }
 
 // data-lf-pending: this element's decided state differs from what the version's
@@ -10766,6 +11088,7 @@ async function poll() {
   // from here, and the terminal link is the recourse for both.
   const state = res?.ok ? await res.json() : null;
   if (!state) {
+    const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
     if (statePhase === "waiting") statePhase = "offline";
     renderStatus(null);
     if (panelOpen) renderPanel();
@@ -10775,10 +11098,26 @@ async function poll() {
     // exactly when it matters: the banner says the server is gone while a roster row
     // froze its "last heard 4m ago" at the moment the answers stopped, which is the
     // authored freshness this widget layer exists to replace, produced by the layer
-    // itself. Replay is deliberately not run — there is nothing new to apply.
+    // itself. A first failed read has no projection to claim. Once a complete read has
+    // installed one, though, an offline tick is still the wake-up for a correction a
+    // live editor deferred; a definitively refused local action has the same authored
+    // correction even when no read has succeeded yet. Never project a newer event list
+    // whose surrounding state threw before lastEventSeq advanced.
+    if (
+      (statePhase === "ready" || refusedCorrection) &&
+      reconcileKnownState() &&
+      releaseProjectedOutbox()
+    )
+      paintKeys();
     document.dispatchEvent(new Event("lf-actions"));
     return;
   }
+  return receiveState(state);
+}
+async function receiveState(state) {
+  // Every state this page reads passes here — the poll's, and the one an accepted
+  // event response carries — so the generation is checked once for both rather than
+  // at each door it arrives through.
   if (!sameLayer(state.layer)) return;
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
@@ -10790,37 +11129,64 @@ async function poll() {
   // builds a body, so msgNode stays synchronous.
   if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
     await loadMarked();
+  // The import above yields. A newer response may have completed while this one was
+  // waiting, so the sequence judgment must be repeated at the boundary where this
+  // state would start changing globals and the page.
+  if (eventSeq < lastEventSeq) return;
+  const priorEvents = events;
+  const priorStatePhase = statePhase;
+  const priorLastEventSeq = lastEventSeq;
   events = nextEvents;
-  statePhase = "ready";
-  settleAcceptedDrafts();
-  agent = state.agent || "Claude";
-  renderStatus(state);
-  renderVersions(state);
-  renderOthers(state);
-  if (eventSeq > lastEventSeq) {
-    lastEventSeq = eventSeq;
-    renderPanel();
-    // Sign-off is a fact in the log, not a click this tab happens to remember, so a
-    // reload (or the other tab) shows it too.
-    paintApproval();
-    const agentReplies = events.filter(
-      (e) => e.author === "claude" && e.kind === "reply",
-    );
-    if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelOpen)
-      showToast(`${agentReplies.at(-1).agent || "Agent"} replied — open Comments`, () =>
-        setPanel(true),
+  try {
+    statePhase = "ready";
+    settleAcceptedDrafts();
+    agent = state.agent || "Claude";
+    renderStatus(state);
+    renderVersions(state);
+    renderOthers(state);
+    if (eventSeq > lastEventSeq) {
+      renderPanel();
+      // Sign-off is a fact in the log, not a click this tab happens to remember, so a
+      // reload (or the other tab) shows it too.
+      paintApproval();
+      const agentReplies = events.filter(
+        (e) => e.author === "claude" && e.kind === "reply",
       );
-    agentMsgCount = agentReplies.length;
+      if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelOpen)
+        showToast(
+          `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
+          () => setPanel(true),
+        );
+      agentMsgCount = agentReplies.length;
+    }
+    // Last, because the panel has just rendered the log: a widget carried by a reply is
+    // on the page by now, so an action naming one that isn't names a widget no version
+    // holds, and reconciliation can retire it instead of looking for it forever.
+    reconcileState();
+    // Only a complete application advances the read boundary. A render fault may
+    // already have changed some local surfaces, but it has not made a state safe to use
+    // for replay or undo; leaving the sequence unresolved retries the whole read.
+    lastEventSeq = Math.max(lastEventSeq, eventSeq);
+    // Accounting changes no hold by itself. It first projects this complete log plus
+    // every surviving optimistic action, then releases the entries whose attempts the
+    // read contained. A same-widget event later in this state can therefore never be
+    // skipped under the hold and exposed only after the hold disappears.
+    accountOutbox(nextEvents);
+    // Sequence consumers render after replay, so their history and the widget's
+    // standing body describe the same poll. This also fires when the event list did
+    // not grow: applyAction may have deferred while a user was typing, then become
+    // applicable on the next poll after they close the editor.
+    document.dispatchEvent(new Event("lf-actions"));
+  } catch (error) {
+    // Candidate history is useful only while this one synchronous application is
+    // rendering it. If any required surface refuses the state, restore the last whole
+    // reading so focus, panel, and undo cannot consume a log tail the page never
+    // adopted. The next poll retries the candidate from the same complete boundary.
+    events = priorEvents;
+    statePhase = priorStatePhase;
+    lastEventSeq = priorLastEventSeq;
+    throw error;
   }
-  // Last, because the panel has just rendered the log: a widget carried by a reply is
-  // on the page by now, so an action naming one that isn't names a widget no version
-  // holds, and reconciliation can retire it instead of looking for it forever.
-  reconcileState();
-  // Sequence consumers render after replay, so their history and the widget's
-  // standing body describe the same poll. This also fires when the event list did
-  // not grow: applyAction may have deferred while a user was typing, then become
-  // applicable on the next poll after they close the editor.
-  document.dispatchEvent(new Event("lf-actions"));
 }
 // ---------- restore ----------
 // The general box and reply textareas repopulate as they render; a saved composer draft

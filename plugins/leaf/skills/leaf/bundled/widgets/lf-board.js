@@ -278,7 +278,7 @@ customElements.define(
       this.#release();
       const to = card.parentElement;
       if (to === from && this.#cards(to).indexOf(card) === index) return;
-      this.#send(card, from, index, to);
+      this.#send(card, from, to);
     }
 
     #cancel(refocus = false) {
@@ -299,7 +299,7 @@ customElements.define(
     }
 
     // The one writer of "card X sits at index i among column C's cards": arrow steps,
-    // a cancelled grab, a failed send's restore, and replay all place through it. Every
+    // a cancelled grab, refusal reconciliation, and replay all place through it. Every
     // placement FLIPs from where the card stood, so a move reads as motion wherever it
     // came from — a restore arriving at response time has no gesture behind it, which
     // is the case the norm says needs the motion more. A FLIP already in flight is
@@ -322,8 +322,10 @@ customElements.define(
 
     // One completed move, drag or keyboard: an absolute placement, sent once. The
     // toast's word follows the branch the reader can see — a card kept in its column
-    // was reordered, not moved to where it already was.
-    #send(card, from, oldIndex, to) {
+    // was reordered, not moved to where it already was. A refusal is restored by the
+    // layer from the declared record plus its outbox, never from this gesture's DOM
+    // snapshot: that snapshot may be another queued move the server also refused.
+    #send(card, from, to) {
       sendAction(this, "move", {
         card: card.id,
         to: to.id,
@@ -335,7 +337,6 @@ customElements.define(
               "label",
             )} — sent to ${agentName()}`,
           );
-        else this.#place(card, from, oldIndex);
       });
     }
 
@@ -387,13 +388,13 @@ customElements.define(
           // silent both ways: a superseded grab compares its own card index
           // against a child index, so a card dragged one place up from where it
           // was grabbed reads as unmoved and the move is never sent, and a
-          // failed send restores through #place, which counts cards, one slot
+          // cancelled move restores through #place, which counts cards, one slot
           // late.
           const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;
           const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
           if (from === to && oldIndex === newIndex) return;
-          this.#send(card, from, oldIndex, to);
+          this.#send(card, from, to);
         },
       });
     }
@@ -407,7 +408,8 @@ customElements.define(
       if (
         !card?.matches("lf-card") ||
         !col?.matches("lf-column") ||
-        !this.contains(col)
+        card.closest("lf-board") !== this ||
+        col.closest("lf-board") !== this
       )
         return;
       const grip = card.querySelector(":scope > .lf-grip");

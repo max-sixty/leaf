@@ -14741,11 +14741,15 @@ def test_the_line_offers_undo_again_when_a_send_the_server_refused_ends(browser,
         "the line withheld a press the dispatcher was ready to take"
     )
     # And nothing was decided by the press that failed, so what the offer names is the
-    # accept before it.
-    expect(page.locator("#sug-thistle lf-new")).to_be_visible()
+    # accept before it. The mark is the reading that separates the two: sug-thistle is
+    # insertion-only, so an accept retires no slot, and every word of it stands whether
+    # the decision was taken or refused.
+    assert page.locator("#sug-thistle").get_attribute("data-lf-state") is None
     assert [e["action"] for e in actions(serve.page_dir)] == ["accept"]
     page.unroute("**/api/event")
-    assert [e for e in errors if "net::ERR_FAILED" not in e] == []
+    # One refused send is one console entry: post makes a single attempt, so the count
+    # is a fact this page states rather than one to leave open.
+    assert errors == ["Failed to load resource: net::ERR_FAILED"]
     page.close()
 
 

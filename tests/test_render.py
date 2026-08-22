@@ -5808,6 +5808,14 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
+    # The fold is driven from the reconcile this trip comes back on, so the trip lands
+    # as the fold begins rather than after it — a tighter window than the count-first
+    # sites, not a safer one. The disclosure listing the thread is the fold's own last
+    # step (foldOut drops it from `folding`, and only then is it rebuilt in here), and
+    # it costs nothing to wait for: the next line already needs this element.
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{comment}"]')).to_have_count(
+        1
+    )
     page.locator(".lf-details summary").click()
     page.locator(f'.lf-details .lf-thread[data-id="{comment}"] .lf-reopen').click()
     round_trip(page)

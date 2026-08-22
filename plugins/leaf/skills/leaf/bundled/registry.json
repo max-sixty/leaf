@@ -371,7 +371,7 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Parallel workstreams on one page: each lf-tab child is a self-contained sub-context (its own prose, boards, milestones) and a generated strip switches between them. The open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version — and the first panel is the default, so ordering carries emphasis. Find-in-page and comment-anchor jumps reach inactive tabs (the owning tab opens itself). Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
+    "description": "Workstreams on one page: use one family when broad context branches into focused work. Keep the shared title and lede before it, put the current stream first, and keep earlier context intact in a sibling panel so its stable ids retain their comments and decisions. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained sub-context with its own prose and widgets, while Comments, Asks, versions, and sign-off remain global. Find-in-page, ask travel, and comment-anchor jumps open the owning tab. Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -380,7 +380,7 @@
     "additionalProperties": false,
     "x-content": "items",
     "x-upgrade": true,
-    "x-example": "<lf-tabs id=\"aviary-projects\">\n  <lf-tab id=\"tab-feeders\" label=\"Feeders\">\n    <p>Rebuild underway; two of four feeders mounted.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-bath\" label=\"Bird bath\">\n    <p>Heater options under review.</p>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<lf-tabs id=\"workstreams\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
     "description": "One workstream panel. `label` names its tab in the strip (and the stacked heading before upgrade); content is open — prose, sections, and other widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",

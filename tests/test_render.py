@@ -1224,6 +1224,180 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
         assert held & arranged == {arrangement["key"]}, finding
 
 
+def motions(events):
+    """The settling motions the browser reported, keyed by the motion, not by its target.
+
+    Settling and not living, which is `interact.MOVING`'s distinction and is here for
+    its reason: the banner's dot pulses for as long as the tab is open, and something
+    that never ends never arrived anywhere. An unbounded iteration count cannot cross
+    JSON, so the browser omits it, and that omission is the reading.
+
+    A target is a backend node id, and the same board over two loads is two of them,
+    so an id cannot say whether the second load moved what the first one did. The kind
+    of motion, the property or keyframes it plays and how long it runs are one string
+    whichever load painted it, and that is the key. The id rides along beside it for
+    the failure message alone: a person reading one wants the element, and that is the
+    only place a name is worth a round trip.
+    """
+    found = {}
+    for event in events:
+        animation = event["animation"]
+        source = animation.get("source") or {}
+        if source.get("iterations") is None:
+            continue
+        key = (
+            f"{animation['type']} {animation.get('name') or ''}"
+            f" {source.get('duration')}ms"
+        )
+        found.setdefault(key, source.get("backendNodeId"))
+    return found
+
+
+def moved_at(cdp, node):
+    """Where a reported motion was, named the way the rest of the suite names elements."""
+    if node is None:
+        return "an element the browser did not identify"
+    # The node map is the inspector's own and is populated by asking for the document;
+    # a describeNode on a fresh document without it is refused outright.
+    cdp.send("DOM.getDocument", {"depth": 1})
+    described = cdp.send("DOM.describeNode", {"backendNodeId": node})["node"]
+    pairs = described.get("attributes", [])
+    attributes = dict(zip(pairs[::2], pairs[1::2]))
+    name = described.get("localName") or described.get("nodeName")
+    if attributes.get("id"):
+        return f"{name}#{attributes['id']}"
+    if attributes.get("class"):
+        return f"{name}.{attributes['class'].replace(' ', '.')}"
+    return name
+
+
+def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
+    browser, serve
+):
+    """A page put back the way the reader left it is simply there, and does not assemble
+    itself in front of them.
+
+    Standing a board up is a gesture and gestures move: the board slides in over a fifth
+    of a second and the document steps aside to make the room. Coming back to a board
+    that was already standing is not a gesture — nothing was just decided, and a page
+    that replays the decisions on arrival would be showing the reader a fifth of a
+    second of furniture instead of what they came back to read. The runtime says so in
+    two places, and neither had anything holding it: `motion` refuses to animate behind
+    the presentation boundary, and `restoreEdge` paints the board without going through
+    the opener a press uses. Route the restore through that opener — the natural tidy,
+    since it is otherwise two writers of one fact — and the board slides on every load,
+    with every gate here green.
+
+    What is read is every motion the browser reports, which it does through the
+    inspector's animation agent as it reports a request or a response: nothing is
+    injected, and nothing is timed. The report outlives the motion, so what has to be
+    caught is the frame a slide begins on and never the fifth of a second it runs
+    for — which is the whole difference from reading `getAnimations` once the page is
+    up, a race this machine wins and a loaded one does not.
+
+    Held against a first visit rather than against a list of what may move. The page
+    plays one animation of its own while it arrives — the waiting surface's — and a
+    list would have had to name it, which is naming the page's furniture, the closed
+    list this project keeps not writing. A return may move less than a first visit; it
+    may not move more.
+
+    That only works if every load here arrives the same way, and left to itself none
+    of them does: the waiting surface is what the page shows when the first poll has
+    not answered yet, so on a load quick enough to present without painting a frame it
+    never runs at all. Comparing two loads then compares two guesses about how busy
+    the machine was — the first visit came up too quickly to show it, the return did
+    not, and the return was reported as having moved a surface neither of them owns.
+    So the poll is held on every load and let go once the surface is up, which is this
+    suite's answer to a race wherever it finds one, and the reading it waits for is the
+    page's own. The window that opens is also the one this test is about: it is where a
+    restore is put back, and standing in it is strictly more than catching it.
+
+    What the reader left standing is the arrangement the runtime declares, all of them
+    in turn, so a fourth remembered surface is covered the day it starts remembering.
+    One thing was caught the day this was written: a panel left open moved the toast
+    across the page's foot, because its resting corner is the panel's and the
+    stylesheet transitions it there. Invisible, the toast being transparent until it
+    speaks — and exactly the shape of the visible one.
+    """
+    url = serve(CHANGE_SHAPES_PAGE)
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+
+    cdp = page.context.new_cdp_session(page)
+    started = []
+    cdp.on("Animation.animationStarted", lambda event: started.append(event))
+    cdp.send("DOM.enable")
+    cdp.send("Animation.enable")
+
+    def moved():
+        # One frame, then the flush. The report is made by the rendering update that
+        # starts the animation and not by the script call that created it — measured,
+        # thirty out of thirty on this browser — so a read taken between the two sees
+        # a still page and says so. It rarely does, which is the trouble: a read after
+        # a load has crossed a frame several times over, and the press below had not,
+        # so that was the one that came back empty, once in eighteen under contention.
+        # The flush is the command after it: replies and events travel one connection
+        # in order, so a reply that has arrived says every event the browser had
+        # already sent has too.
+        page.evaluate("() => new Promise(requestAnimationFrame)")
+        cdp.send("Animation.getPlaybackRate")
+        found = motions(started)
+        started.clear()
+        return found
+
+    def arrive():
+        """One load, standing in the arrival rather than catching it as it goes past."""
+        held = []
+        polls = itertools.count()
+        page.route(
+            "**/api/state*",
+            lambda route: held.append(route) if next(polls) == 0 else route.continue_(),
+        )
+        page.goto(url, wait_until="load")
+        page.wait_for_function(interact.UPGRADED)
+        # The page's own statement that it is waiting: the surface it shows while the
+        # log is outstanding has finished its dwell and is painting. Waiting for it is
+        # what makes every load here the same load, so what a return moves can be held
+        # against what a first visit moves without either answer depending on how busy
+        # the machine was.
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        assert held, "the first poll went through, so no arrival was stood in"
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        page.unroute("**/api/state*")
+        return moved()
+
+    arrangements = page.evaluate(ARRANGEMENTS)
+    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+
+    # The control, and the whole reason the silences below say anything: standing the
+    # board up by hand is the gesture whose motion the arrivals must not have. What it
+    # paints is the runtime's business and is not named here; that it paints at all is
+    # this reading's, and a reading that reports nothing when something moved would
+    # pass every assertion after it.
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    gesture = moved()
+    assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
+
+    page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+    first_visit = arrive()
+
+    for arrangement in arrangements:
+        page.evaluate(ARRANGE, arrangement)
+        extra = {k: v for k, v in arrive().items() if k not in first_visit}
+        assert not extra, (
+            f"returning to {arrangement['name']} moved what a first visit does not: "
+            + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
+        )
+    # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
+    # one document; one seen here is the platform under load and says nothing.
+    assert [e for e in errors if not interact.resize_observer_error(e)] == []
+    page.close()
+
+
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
     """The notice can arrive on the rendering turn after the gate's last probe. A
     navigation-only confirmation would call the attempt clean, and an immediate close
@@ -15597,6 +15771,55 @@ CONTROL_LABEL_PAGE = """<!doctype html>
 </body>
 </html>
 """
+
+
+def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
+    """A focused stream may hide the earlier context, never its collaboration state.
+
+    The shipped example opens on the narrow work in hand. A comment and an ask in
+    inactive panels still stand in the page's one Comments list and one Asks board,
+    and either global surface opens the panel it points into. Switching panels is
+    reading the page, so it leaves the event log untouched."""
+    example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
+    quote = "The feed has been stable since the battery swap; one open follow-up on storage."
+    url = serve(example.read_text(), anchored=[("camera-note", quote)])
+    page, errors = open_page(browser, url)
+
+    implementation = page.get_by_role("tab", name="Bracket installation")
+    vision = page.get_by_role("tab", name="Vision")
+    evidence = page.get_by_role("tab", name="Field evidence")
+    expect(implementation).to_have_attribute("aria-selected", "true")
+
+    before = interact.read_events(serve.page_dir)
+    sent = _traffic(page).sends
+    vision.click()
+    implementation.click()
+    assert _traffic(page).sends == sent, "switching workstreams sent an event"
+    assert interact.read_events(serve.page_dir) == before
+
+    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    comment = page.locator(".lf-thread .lf-quote", has_text="The feed has been stable")
+    expect(comment).to_contain_text(quote)
+    comment.click()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+
+    page.get_by_role("button", name="Close comments").click()
+    asks = page.locator(".lf-asks")
+    expect(asks).to_have_text("Asks (2)")
+    asks.click()
+    hidden_ask = page.locator(
+        ".lf-asks-row", has_text="How should the bird bath stay open through January?"
+    )
+    expect(hidden_ask).to_have_count(1)
+    hidden_ask.click()
+    expect(vision).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()
+
+    assert _traffic(page).sends == sent
+    assert interact.read_events(serve.page_dir) == before
+    assert errors == []
+    page.close()
 
 
 def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, serve):

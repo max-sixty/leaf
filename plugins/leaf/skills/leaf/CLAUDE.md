@@ -351,6 +351,22 @@ left standing must then not still be a thread: everything that walks the list
 asks for `.lf-thread`, so renaming the node once takes it out of j/k, out of the
 g addresses, out of r's press, and out of the panel's repaint in one stroke.
 
+Arriving is not a gesture, and that is the case the rule reaches furthest. A
+reader who left the comment panel open or a board standing gets it back on every
+load afterwards, and the runtime stands it up while the page is still coming up.
+Nothing there was just decided, so nothing there may play: a page that animated
+its restore would spend a fifth of a second showing somebody their own past
+decisions instead of what they came back to read. Two mechanisms have to say it,
+because both a widget and the cascade can move something — `motion` collapses a
+Web Animation to its end state until the presentation boundary is crossed, and
+one rule in `theme.css` does the same for transitions. Neither had anything
+holding it, and the cascade's was missing: an open panel moved the toast across
+the page's foot, because its resting corner is the panel's and the stylesheet
+transitions it there. It was invisible only because the toast is transparent
+until it speaks. Held now by the suite rather than by a gate, since a restore is
+the layer's and is the same under every version
+(`test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive`).
+
 ## Assume the browser it already assumes
 
 The runtime requires ES modules, custom elements, `field-sizing`, `color-mix`,

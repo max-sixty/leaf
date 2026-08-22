@@ -287,6 +287,34 @@ def test_leaf_skill_routes_its_complete_reference_set():
         assert f"references/{path.name}" in skill
 
 
+def test_a_correction_is_written_straight_rather_than_offered_as_a_choice():
+    """A suggestion asks the reader to decide, so it needs a live alternative.
+
+    The revision rule keys on who owns the words and whether the reader has already
+    seen them, and had no test for whether there was anything to decide. So a page
+    that reported a latency in the wrong unit put the corrected sentence in an
+    `lf-suggestion`, and the reader got a check and a cross over a fact whose only
+    other answer restores the error — counted, until pressed, among the things the
+    banner and the ask walk say the page is waiting on them for.
+
+    The carve-out is asserted inside its own section because that paragraph is what
+    an author reads before writing the revision; stated anywhere else it is guidance
+    nobody reaches at the moment it applies. Both halves are pinned, so dropping the
+    suggestion rule to satisfy the carve-out fails here too."""
+    authoring = " ".join(
+        (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text().split()
+    )
+    start = authoring.index("## Revisions and reader-owned words")
+    revisions = authoring[start : authoring.index("## Honoring reader state", start)]
+
+    assert (
+        "Rewrite prose the reader has already seen as an `lf-suggestion`" in revisions
+    )
+    assert "A correction is not a proposal" in revisions
+    assert "write the true thing straight" in revisions
+    assert "wording the reader could reasonably prefer as it stands" in revisions
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(interact.cli, ["hook"], input="{}")
 

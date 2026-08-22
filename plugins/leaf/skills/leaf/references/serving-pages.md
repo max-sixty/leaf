@@ -3,15 +3,6 @@
 Read this for an exported deliverable, an unreachable URL, `--host`, a standing
 page, re-vendoring, or a page previously owned by another session.
 
-## Contents
-
-- [Exported files](#exported-files)
-- [Address and authentication](#address-and-authentication)
-- [Unreachable URLs and `--host`](#unreachable-urls-and---host)
-- [Re-vendoring and layer epochs](#re-vendoring-and-layer-epochs)
-- [Page lifetime](#page-lifetime)
-- [Resuming a standing or foreign page](#resuming-a-standing-or-foreign-page)
-
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, initialize, catalog, author, and publish as

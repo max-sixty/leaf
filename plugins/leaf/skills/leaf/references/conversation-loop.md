@@ -3,16 +3,6 @@
 Read this before running `leaf wait`, processing a delivered batch, opening or
 replying to a thread, or ending a page.
 
-## Contents
-
-- [Status and handoff](#status-and-handoff)
-- [Host wait loops](#host-wait-loops)
-- [Batch delivery and acknowledgement](#batch-delivery-and-acknowledgement)
-- [Process every event](#process-every-event)
-- [Threads](#threads)
-- [Publish the next version](#publish-the-next-version)
-- [Sign-off and ending](#sign-off-and-ending)
-
 ## Status and handoff
 
 Before a handoff, run:
@@ -119,7 +109,7 @@ Reply with brief Markdown:
 leaf reply <page> --to <thread-id> --text "<answer>"
 ```
 
-Fragment links such as `[the decision](#d-channel)` take the reader to page
+Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.
 
 The reader closes a thread by default. Resolve it yourself only when they ask or

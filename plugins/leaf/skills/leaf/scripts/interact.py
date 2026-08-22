@@ -2306,7 +2306,10 @@ class Handler(BaseHTTPRequestHandler):
                 if registry is None:
                     return self.event_rejection(event, "the page has no registry.json")
                 if error := action_contract_error(
-                    self.page_dir, event, events, registry
+                    event,
+                    parse_version(self.page_dir, event["version"]).by_id,
+                    thread_structure(events),
+                    registry,
                 ):
                     return self.event_rejection(event, error)
             if "parent" in event and event["parent"] not in {
@@ -2318,10 +2321,7 @@ class Handler(BaseHTTPRequestHandler):
             if kind == "undo" and (error := undo_error(event, events)):
                 return self.event_rejection(event, error)
             event["author"] = "page" if kind == "error" else "user"
-            try:
-                append_event(page, event)
-            except AttemptConflict as error:
-                return self.event_rejection(event, str(error), 409)
+            append_event(page, event)
         return self.accepted_state()
 
     def _post(self):
@@ -2586,10 +2586,6 @@ def paths_same(left: Path, right: Path) -> bool:
     # Containment both ways is equality of the canonical form: neither path can
     # be a strict ancestor of the other and still contain it.
     return _path_location(left) == _path_location(right)
-
-
-def paths_overlap(left: Path, right: Path) -> bool:
-    return locations_overlap(_path_location(left), _path_location(right))
 
 
 def overlapping_layer_sources(layers: list):
@@ -3692,39 +3688,22 @@ def read_text_arg(text) -> str:
     return body.strip()
 
 
-def thread_widget_ids(events: list) -> set:
-    """Ids claimed by widget markup in the logged messages. Thread markup is frozen
-    in the log and rendered into the panel, so its ids share one universe with page ids —
-    the runtime resolves actions document-wide by id, and a collision would silently
-    redirect a thread widget's replay to the page.
+class ThreadStructure(NamedTuple):
+    ids: set
+    by_id: dict
+    fragments: dict
 
-    The `markup` field is the whole question: text renders with every tag escaped, so a
-    lf- tag there is words about a widget, and the field's one door is the CLI gate."""
-    ids = set()
+
+def thread_structure(events: list) -> ThreadStructure:
+    """Parse each logged markup fragment once into the panel's id universe."""
+    ids, by_id, fragments = set(), {}, {}
     for e in events:
         if markup := e.get("markup"):
-            ids |= parse_structure(markup).ids
-    return ids
-
-
-def action_widget_tags(byid: dict, events: list) -> dict:
-    """Widget id → tag in the document that sent an action.
-
-    Page widgets come from the action's own published version, not whichever
-    version is newest now. `byid` is that version's structural reading; the caller
-    takes it, having a second question for the same reading. Thread widgets are
-    the other live document the runtime renders, so each message's `markup` joins
-    this map — text never carries a widget, in the panel or here. Both readings
-    use _StructParser, the same structure reading `version check` and markup
-    validation already trust.
-    """
-    widgets = {wid: rec["tag"] for wid, rec in byid.items()}
-    for event in events:
-        if markup := event.get("markup"):
-            widgets.update(
-                (wid, rec["tag"]) for wid, rec in parse_structure(markup).by_id.items()
-            )
-    return widgets
+            fragment = parse_structure(markup)
+            fragments[e["id"]] = fragment
+            ids.update(fragment.ids)
+            by_id.update(fragment.by_id)
+    return ThreadStructure(ids, by_id, fragments)
 
 
 def detail_error(schema: dict, detail: dict):
@@ -3772,26 +3751,27 @@ def declared_event_error(
     return None
 
 
-def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
+def action_contract_error(
+    event: dict, page_by_id: dict, thread: ThreadStructure, registry: dict
+):
     """Why a structurally complete action violates its sending widget's contract."""
-    # One structural reading of the version, for both questions this door asks of
-    # it: which tag the widget is, and whether it stands inside an exhibit.
-    byid = parse_version(page_dir, event["version"]).by_id
-    tag = action_widget_tags(byid, events).get(event["widget"])
-    if tag is None:
+    # Page widgets come from the action's own published version. Thread widgets
+    # inhabit the panel's other live document. Either record answers both which
+    # tag sent the action and whether it stands inside an exhibit.
+    rec = page_by_id.get(event["widget"]) or thread.by_id.get(event["widget"])
+    if rec is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
             "or agent-authored thread markup"
         )
+    tag = rec["tag"]
     if error := declared_event_error(event, tag, registry, "action", "x-state"):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
-    # made on quoted material. Any sender the key admits reaches this door. The
-    # page's own markup answers it, a thread's widgets standing in the document
-    # the panel renders rather than this one.
-    if (rec := byid.get(event["widget"])) and quoted_in(rec, registry):
+    # made on quoted material. Any sender the key admits reaches this door.
+    if quoted_in(rec, registry):
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
@@ -3799,13 +3779,13 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     return None
 
 
-def report_contract_error(page_dir: Path, event: dict, registry: dict):
+def report_contract_error(event: dict, page_by_id: dict, registry: dict):
     """Why a structurally complete report violates its widget's declaration —
     the CLI door's mirror of the POST door's action_contract_error. Page markup
     only, never a reply's: a report has to be answerable, and thread markup is
     frozen in the log, so no version could ever absorb or overrule one made
     there."""
-    rec = parse_version(page_dir, event["version"]).by_id.get(event["widget"])
+    rec = page_by_id.get(event["widget"])
     tag = rec["tag"] if rec else None
     if tag is None:
         return (
@@ -3902,7 +3882,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
     if marker_errors := reserved_marker_errors(frag):
         sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
-    clash = sorted(frag.ids & (version_ids(page_dir) | thread_widget_ids(events)))
+    clash = sorted(frag.ids & (version_ids(page_dir) | thread_structure(events).ids))
     if clash:
         sys.exit(
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
@@ -4035,7 +4015,9 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             "detail": detail,
             "version": version,
         }
-        if error := report_contract_error(page_dir, event, registry):
+        if error := report_contract_error(
+            event, parse_version(page_dir, version).by_id, registry
+        ):
             sys.exit(error)
         accepted = append_event(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
@@ -4059,14 +4041,12 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
                 f"refusing to publish {name}: leaf version check failed (issues above)"
             )
         html = path.read_text(encoding="utf-8")
-        parser = parse_structure(html)
-        retracts = sorted(parser.restated)
         registry = load_registry(page_dir)
         events = page.events
+        projection, parser, spk = page_projection(html, events, registry, version)
+        retracts = sorted(parser.restated)
         byid = parser.by_id
-        spk = spoken(html, registry)
         answered = []
-        projection = state_projection(events, byid, spk, registry, None)
         for (_widget, unit, _facet), reports in projection.reports.items():
             last, spec = reports[-1]
             if unit in parser.overruled or markup_facet(
@@ -4113,10 +4093,11 @@ def shown(quote: str) -> str:
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
-    versions = list_versions(page_dir)
+    published = published_versions(page_dir, events)
+    registry = load_registry(page_dir) or {}
     title = ""
-    if versions:
-        title = parse_version(page_dir, versions[-1]).title.strip()
+    if published:
+        title = parse_version(page_dir, published[-1]).title.strip()
     print(f"## Leaf: {title or page_dir.name}")
 
     notes = [e for e in events if e["kind"] == "note"]
@@ -4164,13 +4145,18 @@ def cmd_transcript(page_dir: Path) -> None:
     # Against the newest published version — the page as it now stands, which is
     # what a transcript is an account of. A page with nothing published yet has no
     # reading to give, and no action can have been made against one either.
-    published = published_versions(page_dir, events)
     latest = (
         version_path(page_dir, published[-1]).read_text(encoding="utf-8")
         if published
         else ""
     )
-    threads = build_threads(events, spoken(latest, load_registry(page_dir) or {}))
+    projection = parser = None
+    spk = {}
+    if published:
+        projection, parser, spk = page_projection(
+            latest, events, registry, published[-1]
+        )
+    threads = build_threads(events, spk)
     if threads:
         print("\n### Threads\n")
     for t in threads.values():
@@ -4205,11 +4191,8 @@ def cmd_transcript(page_dir: Path) -> None:
 
     # To stderr — stdout is the artifact. A transcript is a page's closing act,
     # and the record debt it reports here is about to stop being fixable.
-    published = published_versions(page_dir, events)
-    registry = load_registry(page_dir)
-    if published and registry:
-        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        for line in record_lag(html, events, registry):
+    if projection and registry:
+        for line in record_lag(projection, parser.by_id, spk, registry):
             print(f"record behind the log — {line}", file=sys.stderr)
 
 
@@ -4297,7 +4280,7 @@ def cmd_page_state(page_dir: Path) -> None:
     parser, projection, spk = None, None, {}
     if published:
         html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        projection, parser, spk = page_projection(html, events, registry, None)
+        projection, parser, spk = page_projection(html, events, registry, published[-1])
     threads = build_threads(events, spk)
     state = {
         "page": str(page_dir),
@@ -5630,15 +5613,13 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
-    # `enclosing` is the containment half, which a quote search has no use for: this
-    # asks where words are, not where elements sit.
-    text, owner, fences, retired, rewritten, gone, shown, _ = page_passages(
+    text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
         html, registry, decided, rewrites
     )
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
         # on a diagram or an image, and those hold no text to look for.
-        if section not in parse_structure(html).ids:
+        if section not in enclosing:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
             sid = retired[section]
@@ -6037,6 +6018,13 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def state_specs(entry: dict):
+    """The state and report verb declarations on one widget entry."""
+    for channel in ("x-state", "x-report"):
+        for verb, spec in entry.get(channel, {}).items():
+            yield channel, verb, spec
+
+
 def validate_registry(registry: dict, source) -> dict:
     """Validate one complete vocabulary after its top-level overlays are merged."""
     path = source
@@ -6193,31 +6181,30 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                try:
-                    Draft202012Validator.check_schema(spec["detail"])
-                except SchemaError as error:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
-                        f"detail schema: {error.message}"
-                    )
-                if spec["detail"].get("type") != "object":
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
-                        "must declare an object"
-                    )
-                # A verb carries only the detail keys its entry declares — the
-                # premise the layer's own field meanings rest on: both runtimes
-                # dispatch thread settlement on `resolves` being present, which
-                # is safe exactly because a closed schema makes carrying it a
-                # declaration.
-                if spec["detail"].get("additionalProperties") is not False:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
-                        "must state additionalProperties: false — a verb carries "
-                        "only the detail keys it declares"
-                    )
+        for channel, verb, spec in state_specs(entry):
+            try:
+                Draft202012Validator.check_schema(spec["detail"])
+            except SchemaError as error:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
+                    f"detail schema: {error.message}"
+                )
+            if spec["detail"].get("type") != "object":
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    "must declare an object"
+                )
+            # A verb carries only the detail keys its entry declares — the
+            # premise the layer's own field meanings rest on: both runtimes
+            # dispatch thread settlement on `resolves` being present, which
+            # is safe exactly because a closed schema makes carrying it a
+            # declaration.
+            if spec["detail"].get("additionalProperties") is not False:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    "must state additionalProperties: false — a verb carries "
+                    "only the detail keys it declares"
+                )
 
     slots = retirement_slots(registry)
     for tag, entry in widgets.items():
@@ -6369,55 +6356,51 @@ def validate_registry(registry: dict, source) -> dict:
         # record it. The name itself remains local to the tag: two widget families
         # may both call a facet `status` without sharing a contract.
         facet_specs: dict[str, tuple[str, str, dict | None]] = {}
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                facet = spec["facet"]
-                previous = facet_specs.get(facet)
-                if previous is None:
-                    facet_specs[facet] = (channel, verb, spec.get("record"))
-                    continue
-                previous_channel, previous_verb, previous_record = previous
-                previous_spec = entry[previous_channel][previous_verb]
-                if spec["unit"] != previous_spec["unit"]:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` and "
-                        f"{previous_channel} verb `{previous_verb}` share facet "
-                        f"`{facet}` but declare different fold units "
-                        f"(`{spec['unit']}` and `{previous_spec['unit']}`)"
-                    )
-                if spec.get("record") != previous_record:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` and "
-                        f"{previous_channel} verb `{previous_verb}` share facet "
-                        f"`{facet}` but do not declare identical record forms "
-                        "(or both remain recordless)"
-                    )
+        for channel, verb, spec in state_specs(entry):
+            facet = spec["facet"]
+            previous = facet_specs.get(facet)
+            if previous is None:
+                facet_specs[facet] = (channel, verb, spec.get("record"))
+                continue
+            previous_channel, previous_verb, previous_record = previous
+            previous_spec = entry[previous_channel][previous_verb]
+            if spec["unit"] != previous_spec["unit"]:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` and "
+                    f"{previous_channel} verb `{previous_verb}` share facet "
+                    f"`{facet}` but declare different fold units "
+                    f"(`{spec['unit']}` and `{previous_spec['unit']}`)"
+                )
+            if spec.get("record") != previous_record:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` and "
+                    f"{previous_channel} verb `{previous_verb}` share facet "
+                    f"`{facet}` but do not declare identical record forms "
+                    "(or both remain recordless)"
+                )
 
         # A facet is semantic, but its record writes a physical slot. Body and
         # position have one per unit; value and attribute-set are keyed by attr.
         physical_slots: dict[tuple[str, str, str | None], tuple[str, str, str]] = {}
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                record = spec.get("record")
-                if record is None:
-                    continue
-                kind = record["kind"]
-                attr = record.get("attr")
-                key = spec["unit"], kind, attr
-                previous = physical_slots.setdefault(
-                    key, (channel, verb, spec["facet"])
-                )
-                previous_channel, previous_verb, previous_facet = previous
-                if previous_facet == spec["facet"]:
-                    continue
-                slot = kind + (f" `{attr}`" if attr else "")
-                raise RegistryError(
-                    f"{path}: <{tag}> {channel} verb `{verb}` (facet "
-                    f"`{spec['facet']}`) and {previous_channel} verb "
-                    f"`{previous_verb}` (facet `{previous_facet}`) claim the "
-                    f"same physical record slot (unit `{spec['unit']}`, "
-                    f"{slot}); distinct facets must record independently"
-                )
+        for channel, verb, spec in state_specs(entry):
+            record = spec.get("record")
+            if record is None:
+                continue
+            kind = record["kind"]
+            attr = record.get("attr")
+            key = spec["unit"], kind, attr
+            previous = physical_slots.setdefault(key, (channel, verb, spec["facet"]))
+            previous_channel, previous_verb, previous_facet = previous
+            if previous_facet == spec["facet"]:
+                continue
+            slot = kind + (f" `{attr}`" if attr else "")
+            raise RegistryError(
+                f"{path}: <{tag}> {channel} verb `{verb}` (facet "
+                f"`{spec['facet']}`) and {previous_channel} verb "
+                f"`{previous_verb}` (facet `{previous_facet}`) claim the "
+                f"same physical record slot (unit `{spec['unit']}`, "
+                f"{slot}); distinct facets must record independently"
+            )
 
         # A resolves-bearing widget has one answer fact. Thread history can outlive
         # the markup that declared its verbs, so both thread builders deliberately
@@ -6444,201 +6427,194 @@ def validate_registry(registry: dict, source) -> dict:
 
         # One rule set for both channels: x-state and x-report differ in
         # precedence, not in how a verb, its facet, unit, and record hang together.
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                detail_properties = spec["detail"].get("properties", {})
-                required = set(spec["detail"].get("required", []))
-                unit = spec["unit"]
-                fields = [] if unit == "widget" else [unit]
-                record = spec.get("record")
-                if record:
-                    fields.append(record["value"])
-                    if record["kind"] == "position":
-                        fields.append(record["order"])
-                        if record["within"] not in widgets:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records a "
-                                f"position within unknown widget <{record['within']}>"
-                            )
-                    if record["kind"] == "body":
-                        if entry.get("x-content") != "data":
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                "its body, so x-content must be data; projection "
-                                "states text rather than a prose subtree"
-                            )
-                        nested = sorted(
-                            child
-                            for child, child_entry in widgets.items()
-                            if tag in child_entry.get("x-parent", [])
-                        )
-                        if nested:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"its body but admits nested widgets {nested}; a "
-                                "text statement cannot reconstruct their state"
-                            )
-                    if record["kind"] == "value":
-                        attr = record["attr"]
-                        if attr not in properties:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"undeclared attribute `{attr}`"
-                            )
-                        # Projection rebuilds a refused gesture from authored state.
-                        # A required string value gives every baseline an absolute
-                        # action detail; absence is represented by an admitted value.
-                        if attr not in entry.get("required", []):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"optional attribute `{attr}`; recorded state must be "
-                                "required so its authored value can be replayed"
-                            )
-                        # An x-says value is words the reader sees, and the file's
-                        # reading takes them from the markup — replay writing one
-                        # would change what the page says while that reading held
-                        # still, the desync the fence rules exist to prevent.
-                        if attr in said:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"x-says attribute `{attr}`, whose value is words "
-                                "the reader sees — declared state may not move the "
-                                "page's words"
-                            )
-                # `resolves` is a reserved detail field: thread settlement reads it
-                # off every action as "the comment thread this action answers"
-                # (build_threads, in both runtimes), so a verb spelling the name
-                # means that or is refused here — a widget using it otherwise
-                # would settle a thread silently.
-                if "resolves" in detail_properties:
-                    # The reader's channel only. Both thread builders read `resolves`
-                    # off actions, so the name on a report verb declares an answer
-                    # nothing gives: the report would fold like any other and settle
-                    # no thread ever — the feature nobody wired up, which this door
-                    # exists to turn into an error. A thread is the reader's to close,
-                    # or an action of theirs; the agent's own way is `leaf resolve`.
-                    if channel != "x-state":
+        for channel, verb, spec in state_specs(entry):
+            detail_properties = spec["detail"].get("properties", {})
+            required = set(spec["detail"].get("required", []))
+            unit = spec["unit"]
+            fields = [] if unit == "widget" else [unit]
+            record = spec.get("record")
+            if record:
+                fields.append(record["value"])
+                if record["kind"] == "position":
+                    fields.append(record["order"])
+                    if record["within"] not in widgets:
                         raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                            "field `resolves`, a reserved name (the comment thread "
-                            "this action answers) — only an x-state verb settles a "
-                            "thread, so rename the field"
+                            f"{path}: <{tag}> {channel} verb `{verb}` records a "
+                            f"position within unknown widget <{record['within']}>"
                         )
-                    if detail_properties["resolves"] != {"type": "string"}:
+                if record["kind"] == "body":
+                    if entry.get("x-content") != "data":
                         raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                            "field `resolves`, a reserved name (the comment thread "
-                            'this action answers) — declare it {"type": "string"} or '
-                            "rename the field"
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            "its body, so x-content must be data; projection "
+                            "states text rather than a prose subtree"
                         )
-                    # A thread is answered by the ask, and an ask is a widget
-                    # instance (x-awaits) — so the answer is absolute across the
-                    # widget, and both thread builders key the standing answer on
-                    # the widget id, the one key a log outlives its markup with.
-                    # A per-part verb answering a thread would fold per part and
-                    # settle per widget, and the disagreement is invisible: the
-                    # thread reads right until a second part is acted on. Whoever
-                    # writes that widget needs an ask per part first, and this is
-                    # where they find that out.
-                    if unit != "widget":
+                    nested = sorted(
+                        child
+                        for child, child_entry in widgets.items()
+                        if tag in child_entry.get("x-parent", [])
+                    )
+                    if nested:
                         raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` answers a "
-                            f"comment thread (`resolves`) but folds per `{unit}` — "
-                            "a thread is answered by the ask, and an ask is the "
-                            "whole widget"
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"its body but admits nested widgets {nested}; a "
+                            "text statement cannot reconstruct their state"
                         )
-                undeclared = [
-                    field for field in fields if field not in detail_properties
-                ]
-                optional = [field for field in fields if field not in required]
-                if undeclared or optional:
-                    problem = (
-                        f"does not declare {undeclared}"
-                        if undeclared
-                        else f"does not require {optional}"
-                    )
+                if record["kind"] == "value":
+                    attr = record["attr"]
+                    if attr not in properties:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"undeclared attribute `{attr}`"
+                        )
+                    # Projection rebuilds a refused gesture from authored state.
+                    # A required string value gives every baseline an absolute
+                    # action detail; absence is represented by an admitted value.
+                    if attr not in entry.get("required", []):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"optional attribute `{attr}`; recorded state must be "
+                            "required so its authored value can be replayed"
+                        )
+                    # An x-says value is words the reader sees, and the file's
+                    # reading takes them from the markup — replay writing one
+                    # would change what the page says while that reading held
+                    # still, the desync the fence rules exist to prevent.
+                    if attr in said:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"x-says attribute `{attr}`, whose value is words "
+                            "the reader sees — declared state may not move the "
+                            "page's words"
+                        )
+            # `resolves` is a reserved detail field: thread settlement reads it
+            # off every action as "the comment thread this action answers"
+            # (build_threads, in both runtimes), so a verb spelling the name
+            # means that or is refused here — a widget using it otherwise
+            # would settle a thread silently.
+            if "resolves" in detail_properties:
+                # The reader's channel only. Both thread builders read `resolves`
+                # off actions, so the name on a report verb declares an answer
+                # nothing gives: the report would fold like any other and settle
+                # no thread ever — the feature nobody wired up, which this door
+                # exists to turn into an error. A thread is the reader's to close,
+                # or an action of theirs; the agent's own way is `leaf resolve`.
+                if channel != "x-state":
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
-                        f"its schema {problem}"
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        "this action answers) — only an x-state verb settles a "
+                        "thread, so rename the field"
                     )
-                # Undo restores a recorded action from authored markup. That markup
-                # can reconstruct exactly the fold unit and the record's value/order;
-                # any other required field would make a valid declaration impossible
-                # to restore without a widget-specific default hidden in core.
-                unrestorable = sorted(required.difference(fields))
-                if channel == "x-state" and record and unrestorable:
+                if detail_properties["resolves"] != {"type": "string"}:
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
-                        f"fields {unrestorable} that authored markup cannot restore"
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        'this action answers) — declare it {"type": "string"} or '
+                        "rename the field"
                     )
-                if unit != "widget" and record and record["kind"] != "position":
+                # A thread is answered by the ask, and an ask is a widget
+                # instance (x-awaits) — so the answer is absolute across the
+                # widget, and both thread builders key the standing answer on
+                # the widget id, the one key a log outlives its markup with.
+                # A per-part verb answering a thread would fold per part and
+                # settle per widget, and the disagreement is invisible: the
+                # thread reads right until a second part is acted on. Whoever
+                # writes that widget needs an ask per part first, and this is
+                # where they find that out.
+                if unit != "widget":
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
-                        "state; only position records support that"
+                        f"{path}: <{tag}> {channel} verb `{verb}` answers a "
+                        f"comment thread (`resolves`) but folds per `{unit}` — "
+                        "a thread is answered by the ask, and an ask is the "
+                        "whole widget"
                     )
+            undeclared = [field for field in fields if field not in detail_properties]
+            optional = [field for field in fields if field not in required]
+            if undeclared or optional:
+                problem = (
+                    f"does not declare {undeclared}"
+                    if undeclared
+                    else f"does not require {optional}"
+                )
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
+                    f"its schema {problem}"
+                )
+            # Undo restores a recorded action from authored markup. That markup
+            # can reconstruct exactly the fold unit and the record's value/order;
+            # any other required field would make a valid declaration impossible
+            # to restore without a widget-specific default hidden in core.
+            unrestorable = sorted(required.difference(fields))
+            if channel == "x-state" and record and unrestorable:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
+                    f"fields {unrestorable} that authored markup cannot restore"
+                )
+            if unit != "widget" and record and record["kind"] != "position":
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
+                    "state; only position records support that"
+                )
 
-                if unit != "widget" and not declares_string(detail_properties[unit]):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
-                        "must be a string"
-                    )
-                if record:
-                    value = record["value"]
-                    schema = detail_properties[value]
-                    # An attribute record names the set of elements wearing it, so its
-                    # detail field is a list of ids however many the group allows —
-                    # nothing downstream has to ask which kind of group it came from.
-                    if record["kind"] == "attribute":
-                        items = (
-                            schema.get("items") if isinstance(schema, dict) else None
-                        )
-                        if not (
-                            isinstance(schema, dict)
-                            and schema.get("type") == "array"
-                            and isinstance(items, dict)
-                            and items.get("type") == "string"
-                        ):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must be an array of strings"
-                            )
-                    elif record["kind"] == "value":
-                        # The record reads and writes the attribute, so its detail
-                        # field speaks the attribute's own schema — one vocabulary,
-                        # or the log's contract and the markup's drift apart.
-                        if schema != properties[record["attr"]]:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must carry attribute "
-                                f"`{record['attr']}`'s own schema"
-                            )
-                        string_enum = (
-                            isinstance(schema, dict)
-                            and isinstance(schema.get("enum"), list)
-                            and bool(schema["enum"])
-                            and all(isinstance(value, str) for value in schema["enum"])
-                        )
-                        if not (declares_string(schema) or string_enum):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must be a string or string enum; "
-                                "HTML attributes cannot restore another JSON type"
-                            )
-                    elif not declares_string(schema):
+            if unit != "widget" and not declares_string(detail_properties[unit]):
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
+                    "must be a string"
+                )
+            if record:
+                value = record["value"]
+                schema = detail_properties[value]
+                # An attribute record names the set of elements wearing it, so its
+                # detail field is a list of ids however many the group allows —
+                # nothing downstream has to ask which kind of group it came from.
+                if record["kind"] == "attribute":
+                    items = schema.get("items") if isinstance(schema, dict) else None
+                    if not (
+                        isinstance(schema, dict)
+                        and schema.get("type") == "array"
+                        and isinstance(items, dict)
+                        and items.get("type") == "string"
+                    ):
                         raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
-                            f"value `{value}` must be a string"
+                            f"value `{value}` must be an array of strings"
                         )
-                    if record["kind"] == "position":
-                        order = detail_properties[record["order"]]
-                        if not (
-                            isinstance(order, dict) and order.get("type") == "integer"
-                        ):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"order `{record['order']}` counts the unit's "
-                                "siblings, so its detail field must be an integer"
-                            )
+                elif record["kind"] == "value":
+                    # The record reads and writes the attribute, so its detail
+                    # field speaks the attribute's own schema — one vocabulary,
+                    # or the log's contract and the markup's drift apart.
+                    if schema != properties[record["attr"]]:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must carry attribute "
+                            f"`{record['attr']}`'s own schema"
+                        )
+                    string_enum = (
+                        isinstance(schema, dict)
+                        and isinstance(schema.get("enum"), list)
+                        and bool(schema["enum"])
+                        and all(isinstance(value, str) for value in schema["enum"])
+                    )
+                    if not (declares_string(schema) or string_enum):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must be a string or string enum; "
+                            "HTML attributes cannot restore another JSON type"
+                        )
+                elif not declares_string(schema):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` record "
+                        f"value `{value}` must be a string"
+                    )
+                if record["kind"] == "position":
+                    order = detail_properties[record["order"]]
+                    if not (isinstance(order, dict) and order.get("type") == "integer"):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"order `{record['order']}` counts the unit's "
+                            "siblings, so its detail field must be an integer"
+                        )
         # Withdrawal is the author taking an unanswered question back, and the
         # entry says which of its own outcomes that leaves the page in
         # (retirable_ids). A verb no slot of this widget retires under would
@@ -6813,6 +6789,14 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     if not events:
         return []
     contracts = incoming["$events"]["kinds"]
+    thread = thread_structure(events)
+    versions = {}
+
+    def page_by_id(version):
+        if version not in versions:
+            versions[version] = parse_version(page_dir, version).by_id
+        return versions[version]
+
     missing = {}
     for e in events:
         kind = e["kind"]
@@ -6821,17 +6805,17 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
-            error := action_contract_error(page_dir, e, events, incoming)
+            error := action_contract_error(
+                e, page_by_id(e["version"]), thread, incoming
+            )
         ):
             key = f"action contract: {error}"
         elif kind == "report" and (
-            error := report_contract_error(page_dir, e, incoming)
+            error := report_contract_error(e, page_by_id(e["version"]), incoming)
         ):
             key = f"report contract: {error}"
         elif e.get("markup") and (
-            errors := thread_markup_contract_errors(
-                parse_structure(e["markup"]), incoming
-            )
+            errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
         ):
             key = "thread markup contract: " + "; ".join(errors)
         else:
@@ -7369,11 +7353,7 @@ def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
     for candidate in reversed(spk.get(unit, EMPTY).within):
         rec = byid.get(candidate)
         entry = registry.get(rec["tag"], {}) if rec else {}
-        if any(
-            spec.get("record")
-            for channel in ("x-state", "x-report")
-            for spec in entry.get(channel, {}).values()
-        ):
+        if any(spec.get("record") for _, _, spec in state_specs(entry)):
             return candidate
     return None
 
@@ -7508,13 +7488,12 @@ def record_lag_entries(projection: StateProjection, byid, spk, registry: dict) -
     return entries
 
 
-def record_lag(html: str, events: list, registry: dict) -> list:
+def record_lag(
+    projection: StateProjection, byid: dict, spk: dict, registry: dict
+) -> list:
     """`record_lag_entries` as advice lines, for check and the transcript."""
-    if not registry:
-        return []
-    projection, parser, spk = page_projection(html, events, registry, None)
     lag = []
-    for n in record_lag_entries(projection, parser.by_id, spk, registry):
+    for n in record_lag_entries(projection, byid, spk, registry):
         who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
             f"`{n['unit']}` ({n['facet']} facet): {who} {n['action']} → "
@@ -7645,7 +7624,8 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
-    asks = []
+    structure = thread_structure(events)
+    asks, records, byid, spk = [], [], {}, {}
     thread_of = {}
     for e in events:
         if e["kind"] == "comment":
@@ -7657,33 +7637,32 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
         markup = e.get("markup")
         if not markup or thread_of[e["id"]] in settled:
             continue
-        frag = parse_structure(markup)
-        byid = frag.by_id
-        spk = spoken(markup, registry)
-        projection = state_projection(events, byid, spk, registry, None, {})
-        for rec in frag.lf_elements:
-            entry = registry.get(rec["tag"]) or {}
-            awaits = entry.get("x-awaits")
-            if not awaits or not entry.get("x-state"):
-                continue
-            unit = rec["attrs"].get("id")
-            if quoted_in(rec, registry):
-                continue
-            attrs = replayed_attrs(rec, projection)
-            if not asking(attrs, awaits.get("when")):
-                continue
-            until = awaits.get("until")
-            if until and asking(attrs, until["when"]):
-                answered = any(
-                    action["widget"] == unit and action["action"] == until["verb"]
-                    for action, _spec in projection.actions.values()
-                )
-            else:
-                answered = answered_ask(rec, entry, projection, byid, spk, registry)
-            if not answered:
-                asks.append(
-                    {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
-                )
+        frag = structure.fragments[e["id"]]
+        byid.update(frag.by_id)
+        spk.update(spoken(markup, registry))
+        records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
+    projection = state_projection(events, byid, spk, registry, None, {})
+    for thread, rec in records:
+        entry = registry.get(rec["tag"]) or {}
+        awaits = entry.get("x-awaits")
+        if not awaits or not entry.get("x-state"):
+            continue
+        unit = rec["attrs"].get("id")
+        if quoted_in(rec, registry):
+            continue
+        attrs = replayed_attrs(rec, projection)
+        if not asking(attrs, awaits.get("when")):
+            continue
+        until = awaits.get("until")
+        if until and asking(attrs, until["when"]):
+            answered = any(
+                action["widget"] == unit and action["action"] == until["verb"]
+                for action, _spec in projection.actions.values()
+            )
+        else:
+            answered = answered_ask(rec, entry, projection, byid, spk, registry)
+        if not answered:
+            asks.append({"id": unit, "tag": rec["tag"], "thread": thread})
     return asks
 
 
@@ -7725,7 +7704,14 @@ def unpointable_blocks(parser: _StructParser) -> list:
 
 
 def restatement_errors(
-    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+    cur,
+    prev,
+    was: dict,
+    now: dict,
+    prev_num: int,
+    registry: dict,
+    projection: StateProjection,
+    floors: dict,
 ) -> list:
     """The other half of the id-survival rule. That one keeps a republish from
     dropping the anchors a user hung on the page; this one keeps it from
@@ -7761,29 +7747,16 @@ def restatement_errors(
     # Retractions up to prev — never this version's own, which is what it is
     # here to declare, so re-checking a published version reaches the same
     # verdict as checking it did.
-    taken_back = retractions(events, prev_num)
     byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
-    for e in events:
-        if e["kind"] != "action":
-            continue
-        # One key space for liveness: an action is dead when any id it rests on
-        # was floored — replay skips it by this same containment, so a finer,
-        # subject-keyed floor here would keep alive a decision the browser has
-        # already dropped (a group-level retraction never names the option the
-        # pick rested on, and the pick must die with the group all the same).
-        if action_retracted(e, taken_back, now):
-            continue
+    for e, _spec in projection.actions.values():
         for subject in action_subjects(e, byid, now, registry):
-            # Only what the user had recorded by the time they were looking
-            # at prev.
-            if subject in was and e["version"] <= prev_num:
+            if subject in was:
                 decided.setdefault(subject, []).append(e)
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
     prev_byid = prev.by_id
-    projection = state_projection(events, byid, now, registry, prev_num, taken_back)
     facet_earned = set()
     for coordinate in sorted(projection.actions):
         _widget, unit, _facet = coordinate
@@ -7838,9 +7811,9 @@ def restatement_errors(
             # to be carried — so it gets its own answer rather than the
             # never-decided one, which would read as if the user had done
             # nothing.
-            if sid in taken_back:
+            if sid in floors:
                 errors.append(
-                    f"{where}: restated, but v{taken_back[sid]} already took that "
+                    f"{where}: restated, but v{floors[sid]} already took that "
                     f"back — a retraction is recorded when it is published and holds "
                     f"without being repeated. Drop the attribute."
                 )
@@ -7866,7 +7839,12 @@ def restatement_errors(
 
 
 def report_errors(
-    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+    cur,
+    prev,
+    was: dict,
+    now: dict,
+    registry: dict,
+    projection: StateProjection,
 ) -> list:
     """The report gate, beside the reviewer one — the same shape with the
     precedence reversed. A report is a worker's provisional news: the runtime
@@ -7890,7 +7868,6 @@ def report_errors(
     declared = cur.overruled
     byid = cur.by_id
     prev_byid = prev.by_id
-    projection = state_projection(events, byid, now, registry, prev_num)
     effective_standing = {
         coordinate: reports
         for coordinate, reports in projection.reports.items()
@@ -8161,8 +8138,8 @@ def cmd_check(
         # retired would read as dropped, stacked on the "vendor the layer" error the
         # page already has.
         if registry is not None:
-            projection, _, prev_spoken = page_projection(
-                prev_html, events, registry, None
+            previous_projection = state_projection(
+                events, prev.by_id, was, registry, prev_num
             )
             dropped = sorted(
                 gone
@@ -8170,8 +8147,8 @@ def cmd_check(
                     retirement_holders(prev, registry),
                     events,
                     gone,
-                    decisions(projection.actions, registry),
-                    prev_spoken,
+                    decisions(previous_projection.actions, registry),
+                    was,
                 )
             )
             if dropped:
@@ -8182,16 +8159,27 @@ def cmd_check(
     # And the decisions recorded on the ids that stayed — the reviewer channel's
     # gate, then its mirror for the agent channel's standing reports.
     now = spoken(html, registry or {})
-    errors.extend(
-        restatement_errors(parser, prev, was, now, events, prev_num, registry or {})
+    floors = retractions(events, prev_num)
+    projection = state_projection(
+        events, parser.by_id, now, registry or {}, prev_num, floors
     )
     errors.extend(
-        report_errors(parser, prev, was, now, events, prev_num, registry or {})
+        restatement_errors(
+            parser,
+            prev,
+            was,
+            now,
+            prev_num,
+            registry or {},
+            projection,
+            floors,
+        )
     )
+    errors.extend(report_errors(parser, prev, was, now, registry or {}, projection))
 
     # Thread markup is frozen in the log and rendered into the panel; a page id
-    # colliding with one would steal its action replays (see thread_widget_ids).
-    taken = sorted(parser.ids & thread_widget_ids(events))
+    # colliding with one would steal its action replays.
+    taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
 
@@ -8231,7 +8219,10 @@ def cmd_check(
     # log-less reader (a printout, a transcript's audience) sees only the markup,
     # so say where it lags the log. Loudest at the end of the exchange — the final
     # version is the page that must read right without the log.
-    for line in record_lag(html, events, registry or {}):
+    current_projection = state_projection(
+        events, parser.by_id, now, registry or {}, selected
+    )
+    for line in record_lag(current_projection, parser.by_id, now, registry or {}):
         print(f"  · record behind the log — {line}")
     # Same register, different debt: a block the id rule missed, named while the
     # author can still cheaply mint one.

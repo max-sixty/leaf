@@ -1,422 +1,319 @@
 # leaf
 
-A page Claude hands the user, and the loop that carries their comments back. The
-README covers what leaf does; this file covers how it is built and the rules that
-keep it buildable.
+Leaf is a page an agent hands to a user and the loop that carries anchored
+comments and actions back. `README.md` covers the product. This file records the
+architecture and the rules that keep it buildable.
 
-## Soul
+## Product and stage
 
-Everything here serves one goal: a high-fidelity connection between the agent and
-the person it works with. That is why the handover is a page rather than terminal
-text. A terminal has one channel and one width. A page can have as many channels as
-the subject needs — a diagram, a board the user drags, two screenshots that flip in
-place — and when the user comments, the reply comes back anchored to the exact
-words that prompted it. The vocabulary is something to build with rather than a
-form to fill in: if leaf lacks a shape a project needs, the project can add it,
-because theme, registry, and widget modules all overlay from the user's own config.
+Leaf exists to give the agent and user a high-fidelity shared surface. A page can
+use prose, diagrams, movable boards, comparisons, and other structures suited to
+the subject. Comments stay attached to the words or element that prompted them.
+The page can also change while work proceeds, so it is the work surface rather
+than a report written after the fact. Theme, registry, and widget overlays let a
+project add a shape the shipped vocabulary lacks.
 
-Bandwidth is one axis; time is the other. A page that keeps up with the work — a
-list of items ticking over as each one finishes — says more than the same list
-written up afterwards, and keeping it true costs only publishing a new version.
-Build toward pages that are the work itself, not reports about it.
+The project has no users, deployment, database, or persisted state that constrains
+new code. Delete and regenerate stale state. Rename or reshape interfaces whenever
+the result is simpler; backward compatibility has no weight yet. A guard belongs
+only where the guarded state is reachable and there is a useful response.
 
-## Stage
+Make improvements that follow from the code and these rules. Ask the user only
+when the decision depends on purpose or intent that the repository cannot supply.
 
-The project is early, and nothing owes the past anything. Nobody uses it yet, so
-there is no deployment, no database, no command or flag or name anyone has learned,
-and no page or log on disk with a claim on new code. Stale state is deleted and
-regenerated; that is the entire migration story. Backward compatibility carries
-zero weight: rename and reshape whenever the better form is clear, and treat a name
-being the current one as no argument for keeping it.
+Validate data once at its boundary: browser events at `POST /api/event`, authored
+markup at `version check`, and replayed action detail in the widget's
+`applyAction`. Downstream code reads validated fields directly.
 
-That settles the trade between simplicity and robustness: take the simpler code. A
-guard earns its place only where the state it defends against is actually reachable
-and there is something useful to do about it. Any other guard is complexity paid
-for a case that never arrives, and it misleads the reader into thinking the
-impossible case was expected.
+## Repository shape
 
-It settles your own hesitation the same way: if you can see an improvement, make
-it. A change belongs to the user only when it turns on something only they know —
-what the work is for, what they meant by it, what they will do with it next. A
-change is not theirs merely because it takes judgement, changes what a page says,
-or replaces something that was once chosen deliberately; that is the ordinary
-substance of the work. The tell for this mistake is a change you worked out fully
-and then reported instead of making — a round trip spent being told to do what you
-had already decided.
+Claude Code and Codex both resolve `plugins/leaf/` as the plugin payload. The
+repo-root pointers are `.claude-plugin/marketplace.json` and
+`.agents/plugins/marketplace.json`; the payload carries one manifest for each
+host. Six parts live under `plugins/leaf/skills/leaf/`:
 
-Where data enters the system, check it once and completely: browser events at
-`POST /api/event`, authored markup at `version check`, and a replayed action's
-detail in the widget's own `applyAction`, because only the widget knows that shape.
-Everything downstream then reads fields directly instead of asking a second time
-whether they arrived.
+- `scripts/interact.py` is one `uv` script containing the server, event log,
+  `version check`, vendoring, and export. The payload's `bin/leaf` shim invokes
+  it. There is no daemon or database.
+- `assets/leaf.js` is the page runtime and comment layer. Its private styles live
+  in the module. There is no build step.
+- `assets/registry.json` is the integrated widget vocabulary and the layer-wide
+  `$` declarations read by the runtime, linter, renderer, catalog, and docs.
+- `assets/theme.css` owns tokens, element styles, class idioms, integrated widget
+  rules, and the shared look of runtime chrome.
+- `assets/icon.svg` is the page and site mark. The runtime paints its `lf-tone`
+  element with page status.
+- `bundled/` is an overlay layer containing shipped content widgets, their
+  registry entries, modules, theme rules, and vendored libraries. It enters a
+  page through the same merge as user and project customizations.
 
-## Shape
+The seventh product part is repo-root `examples/`: complete pages that form the
+render corpus. `examples/gallery.html` is generated from them.
 
-Claude Code and Codex both resolve `plugins/leaf/` as the plugin payload. The two
-repo-root pointers are `.claude-plugin/marketplace.json` (Claude Code) and
-`.agents/plugins/marketplace.json` (Codex), and the payload carries one manifest
-for each host. Seven things make the product, and nothing sits between them. Six
-belong to the skill, under `plugins/leaf/skills/leaf/`:
+Each example is both an authored page and an integration fixture. The corpus must
+exercise every shipped widget and every declared relation the render gate can
+observe. Edit the individual examples and regenerate the gallery; never patch the
+generated gallery directly. The website publishes the same examples with one
+vendored layer, so the corpus also proves that a page works outside the developer
+server.
 
-- `scripts/interact.py` — a `uv` script holding the server, the event log, the
-  lint (`version check`), vendoring, and export. No daemon, no database. It is
-  invoked as `leaf` through the payload's `bin/` shim: Claude Code puts the shim
-  on PATH, and Codex resolves it from the active skill directory.
-- `assets/leaf.js` — the runtime every page loads. One ES module owns both the
-  widget layer and the comment layer, with its stylesheet in a `<style>` block
-  inside the module. There is no build step.
-- `assets/registry.json` — the machine's own vocabulary: the suggestion widget
-  family and the layer-wide `$` keys. The renderer, the linter, and the agent's
-  documentation all read the same merged registry, so none of them can drift from
-  the others.
-- `assets/theme.css` — the tokens, element styles, and class idioms every page
-  links; the suggestion family's rules; and the source the runtime styles its own
-  chrome from. One stylesheet is why a page themes as one thing.
-- `assets/icon.svg` — the mark. Every served page wears it in the tab, and so
-  does the published site. Its `lf-tone` element is the part the runtime paints
-  the page's status onto.
-- `bundled/` — the content widget families, shipped as an overlay layer with the
-  same layout as the integrated layer: their registry entries, one module per
-  upgraded widget, their theme rules, with mermaid and sortable vendored beside
-  them. `page init` merges this layer exactly the way it merges a user's
-  `~/.config/leaf/` or a project's `.leaf/`. The shipped widgets reach a page
-  through the same door a user's customizations do, so every vendoring is a proof
-  that the door works.
+`plugins/leaf/hooks/hooks.json` serves both hosts. Codex supplies
+`CLAUDE_PLUGIN_ROOT` as a compatibility alias. The launcher maps Codex thread
+identity into the session record Claude Code supplies directly.
 
-The seventh is `examples/` at the repo root — complete pages that double as the
-render suite's corpus, plus `gallery.html`, which shows them all on one page
-(generated; edit the examples, not the gallery).
+The session record has two independent facts: host identity and process lifetime.
+The launcher may translate the first, but it must derive the second from the host
+process itself. A pipeline or shell wrapper is command lifetime, not session
+lifetime; tying the server to it retires the page as soon as the launching command
+returns.
 
-`plugins/leaf/hooks/hooks.json` is shared too: both hosts speak its three events,
-and Codex supplies `CLAUDE_PLUGIN_ROOT` as a compatibility alias. The launcher
-maps Codex's thread identity into the session record that Claude Code supplies
-directly. The other half of that record is the session's lifetime, and the
-launcher cannot derive it from the shell: a shell tool's `$PPID` describes the
-command, not the session — a pipeline leaves a shell there that exits with the
-command, and the page's server would follow it down a second later. So
-`session_pid` reads Claude Code's own `CLAUDE_PID`, and finds Codex's by walking
-up to the ancestor process running `codex`.
+`page init` vendors the complete merged layer into a page directory. A reviewed
+page therefore keeps the assets it was reviewed with. `interact.py`'s module
+docstring defines every file in a page directory.
 
-`page init` vendors the whole layer into each page directory, deliberately: a page
-you approved cannot change under you when the shipped defaults do. What a page
-directory holds, and why each file is in it, is documented in `interact.py`'s
-module docstring.
+Layers merge from shipped integrated assets, through bundled widgets, then the
+user's `~/.config/leaf/` and the project's `.leaf/`. Theme files concatenate.
+Runtime, icon, widget, and vendor files replace by path. Registry tag entries
+replace whole, while members of shared `$` entries compose. Each initialization
+validates the merged vocabulary and writes the same fresh layer epoch into the
+runtime and registry. An open tab carrying an older contract reloads before its
+next poll or event reaches the replacement server.
 
-## Norms
+The page directory is both durable record and deployment unit. It contains
+immutable version files, the append-only log, vendored assets, service state, and
+status. Do not add a database, daemon, build output, or hidden current-state file
+between those parts. A static export derives from the same version and log, then
+removes live handlers and replaces controls with their answers.
 
-Each of these was learned by getting it wrong, so each rule is stated with the
-failure that taught it — the rule alone would read as a preference. The norms live
-next to the code they bind, so opening that code is how you meet them:
+## Ownership rules
 
-- the page in the browser — the runtime, the widget modules, the theme, in both
-  the integrated and bundled layers: `plugins/leaf/skills/leaf/CLAUDE.md`
-- the server, the log, and the lint: `interact.py`, in its module docstring and
-  beside the code each norm binds
-- the tests: `tests/CLAUDE.md`
-- the examples, and what the corpus owes the vocabulary: `examples/CLAUDE.md`
+Detailed browser, widget, and theme rules live in
+`plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the code
+in `interact.py`; test rules live in `tests/CLAUDE.md`; corpus rules live in
+`examples/CLAUDE.md`. The rules below cross those boundaries.
 
-Four norms bind both runtimes at once, so no single directory owns them. They
-follow here.
+### The document is the initial state; the log owns transitions
 
-### The document is the state, and the log outranks it
+Authored markup states a page's initial condition. The append-only event log
+records every transition after it. There is no second store for the current
+board, chosen option, or other widget state. Every projection starts with markup
+and applies the standing log.
 
-When the user edits the page — drags a card, picks an option — the browser posts
-an `action` to the event log, and every action replays onto every version
-published after the one it was made on. Nothing anywhere stores "the current
-board": the log plus the version is the whole truth. Keep it that way. A second
-store would be a second thing to reconcile.
+A later version does not cancel a reader action by omission. Replay preserves
+the action unless the version explicitly retracts what it rests on. When a
+rewrite invalidates a decision, put `restated` on the rewritten element.
+`version check` refuses both a silent conflicting rewrite and an unearned
+`restated` through `restatement_errors`. A version that honors a decision records
+the resulting state or retires the decided content.
 
-There was a second store once, and nothing named it: the log recorded the user's
-state while the markup carried the author's, and the page's author was expected to
-copy each user decision into the markup by hand. `version check` guaranteed that
-ids survived a republish; nothing guaranteed that the state on them did. A
-forgotten copy silently un-made a user's decision, and no part of the system said
-a word.
+The default deliberately favors preserving a reader decision. Dropping it by
+accident is invisible to both sides, while an author sees a stale decision at the
+moment a rewrite conflicts with it and can decide whether `restated` is earned.
+The check therefore routes that choice to the author instead of inferring assent
+from a version's silence or from event acknowledgement.
 
-So there is one writer per fact: the markup states the initial condition, and the
-log records every transition after it. A version that says nothing about a
-decision leaves that decision standing. The cost lands where the old design hid
-it: a new version cannot quietly revise something the user acted on, because
-replay would paint their state back over the revision. When a rewrite genuinely
-invalidates a decision, the author says so with `restated` on the rewritten
-element, which retracts what rested on it — and `version check` refuses both a
-bare rewrite and an unearned `restated` (`restatement_errors`).
+The reader withdraws a gesture with one `undo` event naming the event taken back.
+Nothing is deleted, and no counter-gesture is invented. Every fold and thread
+reading drops the named event. The undo control offers a page-widget action only
+on the version where that action was made, because a later version may already
+have been authored around it. Hearing the undo on any version still triggers the
+ordinary reconciliation of what remains. Threads are never pinned to a version;
+the conversation outlives the document version that opened it.
 
-Taking a gesture back is the same sentence read from the reader's side. `z` posts
-one event — `undo`, naming the gesture it takes back and nothing else — and every
-fold and the thread reading drop the gesture it names, so the page is the version
-plus what still stands. That is what a reload has always rendered, and what
-`restated` already writes from the author's side; the reader now has the same word
-for it. Nothing leaves the log, and nothing states a counter-gesture into it: a
-card put back on the list it came from would read as a decision to move it there,
-and there is no value "undecided" for any verb to carry, so a reader taking back
-an accept could not have been recorded at all.
+Actions and reports project onto one semantic coordinate: owner widget, declared
+fold unit, and facet. The latest surviving reader action wins its coordinate and
+outranks provisional agent news there; different coordinates still compose in
+event order. Reports remain live until a version note absorbs or overrules them.
+Actions remain live until undo or a later retraction floor ends them. Both Python
+and JavaScript derive those answers from the same registry declarations.
 
-What the reader sees follows from that rather than being restated into it, and by
-the cheapest faithful means. Where the log still leaves the unit a state that can
-be stated — the detail a prior surviving action carried, or the placement this
-version's markup arrived showing — the widget is told it, so the card travels back
-under the reader's eye and the grip they were holding stays under their hand. That
-is why a position record names the field carrying the order as well as the
-container: a placement stated on the column alone puts a card back on the right
-list in the wrong place. Where the verb records nothing there is no such state, so
-the widget is rebuilt from the markup this version wrote and what survives is
-replayed onto it — a reload, done to one widget. The clone that makes it possible
-is taken beside the passage fences and for the same reason: the moment after the
-registry lands and before the modules import is the only one at which the page
-holds the author's markup and nothing else.
+Page-widget actions and reports are bounded by their document version when the
+projection asks what that version showed. Thread-widget actions live in frozen
+log markup and take the whole conversation window. Version notes provide durable
+retraction and report-absorption floors: the version after the note does not need
+to repeat them. A pinned page may therefore show its historical widget state
+while the comment panel shows a later retraction; each reading is answering its
+own question.
 
-Both routes are chosen by a declaration and neither knows a widget's name, which
-is the whole of why a settlement can be taken back at all. `accept` was final for
-as long as an undo could only state a value — a fact about the mechanism, wearing
-the clothes of a fact about suggestions, and written into that family's own entry
-as though it were one.
+An action rests on its sending widget and any detail ids contained by that
+widget. Retraction uses that containment relation, so rewriting one card can
+withdraw moves of that card without withdrawing unrelated moves on the board.
+The same predicate governs replay, word survival, and the thread a decision
+settles. A decision cannot stand in one reading after another has retracted it.
 
-One bound is real and stays: an action reaches only the version it was made
-against, a later version being free to have been written around the decision. On
-v2 the authored placement of a card moved on v1 is where the move put it, so the
-press would be live and paint nothing. Threads are not scoped that way and must
-not be, a conversation outliving the version it was opened on.
+Reconciliation states the cheapest faithful result. A declared record can state
+an absolute value or placement directly. A recordless action rebuilds its widget
+from the inert authored clone, then replays every surviving action. The clone is
+taken after the registry loads and before modules upgrade the document, while the
+DOM still contains only authored markup. A position record includes both its
+container and order field so restoring a move cannot put an item in the right
+container at the wrong position.
 
-Both failure modes here are invisible to the user, so the question was never which
-is worse but who can see each one. A dropped decision is visible to nobody. A
-stale decision standing over rewritten content is visible to the author at the
-moment they rewrite it, and only the author knows whether the rewrite invalidates
-it. Route each failure to whoever can adjudicate it: the runtime preserves by
-default, and discarding costs the author one word.
+The browser may also hold unresolved local work. Its outbox is an ordered overlay
+after the authoritative log. A gesture that already changed the DOM, such as a
+drag or edit, remains visible while unresolved. A decision press waits for the
+accepted log state before painting its result. A refusal removes that attempt and
+reconciles from authored records, standing log winners, and the remaining outbox
+in order. Accepted attempts stay unresolved until a complete state application
+accounts for them; retries keep the same attempt id and cannot reorder later
+events. The runtime's detailed contract lives in its own `CLAUDE.md`.
 
-### One representation per concept
+Registry declarations choose these routes. Core does not branch on widget names.
 
-A passage of the page is represented as `{node, start, end}` segments, and that
-one representation serves the quote search, the quote capture, the
-reading-position landmark, and the version diff's block keys. When there were four
-different answers to "what text is in this region", each was some other one's
-bug — a selection's `toString()`, for example, returns whatever `text-transform`
-rendered, so a quote captured that way could never be found again. On the Python
-side, `page_passages` is the same single answer: anything that asks what a version
-says slices its output (`spoken`) rather than walking the markup a second time. A
-second representation earns its place only when two things are genuinely
-different — an element anchor has no text to paint, so it wears an outline — never
-when they are the same thing reached by different code.
+### One representation answers one question
 
-One representation also means one budget, and the budget belongs to whatever is
-actually scarce. Quotes were once capped at four hundred characters. That read as
-economy on a log line, but it was a claim about the page, because the stored quote
-*is* the passage: a reader who selected a paragraph longer than the cap got a
-comment anchored on its opening words, with a highlight shrunk to match. The thing
-that could not afford long passages was never the log — it was the search pattern,
-one regular expression with a term per character, which V8 refuses to compile past
-some length between five and twelve thousand terms. So the bound sits on the
-pattern (`LEAD_CAP`), which finds candidate positions, and the rest of the quote
-is walked against the text from each candidate. A cap on the wrong side of a
-representation looks like thrift and spends exactly what the representation was
-for.
+A passage is a sequence of `{node, start, end}` segments. The same segments serve
+selection capture, quote search, reading-position landmarks, and version-diff
+block keys. Python's `page_passages` is the file-side reading; callers slice its
+`spoken` output instead of walking markup again. Element anchors remain distinct
+because they name a box rather than text.
 
-Two readings of one element's words are the case that does earn a second
-representation, because they answer different questions. `says` is what is on
-screen for the user to point at, so a label a widget declared as the page's words
-is included. `wrote` is what the author put in the file, so everything an upgrade
-generated is excluded. The version diff wants `wrote`, and so does a widget naming
-one of its own parts: a picked row's "chosen" mark is the page speaking, so it
-belongs in what the user can quote but not in the row's own name — otherwise a
-question that was answered reads its own answer back as part of what was asked.
-Collapsing the two into one reading with a flag would have produced the same two
-answers with nothing recording which is which.
+Limits belong to the scarce operation. A quote is not truncated to protect the
+event log. `LEAD_CAP` limits only the regular-expression lead used to find
+candidates, and the resolver compares the remainder directly against the passage.
 
-### The file's reading never claims more than the page's
+The two text readings answer different questions. `says` is what the user can see
+and point at, including a widget label declared as page words. `wrote` is authored
+text, excluding generated upgrade content. Version diffs and a widget naming one
+of its own authored parts use `wrote`; anchors use `says`.
 
-An anchor is captured in two places and resolved in one. `selectionAnchor`
-captures from the DOM in the browser; `leaf comment` captures from the version
-file; and `resolveAnchor` is the only thing that ever searches. The two captures
-are not two answers to "what does the page say here": both write the same
-collapsed text under the same rules, so whatever the file's reading holds, the
-page's reading holds too.
+Generated words carry the same distinction. `data-lf-gen` excludes upgrade
+content from `wrote`, while `data-lf-said` marks generated text that remains part
+of `says`. Unmarked runtime chrome stays outside the page's reading. A widget
+must use `says` when reading its own visible slot because the runtime may place
+hidden comment announcements inside the widget's light DOM.
 
-The file alone is not enough, because the user moves the page as well as the
-author: a decision retires a settled suggestion's losing slot, and an edit puts
-the user's words where the authored body was. So both readings follow the log
-rather than the raw markup, and each refuses to quote into content the log has
-dropped, naming the act that dropped it. The keys that carry this, and the shape
-of each reading, belong to `_PassageParser`.
+An element anchor uses the visible boxes of the element rather than inventing a
+text passage. A `display: contents` wrapper has no box of its own, so browser
+geometry uses `shownBox` or `shownParts` to read the boxes its contents paint.
+Identity still crosses declared shadow roots through `elementById`, while the set
+of widgets a page contains remains the document's declared vocabulary rather than
+a sweep through module-created trees.
 
-Keeping this true is not free. A board's module prepends each column's heading to
-the column's text, so a quote running from the lede above the board into its first
-card matched a file the rendered page no longer resembled, and anchored on
-nothing. A milestone's chips insert text mid-element, where no edge-of-element
-keyword can describe the difference. So where the file cannot model what a module
-writes, the reading stops rather than guesses: the registry declares what the file
-can model, a fence covers the rest, and a quote across a fence is refused when the
-comment is written, instead of detaching later in front of the user. The browser
-indexes those same fences before upgrades run and clips captured context to them
-afterward, so neither capture claims neighbouring text the other side cannot
-confirm. A widget that writes words of its own either declares them or stays
-fenced.
+### File capture never promises more than browser capture
+
+`selectionAnchor` captures from the DOM. `leaf comment` captures from a version
+file. Both collapse text by the same rules, and `resolveAnchor` is the only search
+implementation. Both readings apply the event log first, including reader edits
+and retired content.
+
+A module may render text the file parser cannot model. Registry declarations
+place passage fences around that content. The file refuses a quote that crosses a
+fence; the browser indexes the same fences before upgrades and clips captured
+context to them afterward. A widget that adds words declares a model for them or
+stays fenced.
+
+The file parser also follows settled relations and reader edits. It refuses to
+quote content the log retired or replaced and names the event responsible. This
+keeps a command-line comment from creating an anchor the browser could never
+paint. Browser capture never reaches across a fence merely because upgraded DOM
+happens to put selectable text on both sides.
 
 Context identifies an occurrence only when exactly one candidate confirms it in
-full. When no candidate does, a quote whose text occurs once on the page can still
-identify itself; a repeated quote cannot, and it detaches rather than falling back
-to document order — an offset or an ordinal is not evidence that a revised copy is
-the one the user meant.
+full. With no full contextual match, a globally unique quote may identify itself.
+A repeated quote detaches instead of falling back to document order, offsets, or
+ordinals.
 
-### The widget list is never closed
+### The widget vocabulary stays open
 
-The vocabulary grows by adding an entry in `registry.json` and a module beside
-it, and no code may assume it has seen the whole list. A consumer that branches on *which
-widget* it is looking at stops at the widgets it was taught, and it fails quietly
-rather than loudly: it keeps working perfectly on those while silently doing
-nothing for the next one, so the bug surfaces as a feature that was never wired
-up rather than as an error. So every consumer works from what a registry entry
-declares. Where some widgets want a behaviour and others don't, the behaviour
-becomes an `x-` key those widgets declare and the consumer dispatches on; no
-branch anywhere reads `lf-diagram` and does something particular. This binds the
-runtime, the lint, `version check --render`, `version export`, and the skill's
-own prose alike. The test is whether a twelfth widget would touch anything beyond
-its own module and entry; wherever it would, the missing piece is a declaration.
+A widget family grows by adding a complete entry to `registry.json`, plus a
+module and theme rules when needed. Consumers dispatch on declarations, never on
+a closed list of tag names. A new widget should touch only its own entry, module,
+and rules.
 
-Most widgets are things a page contains, and those stay anonymous outside their
-own module. A few could be part of the machine itself, and core would name those
-outright — today there are none. The suggestion is where the temptation kept
-landing. Three facts read as sentences about the suggestion — the log settles it;
-a version honoring the decision may drop the ids it retired; thread markup
-refuses one — and every one turned out to be about a relation the registry can
-state. `x-retired-when` names the outcome under which a slot leaves the page, and
-`x-parent` names the widgets whose decision reaches it, so a holder/slot pair is
-the entire definition of a settlement (`retirement_slots`), and a family a
-project declares gets all of it the day it declares. What the pair cannot say is
-what an *unanswered* suggestion means when the author takes it back, so the
-widget says that itself (`x-withdrawn-as`). One name is left in core and it is a
-member's, not the mechanism's: `suggestion_errors` holds the family's markup to
-one slot of each kind, at least one, and no nesting — cardinality being the one
-thing no key states, and those sentences meaning nothing for the twelfth widget.
+Content widgets remain anonymous outside their own module. Core may name a tag
+only when the Leaf loop itself is defined in terms of that tag; there are no such
+content widgets today. The suggestion family retains one member-specific lint,
+`suggestion_errors`, because its cardinality and nesting rules are not expressed
+by the general holder/slot relation. Do not turn that validation into a generic
+runtime branch.
 
-Opening the pair to any family carried an obligation along with it. The
-settlement mark (`data-lf-state`) was the suggestion module's own write, so
-generalizing the relation turned it into a duty every holder module had to
-remember — stated in the scaffold and the key table, enforced nowhere — and a
-module that forgot would split the page's reading from the file's, with
-`leaf comment`'s refusal as the only symptom, versions later and nowhere near
-the mistake. Nothing about the mark ever needed a module: the relation and the
-log both sit in the layer's hands, so replay paints it (`markSettled`,
-leaf.js), and a scaffold module that does nothing on settle still yields a page
-whose readings agree. The visible half followed once the same question was put
-to it: hiding the retired slot needs only the relation too, so the layer marks
-the slot (`renderRetired`) and one theme rule hides it, where the shipped
-family's by-name rules had been the closed list wearing CSS's clothes. What is
-left to a module is its own choreography, and the render gate reads the result
-(`RETIRED_SLOTS`), comparing mark and shown words against the log's decision —
-the check for what no default can see. Before gating an obligation every
-adopter must remember, ask whether the declaration already states enough for
-the layer to do it once.
+Declarations describe general behavior:
 
-Which kind a widget is has one question behind it: is this one of the ways leaf
-works, or one of the things a page can hold? Convenience is not an answer; a
-widget joins the first set only when the loop is written in terms of it. The
-banner's "✓ Accept all" control was once a fourth name in core and never deserved
-it: it counted `lf-suggestion:not([data-lf-state])`, a selector with the shape of
-a mechanism and the substance of one member, so the count was perfect for that
-tag and silently zero for every question, pick, and blocked task beside it. It
-became `x-awaits`, which now feeds the banner's count, the key that steps through
-open asks, and the `?` overlay. A name core can only defend because one widget
-got there first is a declaration waiting to be written. And declare the general
-property, not the particular widget — `x-upgrade` says "a module enhances this
-tag", not "mermaid needs loading" — or the special case has merely moved into the
-registry. The bar is real: an `x-` key the log records becomes a forever
-contract, carried by the vendored layer's stamp (`$events`). That is an argument
-for finding the general shape, never for reaching past the registry.
+- `x-upgrade` says that a module enhances the element.
+- `x-awaits` says the element can hold a request for the reader. It feeds the
+  banner count, asks board, keyboard walk, and help.
+- `x-parent` declares the members that make up a holder. Combined with
+  `x-retired-when`, it defines which slots a settlement retires.
+- `x-withdrawn-as` states what an unanswered member becomes when the author
+  withdraws it.
+- `x-wide` names the kind of width (`box` or `drawing`) rather than hiding a
+  second behavior in a boolean.
+- `x-says`, `x-paints`, content, shadow, state, report, and record declarations
+  give each shared consumer the information it needs without naming a widget.
 
-A boolean key is an enumeration whose second value was already chosen, by
-whichever widget declared first. `x-wide: true` was read as "may stand wider than
-the column" but in practice meant "and fills whatever box it is given" — the
-board's answer to a question the key never asked. What the theme actually has to
-decide is how far the box may reach, and with nothing to read, it decided once,
-at the one width the whole vocabulary then shared. A diagram's graph is drawn at
-a size its source determines, so held to that shared width, a 1533px sequence
-diagram was cut off at 1080px in a window with room for all of it. Nothing had
-named a widget and nothing had reached past the registry, so every gate that
-catches those violations had nothing to see; the failure surfaced three widgets
-later, as the page's reader saying a diagram was cut off. The kinds are explicit
-values now (`box`, `drawing`). Where a key's `true` carries a claim the entry
-never states, that claim is the value the key should have had.
+An `x-` declaration recorded in the log is a durable contract. The vendored
+registry stamp carries `$events`, and version checks compare the page's logged
+contract with the incoming layer. Find the general property before adding a key;
+do not hide a widget name behind a declaration whose meaning is still specific to
+that widget.
 
-The stylesheet is under the same rule, because a selector is a consumer too, and
-a list of tags in CSS is the closed list wearing different clothes. A box that
-frames what it holds declares so (`--lf-frame`) in the same rule where it draws
-the frame, and the layer reads that one declaration for both things that follow
-from it: the style query that trims what the box would otherwise paint as extra
-inset, and the one that withholds the extra room a wide exhibit may take — since
-inside a framed box, the box rather than the page is what holds the exhibit. A
-project's own card gets both behaviours by making the same declaration. (The full
-norm lives in `plugins/leaf/skills/leaf/CLAUDE.md`.) The room rule began as a
-list of tags, because the second reading looks impossible: `main` declares the
-frame too — the column is a padded box like any other — so read plainly, the
-declaration would withhold wide-exhibit room from every exhibit on every page.
-But the column is one box, and one line on it hands the room back to what it
-holds — which is what the gate had been saying all along by walking up no
-further than `main`. While the two lists stood, they cost what
-lists cost: every tag in them declared the frame anyway; five boxes that declared
-the frame were in neither list, so a diagram inside a metric stood 216px across
-the metric beside it; and the one listed tag that declared nothing, `figure`, was
-withholding room while drawing no box at all. When a declaration looks like it
-can answer only one of two questions, measure it against the second before
-writing the list.
+The layer owns behavior that follows completely from a declaration. Replay paints
+`data-lf-state` on a settlement holder and `data-lf-retired` on retired slots;
+one theme rule hides them. A module supplies only its own choreography. The render
+gate checks the visible result that declarations alone cannot prove.
 
-A fact the whole layer shares belongs to the layer, under a `$` key, not to
-whichever widget needed it first. The vendored tokenizer's language list lived in
-`lf-code`'s `language` enum, and from there the only way the lint could read it
-was to name `lf-code` explicitly: the wrong home was the cause, and the reach by
-name only the symptom. Moving the list to `$languages` is what let the widgets
-declare instead — `x-language` now names the attribute that carries a language.
-The tell is a consumer indexing past the entry it was handed. The second tell is
-what that consumer does when the reach comes up empty: a list read from the wrong
-place is a list that can move, and a check that stands down on `if not known`
-retires itself the day it does. Layers compose `$` keys member by member, while a
-tag's entry replaces whole, because the two are different kinds of thing: a
-schema is one contract whose halves cannot mix, and a shared fact is a namespace
-whose members stand alone. Under replace-whole, a project that declared its one
-idiom vendored a `$idioms` holding exactly that idiom, and `page catalog`
-silently dropped the other ten — the natural act of declaring a shape cost the
-agent the catalog it authors from. The stamp does not care about the grain: its
-gates read the merged result (`merge_layer_entries`).
+The holder/slot relation is also what permits an honoring version to drop ids the
+decision retired. `retirement_slots` derives that permission for any declared
+family. `x-withdrawn-as` covers the different author-side case in which an
+unanswered holder is withdrawn. These are relations between declarations and
+events, not special rules for suggestions.
 
-An `applyAction` implementation states an absolute placement. Poll reconciliation
-may apply any standing winner again, including the sender's, so reapplication must
-be a no-op. The verb's detail schema, semantic facet, fold unit, and record form
-come from `x-state`; no consumer knows the widget by name. These declarations make
-the log a fold of the user's standing state.
+CSS is a consumer too. A selector listing every framed tag closes the vocabulary.
+A box declares `--lf-frame` where it draws its frame. Shared style queries use
+that declaration to trim collapsed child margins and to limit the room a wide
+exhibit may take inside the box. `main` hands page-wide room back to its contents.
+The render gate checks trapped margins, clipping, and width on the composed page.
 
-A relative implementation looks correct until a poll applies the sender's action
-over the state its gesture painted. `version check --render` catches this through
-`RELATIVE_REPLAYS`: it reapplies each owner-unit-facet winner in log order and
-reports what moved. `shallowSigs` reads markup state without text, while the unit's
-record form reads the words. Testing each action alone would be wrong: two cards
-dragged to the head of one column fold to two standing moves. The gate can test
-only verbs represented in the log.
+The declaration follows the drawn box rather than the tag. A nested task may draw
+its frame only in a child selector, and a module may generate a framed class with
+no corresponding element name. `x-content` says whether authored block flow can
+enter a widget, but the browser decides which rule drew a box. Style queries and
+render checks therefore read the composed result instead of maintaining parallel
+tag lists.
 
-A verb's record form is also the whole of what a module may write in the author's
-namespace. An entry's `additionalProperties: false` closes that namespace, and
-the file lint holds every version to it — but a widget is a second writer the
-file lint cannot see. So a module writes an author-namespace attribute only where
-a record form declares it (`chosen`, `status`); everything else goes on chrome
-the module built itself, in the platform's vocabulary or under `data-`.
-`lf-options` had two attributes of the other kind, and both were silent:
-`answered` recorded a verb only a thread can post, and `open` recorded which way
-this one tab last left a disclosure — a fact no version carries at all. Each was
-a second copy of something the module already stated on the control that carries
-it, and the one reader that saw them believed them: `shallowSigs` excludes
-exactly the attributes no version can assert, so a widget writing beside that set
-gets counted as state the author wrote. `version check --render` asks the
-rendered page for the rest (`UNDECLARED_ATTRS`), the rendered page being the only
-side the second writer shows on.
+Layer-wide facts live under `$` keys rather than under the first widget that needs
+them. `$languages` owns tokenizer language names; widgets declare the attribute
+that carries one through `x-language`. Layer merging composes `$` entries member
+by member. A tag entry replaces whole because it is one indivisible schema
+contract. `merge_layer_entries` supplies the same merged result to the stamp and
+all gates.
 
-## Working on it
+An action's detail schema, semantic facet, fold unit, and record form come from
+`x-state`; reports use the parallel `x-report` channel. `applyAction` states an
+absolute result and is idempotent because polling may apply a standing winner
+again. `version check --render` exercises represented verbs in log order through
+`RELATIVE_REPLAYS`.
 
-- **Tests are integration tests in a real browser.** What a test must assert, and
-  the ways one can pass vacuously, are in `tests/CLAUDE.md`; what each file
-  covers, and which command to run when, are under "The suite" below.
-- **A cloud container has none of that, so set it up first.** The suite needs the
-  Chromium headless shell that matches the Playwright version in `uv.lock`. Two
-  end-to-end launcher tests also need installed Chrome. There is no `pre-commit`
-  either, so the lint cannot run:
+`shallowSigs` reads authored state without text, while a record form extracts the
+declared words and placement fields. The render gate reapplies every standing
+winner for a coordinate, not each event in isolation. Two position units in one
+container may both stand, so only the whole ordered projection can prove that
+reapplication is a no-op.
+
+A record form also defines which author-namespace attributes a module may write.
+Entries use `additionalProperties: false`; undeclared runtime state belongs on
+generated chrome, in platform state, or under `data-`. `UNDECLARED_ATTRS` checks
+the rendered page, the only place module writes are visible.
+
+The file lint closes the author's attribute namespace, but it cannot see a
+module's writes. A module writes durable author state only through declared
+record fields such as `chosen` or `status`. Transient tab state belongs on the
+control that carries it or under `data-`; mirroring it onto the authored element
+creates a second state representation that `shallowSigs` will treat as authored.
+
+The same open-list rule binds documentation and scaffolding. `page catalog`
+reads the merged registry and theme idioms. `leaf customize widget` scaffolds a
+complete entry, a framed theme rule, and optionally an upgrade module that uses
+the exported helper surface. Adding a twelfth widget must not require updating a
+handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
+
+## Working on the repository
+
+- Tests are browser integration tests. `tests/CLAUDE.md` defines what they must
+  prove and how to avoid vacuous passes.
+- A cloud container needs the pinned developer environment before it can run the
+  suite:
 
   ```sh
   uv sync --frozen
@@ -425,176 +322,115 @@ side the second writer shows on.
   uv tool install pre-commit
   ```
 
-  Two tests fail there whatever the setup does: the container has no IPv6 stack,
-  so the pair that binds the stated-host wildcard `::` cannot run. Those failures
-  are the container's answer, not the change's — land from a workstation, where
-  they pass.
-- **Measure before optimising, and before assuming.** The cost claims in this
-  codebase came from timing the real thing on `examples/gallery.html`, not from
-  reasoning about it. The costliest assumption was that a suite driving browsers
-  must be what makes a busy machine unusable. Read across an idle-run-idle
-  timeline, WindowServer sat at 78% of a core before a run, 76% during it and 64%
-  after, while the headless shell went from nothing to 100-220%:
-  `chrome-headless-shell` has no platform-window layer, so it never opens a
-  connection to the compositor at all, and only the two launcher tests that ask
-  for installed Chrome do. A machine bogged down beside a green suite is
-  something else holding real windows open, and cutting the suite's concurrency
-  buys nothing against it.
-- **A page directory holds a copy of the layer, so re-vendor before believing
-  it.** `page init` is what vendors, and it re-vendors an existing directory.
-  Until it runs again, a page serves the assets it was created with, so
-  `version check --render` reads a runtime the checkout no longer has — and
-  reports it clean. That green is a statement about the stale copy; it says
-  nothing either way about the edit being checked.
-- **Merge locally.** The project is not at the stage of PRs: landing is
-  `wt merge`, a direct squash merge to main, never a PR — including for
-  background jobs, whose harness default is a draft PR. This settles the *form*
-  of a landing, not *whether* one was asked for: a job once read "merge locally"
-  as standing permission, and unreviewed work landed on the strength of it. A
-  finished branch waits for the user's go-ahead unless the task said to land.
-- **A session loads each host's cached copy, not the checkout.** Both repo-root
-  marketplaces point at `plugins/leaf/`, and both hosts install from GitHub main,
-  so a payload change reaches a session only once it is pushed — and it reaches
-  the *next* session, not the one that pushed it. Neither manifest declares a
-  version, deliberately: that string is Claude Code's cache key, so an unchanged
-  version leaves the old copy in place while the updater reports it as latest.
-  With no version, the key is the commit, and Claude Code's periodic marketplace
-  sweep installs each pushed commit on its own; nothing needs running. Codex
-  installs from a marketplace snapshot it fetches separately and does not sweep,
-  so a change reaches it through `codex plugin marketplace upgrade leaf` and then
-  `codex plugin add leaf@leaf`.
+  A container without IPv6 cannot run the two tests that bind the stated-host
+  wildcard `::`; run those from a workstation.
+- Measure the real surface before changing performance. Use
+  `examples/gallery.html` for runtime costs.
+- Re-vendor before believing a render result. A page serves its vendored copy, so
+  run `page init` again after changing the layer. A served page uses the quiescent
+  stop, init, start sequence so the old contract releases its socket and lease
+  before the new epoch appears at the same recorded URL.
+- Land with `wt merge`, a direct local squash merge to main, never a PR. This
+  chooses the landing form, not whether landing was requested. Finished work
+  waits for the user's authorization unless the task already granted it.
+- Sessions load host caches, not the checkout. Both marketplaces install from
+  GitHub main. Claude Code keys an unversioned manifest by commit and updates on
+  its marketplace sweep. Codex requires
+  `codex plugin marketplace upgrade leaf`, followed by
+  `codex plugin add leaf@leaf`. A pushed change reaches the next session.
 
 ### The suite
 
-`test_interact.py` exercises the lint, vendoring, publishing, catalog, export,
-thread-markup validation, and the anchors `leaf comment` writes by reading a
-version file. `test_render.py` loads the shipped examples in a real browser, in
-both color schemes, and asserts what a static lint cannot reach: every widget
-upgrades into a box with usable size, the document and the comment panel scroll
-in separate regions, the comment box grows without any script sizing it, and
-neither pressing a control nor news arriving on its own moves the controls beside
-it. It then reads each example again as a reader who left something standing,
-once in every arrangement a browser can put back: the panel open, a board standing,
-design mode on. Every other reading in the suite is of a first visit. A return moves
-nothing a first visit doesn't, arriving being no gesture; that one is read off the
-animations the browser itself reports. One journey test drives the
-whole loop through the real UI — select a passage, comment, drag a card, follow
-the next version, find the comment still anchored — and pins the event log it
-leaves behind. `test_product_page.py` holds
-the pages under `docs/` to the shipped theme and widget registry.
-`test_site.py` builds the site and reads it back: the theme it serves is the
-shipped file, each example stands up as a live page that takes a comment and
-holds a decision through a reload, both palettes reach the site's own layer, and
-no page scrolls sideways on a phone. Playwright drives the pinned Chromium headless
-shell installed with the developer environment.
+`test_interact.py` covers lint, vendoring, publishing, catalog, export, thread
+markup, and file-side anchors. `test_render.py` covers the browser runtime and
+examples. `test_product_page.py` covers `docs/`. `test_site.py` builds and reads
+the published site. The journey test selects a passage, comments, moves a card,
+follows a version, and checks the surviving anchor and log.
 
-The suite runs in the environment `pyproject.toml` names and `uv.lock` pins, and
-that environment is the developer's only. leaf itself declares its dependencies
-in `interact.py`'s PEP 723 header — the header is what installs them, with no
-build step — and the project file leaves that alone. The tests need the same
-packages anyway, because they load `interact.py` by path.
+The browser corpus is read in both color schemes. It checks widget upgrades,
+usable boxes, independent document and panel scrolling, script-free textarea
+sizing, control stability under presses and arriving news, print, and page width
+on a phone. A second sweep reads each example as a returning reader with the
+panel, a board, or design mode restored. Every other corpus reading is a first
+visit, so restoration cannot hide an arrival regression.
+
+The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own
+runtime dependencies remain in `interact.py`'s PEP 723 header. Tests load that
+script by path and therefore need the same packages.
+
+The everyday suite needs no network after setup and runs one shipped page through
+the browser gate:
 
 ```sh
 uv run pytest tests
 ```
 
-That everyday command needs no network after setup. It runs one shipped page through
-the browser gate, so one of `pyproject.toml`'s eight workers launches Chromium; the
-other tests cover the static lint, server, vendoring, and product pages. The fixtures
-relocate the two XDG directories leaf reads (`config_home`, `state_home`) and leave the
-rest of the home alone, so every `leaf` the suite shells out to finds the uv cache the
-developer already has.
-
-`test_render.py` and `test_site.py` are the browser integration suite, and a complete
-run puts eight workers on the machine, most of them driving a headless shell of their
-own. It takes about five minutes, measured while three sibling worktrees ran their own
-suites, as is ordinary here. So while iterating, run the tests that cover the change,
-with xdist off:
+`test_render.py` and `test_site.py` are marked nightly. A focused browser run must
+include `--run-nightly`; without it pytest deselects the module and exits 5. Turn
+xdist off while iterating:
 
 ```sh
 uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
 ```
 
-A focused run of those two modules needs `--run-nightly` as much as the complete run
-does. Without it, the mark takes the whole module out of the run, and pytest prints a
-deselected count, no passed count, and exits 5. That is a non-zero exit off a run that
-did nothing, so a `&&` chain stops on it, and a check that flips a line of code to watch
-the suite go red reads the empty run as the catch. Only the passed count tells an empty
-run from a real one. `test_interact.py` carries no mark, so a focused run there takes
-no flag.
-
-Run the complete suite before handing the work back; CI and `wt merge` run the same
-command. It needs a network because the installed launcher's browser path may resolve
-Playwright outside `uv.lock`:
+Run the complete suite before handoff. It needs a network because the installed
+launcher's browser path may resolve Playwright outside `uv.lock`:
 
 ```sh
 uv run pytest tests --run-nightly
 ```
 
-Ruff and prettier run from `.pre-commit-config.yaml`, which says what each covers
-and why. `wt merge` runs that set and then the suite as pre-merge hooks
-(`.config/wt.toml`), and refuses a tree that doesn't pass;
-`.github/workflows/ci.yaml` runs both again on main and on every pull request.
-Before then:
+Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` runs them and
+the suite through `.config/wt.toml`; CI repeats both on main and pull requests.
 
 ```sh
 pre-commit run --all-files
 ```
 
-CI is also the only place either gate meets a platform other than macOS, and the
-platforms disagree about exactly the things a browser test measures: how wide a
-system font sets a word, whether a scrollbar takes a gutter out of the window.
-`scripts/linux-suite.sh` runs the suite the way CI runs it, in a container carrying
-the pinned headless shell, installed Chrome, and the runner's fonts. It takes pytest's
-arguments and needs a Docker daemon that can run linux/amd64:
+The Linux container supplies the pinned headless shell, installed Chrome, and CI
+fonts. It accepts pytest arguments and needs a Docker daemon that can run
+linux/amd64:
 
 ```sh
 scripts/linux-suite.sh
 ```
 
+Fixtures relocate only Leaf's XDG config and state homes. They leave the rest of
+the home intact so subprocesses can use the developer's `uv` cache. The nightly
+modules drive separate headless shells under xdist; focused debugging uses one
+worker so browser timing and output remain readable.
+
 ### Driving a page by hand
 
-`scripts/preview.py [example]` serves a shipped example as a real page, vendoring
-fresh each time; `examples/CLAUDE.md` covers what it lays in and why. For a page
-of your own, run `page init` on the directory and serve it in-process from
-`interact.handler_for(page_dir, token)`, the way the fixtures do, opening the
-page with the key in the query string (`?t=…`). `server start` is different: it
-puts a live page behind the session, and the loop's hooks then hold the session
-to watching that page.
+`scripts/preview.py [example]` freshly vendors and serves a shipped example;
+`examples/CLAUDE.md` defines its fixtures. For another page, run `page init` and
+serve it in-process with `interact.handler_for(page_dir, token)`, then open the
+key as `?t=…`. `server start` instead attaches a live page to the session and its
+hooks.
 
 ### The website
 
-`scripts/site.py` assembles <https://leaf.page/> into `.tmp/site`, and
-`.github/workflows/publish-site.yaml` runs it on every push to `main` that
-touches the pages, the examples, or the layer. The docs pages are copied with
-their checkout-relative paths substituted: the stylesheet and the icon a page
-wears become the site's own copies, every other path into the payload becomes a
-GitHub link, and a link to an example names the page directory it is published
-as. The examples are published live: one vendored layer at the site's root, each
-example at `examples/<name>/versions/v1.html`, and a `/leaf.js` that loads
-`docs/session.js` in front of the vendored runtime. The event log then lives in
-the reader's own tab, so the banner, the comment panel, and every widget work.
-What a static host cannot supply is an agent reading that log, and the page says
-so. The build resolves every local link it wrote and refuses a site holding one
-that reaches nothing.
+`scripts/site.py` builds <https://leaf.page/> in `.tmp/site`.
+`.github/workflows/publish-site.yaml` runs it for relevant pushes to `main`. The
+build rewrites checkout-relative asset paths, publishes one vendored layer and
+each example at `examples/<name>/versions/v1.html`, and refuses unresolved local
+links. Asset references become site copies; other payload paths become GitHub
+links. `docs/session.js` loads before the vendored runtime and puts the example
+event log in the reader's tab; no agent reads it on the static site.
 
 ```sh
 scripts/site.py
 ```
 
-`docs/demo.gif`, which the README and the site both wear, is written by
-`scripts/record-demo.sh` — it drives a session through the shipped server and
-Chrome and records the result.
+`scripts/record-demo.sh` drives the shipped server and Chrome to write
+`docs/demo.gif`, which the README and site use.
 
-### The vendored bundles
+### Vendored bundles
 
-Code blocks are colored in the browser from
-`plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js`, which upstream doesn't
-ship in a form a page can import — so it is bundled here.
-`scripts/vendor-highlight.sh` rebuilds it, reading the language list out of the
-registry's `$languages.names` so the bundle cannot offer a language the lint
-rejects. Add a language there, then rerun the script.
+`scripts/vendor-highlight.sh` rebuilds
+`plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js`. It reads
+`$languages.names` from the registry so the browser bundle and lint accept the
+same languages.
 
-Thread messages render their Markdown in the browser too, from
-`vendor/marked.esm.js`. Upstream ships that one as a single dependency-free ESM
-file, so `scripts/vendor-marked.sh` is a copy at a pinned version, not a build.
+`scripts/vendor-marked.sh` copies the pinned, dependency-free
+`vendor/marked.esm.js` used for thread Markdown.

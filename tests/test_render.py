@@ -63,24 +63,34 @@ assert EXAMPLES, "no examples found — parametrizing over an empty list tests n
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = Path(__file__).parent.parent / "examples" / "media"
 
-# A long page, so the document scrolls, and nothing else — the panel is the subject.
-LONG_PAGE = """<!doctype html>
+
+def leaf_page(title: str, body: str, *, head: str = "") -> str:
+    """A complete page carrying the presentation boundary every fixture shares."""
+    extra_head = f"{head}\n" if head else ""
+    return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>long</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>{title}</title>
+<meta http-equiv="Content-Security-Policy" content="{interact.PAGE_CSP}">
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
+{extra_head}<script type="module" src="/leaf.js"></script>
 </head>
 <body>
-<main>
-<h1 id="t">Long</h1>
-{paras}
-</main>
+<main>{body}</main>
 </body>
 </html>
-""".format(
+"""
+
+
+# A long page, so the document scrolls, and nothing else — the panel is the subject.
+LONG_PAGE = leaf_page(
+    "long",
+    """
+<h1 id="t">Long</h1>
+{paras}
+""",
+).format(
     paras="\n".join(
         f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(60)
     )
@@ -92,17 +102,9 @@ LONG_PAGE = """<!doctype html>
 # to one selection), a widget whose body the runtime's own chrome sits inside, adjacent
 # blocks (a selection across them reads as one line to the browser and as none to the
 # source), a compound the page writes both ways, and a character straddling the quote cap.
-INLINE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>inline</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+INLINE_PAGE = leaf_page(
+    "inline",
+    """
 <h1 id="t">Inline</h1>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
@@ -123,10 +125,8 @@ first paragraph uncovered, which is what lets a test click a highlight up there.
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
 aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A specimen, for element anchors.</figcaption></figure>
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     filler="\n".join(
         f"<p id='f{i}'>Filler {i}. " + "Words. " * 20 + "</p>" for i in range(6)
     ),
@@ -136,17 +136,9 @@ stroke="currentColor"></rect></svg><figcaption>A specimen, for element anchors.<
 )
 
 # A decision already made and acted on, with the alternatives kept for the record.
-SETTLED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>settled</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SETTLED_PAGE = leaf_page(
+    "settled",
+    """
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
 <lf-options id="transport" choose settled>
@@ -157,27 +149,17 @@ SETTLED_PAGE = """<!doctype html>
   <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # A decision the page reports rather than offers: no `choose`, so there is nothing to
 # press, and the mark the upgrade puts on the carried option is the page saying which
 # one the document holds. The paragraph above it is the control — a passage nobody has
 # ever doubted was quotable.
-CARRIED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>carried</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CARRIED_PAGE = leaf_page(
+    "carried",
+    """
 <h1 id="h">Session transport</h1>
 <p id="lede">Where the decision stands, for the record.</p>
 <lf-options id="carried">
@@ -186,26 +168,16 @@ CARRIED_PAGE = """<!doctype html>
   <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # The words a widget renders from an attribute — a column's heading, a metric's number —
 # with room around them, so a drag across one is an ordinary drag and not a two-pixel
 # feat. Both column labels differ, so a quote can only anchor where it was picked.
-SAID_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>said</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SAID_PAGE = leaf_page(
+    "said",
+    """
 <h1 id="h">This week</h1>
 <lf-metrics id="numbers">
   <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
@@ -218,26 +190,16 @@ SAID_PAGE = """<!doctype html>
     <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
   </lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # Short card titles, so the whole board fits in an expected ARIA snapshot and the
 # snapshot stays about structure. One column starts empty: a keyboard user has to
 # hear it to move a card into it.
-BOARD_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>board</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+BOARD_PAGE = leaf_page(
+    "board",
+    """
 <h1 id="h">Sprint</h1>
 <lf-board id="sprint">
   <lf-column id="col-todo" label="Todo">
@@ -246,25 +208,15 @@ BOARD_PAGE = """<!doctype html>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # Exhibited widgets beside live ones, so a missing affordance can be pinned on the
 # quoting rather than on a broken upgrade.
-SPECIMEN_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>specimen</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SPECIMEN_PAGE = leaf_page(
+    "specimen",
+    """
 <h1 id="h">What a decision looks like</h1>
 <lf-specimen id="spec" label="a decision">
   <lf-options id="quoted-group" choose>
@@ -306,31 +258,19 @@ SPECIMEN_PAGE = """<!doctype html>
     <lf-old>Refill every feeder each morning.</lf-old>
     <lf-new>Refill when the camera shows it half-empty.</lf-new>
   </lf-suggestion></p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # A page with nothing to decide: the widgets under test arrive in the panel, on a
 # reply, which is the other place markup renders.
-REPLY_HOST_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>reply</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REPLY_HOST_PAGE = leaf_page(
+    "reply",
+    """
 <h1 id="h">Session store</h1>
 <p id="intro">Redis, with a signed-cookie fallback for reads.</p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # Claude answering with a question to put and, beside it, the framing that question
 # replaced — quoted, so the reply asks one thing rather than two. The words ride
@@ -356,17 +296,9 @@ SPECIMEN_MARKUP = """<lf-options id="rp-live" choose>
 IMPORTER_CARD = (
     '<lf-card id="card-importer"><strong>Wire the importer</strong></lf-card>'
 )
-REPLAYED_PAGE = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>replayed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REPLAYED_PAGE = leaf_page(
+    "replayed",
+    f"""
 <h1 id="t">Rollout</h1>
 <lf-options id="approach" choose>
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
@@ -376,10 +308,8 @@ REPLAYED_PAGE = f"""<!doctype html>
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
   <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # A page's key is minted per page; fixed here so a test can build a URL for a
@@ -639,27 +569,47 @@ def _until(page, fact, wanted):
     noticed. A page with every poll routed to `abort` has no such next, and a wait on one
     runs its timeout out and says so rather than passing.
 
-    A wait that runs out says what it was watching, `wanted` naming the fact in the words
-    of the caller that wanted it — required rather than defaulted, so the next wait written
-    here cannot quietly go back to saying nothing. Playwright's own message names the event
-    it blocked on ("response") and nothing about the page, while the counters that answer
-    it are already in hand, so the failure carries them from both ends of the wait: a fact
-    stuck while polls keep arriving reads differently from a page that has stopped talking
-    at all. Raised from the timeout rather than in place of it, the budget it ran out of
-    being the one fact this message hasn't got."""
+    A wait that runs out names the caller's wanted fact and prints its starting and final
+    counters. No response preserves Playwright's timeout as the cause; a busy response
+    stream reaches the same explicit deadline instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
     deadline = time.monotonic() + 30
     try:
         while not fact(_traffic(page)):
-            remaining = max(1, int((deadline - time.monotonic()) * 1000))
+            remaining = int((deadline - time.monotonic()) * 1000)
+            if remaining <= 0:
+                raise PlaywrightTimeout("responses outlived the wait deadline")
             page.wait_for_event("response", timeout=remaining)
     except PlaywrightTimeout as ran_out:
         raise AssertionError(
             f"the page never {wanted}: the wait began on {began} and gave up on "
             f"{_traffic(page)}"
         ) from ran_out
+
+
+def test_a_traffic_wait_stops_when_responses_outlive_its_deadline(monkeypatch):
+    """A busy response stream cannot keep a false delivery fact alive forever."""
+
+    class BusyTraffic:
+        def settle(self):
+            pass
+
+        def __str__(self):
+            return "busy"
+
+    class BusyPage:
+        lf_traffic = BusyTraffic()
+
+        def wait_for_event(self, *_args, **_kwargs):
+            raise AssertionError("the expired wait listened for another response")
+
+    times = iter((0, 31))
+    monkeypatch.setattr(time, "monotonic", lambda: next(times))
+
+    with pytest.raises(AssertionError, match="never reached a false fact"):
+        _until(BusyPage(), lambda _traffic: False, "reached a false fact")
 
 
 # A browser trip is over when the response names the accepted attempt, definitively
@@ -1074,25 +1024,15 @@ def compare_with(page, version=None):
     press.click()
 
 
-CUSTOM_WIDGET_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>custom widget</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CUSTOM_WIDGET_PAGE = leaf_page(
+    "custom widget",
+    """
 <h1 id="title">Project vocabulary</h1>
 <lf-callout id="custom-note">
   <strong>Heads up</strong> This widget came from the project layer.
 </lf-callout>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
@@ -1834,27 +1774,17 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
 
 # Every cell one unbreakable token, so no amount of wrapping gets this table
 # inside the column and the third of the theme's three cases is the one on trial.
-WIDE_TABLE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>wide</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_TABLE_PAGE = leaf_page(
+    "wide",
+    """
 <h1 id="t">Sessions</h1>
 <p id="p">One row, and more of it than the measure holds.</p>
 <table id="sessions">
 <thead><tr>{heads}</tr></thead>
 <tbody><tr>{cells}</tr></tbody>
 </table>
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     heads="".join(f"<th>heading_number_{i}</th>" for i in range(8)),
     cells="".join(f"<td>value_number_{i}</td>" for i in range(8)),
 )
@@ -3544,23 +3474,13 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page.close()
 
 
-CORNER_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>corner</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CORNER_PAGE = leaf_page(
+    "corner",
+    """
 <h1 id="t">Corner</h1>
 <section id="wrap"><p id="inner">The section's first block starts at its corner.</p></section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_two_names_at_one_corner_step_apart(browser, serve):
@@ -3698,17 +3618,9 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.close()
 
 
-AIM_PAINT_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>aim paint</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+AIM_PAINT_PAGE = leaf_page(
+    "aim paint",
+    """
 <h1 id="t">Aim paint</h1>
 <lf-options id="cards" choose>
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
@@ -3718,10 +3630,8 @@ AIM_PAINT_PAGE = """<!doctype html>
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
@@ -4724,17 +4634,9 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
 # where the box is a fixed 138px and the value is whatever the number turned out to be;
 # ordinary prose, which is where a page about code keeps its paths; and a tree, whose module
 # writes the name and its badges with no whitespace between them at all.
-UNBREAKABLE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>unbreakable</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+UNBREAKABLE_PAGE = leaf_page(
+    "unbreakable",
+    """
 <h1 id="h">Nothing to break on</h1>
 <lf-metrics id="numbers">
   <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
@@ -4747,10 +4649,8 @@ gateway/
     authentication/
       token_bucket_refill_strategy.py    +6 -2
 </pre></lf-tree>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
@@ -4791,16 +4691,9 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
 
 # One line past any phone column, so the box a diff renders in has to scroll and the
 # rule is the one on trial rather than the fit.
-WIDE_DIFF_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>wide diff</title>
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_DIFF_PAGE = leaf_page(
+    "wide diff",
+    """
 <h1 id="t">A diff wider than the column</h1>
 <lf-diff id="wide-diff"><pre>
 diff --git a/client/offline/merge.ts b/client/offline/merge.ts
@@ -4810,10 +4703,8 @@ diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 -  return apply(base, [...theirs, ...mine]);
 +  const clash = theirs.find((t) =&gt; t.field === edit.field &amp;&amp; t.at &gt; edit.at);
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
@@ -5067,17 +4958,9 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
 # about 30px — and an inline suggestion swapping one letter for another, about the same.
 # Nothing else on the page is unusual, so these are the only things on it that a floor
 # written for widgets laying out a region could catch.
-SHORT_CHIP_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>chips</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SHORT_CHIP_PAGE = leaf_page(
+    "chips",
+    """
 <h1 id="t">Feeder extras</h1>
 <p id="p">The bracket order goes in on Friday and there is room in it. Change the
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
@@ -5090,10 +4973,8 @@ before it ships.</p>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -6432,14 +6313,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     the shared vocabulary a widget wears on purpose."""
     page, _ = open_page(
         browser,
-        serve(
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; '
-            "img-src 'self' data:; style-src 'self' 'unsafe-inline'\">"
-            '<link rel="stylesheet" href="/theme.css">'
-            '<script type="module" src="/leaf.js"></script></head>'
-            "<body><main><h1>t</h1><section id=s><p>words</p></section></main></body></html>"
-        ),
+        serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
     )
     surface = page.evaluate("""() => {
         const sheet = [...document.styleSheets].find(
@@ -6508,15 +6382,15 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
     page, errors = open_page(
         browser,
         serve(
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; '
-            "img-src 'self' data:; style-src 'self' 'unsafe-inline'\">"
-            '<link rel="stylesheet" href="/theme.css"><style>'
-            "@keyframes lf-pulse { from { transform: translateX(0px); } "
-            "to { transform: translateX(40px); } }"
-            "#page-pulse { animation: lf-pulse 10s linear infinite; }"
-            '</style><script type="module" src="/leaf.js"></script></head>'
-            '<body><main><h1>t</h1><p id="page-pulse">Page-owned motion.</p></main></body></html>'
+            leaf_page(
+                "t",
+                '<h1>t</h1><p id="page-pulse">Page-owned motion.</p>',
+                head="<style>"
+                "@keyframes lf-pulse { from { transform: translateX(0px); } "
+                "to { transform: translateX(40px); } }"
+                "#page-pulse { animation: lf-pulse 10s linear infinite; }"
+                "</style>",
+            )
         ),
     )
     sampled = page.evaluate("""() => {
@@ -6543,17 +6417,9 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
     page.close()
 
 
-STACKED_OPTIONS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>stacked options</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+STACKED_OPTIONS_PAGE = leaf_page(
+    "stacked options",
+    """
 <h1 id="h">Clip storage</h1>
 <lf-options id="stacked" choose>
   <lf-option id="st-sd"><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
@@ -6594,10 +6460,8 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
   <lf-variant id="cv-yew"><strong>Yew</strong> Slow.</lf-variant>
   <lf-variant id="cv-fir"><strong>Fir</strong> Cheap, and it rots at the ground.</lf-variant>
 </lf-compare>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
@@ -7315,17 +7179,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 # (#bracket). Which is what makes a claim about arity testable on its own — #jobs against
 # #bracket differs in two things at once, and a rule that was really the list form's
 # would pass that pair either way.
-ASK_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>ask</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ASK_PAGE = leaf_page(
+    "ask",
+    """
 <h1 id="h">Three jobs</h1>
 <lf-options id="jobs" choose multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
@@ -7348,10 +7204,8 @@ mornings last winter.</p></section>
   <lf-option id="ord-mounts">Mounts, before the frost</lf-option>
   <lf-option id="ord-heater">Heater, after it</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def sent_events(page_dir):
@@ -7530,17 +7384,9 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     page.close()
 
 
-NESTED_ASK_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>nested</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+NESTED_ASK_PAGE = leaf_page(
+    "nested",
+    """
 <h1 id="h">Two jobs</h1>
 <lf-options id="outer" choose multiple>
   <lf-option id="out-drill"><strong>The revocation drill</strong>
@@ -7554,10 +7400,8 @@ NESTED_ASK_PAGE = """<!doctype html>
     <p id="keys-p">Cheap, and overdue since the split.</p>
   </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
@@ -7626,17 +7470,9 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
 # only by being inside a widget the option contains), and an element HTML calls
 # interactive that no widget put there (the disclosure). A page holding one of the three
 # would leave the other two to a guard that had never been asked about them.
-INLINE_CASE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>inline case</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+INLINE_CASE_PAGE = leaf_page(
+    "inline case",
+    """
 <h1 id="h">The status column</h1>
 <lf-options id="rollout" choose>
   <lf-option id="ro-column"><strong>Ship the column</strong>
@@ -7653,10 +7489,8 @@ Run status now shows on the run list itself.
     <p id="ro-leave-p">A failure stays one click away.</p>
   </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
@@ -7811,17 +7645,9 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     page.close()
 
 
-CHIP_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>chips</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CHIP_PAGE = leaf_page(
+    "chips",
+    """
 <h1 id="h">Short facts</h1>
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
 <lf-options id="picks" choose>
@@ -7830,10 +7656,8 @@ CHIP_PAGE = """<!doctype html>
 <lf-tasks id="plan">
   <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
 </lf-tasks>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_one_pill_holds_every_short_fact(browser, serve):
@@ -7875,17 +7699,9 @@ def test_one_pill_holds_every_short_fact(browser, serve):
     page.close()
 
 
-PAINTED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>painted</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+PAINTED_PAGE = leaf_page(
+    "painted",
+    """
 <h1 id="h">What the paint says</h1>
 <lf-timeline id="tl">
   <lf-event id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
@@ -7899,10 +7715,8 @@ PAINTED_PAGE = """<!doctype html>
   <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
   Waiting on the brackets.</lf-task>
 </lf-tasks>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
@@ -8846,17 +8660,9 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
 # its own contents — the case where `left: 100%` resolves against the card rather
 # than the column, and drops the controls back into the text, unless the row is
 # the column's own child.
-SUGGESTION_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>suggestions</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SUGGESTION_PAGE = leaf_page(
+    "suggestions",
+    """
 <h1 id="h">Feeder notes</h1>
 <p id="replace">The camera survey found two dead zones.
   <lf-suggestion id="sug-refill">
@@ -8877,10 +8683,8 @@ SUGGESTION_PAGE = """<!doctype html>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_suggestion_controls_stay_out_of_the_column(browser, serve):
@@ -8969,17 +8773,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
 # shows a tint against the prose around it, and a pending deletion is a struck line
 # with an empty margin beside it — which is also exactly what a deletion looks like
 # once it has happened.
-PROPOSED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>proposed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+PROPOSED_PAGE = leaf_page(
+    "proposed",
+    """
 <h1 id="h">Feeder notes</h1>
 <p id="replace">The camera survey found two dead zones.
   <lf-suggestion id="sug-replace">
@@ -8994,10 +8790,8 @@ PROPOSED_PAGE = """<!doctype html>
   <lf-suggestion id="sug-delete">
     <lf-old>Check the thermostat every Sunday.</lf-old>
   </lf-suggestion></p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
@@ -9145,26 +8939,17 @@ def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
     page.close()
 
 
-SWAP_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>swap</title>
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SWAP_PAGE = leaf_page(
+    "swap",
+    """
 <h1 id="h">Feeder notes</h1>
 <p id="swapped">Plans changed.
   <lf-suggestion id="sug-swap">
     <lf-old>Refill every feeder each morning.</lf-old>
     <lf-new>The cameras watch seed levels overnight instead.</lf-new>
   </lf-suggestion></p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_whole_swap_paints_no_emphasis(browser, serve):
@@ -9181,17 +8966,9 @@ def test_a_whole_swap_paints_no_emphasis(browser, serve):
     page.close()
 
 
-COLLAPSED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>collapsed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+COLLAPSED_PAGE = leaf_page(
+    "collapsed",
+    """
 <h1 id="h">Winter</h1>
 <p id="stocked">The feeders are stocked.
   <lf-suggestion id="sug-now">
@@ -9203,10 +8980,8 @@ COLLAPSED_PAGE = """<!doctype html>
     <lf-new>Order them in February.</lf-new>
   </lf-suggestion></p>
 </details>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
@@ -9358,17 +9133,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     page.close()
 
 
-SHORT_SUGGESTION = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>short suggestion</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SHORT_SUGGESTION = leaf_page(
+    "short suggestion",
+    """
 <h1 id="t">Short</h1>
 <section id="s">
 <lf-suggestion id="sug">
@@ -9377,10 +9144,8 @@ SHORT_SUGGESTION = """<!doctype html>
 </lf-suggestion>
 <p id="after">The backoff is unchanged either way.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 @pytest.mark.parametrize(
@@ -9917,17 +9682,9 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
 # Every shape the ask predicate has to tell apart, on one page: four things the page is
 # waiting on the reader for, and, beneath them, one of each way of not being one. The
 # four are in document order, because that is the order the walk below must take them in.
-ASKS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>asks</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ASKS_PAGE = leaf_page(
+    "asks",
+    """
 <h1 id="h">What is still open</h1>
 <lf-options id="live-question" label="Where should sessions live?" choose>
   <lf-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
@@ -9963,10 +9720,8 @@ ASKS_PAGE = """<!doctype html>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
   </lf-options>
 </lf-specimen>
-</main>
-</body>
-</html>
-"""
+""",
+)
 ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
 # The ask the walk is standing on. One ask wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
@@ -10176,17 +9931,9 @@ ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map
 }))"""
 
 
-CHANGE_SHAPES_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>retry policy</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CHANGE_SHAPES_PAGE = leaf_page(
+    "retry policy",
+    """
 <h1 id="title">Retry policy</h1>
 <lf-suggestion id="sug-rewrite">
   <lf-old><p id="p-job">The worker retries a failed job three times.</p></lf-old>
@@ -10202,10 +9949,8 @@ CHANGE_SHAPES_PAGE = """<!doctype html>
   <lf-option id="wait-day"><strong>A day</strong></lf-option>
   <lf-option id="wait-week"><strong>A week</strong></lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
@@ -10719,27 +10464,17 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
 # reading position's landmark is whichever id stands nearest the block the reader was
 # on, so the wrapper is it — which is what a suggestion around whole sections is, and
 # what any layer's wrapper may be.
-BOXLESS_SECTION_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>boxless section</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+BOXLESS_SECTION_PAGE = leaf_page(
+    "boxless section",
+    """
 <h1 id="t">Boxless</h1>
 {lead}
 <div id="wrap" style="display: contents">
 {held}
 </div>
 {tail}
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     lead="\n".join(
         f"<p id='lead{i}'>Lead {i}. " + "Filler. " * 20 + "</p>" for i in range(30)
     ),
@@ -10950,17 +10685,9 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
 
 # One target of ordinary height and one taller than any viewport, both far enough down
 # that arriving at either is a real scroll.
-TRAVEL_PAGE = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>travel</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TRAVEL_PAGE = leaf_page(
+    "travel",
+    f"""
 <h1 id="h">Placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
 <lf-diagram id="flow"><pre>
@@ -10972,10 +10699,8 @@ graph LR
 <h2>The long tail</h2>
 {"".join(f"<p>Tail fill, paragraph {i}, deep enough that the section outgrows any viewport.</p>" for i in range(24))}
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
@@ -11061,17 +10786,9 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
 
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
-REPORT_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>reports</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REPORT_PAGE = leaf_page(
+    "reports",
+    """
 <h1 id="h">The feeders</h1>
 <lf-tasks id="plan">
   <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
@@ -11079,10 +10796,8 @@ REPORT_PAGE = """<!doctype html>
     <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
   </lf-task>
 </lf-tasks>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
@@ -11171,17 +10886,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
 # Two workers, one claiming work and one idle, because silence is only news against a
 # claim: the elapsed line is about what a row said it was doing, not about the clock.
-ROSTER_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>fleet</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ROSTER_PAGE = leaf_page(
+    "fleet",
+    """
 <h1 id="h">The aviary crew</h1>
 <lf-roster id="crew">
   <lf-agent id="ag-wren" state="working" branch="mounts">
@@ -11189,10 +10896,8 @@ ROSTER_PAGE = """<!doctype html>
   <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
   <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
 </lf-roster>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def stale_report(page_dir, widget, doing, hours, state="working"):
@@ -11613,17 +11318,9 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
 # accept and reject share the settlement facet, so two suggestions let both competing
 # verbs stand. The floor below derives the list from the registry, so a twelfth widget's
 # verb fails here rather than passing unexercised.
-STANDING_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>standing state</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+STANDING_PAGE = leaf_page(
+    "standing state",
+    """
 <h1 id="ab-t">The v1 cutover</h1>
 <lf-options id="ab-pick" choose>
   <lf-option id="ab-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
@@ -11652,10 +11349,8 @@ STANDING_PAGE = """<!doctype html>
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # The event that leaves each declared verb standing, written out because a detail is
 # the verb's own shape and a schema is no help in inventing one.
@@ -11744,17 +11439,9 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     assert interact.render_version(browser, url) == []
 
 
-RELATIVE_WIDGET_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>relative widget</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+RELATIVE_WIDGET_PAGE = leaf_page(
+    "relative widget",
+    """
 <h1 id="tally-title">Squirrel baffles</h1>
 <lf-tally id="tally-fitted" count="2">
   <pre>Baffles fitted. Counted on the last walk round.</pre>
@@ -11762,10 +11449,8 @@ RELATIVE_WIDGET_PAGE = """<!doctype html>
 <lf-tally id="tally-seen" count="0">
   <pre>Nothing at the feeders this week.</pre>
 </lf-tally>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 RELATIVE_WIDGET_MODULE = """\
 import { once } from "/leaf.js";
@@ -11982,13 +11667,12 @@ customElements.define("lf-piece", class extends HTMLElement {
 });
 """
     )
-    html = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>owned coordinates</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css"><script type="module" src="/leaf.js"></script>
-</head><body><main><h1>Owned coordinates</h1><lf-owner id="owner">
+    html = leaf_page(
+        "owned coordinates",
+        """<h1>Owned coordinates</h1><lf-owner id="owner">
 <lf-zone id="zone-a"><lf-piece id="piece" pinned="no">Piece</lf-piece></lf-zone>
-<lf-zone id="zone-b"></lf-zone></lf-owner></main></body></html>"""
+<lf-zone id="zone-b"></lf-zone></lf-owner>""",
+    )
     url = serve(html)
     for event in (
         {
@@ -12119,17 +11803,9 @@ def test_the_render_gate_catches_a_relative_apply_action(
 # words are over a neighbour's — which is a page the gate reports, and the whole of
 # what these tests measure. `offset` is the state and the transform is a rendering of
 # it, so the module never reads a position back off the page.
-DRIFT_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>a page still settling</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DRIFT_PAGE = leaf_page(
+    "a page still settling",
+    """
 <h1 id="drift-title">The feeders</h1>
 <lf-drift id="drift-note" offset="120"><strong>Two greys at the north feeder</strong> They came over the fence at a run, took the sunflower hearts from the hanging tray, and were gone again before the camera on the shed had finished waking up.</lf-drift>
 <p id="drift-four">They came back at four and stayed until dusk.</p>
@@ -12137,10 +11813,8 @@ DRIFT_PAGE = """<!doctype html>
 <p id="drift-seed">Nothing has been at the seed since.</p>
 <p id="drift-count">The count runs again on Sunday.</p>
 <p id="drift-sunday">Sunday is when the tally goes in.</p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 DRIFT_MODULE = """\
 import { motion, once } from "/leaf.js";
@@ -12587,17 +12261,9 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
 # widgets, so the mark on a chosen option can sit inside the half a decision removes.
 # `choose`, because that is the shape that bites: a group offering a pick renders the
 # mark as a press, which wears the chrome class *and* declares its word the page's.
-RETIRED_WIDGET_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>retired</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+RETIRED_WIDGET_PAGE = leaf_page(
+    "retired",
+    """
 <h1 id="h">Session transport</h1>
 <p id="lede">Replacing the whole decision block below.</p>
 <lf-suggestion id="sug-swap">
@@ -12608,32 +12274,20 @@ RETIRED_WIDGET_PAGE = """<!doctype html>
   </lf-old>
   <lf-new id="now"><p id="p-now">A bearer header, settled elsewhere.</p></lf-new>
 </lf-suggestion>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
-TWO_HOLDER_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>two holders</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWO_HOLDER_PAGE = leaf_page(
+    "two holders",
+    """
 <h1 id="th-t">The cache trial</h1>
 <lf-trial id="th-cache">
   <lf-current><p id="th-now">The cache is warmed on every deploy.</p></lf-current>
   <lf-proposed><p id="th-next">The cache is warmed on the first request.</p></lf-proposed>
 </lf-trial>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def trial_family(tmp_path):
@@ -13117,17 +12771,9 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     page.close()
 
 
-REF_PAGE = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>refs</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REF_PAGE = leaf_page(
+    "refs",
+    f"""
 <h1 id="h">Feeder placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
 <lf-tabs id="projects">
@@ -13142,10 +12788,8 @@ REF_PAGE = f"""<!doctype html>
 {"".join(f"<p>Tail fill, paragraph {i}, long enough to stand as a landmark of its own.</p>" for i in range(16))}
 <p id="tail-end">The last words on the page, where a reader who read to the end is.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_message_reference_travels_or_says_it_cant(browser, serve):
@@ -13748,17 +13392,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.close()
 
 
-ADDRESS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>addresses</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ADDRESS_PAGE = leaf_page(
+    "addresses",
+    """
 <h1 id="h">Two questions, two forms</h1>
 <lf-options id="cards" choose>
   <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
@@ -13770,10 +13406,8 @@ ADDRESS_PAGE = """<!doctype html>
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # The first ancestor that cuts this element, and by how much. `overflow` and `clip-path`
 # cut at the padding box, so the border comes off the ancestor's own box before the
@@ -14120,17 +13754,9 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
 # Every list the g chord addresses, on one page: comments (the test adds them), an ask,
 # links, and a disclosure. The lists have to stand together, because what the chord is for
 # is that one letter chooses between them.
-ADDRESSED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>addressed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ADDRESSED_PAGE = leaf_page(
+    "addressed",
+    """
 <h1 id="t">Addressed</h1>
 <p id="p1">The first passage under discussion, with words
 enough for two separate remarks to land in it.</p>
@@ -14148,10 +13774,8 @@ session.</p></details>
 </lf-options>
 <p id="p2">A short second passage.</p>
 {tail}
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     # Enough page below the ask that it can be scrolled up under the banner, which is where
     # a chip placed from the page's geometry alone lands on the status line.
     tail="\n".join(
@@ -14160,17 +13784,9 @@ session.</p></details>
 )
 
 
-NOTED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>noted</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+NOTED_PAGE = leaf_page(
+    "noted",
+    """
 <h1 id="t">Noted</h1>
 <p id="p1">The first passage under discussion, with words
 enough for two separate remarks to land in it.</p>
@@ -14178,10 +13794,8 @@ enough for two separate remarks to land in it.</p>
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
 aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</figcaption></figure>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
@@ -14923,27 +14537,17 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
 
 # c's three destinations on one page: prose to select, a visual to click (no words to
 # quote, so it anchors on the element), and the page itself with neither in hand.
-TARGETS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>targets</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TARGETS_PAGE = leaf_page(
+    "targets",
+    """
 <h1 id="t">Targets</h1>
 <p id="prose">A paragraph with enough words in it to select by dragging across, which
 is what raises the button the key then presses.</p>
 <figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
 aria-label="specimen"><rect x="2" y="2" width="236" height="56" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
@@ -15233,17 +14837,9 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.close()
 
 
-UNDO_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>undo</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+UNDO_PAGE = leaf_page(
+    "undo",
+    """
 <h1 id="h">Undo</h1>
 <lf-draft id="note-cli"><pre>
 First line of the note.
@@ -15254,10 +14850,8 @@ Second paragraph of the note.
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def actions(page_dir):
@@ -16108,9 +15702,9 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 });
 """
     )
-    nested = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>nested owners</title><link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script></head><body><main>
+    nested = leaf_page(
+        "nested owners",
+        """
 <h1 id="h">Nested owners</h1>
 <lf-outer-board id="outer">
   <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card"><strong>Outer</strong>
@@ -16118,7 +15712,8 @@ customElements.define("lf-outer-board", class extends HTMLElement {
       <lf-card id="inner-card"><strong>Inner</strong></lf-card></lf-column>
       <lf-column id="inner-done" label="Done"></lf-column></lf-board>
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
-</lf-outer-board></main></body></html>"""
+</lf-outer-board>""",
+    )
     page, errors = open_page(browser, serve(nested))
     page.route("**/api/state*", refuse)
     held = []
@@ -17543,17 +17138,9 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     page.close()
 
 
-FENCED_CAPTURE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>fenced capture</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+FENCED_CAPTURE_PAGE = leaf_page(
+    "fenced capture",
+    """
 <h1 id="h">Roadmap</h1>
 <lf-milestones>
   <lf-milestone id="gate-milestone" status="active" when="week-1" tags="wood,solar">
@@ -17566,10 +17153,8 @@ FENCED_CAPTURE_PAGE = """<!doctype html>
     <strong>Classic feeder</strong> Easy to clean.
   </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve):
@@ -17636,17 +17221,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
 # button is the panel's only name. Every word here is distinct, so a quote can only
 # anchor where it was picked, and the panels are long enough that a drag across one of
 # these labels is an ordinary drag.
-CONTROL_LABEL_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>labels</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CONTROL_LABEL_PAGE = leaf_page(
+    "labels",
+    """
 <h1 id="h">Aviary projects</h1>
 <p id="lede">Two workstreams, one page.</p>
 <lf-tabs id="projects">
@@ -17657,10 +17234,8 @@ CONTROL_LABEL_PAGE = """<!doctype html>
     <p id="p-bath">The thermostat arrived cracked and a replacement is on order.</p>
   </lf-tab>
 </lf-tabs>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
@@ -18348,17 +17923,9 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     page.close()
 
 
-CODE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>code</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CODE_PAGE = leaf_page(
+    "code",
+    """
 <h1 id="t">Code</h1>
 <section id="walk">
 <p id="lede">The key changes shape:</p>
@@ -18377,10 +17944,8 @@ $ leaf version check ./page --render
 v1.html: renders clean
 </pre></lf-code>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_code_is_colored_without_a_word_moving(browser, serve):
@@ -18523,17 +18088,9 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
 # what is open, a yaml file (the grammar that reads a leading `-` as a sequence bullet
 # and a leading `+` as a string, so the prefix column has to be off before it looks),
 # and a file whose extension names no language at all.
-DIFF_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>diff</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DIFF_PAGE = leaf_page(
+    "diff",
+    """
 <h1 id="t">Diff</h1>
 <lf-diff id="patch"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
@@ -18568,10 +18125,8 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 -RUN pip install -r requirements.txt
 +RUN pip install --no-cache-dir -r requirements.txt
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
@@ -18681,17 +18236,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 # `limit = 3` is the leftover and `limit = 8` opens the block after the context line, so
 # a walk that ran the two blocks together would pair the leftover against `limit = 9` and
 # mark it — the fault that reads as one mark too many rather than as none at all.
-MOVED_WORDS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>moved words</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+MOVED_WORDS_PAGE = leaf_page(
+    "moved words",
+    """
 <h1 id="t">Moved words</h1>
 <lf-diff id="patch"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
@@ -18744,10 +18291,8 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 +CMD ["gunicorn", "gateway:app", "-w", "4"]
 +EXPOSE 9090
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
@@ -19090,17 +18635,9 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
 # different ids. A unified diff is the case that matters and the reason the section can't
 # help: it holds the changed line on both sides, under one id, so the two occurrences are a
 # bug and its fix, and landing on the wrong one inverts what the comment means.
-TWICE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>twice</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWICE_PAGE = leaf_page(
+    "twice",
+    """
 <h1 id="t">Twice</h1>
 <section id="repeat">
 <p>Ahead of the repeat, so the copies have different neighbours before them.</p>
@@ -19118,10 +18655,8 @@ diff --git a/gateway/cache.py b/gateway/cache.py
 +    return request.path, request.headers.get("Accept")
  def store(self, request):
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
@@ -19156,26 +18691,16 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     page.close()
 
 
-DRIFT_V1 = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>drift</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DRIFT_V1 = leaf_page(
+    "drift",
+    """
 <h1 id="t">Drift</h1>
 <section id="drift">
 <p>Cache warmup runs first. {phrase}. Retries are capped at three.</p>
 <p>Queue drain runs first. {phrase}. Retries are capped at four.</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{phrase}", "The version stamp never lands")
+""",
+).replace("{phrase}", "The version stamp never lands")
 # v2 rewrites the words on both sides of the *commented* copy and leaves the other alone,
 # so the untouched copy is now the better match for the context the comment stored.
 DRIFT_V2 = DRIFT_V1.replace(
@@ -19243,28 +18768,20 @@ MARKERS = "🔴🟢🟡🔵🟣🟤🟠🟥🟩🟦🔴🟢🟡🔵🟣🟤"
 PAD = "   "
 assert all(ord(c) > 0xFFFF for c in MARKERS), "BMP markers will not reproduce this"
 assert len(PAD) in (3, 4), "outside the band the window is long enough either way"
-ASTRAL_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>astral</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ASTRAL_PAGE = (
+    leaf_page(
+        "astral",
+        """
 <h1 id="t">Astral</h1>
 <section id="astral">
 <p>Ordinary prose ahead of the first copy here. {phrase} and a tail.</p>
 <p>A divider paragraph between the copies.</p>
 <p>{run}{phrase} and a tail.</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{run}", "".join(m + PAD for m in MARKERS)).replace(
-    "{phrase}", "TARGET PHRASE"
+""",
+    )
+    .replace("{run}", "".join(m + PAD for m in MARKERS))
+    .replace("{phrase}", "TARGET PHRASE")
 )
 
 
@@ -19313,17 +18830,9 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
 # Two copies of one phrase behind an identical lead, the second closing its section. The
 # words that tell them apart are the next section's, which only a capture reading past the
 # section edge can store.
-EDGE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>edge</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+EDGE_PAGE = leaf_page(
+    "edge",
+    """
 <h1 id="t">Edge</h1>
 <section id="edge">
 <p>First pass: when the deploy fails again in the night, the run is retried until it lands. Nothing else moves.</p>
@@ -19332,10 +18841,8 @@ EDGE_PAGE = """<!doctype html>
 <section id="tail">
 <p>Rollout resumes once the queue drains completely.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # The same page with nothing after the section, so the closing copy ends the document —
@@ -19467,17 +18974,9 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
 # matches both copies and only their neighbours tell them apart. Prose rather than
 # filler, because the walk that confirms the rest of a quote steps word by word.
 LONG_PASSAGE = "Note: the migration replays on every deploy because the version stamp never lands, and the guard reads a column the writer never fills, and the whole batch runs again from the top on each release, and the counters disagree with the log and with each other, and the retry budget is spent before anyone looks at it, and the operator reads the dashboard at noon and files the incident, and the fix ships behind a flag nobody remembers to turn on, and the runbook still names a host that was retired last spring."
-TWO_COPIES_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>long passages</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWO_COPIES_PAGE = leaf_page(
+    "long passages",
+    """
 <h1 id="t">Long passages</h1>
 <section id="copies">
 <p>Ahead of the first copy sits this line.</p>
@@ -19485,10 +18984,8 @@ TWO_COPIES_PAGE = """<!doctype html>
 <p>Between the copies sits this other line.</p>
 <p id="second">{passage}</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{passage}", LONG_PASSAGE)
+""",
+).replace("{passage}", LONG_PASSAGE)
 
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
@@ -19565,23 +19062,13 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
 # hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
 # would land inside the pass that draws every mark on the page, not just this one's. A
 # reader reaches it in one keystroke, so the guard is a page long enough to prove it.
-CEILING_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>everything</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CEILING_PAGE = leaf_page(
+    "everything",
+    """
 <h1 id="t">Everything</h1>
 {paras}
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     paras="\n".join(
         f"<p>Paragraph {i} of the record. "
         + f"The deploy replays and the guard reads a column the writer never fills, "
@@ -19631,26 +19118,16 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 # the section tag and the paragraph, which is what makes the copy's leading context empty
 # rather than short. Both copies carry the identical tail, so a suffix on its own is a bar
 # the other copy clears just as well.
-THIN_V1 = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>thin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+THIN_V1 = leaf_page(
+    "thin",
+    """
 <h1 id="t">Thin</h1>
 <section id="thin"><p>{phrase}. Retries are capped at three.</p>
 <p>An unrelated middle paragraph.</p>
 <p>Queue drain runs first. {phrase}. Retries are capped at three.</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{phrase}", "The version stamp never lands")
+""",
+).replace("{phrase}", "The version stamp never lands")
 # Only the commented copy's tail changes, so the untouched copy is now the better match for
 # the one neighbour the comment stored.
 THIN_V2 = THIN_V1.replace(
@@ -20323,17 +19800,9 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
 SENTENCE = "The version stamp never lands, so migration 0041 replays on every deploy."
 DRAFT_TEXT = "Run the migration before deploying.\nIt is online."
 DRAFT_EDITED = "Run the migration before deploying. It takes about a minute."
-JOURNEY_SCAFFOLD = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>journey</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+JOURNEY_SCAFFOLD = leaf_page(
+    "journey",
+    """
 <h1 id="t">Journey</h1>
 {before}
 <lf-board id="board">
@@ -20348,10 +19817,8 @@ JOURNEY_SCAFFOLD = """<!doctype html>
 </pre></lf-draft>
 <h2 id="notes">Notes</h2>
 {after}
-</main>
-</body>
-</html>
-"""
+""",
+)
 PASSAGE = f'<p id="intro">{SENTENCE}</p>'
 JOURNEY_V1 = JOURNEY_SCAFFOLD.format(
     before=PASSAGE, after="<p id='p-filler'>Filler.</p>"
@@ -22232,17 +21699,9 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
 # The two presses this asks about, on one page: a draft's ✎ (a thing to do) and a pick
 # mark (a thing to do that becomes a thing the page says once it is pressed).
-KEYS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>keys</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+KEYS_PAGE = leaf_page(
+    "keys",
+    """
 <h1 id="h">Session store</h1>
 <lf-options id="opts" choose>
   <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
@@ -22251,10 +21710,8 @@ KEYS_PAGE = """<!doctype html>
 <lf-draft id="draft-ops"><pre>
     Run the migration before deploying.
 </pre></lf-draft>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_press_takes_the_keys_a_button_came_with(browser, serve):
@@ -24408,25 +23865,15 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     page.close()
 
 
-TWIN_V1 = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>twin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWIN_V1 = leaf_page(
+    "twin",
+    """
 <h1 id="t">Twin</h1>
 <section id="twin">
 <p id="p-original">Cache warmup runs first. The version stamp never lands. Retries are capped at three.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 # A copy the anchor was not made on, added above it — so first-match now finds the wrong
 # one, and only the neighbours the capture stored say which was meant.
 TWIN_V2 = TWIN_V1.replace(
@@ -24557,17 +24004,9 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
     page.close()
 
 
-PICTURE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>pictures</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+PICTURE_PAGE = leaf_page(
+    "pictures",
+    """
 <h1 id="t">Pictures</h1>
 <p id="p">Two renderings, neither of them the page's own words.</p>
 <lf-diagram id="flow"><pre>
@@ -24578,10 +24017,8 @@ graph LR
 feeders/
   mount.py  +2 -2
 </pre></lf-tree>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
@@ -24622,17 +24059,9 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
 # against 720 — and a board beside it, so what the assertions turn on is which kind each
 # widget declares rather than that both are widgets.
-WIDE_DIAGRAM_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>wide diagram</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_DIAGRAM_PAGE = leaf_page(
+    "wide diagram",
+    """
 <h1 id="t">Flow</h1>
 <lf-diagram id="flow"><pre>
 graph LR
@@ -24648,10 +24077,8 @@ graph LR
   <lf-column id="d2" label="Doing"></lf-column>
   <lf-column id="d3" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
@@ -24760,27 +24187,17 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 # first line is the length a real source has, because that line is what the box under
 # test is floored at: written short, this page passed the assertion below with the rule
 # it stands on deleted.
-BROKEN_DIAGRAM_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>broken diagram</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+BROKEN_DIAGRAM_PAGE = leaf_page(
+    "broken diagram",
+    """
 <h1 id="t">Broken</h1>
 <lf-diagram id="bad"><pre>
 sequenceDiagram
   Reader-&gt;&gt;Server: POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater"}}
   Server--&gt;&gt;&gt;--- {{{ not mermaid at all ]]]
 </pre></lf-diagram>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
@@ -24866,17 +24283,9 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
 # A margin with the page's own apparatus in it, and drawings either side of what the free
 # margin can hold. A rail is what most shipped pages that carry a wide widget also carry,
 # so this is the ordinary case rather than a corner.
-DIAGRAM_AND_RAIL_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>diagram and rail</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DIAGRAM_AND_RAIL_PAGE = leaf_page(
+    "diagram and rail",
+    """
 <h1 id="t">Sessions</h1>
 <lf-suggestion id="sug-copy">
   <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
@@ -24897,10 +24306,8 @@ graph LR
   F --> H
   C -->|no| L[login]
 </pre></lf-diagram>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # Where each drawing sits against the column it explains and the controls it must not
 # reach. The axis is the column's, because that is the line the prose is centred on and
@@ -24991,17 +24398,9 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
 # A widget that declares width beside one that doesn't, so what the assertions turn on is
 # the declaration and not the tag: both are widgets, both hold more than the column shows
 # comfortably, and only one of them is entitled to more of the window than the prose gets.
-WIDE_AND_NARROW_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>room</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_AND_NARROW_PAGE = leaf_page(
+    "room",
+    """
 <h1 id="t">Release</h1>
 <p id="prose">The board is as wide as its columns are; this sentence is not.</p>
 <lf-board id="sprint">
@@ -25023,10 +24422,8 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # main's content box, body's, and where three elements stand in them. Read together in
 # one pass because the whole subject is their relation: a width means nothing here except
@@ -25121,17 +24518,9 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 # the case the theme cannot name: it draws its box in the page's own style and declares
 # the frame there, which is the whole of what a project writes to hold an exhibit inside
 # its own card.
-FRAMED_WIDE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>framed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+FRAMED_WIDE_PAGE = leaf_page(
+    "framed",
+    """
 <h1 id="t">Framed</h1>
 <section id="loose">
   <lf-board id="in-section">
@@ -25220,10 +24609,8 @@ graph LR
   B --> C[worker]
 </pre></lf-diagram>
 </div>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # A box of the page's own that both draws and scrolls, holding a wide widget. The theme
 # has no rule for a project's box and cannot, so what stands between it and a page drawn
@@ -25241,17 +24628,9 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 # A page that reserves the margin rail and stands a wide widget in the flow beside it —
 # the pair no shipped example had until ship-review, and the pair the room has to be
 # measured after rather than before.
-RAIL_AND_WIDE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>rail</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+RAIL_AND_WIDE_PAGE = leaf_page(
+    "rail",
+    """
 <h1 id="t">Release</h1>
 <lf-suggestion id="sug-copy">
   <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
@@ -25262,10 +24641,8 @@ RAIL_AND_WIDE_PAGE = """<!doctype html>
   <lf-column id="r2" label="Doing"></lf-column>
   <lf-column id="r3" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # How far the exhibit stands outside the page's own box, and the rail it was supposed to
@@ -25504,17 +24881,9 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     page.close()
 
 
-LATE_MARGIN_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>late margin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+LATE_MARGIN_PAGE = leaf_page(
+    "late margin",
+    """
 <h1 id="t">Release</h1>
 <lf-callout id="marginal"><strong>Note</strong> Its controls hang in the margin.</lf-callout>
 <lf-board id="plan">
@@ -25522,10 +24891,8 @@ LATE_MARGIN_PAGE = """<!doctype html>
   <lf-column id="r2" label="Doing"></lf-column>
   <lf-column id="r3" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # A widget that hangs its controls in the page margin, and can only say how wide a margin
 # once it has heard what they will say — so the claim rides an answer rather than the
@@ -26075,17 +25442,9 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
 # The two things on this page that want a margin, on one page and level with each other.
 # The note is written immediately before the board so they share a band of the page rather
 # than stacking, which is the only arrangement in which either can be over the other.
-NOTE_AND_WIDE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>room and margin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+NOTE_AND_WIDE_PAGE = leaf_page(
+    "room and margin",
+    """
 <h1 id="t">Feeders</h1>
 <p id="prose">The board is as wide as its columns are; this sentence is not.</p>
 <aside class="sidenote" id="note">Counts are the warden's own, taken at dawn from the
@@ -26100,10 +25459,8 @@ south hide, and the perch numbers are the ones she disputes.</aside>
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # Wide enough that the note has its strip (984px) and narrow enough that the room, not the
 # shared cap, is what decides the board's width — above about 1176px the cap binds first

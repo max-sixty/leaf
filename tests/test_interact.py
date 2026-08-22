@@ -285,18 +285,6 @@ def test_leaf_skill_routes_its_complete_reference_set():
     assert "informational page with no concrete ask" in conversation
     for path in references:
         assert f"references/{path.name}" in skill
-        text = path.read_text()
-        if len(text.splitlines()) <= 100:
-            continue
-        sections = [
-            line.removeprefix("## ")
-            for line in text.splitlines()
-            if line.startswith("## ") and line != "## Contents"
-        ]
-        contents = text.split("## Contents", 1)[1].split("\n## ", 1)[0]
-        for section in sections:
-            anchor = re.sub(r"[^a-z0-9 -]", "", section.lower()).replace(" ", "-")
-            assert f"(#{anchor})" in contents
 
 
 def test_hidden_hook_remains_callable():
@@ -951,7 +939,9 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
     upper = tmp_path / "FutureScope"
     lower = tmp_path / "fUTUREsCOPE"
     monkeypatch.setattr(interact, "_filesystem_case_sensitive", lambda path: True)
-    assert not interact.paths_overlap(upper, lower)
+    assert not interact.locations_overlap(
+        interact._path_location(upper), interact._path_location(lower)
+    )
 
     monkeypatch.setattr(interact, "_filesystem_case_sensitive", lambda path: False)
     assert interact.paths_same(upper, lower)
@@ -2529,6 +2519,39 @@ def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
     assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
 
 
+def test_a_later_decision_does_not_license_an_earlier_version(page_dir):
+    """An old file is checked against what the reader could have decided then."""
+    suggest(page_dir)
+    publish(page_dir, 2)
+    (page_dir / "versions" / "v3.html").write_text(
+        PAGE.replace("<lf-options>", SUGGESTION)
+    )
+    publish(page_dir, 3)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 3,
+            "widget": "sug-refill",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+
+    # Re-checking the older published file cannot borrow the future action to
+    # justify dropping what its own predecessor contained.
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace(
+            "<lf-options>",
+            '<p id="refill-camera">Refill when the camera shows it half-empty.</p><lf-options>',
+        )
+    )
+    result = check(page_dir, version=2)
+    assert result.exit_code == 1
+    assert "refill-rule" in result.output
+
+
 def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
     # Self-accepting: the wrapper goes but its proposal stays, presented as
     # ordinary prose the user never agreed to. Withdrawal is whole or not.
@@ -3048,6 +3071,29 @@ def test_publishing_names_the_reports_it_answered(page_dir):
     assert stale.exit_code == 1
     assert "v2 already answered" in stale.output
 
+    # Reissuing an older version cannot absorb a report made on a later one,
+    # even when the old file happens to state the reported value.
+    sent = _report(page_dir, "t-parser", "status", "status=review")
+    assert sent.exit_code == 0, sent.output
+    future_report = json.loads(sent.output)["id"]
+    _tasks_version(page_dir, 1, "review")
+    republished = CliRunner().invoke(
+        interact.cli,
+        [
+            "version",
+            "publish",
+            str(page_dir),
+            "--version",
+            "1",
+            "--text",
+            "reissued old cut",
+        ],
+    )
+    assert republished.exit_code == 0, republished.output
+    note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
+    assert note["version"] == 1
+    assert future_report not in note.get("reports", [])
+
 
 def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
     """Report versioning and note calculation are one transaction each."""
@@ -3324,6 +3370,21 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     write(2, a=" chosen restated", chip="<lf-chip>effort: high</lf-chip>")
     assert check(page_dir, version=2).exit_code == 0
 
+    # A later pick on the same coordinate releases the old option's words.
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-stage"]},
+        },
+    )
+    write(2, b=" chosen", shim="The shim now has a bounded removal date.")
+    assert check(page_dir, version=2).exit_code == 0
+
 
 def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
     """Clearing a pick names no option (`{"options": []}`), so there is no part
@@ -3479,6 +3540,33 @@ def test_check_reports_record_lag_without_erroring(page_dir):
 
     result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
     assert "record behind the log" in result.output  # CliRunner folds stderr in
+
+
+def test_record_lag_uses_the_version_being_checked(page_dir):
+    """A pinned version does not owe state from an action made on a later one."""
+    opts = OPTIONS.format(
+        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
+    )
+    for version in (1, 2):
+        (page_dir / "versions" / f"v{version}.html").write_text(
+            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+        )
+        publish(page_dir, version)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 2,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-stage"]},
+        },
+    )
+
+    result = check(page_dir, version=1)
+    assert result.exit_code == 0, result.output
+    assert "record behind the log" not in result.output
 
 
 def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
@@ -6607,6 +6695,10 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
                 "</lf-options>"
+                '<lf-specimen id="sample">'
+                '<lf-options id="exhibited-pick" choose>'
+                '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
+                "</lf-options></lf-specimen>"
             ),
         ],
     )
@@ -6618,7 +6710,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "author": "user",
             "parent": "c1",
             "version": 1,
-            "text": '<lf-options id="quoted-pick" choose></lf-options>',
+            "text": '<lf-options id="text-pick" choose></lf-options>',
         },
     )
 
@@ -6635,7 +6727,19 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
     assert status == 200
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps({**choose, "widget": "quoted-pick"}).encode(),
+        data=json.dumps(
+            {
+                **choose,
+                "widget": "exhibited-pick",
+                "detail": {"options": ["exhibited-a"]},
+            }
+        ).encode(),
+    )
+    assert status == 400
+    assert "stands inside an exhibit" in json.loads(body)["error"]
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({**choose, "widget": "text-pick"}).encode(),
     )
     assert status == 400
     assert "unknown action widget" in json.loads(body)["error"]
@@ -10144,7 +10248,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     """The browser door refuses the field rather than silently dropping it: everything
     the log holds under `markup` has been through `check_markup`, which is what lets
-    thread_widget_ids and the panel index it unasked."""
+    the thread structure and the panel index it unasked."""
     publish(page_dir, version=1)
     before = interact.read_events(page_dir)
     status, body = fetch(
@@ -10233,9 +10337,13 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "all of it",
         },
     )
+    # An abandoned newer draft is not the live page whose exchange is exported.
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
+    )
     result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
-    assert "## Leaf: Cutoff & backfill" in result.output
+    assert result.output.startswith("## Leaf: Cutoff & backfill\n")
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
@@ -11043,6 +11151,48 @@ def test_a_closed_thread_stops_asking(page_dir):
     assert state_json(page_dir)["asks"] == []
 
 
+def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
+    """Independent thread widgets fold together while retaining their threads."""
+    publish(page_dir)
+    roots = []
+    for suffix in ("a", "b"):
+        roots.append(
+            interact.append_event(
+                page_dir,
+                {
+                    "kind": "comment",
+                    "author": "claude",
+                    "version": 1,
+                    "text": f"Choose {suffix}",
+                    "markup": (
+                        f'<lf-options id="group-{suffix}" choose>'
+                        f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
+                        "</lf-options>"
+                    ),
+                },
+            )
+        )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "group-a", "tag": "lf-options", "thread": roots[0]["id"]},
+        {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]},
+    ]
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "group-a",
+            "action": "choose",
+            "detail": {"options": ["option-a"]},
+        },
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]}
+    ]
+
+
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     """A Claude comment's markup lands in the panel exactly as a reply's does, so it
     validates the same way and claims ids from the same pool."""
@@ -11055,7 +11205,8 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong>'
+            '<span id="thread-label">Label</span></lf-option></lf-options>',
         ).exit_code
         == 0
     )
@@ -11076,3 +11227,18 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         ],
     )
     assert clash.exit_code != 0 and "q1" in clash.output
+
+    plain_clash = CliRunner().invoke(
+        interact.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            "c1",
+            "--text",
+            "See:",
+            "--markup",
+            '<lf-diagram id="thread-label"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+        ],
+    )
+    assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output

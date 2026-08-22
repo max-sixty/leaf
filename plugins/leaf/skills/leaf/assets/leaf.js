@@ -4098,7 +4098,7 @@ async function deliver(entry) {
   let announced = false;
   for (;;) {
     const { event } = entry;
-    if (entry.readEvent) return { answer: entry.readEvent, accounted: true };
+    if (entry.readEvent) return { answer: entry.readEvent };
     const sent = await Promise.race([
       postEvent(event).then(
         (res) => ({ res }),
@@ -4106,7 +4106,7 @@ async function deliver(entry) {
       ),
       entry.read.then((answer) => ({ answer })),
     ]);
-    if (sent.answer) return { answer: sent.answer, accounted: true };
+    if (sent.answer) return { answer: sent.answer };
     if (sent.error) {
       if (!announced) showToast("Connection lost — retrying your change…");
       announced = true;
@@ -4118,7 +4118,7 @@ async function deliver(entry) {
     // reload. The server refused to read this body in a vocabulary it no longer
     // speaks, so nothing was appended and there is nothing here to retry: the page
     // comes back from the log, under the layer it is reloading into.
-    if (!res) return { answer: null, accounted: true };
+    if (!res) return { answer: null };
     const decoded = await Promise.race([
       res.json().then(
         (answer) => ({ answer }),
@@ -4126,7 +4126,7 @@ async function deliver(entry) {
       ),
       entry.read.then((answer) => ({ readAnswer: answer })),
     ]);
-    if (decoded.readAnswer) return { answer: decoded.readAnswer, accounted: true };
+    if (decoded.readAnswer) return { answer: decoded.readAnswer };
     if (decoded.error) {
       if (!announced) showToast("Couldn't read the answer — retrying your change…");
       announced = true;
@@ -4150,7 +4150,6 @@ async function deliver(entry) {
       );
       return {
         answer: acceptedEvent,
-        accounted: Boolean(entry.readEvent),
         settled,
       };
     }
@@ -4160,7 +4159,7 @@ async function deliver(entry) {
       answer.ok === false
     ) {
       showToast(`Couldn't send — ${answer.error || "the server refused it"}`);
-      return { answer: null, accounted: true };
+      return { answer: null };
     }
     if (!announced) showToast("Server answer was incomplete — retrying your change…");
     announced = true;
@@ -4174,16 +4173,17 @@ async function drainOutbox() {
     for (;;) {
       const entry = outbox.find((candidate) => !candidate.answered);
       if (!entry) break;
-      const { answer, accounted, settled } = await deliver(entry);
+      const { answer, settled } = await deliver(entry);
       entry.answered = true;
       entry.rejected = !answer && entry.event.kind === "action";
-      if (entry.event.kind !== "action" && accounted) removeOutbox(entry);
+      if (entry.event.kind !== "action" && (!answer || entry.readEvent))
+        removeOutbox(entry);
       // A rejected action stops contributing its optimistic winner immediately, but
       // stays in this outbox until the semantic projector has committed the resulting
       // authoritative state. Delivery can advance; replay and undo cannot see the hold
       // disappear first. Accepted entries are released by the complete read that
       // contains their attempt, never merely by a response whose rendering failed.
-      if (entry.rejected || (accounted && entry.readEvent)) {
+      if (entry.rejected || entry.readEvent) {
         if (reconcileKnownState()) releaseProjectedOutbox();
       }
       // The list is an input to the key line and no focus/mouse event accompanies
@@ -10439,11 +10439,9 @@ function domFacet(el, record) {
 function foldedFacet(e, record) {
   const value = e.detail[record.value];
   if (record.kind === "body")
-    return [
-      ...String(value ?? "")
-        .replace(COLLAPSE, " ")
-        .trim(),
-    ].join("");
+    return String(value ?? "")
+      .replace(COLLAPSE, " ")
+      .trim();
   if (record.kind === "attribute") return [...value].sort().join(" ");
   return value ?? null;
 }
@@ -10485,11 +10483,7 @@ function rememberAuthoredMarkup(root = document) {
       .map(({ tag }) => tag),
   );
   for (const tag of settlements) {
-    const widgets = [
-      ...(root.matches?.(tag) ? [root] : []),
-      ...root.querySelectorAll(tag),
-    ];
-    for (const widget of widgets)
+    for (const widget of root.querySelectorAll(tag))
       if (widget.id && !authoredMarkup.has(widget.id))
         authoredMarkup.set(widget.id, widget.cloneNode(true));
   }
@@ -10505,22 +10499,18 @@ function captureAuthoredFacets(root = document) {
     byTag.set(statement.tag, statements);
   }
   for (const [tag, statements] of byTag) {
-    const widgets = [
-      ...(root.matches?.(tag) ? [root] : []),
-      ...root.querySelectorAll(tag),
-    ];
-    for (const widget of widgets) {
+    for (const widget of root.querySelectorAll(tag)) {
       if (!widget.id || authoredWidgets.has(widget.id)) continue;
-      for (const { channel, verb, spec } of statements) {
+      for (const { verb, spec } of statements) {
         if (spec.unit === "widget")
-          rememberAuthored(widget, widget, widget.id, channel, verb, spec);
+          rememberAuthored(widget, widget, widget.id, verb, spec);
         else
           // A position facet is carried by the container's direct id'd children.
           // Ownership stops at the nearest widget declaring recorded state, so an
           // outer custom container cannot capture a nested widget's parts.
           for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
             if (recordedOwner(part.parentElement) === widget)
-              rememberAuthored(widget, part, part.id, channel, verb, spec);
+              rememberAuthored(widget, part, part.id, verb, spec);
       }
       authoredWidgets.add(widget.id);
     }
@@ -10530,7 +10520,7 @@ function captureAuthoredFacets(root = document) {
 // The facet and the statement that restores it are both authored facts. Reports are
 // not undoable gestures, but a report can be the projected state displaced by an
 // action; when that action is withdrawn, reconciliation needs the same baseline.
-function rememberAuthored(widget, el, unit, _channel, verb, spec) {
+function rememberAuthored(widget, el, unit, verb, spec) {
   const coordinate = stateCoordinate(widget.id, unit, spec);
   authoredFacets.set(coordinate, domFacet(el, spec.record));
   const detail = authoredDetail(el, unit, spec);

@@ -4,18 +4,6 @@ Read this before writing or revising a version and before the first handoff.
 `leaf page catalog <page>` is the authority for the page's vendored widgets,
 attributes, examples, and theme idioms; read it before authoring.
 
-## Contents
-
-- [Document scaffold](#document-scaffold)
-- [Theme and vocabulary](#theme-and-vocabulary)
-- [Stable anchors](#stable-anchors)
-- [Asks and sign-off](#asks-and-sign-off)
-- [Revisions and reader-owned words](#revisions-and-reader-owned-words)
-- [Honoring reader state](#honoring-reader-state)
-- [Keeping the current page current](#keeping-the-current-page-current)
-- [Interactivity and evidence](#interactivity-and-evidence)
-- [Pre-handover review](#pre-handover-review)
-
 ## Document scaffold
 
 Write a complete HTML document. The head contains exactly one `/theme.css` link

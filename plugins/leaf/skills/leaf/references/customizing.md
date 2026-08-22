@@ -5,15 +5,6 @@ its modules. Read this when the subject is the layer rather than a page — a de
 comment arrived (`"about": "layer"`), or `/leaf` was invoked on a widget to build or a
 look to change.
 
-## Contents
-
-- [Where a change goes](#where-a-change-goes)
-- [The commands](#the-commands)
-- [A theme change](#a-theme-change)
-- [A widget](#a-widget)
-- [Seeing it](#seeing-it)
-- [A design comment](#a-design-comment)
-
 ## Where a change goes
 
 | Layer                          | For                                              | Reaches                          |
@@ -88,20 +79,9 @@ the whole of what a module gets.
 
 ## Seeing it
 
-```bash
-leaf server stop <page>                     # quiesce the old contract
-leaf page init <page>                       # re-vendor the complete layer
-leaf server start <page>                    # restore the recorded URL and lifetime
-leaf version check <page> --render          # gate the version that uses it
-```
-
-Stopping disables desired service and waits for the old listening socket,
-accepted connections, and live lease to close. Initialization preserves the
-recorded address, port, lifetime, and page status; the restart therefore restores
-the same URL. It refuses when the incoming layer no longer accepts a logged event
-contract. Each successful init embeds a new layer epoch in the runtime and
-registry, so an old or half-loaded tab reloads before it can poll or post against
-the replacement contract. Note the re-vendor in the next version's changelog.
+After the main skill's re-vendoring route restores the recorded URL, run
+`leaf version check <page> --render` on the version that uses the replacement
+layer. Note the re-vendor in the next version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't

@@ -661,6 +661,13 @@ def refuse(route):
 #
 # So the route stays on the page for its whole life and answers every request it is
 # handed. Lifting changes which answer, not whether there is one.
+#
+# The poll is what this is for, and the `**/api/event` unroutes below are the boundary
+# rather than sites left unconverted. A poll is the request nobody asked for: the timer
+# issues it whenever it comes round, so a lift is free to land in the middle of one. An
+# event is posted only by a gesture the test just made — or by `reportPageError`, which
+# nothing awaits — so a test that is not mid-gesture has nothing in the wire there to
+# strand, and one that is waits for the send before it lifts.
 class CutOff:
     """A page's polls, stopped from outside it until the test says it can hear again."""
 
@@ -668,10 +675,10 @@ class CutOff:
         self._lets_through = lets_through
         self._live = False
 
-    def hold(self, page, pattern="**/api/state*"):
+    def hold(self, page):
         seen = itertools.count()
         page.route(
-            pattern,
+            "**/api/state*",
             lambda route: (
                 route.continue_()
                 if self._live or next(seen) < self._lets_through

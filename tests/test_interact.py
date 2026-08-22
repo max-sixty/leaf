@@ -3318,7 +3318,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert state["asks"] == []
     assert state["state"] == [
         {
+            "widget": "g1",
             "unit": "g1",
+            "facet": "selection",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
             "version": 1,
@@ -3327,7 +3329,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["lag"] == [
         {
+            "widget": "g1",
             "unit": "g1",
+            "facet": "selection",
             "channel": "action",
             "action": "choose",
             "log": ["o-shim"],
@@ -3335,6 +3339,81 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
+
+    # Completion is an independent fact on the same widget. It stands beside
+    # selection instead of superseding it, and both are visible to the agent.
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert [
+        (item["facet"], item["action"]) for item in state_json(page_dir)["state"]
+    ] == [
+        ("completion", "answer"),
+        ("selection", "choose"),
+    ]
+
+
+def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page_dir):
+    """A report remains live for later absorption, but the reader's action is
+    the desired state and the only record debt on their shared coordinate."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    options = registry["lf-options"]
+    options["properties"]["overruled"] = {"type": "boolean"}
+    options["x-report"] = {"choose": options["x-state"]["choose"]}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    opts = OPTIONS.format(
+        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "worker",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-stage"]},
+        },
+    )
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+
+    state = state_json(page_dir)
+    assert state["state"][0]["detail"] == {"options": ["o-shim"]}
+    assert state["reports"][0]["detail"] == {"options": ["o-stage"]}
+    assert state["lag"] == [
+        {
+            "widget": "g1",
+            "unit": "g1",
+            "facet": "selection",
+            "channel": "action",
+            "action": "choose",
+            "log": ["o-shim"],
+            "markup": [],
+        }
+    ]
 
 
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
@@ -3427,7 +3506,9 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert state["asks"] == []
     assert state["reports"] == [
         {
+            "widget": "t-parser",
             "unit": "t-parser",
+            "facet": "status",
             "action": "status",
             "detail": {"status": "done"},
             "version": 1,
@@ -3438,7 +3519,9 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     ]
     assert state["lag"] == [
         {
+            "widget": "t-parser",
             "unit": "t-parser",
+            "facet": "status",
             "channel": "report",
             "action": "status",
             "log": "done",
@@ -3629,10 +3712,10 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
         ),
         ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
         # The one field it carries, and the door refuses it in any other shape.
-        ({"kind": "undo"}, "undo events need `undoes` (str)"),
+        ({"kind": "undo"}, "'undoes' is a required property"),
         (
             {"kind": "undo", "undoes": resolved["id"], "widget": "x"},
-            "unexpected fields",
+            "widget",
         ),
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
@@ -4198,6 +4281,7 @@ def _report_says_attr(registry):
             "required": ["owner"],
             "additionalProperties": False,
         },
+        "facet": "status",
         "unit": "widget",
         "record": {"kind": "value", "attr": "owner", "value": "owner"},
     }
@@ -4348,6 +4432,152 @@ def test_record_values_have_the_type_the_reader_uses(
     assert wanted in result.output
 
 
+def test_recorded_actions_require_only_fields_authored_markup_can_restore(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    detail = registry["lf-options"]["x-state"]["choose"]["detail"]
+    detail["properties"]["animate"] = {"type": "boolean"}
+    detail["required"].append("animate")
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "requires detail fields ['animate']" in result.output
+    assert "authored markup cannot restore" in result.output
+
+
+def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    numeric = {"type": "integer", "minimum": 0}
+    registry["lf-agent"]["properties"]["state"] = numeric
+    registry["lf-agent"]["x-report"]["state"]["detail"]["properties"]["state"] = numeric
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "record value `state` must be a string or string enum" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "channel", "verb", "field"),
+    [
+        ("lf-suggestion", "x-state", "accept", "facet"),
+        ("lf-suggestion", "x-state", "accept", "unit"),
+        ("lf-task", "x-report", "status", "facet"),
+        ("lf-task", "x-report", "status", "unit"),
+    ],
+)
+def test_every_fold_verb_declares_its_coordinate(page_dir, tag, channel, verb, field):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry[tag][channel][verb][field]
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert f"<{tag}> registry extensions are invalid" in result.output
+    assert field in result.output
+
+
+def test_same_facet_verbs_must_share_one_unit_and_record_form(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    answer = registry["lf-options"]["x-state"]["answer"]
+    answer["facet"] = "selection"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "share facet `selection`" in result.output
+    assert "identical record forms" in result.output
+
+    answer["record"] = registry["lf-options"]["x-state"]["choose"]["record"]
+    answer["unit"] = "option"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "share facet `selection`" in result.output
+    assert "different fold units" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "channel", "verb", "slot"),
+    [
+        ("lf-draft", "x-state", "edit", "body"),
+        ("lf-board", "x-state", "move", "position"),
+        ("lf-task", "x-report", "status", "value `status`"),
+        ("lf-options", "x-state", "choose", "attribute `chosen`"),
+    ],
+)
+def test_distinct_facets_cannot_claim_one_physical_record_slot(
+    page_dir, tag, channel, verb, slot
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    declared = registry[tag][channel][verb]
+    parallel = json.loads(json.dumps(declared))
+    parallel["facet"] = "parallel"
+    registry[tag][channel]["parallel"] = parallel
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert (
+        f"<{tag}> {channel} verb `parallel` (facet `parallel`)"
+        f" and {channel} verb `{verb}` (facet `{declared['facet']}`) claim the same "
+        f"physical record slot (unit `{parallel['unit']}`, {slot}); distinct facets "
+        "must record independently" in result.output
+    )
+
+
+def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+
+    # Both channels may state the same fact through the same slot.
+    task = registry["lf-task"]
+    task["properties"]["restated"] = {"type": "boolean"}
+    task["x-state"] = {"status": task["x-report"]["status"]}
+
+    # A different host attribute is a different value slot on the same unit.
+    owner = json.loads(json.dumps(task["x-report"]["status"]))
+    owner["facet"] = "owner"
+    owner["detail"]["properties"] = {"owner": {"type": "string"}}
+    owner["detail"]["required"] = ["owner"]
+    owner["record"] = {"kind": "value", "attr": "owner", "value": "owner"}
+    task["properties"]["owner"] = {"type": "string"}
+    task["x-report"]["owner"] = owner
+
+    # Placement is one slot only for a given declared unit.
+    board = registry["lf-board"]
+    arrange = json.loads(json.dumps(board["x-state"]["move"]))
+    arrange["facet"] = "arrangement"
+    arrange["unit"] = "to"
+    arrange["detail"]["properties"].pop("card")
+    arrange["detail"]["required"].remove("card")
+    board["x-state"]["arrange"] = arrange
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+def test_every_action_on_a_thread_answer_widget_shares_its_answer_facet(page_dir):
+    """Thread history outlives the markup that declared the action, so its one
+    durable widget key is exact only when every action on a resolves-bearing tag
+    is another outcome of the same answer fact."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-suggestion"]["x-state"]["reject"]["facet"] = "other"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "resolves-bearing widget" in result.output
+    assert "answer facet `settlement`" in result.output
+
+
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     """A child appearing first must not inspect a malformed parent half-validated."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -4418,11 +4648,35 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     accept["detail"]["properties"] = {"part": {"type": "string"}}
     accept["unit"] = "part"
     accept["detail"]["required"] = ["part"]
+    # Keep the settlement coordinate coherent so this reaches the separate
+    # holder/slot relation being exercised here.
+    reject = registry["lf-suggestion"]["x-state"]["reject"]
+    reject["detail"]["properties"] = {"part": {"type": "string"}}
+    reject["unit"] = "part"
+    reject["detail"]["required"] = ["part"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-old> x-retired-when `accept` must fold by widget" in result.output
+
+
+def test_one_holders_retirement_outcomes_share_one_facet(page_dir):
+    """Retirement is one decision even when its holder answers no thread."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    accept = registry["lf-suggestion"]["x-state"]["accept"]
+    accept["detail"] = {"type": "object", "additionalProperties": False}
+    registry["lf-suggestion"]["x-state"]["reject"]["facet"] = "alternative"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert (
+        "<lf-suggestion> x-retired-when outcomes span facets (`accept` → "
+        "`settlement`, `reject` → `alternative`); every retirement outcome for "
+        "one holder must share one facet" in result.output
+    )
 
 
 # A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`
@@ -4476,6 +4730,7 @@ def trial_page(tmp_path, monkeypatch):
     entries = json.loads(source.read_text())
     verb = {
         "detail": {"type": "object", "additionalProperties": False},
+        "facet": "settlement",
         "unit": "widget",
     }
     for tag, state, example in (
@@ -4781,7 +5036,7 @@ def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path,
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$events"]["kinds"]["note"].remove(field)
+    del registry["$events"]["kinds"]["note"]["record"]["properties"][field]
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
@@ -4789,6 +5044,90 @@ def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path,
     assert "current layer writes" in result.output
     assert "note" in result.output
     assert field in result.output
+
+
+def test_the_registry_door_validates_event_schemas(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$events"]["kinds"]["comment"]["record"]["properties"]["text"] = {
+        "type": "not-a-type"
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "$events kind `comment` record is not a valid JSON Schema" in result.output
+
+
+def test_registry_refuses_hidden_event_record_constraints(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$events"]["kinds"]["comment"]["record"]["not"] = {
+        "required": ["author"],
+        "properties": {"author": {"const": "claude"}},
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "record must use only type, properties, required" in result.output
+
+
+def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeypatch):
+    published(page_dir)
+    monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
+    monkeypatch.setenv("LEAF_AGENT", "")
+
+    result = comment(page_dir, "--text", "Which worker said this?")
+
+    assert result.exit_code == 0, result.output
+    event = interact.read_events(page_dir)[-1]
+    assert (event["agent"], event["session"]) == ("Codex", "worker-1")
+
+
+def test_event_required_order_is_not_a_contract_change(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    required = registry["$events"]["kinds"]["comment"]["record"]["required"]
+    required.reverse()
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+def test_an_event_kind_contract_replaces_whole_across_layers():
+    """A kind is one schema contract. Merging its record and browser members from
+    different layers would produce a contract neither layer authored."""
+    old = {"record": {"const": "old"}, "browser": {"const": "old"}}
+    replacement = {"record": {"const": "new"}}
+    merged = {"$events": {"kinds": {"signal": old}}}
+
+    interact.merge_layer_entries(
+        merged, {"$events": {"kinds": {"signal": replacement}}}
+    )
+
+    assert merged["$events"]["kinds"]["signal"] == replacement
+
+
+def test_a_record_contract_does_not_open_a_browser_event_kind(server, page_dir):
+    """The log may carry a kind written through another door. Browser authorship
+    is a separate assertion and must be opted into on the kind itself."""
+    publish(page_dir)
+    registry = json.loads((page_dir / "registry.json").read_text())
+    contract = json.loads(json.dumps(registry["$events"]["kinds"]["error"]))
+    del contract["browser"]
+    contract["record"]["properties"]["kind"] = {"const": "signal"}
+    registry["$events"]["kinds"]["signal"] = contract
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "signal", "text": "hello"}).encode(),
+    )
+
+    assert status == 400
+    assert "kind must be one of" in json.loads(body)["error"]
 
 
 def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
@@ -5198,6 +5537,7 @@ def test_server_round_trip(server, page_dir):
                 "agent": "Codex",
                 "session": "s-forged",
                 "ts": "1900-01-01T00:00:00Z",
+                "seq": 99,
                 "version": 1,
                 "text": "hm",
             }
@@ -5208,6 +5548,7 @@ def test_server_round_trip(server, page_dir):
     assert posted["author"] == "user" and posted["id"] != "c9"
     assert "agent" not in posted and "session" not in posted
     assert posted["ts"] != "1900-01-01T00:00:00Z"
+    assert posted["seq"] != 99
     status, body = fetch(f"{server}/api/state")
     state = json.loads(body)
     assert state["versions"] == [1]
@@ -5504,7 +5845,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         # ordinary state — and the reader meets it by clicking, not by running anything.
         (
             lambda registry: json.dumps({**registry, "$events": {"kinds": {}}}),
-            "$events.kinds omits vocabulary the current layer writes",
+            "$events.kinds omits or changes contracts the current layer writes",
         ),
     ],
 )
@@ -6922,8 +7263,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_en
     nothing running Codex is above this process, so there is no process whose
     life is that session's. Nothing to fall back on either — a pid guessed here
     is a claim that expires by itself, and every state that follows from one is
-    silent — so it fails the way a missing LEAF_AGENT does, naming what it
-    walked.
+    silent, so the refusal names what it walked.
 
     Its premise is this process's own ancestry, which is the developer's to
     supply: run the suite from inside Codex and the walk finds that session,
@@ -7889,13 +8229,15 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
 ):
     """Disabled desired state makes re-vendor replace the whole contract."""
     publish(page_dir)
-    current_source = Path(interact.__file__).read_text()
-    old_contract = '        "attempt",\n    },\n    "reply": {'
-    assert current_source.count(old_contract) == 1
-    old_script = page_dir.parent / "old-interact.py"
-    old_script.write_text(
-        current_source.replace(old_contract, '    },\n    "reply": {')
-    )
+    old_skill = page_dir.parent / "old-skill"
+    old_script = old_skill / "scripts" / "interact.py"
+    old_script.parent.mkdir(parents=True)
+    old_script.write_text(Path(interact.__file__).read_text())
+    shutil.copytree(interact.ASSETS, old_skill / "assets")
+    old_registry = interact.read_json(page_dir / "registry.json")
+    del old_registry["$events"]["kinds"]["comment"]["record"]["properties"]["attempt"]
+    interact.write_json(page_dir / "registry.json", old_registry)
+    interact.write_json(old_skill / "assets" / "registry.json", old_registry)
 
     if lifetime == "standing":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
@@ -7928,7 +8270,10 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     }
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
     assert status == 400
-    assert "unexpected fields ['attempt']" in json.loads(body)["error"]
+    assert (
+        "Additional properties are not allowed ('attempt' was unexpected)"
+        in (json.loads(body)["error"])
+    )
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()

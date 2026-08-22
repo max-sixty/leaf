@@ -314,15 +314,16 @@ lf-options {
                 What x-report declares, once per widget with an agent channel: report
                 verbs a worker folds onto the page through <code>leaf report</code>,
                 each with a detail schema (the payload half of the log's
-                forever-contract, exactly as x-state's), a fold unit, and a required
-                record form drawn from $state's vocabulary minus <code>body</code> — a
-                report moves declared state only, never the page's words, which is what
-                keeps the passage reading untouched by it. The runtime paints a standing
-                report live (data-lf-reported) with precedence opposite to a reviewer's
-                action: an action outranks every later version until
-                <code>restated</code> retracts it; a report is provisional news,
-                standing only until a version answers it. How a version answers a
-                standing report is $report's.
+                forever-contract, exactly as x-state's), a semantic facet, a fold unit,
+                and a required record form drawn from $state's vocabulary minus
+                <code>body</code>. The owning widget instance, unit, and facet together
+                name one independently standing fact; verbs on the same tag and facet
+                share their unit and record form, and an action outranks a report at
+                that coordinate. A report moves declared state only, never the page's
+                words, which is what keeps the passage reading untouched by it. The
+                runtime paints a standing report live (data-lf-reported); it is
+                provisional news, standing only until a version answers it. How a
+                version answers a standing report is $report's.
               </td>
             </tr>
             <tr>
@@ -330,16 +331,18 @@ lf-options {
               <td>
                 On a slot: the holder's action outcome that takes this element off the
                 page (a suggestion's <code>lf-old</code> under <code>accept</code>).
-                Requires x-parent. The layer renders the settlement whole, following the
-                log's standing state both ways — replay paints
-                data-lf-state="&lt;outcome&gt;" on the holder and data-lf-retired on the
-                slots that outcome retires, takes both off when a later widget-unit verb
-                displaces the decision in the fold, and one theme rule hides the marked
-                slots — so no module owes any of it, though one may paint the same
-                sooner as its own gesture (renderRetired). The file's reading takes the
-                fact from the log, and <code>version check</code> licenses dropping the
-                slot's ids on it; <code>version check --render</code> reports a settled
-                slot still showing words, or a mark the log never decided.
+                Requires x-parent. Every outcome named by one holder's slots belongs to
+                the same facet, so only one settlement can stand. The layer renders the
+                settlement whole, following the log's standing state both ways —
+                reconciliation paints data-lf-state="&lt;outcome&gt;" on the holder and
+                data-lf-retired on the slots that outcome retires, takes both off when a
+                later widget-unit verb on that facet displaces the decision in the fold,
+                and one theme rule hides the marked slots — so no module owes any of it,
+                though one may paint the same sooner as its own gesture (renderRetired).
+                The file's reading takes the fact from the log, and
+                <code>version check</code> licenses dropping the slot's ids on it;
+                <code>version check --render</code> reports a settled slot still showing
+                words, or a mark the log never decided.
               </td>
             </tr>
             <tr>
@@ -366,27 +369,31 @@ lf-options {
               <td>
                 What x-state declares, once per widget with an action channel: each
                 verb's detail schema (the payload half of the log's forever-contract),
-                its fold unit, and the record form its state takes in markup. Every
-                applyAction is absolute, so the user's standing state is a fold — the
-                last surviving action per unit — and one declaration drives the POST and
-                re-vendor contract gates, <code>version check</code>'s state gate (a
-                version whose markup actively contradicts the fold without
-                <code>restated</code> is refused; writing the folded state is honoring;
-                re-emitting the previous version's state is blessed silence), the
-                record-lag report, the runtime's decided-but-unhonored mark, and the
-                version diff's state half. One detail field name is reserved across
-                every verb: <code>resolves</code> means the comment thread this action
-                answers, thread settlement reads it on any action, and the lint holds a
-                verb declaring the name to a plain string on a widget-absolute unit — a
+                its semantic facet, fold unit, and the record form its state takes in
+                markup. The owning widget instance, unit, and facet together name one
+                independently standing fact: verbs on the same tag and facet share their
+                unit and record form, competing verbs there supersede one another, and
+                distinct facets coexist. Every applyAction is absolute, so the user's
+                standing state is the last surviving action per coordinate, and one
+                declaration drives the POST and re-vendor contract gates,
+                <code>version check</code>'s state gate (a version whose markup actively
+                contradicts the fold without <code>restated</code> is refused; writing
+                the folded state is honoring; re-emitting the previous version's state
+                is blessed silence), the record-lag report, the runtime's
+                decided-but-unhonored mark, and the version diff's state half. One
+                detail field name is reserved across every verb:
+                <code>resolves</code> means the comment thread this action answers,
+                thread settlement reads it on any action, and the lint holds a verb
+                declaring the name to a plain string on a widget-absolute unit — a
                 thread is answered by the ask, and an ask is a widget instance
-                ($awaits). A report verb spelling the name is refused outright:
-                settlement reads actions, so the field there would declare an answer
-                nothing gives. What settles the thread is the widget's standing answer
-                rather than the fact an answer was once given, so an answer that a later
-                action on the same widget supersedes, or that a
-                <code>restated</code> takes back, leaves the thread open again. Every
-                verb a widget declares is therefore one of its answers to the same ask.
-                The unit and record forms are $state's.
+                ($awaits). Because thread history can outlive its markup, every action
+                verb on a resolves-bearing tag shares one answer facet. A report verb
+                spelling the name is refused outright: settlement reads actions, so the
+                field there would declare an answer nothing gives. What settles the
+                thread is the widget's standing answer rather than the fact an answer
+                was once given, so an answer that a later action at that coordinate
+                supersedes, or that a <code>restated</code> takes back, leaves the
+                thread open again. The facet, unit, and record forms are $state's.
               </td>
             </tr>
             <tr>

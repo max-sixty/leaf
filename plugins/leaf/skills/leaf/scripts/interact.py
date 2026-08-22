@@ -281,16 +281,16 @@ vocabulary for rides in the custom keywords below:
                 where even the room is short. The runtime marks what this key
                 declares and theme.css spends the room the layout measured, so a
                 page's shape follows what it holds and no page states a width.
-    x-state     the widget's action verbs: each verb's detail schema, its fold
-                unit, and the record form its state takes in markup. Every
+    x-state     the widget's action verbs: each verb's detail schema, semantic
+                facet, fold unit, and the record form its state takes in markup. Every
                 applyAction is absolute, so the user's standing state is a
-                fold — the last surviving action per unit — and one declaration
+                fold — the last surviving action per owner, unit, and facet — and one declaration
                 drives the POST and re-vendor contract gates, check's state gate,
                 the record-lag report, the runtime's pending mark, and the diff's
                 state half (see $state in the registry).
     x-report    the widget's agent channel: report verbs a worker folds onto the
-                page through `leaf report`, each with a detail schema, fold
-                unit, and *required* record form — declared state only, never
+                page through `leaf report`, each with a detail schema, facet,
+                fold unit, and *required* record form — declared state only, never
                 body words, so a report never touches the passage reading. The
                 precedence is opposite to x-state's: an action outranks every
                 later version until `restated` retracts it, while a report is
@@ -493,81 +493,6 @@ from jsonschema.exceptions import SchemaError
 # claim the page before it closes. session.json is the ownership record; a
 # standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# The browser's event kinds, and per kind the fields something downstream reads.
-# POST /api/event is the one door they come through, so this is where the shape is
-# checked; every reader indexes the fields rather than asking whether they arrived.
-BROWSER_EVENT_FIELDS = {
-    "comment": {"version": int, "text": str},
-    "reply": {"parent": str, "version": int, "text": str},
-    "resolve": {"parent": str},
-    "unresolve": {"parent": str},
-    "done": {"version": int, "text": str},
-    "action": {"widget": str, "action": str, "detail": dict, "version": int},
-    "undo": {"undoes": str},
-    # The page's own runtime reporting a failure in front of the user — an
-    # uncaught throw, a module that wouldn't load, a contained applyAction
-    # fault. Stamped author "page", because it is the machine speaking: the
-    # watcher hears it (a broken page is the agent's to fix, and the reader's
-    # paste-the-console round trip was the only path before), and the reader's
-    # pending count never claims it as their message.
-    "error": {"text": str},
-}
-# Every field the current browser and CLI may write, beyond append_event's
-# id/ts/author/kind and read_events' seq. A registry may grow this vocabulary,
-# but it cannot omit a word the producers beside it already speak.
-EVENT_VOCABULARY = {
-    "comment": {
-        "version",
-        "text",
-        "anchor",
-        "suggestion",
-        # "layer": the comment is about the layer — a widget's look or behaviour,
-        # a control, the runtime's chrome — rather than the page's words. The
-        # browser writes it from design mode; the agent reads it to answer with
-        # the layer instead of the next version's prose.
-        "about",
-        "agent",
-        "session",
-        "markup",
-        # Opaque browser-minted identity for one draft generation. Kept in the
-        # log so a replacement tab can retry after the first sender died without
-        # appending the same gesture twice.
-        "attempt",
-    },
-    "reply": {
-        "parent",
-        "version",
-        "text",
-        "agent",
-        "session",
-        "markup",
-        "attempt",
-        # Set while a streamed reply's chain is still open, so every reader knows
-        # more of this message is still coming; the closing chunk omits it.
-        "more",
-    },
-    "resolve": {"parent", "agent", "session"},
-    "unresolve": {"parent"},
-    "done": {"version", "text"},
-    "action": {"widget", "action", "detail", "version", "attempt"},
-    "report": {"widget", "action", "detail", "version", "agent", "session"},
-    "note": {"version", "text", "restated", "reports", "agent", "session"},
-    "error": {"version", "text"},
-    # A streamed message's continuation: `continues` names the head — a claude
-    # comment or reply whose chain is still open (`more` on its last event) — and
-    # the chunk's text concatenates onto it raw, delta-style. Every event stays
-    # immutable and append-only; the *message* is a fold of its chain
-    # (fold_messages), exactly as a widget's standing state is a fold of its
-    # actions. `markup` may ride only a closing event, so a message carries at
-    # most one and the panel never re-renders an upgraded widget mid-stream.
-    "append": {"continues", "text", "more", "agent", "session", "markup"},
-    # The reader taking a gesture back (`z`), naming it and nothing else. Every
-    # other field is the target's to state, and stating it twice is two things to
-    # keep in step. What it takes back it takes back for every reader of the log:
-    # the folds drop the event, so the page is what the version says plus what
-    # still stands, which is the same sentence a reload has always read.
-    "undo": {"undoes"},
-}
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
 # they say, rather than unsay. Nor is an undo itself, which would be a redo.
@@ -582,14 +507,6 @@ ACK_BATCH_INSTRUCTION = (
     "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
     "batch's first line names."
 )
-# Fields whose one door is the agent side. The browser door refuses them rather
-# than silently dropping: `markup` enters only through the gate `leaf comment`
-# and `leaf reply` run, which is what lets every reader trust what the log holds
-# under that name; `more` marks a streamed chain open, and only the channel's
-# reply tool streams (kind `append` is refused at the POST door outright, not
-# being a browser kind at all).
-AGENT_ONLY_FIELDS = {"markup", "more"}
-EVENT_BASE_FIELDS = {"id", "ts", "author", "kind", "seq"}
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
 # The record forms one vocabulary of declared state draws on ($state in the
@@ -644,9 +561,9 @@ _RECORD_VALUE = {
 
 
 def _verbs_schema(records: list, required: list) -> dict:
-    """The shape x-state and x-report share: verbs to {detail, unit, record},
-    differing only in which record forms a channel admits and whether one is
-    required at all."""
+    """The shape x-state and x-report share: verbs to
+    {detail, facet, unit, record}, differing only in which record forms a
+    channel admits and whether one is required at all."""
     return {
         "type": "object",
         "minProperties": 1,
@@ -655,6 +572,7 @@ def _verbs_schema(records: list, required: list) -> dict:
             "type": "object",
             "properties": {
                 "detail": {"type": "object"},
+                "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
                 "unit": {"type": "string", "minLength": 1},
                 "record": {"oneOf": records},
             },
@@ -665,14 +583,16 @@ def _verbs_schema(records: list, required: list) -> dict:
 
 
 STATE_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE], ["detail"]
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
+    ["detail", "facet", "unit"],
 )
 # A report moves declared state only, never body words — no body record, so the
 # passage reading never has to model one — and the record itself is required:
 # the gate compares record forms, and a recordless report would be a claim
 # nothing could check a version against.
 REPORT_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE], ["detail", "record"]
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
+    ["detail", "facet", "unit", "record"],
 )
 # A `when` predicate selects instances by attribute values (or by a flag's being
 # present or absent). One condition shape serves every registry consumer because
@@ -1112,11 +1032,10 @@ def fold_messages(events: list) -> list:
 def taken_back(events: list) -> set:
     """Event ids some later gesture took back (`undoes`).
 
-    The counter-event states the state that stood before, so the folds need none
-    of this — the later absolute value wins on its own. What does need it is
-    every reading of what the earlier event *meant*: the thread an action
-    answered is open again once the answer is withdrawn, and the undo walk steps
-    back past what it has already taken."""
+    An undo names the gesture it withdraws and carries no counter-state, so every
+    projection drops those ids. The thread an action answered is open again once
+    the answer is withdrawn, and the undo walk steps back past what it has
+    already taken."""
     return {e["undoes"] for e in events if e.get("undoes")}
 
 
@@ -1660,9 +1579,8 @@ def host_identity() -> dict | None:
         agent = os.environ.get("LEAF_AGENT") or "Claude"
         return {"id": sid, "host": "claude-code", "agent": agent}
     if sid := os.environ.get("LEAF_SESSION_ID"):
-        # The launcher sets LEAF_AGENT beside the id; an environment built
-        # by hand that didn't is missing half the identity, so fail on it here.
-        return {"id": sid, "host": "codex", "agent": os.environ["LEAF_AGENT"]}
+        agent = os.environ.get("LEAF_AGENT") or "Codex"
+        return {"id": sid, "host": "codex", "agent": agent}
     return None
 
 
@@ -1704,8 +1622,7 @@ def session_pid(identity: dict) -> int:
             return pid
     # Nothing to fall back to: any pid guessed here is a claim that expires on
     # its own, and the states that follow from one are silent. LEAF_SESSION_ID
-    # with no codex above it is a hand-built environment, the same missing half
-    # host_identity fails on, so say what was walked.
+    # with no codex above it is a hand-built environment, so say what was walked.
     chain = " → ".join(program for _, program in walked)
     sys.exit(
         "LEAF_SESSION_ID names a Codex session but no codex process runs above "
@@ -2211,85 +2128,29 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(event, dict):
             self._json({"error": "event must be a JSON object"}, 400)
             return
-        kind = event.get("kind")
-        if not isinstance(kind, str) or kind not in BROWSER_EVENT_FIELDS:
-            self._json(
-                {"error": f"kind must be one of {sorted(BROWSER_EVENT_FIELDS)}"}, 400
-            )
+        try:
+            registry = load_registry(self.page_dir)
+        except RegistryError as error:
+            self._json({"error": str(error)}, 400)
             return
-        # Identity, authorship, and time belong to the server. Drop client copies
-        # before checking the kind's declared payload, so none can be forged into
-        # the append-only record.
-        for field in ("id", "author", "agent", "session", "ts"):
-            event.pop(field, None)
-        unexpected = (
-            set(event) - {"kind"} - (EVENT_VOCABULARY[kind] - AGENT_ONLY_FIELDS)
+        if registry is None:
+            self._json({"error": "the page has no registry.json"}, 400)
+            return
+        contracts = registry["$events"]["kinds"]
+        browser_kinds = sorted(
+            name for name, contract in contracts.items() if "browser" in contract
         )
-        if unexpected:
-            self._json(
-                {
-                    "error": f"{event['kind']} events have unexpected fields {sorted(unexpected)}"
-                },
-                400,
-            )
+        kind = event.get("kind")
+        if not isinstance(kind, str) or kind not in browser_kinds:
+            self._json({"error": f"kind must be one of {browser_kinds}"}, 400)
             return
-        wrong = [
-            f"`{name}` ({typ.__name__})"
-            for name, typ in BROWSER_EVENT_FIELDS[kind].items()
-            if type(event.get(name)) is not typ or event[name] == ""
-        ]
-        if wrong:
-            self._json({"error": f"{kind} events need {', '.join(wrong)}"}, 400)
-            return
-        if kind == "comment" and "anchor" in event:
-            anchor = event["anchor"]
-            # `part` is design mode's: the control a press landed on, inside the
-            # element `section` names — words for the agent and the panel, not a
-            # second anchor, so nothing resolves it.
-            fields = {"section", "quote", "prefix", "suffix", "part"}
-            invalid = (
-                not isinstance(anchor, dict)
-                or set(anchor) - fields
-                or any(
-                    name in anchor
-                    and not (
-                        isinstance(anchor[name], str)
-                        or (name == "section" and anchor[name] is None)
-                    )
-                    for name in fields
-                )
-                or not (anchor.get("section") or anchor.get("quote"))
-            )
-            if invalid:
-                self._json(
-                    {
-                        "error": "comment anchor must contain a string section or quote, "
-                        "with optional string prefix/suffix/part"
-                    },
-                    400,
-                )
-                return
-        if (
-            kind == "comment"
-            and "suggestion" in event
-            and type(event["suggestion"]) is not bool
-        ):
-            self._json({"error": "comment suggestion must be boolean"}, 400)
-            return
-        if kind == "comment" and "about" in event and event["about"] != "layer":
-            self._json({"error": 'comment about must be "layer"'}, 400)
-            return
-        if "attempt" in event and (
-            not isinstance(event["attempt"], str)
-            or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", event["attempt"]) is None
-        ):
-            self._json(
-                {
-                    "error": "comment/reply/action attempt must be 16–128 ASCII letters, "
-                    "digits, underscores, or hyphens"
-                },
-                400,
-            )
+        # Identity, authorship, time, and sequence belong to the server. Drop client
+        # copies before checking the declared payload, so none can be forged into
+        # the append-only record or its reading.
+        for field in ("id", "author", "agent", "session", "ts", "seq"):
+            event.pop(field, None)
+        if error := event_record_error(contracts[kind], event, browser=True):
+            self._json({"error": f"{kind} event is invalid: {error}"}, 400)
             return
         # An accepted attempt outranks mutable validation state. A replacement tab may
         # retry after a newer version retired the sender's version; this request is not
@@ -2331,22 +2192,11 @@ class Handler(BaseHTTPRequestHandler):
                     400,
                 )
                 return
-        if kind == "action":
-            # A page's vendored registry is frozen at `page init` and the layer around it
-            # is not, so a stamp that no longer parses — or no longer declares what this
-            # layer writes — is state the reader can reach by clicking. It is theirs to
-            # hear about, in the same shape as every rejection above.
-            try:
-                registry = load_registry(self.page_dir)
-            except RegistryError as error:
-                self._json({"error": str(error)}, 400)
-                return
-            if registry is None:
-                self._json({"error": "the page has no registry.json"}, 400)
-                return
-            if error := action_contract_error(self.page_dir, event, events, registry):
-                self._json({"error": error}, 400)
-                return
+        if kind == "action" and (
+            error := action_contract_error(self.page_dir, event, events, registry)
+        ):
+            self._json({"error": error}, 400)
+            return
         # A parent names a message in a thread, the same rule `leaf reply`
         # holds Claude to. Enforced so a walk up the log terminates at a comment.
         if "parent" in event and event["parent"] not in {
@@ -3656,6 +3506,24 @@ def detail_error(schema: dict, detail: dict):
     return error.message if error else None
 
 
+def event_record_error(contract: dict, event: dict, browser: bool = False):
+    """The first complaint from one event kind's stored-record contract."""
+    schema = contract["record"]
+    instance = event
+    if browser:
+        # Supply the fields the server and reader add so the full record schema
+        # can validate the unstamped request beside its browser assertions.
+        schema = {"allOf": [schema, contract["browser"]]}
+        instance = {
+            **event,
+            "id": "browser",
+            "ts": "browser",
+            "author": "page" if event.get("kind") == "error" else "user",
+            "seq": 1,
+        }
+    return detail_error(schema, instance)
+
+
 def declared_event_error(
     event: dict, tag: str, registry: dict, kind: str, channel: str
 ):
@@ -3838,9 +3706,9 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
     if quote or section:
         html = version_path(page_dir, version).read_text(encoding="utf-8")
         registry = require_registry(page_dir)
-        fold, _, _ = page_fold(html, events, registry, version)
-        decided = decisions(fold, registry)
-        edited = rewritten_bodies(fold)
+        projection, _, _ = page_projection(html, events, registry, version)
+        decided = decisions(projection.actions, registry)
+        edited = rewritten_bodies(projection.actions)
         try:
             anchor = capture_anchor(html, registry, quote, section, decided, edited)
         except ValueError as err:
@@ -4035,15 +3903,16 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
     # explicit, by id: the note names every report this version carried into its
     # markup (wrote the reported state — absorption) or marked `overruled` on
     # (overruling), and replay stops those reports at this version. Silence names
-    # nothing, and the report keeps painting. All of a unit's standing reports go
-    # together, or a superseded older one would keep replaying under the answer.
+    # nothing, and the report keeps painting. All reports superseded at one
+    # coordinate go together, or an older one would replay under the answer.
     # The check above already required the vendored registry, so read it plainly.
     registry = load_registry(page_dir)
     events = read_events(page_dir)
     byid = parser.by_id
     spk = spoken(html, registry)
     answered = []
-    for unit, reports in standing_reports(events, byid, registry, None).items():
+    projection = state_projection(events, byid, spk, registry, None)
+    for (_widget, unit, _facet), reports in projection.reports.items():
         last, spec = reports[-1]
         if unit in parser.overruled or markup_facet(
             unit, spec, byid, spk
@@ -4213,7 +4082,7 @@ CATALOG_FACTS = (
         "$restated",
         "`restated` — the one attribute that spans widgets; read it before revising one.",
     ),
-    ("$state", "x-state's fields — the fold unit and the record forms."),
+    ("$state", "x-state's fields — the facet, fold unit, and record forms."),
     ("$report", "x-report's fields — how a version answers a standing report."),
     ("$awaits", "x-awaits' fields — when an instance asks, and what answers it."),
     (
@@ -4251,7 +4120,7 @@ def cmd_page_state(page_dir: Path) -> None:
     reading, and doing it in-head over `leaf events` is how a standing decision
     gets missed. So this prints the readings the runtime derives, from the same
     constructions it derives them with: the published markup's elements, the
-    fold of the user's standing state and the reports standing on the agent
+    projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), the open asks
     on the page and in threads (the banner's own count), the comment threads,
     and presence beside what answers for it. Computed on demand from the log,
@@ -4267,12 +4136,12 @@ def cmd_page_state(page_dir: Path) -> None:
     written = list_versions(page_dir)
     pres = presence(page_dir, events)
     # The published page's readings, up front and through the one construction
-    # (page_fold) every consumer of declared state reads, so the threads below
-    # settle against the same page the fold was built over rather than no page.
-    parser, fold, spk = None, {}, {}
+    # (page_projection) every consumer of declared state reads, so the threads
+    # settle against the same page the projection was built over rather than no page.
+    parser, projection, spk = None, None, {}
     if published:
         html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        fold, parser, spk = page_fold(html, events, registry, None)
+        projection, parser, spk = page_projection(html, events, registry, None)
     threads = build_threads(events, spk)
     state = {
         "page": str(page_dir),
@@ -4304,7 +4173,6 @@ def cmd_page_state(page_dir: Path) -> None:
     }
     if published:
         byid = parser.by_id
-        reports = standing_reports(events, byid, registry, None)
         state["title"] = parser.title.strip()
         state["elements"] = [
             {"tag": r["tag"], "id": r["attrs"].get("id"), "line": r["line"]}
@@ -4312,17 +4180,21 @@ def cmd_page_state(page_dir: Path) -> None:
         ]
         state["state"] = [
             {
+                "widget": widget,
                 "unit": unit,
+                "facet": facet,
                 "action": e["action"],
                 "detail": e["detail"],
                 "version": e["version"],
                 "seq": e["seq"],
             }
-            for unit, (e, _) in sorted(fold.items())
+            for (widget, unit, facet), (e, _) in sorted(projection.actions.items())
         ]
         state["reports"] = [
             {
+                "widget": widget,
                 "unit": unit,
+                "facet": facet,
                 "action": e["action"],
                 "detail": e["detail"],
                 "version": e["version"],
@@ -4330,23 +4202,24 @@ def cmd_page_state(page_dir: Path) -> None:
                 "agent": e.get("agent"),
                 "standing": len(standing),
             }
-            for unit, standing in sorted(reports.items())
+            for (widget, unit, facet), standing in sorted(projection.reports.items())
             for e, _ in [standing[-1]]
         ]
         # An ask standing in a slot the log has retired — a group inside the lf-new
         # of a rejected suggestion — left the page with the slot, so it is nobody's
         # to answer; the passage reading already knows which ids a decision dropped.
-        passages = page_passages(html, registry, decisions(fold, registry))
+        passages = page_passages(
+            html, registry, decisions(projection.actions, registry)
+        )
         state["asks"] = page_asks(
             parser,
-            fold,
-            reports,
+            projection,
             byid,
             spk,
             registry,
             set(passages.retired) | set(passages.gone),
         )
-        state["lag"] = record_lag_entries(fold, byid, spk, events, registry)
+        state["lag"] = record_lag_entries(projection, byid, spk)
     elif written:
         state["title"] = parse_version(page_dir, written[-1]).title.strip()
     state["asks"] += thread_asks(
@@ -6450,28 +6323,77 @@ def validate_registry(registry: dict, source) -> dict:
             f"{path}: registry must declare $events.kinds, $languages.names/paths "
             "and $tones.names"
         )
-    if not isinstance(kinds, dict) or not all(
-        isinstance(kind, str)
-        and isinstance(fields, list)
-        and all(isinstance(field, str) for field in fields)
-        and len(fields) == len(set(fields))
-        for kind, fields in kinds.items()
-    ):
-        raise RegistryError(
-            f"{path}: $events.kinds must map event names to unique field-name lists"
-        )
-    missing_events = []
-    for kind, required in EVENT_VOCABULARY.items():
-        if kind not in kinds:
-            missing_events.append(f"kind `{kind}`")
+    if not isinstance(kinds, dict):
+        raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
+    envelope = {"id", "ts", "author", "kind", "seq"}
+    for kind, contract in kinds.items():
+        if (
+            not isinstance(kind, str)
+            or not kind
+            or not isinstance(contract, dict)
+            or set(contract) - {"record", "browser"}
+            or not isinstance(contract.get("record"), dict)
+            or ("browser" in contract and not isinstance(contract["browser"], dict))
+        ):
+            raise RegistryError(
+                f"{path}: $events.kinds must map names to atomic record/browser "
+                "contracts"
+            )
+        for writer, schema in contract.items():
+            try:
+                Draft202012Validator.check_schema(schema)
+            except SchemaError as error:
+                raise RegistryError(
+                    f"{path}: $events kind `{kind}` {writer} is not a valid JSON "
+                    f"Schema: {error.message}"
+                )
+        record = contract["record"]
+        properties = record.get("properties", {})
+        required = record.get("required", [])
+        if (
+            set(record) != {"type", "properties", "required", "additionalProperties"}
+            or record.get("type") != "object"
+            or not envelope <= set(properties)
+            or not envelope <= set(required)
+            or properties.get("kind") != {"const": kind}
+            or record.get("additionalProperties") is not False
+        ):
+            raise RegistryError(
+                f"{path}: $events kind `{kind}` record must use only type, "
+                "properties, required, and additionalProperties to declare a closed "
+                "full event schema with required id/ts/author/kind/seq fields and "
+                "its kind const"
+            )
+
+    # Compare a vendored or overlaid contract with the installed producers' own.
+    # Optional fields may grow; installed fields, requirements, and browser doors
+    # may not change.
+    current = read_registry_entries(ASSETS / "registry.json")["$events"]["kinds"]
+    incompatible = []
+    for kind, expected in current.items():
+        actual = kinds.get(kind)
+        if actual is None:
+            incompatible.append(f"kind `{kind}`")
             continue
-        fields = required - set(kinds[kind])
-        if fields:
-            missing_events.append(f"`{kind}` fields {sorted(fields)}")
-    if missing_events:
+        expected_record = expected["record"]
+        actual_record = actual["record"]
+        expected_properties = expected_record["properties"]
+        actual_properties = actual_record["properties"]
+        changed = sorted(
+            name
+            for name, schema in expected_properties.items()
+            if actual_properties.get(name) != schema
+        )
+        if changed:
+            incompatible.append(f"`{kind}` fields {changed}")
+        elif set(actual_record["required"]) != set(expected_record["required"]):
+            incompatible.append(f"`{kind}` required fields")
+        elif actual.get("browser") != expected.get("browser"):
+            incompatible.append(f"`{kind}` browser writer")
+    if incompatible:
         raise RegistryError(
-            f"{path}: $events.kinds omits vocabulary the current layer writes: "
-            + ", ".join(missing_events)
+            f"{path}: $events.kinds omits or changes contracts the current layer "
+            "writes: " + ", ".join(incompatible)
         )
     # $keys documents exactly the x- keys the lint admits, one string per key: the
     # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
@@ -6704,8 +6626,7 @@ def validate_registry(registry: dict, source) -> dict:
         # widget itself: a verb folding per child (move's "card") rests its
         # decisions on elements this entry doesn't name.
         folds_whole = any(
-            spec.get("unit", "widget") == "widget"
-            for spec in entry.get("x-state", {}).values()
+            spec["unit"] == "widget" for spec in entry.get("x-state", {}).values()
         )
         if folds_whole and not (
             isinstance(properties.get("restated"), dict)
@@ -6716,13 +6637,91 @@ def validate_registry(registry: dict, source) -> dict:
                 "but not the boolean `restated` attribute a version retracts a "
                 "decision with"
             )
+        # A facet is one independently standing fact. Every way of stating that
+        # fact therefore agrees on what it folds over and how authored markup can
+        # record it. The name itself remains local to the tag: two widget families
+        # may both call a facet `status` without sharing a contract.
+        facet_specs: dict[str, tuple[str, str, dict | None]] = {}
+        for channel in ("x-state", "x-report"):
+            for verb, spec in entry.get(channel, {}).items():
+                facet = spec["facet"]
+                previous = facet_specs.get(facet)
+                if previous is None:
+                    facet_specs[facet] = (channel, verb, spec.get("record"))
+                    continue
+                previous_channel, previous_verb, previous_record = previous
+                previous_spec = entry[previous_channel][previous_verb]
+                if spec["unit"] != previous_spec["unit"]:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` and "
+                        f"{previous_channel} verb `{previous_verb}` share facet "
+                        f"`{facet}` but declare different fold units "
+                        f"(`{spec['unit']}` and `{previous_spec['unit']}`)"
+                    )
+                if spec.get("record") != previous_record:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` and "
+                        f"{previous_channel} verb `{previous_verb}` share facet "
+                        f"`{facet}` but do not declare identical record forms "
+                        "(or both remain recordless)"
+                    )
+
+        # A facet is semantic, but its record writes a physical slot. Body and
+        # position have one per unit; value and attribute-set are keyed by attr.
+        physical_slots: dict[tuple[str, str, str | None], tuple[str, str, str]] = {}
+        for channel in ("x-state", "x-report"):
+            for verb, spec in entry.get(channel, {}).items():
+                record = spec.get("record")
+                if record is None:
+                    continue
+                kind = record["kind"]
+                attr = record.get("attr")
+                key = spec["unit"], kind, attr
+                previous = physical_slots.setdefault(
+                    key, (channel, verb, spec["facet"])
+                )
+                previous_channel, previous_verb, previous_facet = previous
+                if previous_facet == spec["facet"]:
+                    continue
+                slot = kind + (f" `{attr}`" if attr else "")
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` (facet "
+                    f"`{spec['facet']}`) and {previous_channel} verb "
+                    f"`{previous_verb}` (facet `{previous_facet}`) claim the "
+                    f"same physical record slot (unit `{spec['unit']}`, "
+                    f"{slot}); distinct facets must record independently"
+                )
+
+        # A resolves-bearing widget has one answer fact. Thread history can outlive
+        # the markup that declared its verbs, so both thread builders deliberately
+        # fold answers by widget id alone; requiring every action verb on that tag
+        # to share the answer facet makes that historical key exact rather than a
+        # compatibility approximation.
+        state = entry.get("x-state", {})
+        resolving = [
+            (verb, spec)
+            for verb, spec in state.items()
+            if "resolves" in spec["detail"].get("properties", {})
+        ]
+        if resolving:
+            answer_verb, answer_spec = resolving[0]
+            answer_facet = answer_spec["facet"]
+            for verb, spec in state.items():
+                if spec["facet"] != answer_facet:
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-state verb `{verb}` uses facet "
+                        f"`{spec['facet']}`, but `{answer_verb}` declares "
+                        "`resolves`; every x-state verb on a resolves-bearing "
+                        f"widget must share its answer facet `{answer_facet}`"
+                    )
+
         # One rule set for both channels: x-state and x-report differ in
-        # precedence, not in how a verb, its unit, and its record hang together.
+        # precedence, not in how a verb, its facet, unit, and record hang together.
         for channel in ("x-state", "x-report"):
             for verb, spec in entry.get(channel, {}).items():
                 detail_properties = spec["detail"].get("properties", {})
                 required = set(spec["detail"].get("required", []))
-                unit = spec.get("unit", "widget")
+                unit = spec["unit"]
                 fields = [] if unit == "widget" else [unit]
                 record = spec.get("record")
                 if record:
@@ -6808,6 +6807,16 @@ def validate_registry(registry: dict, source) -> dict:
                         f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
                         f"its schema {problem}"
                     )
+                # Undo restores a recorded action from authored markup. That markup
+                # can reconstruct exactly the fold unit and the record's value/order;
+                # any other required field would make a valid declaration impossible
+                # to restore without a widget-specific default hidden in core.
+                unrestorable = sorted(required.difference(fields))
+                if channel == "x-state" and record and unrestorable:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
+                        f"fields {unrestorable} that authored markup cannot restore"
+                    )
                 if unit != "widget" and record and record["kind"] != "position":
                     raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
@@ -6849,6 +6858,18 @@ def validate_registry(registry: dict, source) -> dict:
                                 f"value `{value}` must carry attribute "
                                 f"`{record['attr']}`'s own schema"
                             )
+                        string_enum = (
+                            isinstance(schema, dict)
+                            and isinstance(schema.get("enum"), list)
+                            and bool(schema["enum"])
+                            and all(isinstance(value, str) for value in schema["enum"])
+                        )
+                        if not (declares_string(schema) or string_enum):
+                            raise RegistryError(
+                                f"{path}: <{tag}> {channel} verb `{verb}` record "
+                                f"value `{value}` must be a string or string enum; "
+                                "HTML attributes cannot restore another JSON type"
+                            )
                     elif not declares_string(schema):
                         raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
@@ -6889,10 +6910,24 @@ def validate_registry(registry: dict, source) -> dict:
                     f"{path}: <{tag}> x-retired-when `{retired}` is invalid: "
                     f"<{parent}> does not declare that x-state verb"
                 )
-            if parent_state[retired].get("unit", "widget") != "widget":
+            if parent_state[retired]["unit"] != "widget":
                 raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
                 )
+    # A holder's retired slots are halves of one decision; outcomes on different
+    # facets could stand at once, leaving no single settlement to render.
+    for holder, outcomes in slots.items():
+        state = widgets[holder]["x-state"]
+        facets = {state[outcome]["facet"] for outcome in outcomes}
+        if len(facets) > 1:
+            mapping = ", ".join(
+                f"`{outcome}` → `{state[outcome]['facet']}`" for outcome in outcomes
+            )
+            raise RegistryError(
+                f"{path}: <{holder}> x-retired-when outcomes span facets "
+                f"({mapping}); every retirement outcome for one holder must "
+                "share one facet"
+            )
     return registry
 
 
@@ -7016,21 +7051,21 @@ def incoming_registry(layers: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    event kinds or fields with no $events entry, or actions and reports whose
+    events its $events record schemas reject, or actions and reports whose
     sending tag, verb, or detail the incoming x-state or x-report contract
     rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
         return []
-    kind_fields = incoming["$events"]["kinds"]
+    contracts = incoming["$events"]["kinds"]
     missing = {}
     for e in events:
         kind = e["kind"]
-        if kind not in kind_fields:
+        if kind not in contracts:
             key = f"kind `{kind}`"
-        elif fields := set(e) - EVENT_BASE_FIELDS - set(kind_fields[kind]):
-            key = f"kind `{kind}` fields {sorted(fields)}"
+        elif error := event_record_error(contracts[kind], e):
+            key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
             error := action_contract_error(page_dir, e, events, incoming)
         ):
@@ -7446,58 +7481,6 @@ def report_absorptions(events: list, upto=None) -> dict:
     return note_floors(events, "reports", upto)
 
 
-def declared_events(events, byid, registry, kind, channel, upto):
-    """Registry-declared events in a window, with their fold unit and verb spec.
-
-    Actions and reports share windowing, widget/verb lookup, and unit resolution;
-    what ends one remains the caller's channel-specific rule. The browser
-    runtime's `foldable` generator owns the same seam.
-    """
-    for event in events:
-        if event["kind"] != kind:
-            continue
-        if upto is not None and event["version"] > upto:
-            continue
-        rec = byid.get(event["widget"])
-        if rec is None:
-            continue
-        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
-        if not spec:
-            continue
-        unit = (
-            event["widget"]
-            if spec.get("unit", "widget") == "widget"
-            else event["detail"].get(spec["unit"])
-        )
-        if isinstance(unit, str):
-            yield unit, event, spec
-
-
-def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dict:
-    """unit id → the live report events on it, oldest first, each with its
-    x-report spec. Live means made against a version inside the window and not
-    yet answered by a note inside it. The last entry is the fold — every
-    report states an absolute value, so the newest per unit is the state — and
-    the whole list is what answering retires: publish names every id on the
-    unit, or an older superseded report would keep replaying under the new
-    version. A report whose widget the current markup lacks resolves no spec
-    and stands nowhere; a dropped id is id-survival's business, not this
-    channel's."""
-    absorbed = report_absorptions(events, upto)
-    per_unit = {}
-    for unit, event, spec in declared_events(
-        events,
-        byid,
-        registry,
-        "report",
-        "x-report",
-        upto,
-    ):
-        if event["id"] not in absorbed:
-            per_unit.setdefault(unit, []).append((event, spec))
-    return per_unit
-
-
 def action_rests_on(event: dict, spk: dict) -> list:
     """The runtime's restsOn, read the same way here: the sending widget plus
     every detail id it contains. This is the one key space for liveness — fold
@@ -7530,43 +7513,95 @@ def action_retracted(event: dict, floors: dict, spk: dict) -> bool:
 
 
 # A verb with no declared record form (accept/reject — the honoring version
-# retires the wrapper, so there is no state attribute to compare) has no facet.
+# retires the wrapper, so there is no markup value to compare) has no record.
 NO_RECORD = object()
 
 
-def state_fold(
-    events: list, byid: dict, spk: dict, registry: dict, upto, floors: dict
-) -> dict:
-    """unit id → (action, spec): the last surviving action per declared unit.
+class StateProjection(NamedTuple):
+    """The durable widget state declared by one page and log window."""
 
-    The registry's x-state names each verb's fold unit — the widget itself for
-    a verb absolute across the group (`choose` toggles every sibling, so
-    per-option folding would double-count superseded picks), the detail-named
-    element for one absolute per part (`move` places one card). Absolute
-    placements are what make this a fold at all: the last surviving action per
-    unit *is* the state, one linear scan, no replay simulation. Surviving means
-    not under a retraction floor keyed on what the action rests on. `upto` is
-    the consumer's window — the gate folds to the last published version (an
-    action made later belongs to no comparison of these two files), a lag
-    report to everything recorded (None)."""
+    actions: dict
+    reports: dict
+    desired: dict
+    report_answers: dict
+
+
+def state_coordinate(widget: str, unit: str, spec: dict) -> tuple[str, str, str]:
+    """The one identity of a durable fact: its owner, fold unit, and local facet."""
+    return widget, unit, spec["facet"]
+
+
+def state_projection(
+    events: list,
+    byid: dict,
+    spk: dict,
+    registry: dict,
+    upto,
+    floors: dict | None = None,
+) -> StateProjection:
+    """Project both durable channels onto owner-unit-facet coordinates.
+
+    `actions` holds the last surviving reader action per coordinate. `reports`
+    keeps every live report there because publishing retires all of them.
+    `desired` gives a reader action precedence over provisional agent news on
+    the same coordinate.
+
+    Both channels share one classification pass over the window. They end by
+    different facts: undo or a retraction floor ends an action, while a note
+    naming a report ends that report. `report_answers` retains the answer
+    version for gate diagnostics after an absorbed report leaves the live maps.
+    A report or action whose widget the markup lacks resolves no declaration
+    and stands nowhere."""
+    if floors is None:
+        floors = retractions(events, upto)
     withdrawn = taken_back(events)
-    fold = {}
-    for unit, event, spec in declared_events(
-        events,
-        byid,
-        registry,
-        "action",
-        "x-state",
-        upto,
-    ):
-        # Two ways an action stops standing, and the fold owes both the same
-        # answer: a version that rewrote what it rested on (`restated`), and the
-        # reader taking it back. Neither leaves a mark on the action itself —
-        # the log is append-only — so both are read from what came after it.
-        if event["id"] in withdrawn or action_retracted(event, floors, spk):
+    absorbed = report_absorptions(events, upto)
+    actions = {}
+    reports = {}
+    report_answers = {}
+    for event in events:
+        if event["kind"] == "action":
+            channel = "x-state"
+        elif event["kind"] == "report":
+            channel = "x-report"
+        else:
             continue
-        fold[unit] = (event, spec)
-    return fold
+        if upto is not None and event["version"] > upto:
+            continue
+        rec = byid.get(event["widget"])
+        if rec is None:
+            continue
+        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+        if not spec:
+            continue
+        unit = (
+            event["widget"]
+            if spec["unit"] == "widget"
+            else event["detail"].get(spec["unit"])
+        )
+        if not isinstance(unit, str):
+            continue
+        coordinate = state_coordinate(event["widget"], unit, spec)
+        entry = (event, spec)
+        if event["kind"] == "action":
+            if event["id"] in withdrawn or action_retracted(event, floors, spk):
+                continue
+            actions[coordinate] = entry
+        elif answered_at := absorbed.get(event["id"]):
+            report_answers[coordinate] = max(
+                report_answers.get(coordinate, 0), answered_at
+            )
+        else:
+            reports.setdefault(coordinate, []).append(entry)
+
+    desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
+    desired.update(actions)
+    return StateProjection(
+        actions,
+        reports,
+        desired,
+        report_answers,
+    )
 
 
 def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
@@ -7616,45 +7651,41 @@ def folded_facet(e: dict, spec: dict):
     return value
 
 
-def page_fold(html: str, events: list, registry: dict, upto):
-    """state_fold asked of one page: its elements, its words, and the log windowed
-    to `upto` — one construction, so its readers (`record_lag`, `page state`, and
-    the readings `decisions` and `rewritten_bodies` give `leaf comment` and
-    `version check`) cannot drift on floors or window. Returns (fold, parser, spk);
-    the extras are the page readings the fold was built from, for a caller
-    comparing it back against the markup."""
+def page_projection(html: str, events: list, registry: dict, upto):
+    """Project one page's markup and log window through one construction.
+
+    `record_lag`, `page state`, and the passage readings used by `leaf comment`
+    and `version check` therefore cannot drift on declarations, floors, or the
+    window. The parser and spoken reading travel with the projection for callers
+    that compare it with authored markup."""
     parser = parse_structure(html)
     spk = spoken(html, registry)
     return (
-        state_fold(
-            events, parser.by_id, spk, registry, upto, retractions(events, upto)
-        ),
+        state_projection(events, parser.by_id, spk, registry, upto),
         parser,
         spk,
     )
 
 
-def rewritten_bodies(fold: dict) -> dict:
+def rewritten_bodies(actions: dict) -> dict:
     """id → (verb, text): the user's standing rewrite of each element whose
     registry entry records a verb as the body (x-state record kind "body"), as
-    replay leaves it. The fold is state_fold's — the last surviving action per
-    unit under the retraction floors — read here for the one record kind whose
-    state is words rather than markup, so the passage reading can hold them
-    where the authored body was."""
+    replay leaves it. The action projection is read here for the one record kind
+    whose state is words rather than markup, so the passage reading can hold
+    those words where the authored body was."""
     return {
         unit: (e["action"], e["detail"][spec["record"]["value"]])
-        for unit, (e, spec) in fold.items()
+        for (_widget, unit, _facet), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
     }
 
 
-def decisions(fold: dict, registry: dict) -> dict:
-    """widget id → the accept/reject it stands under, read from the same fold every
-    other consumer of declared state reads. Which verbs decide is the registry's word
-    too: `x-retired-when` names the outcome under which an element leaves the page, so
-    its values are the vocabulary's decision verbs — nothing here knows a widget or a
-    verb by name, and a verb a later layer retires folds to nothing rather than
-    standing on trust."""
+def decisions(actions: dict, registry: dict) -> dict:
+    """widget id → the accept/reject its action projection leaves standing.
+
+    Which verbs decide is the registry's word too: `x-retired-when` names the
+    outcome under which an element leaves the page, so nothing here knows a
+    widget or verb by name."""
     # Widgets only: $keys spells its members in the x- keys' own names, so a sweep
     # over every entry would take its paragraph on x-retired-when for a verb.
     deciding = {
@@ -7663,12 +7694,14 @@ def decisions(fold: dict, registry: dict) -> dict:
         if tag.startswith("lf-") and "x-retired-when" in e
     }
     return {
-        unit: e["action"] for unit, (e, _) in fold.items() if e["action"] in deciding
+        unit: e["action"]
+        for (_widget, unit, _facet), (e, _) in actions.items()
+        if e["action"] in deciding
     }
 
 
-def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
-    """Units whose markup lags the user's standing state — the record debt a
+def record_lag_entries(projection: StateProjection, byid, spk) -> list:
+    """Coordinates whose markup lags the user's standing state — the record debt a
     log-less reader would miss. Advice, never errors: a version is free to stay
     silent (replay resolves it), but SKILL.md's record obligation needs a
     feedback loop, and a finished page's final version is the page that has
@@ -7676,8 +7709,9 @@ def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
     speaks it, `page state` ships it — the same entries, so the advice a check
     prints and the debt an agent queries cannot disagree."""
     entries = []
-    for unit in sorted(fold):
-        e, spec = fold[unit]
+    for coordinate in sorted(projection.desired):
+        widget, unit, facet = coordinate
+        e, spec = projection.desired[coordinate]
         if unit not in byid:
             continue
         f_cur = markup_facet(unit, spec, byid, spk)
@@ -7686,30 +7720,12 @@ def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
             continue
         entries.append(
             {
+                "widget": widget,
                 "unit": unit,
-                "channel": "action",
+                "facet": facet,
+                "channel": e["kind"],
                 "action": e["action"],
                 "log": f_log,
-                "markup": f_cur,
-            }
-        )
-    # The agent channel's half of the same debt: a standing report is state the
-    # markup has not absorbed, and the final version is the page that has to
-    # read right without the log.
-    for unit, reports in sorted(standing_reports(events, byid, registry, None).items()):
-        e, spec = reports[-1]
-        if unit not in byid:
-            continue
-        f_cur = markup_facet(unit, spec, byid, spk)
-        f_rep = folded_facet(e, spec)
-        if f_cur == f_rep:
-            continue
-        entries.append(
-            {
-                "unit": unit,
-                "channel": "report",
-                "action": e["action"],
-                "log": f_rep,
                 "markup": f_cur,
             }
         )
@@ -7720,12 +7736,13 @@ def record_lag(html: str, events: list, registry: dict) -> list:
     """`record_lag_entries` as advice lines, for check and the transcript."""
     if not registry:
         return []
-    fold, parser, spk = page_fold(html, events, registry, None)
+    projection, parser, spk = page_projection(html, events, registry, None)
     lag = []
-    for n in record_lag_entries(fold, parser.by_id, spk, events, registry):
+    for n in record_lag_entries(projection, parser.by_id, spk):
         who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
-            f"`{n['unit']}`: {who} {n['action']} → {n['log']!r}; "
+            f"`{n['unit']}` ({n['facet']} facet): {who} {n['action']} → "
+            f"{n['log']!r}; "
             f"the markup still shows {n['markup']!r}"
         )
     return lag
@@ -7745,22 +7762,28 @@ def asking(attrs: dict, when: dict) -> bool:
     )
 
 
-def replayed_attrs(rec: dict, fold: dict, reports: dict) -> dict:
-    """An element's attributes as replay leaves them: the authored markup
-    overlaid with the surviving value-kind record — the browser evaluates an
-    ask's `when` against the replayed DOM, so a status a report moved reads
-    here the way it reads there. The user's action holds the unit over a
-    standing report, the channel precedence the registry states."""
+def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
+    """An element's attributes under the declared standing projection: authored
+    markup overlaid with every surviving value record. The user's action holds
+    one coordinate over a standing report, and independent facets coexist."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
-    held = fold.get(unit) or (reports.get(unit) or [(None, None)])[-1]
-    e, spec = held if held[0] else (None, None)
-    if e and (spec.get("record") or {}).get("kind") == "value":
-        return {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
+    if not unit:
+        return attrs
+    held = [
+        winner
+        for coordinate, winner in projection.desired.items()
+        if coordinate[1] == unit
+    ]
+    for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
+        if (spec.get("record") or {}).get("kind") == "value":
+            attrs = {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
     return attrs
 
 
-def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> bool:
+def answered_ask(
+    rec: dict, entry: dict, projection: StateProjection, byid: dict, spk: dict
+) -> bool:
     """The runtime's `answeredAsk`: a verb that records as an attribute answers
     on the record the replayed page carries — the fold's where an action
     survives on the unit, the authored markup's otherwise, so a version that
@@ -7768,8 +7791,8 @@ def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> b
     cleared reads as open again. Any other verb answers only through its own
     fold entry."""
     unit = rec["attrs"].get("id")
-    held = fold.get(unit)
     for verb, spec in (entry.get("x-state") or {}).items():
+        held = projection.actions.get(state_coordinate(unit, unit, spec))
         record = spec.get("record")
         if record and record["kind"] == "attribute":
             if held and (held[1].get("record") or {}).get("kind") == "attribute":
@@ -7800,7 +7823,7 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     )
 
 
-def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) -> list:
+def page_asks(parser, projection, byid, spk, registry: dict, dropped: set) -> list:
     """The published page's standing asks — the list the banner counts and the
     `n`/`p` walk steps, read from the file and the log instead of the DOM. An
     instance asks when its replayed attributes match its entry's `when`;
@@ -7820,9 +7843,9 @@ def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) ->
             continue
         if quoted_in(rec, registry):
             continue
-        if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
+        if not asking(replayed_attrs(rec, projection), awaits.get("when")):
             continue
-        if answered_ask(rec, entry, fold, byid, spk):
+        if answered_ask(rec, entry, projection, byid, spk):
             continue
         asks.append({"id": unit, "tag": rec["tag"], "thread": None})
     return asks
@@ -7858,8 +7881,7 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
         frag = parse_structure(markup)
         byid = frag.by_id
         spk = spoken(markup, registry)
-        fold = state_fold(events, byid, spk, registry, None, {})
-        reports = standing_reports(events, byid, registry, None)
+        projection = state_projection(events, byid, spk, registry, None, {})
         for rec in frag.lf_elements:
             entry = registry.get(rec["tag"]) or {}
             awaits = entry.get("x-awaits")
@@ -7868,19 +7890,17 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
             unit = rec["attrs"].get("id")
             if quoted_in(rec, registry):
                 continue
-            attrs = replayed_attrs(rec, fold, reports)
+            attrs = replayed_attrs(rec, projection)
             if not asking(attrs, awaits.get("when")):
                 continue
             until = awaits.get("until")
             if until and asking(attrs, until["when"]):
                 answered = any(
-                    a["kind"] == "action"
-                    and a["widget"] == unit
-                    and a["action"] == until["verb"]
-                    for a in events
+                    action["widget"] == unit and action["action"] == until["verb"]
+                    for action, _spec in projection.actions.values()
                 )
             else:
-                answered = answered_ask(rec, entry, fold, byid, spk)
+                answered = answered_ask(rec, entry, projection, byid, spk)
             if not answered:
                 asks.append(
                     {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
@@ -7932,10 +7952,10 @@ def restatement_errors(
     dropping the decisions they recorded on it. CLAUDE.md carries why the log
     outranks the markup and what that cost.
 
-    The runtime replays every action onto every later version, so a version
-    cannot revise what a user acted on: replay would paint their recorded
-    state back over the revision and the new words would reach nobody. A version
-    that means to revise says so — `restated` on what it rewrote — and one that
+    The runtime reconciles every standing action onto every later version, so a
+    version cannot revise what a user acted on: reconciliation would paint their
+    recorded state back over the revision and the new words would reach nobody. A
+    version that means to revise says so — `restated` on what it rewrote — and one that
     changes those words in silence is refused here. An unearned `restated` is an
     error too: a decision thrown away for nothing, and, left unchecked, the
     one-word ritual that would make this gate meaningless.
@@ -7948,11 +7968,11 @@ def restatement_errors(
 
     Words are one divergence kind; declared state is the other. For each verb
     the registry declares (x-state), the fold gives the user's standing
-    state per unit, and a version whose markup actively changes that unit's
+    state per owner, unit, and facet, and a version whose markup actively changes that unit's
     record away from both the previous version's and the fold is refused the
     same way a silent rewrite of words is. Writing the folded state is the
     state-level echo (honoring); re-emitting the previous version's state is
-    blessed silence, which replay resolves; a unit with no surviving folded
+    blessed silence, which reconciliation resolves; a unit with no surviving folded
     action is exempt — never decided, or retracted back to the author. And
     `restated` is earned by either divergence kind: a words-unchanged
     relocation earns it at the unit even though no subject's words moved."""
@@ -7983,10 +8003,11 @@ def restatement_errors(
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
     prev_byid = prev.by_id
-    fold = state_fold(events, byid, now, registry, prev_num, taken_back)
+    projection = state_projection(events, byid, now, registry, prev_num, taken_back)
     facet_earned = set()
-    for unit in sorted(fold):
-        e, spec = fold[unit]
+    for coordinate in sorted(projection.actions):
+        _widget, unit, _facet = coordinate
+        e, spec = projection.actions[coordinate]
         rec = byid.get(unit)
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
@@ -8089,10 +8110,16 @@ def report_errors(
     declared = cur.overruled
     byid = cur.by_id
     prev_byid = prev.by_id
-    standing = standing_reports(events, byid, registry, prev_num)
+    projection = state_projection(events, byid, now, registry, prev_num)
+    effective_standing = {
+        coordinate: reports
+        for coordinate, reports in projection.reports.items()
+        if coordinate not in projection.actions
+    }
     earned = set()
-    for unit in sorted(standing):
-        e, spec = standing[unit][-1]
+    for coordinate in sorted(effective_standing):
+        _widget, unit, _facet = coordinate
+        e, spec = effective_standing[coordinate][-1]
         f_cur = markup_facet(unit, spec, byid, now)
         f_rep = folded_facet(e, spec)
         # Whether an `overruled` is earned is this version's markup against the
@@ -8124,23 +8151,14 @@ def report_errors(
     # answered the unit's reports, for the message that says to drop it.
     answered_at = {}
     if unearned:
-        absorbed = report_absorptions(events, prev_num)
-        for unit, event, _ in declared_events(
-            events,
-            byid,
-            registry,
-            "report",
-            "x-report",
-            prev_num,
-        ):
-            if event["id"] in absorbed:
-                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[event["id"]])
+        for (_widget, unit, _facet), version in projection.report_answers.items():
+            answered_at[unit] = max(answered_at.get(unit, 0), version)
     for sid in sorted(unearned):
         rec = byid.get(sid)
         if rec is None:
             continue
         where = at(rec, f"id={sid!r}")
-        if sid in standing:
+        if any(unit == sid for _widget, unit, _facet in effective_standing):
             errors.append(
                 f"{where}: overruled, but this version writes the reported state — "
                 f"that is absorption, which publishing records on its own. "
@@ -8363,14 +8381,16 @@ def cmd_check(
         # retired would read as dropped, stacked on the "vendor the layer" error the
         # page already has.
         if registry is not None:
-            fold, _, prev_spoken = page_fold(prev_html, events, registry, None)
+            projection, _, prev_spoken = page_projection(
+                prev_html, events, registry, None
+            )
             dropped = sorted(
                 gone
                 - retirable_ids(
                     retirement_holders(prev, registry),
                     events,
                     gone,
-                    decisions(fold, registry),
+                    decisions(projection.actions, registry),
                     prev_spoken,
                 )
             )
@@ -8995,7 +9015,7 @@ MISPLACED_BOXES = """async () => {
 # the author's intent going down silently. The static half can't say which
 # attribute is a verb's state — that lives in each widget's applyAction, and a
 # table here would be the second copy the registry exists to prevent — so the
-# browser compares: applyActions records the ids replay wrote on the body
+# browser compares: projection reconciliation records the ids it wrote on the body
 # (data-lf-replay-wrote), and this pass asks which of them the author also
 # changed since the previous version, reading both files with the runtime's own
 # shallowSigs. An authored change replay then overrode is a conflict; an
@@ -9039,13 +9059,12 @@ REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
 #
 # So the page is asked rather than the code. Each standing action is applied a second
 # time onto the state the page's own replay produced, and an absolute one has nothing
-# to do. Replaying the whole log again would prove nothing — every action carries its
-# seq and applyActions retires each exactly once, so a second pass is a no-op whatever
-# the widgets do — which is why this reaches past the runtime's bookkeeping and calls
-# the method.
+# to do. Re-running reconciliation would prove nothing — an already committed
+# projection is clean whatever the widgets do — which is why this reaches past the
+# runtime's checkpoint and calls the method.
 #
 # The standing state rather than the whole log, because that is the set the contract is
-# for: the fold's own claim is that the last surviving action per unit *is* the state,
+# for: the fold's own claim is that the last surviving action per coordinate *is* the state,
 # so the page is already showing exactly these. It is also the set replay applied and
 # did not skip — a retracted decision, a version's future action and a widget the
 # markup dropped are all out of it — so nothing here re-applies what the page declined.
@@ -9078,7 +9097,7 @@ RELATIVE_REPLAYS = """async () => {
     if (!standing.length) return [];
     const found = [];
     const before = shallowSigs(document.body);
-    const stood = standing.map((s) => s.facet());
+    const stood = standing.map((s) => s.read());
     for (const s of standing) {
         const widget = s.widget;
         if (!widget?.applyAction) continue; // an earlier application replaced it
@@ -9110,12 +9129,12 @@ RELATIVE_REPLAYS = """async () => {
             if (a.applyAction) { widget = a; break; }
         note(widget ? at(widget) : `id=${id}`, id);
     }
-    // Only where the signature missed it: a record whose attribute the markup reading
-    // already caught is one fact, and naming it twice reads as two.
+    // Only body records need the second reading: shallowSigs deliberately excludes
+    // text. Key its wording by facet as well as unit, because a markup facet and a
+    // body facet may both stand on the same unit and both move in this batch.
     standing.forEach((s, i) => {
-        if (s.facet() === stood[i] || !s.widget) return;
-        if (!groups.get(at(s.widget))?.has(s.unit))
-            note(at(s.widget), `the state recorded on ${s.unit}`);
+        if (s.record !== 'body' || s.read() === stood[i] || !s.widget) return;
+        note(at(s.widget), `the ${s.facet} state recorded on ${s.unit}`);
     });
     return [...found, ...[...groups].map(([who, moved]) => {
         const said = verbs.get(who);
@@ -9435,8 +9454,9 @@ UNDECLARED_ATTRS = (
 
 
 # The two sides of the settlement contract, compared on the rendered page. The mark —
-# data-lf-state on a holder — is the layer's paint of a logged decision (applyActions
-# in leaf.js), and the anchor pass retires slots by it, so whatever it says, the page's
+# data-lf-state on a holder — is the layer's paint of a logged decision (projection
+# reconciliation in leaf.js), and the anchor pass retires slots by it, so whatever it
+# says, the page's
 # reading obeys. What can still go wrong is a family's, and both failures render
 # perfectly: a module that writes the mark where the log decided nothing silences words
 # the reader can still see and select, and a settled slot can show its words anyway — a
@@ -9962,9 +9982,9 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             # that never caught up is already reported there and read no further.
             if replayed:
                 silent = page.evaluate(SILENT_WORDS, widgets)
-                # Behind the same wait, because replay is one of the two writers:
-                # an applyAction states its widget whole, and a record form is
-                # exactly the attribute it is allowed to state it in.
+                # Behind the same wait, because reconciliation is one of the two
+                # writers: an applyAction states one declared fact whole, and a
+                # record form is exactly the attribute it may state that fact in.
                 undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, widgets)
                 # Behind it too: the settlement mark is replay's own write, so a
                 # reading taken earlier asks after paint the page has not been
@@ -9976,10 +9996,10 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 # against anything wider would fail a page both sides are right
                 # about.
                 if slots := retirement_slots(registry):
-                    fold, vparser, _ = page_fold(
+                    projection, vparser, _ = page_projection(
                         markup, state["events"], registry, here
                     )
-                    outcomes = decisions(fold, registry)
+                    outcomes = decisions(projection.actions, registry)
                     holders = []
                     for h in retirement_holders(vparser, registry):
                         declared = slots[h["tag"]]

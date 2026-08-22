@@ -18,10 +18,12 @@
     "x-state": {
       "accept": {
         "detail": {"type": "object", "properties": {"resolves": {"type": "string"}}, "additionalProperties": false},
+        "facet": "settlement",
         "unit": "widget"
       },
       "reject": {
         "detail": {"type": "object", "additionalProperties": false},
+        "facet": "settlement",
         "unit": "widget"
       }
     },
@@ -66,19 +68,239 @@
     }
   },
   "$events": {
-    "description": "The vocabulary stamp: the event kinds this layer's runtime and CLI read, and the fields each carries beyond id/ts/author/kind/seq. Vendored with the page, it is the one statement of what that page's runtime speaks. `page init` refuses to re-vendor over a log recorded in kinds or verbs (x-state, per widget) the incoming layer no longer speaks, because those events would never replay again. `undo` names the gesture it takes back and nothing else: it withdraws rather than deletes, so every fold and the thread reading drop the event it names and the page is the version plus what still stands — which is what a reload has always rendered. What the reader sees is derived from that rather than restated: the browser states the unit's remaining state where one can be stated, and rebuilds the widget from the version's markup where the verb records nothing to state.",
+    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement.",
     "kinds": {
-      "comment": ["version", "text", "anchor", "suggestion", "about", "agent", "session", "markup", "attempt"],
-      "reply": ["parent", "version", "text", "agent", "session", "markup", "attempt", "more"],
-      "resolve": ["parent", "agent", "session"],
-      "unresolve": ["parent"],
-      "done": ["version", "text"],
-      "action": ["widget", "action", "detail", "version", "attempt"],
-      "undo": ["undoes"],
-      "report": ["widget", "action", "detail", "version", "agent", "session"],
-      "note": ["version", "text", "restated", "reports", "agent", "session"],
-      "error": ["version", "text"],
-      "append": ["continues", "text", "more", "agent", "session", "markup"]
+      "comment": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "comment"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "anchor": {
+              "type": "object",
+              "properties": {
+                "section": {"type": ["string", "null"]},
+                "quote": {"type": "string"},
+                "prefix": {"type": "string"},
+                "suffix": {"type": "string"},
+                "part": {"type": "string"}
+              },
+              "anyOf": [
+                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
+                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}}
+              ],
+              "additionalProperties": false
+            },
+            "suggestion": {"type": "boolean"},
+            "about": {"const": "layer"},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1},
+            "markup": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "additionalProperties": false
+        },
+        "browser": {
+          "required": ["kind", "version", "text"],
+          "not": {"required": ["markup"]}
+        }
+      },
+      "reply": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "reply"},
+            "seq": {"type": "integer", "minimum": 1},
+            "parent": {"type": "string", "minLength": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1},
+            "markup": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
+            "more": {"const": true}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "parent", "text"],
+          "additionalProperties": false
+        },
+        "browser": {
+          "required": ["kind", "parent", "version", "text"],
+          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["more"]}]}
+        }
+      },
+      "resolve": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "resolve"},
+            "seq": {"type": "integer", "minimum": 1},
+            "parent": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "parent"]}
+      },
+      "unresolve": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "unresolve"},
+            "seq": {"type": "integer", "minimum": 1},
+            "parent": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "parent"]}
+      },
+      "done": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "done"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "version", "text"]}
+      },
+      "action": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "action"},
+            "seq": {"type": "integer", "minimum": 1},
+            "widget": {"type": "string", "minLength": 1},
+            "action": {"type": "string", "minLength": 1},
+            "detail": {"type": "object"},
+            "version": {"type": "integer", "minimum": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "version"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "widget", "action", "detail", "version"]}
+      },
+      "undo": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "undo"},
+            "seq": {"type": "integer", "minimum": 1},
+            "undoes": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "undoes"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "undoes"]}
+      },
+      "report": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "report"},
+            "seq": {"type": "integer", "minimum": 1},
+            "widget": {"type": "string", "minLength": 1},
+            "action": {"type": "string", "minLength": 1},
+            "detail": {"type": "object"},
+            "version": {"type": "integer", "minimum": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "version"],
+          "additionalProperties": false
+        }
+      },
+      "note": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "note"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "restated": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "reports": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "additionalProperties": false
+        }
+      },
+      "error": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "error"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "text"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "text"]}
+      },
+      "append": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "append"},
+            "seq": {"type": "integer", "minimum": 1},
+            "continues": {"type": "string", "minLength": 1},
+            "text": {"type": "string"},
+            "more": {"const": true},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1},
+            "markup": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "continues", "text"],
+          "additionalProperties": false
+        }
+      }
     }
   },
   "$keys": {
@@ -94,11 +316,11 @@
     "x-paints": "Attributes the theme renders as paint alone — a status marker's tint, an event's kind, the ring on the recommended option. The runtime speaks each to a reader listening (the value, or a flag attribute's own name), silently on screen and out of every selection, so a fact stated in ink is not silent to whoever cannot see it.",
     "x-parent": "The widgets an instance may be a direct child of — an item's holder — and, read the other way, what a container is made of: a gesture a container takes on its whole box stops at what it holds, and this is where it reads which children are its own rather than things it merely contains.",
     "x-refers": "Attributes whose values name another element on the page (an option's `for`), which `version check` holds to an id the version carries and the runtime renders as a reference the reader can follow.",
-    "x-report": "What x-report declares, once per widget with an agent channel: report verbs a worker folds onto the page through `leaf report`, each with a detail schema (the payload half of the log's forever-contract, exactly as x-state's), a fold unit, and a required record form drawn from $state's vocabulary minus `body` — a report moves declared state only, never the page's words, which is what keeps the passage reading untouched by it. The runtime paints a standing report live (data-lf-reported) with precedence opposite to a reviewer's action: an action outranks every later version until `restated` retracts it; a report is provisional news, standing only until a version answers it. How a version answers a standing report is $report's.",
-    "x-retired-when": "On a slot: the holder's action outcome that takes this element off the page (a suggestion's `lf-old` under `accept`). Requires x-parent. The layer renders the settlement whole, following the log's standing state both ways — replay paints data-lf-state=\"<outcome>\" on the holder and data-lf-retired on the slots that outcome retires, takes both off when a later widget-unit verb displaces the decision in the fold, and one theme rule hides the marked slots — so no module owes any of it, though one may paint the same sooner as its own gesture (renderRetired). The file's reading takes the fact from the log, and `version check` licenses dropping the slot's ids on it; `version check --render` reports a settled slot still showing words, or a mark the log never decided.",
+    "x-report": "What x-report declares, once per widget with an agent channel: report verbs a worker folds onto the page through `leaf report`, each with a detail schema (the payload half of the log's forever-contract, exactly as x-state's), a semantic facet, a fold unit, and a required record form drawn from $state's vocabulary minus `body`. The owning widget instance, unit, and facet together name one independently standing fact; verbs on the same tag and facet share their unit and record form, and an action outranks a report at that coordinate. A report moves declared state only, never the page's words, which is what keeps the passage reading untouched by it. The runtime paints a standing report live (data-lf-reported); it is provisional news, standing only until a version answers it. How a version answers a standing report is $report's.",
+    "x-retired-when": "On a slot: the holder's action outcome that takes this element off the page (a suggestion's `lf-old` under `accept`). Requires x-parent. Every outcome named by one holder's slots belongs to the same facet, so only one settlement can stand. The layer renders the settlement whole, following the log's standing state both ways — reconciliation paints data-lf-state=\"<outcome>\" on the holder and data-lf-retired on the slots that outcome retires, takes both off when a later widget-unit verb on that facet displaces the decision in the fold, and one theme rule hides the marked slots — so no module owes any of it, though one may paint the same sooner as its own gesture (renderRetired). The file's reading takes the fact from the log, and `version check` licenses dropping the slot's ids on it; `version check --render` reports a settled slot still showing words, or a mark the log never decided.",
     "x-says": "Attributes whose values the reader sees as words, and the edge each renders at (`before` or `after` the element's own content). The runtime writes them as selectable text the user can quote and comment on, where `content: attr()` would paint glyphs into no text node.",
     "x-shadow": "The module renders the page's words into an open shadow tree, which the passage walk, the selection capture and every question asked by id cross; a shadow root on a host whose entry lacks it is a render-gate finding.",
-    "x-state": "What x-state declares, once per widget with an action channel: each verb's detail schema (the payload half of the log's forever-contract), its fold unit, and the record form its state takes in markup. Every applyAction is absolute, so the user's standing state is a fold — the last surviving action per unit — and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), the record-lag report, the runtime's decided-but-unhonored mark, and the version diff's state half. One detail field name is reserved across every verb: `resolves` means the comment thread this action answers, thread settlement reads it on any action, and the lint holds a verb declaring the name to a plain string on a widget-absolute unit — a thread is answered by the ask, and an ask is a widget instance ($awaits). A report verb spelling the name is refused outright: settlement reads actions, so the field there would declare an answer nothing gives. What settles the thread is the widget's standing answer rather than the fact an answer was once given, so an answer that a later action on the same widget supersedes, or that a `restated` takes back, leaves the thread open again. Every verb a widget declares is therefore one of its answers to the same ask. The unit and record forms are $state's.",
+    "x-state": "What x-state declares, once per widget with an action channel: each verb's detail schema (the payload half of the log's forever-contract), its semantic facet, fold unit, and the record form its state takes in markup. The owning widget instance, unit, and facet together name one independently standing fact: verbs on the same tag and facet share their unit and record form, competing verbs there supersede one another, and distinct facets coexist. Every applyAction is absolute, so the user's standing state is the last surviving action per coordinate, and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), the record-lag report, the runtime's decided-but-unhonored mark, and the version diff's state half. One detail field name is reserved across every verb: `resolves` means the comment thread this action answers, thread settlement reads it on any action, and the lint holds a verb declaring the name to a plain string on a widget-absolute unit — a thread is answered by the ask, and an ask is a widget instance ($awaits). Because thread history can outlive its markup, every action verb on a resolves-bearing tag shares one answer facet. A report verb spelling the name is refused outright: settlement reads actions, so the field there would declare an answer nothing gives. What settles the thread is the widget's standing answer rather than the fact an answer was once given, so an answer that a later action at that coordinate supersedes, or that a `restated` takes back, leaves the thread open again. The facet, unit, and record forms are $state's.",
     "x-tone": "The attribute that names one of the layer's semantic tints, held to `$tones.names`, which the theme has a rule for.",
     "x-upgrade": "A module at widgets/<tag>.js enhances the element in the browser. `page init` refuses a layer declaring it with no module beside it, and the render gate a module that defines no element. Required.",
     "x-verbatim": "An upgraded element whose body reaches the reader as its own words — the module leaves it in place — which is what makes it quotable; a body without it is source the widget renders (a diagram's notation). The render gate refuses an x-verbatim whose rendered words differ from the file's.",
@@ -108,8 +330,9 @@
     "x-word": "What x-word declares: this tag's own word for what it is comes from its module, which answers `lfWord()` on the element, rather than from the tag's name. Almost no widget declares it, and none needs to while one tag is one kind of thing: a name away from the page is then the tag with its prefix dropped. It is wrong where a tag holds several kinds. Every shape of lf-suggestion came out as \"suggestion\", so a row on the asks board named a deletion by the words it proposed to remove and read exactly like the insertion above it. The word is asked for wherever the page names an element away from itself — a board row, a comment's anchor label — and an element that has not upgraded yet, or answers nothing, falls back to the tag."
   },
   "$state": {
+    "facet": "A stable HTML-name identifying one independently standing fact within this tag. Together with the owning widget instance and unit it is the fold coordinate. Verbs on the same facet share one unit and an identical record form (or are all recordless); facet names are semantic and local to the tag, not a closed vocabulary.",
     "unit": "\"widget\" for a verb absolute across the group (choose toggles every sibling), or the detail field naming the element the verb is absolute per (move's \"card\").",
-    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value, order} — the enclosing `within` element, compared at that granularity (indexes compose across cards, so column is the whole comparison) while `order` names the integer detail field counting the unit's siblings, which is what a reader stating a placement rather than comparing one needs; {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. A record is also how a gesture is taken back cheaply: the runtime reads the version's authored state through it before replay touches the page, so `z` can state what stood before the first action on a unit and the page moves rather than being rebuilt. A verb with no record (accept/reject) folds for the runtime's pending mark and is taken back the other way — the widget rebuilt from the version's own markup, since “undecided” is a value no verb carries — and retirement stays retirable_ids' business."
+    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value, order} — the enclosing `within` element, compared at that granularity (indexes compose across cards, so column is the whole comparison) while `order` names the integer detail field counting the unit's siblings, which is what a reader stating a placement rather than comparing one needs; {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. Within one tag and unit, body and position are each one physical slot; value slots are keyed by their host attr, and attribute-set slots by their descendant attr. Distinct facets cannot claim the same slot. A record is also how a gesture is taken back cheaply: the runtime reads the version's authored state through it before replay touches the page, so `z` can state what stood before the first action at a coordinate and the page moves rather than being rebuilt. A verb with no record (accept/reject) folds for the runtime's pending mark and is taken back the other way — the widget rebuilt from the version's own markup, since “undecided” is a value no verb carries — and retirement stays retirable_ids' business."
   },
   "$report": {
     "answering": "Explicit, by id. `version publish` names on the note (`reports`) every standing report the version answered: one whose recorded state the markup writes is absorbed, and one on an element marked `overruled` is overruled — the why belongs in the note's text. Replay stops a named report at that version. Silence — markup unchanged — is blessed and names nothing, so the report keeps painting. `version check` refuses the third thing, markup that contradicts a standing report it never names, and refuses an `overruled` with nothing to overrule, exactly as the reviewer gate polices `restated`.",
@@ -124,7 +347,7 @@
   },
   "$restated": {
     "description": "A boolean attribute saying this version has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
-    "why": "A move, pick, edit or accept is recorded in the log against the version it was made on, and the page replays every recorded action onto every later version. A decision therefore survives a republish on its own — you never carry one into the next version's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
+    "why": "A move, pick, edit or accept is recorded in the log against the version it was made on, and the page reconciles every standing action onto every later version. A decision therefore survives a republish on its own — you never carry one into the next version's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
     "when": "Only where a later version has to change what the user decided about: an error you found in a draft they rewrote, a picked option whose prose was wrong. Write the new words, mark that element, and say why in the note — to the user this reads as a decision undone, and the note is where a version explains itself. `version check` refuses a version that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
     "once": "It belongs to the one version that does the rewriting. Publishing records the retraction in the log, so it holds for good — later versions leave the attribute off, and `version check` refuses one that repeats it.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"

@@ -390,24 +390,19 @@ silently dropped the other ten — the natural act of declaring a shape cost the
 agent the catalog it authors from. The stamp does not care about the grain: its
 gates read the merged result (`merge_layer_entries`).
 
-An `applyAction` implementation states an absolute placement, never a relative
-mutation, because the poll replays every action — including the sender's own,
-which must therefore be a no-op when reapplied. The verb, its detail schema, its
-fold unit, and its record form are declared in the registry (`x-state`), not
-known privately to the module: absoluteness is what makes the user's standing
-state a fold over the log, and the declaration drives every consumer of it
-without teaching any of them a widget by name. For a long time nothing checked
-this, and every gate passed a relative implementation, because there is nothing
-to see: it renders perfectly, and the cost arrives later, on the poll that
-replays the sender's own action on top of the state their gesture already
-painted. So the render gate asks the page rather than the code
-(`RELATIVE_REPLAYS`): it re-applies the standing state, whole and in the log's
-order, and reports what moved — at which widget, with the fix — reading the
-result twice: `shallowSigs` for the markup state, which excludes text on purpose,
-and the unit's declared record form for the words. Checking each action on its
-own would be a different check and a wrong one, since two cards dragged to the
-head of one column fold to two standing moves. What the gate cannot reach is a
-verb nobody has used yet; the actions it replays are the log's.
+An `applyAction` implementation states an absolute placement. Poll reconciliation
+may apply any standing winner again, including the sender's, so reapplication must
+be a no-op. The verb's detail schema, semantic facet, fold unit, and record form
+come from `x-state`; no consumer knows the widget by name. These declarations make
+the log a fold of the user's standing state.
+
+A relative implementation looks correct until a poll applies the sender's action
+over the state its gesture painted. `version check --render` catches this through
+`RELATIVE_REPLAYS`: it reapplies each owner-unit-facet winner in log order and
+reports what moved. `shallowSigs` reads markup state without text, while the unit's
+record form reads the words. Testing each action alone would be wrong: two cards
+dragged to the head of one column fold to two standing moves. The gate can test
+only verbs represented in the log.
 
 A verb's record form is also the whole of what a module may write in the author's
 namespace. An entry's `additionalProperties: false` closes that namespace, and

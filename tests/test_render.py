@@ -7752,6 +7752,100 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     page.close()
 
 
+def test_a_failed_send_rolls_back_before_foreign_state_reconciles(browser, serve):
+    """A widget owns its optimistic paint until the send settles, but its rollback is
+    part of settling too. If reconciliation commits newer foreign state before that
+    promise continuation runs, the rollback overwrites the winner on the same nodes;
+    later polls then see a clean checkpoint and leave the tab permanently divergent."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    page.evaluate(
+        """() => {
+          const actualFetch = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            const event = String(input).endsWith('/api/event') && init?.body
+              ? JSON.parse(init.body) : null;
+            if (event?.kind === 'action' && event.widget === 'bracket')
+              return new Promise(resolve => {
+                window.lfHeldPick = true;
+                window.lfRejectPick = () => resolve(
+                  new Response('offline', {status: 503}));
+              });
+            return actualFetch(input, init);
+          };
+        }"""
+    )
+
+    page.locator("#br-steel").click()
+    page.wait_for_function("() => window.lfHeldPick === true")
+    expect(page.locator("#br-steel[chosen]")).to_have_count(1)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "bracket",
+            "action": "choose",
+            "detail": {"options": ["br-cedar"]},
+        },
+    )
+    told(page)
+    # Still the local gesture while its send owns this widget.
+    expect(page.locator("#br-steel[chosen]")).to_have_count(1)
+
+    page.evaluate("window.lfRejectPick()")
+    expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
+    expect(page.locator("#br-steel[chosen]")).to_have_count(0)
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
+    assert errors == []
+    page.close()
+
+
+def test_an_action_withdrawn_during_its_send_restores_authored_state(browser, serve):
+    """The log can contain both a gesture and its withdrawal before this tab ever
+    commits the optimistic DOM. The pending gesture therefore occupies the canonical
+    checkpoint as dirty state; a projection already back at baseline must still clear
+    the local pick rather than mistake it for authored markup."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    page.evaluate(
+        """() => {
+          const actualFetch = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            const event = String(input).endsWith('/api/event') && init?.body
+              ? JSON.parse(init.body) : null;
+            if (event?.kind === 'action' && event.widget === 'bracket')
+              return actualFetch(input, init).then(response => {
+                window.lfAcceptedPick = true;
+                return new Promise(resolve => {
+                  window.lfReleaseAcceptedPick = () => resolve(response);
+                });
+              });
+            return actualFetch(input, init);
+          };
+        }"""
+    )
+
+    page.locator("#br-steel").click()
+    page.wait_for_function("() => window.lfAcceptedPick === true")
+    (picked,) = [
+        event
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": picked["id"]},
+    )
+    told(page)
+    expect(page.locator("#br-steel[chosen]")).to_have_count(1)
+
+    page.evaluate("window.lfReleaseAcceptedPick()")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    expect(page.locator("#bracket lf-option[chosen]")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
     """Replay states a widget whole, so the order is what it owes: an action applied
     after the gesture that superseded it hands the reader their older state back, and
@@ -11273,10 +11367,10 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
 
 
 # One instance for every verb the vocabulary declares an action or a report for, so a
-# log holding one event apiece leaves the whole of it standing at once. Two option
-# groups and two suggestions, because a fold is keyed by unit: a second verb recorded on
-# one widget supersedes the first, and a verb that never stands is a verb the gate never
-# applies. The floor below derives the list from the registry, so a twelfth widget's
+# log holding one event apiece leaves the whole of it standing at once. Selection and
+# completion share one option-group unit but occupy distinct facets, so both stand;
+# accept and reject share the settlement facet, so two suggestions let both competing
+# verbs stand. The floor below derives the list from the registry, so a twelfth widget's
 # verb fails here rather than passing unexercised.
 STANDING_PAGE = """<!doctype html>
 <html lang="en">
@@ -11334,7 +11428,7 @@ STANDING_PAGE = """<!doctype html>
 # log's order, and with a single move on the page it passed either way.
 STANDING_ACTIONS = [
     ("ab-pick", "choose", {"options": ["ab-stage"]}),
-    ("ab-scope", "answer", {}),
+    ("ab-pick", "answer", {}),
     ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "index": 0}),
     ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "index": 0}),
     ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
@@ -11385,7 +11479,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
     page, errors = open_page(browser, url)
     standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()
-        .map(({ widget, action }) => [widget.localName, action])""")
+        .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
     declared = {
@@ -11395,11 +11489,16 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         for channel in ("x-state", "x-report")
         for verb in entry.get(channel, {})
     }
-    assert {tuple(pair) for pair in standing} == declared, (
+    assert {(tag, verb) for _id, tag, _facet, verb in standing} == declared, (
         "the gate applies the standing state, so a declared verb missing from it is a "
         f"verb nothing here re-applies: page holds {standing}, registry declares "
         f"{sorted(declared)}"
     )
+    assert {
+        (facet, action)
+        for widget, _tag, facet, action in standing
+        if widget == "ab-pick"
+    } == {("selection", "choose"), ("completion", "answer")}
     assert errors == []
     assert interact.render_version(browser, url) == []
 
@@ -11439,12 +11538,241 @@ customElements.define(
       // looks away from: the count steps by the detail instead of stating it,
       // and the caption is appended instead of replacing what stood there.
       if (action === "step")
-        this.setAttribute("count", Number(this.getAttribute("count")) + detail.count);
+        this.setAttribute(
+          "count",
+          Number(this.getAttribute("count")) + Number(detail.count),
+        );
       if (action === "caption") this.append(detail.text);
     }
   },
 );
 """
+
+
+def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The projection, not channel replay order, is the DOM's authority. A worker's
+    later count remains report history, but it cannot paint over the reader's action
+    on the same unit and facet; both log records are ready once that one coordinate is
+    committed."""
+    monkeypatch.chdir(tmp_path)
+    made = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-tally", "--upgrade"]
+    )
+    assert made.exit_code == 0, made.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-tally"]["properties"]["count"] = {"type": "string"}
+    entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
+    record = {"kind": "value", "attr": "count", "value": "count"}
+    count_detail = {
+        "type": "object",
+        "properties": {"count": {"type": "string"}},
+        "required": ["count"],
+        "additionalProperties": False,
+    }
+    entries["lf-tally"]["x-state"] = {
+        "set": {
+            "detail": count_detail,
+            "facet": "count",
+            "unit": "widget",
+            "record": record,
+        }
+    }
+    entries["lf-tally"]["x-report"] = {
+        "measure": {
+            "detail": count_detail,
+            "facet": "count",
+            "unit": "widget",
+            "record": record,
+        }
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
+        """\
+import { once } from "/leaf.js";
+customElements.define("lf-tally", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) {
+    this.setAttribute("count", detail.count);
+  }
+});
+"""
+    )
+    url = serve(RELATIVE_WIDGET_PAGE)
+    for kind, author, widget, action, count in [
+        ("action", "user", "tally-fitted", "set", "7"),
+        ("report", "claude", "tally-fitted", "measure", "9"),
+        ("action", "user", "tally-seen", "set", "5"),
+    ]:
+        interact.append_event(
+            serve.page_dir,
+            {
+                "kind": kind,
+                "author": author,
+                "version": 1,
+                "widget": widget,
+                "action": action,
+                "detail": {"count": count},
+            },
+        )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#tally-fitted")).to_have_attribute("count", "7")
+    expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
+    standing = page.evaluate(
+        """async () => (await import('/leaf.js')).standingState()
+          .filter(state => state.widget?.id === 'tally-fitted')
+          .map(state => [state.action, state.detail.count])"""
+    )
+    assert standing == [["set", "7"]]
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#tally-seen")).to_have_attribute("count", "0")
+    assert errors == []
+    page.close()
+
+
+def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Facet names are local to their owning widget contract. A container's
+    placement of part `piece` and that element's own `placement` facet therefore
+    coexist even though unit and facet text are identical; both owners reconcile."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    for tag, upgrade in (
+        ("lf-owner", True),
+        ("lf-zone", False),
+        ("lf-piece", True),
+    ):
+        made = runner.invoke(
+            interact.cli,
+            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
+        )
+        assert made.exit_code == 0, made.output
+
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    owner = entries["lf-owner"]
+    owner["x-content"] = "items"
+    owner["x-state"] = {
+        "move": {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "piece": {"type": "string"},
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["piece", "to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "piece",
+            "record": {
+                "kind": "position",
+                "within": "lf-zone",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    }
+    owner["x-example"] = (
+        '<lf-owner id="sample-owner"><lf-zone id="sample-zone">'
+        '<lf-piece id="sample-piece">Piece</lf-piece></lf-zone></lf-owner>'
+    )
+    zone = entries["lf-zone"]
+    zone["x-parent"] = ["lf-owner"]
+    zone["x-content"] = "items"
+    zone.pop("x-example", None)
+    piece = entries["lf-piece"]
+    piece["x-parent"] = ["lf-zone"]
+    piece["properties"] |= {
+        "pinned": {"type": "string"},
+        "restated": {"type": "boolean"},
+    }
+    piece["x-state"] = {
+        "pin": {
+            "detail": {
+                "type": "object",
+                "properties": {"pinned": {"type": "string"}},
+                "required": ["pinned"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "pinned", "value": "pinned"},
+        }
+    }
+    piece.pop("x-example", None)
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
+        """\
+import { once } from "/leaf.js";
+customElements.define("lf-owner", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) {
+    const piece = document.getElementById(detail.piece);
+    const zone = document.getElementById(detail.to);
+    zone.insertBefore(piece, [...zone.children][detail.index] ?? null);
+  }
+});
+"""
+    )
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
+        """\
+import { once } from "/leaf.js";
+customElements.define("lf-piece", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) { this.setAttribute("pinned", detail.pinned); }
+});
+"""
+    )
+    html = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>owned coordinates</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="/theme.css"><script type="module" src="/leaf.js"></script>
+</head><body><main><h1>Owned coordinates</h1><lf-owner id="owner">
+<lf-zone id="zone-a"><lf-piece id="piece" pinned="no">Piece</lf-piece></lf-zone>
+<lf-zone id="zone-b"></lf-zone></lf-owner></main></body></html>"""
+    url = serve(html)
+    for event in (
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "owner",
+            "action": "move",
+            "detail": {"piece": "piece", "to": "zone-b", "index": 0},
+        },
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "piece",
+            "action": "pin",
+            "detail": {"pinned": "yes"},
+        },
+    ):
+        interact.append_event(serve.page_dir, event)
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#zone-b > #piece")).to_have_count(1)
+    expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
+    standing = page.evaluate(
+        """async () => (await import('/leaf.js')).standingState()
+          .filter(state => state.unit === 'piece' && state.facet === 'placement')
+          .map(state => [state.widget.id, state.action])"""
+    )
+    assert standing == [["owner", "move"], ["piece", "pin"]]
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    assert errors == []
+    page.close()
 
 
 def test_the_render_gate_catches_a_relative_apply_action(
@@ -11457,9 +11785,9 @@ def test_the_render_gate_catches_a_relative_apply_action(
     replays the user's own gesture back at them. Each finding names its widget, its verb
     and what moved.
 
-    Two verbs on two instances, because a fold is keyed by unit and the two readings
+    Two facets on one unit prove both can stand while exercising the two readings that
     catch different things. The count is markup, so `shallowSigs` sees it; the caption
-    is text, which that signature excludes on purpose, so only the unit's declared
+    is text, which that signature excludes on purpose, so only the facet's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
@@ -11468,7 +11796,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
     assert result.exit_code == 0, result.output
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-tally"]["properties"]["count"] = {"type": "integer", "minimum": 0}
+    entries["lf-tally"]["properties"]["count"] = {"type": "string"}
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
     entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
@@ -11476,10 +11804,11 @@ def test_the_render_gate_catches_a_relative_apply_action(
         "step": {
             "detail": {
                 "type": "object",
-                "properties": {"count": {"type": "integer", "minimum": 0}},
+                "properties": {"count": {"type": "string"}},
                 "required": ["count"],
                 "additionalProperties": False,
             },
+            "facet": "count",
             "unit": "widget",
             "record": {"kind": "value", "attr": "count", "value": "count"},
         },
@@ -11490,6 +11819,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
                 "required": ["text"],
                 "additionalProperties": False,
             },
+            "facet": "caption",
             "unit": "widget",
             "record": {"kind": "body", "value": "text"},
         },
@@ -11498,8 +11828,8 @@ def test_the_render_gate_catches_a_relative_apply_action(
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
     url = serve(RELATIVE_WIDGET_PAGE)
     for widget, action, detail in [
-        ("tally-fitted", "step", {"count": 3}),
-        ("tally-seen", "caption", {"text": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"count": "3"}),
+        ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
     ]:
         interact.append_event(
             serve.page_dir,
@@ -11521,10 +11851,9 @@ def test_the_render_gate_catches_a_relative_apply_action(
         "from what the page shows"
     )
     assert [f for f in failures if "is relative" in f] == [
-        "[light] <lf-tally id=tally-fitted> applyAction(step) is relative — "
-        "re-applying the standing log moved tally-fitted" + tail,
-        "[light] <lf-tally id=tally-seen> applyAction(caption) is relative — "
-        "re-applying the standing log moved the state recorded on tally-seen" + tail,
+        "[light] <lf-tally id=tally-fitted> applyAction(step, caption) is relative — "
+        "re-applying the standing log moved tally-fitted, the caption state recorded "
+        "on tally-fitted" + tail,
     ], failures
 
 
@@ -11622,7 +11951,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     assert result.exit_code == 0, result.output
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-drift"]["properties"]["offset"] = {"type": "integer", "minimum": 0}
+    entries["lf-drift"]["properties"]["offset"] = {"type": "string"}
     entries["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
     entries["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare
@@ -11638,10 +11967,11 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
         "settle": {
             "detail": {
                 "type": "object",
-                "properties": {"offset": {"type": "integer", "minimum": 0}},
+                "properties": {"offset": {"type": "string"}},
                 "required": ["offset"],
                 "additionalProperties": False,
             },
+            "facet": "offset",
             "unit": "widget",
             "record": {"kind": "value", "attr": "offset", "value": "offset"},
         }
@@ -11764,7 +12094,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         "version": 1,
         "widget": "drift-note",
         "action": "settle",
-        "detail": {"offset": 0},
+        "detail": {"offset": "0"},
     }
 
     class TheLogArrivesLate(interact.handler_for(serve.page_dir, TOKEN)):
@@ -12066,6 +12396,7 @@ def trial_family(tmp_path):
     entries = json.loads(source.read_text())
     verb = {
         "detail": {"type": "object", "additionalProperties": False},
+        "facet": "settlement",
         "unit": "widget",
     }
     example = {
@@ -12145,9 +12476,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     module's own duty, stated in the scaffold comment and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
     from the file's in silence. The second half drives it all back out: the fold
-    keeps the last surviving action per unit, so a widget-unit verb that settles
-    nothing displaces the decision, and the mark, the marker and the hide follow
-    it."""
+    keeps the last surviving action per facet and unit, so a widget-unit verb on
+    the settlement facet that settles nothing displaces the decision, and the mark,
+    the marker and the hide follow it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
@@ -12177,9 +12508,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page.close()
 
     # The mark follows the fold out as well as in: the file's standing state is the
-    # last surviving action per unit, so a widget-unit verb that settles nothing
-    # displaces the decision, and a mark left standing would silence a slot the log
-    # has handed back.
+    # last surviving action per facet and unit, so a widget-unit verb on the same
+    # facet that settles nothing displaces the decision, and a mark left standing
+    # would silence a slot the log has handed back.
     interact.append_event(
         serve.page_dir,
         {
@@ -12202,6 +12533,45 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "anchor again"
     )
     assert errors == []
+    page.close()
+
+
+def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A module failure is terminal rather than an endless replay retry, and the
+    layer's generic settlement contract still applies: readiness, the holder mark,
+    and the visible fail-soft box must agree on that one consumed action."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+    (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
+        """\
+customElements.define("lf-trial", class extends HTMLElement {
+  applyAction() { throw new Error("trial replay broke"); }
+});
+"""
+    )
+    url = serve(TWO_HOLDER_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache .lf-error")).to_contain_text("trial replay broke")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
+    assert any(
+        "<lf-trial> applyAction(shelve) threw: trial replay broke" in error
+        for error in errors
+    ), errors
     page.close()
 
 
@@ -12679,12 +13049,14 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     page.close()
 
 
-def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
+def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     """A widget inside a reply exists only once the panel has rendered the log,
     which is later than everything on the page — so the replay runs at the end of
     a poll, after that render, and an action naming a widget it doesn't find is
     one no version will ever hold (an honored suggestion, whose id the honoring
-    version dropped) rather than one to look for again on the next poll."""
+    version dropped) rather than one to look for again on the next poll. Its authored
+    record is banked while the reply body is still detached, so withdrawing the action
+    restores that baseline without a version file for the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     interact.append_event(
@@ -12723,6 +13095,22 @@ def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
     page.locator(".lf-comments").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
+
+    # Chrome belongs to the thread rather than the page version. Its action therefore
+    # still stands, and is still the reader's newest undoable gesture, after the page
+    # advances around the conversation.
+    (d / "versions" / "v2.html").write_text(REPLY_HOST_PAGE)
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
+    )
+    page.wait_for_url("**/v2.html*")
+    if not page.locator(".lf-panel").is_visible():
+        page.locator(".lf-comments").click()
+    expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -12822,6 +13210,15 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     )
     assert other_errors == []
     other.close()
+
+    # Taking back a recordless chrome answer rebuilds its authored controls and the
+    # same standing projection opens the ask again. The selection is another facet,
+    # so it survives that rebuild.
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(asks).to_have_text("Asks (1)")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
 
     # The chord's promise holds from a mark: g c then 1 reaches the first thread's
     # reply box, and no pick is sent for the digit the chord took.
@@ -14816,6 +15213,9 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     one.keyboard.press("z")
     round_trip(one)
     expect(one.locator(body)).to_have_text(authored)
+    expect(one.locator("lf-draft .lf-draft-history > summary")).to_have_text(
+        "Changes · 1 edit"
+    )
 
     # The withdrawal has to reach the second tab *while* its editor stands — heard
     # after the box closes, it applies on the way past and says nothing about the
@@ -14827,6 +15227,9 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     two.keyboard.press("Escape")
     expect(two.locator("lf-draft textarea")).to_have_count(0)
     expect(two.locator(body)).to_have_text(authored)
+    expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
+        "Changes · 1 edit"
+    )
     assert errors_one == [] and errors_two == []
     one.close()
     two.close()
@@ -21500,6 +21903,41 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
+    assert errors == []
+    page.close()
+
+
+def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
+    """A poll may finish while Sortable owns real page nodes. Reconciliation leaves
+    the whole page alone until the pointer releases them, then paints the same logged
+    edit on the next pass."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    grip = page.locator("#card-x .lf-grip").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
+    expect(page.locator(".lf-dragging")).to_have_count(1)
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "draft-ops",
+            "action": "edit",
+            "detail": {"text": "Foreign words held behind the drag."},
+        },
+    )
+    told(page)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(DRAFT_TEXT)
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
+
+    page.mouse.up()
+    told(page)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
+        "Foreign words held behind the drag."
+    )
     assert errors == []
     page.close()
 

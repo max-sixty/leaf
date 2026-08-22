@@ -2285,8 +2285,8 @@ class Handler(BaseHTTPRequestHandler):
 
         `attempt` is the browser's evidence that the answer came from the event
         boundary rather than from an intermediary. `final` says no concurrent
-        handler for that attempt remains alive; only such an answer may make a
-        retrying browser put its gesture back.
+        handler for that attempt remains free to append; only such an answer may
+        make a retrying browser put its gesture back.
 
         Every refusal the event door gives is written here, including the ones decided
         before this method's own gates are reached — the key, the preview server, and

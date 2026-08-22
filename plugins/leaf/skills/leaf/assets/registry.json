@@ -126,15 +126,14 @@
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
-            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
-            "more": {"const": true}
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
           "required": ["id", "ts", "author", "kind", "seq", "parent", "text"],
           "additionalProperties": false
         },
         "browser": {
           "required": ["kind", "parent", "version", "text"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["more"]}]}
+          "not": {"required": ["markup"]}
         }
       },
       "resolve": {
@@ -280,26 +279,6 @@
           "additionalProperties": false
         },
         "browser": {"required": ["kind", "text"]}
-      },
-      "append": {
-        "record": {
-          "type": "object",
-          "properties": {
-            "id": {"type": "string", "minLength": 1},
-            "ts": {"type": "string", "minLength": 1},
-            "author": {"type": "string", "minLength": 1},
-            "kind": {"const": "append"},
-            "seq": {"type": "integer", "minimum": 1},
-            "continues": {"type": "string", "minLength": 1},
-            "text": {"type": "string"},
-            "more": {"const": true},
-            "agent": {"type": "string", "minLength": 1},
-            "session": {"type": "string", "minLength": 1},
-            "markup": {"type": "string", "minLength": 1}
-          },
-          "required": ["id", "ts", "author", "kind", "seq", "continues", "text"],
-          "additionalProperties": false
-        }
       }
     }
   },

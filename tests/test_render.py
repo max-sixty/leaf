@@ -387,6 +387,24 @@ REPLAYED_PAGE = f"""<!doctype html>
 TOKEN = "test-page-key"
 
 
+def record_claim(page, **fields):
+    record = {
+        "page": str(page.resolve()),
+        "id": "s",
+        "host": "claude-code",
+        "pid": os.getpid(),
+        "agent": "Claude",
+        "cwd": str(Path.cwd()),
+        "ts": "t",
+        "released": None,
+        **fields,
+    }
+    path = interact.claim_path(page)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    interact.write_json(path, record)
+    return record
+
+
 @pytest.fixture
 def serve(tmp_path, monkeypatch):
     """Publish HTML as v1 of a fresh page directory and serve it, as the real
@@ -2856,9 +2874,10 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
-    assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [None, "card-notes"], (
-        "the press re-anchored the draft, so its new anchor alone should stand marked"
-    )
+    assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
+        None,
+        "card-notes",
+    ], "the press re-anchored the draft, so its new anchor alone should stand marked"
     round_trip(page)
     assert [
         e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
@@ -3963,15 +3982,10 @@ def live_leaf(tmp_path, monkeypatch):
         # A live leaf has a session behind it, and what the board's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
-        interact.write_json(
-            d / "session.json",
-            {
-                "id": f"s-{name}",
-                "host": "claude-code",
-                "pid": os.getpid(),
-                "agent": "Claude",
-                "cwd": str(tmp_path / f"{name}-work"),
-            },
+        record_claim(
+            d,
+            id=f"s-{name}",
+            cwd=str(tmp_path / f"{name}-work"),
         )
         httpd = interact.LeafHTTPServer(
             ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
@@ -4022,15 +4036,10 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     url = serve(LONG_PAGE)
     # This page has a session behind it too, so its own row can say the same thing a
     # neighbour's does.
-    interact.write_json(
-        serve.page_dir / "session.json",
-        {
-            "id": "s-self",
-            "host": "claude-code",
-            "pid": os.getpid(),
-            "agent": "Claude",
-            "cwd": str(tmp_path / "self-work"),
-        },
+    record_claim(
+        serve.page_dir,
+        id="s-self",
+        cwd=str(tmp_path / "self-work"),
     )
     page, errors = open_page(browser, url)
     btn = page.locator(".lf-others")
@@ -4165,10 +4174,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
-    interact.write_json(
-        other_dir / "session.json",
-        {"id": "s", "host": "claude-code", "pid": dead_pid, "agent": "Claude"},
-    )
+    record_claim(other_dir, pid=dead_pid)
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Unheld")
     expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
@@ -6075,9 +6081,10 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         assert page.evaluate("() => window.__lfHeld.length") == 0, (
             "a reader who asked for less motion was given a fold to sit through"
         )
-        assert page.evaluate(LIST_STATE) == {"standing": [c2], "walkable": [c2]}, (
-            "the thread that declined its fold was left standing in the list"
-        )
+        assert page.evaluate(LIST_STATE) == {
+            "standing": [c2],
+            "walkable": [c2],
+        }, "the thread that declined its fold was left standing in the list"
         assert errors == []
     finally:
         context.close()
@@ -6460,9 +6467,10 @@ def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
     rows = {}
     for name, box in boxes.items():
         rows.setdefault(round(box["y"]), []).append(name)
-    assert [len(row) for row in rows.values()] == [3, 2], (
-        f"five terse variants come out three across at this width: {rows}"
-    )
+    assert [len(row) for row in rows.values()] == [
+        3,
+        2,
+    ], f"five terse variants come out three across at this width: {rows}"
     widths = [box["width"] for box in boxes.values()]
     assert max(widths) - min(widths) < 1, (
         f"a cell is one width whichever row it falls on: {widths}"
@@ -6601,9 +6609,10 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
             "() => [...CSS.highlights.get('lf-mark')].map(r => "
             "r.startContainer.parentElement.closest('[id]').id)"
         )
-    ) == ["opt-lax", "opt-strict"], (
-        "the comment landed on the summary line rather than the card it was made on"
-    )
+    ) == [
+        "opt-lax",
+        "opt-strict",
+    ], "the comment landed on the summary line rather than the card it was made on"
     row.click()  # closed again, so the reveal below has something to open
 
     # Sending opened the panel, so the thread is already listed. Its quote is on a card
@@ -6912,9 +6921,10 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
                               getComputedStyle(on).backgroundColor
                                 !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
     on, held, group_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
-    assert (on, held) == ("opt-shim", True), (
-        f"Tab did not land on the mark: {on} {held}"
-    )
+    assert (on, held) == (
+        "opt-shim",
+        True,
+    ), f"Tab did not land on the mark: {on} {held}"
     assert group_ring > 0 and card_ring == 0 and mark_ring == 0, (
         f"the focus ring is on the wrong box: group {group_ring}, card {card_ring}, "
         f"mark {mark_ring}"
@@ -10367,9 +10377,11 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     # place to stand, painted where the reader can see it.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')]
       .map(e => e.id || e.tagName)""")
-    assert marks == ["sug-refill", "LF-OLD", "LF-NEW"], (
-        f"the mark went somewhere else than the ask and its shown boxes: {marks}"
-    )
+    assert marks == [
+        "sug-refill",
+        "LF-OLD",
+        "LF-NEW",
+    ], f"the mark went somewhere else than the ask and its shown boxes: {marks}"
     expect(page.locator(STANDING_ASK)).to_have_count(1)
 
     assert errors == []
@@ -10426,9 +10438,11 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     # instead of naming the element.
     marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')]
       .map(e => e.id || e.tagName)""")
-    assert marks == ["sug-refill", "LF-OLD", "LF-NEW"], (
-        f"the ring reached past the page's own boxes: {marks}"
-    )
+    assert marks == [
+        "sug-refill",
+        "LF-OLD",
+        "LF-NEW",
+    ], f"the ring reached past the page's own boxes: {marks}"
     expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
     assert errors == []
     page.close()
@@ -10608,9 +10622,11 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("n")
     expect(question).to_have_attribute("data-lf-ask", "1")
     ask_ring = question.evaluate(RING)
-    assert ask_ring == ["solid", "2px", token_colour(page, "--accent")], (
-        f"the ask is not ringed in the page's own band: {ask_ring}"
-    )
+    assert ask_ring == [
+        "solid",
+        "2px",
+        token_colour(page, "--accent"),
+    ], f"the ask is not ringed in the page's own band: {ask_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin and the focus lands on
     # it, so this arrival paints two marks for one fact — the ring on the change, the
@@ -12788,95 +12804,6 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     page.close()
 
 
-def test_a_streamed_reply_grows_in_place_and_closes_whole(browser, serve):
-    """A streamed reply is chunk events the panel folds into one message — a
-    chunk is never met as a message — and the message grows in place as chunks
-    arrive, wearing a caret only while its chain is open and the page presents
-    as working. The close drops the caret and leaves the joined text whole, so
-    a reader watches the reply arrive instead of waiting for all of it."""
-    url = serve(REPLY_HOST_PAGE)
-    d = serve.page_dir
-    interact.append_event(
-        d,
-        {
-            "kind": "comment",
-            "id": "c-ask",
-            "author": "user",
-            "version": 1,
-            "text": "which one wins?",
-        },
-    )
-    interact.append_event(
-        d,
-        {
-            "kind": "reply",
-            "id": "r-head",
-            "author": "claude",
-            "parent": "c-ask",
-            "version": 1,
-            "text": "The second one wins ",
-            "more": True,
-        },
-    )
-    interact.cmd_status(d, "working", "answering")
-    page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
-
-    msgs = page.locator(".lf-msg.claude")
-    expect(msgs).to_have_count(1)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
-    body = page.locator(".lf-msg.claude .lf-msg-body")
-    expect(body).to_contain_text("The second one wins")
-
-    # A chunk arrives: the same message grows — no second message node — and the
-    # chain stays open.
-    interact.append_event(
-        d,
-        {
-            "kind": "append",
-            "author": "claude",
-            "continues": "r-head",
-            "text": "because replay is absolute, ",
-            "more": True,
-        },
-    )
-    told(page)
-    expect(body).to_contain_text("The second one wins because replay is absolute,")
-    expect(msgs).to_have_count(1)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
-
-    # The agent going quiet is a status move with no event behind it, so the
-    # caret must follow the presented state on a poll that grew nothing — an
-    # abandoned chain reads as a finished message, and picking the work back
-    # up restores the caret the same way.
-    interact.cmd_status(d, "idle", "")
-    told(page)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(0)
-    interact.cmd_status(d, "working", "answering")
-    told(page)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(1)
-
-    # The close: the caret goes, and the joined text stands whole as one
-    # rendered body — the boundary spaces are the chunks' own, untouched.
-    interact.append_event(
-        d,
-        {
-            "kind": "append",
-            "author": "claude",
-            "continues": "r-head",
-            "text": "and the first is not.",
-        },
-    )
-    told(page)
-    expect(page.locator(".lf-msg.lf-streaming")).to_have_count(0)
-    expect(body).to_contain_text(
-        "The second one wins because replay is absolute, and the first is not."
-    )
-    expect(msgs).to_have_count(1)
-    assert errors == []
-    page.close()
-
-
 REF_PAGE = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -14049,9 +13976,10 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
                            && Math.abs(c.top + c.height / 2 - first.top) < 2;
                      })};
            }"""
-    ) == {"wrapped": True, "on": [True, True]}, (
-        "a chip is not on the corner its link starts at"
-    )
+    ) == {
+        "wrapped": True,
+        "on": [True, True],
+    }, "a chip is not on the corner its link starts at"
     page.keyboard.press("Escape")
 
     # And from the foot of the page, where neither of them can be seen.
@@ -22280,7 +22208,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
 @contextmanager
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
-    session = interact.read_json(page_dir / "session.json")
+    session = interact.page_claim(page_dir)
     lease = interact.take_waiter_lease(interact.waiter_lease_path(page_dir, session))
     assert lease
     told(page)
@@ -22330,17 +22258,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         if handoff:
             status["handoff"] = True
         if claimed:
-            interact.write_json(
-                d / "session.json",
-                {
-                    "id": "s",
-                    "pid": session_pid or os.getpid(),
-                    "agent": agent,
-                    "ts": "t",
-                },
-            )
+            record_claim(d, pid=session_pid or os.getpid(), agent=agent)
         else:
-            (d / "session.json").unlink(missing_ok=True)
+            interact.claim_path(d).unlink(missing_ok=True)
         interact.write_json(d / "status.json", status)
         told(page)
 
@@ -22493,13 +22413,12 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
     # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
     # in the tab, which is the whole of what the reader can see of it from a tab strip.
-    interact.write_json(
-        d / "session.json", {"id": "s", "pid": dead_pid, "agent": "Claude", "ts": "t"}
-    )
+    record_claim(d, pid=dead_pid)
     unheld = tone("", "unheld")
-    assert unheld not in (working, awaits), (
-        f"a page nothing holds wears a tab claiming a session ({unheld})"
-    )
+    assert unheld not in (
+        working,
+        awaits,
+    ), f"a page nothing holds wears a tab claiming a session ({unheld})"
 
     # And the mark itself is an image the browser will render, which is the one thing
     # a string comparison above cannot say: an SVG this file mangles decodes to nothing
@@ -22772,10 +22691,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         .exit_code
         == 0
     )
-    interact.write_json(
-        d / "session.json",
-        {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
-    )
+    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-comments")
@@ -22812,10 +22728,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
             "text": "which host answers?",
         },
     )
-    interact.write_json(
-        d / "session.json",
-        {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
-    )
+    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 

@@ -1246,9 +1246,9 @@ reader can quote the question the way they quote an answer. Nothing learned
 about `lf-options` to make that work, and the twelfth widget gets a row that
 reads properly on the day it declares `x-awaits`.
 
-The authoring half of this is in SKILL.md, and it is one sentence because the
-board makes it obvious: whatever an ask's own words open with is the whole of
-what a reader choosing among five of them has to go on.
+The authoring half is in references/page-authoring.md under "Asks and sign-off":
+whatever an ask's own words open with is what a reader choosing among five of
+them has to go on.
 
 ## A chord names which list before it names a place in one
 

@@ -124,13 +124,13 @@ millisecond per six hundred comments.
 ## A gesture the log has not taken outranks everything the page has read
 
 A widget that paints its own gesture holds state no log accounts for until the
-poll reads the action back. Replay leaves the widget alone for exactly that long.
-Every `applyAction` states the widget whole, so replaying an action from before
-the gesture hands the reader their older state back — and the next gesture then
-computes from what that replay painted. A `multiple` group two picks in,
-repainted holding one, sends the next toggle as a set the reader never chose.
-Applying each action exactly once is what makes replay converge, and "exactly
-once" says nothing about *when*.
+poll reads the action back. Reconciliation leaves that widget alone until then.
+Each `applyAction` states one unit-and-facet fact absolutely. Applying an older
+winner before the gesture restores that fact's older state, so the next gesture
+computes from the wrong page. A `multiple` group two picks in, repainted holding
+one, sends the next toggle as a set the reader never chose. Reapplying an absolute
+winner is a no-op. The checkpoint decides when reconciliation can skip work, not
+what the state means.
 
 All of that rests on the log holding the gestures in the order they were made,
 and the wire does not give that order: the server answers each request on a
@@ -161,10 +161,23 @@ rendered what the log holds.
 
 Anything that means "the page is ready" wants both stamps, and the gap between
 them is one fetch wide — which is why it keeps being missed. `version export`
-copied a page blank, and the suite lost three keypresses into pages that had
-nothing yet to answer them. Nothing collapses the two stamps into one: the
+copied a page blank, the suite lost three keypresses into pages that had nothing
+yet to answer them, and `version check --render` measured the boxes of a board
+the log had not moved yet. Nothing collapses the two stamps into one: the
 document's stamp owes nothing to the network, and a page whose server never
 answers has still finished becoming itself.
+
+Anything reading *boxes* wants a third fact past both stamps, and the log itself
+is what makes it necessary. Where a first poll brings nothing, the runtime
+presents the authored page deliberately, so the replay that follows crosses the
+presentation boundary and moves rather than teleports (the norm on holding still,
+below) — cards mid-FLIP, a settled suggestion mid-fold, with `lf-applied` already
+standing. Read there, the gate's covered-words reading was right and worthless:
+the words were on top of each other, and a frame later they were not. So a page
+at rest is both stamps and no finite animation still running, the finite part
+being what tells a page settling from a page living — the banner's dot pulses for
+as long as the tab is open. Both windows open under load alone, which is how one
+page passed at a desk and failed under a full suite.
 
 ## A pinned version scopes the document, never the conversation
 
@@ -338,6 +351,22 @@ second tab's, or the agent's — is the case that needs the motion more. What is
 left standing must then not still be a thread: everything that walks the list
 asks for `.lf-thread`, so renaming the node once takes it out of j/k, out of the
 g addresses, out of r's press, and out of the panel's repaint in one stroke.
+
+Arriving is not a gesture, and that is the case the rule reaches furthest. A
+reader who left the comment panel open or a board standing gets it back on every
+load afterwards, and the runtime stands it up while the page is still coming up.
+Nothing there was just decided, so nothing there may play: a page that animated
+its restore would spend a fifth of a second showing somebody their own past
+decisions instead of what they came back to read. Two mechanisms have to say it,
+because both a widget and the cascade can move something — `motion` collapses a
+Web Animation to its end state until the presentation boundary is crossed, and
+one rule in `theme.css` does the same for transitions. Neither had anything
+holding it, and the cascade's was missing: an open panel moved the toast across
+the page's foot, because its resting corner is the panel's and the stylesheet
+transitions it there. It was invisible only because the toast is transparent
+until it speaks. Held now by the suite rather than by a gate, since a restore is
+the layer's and is the same under every version
+(`test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive`).
 
 ## Assume the browser it already assumes
 
@@ -1163,6 +1192,26 @@ closing the other — leaving two boards stacked on one edge with the lower
 unreachable, which no reader could report as anything but the board being
 broken.
 
+A reload is a third way a board goes up, and for a while it was that second
+opener. A board the reader had left standing was put back where the boards
+register, which runs while this module is still evaluating — so it could reach
+neither the page's open asks nor anything else declared below it, and the
+reader who had left the board open got a ReferenceError where their page
+should have been.
+
+So the restore now stands at the foot of the file beside the comment panel's
+own, and opens the board by calling `showEdge`. A restore is spelled as the
+press it stands in for rather than as the writes that press happens to make
+today, because the writes are free to grow and a copy of them is not. The one
+thing it does not borrow is the movement: the page arrives already arranged
+rather than arranging itself while the reader watches. The stylesheet was
+already saying that about the room the board takes — its transition is stamped
+on an upgraded body — and `slide` says it about the board, from the same stamp.
+
+The list inside is not the restore's to fill. No poll has run when it stands,
+so the log is empty, and the board's rows are drawn from it by the same
+startup pass that fills the banner's count beside it.
+
 What the two do not share is the document's box: the leaves board lies over
 the page and the asks board takes a strip out of it. That is not an
 inconsistency waiting to be tidied. A leaf's row is a way out of this page and
@@ -1197,9 +1246,9 @@ reader can quote the question the way they quote an answer. Nothing learned
 about `lf-options` to make that work, and the twelfth widget gets a row that
 reads properly on the day it declares `x-awaits`.
 
-The authoring half of this is in SKILL.md, and it is one sentence because the
-board makes it obvious: whatever an ask's own words open with is the whole of
-what a reader choosing among five of them has to go on.
+The authoring half is in references/page-authoring.md under "Asks and sign-off":
+whatever an ask's own words open with is what a reader choosing among five of
+them has to go on.
 
 ## A chord names which list before it names a place in one
 

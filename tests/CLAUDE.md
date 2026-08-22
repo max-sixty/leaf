@@ -21,6 +21,15 @@ it over the examples, so the gate a user's page passes and the suite the example
 pass share one implementation. The end-to-end render-check tests cover its installed
 Chrome launch path separately.
 
+Which of the two a reading belongs to follows from whose fault its findings are.
+The gate reads a version, and everything it reports is something the page's
+author wrote and can change. A reading whose answer is the same under every
+version is about the layer instead, and an agent running the gate at handover
+would be paying for a verdict on code it neither wrote nor can fix. That reading
+lives here, swept over the corpus like any other. `arrival_findings` is the one
+that does: what a page does for a reader who left the comment panel open or a
+board standing is the restore's answer, and no markup changes it.
+
 ## A synthetic drag presses on a whole pixel
 
 `select` is the helper a test drags a selection with, and the reason it exists is
@@ -115,7 +124,7 @@ log instead only ever asks after the send the test names — a stray send, from 
 widget that was supposed to stay quiet, passes straight through such a poll.
 
 A file the test writes is the same trip run the other way, and there `expect`'s
-own timeout becomes the hold in disguise. A declared status, a bumped heartbeat,
+own timeout becomes the hold in disguise. A declared status, a changed wait lease,
 an appended event: none of them announce themselves, so the page learns of each
 when its next poll asks. An assertion made straight after the write therefore
 spends a whole poll interval out of whatever budget `expect` was given — 1.8 to
@@ -137,10 +146,14 @@ So a wait asks for a fact the system declares: an element existing,
 `document.body.getAnimations()` emptying, a request coming back, a resize
 reaching its listeners. Where stillness is itself the assertion, an observed edge
 comes first — the press sweep measures "nothing moved" only after `round_trip`
-has watched the response land. And a timing flake can be reproduced by emulating
-the poller's own schedule in the page: `wait_for_function` runs its predicate
-once at injection and then once per animation frame, which turns the failure into
-a rate to measure rather than a rerun to hope for.
+has watched the response land. Its geometry then crosses one rendered frame,
+waits for finite animations to end, and crosses the ending frame. An elapsed
+quiet window cannot stand for that sequence: under parallel load, one animation
+frame can take the whole window, so a predicate returns before that frame's
+layout paints. A timing flake can be reproduced by emulating the poller's own
+schedule in the page: `wait_for_function` runs its predicate once at injection
+and then once per animation frame, which turns the failure into a rate to measure
+rather than a rerun to hope for.
 
 An edge is not the same fact as arrival, and a gesture that moves the page twice
 is where the two come apart. Clicking a quote scrolls instantly to bring the
@@ -218,6 +231,18 @@ with no second chance — `expect` re-asks for five seconds, but a keystroke is
 simply gone. So navigation waits for the load event, which says the resources
 shaping the page have arrived, and `open_page` waits for `lf-applied`, which says
 the log has — two stated facts replacing a quiet window for state readiness.
+
+Traffic is not the only thing the browser will report. The inspector's animation
+agent names every animation and transition as it is created, whoever created it,
+and that is what lets an arrival be held to painting no motion at all — a claim
+about something that does not happen, which read from inside the page would be
+`getAnimations` against a 200ms slide, a race this machine wins and a loaded one
+loses. The report outlives the motion it describes, so what has to be caught is
+the frame the motion begins on and never the fifth of a second it runs for — and
+that frame does have to be waited for, the report being made by the rendering
+update that starts the animation rather than by the script call that created it.
+A command on the same session is then the flush, replies and events travelling
+one connection in order.
 
 ## A race this machine won't lose is stated rather than run for
 
@@ -322,6 +347,17 @@ test written to hold that line kept passing with the line deleted. A
 ahead of that next frame, and that is where the reading is taken now
 (`test_the_room_is_measured_after_a_late_rail`). The injection buys the record
 again; the wait is still the stamp's.
+
+Holding a motion holds whatever its ending drives, and that is the way past a
+window too short to drive from outside. The record of a folding thread lives until
+`finished` settles, and a paused animation never settles it, so the 220ms a reader
+has to reopen a thread mid-fold becomes a state that lasts as long as the
+assertions need — which is what
+`test_a_thread_reopened_mid_fold_folds_again_when_it_settles` reads, and it steps
+the held fold to its end afterwards to read what that ending clears. What the suite
+could not drive was the timing; the states either side of it were in reach the whole
+time. So before writing a race off as untestable, ask which of its ends can be
+stopped.
 
 ## A page's source is formatted, so ask what it says
 

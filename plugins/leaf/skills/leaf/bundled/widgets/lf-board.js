@@ -235,14 +235,15 @@ customElements.define(
     #grab(card, grip) {
       const from = card.parentElement;
       const cards = this.#cards(from);
-      this.#grabbed = { card, grip, from, index: cards.indexOf(card) };
+      const index = cards.indexOf(card);
+      this.#grabbed = { card, grip, from, index };
       dragging(this, true);
       card.classList.add("lf-lift");
       // Where the card starts, in the idiom every arrow step announces — a reader about to
       // move it needs the position the moves count from.
       announce(
         `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
-          cards.indexOf(card) + 1
+          index + 1
         } of ${cards.length} — ${saying(this.#rows.get(grip))}`,
       );
     }
@@ -264,10 +265,11 @@ customElements.define(
       grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
       card.scrollIntoView({ behavior: SCROLL, block: "nearest" });
       const now = card.parentElement;
+      const cards = this.#cards(now);
       announce(
         `${this.#title(card)} — ${now.getAttribute("label")}, position ${
-          this.#cards(now).indexOf(card) + 1
-        } of ${this.#cards(now).length}`,
+          cards.indexOf(card) + 1
+        } of ${cards.length}`,
       );
     }
 

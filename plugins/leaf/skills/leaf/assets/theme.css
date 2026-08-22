@@ -289,6 +289,39 @@ body { margin: 0; background: var(--paper); color: var(--ink);
       opacity: 0 !important;
       pointer-events: none !important;
     }
+    /* Arriving is not a gesture, said here for the cascade as leaf.js's `motion`
+       already says it for the runtime's own Web Animations. The chrome a reader left
+       standing is put back while the page is still arriving, and every put-back is a
+       property changing: the panel opens, the board goes up, the toast steps aside
+       into the corner the open panel leaves it. Each of those is a move the reader
+       made once and is not making now, so animating it plays a decision back at
+       somebody who came here to read what follows from it. The hold above cannot
+       cover this — it hides `main`, and the chrome is deliberately outside `main` so
+       discussion stays usable while widgets upgrade, which is exactly what leaves the
+       moving parts on screen. A gesture actually made inside this window loses its
+       motion too, and should: `motion` has collapsed one to its end state for as long
+       as the boundary has existed, and one sentence with two answers would be the
+       cheaper bug.
+
+       Two selectors, because the sentence is about two things and not about every
+       element: the page's own box, which the panel's strip moves, and the runtime's
+       chrome, which wears `lf-ui` on each of the boxes it builds. Written as a
+       descendant `*` instead — which is what "nothing transitions yet" wants to say —
+       it costs the page for its whole life rather than for this window, because a
+       rule whose rightmost compound is universal is weighed against every element on
+       every recalculation and cannot know the window has closed. Measured on the
+       shipped examples: 70ms of style recalculation became 83 on design-decision and
+       896 became 955 on the gallery, where these two selectors are inside the run to
+       run spread of the same pages. `transition` does not inherit, so what an
+       unreached descendant can still play is a transition of its own declaring; that
+       is the trade, and the check that finds one is the suite's rather than this
+       rule's (test_render.py, the reader who left something standing). */
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]),
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) .lf-ui {
+      transition: none !important;
+    }
   }
 }
 @media screen {

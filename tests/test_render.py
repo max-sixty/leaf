@@ -15581,6 +15581,55 @@ CONTROL_LABEL_PAGE = """<!doctype html>
 """
 
 
+def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
+    """A focused stream may hide the earlier context, never its collaboration state.
+
+    The shipped example opens on the narrow work in hand. A comment and an ask in
+    inactive panels still stand in the page's one Comments list and one Asks board,
+    and either global surface opens the panel it points into. Switching panels is
+    reading the page, so it leaves the event log untouched."""
+    example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
+    quote = "The feed has been stable since the battery swap; one open follow-up on storage."
+    url = serve(example.read_text(), anchored=[("camera-note", quote)])
+    page, errors = open_page(browser, url)
+
+    implementation = page.get_by_role("tab", name="Bracket installation")
+    vision = page.get_by_role("tab", name="Vision")
+    evidence = page.get_by_role("tab", name="Field evidence")
+    expect(implementation).to_have_attribute("aria-selected", "true")
+
+    before = interact.read_events(serve.page_dir)
+    sent = _traffic(page).sends
+    vision.click()
+    implementation.click()
+    assert _traffic(page).sends == sent, "switching workstreams sent an event"
+    assert interact.read_events(serve.page_dir) == before
+
+    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    comment = page.locator(".lf-thread .lf-quote", has_text="The feed has been stable")
+    expect(comment).to_contain_text(quote)
+    comment.click()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+
+    page.get_by_role("button", name="Close comments").click()
+    asks = page.locator(".lf-asks")
+    expect(asks).to_have_text("Asks (2)")
+    asks.click()
+    hidden_ask = page.locator(
+        ".lf-asks-row", has_text="How should the bird bath stay open through January?"
+    )
+    expect(hidden_ask).to_have_count(1)
+    hidden_ask.click()
+    expect(vision).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()
+
+    assert _traffic(page).sends == sent
+    assert interact.read_events(serve.page_dir) == before
+    assert errors == []
+    page.close()
+
+
 def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, serve):
     """The other half of the pair above: a word the page says that the widget renders
     into a control. A tab's name is the case with nowhere else to go — the panel heading

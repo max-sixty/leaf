@@ -27,6 +27,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -438,6 +439,7 @@ def record_claim(page, **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
+        "turn_closed": None,
         **fields,
     }
     path = interact.claim_path(page)
@@ -8184,6 +8186,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "agent": "Claude",
         "host": None,
         "session_alive": None,
+        "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
     }
@@ -9080,6 +9083,7 @@ def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
         "pid",
         "cwd",
         "ts",
+        "turn_closed",
         "released",
     }
     assert page_state(codex_claimed_page)["agent"] == "Codex"
@@ -9598,6 +9602,62 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
         assert page_state(page_dir)["listening"]
     finally:
         bare.close()
+
+
+def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
+    """A `working` claim is written by a model's turn, and a turn can end at any token
+    without running anything — so nothing writes its close, and the page was left to
+    find an abandoned claim by outwaiting a clock. The Stop hook is the harness
+    watching that same moment, which is what these hooks are for.
+
+    It stamps whether or not it has a nudge to make, and ahead of both of the guard's
+    early returns: a turn that ends with nothing outstanding is exactly the turn that
+    walks away from a `working` claim. The stamp is provenance and lands on the claim
+    record rather than in status.json — what the agent said it was doing stays the
+    agent's to write, which is the line SessionEnd already draws."""
+    interact.cmd_status(claimed, "working", "reading the reconnect traces")
+    assert interact.page_claim(claimed)["turn_closed"] is None
+    events = interact.read_events(claimed)
+    assert interact.presence(claimed, events)["turn_closed"] is None
+
+    # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+    closed = interact.page_claim(claimed)["turn_closed"]
+    assert closed
+    assert interact.presence(claimed, events)["turn_closed"] == closed
+    # And what the agent said it was doing is untouched by the observation of it.
+    assert (
+        interact.read_json(claimed / "status.json")["detail"]
+        == "reading the reconnect traces"
+    )
+
+    # Re-entry after a block stands the guard down before it would speak; the stamp is
+    # the turn's own and is taken on that ending too.
+    interact.cmd_hook(
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+    )
+    assert capsys.readouterr().out == ""
+    assert interact.page_claim(claimed)["turn_closed"] >= closed
+
+    # Another session's turn ending says nothing about a page that is not one of its
+    # own — the stamp names when this claim's turn ended or it means nothing.
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s2"})
+    assert interact.page_claim(claimed)["turn_closed"] == closed
+    lease.close()
+
+
+def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
+    """Every ts a seat dates is written here, while the reader's `Date.now()` is
+    another machine's opinion. The payload states the writer's clock so the reading is
+    made against that one; without it a skewed laptop misreads every age on the page,
+    in one direction and with nothing to give it away."""
+    state = interact.full_state(page_dir, [], [])
+    written = datetime.fromisoformat(state["now"])
+    assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
 
 def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):

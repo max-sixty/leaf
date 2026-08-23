@@ -27,13 +27,19 @@ The note stands under the reader's own words in the panel until you answer that
 thread, so a question in hand reads differently from one nobody has looked at.
 It is the banner's own claim at a second seat, and one command writes both.
 
-A `working` claim nothing renews for about a quarter of an hour stops being
-believed, and the banner reports the silence instead of the work. Refresh it
-inside that for as long as the work runs, and hand that job on with the work: a
-delegate outlives the turn that started it, and no part of this session can
-write the claim once the turn has ended. Give the delegate the launcher path,
-the page path, the thread id, and the command above to run as it starts and
-whenever what it is doing changes.
+A `working` claim is believed while the turn that wrote it is open. The page is
+told when that turn ends, so a claim nothing has renewed within a couple of
+minutes of the ending stops being believed, and the banner reports the silence
+instead of the work; a claim nobody renews at all ages out after about a
+quarter of an hour. Each note carries the same reading at its own thread, so
+one delegate still reporting keeps the banner green while another's note goes
+quiet under the words it answers.
+
+Renewing it is therefore part of the work and goes with it: a delegate outlives
+the turn that started it, and no part of this session can write the claim once
+the turn has ended. Give the delegate the launcher path, the page path, the
+thread id, and the command above to run as it starts — soon enough to land
+inside that couple of minutes — and again whenever what it is doing changes.
 
 ## Host wait loops
 

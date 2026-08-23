@@ -3551,23 +3551,27 @@ const TONE = {
   closed: "",
 };
 function rowPresence(entry) {
-  const { kind, quiet, detail } = presented(entry);
+  const { kind, quiet, dropped, detail } = presented(entry);
   // The same join for both kinds that have words of their own. The reader opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
   // `Working — recording the demo` said least about the one row they are here to act
   // on: three pages waiting rendered as three identical rows, and which to go to
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
+  // The banner's two silences, dated the same way and worded for a row.
+  const silence = dropped
+    ? `Left (${ago(entry.turn_closed)})`
+    : `Quiet (${ago(entry.status.ts)})`;
   const line =
     kind === "working"
       ? stated("Working")
       : kind === "listening"
         ? stated("Awaits")
         : kind === "stalled"
-          ? stated(`Quiet (${ago(entry.status.ts)})`)
+          ? stated(silence)
           : kind === "away"
             ? quiet
-              ? `Quiet (${ago(entry.status.ts)})`
+              ? silence
               : "Away"
             : kind === "unheld"
               ? "Unheld"
@@ -4040,6 +4044,11 @@ let agentMsgCount = -1;
 // minutes and the log is the record of what happened — and because one writer for the
 // two seats is what makes a delegate's check-in keep the banner true (set_status).
 let agentNotes = {};
+// When the claiming session's last turn ended, as this tab last heard it. Held beside
+// the notes because it is the other half of reading one: a note is renewed by the same
+// command that renews the page's claim, so a turn ending under both is one fact, and
+// the note seat has to reach it without asking the banner.
+let agentTurnClosed = null;
 // The threads the panel last reconciled. The note line repaints on the poll's clock and
 // not only on the log's, because its age is half of what it says and a note nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
@@ -4973,9 +4982,21 @@ function wireInput(
 // one page. The coarseness is the point: elapsed time is a fact the reader acts on at a
 // glance, and a ticking second hand is precision nobody asked for over a number nobody
 // can trust to the second anyway.
+// The reader's clock measured against the one that wrote the timestamps. Every ts a
+// seat dates — a claim, a message, a worker's report — is written by the server, while
+// `Date.now()` is whatever the machine holding the tab believes: a laptop an hour out
+// reads every age on the page an hour wrong, in one direction, with nothing in the
+// timestamp itself to give it away. The poll carries the server's own now, so the
+// offset is measured rather than assumed, and it is applied in the two functions that
+// turn a timestamp into something the reader is told — no seat can forget it, and no
+// seat can hold a second opinion about what time it is. Zero until a state arrives,
+// and zero for a page with no server behind it at all (the static site), where the
+// reader's clock is the only one there is.
+let clockSkew = 0;
+const serverNow = () => Date.now() + clockSkew;
 export const ago = (ts) => {
   if (!ts) return "";
-  const secs = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
+  const secs = Math.max(0, (serverNow() - new Date(ts).getTime()) / 1000);
   if (secs < 45) return "just now";
   if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
   if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
@@ -5844,12 +5865,15 @@ function paintNotes() {
     // this seat: every `leaf status … --on` write refreshes the page's own line, so one
     // delegate still reporting keeps the banner green while another's note ages here —
     // the fleet's dead-row failure one level down, and the reason the roster says this
-    // in words rather than leaving it to a tint. One page, one rope: `quietSince` is the
-    // banner's own predicate, and `ago` is still rendered whole beside the word rather
+    // in words rather than leaving it to a tint. Both of the banner's own questions,
+    // asked here by the same two predicates: gone unrenewed too long, or left behind by
+    // a turn that ended. A note is written by the command that writes the claim, so a
+    // seat answering either question differently would have the page arguing with
+    // itself about one silence. `ago` is still rendered whole beside the word rather
     // than reworded to absorb it. The cell is added and removed rather than hidden,
     // because a hidden one still reads out in the thread's text.
     let cold = line.querySelector(":scope > .lf-note-cold");
-    if (quietSince(note.ts)) {
+    if (quietSince(note.ts) || droppedAt(note.ts, agentTurnClosed)) {
       if (!cold) line.insertBefore(el("span", "lf-note-cold", "quiet"), when);
     } else cold?.remove();
     const age = ago(note.ts);
@@ -11316,7 +11340,28 @@ const WORKING_GRACE_MS = 15 * 60 * 1000;
 // claim has a shorter one; the constant is the default because that is the case there is
 // only one of.
 export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
-  Boolean(ts) && Date.now() - new Date(ts).getTime() > grace;
+  Boolean(ts) && serverNow() - new Date(ts).getTime() > grace;
+// How long after a turn closes a claim it left behind is still believed. The grace
+// above asks how long a claim has gone unrenewed; this one exists because the answer
+// to "is anything still behind it" arrives before the answer to "has it gone stale",
+// and it needs a margin: the agent claims the work, hands it to a delegate and ends
+// the turn in the same second, and the delegate's first note is a minute or so behind
+// that. Shorter than the grace by an order of magnitude, because it is measured from
+// an observed event rather than from the absence of one.
+const PICKUP_GRACE_MS = 2 * 60 * 1000;
+// The second question the page asks of a claim, beside how long it has gone
+// unrenewed: did the turn behind it end with nothing picking it up. This one has an
+// answer the moment it becomes true, because the Stop hook watches the ending rather
+// than inferring it from silence. Written no later than the ending counts as written
+// by the turn that ended — both stamps carry seconds, and an agent's last word about
+// its work and the end of the turn that wrote it land in the same one all the time.
+// Shared, because a page claim and a note on a thread are written by one command and
+// a seat answering this differently for one of them is the two of them arguing about
+// a single silence.
+const droppedAt = (ts, turnClosed) =>
+  Boolean(turnClosed) &&
+  Date.parse(ts) <= Date.parse(turnClosed) &&
+  quietSince(turnClosed, PICKUP_GRACE_MS);
 // Which claim each kind reads out, and so whose detail it may speak. The question
 // sits here rather than at each seat, for the reason `kind` does: two seats answering
 // it separately is two answers to what the page may say it is waiting for. A kind
@@ -11339,15 +11384,26 @@ const DETAIL_FROM = { working: "working", listening: "waiting", stalled: "workin
 // the claim's own words where that state licenses them; the caller words it for its
 // seat.
 function presented(state) {
-  const { status, listening, session_alive, unattended } = state;
+  const { status, listening, session_alive, unattended, turn_closed } = state;
   // How long the claim has gone unrefreshed. The rope is short for the status
   // `leaf wait` writes as it prints a batch, because the agent writes its own
   // `leaf status` after acknowledgement — that mark outliving minutes is a dropped
   // pickup, not a long turn.
-  const quiet = quietSince(
+  const aged = quietSince(
     status.ts,
     status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
   );
+  // The same silence reached by evidence instead of by a clock. A claim is written by
+  // a model's turn, and when that turn ends nothing runs — so the page could only ever
+  // find an abandoned claim by waiting out the grace, saying "Claude is working" over
+  // nobody for most of a quarter of an hour. The Stop hook records the ending, and a
+  // claim older than it is one that neither a next turn nor a delegate renewed across
+  // the boundary. A delegate that does check in writes a `ts` past the stamp and
+  // carries the claim on its own from then on, which is the same one command that
+  // writes its note — so this costs the delegate case nothing and closes the window
+  // on the case it was hiding.
+  const dropped = droppedAt(status.ts, turn_closed);
+  const quiet = aged || dropped;
   // Nothing is behind the claim. The claimant pid settles it where there is one: gone
   // is gone, whatever the claim says and whether a stray `leaf wait` still holds
   // a lease for a session that can no longer read it. Where nothing claimed the
@@ -11381,6 +11437,10 @@ function presented(state) {
   return {
     kind,
     quiet,
+    // Which of the two silences this is, for the seat that has to date it. Not a kind
+    // of its own: whether the reader's next word still reaches anyone is the question
+    // `stalled` and `away` already split on, and this is orthogonal to it.
+    dropped,
     // Whether anything at all answers for the claim. The banner drops a claim
     // nothing is behind rather than repeating it, and every other seat reading
     // the same claim has to drop it on the same evidence: a note left on a
@@ -11499,12 +11559,18 @@ function renderStatus(state) {
     return;
   }
   const { status, pending } = state;
-  const { kind, quiet, detail } = presented(state);
+  const { kind, quiet, dropped, detail } = presented(state);
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = pending
     ? `${pending} update${pending === 1 ? "" : "s"} waiting.`
     : "Your comments are saved.";
+  // Dated by whichever fact ended the belief. A dropped claim is dated by the ending
+  // and not by its own last word, because "last checked in just now" under an amber
+  // dot is the line arguing with the dot beside it.
+  const dated = dropped
+    ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
+    : `${agentName()} last checked in ${ago(status.ts)}`;
   let text = "",
     showAge = false;
   if (kind === "closed") text = "Leaf closed";
@@ -11543,18 +11609,13 @@ function renderStatus(state) {
     // is spoken in the same words the branch below uses for the same silence, rather
     // than in the muted parenthesis a live `working` claim wears: there the age is a
     // footnote to news, and here it is the news.
-    text =
-      `${agentName()} last checked in ${ago(status.ts)}` +
-      `${detail ? ": " + detail : ""}. ${saved}`;
+    text = `${dated}${detail ? ": " + detail : ""}. ${saved}`;
   } else {
     // Somebody is behind the page and isn't attending: say which and what to do. A
     // long silence means Claude lost the thread; a recent check-in means it is
     // mid-turn and the next one collects.
     const [why, how] = quiet
-      ? [
-          `${agentName()} last checked in ${ago(status.ts)}.`,
-          "Nudge it in the terminal.",
-        ]
+      ? [`${dated}.`, "Nudge it in the terminal."]
       : [`${agentName()} isn't watching right now.`, "It picks them up next turn."];
     text = `${why} ${saved} ${how}`;
   }
@@ -12954,6 +13015,10 @@ async function receiveState(state) {
   // event response carries — so the generation is checked once for both rather than
   // at each door it arrives through.
   if (!sameLayer(state.layer)) return;
+  // Ahead of the sequence checks below, which drop a response as state: a reading
+  // that arrives out of order still says what time it is where the timestamps are
+  // written, and that is the one thing in it that cannot be stale.
+  if (state.now) clockSkew = Date.parse(state.now) - Date.now();
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
   // post() and the timer can poll together. The log is append-only, so a response
@@ -13025,6 +13090,7 @@ async function receiveState(state) {
     settleAcceptedDrafts();
     agent = state.agent || "Claude";
     agentNotes = presented(state).held ? state.status.on || {} : {};
+    agentTurnClosed = state.turn_closed || null;
     renderStatus(state);
     renderVersions(state);
     renderOthers(state);

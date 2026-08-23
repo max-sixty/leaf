@@ -344,6 +344,7 @@ def record_claim(page, **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
+        "turn_closed": None,
         **fields,
     }
     path = interact.claim_path(page)
@@ -26044,9 +26045,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         agent="Claude",
         handoff=False,
         quiet_for=0,
+        turn_ended=None,
         session_pid=None,
         claimed=True,
     ):
+        """`quiet_for` ages the claim; `turn_ended` says how long ago the Stop hook
+        watched the turn behind it end. Separate seconds, because the case the second
+        exists for is a claim that is not old at all."""
         ts = datetime.now().astimezone() - timedelta(seconds=quiet_for)
         status = {
             "state": state,
@@ -26056,7 +26061,16 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         if handoff:
             status["handoff"] = True
         if claimed:
-            record_claim(d, pid=session_pid or os.getpid(), agent=agent)
+            record_claim(
+                d,
+                pid=session_pid or os.getpid(),
+                agent=agent,
+                turn_closed=None
+                if turn_ended is None
+                else (
+                    datetime.now().astimezone() - timedelta(seconds=turn_ended)
+                ).isoformat(timespec="seconds"),
+            )
         else:
             interact.claim_path(d).unlink(missing_ok=True)
         interact.write_json(d / "status.json", status)
@@ -26091,6 +26105,45 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", quiet_for=20 * 60)
         expect(text).to_have_text("Claude last checked in 20m ago. 1 update waiting.")
 
+        # The same silence reached by evidence rather than by the clock. A claim is
+        # written by a model's turn, and a turn ends without running anything — so
+        # nothing writes its close, and the page could only ever find an abandoned
+        # claim by outwaiting the rope above. The Stop hook watches that ending, and a
+        # claim written before it is one no next turn and no delegate renewed across
+        # it. Dated by the ending and not by the claim's own last word: "last checked
+        # in just now" under an amber dot is the line arguing with the dot.
+        declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
+        expect(text).to_have_text(
+            "Claude left this when its turn ended 5m ago: revising the plan."
+            " 1 update waiting."
+        )
+        expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        # The agent's own last word about the work and the ending of the turn that
+        # wrote it land in the same second, which is what an ordinary turn looks like:
+        # written no later than the ending is written by the turn that ended, and
+        # renewed by nothing after it.
+        declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
+        expect(text).to_have_text(
+            "Claude left this when its turn ended 5m ago: revising the plan."
+            " 1 update waiting."
+        )
+
+        # A turn that has only just ended still holds it. The agent claims the work,
+        # hands it to a delegate and ends the turn in the same second, and the
+        # delegate's first note is a minute or so behind that — with no margin the
+        # page would report every handoff as an abandonment and take it back again.
+        declare("working", "revising the plan", quiet_for=60, turn_ended=30)
+        expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
+        expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
+        # And a delegate that does check in carries the claim past the ending on its
+        # own: its note is written after the turn closed, by the one command that
+        # writes both. The claim stops being the closed turn's to answer for, and the
+        # rope above is what judges it from there.
+        declare("working", "revising the plan", quiet_for=60, turn_ended=5 * 60)
+        expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
+
         # What the page wants back, in the agent's words, where the reader arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
         # clipped, and a narrow window must not be why the ask goes unread.
@@ -26112,7 +26165,17 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
+    # With nobody listening the same ending carries the remedy, because the reader's
+    # next word has nowhere to land until a session picks the page up again.
+    declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
+    expect(text).to_have_text(
+        "Claude left this when its turn ended 5m ago. 1 update waiting."
+        " Nudge it in the terminal."
+    )
+    expect(dot).to_have_class(re.compile(r"\baway\b"))
+
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
+    # No turn has closed under this claim, so the rope is the whole of what judges it.
     declare("working", "running the migration", quiet_for=10 * 60)
     expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
 
@@ -26139,6 +26202,49 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     declare("idle")
     expect(text).to_have_text("Leaf closed")
+    page.close()
+
+
+def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
+    """Every timestamp a seat reads out was written by the server; `Date.now()` is the
+    machine holding the tab. A laptop an hour fast therefore called a claim made this
+    minute an hour stale — on the banner, on a roster row and under every question at
+    once, always in the same direction, with nothing in the timestamp to give it away.
+    The poll carries the server's own now, so the offset is measured rather than
+    assumed.
+
+    It is the reader's clock that moves here, because that is the one of the two a page
+    has to survive: the server writes the timestamps it later reads back and cannot
+    disagree with itself, while the reader's machine is not the page's to correct."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    d = serve.page_dir
+    text = page.locator(".lf-status-text")
+    dot = page.locator(".lf-banner .lf-dot")
+
+    def claim(detail):
+        record_claim(d)
+        interact.write_json(
+            d / "status.json",
+            {"state": "working", "detail": detail, "ts": interact.now_iso()},
+        )
+        told(page)
+
+    claim("running the migration")
+    expect(text).to_have_text(
+        re.compile(r"^Claude is working — running the migration \(just now\)$")
+    )
+
+    # An hour fast. A fixed time rather than an installed clock, so the page's own
+    # polling keeps running and the next reading is a real one.
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=1))
+    # New words, so the line under test can only be one this reader painted after the
+    # clock moved: an unchanged sentence would pass on the render before it.
+    claim("waiting on the shard")
+    expect(text).to_have_text(
+        re.compile(r"^Claude is working — waiting on the shard \(just now\)$")
+    )
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+    assert errors == []
     page.close()
 
 
@@ -26305,8 +26411,30 @@ def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
     expect(note).to_contain_text("quiet")
     expect(note.locator("time")).to_have_text("40m ago")
 
+    # The other question the banner asks, asked here too: a note left behind by a turn
+    # that ended is quiet without waiting out the rope. Six minutes is nothing on that
+    # rope — what dates this one is the ending, and the page's own line stays green
+    # beside it because a second delegate is still renewing the claim.
+    record_claim(
+        d,
+        turn_closed=(datetime.now().astimezone() - timedelta(minutes=5)).isoformat(
+            timespec="seconds"
+        ),
+    )
+    claim(
+        (datetime.now().astimezone() - timedelta(minutes=6)).isoformat(
+            timespec="seconds"
+        )
+    )
+    expect(page.locator(".lf-status-text")).to_have_text(
+        re.compile(r"^Claude is working — rerunning the failing shard")
+    )
+    expect(note).to_contain_text("quiet")
+    expect(note.locator("time")).to_have_text("6m ago")
+
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
+    record_claim(d)
     claim(interact.now_iso())
     expect(note).not_to_contain_text("quiet")
     expect(note).to_have_count(1)

@@ -1724,6 +1724,9 @@ class PageTransaction:
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
+            # When this session's last turn ended. None until one has, and reset
+            # by nothing: a claim taken again is a new record. See close_turn.
+            "turn_closed": None,
         }
         write_json(path, claim)
         return previous, claim
@@ -1751,6 +1754,24 @@ class PageTransaction:
         claim = self.claim
         if claim and claim["released"] is None:
             write_json(claim_path(self.page_dir), {**claim, "released": now_iso()})
+
+    def close_turn(self, session_id: str) -> None:
+        """Record that the turn which could have renewed this page's claim has ended.
+
+        A `working` claim is written by a model's turn rather than by a process,
+        and a turn can end at any token without running anything — so there is no
+        close to write on the way out, and a claim nobody renewed used to be
+        found only by a clock fifteen minutes later. The Stop hook is the harness
+        observing that same moment exactly, which is what the hooks are for.
+
+        It lands here with the rest of the claim's provenance and not in
+        status.json, the line SessionEnd already draws: what the agent said it
+        was doing stays the agent's to write, and whether anything is still
+        behind those words stays the page's to judge from evidence.
+        """
+        claim = self.claim
+        if claim and claim["released"] is None and claim["id"] == session_id:
+            write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
 
     @property
     def status(self) -> dict:
@@ -1990,6 +2011,13 @@ def presence(page_dir: Path, events: list) -> dict:
         "host": claim.get("host") if claim else None,
         # None when nothing claimed the page — interact.py run outside an agent host.
         "session_alive": active is not None if claim else None,
+        # When the claiming session's last turn ended, or None while none has.
+        # A `working` claim older than this is one that no turn and no delegate
+        # renewed across the boundary — the same judgment the runtime's grace
+        # makes, available at the moment it becomes true instead of a quarter of
+        # an hour after it. Read with .get like the rest of the claim's fields,
+        # since a record written before this existed is still a valid claim.
+        "turn_closed": claim.get("turn_closed") if claim else None,
         # When a browser last polled the page (the server bumps viewed.json,
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
@@ -2009,6 +2037,12 @@ def full_state(
 ) -> dict:
     return {
         "layer": layer or layer_generation(page_dir),
+        # The clock every timestamp below was written by. A seat dating one reads
+        # `Date.now()`, which is the reader's own machine: a laptop an hour out
+        # calls a claim made this minute an hour stale, on every seat at once, and
+        # neither side can tell from the timestamp alone. Sent so the reading is
+        # against the writer's clock rather than the reader's.
+        "now": now_iso(),
         "versions": versions,
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
@@ -4827,6 +4861,16 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
+    if event == "Stop":
+        # Ahead of both early returns below. The stamp is not a nudge and does not
+        # depend on there being one: the turn that ends with nothing outstanding is
+        # exactly the turn that leaves a `working` claim behind with nobody on it.
+        for page_dir in owned_pages(sid):
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with
@@ -11269,9 +11313,11 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     --on names the comment thread that detail is about, and the reader sees it
     under their own words as well as in the banner. It stands until you answer
     that thread, so work in flight — a delegate, a long tool run — reads as
-    picked up rather than as silence. A `working` claim nothing renews goes
-    quiet on the banner in about a quarter of an hour, so refresh it inside
-    that for as long as the work runs.
+    picked up rather than as silence. A `working` claim is believed while the
+    turn that wrote it is open; the page is told when that turn ends, so
+    something has to renew the claim within a couple of minutes of the ending,
+    and one nobody renews at all goes quiet after about a quarter of an hour —
+    on the banner and on each note alike.
     """
     page_dir = resolve_dir(dir)
     # Idling over an event nobody has answered ends the leaf on a user still

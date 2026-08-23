@@ -25699,9 +25699,9 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 """,
 )
 
-# main's content box, body's, and where three elements stand in them. Read together in
-# one pass because the whole subject is their relation: a width means nothing here except
-# against the column it is or isn't wider than.
+# main's content box, body's, the page's box, and where each named element stands in
+# them. Read together in one pass because the whole subject is their relation: a width
+# means nothing here except against the column it is or isn't wider than.
 ROOM_GEOMETRY = """() => {
     const span = (el) => {
         const s = getComputedStyle(el), b = el.getBoundingClientRect();
@@ -25717,8 +25717,21 @@ ROOM_GEOMETRY = """() => {
                  top: b.top, bottom: b.bottom,
                  centre: (b.left + b.right) / 2 };
     };
+    // The page's box, which body's padding is spent out of and the column centres in.
+    // It is not the window: body owns the document's scroll and reserves a stable
+    // gutter for it (leaf.js), so wherever a scrollbar takes room the page is that
+    // much narrower than the window and stands half of it to the window's left, by a
+    // decision made where the gutter is. Padding included, because a strip taken here
+    // moves the column inside a box that has not changed size; `room` above is what is
+    // left after the strips and cannot say whether any were taken.
+    const paper = () => {
+        const b = document.body, s = getComputedStyle(b);
+        const left = b.getBoundingClientRect().left + parseFloat(s.borderLeftWidth);
+        return { left, right: left + b.clientWidth, width: b.clientWidth,
+                 centre: left + b.clientWidth / 2 };
+    };
     return { column: span(document.querySelector('main')),
-             room: span(document.body),
+             room: span(document.body), pageBox: paper(),
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
              note: box('note'), later: box('later'),
              sideways: document.body.scrollWidth - document.body.clientWidth };
@@ -26915,6 +26928,14 @@ def test_a_note_moves_the_page_only_where_the_page_owes_it_room(browser, serve):
     in the margin that centring already left. On one without, the strip appears and buys
     exactly enough: the note stays on the page with the same gutter main gives its prose.
 
+    Both halves are read against the page's box and not against the window, the two being
+    the same width only where a scrollbar takes no room. Body owns the document's scroll
+    and reserves a stable gutter for it, so on most platforms the page is 15px narrower
+    than the window and centres 7.5px to the left of it — a settled fact about the scroll
+    region (leaf.js) that the note has no part in. Measured from the window this test says
+    that instead of what it is about: green wherever scrollbars overlay, red on the runner,
+    and a strip of exactly the gutter's width invisible to it in both.
+
     The narrow half is what stops this being answered by never reserving anything, which
     would pass the wide assertion and paint the note off the edge of the window."""
     url = serve(NOTE_AND_WIDE_PAGE)
@@ -26922,10 +26943,11 @@ def test_a_note_moves_the_page_only_where_the_page_owes_it_room(browser, serve):
 
     resized(page, 1600, 900)
     roomy = page.evaluate(ROOM_GEOMETRY)
-    centred = (1600 - roomy["column"]["width"]) / 2
-    assert abs(roomy["column"]["centre"] - 800) <= 1, (
-        f"a note pushed the whole page off the window's centre on a window with room to "
-        f"spare: column centred at {roomy['column']['centre']:.0f}px of 1600px"
+    centred = (roomy["pageBox"]["width"] - roomy["column"]["width"]) / 2
+    assert abs(roomy["column"]["centre"] - roomy["pageBox"]["centre"]) <= 1, (
+        f"a note pushed the whole page off the centre of its own box on a window with "
+        f"room to spare: column centred at {roomy['column']['centre']:.0f}px of a "
+        f"{roomy['pageBox']['width']:.0f}px page"
     )
     assert roomy["note"]["left"] > 0, (
         f"the note is off the left edge at 1600px: {roomy['note']['left']:.0f}px"
@@ -26938,10 +26960,10 @@ def test_a_note_moves_the_page_only_where_the_page_owes_it_room(browser, serve):
         f"the page kept its centring on a window too narrow to read the note in, so the "
         f"note is painted {-tight['note']['left']:.0f}px off the left edge"
     )
-    assert tight["column"]["centre"] > NOTE_BAND / 2, (
+    assert tight["column"]["centre"] > tight["pageBox"]["centre"] + 1, (
         "a window that cannot fit the note beside a centred column has to move the page, "
-        f"and this one did not: column centred at {tight['column']['centre']:.0f}px of "
-        f"{NOTE_BAND}px"
+        f"and this one did not: column centred at {tight['column']['centre']:.0f}px of a "
+        f"{tight['pageBox']['width']:.0f}px page"
     )
     assert tight["sideways"] == 0
 

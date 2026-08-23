@@ -171,6 +171,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   upgraded: "data-lf-upgraded",
   inline: "data-lf-inline",
   wide: "data-lf-wide",
+  exhibit: "data-lf-exhibit",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 
@@ -1697,9 +1698,9 @@ function dress(root) {
   return highlightBlocks(root);
 }
 
-// The declarations a stylesheet has to read and cannot. Two of them today, and each
-// answers a question about the box a widget is given, which is the one thing a selector
-// can neither derive from the element nor look up.
+// The declarations a stylesheet has to read and cannot. Three of them today: two about
+// the box a widget is given and one about what may be offered inside it, and none of the
+// three is something a selector can derive from the element in hand or look up.
 //
 // Which widgets may stand wider than the column is the first. Prose is set to a measure
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
@@ -1718,22 +1719,46 @@ function dress(root) {
 // theme, saying nothing at all about the next layer's inline widget. It is one marker
 // now, data-lf-inline, and an inline widget from any layer joins by declaring.
 //
+// Whether the widget quotes what it holds is the third (x-exhibit). An exhibit is a
+// mention, not a use, so every rule saying "this takes input" — the hand, the lift, the
+// joined shape, the reserved strips, the hover wash — stands down inside one. The
+// declaration is the tag's and the question is the occurrence's, which is the shape
+// quoted() has too: whether this element sits inside an exhibit. So the mark goes on the
+// exhibit and the rules exclude what stands under it. That is the descendant half of the
+// question — quoted() answers for the element itself as well — and it is the half these
+// rules need while the tag they key on, lf-options, is not itself an exhibit. A layer
+// that declared one to be would have to say so in its own rules. Ten of those rules spelled lf-specimen before: a bundled
+// tag, saying nothing about a project's own exhibit. quoted() still asks the registry
+// rather than this paint, which is the arrangement and not an oversight — the
+// declaration is the one representation, and the mark is how a stylesheet, which cannot
+// read a registry, asks it the same thing.
+//
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said, and what carries both facts into an exported copy, which
-// runs no script but keeps the markup. It is the runtime's paint on the page's own
-// element, so it joins PAGE_PAINT_ATTRIBUTES: the version diff reads the live DOM against
-// a file nothing has painted, and an attribute missing from that exclusion list is a
-// change the author never made. Written before the modules import, because the box each
-// of them renders into is what these two decide. The root is marked alongside its
-// descendants: a rebuild is handed a clone of the widget itself, and the fact is that
-// widget's own.
+// already has with data-lf-said, and what carries the two box facts into an exported
+// copy, which runs no script but keeps the markup. The exhibit's rules are the live
+// page's alone (html:not(.lf-copy)), so its mark rides into a copy unread. It is the
+// runtime's paint on the page's own element, so it joins PAGE_PAINT_ATTRIBUTES: the
+// version diff reads the live DOM against a file nothing has painted, and an attribute
+// missing from that exclusion list is a change the author never made. Written before the
+// modules import, because the first two decide the box each module renders into and the
+// third decides what may be drawn as pressable while they do. It lands a registry fetch
+// after the first paint, and nothing is on screen in between to get wrong: the document
+// waits behind the presentation gate (theme.css) and a message body cannot render before
+// the registry is read. The root is marked alongside its descendants: a rebuild is handed a clone of the widget itself, and
+// the fact is that widget's own.
 //
 // What separates the two tables is where each fact holds. x-inline is true of the element
 // wherever it renders, a thread's message included, or a chip-led comparison quoted into
-// a reply would stack there and nowhere else. The room x-wide hands out is the document's,
-// and a message is the one place a widget of the page's vocabulary renders outside the
-// document, where the room is the panel's (see msgNode).
-const MARKED_ANYWHERE = Object.freeze({ "x-inline": PAGE_PAINT_ATTRIBUTE.inline });
+// a reply would stack there and nowhere else. So is x-exhibit: quoting is the element's
+// own fact, and a specimen carried into a reply is quoted there too. A page's widget
+// renders in both places, and only one of the three changes meaning when it moves. The
+// room x-wide hands out is the document's, and a message is the one place a
+// widget of the page's vocabulary renders outside the document, where the room is the
+// panel's (see msgNode).
+const MARKED_ANYWHERE = Object.freeze({
+  "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
+  "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
+});
 const MARKED_IN_PAGE = Object.freeze({
   ...MARKED_ANYWHERE,
   "x-wide": PAGE_PAINT_ATTRIBUTE.wide,

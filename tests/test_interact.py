@@ -2246,6 +2246,43 @@ def _balanced(css, start):
     return css[start : at - 1]
 
 
+def _marker_for(declaration):
+    """The attribute leaf.js paints for an `x-` declaration, or None if it paints
+    none.
+
+    Two facts, and the second is the one a stylesheet's exclusion rests on.
+    PAGE_PAINT_ATTRIBUTE is the spelling every writer in the runtime shares and the
+    set of names no version file may assert; a name in it says only that the runtime
+    is allowed to paint it. What actually puts a mark on a page is a declaration's
+    entry in one of markDeclared's tables, and a selector naming an attribute with no
+    such entry excludes nothing anywhere. Both tables are read, because which of the
+    two a declaration sits in is a question about where the fact holds, and the
+    browser is what answers that."""
+    js = (interact.ASSETS / "leaf.js").read_text()
+    table = re.search(
+        r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);", js, re.DOTALL
+    )
+    assert table, "leaf.js lost the list of attributes the runtime may paint"
+    names = dict(re.findall(r'(\w+): "(data-lf-[a-z-]+)",', table.group(1)))
+    assert names, "that list holds no data-lf-* name"
+    tables = re.findall(
+        r"const MARKED_(?:ANYWHERE|IN_PAGE) = Object\.freeze\(\{(.*?)\}\);",
+        js,
+        re.DOTALL,
+    )
+    assert len(tables) == 2, "leaf.js lost one of markDeclared's tables"
+    for key in re.findall(
+        rf'"{re.escape(declaration)}": PAGE_PAINT_ATTRIBUTE\.(\w+)', "".join(tables)
+    ):
+        assert key in names, (
+            f"markDeclared paints {declaration} as PAGE_PAINT_ATTRIBUTE.{key}, which "
+            "that table has no member for — the runtime writes an attribute with no "
+            "name and every selector reading it matches nothing"
+        )
+        return names[key]
+    return None
+
+
 def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     """Two selectors in the theme decide what counts as block content — the
     suggestion slots' blockization and lf-compare's stacked-variant trigger
@@ -2266,10 +2303,12 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     inside the integrated theme, and no layer could join them; the runtime paints the
     declaration instead and an inline widget joins by declaring it.
 
-    The marker is held to the runtime's own list of what it may paint, because a
-    selector naming an attribute nothing writes matches nothing and says so
-    nowhere — it reads as the ordinary case of a page with no inline widget in a
-    slot. And it is held to :where(), which is what keeps an answer about content
+    The marker is held to what markDeclared paints for x-inline, because a selector
+    naming an attribute nothing writes matches nothing and says so nowhere — it reads
+    as the ordinary case of a page with no inline widget in a slot. Being a name the
+    runtime is allowed to paint is not that: the wiring is a declaration's entry in
+    one of markDeclared's tables, and _marker_for is what follows it. And it is held
+    to :where(), which is what keeps an answer about content
     from becoming a claim on the cascade: :not() takes the specificity of the most
     specific thing in it, so a bare attribute selector lifts the whole rule a column
     above the type names beside it, over the marks the layer paints on top of the
@@ -2287,12 +2326,6 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-inline")
     ], "no widget declares x-inline, so the marker in these lists stands for nothing"
-    painted = re.search(
-        r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);",
-        (interact.ASSETS / "leaf.js").read_text(),
-        re.DOTALL,
-    )
-    assert painted, "leaf.js lost the list of attributes the runtime may paint"
     for found in lists:
         tags = {t.strip() for t in found.split(",")}
         markers = {t for t in tags if not t.isalpha()}
@@ -2309,9 +2342,9 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
         )
         for marker in markers:
             attribute = marker[len(":where([") : -len("])")]
-            assert f'"{attribute}"' in painted.group(1), (
-                f"{marker} is not an attribute the runtime paints, so the list's "
-                "widget half matches nothing on any page"
+            assert _marker_for("x-inline") == attribute, (
+                f"{marker} is not what the runtime paints for x-inline, so the "
+                "list's widget half matches nothing on any page"
             )
 
 
@@ -2329,23 +2362,60 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     assert js_set == interact.COLLAPSE_CHARS
 
 
-def test_exhibit_exclusions_name_exactly_the_declared_exhibits():
-    """A choose group's affordance rules exclude exhibits in their own selectors
-    (`:not(<tag> *)`), because a stylesheet cannot read the registry the runtime's
-    quoted() dispatches on. So the spelled tags are held to the declaration: the
-    set excluded is exactly the set declaring x-exhibit. A second exhibit widget
-    fails here by being declared — naming the rules to grow — instead of keeping
-    the hand and the joined shape on a group quoted precisely so as not to offer
-    them."""
-    theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
-    spelled = set(re.findall(r":not\((lf-[a-z-]+) \*\)", theme))
+def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
+    """A choose group's affordance rules stand down inside an exhibit in their own
+    selectors, because a stylesheet cannot read the registry the runtime's quoted()
+    dispatches on. What they exclude is the paint that declaration leaves on the
+    page (data-lf-exhibit, markDeclared) rather than the widgets declaring it, so
+    the layer that ships an exhibit and the layer whose rules withhold the hand need
+    not be the same one — the shape a tag list cannot have.
+
+    Every ancestor exclusion in the rules of the composed theme is read, not the
+    exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
+    and the failure it causes is a project's own widget silently outside the answer.
+    Comments come off first, because two of them quote this very selector — left in,
+    the set could be satisfied with every rule that carries the exclusion deleted.
+
+    The marker is then held to what `markDeclared` actually paints for x-exhibit and
+    to a widget declaring it: either missing leaves every one of those rules excluding
+    nothing on any page, which renders as a quoted group offering the pick it exists
+    to withhold. Not the pick itself, which quoted() refuses at the layer's own door:
+    what is lost is that a mention stops looking like a mention. Which of
+    markDeclared's two tables the declaration sits in is a different question — where
+    the fact holds — and the browser answers it, in a reply as well as in the
+    document.
+
+    What this cannot see is one rule of ten dropping its exclusion while the others
+    keep theirs: a set does not count. That reading is the browser's."""
+    theme = re.sub(
+        r"/\*.*?\*/",
+        "",
+        interact.layered_theme([interact.ASSETS, interact.BUNDLED]),
+        flags=re.DOTALL,
+    )
+    excluded = {
+        inside.removesuffix(" *")
+        for found in re.finditer(r":not\(", theme)
+        if (inside := _balanced(theme, found.end())).endswith(" *")
+    }
+    assert excluded == {":where([data-lf-exhibit])"}, (
+        f"the theme's ancestor exclusions are {excluded}, and the one thing a rule "
+        "may ask to stand down inside is the painted exhibit marker. A tag spelled "
+        "here answers for the layer that ships it and for no other; a second marker "
+        "is a second question, and belongs to whichever test owns that one; an empty "
+        "set is rules that stopped standing down inside an exhibit at all"
+    )
+    assert _marker_for("x-exhibit") == "data-lf-exhibit", (
+        "the theme excludes data-lf-exhibit and markDeclared paints "
+        f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
+        "page and an exhibit keeps every affordance these rules meant to withhold"
+    )
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
-    declared = {
+    assert [
         tag
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-exhibit")
-    }
-    assert spelled == declared, (spelled, declared)
+    ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():

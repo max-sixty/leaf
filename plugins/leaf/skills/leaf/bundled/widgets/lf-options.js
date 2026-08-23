@@ -80,7 +80,7 @@
  * once opened — settling is a sweep, not a lock, and the summary line follows whatever is
  * chosen, including back to a bare "Settled" when the reader clears it.
  *
- * Inside a <lf-specimen> the group is quoted — exhibited, not offered — so it takes the
+ * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
  * same path as a group that never declared `choose`: the mark is a span, the click
  * handler is never wired, there is no box for words, and an example decision can't be
  * answered. `settled` still collapses there, because quoting gates the action channel and

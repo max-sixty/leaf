@@ -531,7 +531,8 @@ behavior, the layer implements it once. Current examples are:
 
 - `renderSaid` turns `x-says` values into real selectable text.
 - `renderQuiet` gives `x-paints` facts a clipped spoken reading.
-- `markDeclared` exposes the declared width model and inline run to the theme.
+- `markDeclared` exposes the declared width model, inline run, and quoting to
+  the theme.
 - `markSettled` paints the holder's authoritative settlement.
 - `renderRetired` marks slots retired by the declared holder relation.
 - `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
@@ -553,9 +554,12 @@ Where the fact belongs to the registry rather than to the rule that draws the
 box, `markDeclared` paints it and the selector reads the paint. The lists that
 ask whether a suggestion slot or a variant holds block content invert HTML's
 phrasing content, which answers "block" for every custom element, so they
-exclude `[data-lf-inline]` rather than the tags that declare `x-inline`. A tag
-name in a shared list is a closed vocabulary wherever it appears, and one layer's
-tag written into another layer's stylesheet is that plus a leak.
+exclude `[data-lf-inline]` rather than the tags that declare `x-inline`. The
+affordance rules that draw a choose group as a control exclude the descendants of
+`[data-lf-exhibit]` for the same reason, asking in CSS the question `quoted()`
+asks in JavaScript. A tag name in a shared list is a closed vocabulary wherever it
+appears, and one layer's tag written into another layer's stylesheet is that plus
+a leak.
 
 ### Module contract
 

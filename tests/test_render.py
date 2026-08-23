@@ -213,7 +213,10 @@ BOARD_PAGE = leaf_page(
 
 
 # Exhibited widgets beside live ones, so a missing affordance can be pinned on the
-# quoting rather than on a broken upgrade.
+# quoting rather than on a broken upgrade. Both forms of a question are quoted, because
+# the card's answer to the pointer is a lift and the row's is a wash — two rules keyed on
+# the form, and a corpus holding only quoted cards leaves the row's pair matching nothing
+# anywhere.
 SPECIMEN_PAGE = leaf_page(
     "specimen",
     """
@@ -234,9 +237,14 @@ SPECIMEN_PAGE = leaf_page(
       <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
     </lf-column>
   </lf-board>
+  <lf-options id="quoted-rows" choose>
+    <lf-option id="q-row-keep">Keep the nightly job</lf-option>
+    <lf-option id="q-row-drop">Drop it and poll on demand</lf-option>
+  </lf-options>
   <lf-options id="quoted-settled" choose settled>
     <lf-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
     <lf-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
+    <lf-option id="q-signed" recommended><strong>Signed token</strong> No store.</lf-option>
   </lf-options>
   <p id="q-prose">Refill rules:
     <lf-suggestion id="quoted-suggestion">
@@ -247,6 +255,15 @@ SPECIMEN_PAGE = leaf_page(
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" recommended><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options>
+<lf-options id="live-rows" choose>
+  <lf-option id="l-row-keep">Keep the nightly job</lf-option>
+  <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
+</lf-options>
+<lf-options id="live-settled" choose settled>
+  <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
+  <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
+  <lf-option id="l-signed" recommended><strong>Signed token</strong> No store.</lf-option>
 </lf-options>
 <lf-board id="live-board">
   <lf-column id="l-col" label="Doing">
@@ -8079,14 +8096,114 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         pad
     )
 
+    # Nor in paint, which is the theme's own half of the promise rather than the
+    # module's. Three offers a page makes standing still: the hand a card wears, the
+    # joined box a group of them is drawn as, and the rail each card gives up to a
+    # keyboard address. All three are withheld by the affordance rules excluding what
+    # stands inside a painted exhibit (data-lf-exhibit), so a rule that lost its
+    # exclusion shows here while every handler stays unwired. The live pair is the
+    # control — without it a theme that had stopped drawing the offer at all would
+    # read exactly like one that withholds it from the exhibit.
+    offer = """el => { const cs = getComputedStyle(el);
+        return { cursor: cs.cursor, box: cs.borderTopWidth, rail: cs.paddingLeft }; }"""
+    quoted_card, live_card = (
+        page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
+    )
+    quoted_box, live_box = (
+        page.locator(sel).evaluate(offer) for sel in ("#quoted-group", "#live-group")
+    )
+    assert live_card["cursor"] == "pointer" and live_box["box"] != "0px", (
+        "the live group makes no offer either, so the exhibit's missing one says "
+        f"nothing: card {live_card}, group {live_box}"
+    )
+    assert quoted_card["cursor"] != "pointer", (
+        f"a quoted card invites the pointer: {quoted_card['cursor']}"
+    )
+    assert quoted_box["box"] == "0px", (
+        f"the exhibit is drawn as a control to answer: {quoted_box['box']} border"
+    )
+    # The rail is the third at-rest offer and the quietest: a live card gives up its
+    # leading inches to the digit a keyboard pick answers by, and an exhibit takes no
+    # keys, so room held there is room held for an address that can never arrive.
+    assert quoted_card["rail"] != live_card["rail"], (
+        f"the exhibit reserves the keyboard rail a live card does: {quoted_card['rail']}"
+    )
+
+    # And under the pointer. A live choose group is a joined control, and a cell that rose
+    # would pull away from the hairlines holding the group together, so what both forms
+    # answer a pointer with here is the joined group's wash — the card's lift belongs to a
+    # group that has come apart again, which is the settled pair at the end of this test.
+    # Both forms anyway, and the second is not the first repeated: a row has a wash rule of
+    # its own with its own exclusion, outranked by the joined group's wherever that one
+    # applies, so it is the quoted read that answers for it. Withdraw its exclusion and the
+    # quoted row takes --chip where it wore nothing.
+    #
+    # The live twin goes first, and is both the control and the edge the quoted read is
+    # anchored on. Its rest value is read while the pointer is on the other one, and the
+    # exhibit's while the pointer is on the live one — an absence has no edge of its own,
+    # so each is read across the gesture that would have produced it.
+    prop = "background-color"
+    css = f"el => getComputedStyle(el).getPropertyValue({prop!r})"
+    for quiet, live, form in (
+        ("#q-shim", "#l-shim", "card"),
+        ("#q-row-keep", "#l-row-keep", "row"),
+    ):
+        live_rest = page.locator(live).evaluate(css)
+        page.locator(live).hover()
+        expect(page.locator(live)).not_to_have_css(prop, live_rest)
+        quiet_rest = page.locator(quiet).evaluate(css)
+        page.locator(quiet).hover()
+        expect(page.locator(live)).to_have_css(prop, live_rest)
+        assert page.locator(quiet).evaluate(css) == quiet_rest, (
+            f"a quoted {form} answers the pointer: "
+            f"{page.locator(quiet).evaluate(css)} against {quiet_rest} at rest"
+        )
+
     # View state still runs inside a specimen: the settled group collapsed.
     assert page.locator("#quoted-settled lf-option:visible").count() == 0
     page.locator("#quoted-settled .lf-settled").click()
-    assert page.locator("#quoted-settled lf-option:visible").count() == 2
+    assert page.locator("#quoted-settled lf-option:visible").count() == 3
 
     # The exception, once that group is open: the card the document marks does
     # carry a mark, so it keeps the strip a live pick would.
     assert page.locator("#q-lax").evaluate(pad) == page.locator("#l-shim").evaluate(pad)
+
+    # And the lift, which needs both groups open to reach: a settled group comes apart
+    # again when the reader opens it, and loose cards answer the pointer by rising where
+    # joined cells answer with a wash. Read here rather than with the other two because
+    # opening the quoted group is what the lines above are about.
+    #
+    # Three cards, because the lift is three rules and each states the ring it layers
+    # over — a plain card, the one the document recommends, and the one it records as
+    # chosen. They differ by one attribute in the selector and carry the same exclusion,
+    # so the pair that lost one would be the pair nothing here hovered.
+    page.locator("#live-settled .lf-settled").click()
+    # Both folds have to be over before a card's box-shadow means anything. Opening a
+    # group brings its rings in on the same transition the lift uses, so a rest value
+    # sampled while that runs is the accent part-way to itself — and the later wait for
+    # the pointer to have left then waits on a frame that existed once. Asked of the two
+    # groups rather than the document, whose own chrome is never quiet for long.
+    page.wait_for_function(
+        """() => ['#live-settled', '#quoted-settled'].every(
+            sel => document.querySelector(sel)
+                .getAnimations({subtree: true}).length === 0)"""
+    )
+    shadow = "el => getComputedStyle(el).boxShadow"
+    for quiet, live, card in (
+        ("#q-bearer", "#l-bearer", "plain"),
+        ("#q-signed", "#l-signed", "recommended"),
+        ("#q-lax", "#l-lax", "chosen"),
+    ):
+        live_rest = page.locator(live).evaluate(shadow)
+        page.locator(live).hover()
+        expect(page.locator(live)).not_to_have_css("box-shadow", live_rest)
+        quiet_rest = page.locator(quiet).evaluate(shadow)
+        page.locator(quiet).hover()
+        expect(page.locator(live)).to_have_css("box-shadow", live_rest)
+        assert page.locator(quiet).evaluate(shadow) == quiet_rest, (
+            f"a quoted {card} card lifts under the pointer: "
+            f"{page.locator(quiet).evaluate(shadow)} against {quiet_rest} at rest"
+        )
     page.close()
 
 
@@ -9399,6 +9516,16 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     # The exhibit takes the click first, so anything it sends would reach the log
     # ahead of the live group's pick — then the live group takes its own.
     assert page.locator('#rp-quoted .lf-pick[role="button"]').count() == 0
+    # And no hand over it, which is what the marker being painted anywhere buys: the
+    # affordance rules ask whether an element stands inside [data-lf-exhibit], and the
+    # runtime paints that on a widget wherever it renders. Painted in the document
+    # alone, this exhibit would offer the pick the live question above it offers.
+    hand = "el => getComputedStyle(el).cursor"
+    assert page.locator("#rp-stage").evaluate(hand) == "pointer", (
+        "the reply's live question shows no hand either, so the exhibit's missing "
+        "one is not the quoting"
+    )
+    assert page.locator("#rp-memory").evaluate(hand) != "pointer"
     page.locator("#rp-memory").click()
     page.locator("#rp-stage").click()
 

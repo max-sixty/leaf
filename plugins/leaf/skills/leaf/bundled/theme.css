@@ -246,21 +246,55 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--o
  *
  * A quoted group is exhibited, not offered, so every rule that says "this takes input" —
  * the hand, the lift, the joined shape, the reserved strips and columns, the hover wash —
- * excludes it where the rule is written (`:not(lf-specimen *)`). lf-specimen used to unkey
- * these selector by selector instead, and that shape lost twice: a plainly-spelled guard
- * outranked the unkeying (the joined cells kept their hover wash inside an exhibit), and
- * every affordance added after the unkey block was one nobody remembered to unkey. The
- * exclusion travels with the affordance, so the next one carries its own. */
+ * excludes it where the rule is written (`:not(:where([data-lf-exhibit]) *)`). A block
+ * keyed to the exhibit used to unkey these selector by selector instead, and that shape
+ * lost twice: a plainly-spelled guard outranked the unkeying (the joined cells kept their
+ * hover wash inside an exhibit), and every affordance added after the unkey block was one
+ * nobody remembered to unkey. The exclusion travels with the affordance, so the next one
+ * carries its own — including the two that can paint nothing inside an exhibit whether
+ * they carry it or not. The mark's warmed ring is drawn on a `.lf-pick`, which a quoted
+ * option grows only where the document marks it chosen, and the rule excludes `[chosen]`;
+ * a chosen row's hover wash is the colour that row already wears at rest. What makes each unobservable is a
+ * module's choice or another rule, neither of which is this rule's to rest on, so both
+ * carry the exclusion anyway. A flip of either comes back green, and that is the reading
+ * to expect rather than a gap to go looking for.
+ *
+ * The marker rather than the tag. Which widgets quote what they hold is the registry's to
+ * say (x-exhibit) and a stylesheet cannot read it, so the runtime paints the declaration
+ * where a selector can reach it (data-lf-exhibit, leaf.js markDeclared) and the descendant
+ * combinator asks the descendant half of quoted()'s question: does this element stand
+ * inside one. quoted() answers for the element itself too, and that half is nobody's
+ * here while lf-options is not an exhibit — a layer declaring it one would have to say
+ * so in its own rules. Spelled, it was `lf-specimen` ten times over: the tag this layer
+ * happens to ship, and no answer at all for a project whose exhibit has another name.
+ *
+ * In :where(), which is the idiom the phrasing lists set (theme.css) and not a contest
+ * being won here — nothing in this theme changes hands either way. It keeps the
+ * exclusion a question about where the element sits rather than a claim on the cascade,
+ * and it does one thing more than it does there: the marker is the only thing inside
+ * these :not()s, where in a phrasing list it stands among type names, so each of these
+ * ten weighs a type column less than it did with the tag spelled. That direction is the
+ * safe one to move in — these rules grant an affordance, so a contest lost withholds it
+ * rather than offering what an exhibit cannot take.
+ *
+ * What the tag bought that the marker does not is the page that never runs the runtime,
+ * where nothing paints the mark and a quoted group would keep the whole offer. No shipped
+ * page is that page: the two carrying no script at all (docs/index.html and
+ * docs/how-it-works.html) stage specimens whose groups never declare `choose`, which is
+ * what all ten rules key on. A copy and paper are already out by the guards above. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(lf-specimen *) > lf-option { cursor: pointer;
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { cursor: pointer;
                          transition: box-shadow .12s ease, transform .12s ease; }
-  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option:hover {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
+                       > lf-option:hover {
                          transform: translateY(-1px);
                          box-shadow: 0 3px 10px rgba(0, 0, 0, .14); }
-  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option[recommended]:hover {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
+                       > lf-option[recommended]:hover {
                          box-shadow: 0 0 0 1px var(--accent), 0 3px 10px rgba(0, 0, 0, .14); }
-  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option[chosen]:hover {
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
+                       > lf-option[chosen]:hover {
                          box-shadow: 0 0 0 1px var(--ok), 0 3px 10px rgba(0, 0, 0, .14); }
  }
 }
@@ -279,8 +313,8 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--o
 lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(lf-specimen *):has(> lf-option > strong) > lf-option {
-                     padding-bottom: 32px; }
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
+                   > lf-option { padding-bottom: 32px; }
  }
 }
 lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
@@ -353,7 +387,7 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  * specificity for the same reason they are. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(lf-specimen *) > lf-option:not([chosen]):is(:hover,
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
                      :has(> .lf-pick:focus-visible)) > .lf-pick::before {
                      border-color: var(--muted); }
  }
@@ -429,14 +463,15 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
  * an exported copy has had its scripts dropped, so a group drawn as a control in either
  * would be offering what the medium cannot take. Both get the page without the offer by
  * never being handed it rather than by undoing it — the bargain the box for words already
- * makes — so the cards come apart again and wear the rings they print. Not `settled` either, for the same reason in a different medium: a retired decision
- * is a line the user opens, and drawing the group as a control around it would put one
- * box inside another and offer a question nobody is asking. Opened, its cards come back as
+ * makes — so the cards come apart again and wear the rings they print. Not `settled`
+ * either, for the same reason in a different medium: a retired decision is a line the
+ * user opens, and drawing the group as a control around it would put one box inside
+ * another and offer a question nobody is asking. Opened, its cards come back as
  * cards — with their rings, since the ring and the container are the same decision made
  * twice and a group that isn't joined has to say the offer itself. */
 @media screen {
  html:not(.lf-copy) {
-  lf-options[choose]:not([settled]):not(lf-specimen *) {
+  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
     /* The joined group draws a frame, so it says so, like every box that draws one
@@ -536,7 +571,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
    * Live pages only, with the group's own shape: a copy and paper are handed no keys, so
    * they keep the options the markup describes rather than a rail held for an address
    * nothing can type. */
-  lf-options[choose]:not(lf-specimen *) > lf-option { padding-left: 30px; }
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { padding-left: 30px; }
  }
 }
 /* The row form: a list, so it reads like one. Every row opens at the same column with
@@ -587,10 +622,10 @@ lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
  * every one of which lit under a pointer that could not give one. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(lf-specimen *):not(:has(> lf-option > strong)) > lf-option:hover {
-                     background: var(--chip); }
-  lf-options[choose]:not(lf-specimen *):not(:has(> lf-option > strong)) > lf-option[chosen]:hover {
-                     background: var(--ok-tint); }
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+                   > lf-option:hover { background: var(--chip); }
+  lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+                   > lf-option[chosen]:hover { background: var(--ok-tint); }
  }
 }
 /* The apparatus takes a cell each and claims none of the row's free width, so what is
@@ -1144,9 +1179,10 @@ lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
  * kept where each pressable look is granted, not undone here: every affordance rule in
  * the lf-options section — the hand, the lift, the joined shape, the reserved strip and
  * address column, the row wash — excludes exhibits in its own selector
- * (`:not(lf-specimen *)`), because an unkeying block here lost every contest against a
- * plainly-spelled guard and missed every affordance written after it. The upgrade holds
- * the half no stylesheet can: the click handler (quoted(), lf-options.js). What stays
+ * (`:not(:where([data-lf-exhibit]) *)`, the marker the runtime paints from this entry's
+ * x-exhibit), because an unkeying block here lost every contest against a plainly-spelled
+ * guard and missed every affordance written after it. The upgrade holds the half no
+ * stylesheet can: the click handler (quoted(), lf-options.js). What stays
  * quoted is the document's state — a chosen card's mark and ring — because a mention
  * shows the decision without offering it. */
 

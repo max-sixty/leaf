@@ -227,9 +227,9 @@ customElements.define(
       // quoting gates the action channel, never what a change looks like.
       this.#emphasize();
       this.#voice();
-      // Quoted material is exhibited, not offered: a suggestion inside a
-      // <lf-specimen> shows what a pending change looks like, so it keeps the
-      // marks the theme draws and never grows controls to decide it with.
+      // Quoted material is exhibited, not offered: a suggestion inside an
+      // exhibit shows what a pending change looks like, so it keeps the marks
+      // the theme draws and never grows controls to decide it with.
       if (quoted(this)) return;
       // The line the change starts on, named for the row to hang from. Empty, so
       // it takes no space and says nothing; ids match [a-z0-9-] and `version check` keeps

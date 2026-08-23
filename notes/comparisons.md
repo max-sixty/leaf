@@ -623,11 +623,12 @@ directory with an address on your disk. And the return path in every one of them
 describes a live run — an action into a running agent, a mutable store, nothing that
 outlives the session — where what the log holds is exactly what survives one. W3C Web
 Annotation is the one published standard that does cover leaf's ground: a comment
-anchor's `{quote, prefix, suffix}` is its TextQuoteSelector with `exact` renamed.
-Taking the standard's field name would be nearly free at this stage, and would buy
-alignment with a vocabulary nothing in the loop reads; the half that matters —
-resolution, where unique-context confirmation and detachment over ordinals are leaf's
-own — is the half the standard leaves unspecified.
+anchor's `{quote, prefix, suffix}` is its TextQuoteSelector, whose first field it
+spells `exact`. Taking that spelling is the cheapest adoption on this page, and still
+not worth it: the standard names the fields and stops there. It specifies no way of
+finding the passage again, so leaf writes its own — unique-context confirmation, and
+detachment rather than a fallback to ordinals — and a shared field name would
+advertise a matcher that isn't shared.
 
 The door worth watching is none of those, and it is not a format. `@json-render/mcp`
 serves a spec as an MCP App — the server returns a UI resource, the host renders it in a

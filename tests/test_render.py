@@ -14642,6 +14642,12 @@ session.</p></details>
         f"<p id='t{i}'>Tail {i}. " + "Words. " * 20 + "</p>" for i in range(12)
     )
 )
+# What the chord is offering right now, in the order it drew it. Read through the
+# retrying assertion rather than evaluated: the chips are painted on a frame of the
+# runtime's own (paintHere), so a press and a plain read race each other. Each chip says
+# a whole address, so one reading answers which lists are on offer, which members of
+# each, and in what order — three facts a count and a bare digit answered separately.
+CHIPS = ".lf-addresses > .lf-address"
 
 
 NOTED_PAGE = leaf_page(
@@ -14774,6 +14780,143 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.close()
 
 
+# Addressable things that start within a chip's width of each other: a run of footnote
+# markers, and a link that is the whole of a summary — the second being a member of two
+# lists at one corner, which nothing could produce while only one list painted at a time.
+CROWDED_PAGE = leaf_page(
+    "crowded",
+    """
+<h1 id="t">Crowded</h1>
+<p id="notes">Claims rest on sources<a id="fn1" href="#s1">1</a><a id="fn2" href="#s2">2</a><a
+id="fn3" href="#s3">3</a> and are checked below.</p>
+<details id="dsc"><summary id="dsc-head"><a id="lk-sum" href="#s1">The sources</a></summary>
+<p id="s1">One.</p><p id="s2">Two.</p><p id="s3">Three.</p></details>
+""",
+)
+
+
+def test_no_address_is_drawn_on_top_of_another(browser, serve):
+    """An address the reader can read is one no other address is sitting on.
+
+    Chips are centred on the corner their member starts at, and a chip is wider than it was
+    — it carries a letter now. Two addressable things can start within that width: markers
+    in a footnote run, or a link that is the whole of a summary, which is one corner in two
+    lists at once and could not arise while a letter had to be pressed before anything was
+    painted.
+
+    Stacked, they do not read as two. The lower one shows an edge and the upper one's digit
+    is the number the reader takes for the link underneath — so the promise is wrong rather
+    than merely crowded, and the press goes somewhere else. The covered chip is taken down
+    instead: its address still works, and the page has simply not said it, which is the
+    answer already given for a member scrolled off screen.
+
+    What is asserted is the property and not a count, because how many survive is the
+    font's answer about how wide the keys are."""
+    page, errors = open_page(browser, serve(CROWDED_PAGE))
+    resized(page, 1280, 800)
+    page.keyboard.press("g")
+    # Something is on offer, or the rest of this proves nothing: four links and a
+    # disclosure, of which the crowded ones are meant to lose their chips.
+    expect(page.locator(CHIPS).first).to_be_visible()
+
+    piles = page.evaluate(
+        """() => {
+             const boxes = [...document.querySelectorAll('.lf-addresses > .lf-address')]
+               .map(chip => ({keys: chip.textContent, r: chip.getBoundingClientRect()}));
+             const hit = (a, b) => a.left < b.right && b.left < a.right
+                                && a.top < b.bottom && b.top < a.bottom;
+             const found = [];
+             for (let i = 0; i < boxes.length; i++)
+               for (let j = i + 1; j < boxes.length; j++)
+                 if (hit(boxes[i].r, boxes[j].r))
+                   found.push(boxes[i].keys + ' under ' + boxes[j].keys);
+             return {found, drawn: boxes.map(b => b.keys)};
+           }"""
+    )
+    assert piles["found"] == [], (
+        f"addresses are drawn on top of each other: {piles['found']} "
+        f"(drawn: {piles['drawn']})"
+    )
+    # And the ones that survived still say what they reach: pressing the first link's own
+    # digit lands on that link and not on the neighbour whose chip it might have worn.
+    first = piles["drawn"][0]
+    letter, digit = first.split(" ")
+    page.keyboard.press(letter)
+    page.keyboard.press(digit)
+    assert page.evaluate("() => document.activeElement.id") in {
+        "fn1",
+        "fn2",
+        "fn3",
+        "lk-sum",
+        "dsc-head",
+    }, f"{first} did not reach an addressable member"
+    assert errors == []
+    page.close()
+
+
+# Links all the way down, so one of them starts in the corner the key line stands in.
+FOOTED_PAGE = leaf_page(
+    "footed",
+    """
+<h1 id="t">Footed</h1>
+"""
+    + "\n".join(
+        f'<p id="p{i}"><a id="lk{i}" href="#t">Source {i}</a> says so, at some length, with '
+        + "words enough to carry the paragraph onto a second line. " * 2
+        + "</p>"
+        for i in range(9)
+    ),
+)
+
+
+def test_an_address_is_never_drawn_on_the_key_line(browser, serve):
+    """The chord's own legend is the one thing its chips must not cover.
+
+    A chip is placed from its member's corner in a layer above everything, and the key line
+    stands in the bottom-left corner of that same layer. A member whose first line begins
+    there therefore wears its address on top of the line — which is the legend saying what
+    the digits mean, on screen for exactly as long as the chips are. The banner at the top
+    has always been dodged; the line at the foot was not, and the change that paints every
+    list at once put four times as many chips in reach of it.
+
+    Dropped rather than nudged clear: moved up, the chip would name a member it no longer
+    sits on, and the address works whether or not the page draws it."""
+    page, errors = open_page(browser, serve(FOOTED_PAGE))
+    resized(page, 900, 700)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+
+    # Swept rather than asked once. The line's height is reserved at the document's foot,
+    # so the end of the page is exactly where this cannot happen; what puts a member in the
+    # corner is an ordinary scroll position with a link resting on the bottom edge. Each
+    # step waits for the runtime's own paint frame, since the chips follow a scroll on a
+    # frame of their own and boxes read in the same turn are the positions it just left.
+    fouled = page.evaluate(
+        """async () => {
+             const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+             const line = () => document.querySelector('.lf-keyline').getBoundingClientRect();
+             const hit = (a, b) => a.left < b.right && b.left < a.right
+                                && a.top < b.bottom && b.top < a.bottom;
+             const out = [];
+             const room = document.body.scrollHeight - document.body.clientHeight;
+             for (let i = 0; i <= 20; i++) {
+               document.body.scrollTo(0, Math.round((room * i) / 20));
+               await frame(); await frame();
+               const bar = line();
+               for (const chip of document.querySelectorAll('.lf-addresses > .lf-address'))
+                 if (hit(chip.getBoundingClientRect(), bar))
+                   out.push(chip.textContent + ' at ' + Math.round(document.body.scrollTop));
+             }
+             return out;
+           }"""
+    )
+    assert fouled == [], (
+        f"addresses are drawn over the key line that explains them: {fouled}"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     """g names a list and then a place in it. The letter is what made the chord general:
     it was one list deep — g then a digit, and the digit meant a reply box — so the one
@@ -14782,10 +14925,11 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
 
     So each list states itself, and every surface reads the table: the letters on the line
     are the lists the page has, the digits are the members the named one holds, each member
-    wears its own digit while it is aimed at, and a reply box's placeholder speaks the whole
-    address it answers to. What is asserted here is that the lists behave as one
-    mechanism — a comment, an ask, a link and a disclosure reached the same way — rather
-    than that any of them works, which is each list's own business elsewhere."""
+    on screen wears its own two-key address as a chip from the moment the chord is armed,
+    and a reply box's placeholder speaks the whole address it answers to. What is asserted
+    here is that the lists behave as one mechanism — a comment, an ask, a link and a
+    disclosure reached the same way — rather than that any of them works, which is each
+    list's own business elsewhere."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
 
@@ -14829,8 +14973,11 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     expect(line).to_contain_text("links")
     expect(line).to_contain_text("d 1")
     expect(line).to_contain_text("disclosures")
-    # And nothing wears a digit yet: no list is named, so no digit is a promise.
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    # And the page wears the offer: everything addressable on screen carries its whole
+    # address, so the press that opened the window states what the next one reaches. The
+    # comments are the one list absent, its panel being shut — a chip is drawn from a
+    # member's own visible box, and a shut panel gives none.
+    expect(page.locator(CHIPS)).to_have_text(["a 1", "l 1", "l 2", "d 1"])
     # The chips are the eye's copy of a mode; a reader who cannot see them is told the
     # window opened and what it holds, off the same rows the line just drew — the ranges
     # among them, where a row whose label counts the page used to be read out key by key
@@ -14851,15 +14998,17 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
         "() => document.querySelector('.lf-thread > .lf-compose')"
         ".getBoundingClientRect().left > document.body.clientWidth"
     )
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(3)
+    # The offer narrows to the named list: the links and the disclosure drop their chips,
+    # and the three that arrive say the same two keys their boxes answer to whether or not
+    # anything is armed — the reply box's placeholder reads them out below.
+    expect(page.locator(CHIPS)).to_have_text(["c 1", "c 2", "c 3"])
     assert page.evaluate(
         """() => {
              const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
              const boxes = [...document.querySelectorAll('.lf-thread > .lf-compose')];
              return chips.map((chip, i) => {
                const c = chip.getBoundingClientRect(), b = boxes[i].getBoundingClientRect();
-               return chip.textContent === String(i + 1)
-                 && Math.abs(c.left + c.width / 2 - b.left) < 2
+               return Math.abs(c.left + c.width / 2 - b.left) < 2
                  && Math.abs(c.top + c.height / 2 - b.top) < 2;
              });
            }"""
@@ -14879,7 +15028,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.press("2")
     ta2 = page.locator(f'.lf-thread[data-id="{c2}"] textarea')
     expect(ta2).to_be_focused()
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    expect(page.locator(CHIPS)).to_have_count(0)
     # The focused box claims the send keys; an unfocused one speaks its own address, whole
     # — the chip is the aimed moment's copy of a fact the placeholder states always.
     expect(ta2).to_have_attribute("placeholder", re.compile(r"Reply · (⌘⏎|Ctrl\+⏎)$"))
@@ -14908,7 +15057,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     )
     page.keyboard.press("g")
     page.keyboard.press("a")
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(1)
+    expect(page.locator(CHIPS)).to_have_text(["a 1"])
     assert page.evaluate(
         """() => document.querySelector('.lf-addresses > .lf-address')
                    .getBoundingClientRect().top
@@ -14925,7 +15074,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("l")
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(2)
+    expect(page.locator(CHIPS)).to_have_text(["l 1", "l 2"])
     assert page.evaluate(
         """() => {
              const links = [...document.querySelectorAll('#refs a[href]')];
@@ -14955,7 +15104,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.press("g")
     expect(line).to_contain_text("l 1–2")
     page.keyboard.press("l")
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("2")
     expect(page.locator("#lk2")).to_be_focused()
     expect(line).to_contain_text("follow")
@@ -14979,7 +15128,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("d")
-    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(1)
+    expect(page.locator(CHIPS)).to_have_text(["d 1"])
     assert page.evaluate(
         """() => {
              const c = document.querySelector('.lf-addresses > .lf-address')
@@ -18360,7 +18509,15 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     Which is why the look is what this compares and placement is not: the chord's chips
     are placed from the viewport in a layer of their own, and an option's is anchored
     from outside the group that would otherwise clip it (see
-    test_a_questions_digits_are_drawn_whole). Same chip, two boxes to hang it from."""
+    test_a_questions_digits_are_drawn_whole). Same chip, two boxes to hang it from.
+
+    Width is the third kind, and it is content: a chip is as wide as the keys it carries,
+    and these two carry different numbers of them — a pick answers one digit, the chord
+    wants its letter as well. So the shared minimum and padding are compared and the
+    result of them is not, and the difference is asserted in the direction it has to run.
+    The face is compared because it is the half a letter made load-bearing: in the
+    document's sans a lowercase l is a bare stroke, and the chord's second link wore what
+    read as 12."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         interact.append_event(serve.page_dir, event)
@@ -18373,15 +18530,24 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     expect(picked).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("c")
-    addressed = page.locator(".lf-addresses > .lf-address").first
+    addressed = page.locator(CHIPS).first
     expect(addressed).to_be_visible()
 
-    face = """el => { const s = getComputedStyle(el);
-        return Object.fromEntries(["width", "height", "border-top-width",
-            "border-top-style", "border-top-color", "border-radius", "background-color",
-            "color", "font-size", "line-height", "text-align", "z-index"]
-            .map(p => [p, s.getPropertyValue(p)])); }"""
-    on_page, in_panel = picked.evaluate(face), addressed.evaluate(face)
+    # Both faces resolved and read inside one turn. The chord's layer is rebuilt on every
+    # repaint — and an armed window repaints on every scroll frame — so an element held
+    # across a round trip can be detached by the time it is asked, and a detached node
+    # answers every property with the empty string. Read one at a time this passed alone
+    # and failed under the parallel suite, which is the load that opens the window.
+    faces = """() => {
+        const read = el => { const s = getComputedStyle(el);
+            return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
+                "border-top-width", "border-top-style", "border-top-color",
+                "border-radius", "background-color", "color", "font-family", "font-size",
+                "line-height", "text-align", "z-index"]
+                .map(p => [p, s.getPropertyValue(p)])); };
+        return [read(document.querySelector('#tq-one .lf-address')),
+                read(document.querySelector('.lf-addresses > .lf-address'))]; }"""
+    on_page, in_panel = page.evaluate(faces)
     assert on_page == in_panel, (
         "the two keyboard addresses are drawn differently:\n  "
         + "\n  ".join(
@@ -18389,6 +18555,43 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
             for k in on_page
             if on_page[k] != in_panel[k]
         )
+    )
+    # A key chip is set the way every other key chip on the product is: the reader meeting
+    # the same key on the line and on the page reads one glyph for it, and the two rules
+    # that dress the two — one inside the chrome's scope, one outside it, so they cannot be
+    # one rule — agree on the shape by hand. Asserted rather than asserted-in-a-comment.
+    line_chip = page.evaluate(
+        """() => { const el = document.querySelector('.lf-keyline kbd');
+             const s = getComputedStyle(el);
+             return {"font-family": s.fontFamily, "border-radius": s.borderRadius}; }"""
+    )
+    assert "mono" in on_page["font-family"], (
+        f"a keyboard address is not set in the key face: {on_page['font-family']}"
+    )
+    for key in line_chip:
+        assert line_chip[key] == on_page[key], (
+            f"the line and the page dress a key differently — {key}: "
+            f"{line_chip[key]!r} vs {on_page[key]!r}"
+        )
+
+    # And what each is wide enough for is its own keys. The pick's one digit comes out at
+    # the shared floor exactly, which is the half a compared `min-width` cannot prove: a
+    # wearer restating `width: 19px` on its own copy would raise nothing and pass every
+    # property above. The chord's letter and digit come out past that floor. Both are read
+    # from the rendered box, since the widths are the key face's answer and not the
+    # stylesheet's.
+    floor = float(on_page["min-width"].removesuffix("px"))
+    widths = page.evaluate(
+        """() => ['#tq-one .lf-address', '.lf-addresses > .lf-address']
+                   .map(sel => document.querySelector(sel)
+                                 .getBoundingClientRect().width)"""
+    )
+    assert widths[0] == floor, (
+        f"a one-key chip is not at the shared minimum the rule states: {widths[0]} vs "
+        f"{floor} — a wearer has restated a width of its own"
+    )
+    assert widths[0] < widths[1], (
+        f"the chord's two-key chip is not wider than a pick's one-key chip: {widths}"
     )
     assert errors == []
     page.close()

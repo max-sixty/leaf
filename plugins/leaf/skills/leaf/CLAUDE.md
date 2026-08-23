@@ -1104,18 +1104,28 @@ member. `ADDRESSES` is the whole list vocabulary. Each entry declares:
 - its letter and user-facing name;
 - the sentence shown in help;
 - its members in stable address order;
-- any capability predicate;
-- how to show the list;
+- the box a chip is placed from, where that is not the member itself;
+- how to show a list that draws nothing until asked;
 - how to arrive at one member.
 
-Consumers do not branch on which address list is active. Adding a list adds one
-entry. The page-level `g` row promises only the mode; ranges belong to the list
-rows inside it.
+A list's capability is not declared: it is whether the list is non-empty, read
+where the row asks. Consumers do not branch on which address list is active.
+Adding a list adds one entry. The page-level `g` row promises only the mode;
+ranges belong to the list rows inside it.
+
+Arming the mode paints the whole offer: every list contributes chips at once, and
+a letter narrows them to its own list. A chip carries the letter and the digit,
+and keeps both after the letter is pressed, because it states which member this
+is rather than how much of the address is left to type. `addressKeys` is the one
+spelling of that pair; the key line's ranges and the placeholder that speaks a
+reply box's whole address both build on it.
 
 Addresses are stable within the document. The first addressable members do not
 change identity as the reader scrolls. Chips are painted only for members whose
 `shownRect` is visible, but an off-screen member remains reachable by the same
-address. Chips live in runtime chrome rather than authored markup.
+address. A list drawn nowhere the reader can see, such as the comments behind a
+shut panel, therefore contributes no chip until its letter reveals it. Chips live
+in runtime chrome rather than authored markup.
 
 `NATIVE` describes the platform controls a chord may land on and the immediate
 word for their next press. A summary says whether it will open or close from its

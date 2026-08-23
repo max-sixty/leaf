@@ -367,7 +367,8 @@ lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
 lf-option .lf-pick:focus-visible { outline: var(--here-ring);
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
- * (.lf-address) — the g chord's own chips are that same fact and wear the same chip.
+ * (.lf-address) — the g chord's own chips are that same fact and wear the same chip,
+ * a letter wider for carrying the list's key as well.
  * Two things are this rule's: where it sits and when it shows.
  *
  * Where: in the column the option reserves for it (the joined control's rules above).
@@ -522,7 +523,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
   }
   /* The column an option's keyboard address stands in: 17px of chip and a margin either
    * side, held whether or not anyone reaches for the keyboard, because the alternative is
-   * a digit arriving into room the option hasn't got. The first drafts all borrowed room
+   * a digit arriving into room the option hasn't got. 17px is the shared rule's floor
+   * rather than a width now, and what keeps the chip at it is that a pick answers one
+   * digit (lf-options.js caps the group at nine); a two-key address is the chord's, and
+   * the chord draws in a layer of its own. The first drafts all borrowed room
    * from somewhere — from the cell's corner, where a corner belongs to the cells around
    * it and the group's own border ran through it, and from the page margin beside the
    * group, which in the grid of that day was another cell's words as soon as the group

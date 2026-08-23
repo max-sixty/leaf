@@ -108,11 +108,14 @@
  * lists — its comments, its asks, its links — and a digit is a place in that list,
  * so `g c 2` is the second reply box and `g l 3` the third link on screen. Which lists
  * there are is one table (ADDRESSES) and no consumer branches on which one is aimed at.
- * Each member of the named list wears its digit as a chip while the window stands, and any
- * other key disarms it and keeps its ordinary meaning, which the dispatcher spells as
- * disarming and walking the stack again. Escape is a binding like any other, and the rung
- * is whichever scope in reach binds it first, so backing out is one layer per press and
- * the promise cannot drift from the press.
+ * Arming shows the whole offer: everything addressable the reader can see wears its own
+ * two-key address as a chip — `c 1`, `l 2` — so the first press states what the rest of
+ * the chord reaches. A letter then narrows the chips to its own list, and reveals that
+ * list where it draws nothing until asked. Any other key disarms the window and keeps its
+ * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
+ * Escape is a binding like any other, and the rung is whichever scope in reach binds it
+ * first, so backing out is one layer per press and the promise cannot drift from the
+ * press.
  *
  * What a key would do right now is state the user can read, not recall. The key line (one
  * quiet fixed line, bottom left) renders the stack outward and drops what the room cannot
@@ -2226,9 +2229,9 @@ style.textContent = `
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
   .lf-btn:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
   .lf-pill:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
-  /* The keyboard address: the digit that reaches this thing right now, worn as a chip
+  /* The keyboard address: the keys that reach this thing right now, worn as a chip
      off its holder's corner so an address arriving moves nothing. The g chord paints one
-     on every member of the list it has aimed at and an option wears the one a pick
+     on every member of every list it offers and an option wears the one a pick
      answers, which is the same promise made on the two sides of the chrome's scope line —
      so it is stated here, at the level both can reach, rather than as the twelve
      declarations each once carried. They had not drifted; nothing was going to say so if
@@ -2236,12 +2239,28 @@ style.textContent = `
      stand in a layer of their own, placed on each member's visible corner, an option's in
      a column that option holds for it. This rule dresses; theirs place and paint.
 
-     Its two numbers are off the ladder because they are the disc rather than the type:
-     a 17px circle with a 1px ring leaves 15px of interior, which is the line the digit
-     is centred on, and 11px is a digit that sits in that interior with room around it.
-     Set at the apparatus rung the glyph would crowd the ring it is drawn inside, the
-     way the pick mark's ✓ would. */
-  .lf-address { display: none; width: 17px; height: 17px; border: 1px solid var(--accent); border-radius: 50%; background: var(--card); color: var(--accent); font-size: 11px; line-height: 15px; text-align: center; z-index: 1; }
+     Its numbers are off the ladder because they are the box rather than the type: a 17px
+     floor with a 1px ring leaves 15px of interior, which is the line the keys are centred
+     on; 11px is a glyph that sits in that interior with room around it; 4px is what holds
+     a second glyph off the ring. Set at the apparatus rung the type would crowd the ring
+     it is drawn inside, the way the pick mark's ✓ would. Border-box is what makes those
+     numbers true on both sides of the scope line: the page sets none, so the copy in an
+     option came out 19px across while the chord's was 17 — the drift this one rule was
+     written to make impossible.
+
+     Mono and a 4px radius because this is a key chip, dressed as the line and the
+     reference dress theirs (.lf-help kbd, .lf-keyline kbd; the render suite compares the
+     two). The face is the half that had to be right: the chord's chips carry the letter
+     now, and in the sans a lowercase l is a bare stroke, so the second link on a page
+     wore what read as 12.
+
+     Wide enough for the keys it carries and no wider, down to that floor: a pick's
+     address is one digit and comes out square, the chord's is a letter and a digit and
+     comes out wide. Stated as a fixed width instead, the second would have needed a rule
+     of its own in the chord's layer, and the family would have been dressed in two
+     places. The keys hold one line, the box being shrink-to-fit and placed from a corner
+     — one near the window's right edge would otherwise break in two. */
+  .lf-address { display: none; box-sizing: border-box; min-width: 17px; height: 17px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: 11px; line-height: 15px; text-align: center; white-space: nowrap; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -2787,7 +2806,7 @@ ${MARK_RULES}
        One size for both surfaces, because a key chip is one thing wherever the reader
        meets it — the same reason .lf-address is stated once for the panel and the page.
        It is the apparatus rung, where the 12px it held was half a pixel off one. */
-    .lf-help kbd, .lf-keyline kbd { font-family: ui-monospace, monospace; font-size: var(--t-6); background: var(--chip);
+    .lf-help kbd, .lf-keyline kbd { font-family: var(--mono); font-size: var(--t-6); background: var(--chip);
       color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
     /* The key line: what a key does right now, rendered from the register the
@@ -2823,9 +2842,10 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's addresses: a chip per member of the list it has aimed at, in a layer
-       of the chrome's own so a digit can be hung on a link set mid-sentence without a
-       span being written into the paragraph. Fixed, because the members are in three
+    /* The g chord's addresses: a chip per member of every list it offers, narrowed to one
+       list once a letter names it, in a layer of the chrome's own so an address can be
+       hung on a link set mid-sentence without a span being written into the paragraph.
+       Fixed, because the members are in three
        different scrollers — the document, the comment panel, a board's own overflow — and
        one layer that follows none of them is what lets a single pass place them all from
        the viewport rects it just read; the pass runs again when anything scrolls under
@@ -8391,7 +8411,18 @@ const range = (n) => (n > 1 ? `1–${n}` : "1");
 // member with a standing surface of its own says the whole motion there — a reply box's
 // placeholder reads "Reply · g c 2" — and the armed chip is built the same way. Written
 // out at each of them, `g` was a letter three sites had agreed on and none could correct.
-const addressLabel = (entry, n) => `${labelOf(GOTO)} ${entry.key} ${n}`;
+//
+// Two readings, because the surfaces drawn inside the window can leave `g` off: the key
+// line above them already says the mode's name, and repeating it on every member of every
+// list is a letter the reader has read. `n` is a digit on a chip and a range on the line,
+// which is the same pair either way — written out at both, the space between letter and
+// digit was a third site to keep in step.
+//
+// The letter stays on a chip after it has been pressed, because a chip states which thing
+// this is rather than how much of the address is left to type. That is the address the
+// reply box's placeholder wears while nothing is armed at all.
+const addressKeys = (entry, n) => `${entry.key} ${n}`;
+const addressLabel = (entry, n) => `${labelOf(GOTO)} ${addressKeys(entry, n)}`;
 
 // Whether the chord is up, and the list a digit addresses once a letter has named one.
 // The armed window is a mode the whole keyboard is in, and a digit pressed inside it
@@ -8439,9 +8470,10 @@ function setChord(on, list = null) {
 // The chips: one per addressable member, drawn in the chrome's layer (addressLayer) and
 // placed from the member's own visible box, so a chip cannot claim room the page has
 // already refused — a thread scrolled out of the panel's list, a card half out of a board.
-// Painted only once a letter has named a list: before that there is no digit to promise,
-// and nine chips over a page nobody has aimed at yet are nine promises the next press
-// won't keep.
+//
+// Each carries its whole address, which is what lets every list paint at once: a bare
+// digit promises nothing until a letter has named a list, so the chips could only follow
+// the letter, and the press that opened the mode moved nothing the reader could see.
 //
 // The layer is the chrome's rather than the page's own markup for the reason every mark is
 // (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
@@ -8450,47 +8482,88 @@ function setChord(on, list = null) {
 //
 // Every chip is built detached and the layer takes them in one write, which is the rule
 // the legend states for this same layer: a chip in the tree is a DOM write, and the next
-// member's rect read after one is a layout forced per member — nine of them on every
-// scroll frame an armed window stands through.
+// member's rect read after one is a layout forced per member — up to nine per list, and
+// every list until a letter narrows them, on every scroll frame an armed window stands
+// through.
 function paintAddresses() {
   const chips = [];
-  if (aimedList) {
+  if (chordArmed) {
     const clips = new Map();
     // The banner stands over the page rather than in it, so shownRect says nothing about
     // it — that reading is what the page's own boxes clip, and the bar clips none of them.
     // The chip is the one thing that has to care, being drawn above the bar: placed on a
-    // corner the bar has taken, it is a digit floating over the status line, addressing
+    // corner the bar has taken, it is an address floating over the status line, naming
     // nothing the reader can see there. So it rides the covered edge, and a member with
     // nothing left below that edge wears no chip at all.
     const covered = banner.getBoundingClientRect().bottom;
-    for (const [i, member] of addressed(aimedList).entries()) {
-      const r = startsAt(aimedList.spot?.(member) ?? member, clips);
-      if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
-      const chip = el("span", "lf-address", String(i + 1));
-      if (r.top < covered) chip.classList.add("lf-in");
-      chip.style.left = `${r.left}px`;
-      chip.style.top = `${Math.max(r.top, covered)}px`;
-      chips.push(chip);
+    // Every list until one is named, and then that one alone: the offer narrows as the
+    // chord advances, and the addresses a reader was already reading keep their places.
+    // Narrows rather than summons, for every list drawn where the reader can see it — a
+    // list that draws nothing until revealed (the shut comment panel) has no box to place
+    // a chip from, so its letter is what both reveals it and paints it.
+    for (const entry of aimedList ? [aimedList] : ADDRESSES) {
+      for (const [i, member] of addressed(entry).entries()) {
+        const r = startsAt(entry.spot?.(member) ?? member, clips);
+        if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
+        const chip = el("span", "lf-address", addressKeys(entry, i + 1));
+        if (r.top < covered) chip.classList.add("lf-in");
+        chip.style.left = `${r.left}px`;
+        chip.style.top = `${Math.max(r.top, covered)}px`;
+        chips.push(chip);
+      }
     }
   }
   addressLayer.replaceChildren(...chips);
+  // A chip that lands on one already drawn is taken down. Two addressable things can start
+  // within a chip's width of each other — footnote markers in a row, a link that is the
+  // whole of a summary — and stacked chips do not read as two: the one underneath shows an
+  // edge, and its neighbour's digit is the number the reader takes for its own. That is the
+  // one failure worse than saying nothing, because pressing it goes somewhere else.
+  //
+  // Dropping it costs nothing the page had promised. A chip is already only drawn for a
+  // member the reader can see, and an address holds whether or not its chip does — so this
+  // is the same answer, given to a member the page has no room to say it about rather than
+  // to one that has scrolled away.
+  //
+  // Every box is read after the one write and every removal made after the last read, so
+  // the pass stays at the single layout the write already cost.
+  //
+  // The key line is standing in that same corner and goes in first, so a chip loses to it
+  // the way it loses to a chip already drawn. It is the legend saying what these digits
+  // mean, on screen exactly as long as they are, so covering it is the one collision that
+  // takes away the reader's answer rather than one of its members. The bar at the other
+  // edge is dodged earlier and by clamping, because a chip has somewhere to go there: the
+  // covered edge is above the member, while sliding clear of a line at the foot would put
+  // the chip on a member it no longer sits on.
+  const kept = [keylineEl.getBoundingClientRect()];
+  const piled = [];
+  for (const chip of chips) {
+    const box = chip.getBoundingClientRect();
+    if (kept.some((standing) => overlaps(box, standing))) piled.push(chip);
+    else kept.push(box);
+  }
+  for (const chip of piled) chip.remove();
 }
+// Whether two boxes share any pixel. Touching edges do not: chips at exactly a chip's width
+// apart sit side by side, which is the case a run of short links used to land on exactly.
+const overlaps = (a, b) =>
+  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 // A page that moves under an armed window moves the boxes the chips were placed from, so
 // the chips follow it rather than standing where the page used to be. Capture, because the
 // panel's list and a board's own overflow scroll in boxes of their own and a scroll event
 // does not bubble.
 //
-// Only while a list is aimed at, which is why this is a listener of its own rather than a
+// Only while the chord is armed, which is why this is a listener of its own rather than a
 // line in the page's own repaint door (pageShifted): what the line says about the chord
 // holds at every scroll position, no list's membership moving with the page, so the door
-// that repaints on every scroll of every page would be repainting for nobody. Aimed, the
+// that repaints on every scroll of every page would be repainting for nobody. Armed, the
 // paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
 // one door is what stops the chips having a repaint set of their own to keep in step.
-addEventListener("scroll", () => aimedList && paintHere(), {
+addEventListener("scroll", () => chordArmed && paintHere(), {
   capture: true,
   passive: true,
 });
-addEventListener("resize", () => aimedList && paintHere());
+addEventListener("resize", () => chordArmed && paintHere());
 
 // ---------- what the page's keys are live over ----------
 const hasThreads = () => openThreads().length > 0;
@@ -8706,7 +8779,7 @@ const GO = {
       label: () =>
         aimedList === entry
           ? range(addressed(entry).length)
-          : `${entry.key} ${range(addressed(entry).length)}`,
+          : addressKeys(entry, range(addressed(entry).length)),
       does: entry.does,
       line: entry.word,
       when: () => entry.list().length > 0 && (!aimedList || aimedList === entry),

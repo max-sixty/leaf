@@ -245,20 +245,25 @@ $ leaf ack ./review 3</code></pre>
           The two hosts carry that context through different loops. On Claude Code,
           <code>leaf wait</code> is a background task whose completion joins the same
           queue as a terminal message: an idle session takes it as a new turn, and a
-          working one folds it in between tool calls. On Codex, the wait runs in a
-          unified-exec session inside the turn that handed over the URL; the agent keeps
-          that turn active and polls that exact session until it returns. A detached
-          Codex command has no completion that can start a future turn, which is why the
-          loop stays active there.
+          working one folds it in between tool calls. On Codex, a watcher task may keep
+          the unified-exec wait active and send its complete batch into the page's task
+          with a background follow-up. Leaf emits the same transport-neutral JSON batch
+          in both loops; the watcher adds the receiving task's instruction when it
+          forwards that data. The named wait transfers the page's claim to the watcher,
+          so the page's task can sleep while the watcher remains held to the loop.
+          Without an explicitly authorized watcher task, the page's own turn stays
+          active and polls the exact wait session instead; a detached command alone has
+          no completion that starts a future turn.
         </p>
         <p id="wait-ack">
-          After either host puts a complete, untruncated JSON batch in model context,
-          the agent explicitly acknowledges its highest sequence before acting. A
-          truncated batch is acknowledged not at all and retrieved again with enough
-          room for the whole result. Until acknowledgement the next wait prints the
-          events again. That small separation makes “the process printed it” and “the
-          agent saw it” two different facts, so an abandoned wait cannot silently
-          consume the user's words.
+          The wait owner acknowledges a complete, untruncated JSON batch only after it
+          reaches the next durable consumer. That is model context in a direct loop and
+          receiver acceptance when an adapter forwards the batch. A truncated batch is
+          acknowledged not at all and retrieved again with enough room for the whole
+          result. Until acknowledgement the next wait prints the events again. That
+          separation makes “the process printed it” and “the next durable step has it”
+          two different facts, so an abandoned wait cannot silently consume the user's
+          words.
         </p>
         <p id="wait-stateless">
           The server and the wait both go down with the session, and the page directory
@@ -460,6 +465,14 @@ $ leaf ack ./review 3</code></pre>
           you left it and your pick marked. Until it ships, the page shows the version
           plus your own edits; a reload replays them, and a second tab follows along
           live.
+        </p>
+        <p id="undo">
+          <code>z</code> takes back the last change you made here — a card returned to
+          the column this version had it in, a thread you resolved by mistake open
+          again, a suggestion you accepted pending again — and pressing it again steps
+          further back. Nothing is erased and nothing is restated: the log gains one
+          word withdrawing the change, and the page is this version plus whatever still
+          stands, which is what a reload has always shown you.
         </p>
         <p id="decline">
           Declining is a version too. When the agent disagrees with an edit, it ships

@@ -1,469 +1,391 @@
-# The tests
+# Testing leaf
 
-Each of these norms was learned by getting it wrong, and most of the failures
-were a test that passed while proving nothing.
+The suite proves the boundary between an authored page, the browser runtime, the
+event log, and a returning reader. Most failures in that boundary are not hard to
+assert once they are visible. The difficult part is arranging the test so that a
+green result could only have come from the behavior named by the test.
 
-## They are integration tests in a real browser
+This file owns those testing mechanics. The repository-level `CLAUDE.md` owns
+environment setup, suite inventory, and the normal run. The runtime's
+`CLAUDE.md` and `interact.py` own the product protocols. Keep their implementation
+rules there; state here only what a test must observe or control.
 
-`test_render.py` drives the shipped examples through Chrome (`channel="chrome"`,
-so no browser download). Assert what a static lint can't reach. Use real mouse
-input (`page.mouse`, `locator.click()`) when the gesture is the point: a
-synthetic `dispatchEvent(new MouseEvent("click"))` skips the mousedown, and the
-runtime is built around what happens on mousedown, so the synthetic click sails
-past a whole class of bug. Assert the outcome with `expect(...)`, never a bare
-`is_hidden()` or `count()`: every gesture that sends is a round trip, and a plain
-read taken right after one passes on a fast run and fails on a slow one — which
-is worse than failing outright.
+## Run the narrowest useful surface
 
-A render invariant belongs in `render_version`, not in a test. That function is
-what `version check --render` runs at handover, and `test_example_renders` drives
-it over the examples — so the gate a user's page passes and the suite the
-examples pass are one implementation, and cannot drift apart.
+The repository guide owns setup and the everyday and complete-suite commands.
+During development, select the owning file or one named case. Both browser modules
+are marked at module scope, so include `--run-nightly`; use `-n 0` while debugging
+so the trace and process tree stay local. Before landing a browser-facing change,
+run its complete browser file and the repository's normal suite.
 
-## A synthetic drag presses on a whole pixel
+## Put each assertion at the boundary that owns it
 
-`select` is the helper a test drags a selection with, and the reason it exists is
-that it floors the press coordinates to whole pixels. Start a drag on a
-fractional point and the selection can be lost outright: wherever the point and
-its floor fall on opposite sides of a glyph's caret boundary, the drag runs, the
-mouseup lands, and `getSelection()` comes back empty. Coordinates out of
-`bounding_box()` and range rects are fractional, so any drag written by hand can
-hit this. The failure reads as the widget under the pointer refusing the gesture,
-and it is neither that nor Playwright's interpolation — plain prose in a bare
-document does it.
+`test_interact.py` exercises authored markup, the registry, the event log, CLI
+commands, vendoring, publishing, export, and server lifetime. `test_render.py`
+drives the browser runtime and the render gate. `test_site.py` reads the built site
+through its served URLs. Product documentation tests compare the docs with the
+shipped vocabulary and command surface.
 
-## The everyday run opens one browser
+The distinction matters most around `render_version`. A property caused by a
+particular page belongs in that gate, because `version check --render` must report
+it to the page's author. A property that is identical for every valid page belongs
+in the suite instead. `arrival_findings`, for example, tests the layer's behavior
+when a reader returns with browser state already present; changing the authored
+page cannot repair that behavior.
 
-`test_render.py` and `test_site.py` carry a module-wide `pytest.mark.nightly`. A
-browser change runs its focused test with `--run-nightly`; CI and `wt merge` pass the
-same flag for the complete suite. The everyday run covers the static lint, server,
-vendoring, and product pages, plus one `ship-review` render through the real gate. Its
-worker is the only one that launches Chrome.
+Prefer the public route through the product. A CLI test should invoke the command
+or the same command function used by the entry point. A browser test should serve a
+vendored page and use its HTTP API. A render-gate test should call
+`interact.render_version`, not reproduce one of its probes. Test a helper directly
+only when the helper itself carries a contract that would otherwise be hard to
+diagnose, such as the traffic wait reaching its deadline.
 
-The browser is the machine's own and the page it opens is on disk. Two tests also
-drive `bin/leaf` on a subcommand that opens Chrome. The launcher supplies Playwright
-to those subcommands from outside the script's lock (`uv run --with playwright`), and
-an unlocked requirement has no recorded resolution to install from, so uv asks pypi
-for one every time its cached answer goes stale. Those tests therefore need the
-network available to the nightly run.
+Re-vendor before trusting a result that depends on runtime, theme, registry, or
+widget changes. A page directory owns the layer copied into it by `page init`; it
+does not read the checkout's current assets. A green render against a stale page is
+a statement about that stale copy.
 
-The launcher's other unlocked path wants it for the same reason. Where the lock's
-own URLs cannot be served, `bin/leaf` resolves the header against the host's own
-index instead, and a test of that fallback therefore asks the index for all three
-dependencies. Such a test also needs a cache directory of its own
-(`UV_CACHE_DIR`): a wheel already in the developer's cache is served whatever URL
-the lock names, so the run would take the fast path and prove nothing.
+## Fixtures own the world they create
 
-To prove a run works offline, give uv an index that isn't there —
-`UV_FROZEN=1 UV_DEFAULT_INDEX=http://127.0.0.1:1/simple`. The index URL is also
-the key uv caches under, so pointing it at a dead URL means nothing already
-fetched can answer in its place; `UV_FROZEN` keeps that same dead URL from
-re-resolving `uv.lock`. Blocking the route instead — say, a dead `HTTPS_PROXY` —
-leaves the cache key alone, so an entry still inside pypi's ten-minute cache
-header answers without asking, and the run passes though it was never offline.
+Every test runs under `isolated_session`. It moves only the XDG config and state
+directories leaf reads, supplies a synthetic Claude Code session id, and claims
+pages under the current pytest worker's pid. This keeps the developer's overlay,
+session record, pages, and event history out of the test. Do not replace it by
+moving `HOME`; uv's cache and unrelated developer state are not part of leaf's
+isolation boundary.
 
-## A process the suite starts ends with the run
+The one subject that must take uv's cache into its world is the launcher's
+unlocked path. Where the lock's own URLs cannot be served, `bin/leaf` resolves the
+header against the host's index instead, so a test of that fallback asks the index
+for all three dependencies and needs the network the nightly run holds. It also
+needs a cache directory of its own (`UV_CACHE_DIR`): a wheel already in the
+developer's cache is served whatever URL the lock names, so the run would take the
+fast path and prove nothing.
 
-No cleanup the suite itself runs can be the guarantee. A page's server is spawned
-into a session of its own — that is what lets it outlive the command that starts
-it — so when a run is killed, neither a `finally` block nor the process is
-reached, and the server stays behind, serving a pytest tmp directory until the
-machine restarts. Three were doing exactly that when these fixtures were written,
-the oldest four hours old. And the kills were not out of the blue: a wait ends on
-a comment or on the leaf ending, the helper that was to post that comment gave up
-after ten seconds, and `cmd_wait` then held until somebody killed the run.
-Whatever a test arranges in order to end a blocking call has to end it on the
-failing path too, or the failure arrives as a hang.
+Use `sessionless` when the subject is a command launched outside any host session.
+Use `codex_env` when constructing a real Codex process ancestry; it removes the
+Claude identity that would otherwise win host detection. A test should declare
+those conditions through fixtures rather than deleting environment variables in
+its body.
 
-Only leaf's own reaper reaches such a process: a claimed page's server stops once
-the claimant pid is gone. So the run claims its pages as a session of its own,
-keyed to the worker's pid (`isolated_session`), and a server any test causes leaf
-to spawn goes down when its worker does, killed or not. That is also why a test
-about a command run from outside a host session has to say so explicitly —
-`sessionless`, or `codex_env` for one run under Codex — rather than relying on
-there being no session identity around.
+### A process the suite starts ends with the run
 
-The fixtures then handle the ordinary end of a test: `_no_page_outlives_its_test`
-stops any page still being served, and `spawn` ends a process the test started
-itself. A new test wants those rather than a `finally`, which runs on a failure
-but not on a kill. The sweep searches for pages rather than reading a list the
-tests append to, because the serve nobody remembered is the one it is there for.
+Server ownership has two layers:
 
-A standing serve declines the claim, so it has no reaper at all — and in the
-tests that cover standing serves, that is the arrangement under test, not a gap
-in the fixtures. Those tests are the one place a killed run can still strand a
-server; they hold one up for a second or two and stop it as they end.
+- `spawn` owns every child process started directly by a test and terminates any
+  survivor during teardown.
+- `_no_page_outlives_its_test` releases the suite's held leases, searches the
+  temporary page and state roots, and stops every live leaf server it finds.
 
-## A round trip is not over when its response lands
+The search is intentional. A cleanup list catches only the server a test remembered
+to register; the fixture exists for the forgotten one as well. A page server is
+spawned into its own process session, so a local `Popen` handle is not a general
+substitute for `leaf server stop`. The synthetic session claim is the final owner
+when a worker itself is killed and fixture teardown cannot run.
 
-The runtime answers a post by polling, so what the page does about a send arrives
-with the next poll, not with the post's own response. The press sweep learned
-this the expensive way: its two "matching" frames read the page from before the
-press had any effect, and the sweep caught its own regression on about half of
-the runs written to prove it caught it. Watch the trip rather than timing it. A
-hold sized to `POLL_MS` states a number the runtime is free to change, still
-guesses on a loaded machine, and charges every press two seconds for a trip
-that takes ten milliseconds. `wait_for_load_state("networkidle")` is not the wait
-either: with no navigation to answer for, it returns at once.
+A standing server is the explicit exception. It declines session ownership by
+definition, and tests of standing lifetime must stop it themselves. Keep that
+exception narrow and short-lived. If the test does not need standing lifetime, use
+the ordinary served-page fixtures.
 
-Watch the trip from outside the page. `Traffic` counts the browser's own
-`request`, `response` and `requestfailed` events — the same five numbers used to
-come from an init script wrapping `window.fetch` on every page of every run,
-which was permanent surgery on the runtime under test to learn what the browser
-was already saying. `open_page` hangs that watcher on every page it opens,
-because a test that had to ask for the counter first is, in practice, a test that
-asserted straight through the trip instead. `round_trip(page)` waits for the
-page's own sends to come back, and that is the wait to take before reading the
-event log: a widget settles a decision in front of the user before the server has
-taken it, so the page looking done is not the log holding the event. Polling the
-log instead only ever asks after the send the test names — a stray send, from a
-widget that was supposed to stay quiet, passes straight through such a poll.
+### Reloading is not resetting
 
-A file the test writes is the same trip run the other way, and there `expect`'s
-own timeout becomes the hold in disguise. A declared status, a bumped heartbeat,
-an appended event: none of them announce themselves, so the page learns of each
-when its next poll asks. An assertion made straight after the write therefore
-spends a whole poll interval out of whatever budget `expect` was given — 1.8 to
-2.3 seconds of the default five, measured, and every time. `told(page)` watches
-that wait instead. And a wait's own timeout is the net under a hang, not a budget
-for the work, so once the wait is right, the number is left alone.
+Fixtures also own browser storage boundaries. Reloading a page is not resetting it:
+panel state and drafts live in `localStorage`, while reading position lives in
+`sessionStorage`. Clear both when a test means a first visit. Conversely, two pages
+are not two tabs for a single reader unless they share a browser context.
+`Browser.new_page` creates an independent context; `one_reader` supplies one context
+for the tests whose subject is shared tab state.
+
+For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
+supplies the same language, charset, CSP, theme, module, and main-content shell to
+every specimen. Keep raw documents only when source structure is the subject: lint
+fixtures, malformed markup, tokenizer input, line-number assertions, or a document
+whose missing boundary is the condition under test. A shared shell must not repair
+the malformed case a test is meant to present.
+
+The browser fixture `serve` is the normal owner of a specimen. It runs `page init`
+to vendor the current layer, writes the document as v1, copies example media, adds
+the publishing note and any requested comments, then serves the directory with the
+real HTTP handler and page key. Reach its page directory through `serve.page_dir`
+when a test needs to publish v2 or inspect the log; do not construct a parallel
+directory whose relationship to the served URL is implicit. `page_dir` in
+`test_interact.py` owns command-level files without starting a browser. Keeping
+those roles separate makes it clear whether a failure belongs to the file/CLI
+boundary or to the served runtime.
+
+## Drive the browser a reader gets
+
+The browser suite uses Playwright's pinned Chromium headless shell and real HTML.
+Use `locator.click()`, `page.keyboard`, and `page.mouse` when the gesture matters.
+A synthetic `dispatchEvent` can skip the pointer sequence the runtime listens to
+and prove only that a handler works when called under an impossible event history.
+
+Use `select` for selection drags. It floors the starting coordinates to a whole
+pixel because a fractional point can straddle a glyph's caret boundary and leave an
+otherwise valid drag with an empty selection. Preserve the end coordinate: changing
+its precision can move the selected character.
+
+Nothing should be injected into the page merely to make ordinary observation easier.
+Traffic comes from Playwright's request, response, and request-failure events. Network
+conditions come from `page.route`. `watched` listens to the browser's error surfaces.
+`primed` lets a render or export call create its own page while the test attaches
+those external controls before navigation. These mechanisms exercise the runtime a
+reader receives.
+
+An init script is justified only when the fact cannot survive long enough to cross
+the Playwright boundary. Two cases earn it: recording a sequence frame by frame, and
+capturing an instant between one DOM write and the next rendering turn. The injected
+code records evidence; it does not decide when the test is complete. Completion still
+comes from a browser or product fact visible outside the page.
+
+## A page is ready when it says what has finished
+
+Open ordinary browser pages through `open_page`. It installs `Traffic` and `watched`
+before navigation, waits for the load event, and then waits on `BOTH_STAMPS`:
+
+- `data-lf-upgraded="1"` says widget upgrade and anchor preparation finished.
+- `data-lf-applied` says a replay pass applied the event log.
+- `data-lf-presented="1"` says any deliberately shown waiting surface completed its
+  minimum presentation.
+
+These are independent facts. The document can finish upgrading before its first
+state response arrives, and an applied state can still sit behind a waiting surface.
+Network quiet does not imply either one. A browser action sent before replay has
+landed may be ignored without a later assertion revealing that the keypress itself
+was lost.
+
+Use the shared `BOTH_STAMPS` predicate for manual navigations as well. Do not copy a
+partial readiness expression into a test. The `upgraded=False` escape in `open_page`
+is only for a test whose subject is the interval before those stamps; it waits for the
+banner module to exist and must make its later readiness explicit.
+
+`watched` must be installed before navigation. It collects console errors and
+`pageerror`, and installs `interact.WINDOW_ERRORS` so browser `error` events without
+an exception, including ResizeObserver delivery failures, reach the same error list.
+That script is shared with `render_version`; the suite and the handover gate must not
+disagree about which browser error channels count.
+
+`navigate` handles the one browser notice that needs confirmation. A
+ResizeObserver-loop notice raised during handover is repeated with a complete second
+navigation; a recurring notice is a failure, while a one-off platform notice is not.
+Other errors remain strict, and any error raised after handover remains in the list.
+Tests should assert `errors == []` after the behavior they drive, not just after load.
 
 ## A wait consumes a fact the system states
 
-A page that has not started moving is as still as one that finished. So a wait
-that infers completion from stillness — two frames agreeing, a stretch with no
-change — returns early exactly when the machine is loaded enough to fit its first
-samples in ahead of the effect. `panel_settled` once "settled" that way on a
-transition that had not begun: a transition's first ticked frame still computes
-its start value, so the sample taken at injection and the one on the next frame
-both read the margin the page already had.
+A reliable wait consumes a fact stated by the system. It does not infer completion
+from elapsed time, two matching samples, or a quiet network. A page that has not
+started an effect is indistinguishable from one that finished if the only evidence is
+stillness.
 
-So a wait asks for a fact the system declares: an element existing,
-`document.body.getAnimations()` emptying, a request coming back, a resize
-reaching its listeners. Where stillness is itself the assertion, an observed edge
-comes first — the press sweep measures "nothing moved" only after `round_trip`
-has watched the response land. And a timing flake can be reproduced by emulating
-the poller's own schedule in the page: `wait_for_function` runs its predicate
-once at injection and then once per animation frame, which turns the failure into
-a rate to measure rather than a rerun to hope for.
+### A state the page passes through is not a state to poll for
 
-An edge is not the same fact as arrival, and a gesture that moves the page twice
-is where the two come apart. Clicking a quote scrolls instantly to bring the
-passage's box on screen, then smoothly to centre the painted range, and
-`scrollend` fires for each of the two scrolls — so the first `scrollend` is a
-genuine statement from the browser, and it is 232 pixels short of where the click
-was aimed. The fact worth waiting on is the destination itself: the mark reaching
-the middle, which is the position `scrollToThread` computed. A glide approaching
-that position passes through no earlier position that could be mistaken for it.
+Use Playwright's `expect(...)` for a state that will become stable and remain true.
+Use an ordinary read only after the causal edge is known to have completed. Do not use
+an auto-retrying assertion for a transient state: it returns on the first matching
+frame, even if the gesture continues to a different result.
 
-A destination stated as a region rather than a position is the same mistake in a
-weaker disguise. "Some part of the change is inside the window" is as true where
-the walk starts as where it is going, and the ask the boxless-travel test walks
-to sits a few dozen pixels below the fold — so the predicate went true on the
-focus move that precedes the glide, and the test passed with the travel bug put
-back. It had been passing that way under the suite's own parallel run while
-failing the same bug when run alone, which is the shape of a test measuring the
-machine's load rather than the product's behaviour: the reading it took was
-whichever transient it was quick enough to catch. The scroll stopping is the
-fact to wait on; where it stopped is the assertion.
+The main causal helpers are:
 
-Where nothing will happen, there is no fact to consume and polling has no end. An
-assertion of absence holds a window instead, and the window's length is derived
-from the mechanism rather than picked: a manually launched server must outlive
-the grace period after which a session watcher would have shut it down, so that
-window is `ORPHAN_GRACE_SECS` plus room to act. A window too short fails the
-opposite way from everything above — it passes vacuously rather than flaking —
-which is why nearly every absence assertion here holds no window at all,
-asserting straight after the edge that proves the gesture was handled.
+- `Traffic` observes the page's lifetime request traffic from outside the runtime.
+  It tracks event attempts separately from physical requests and includes reloads.
+- `round_trip(page)` waits until every event attempt sent by that page has a
+  definitive outcome: an accepted or final refusal response, or a state response
+  containing the attempt. A request failure alone is not final because the page may
+  retry the same attempt.
+- `told(page)` records the current state-request count, then waits for a later poll to
+  receive an answer. Use it after the test writes a version, event, status, or lease
+  that the browser learns through polling.
+- `undo(page)` first waits until the key line offers undo, presses `z`, observes the
+  new send enter the wire, and waits for its round trip. A visible changed widget is
+  not enough: undo can be refused while the preceding gesture is still unresolved.
 
-## A state the page passes through is not a state to poll for
+Read the event log only after `round_trip`. Polling the file until one expected event
+appears can miss an extra send, and it cannot distinguish an unresolved request from
+a settled one. Read browser state after the trip when the returned state is part of
+the assertion. `round_trip` proves delivery; it does not claim every rendered effect
+of the response has completed.
 
-`expect` re-asks until the page matches, so what it reports is the first frame
-that matched — never the frame the gesture settled on. Where the page passes
-through the asserted state on its way somewhere else, the assertion is a gate
-that passes whichever way the gesture was going to go. Every mousedown clears the
-comment button before its own mouseup decides it again (`standDown`), so the key
-line reads "comment on the page" in the middle of every drag — and a check that
-the runtime refused a drag over chrome passed identically on a drag it accepted.
+After changing a file behind a live page, call `told` before reading the page. Letting
+`expect` absorb the next polling interval hides which mechanism supplied the wait and
+spends its timeout budget on transport rather than on the assertion.
 
-What to read instead is the mechanism's own last step — the section above,
-applied where the fact is a settled state rather than an arrival. The button is
-decided on a `setTimeout` queued from the mouseup, and the key line repaints on
-the frame after that. So a timeout the test queues once the drag has returned
-runs behind the runtime's timeout, and one frame behind that is the answer this
-drag actually left. Consume the step, then read once.
+For layout, animation, and navigation, identify the final fact precisely.
+`panel_settled` waits for the requested panel class and then for the body's finite
+animations to empty. `resized` waits for the resize event to reach listeners; a new
+viewport size says only that the browser resized, not that page layout handled it.
+When clicking a quote causes an instant scroll followed by a smooth scroll, the first
+`scrollend` is a real edge but not the destination. Wait for the mark to reach the
+computed position or for the final scroll to stop, then assert where it stopped.
 
-## Nothing of the suite runs inside the page
+Absence usually has no completion event of its own. Anchor it after the positive edge
+that would have caused the forbidden behavior, then read once. If the mechanism is a
+watcher or lease that acts only after a grace period, the test must hold a window
+derived from that product constant plus scheduling room. Do not invent a generic
+sleep for absence assertions.
 
-The tests drive the runtime; they do not join it. What the suite knows about a
-page's traffic, it gets from the browser — `request`, `response` and
-`requestfailed` to watch, `page.route` to stop or delay a request — and a page
-that a product path opens for itself is reached the same way, through `primed`.
-Nothing is injected into the page to make a wait possible, so what the tests
-exercise is the runtime a user gets, not one wearing the suite's hooks.
+When a wait times out, its message must say what evidence was missing. `_until`
+includes the starting and final `Traffic` counters, which distinguishes a stuck event
+from a page that stopped communicating. Its deadline is fixed when the wait begins:
+responses may wake the check, but a busy response stream cannot extend the deadline
+and keep a false delivery fact alive forever. New causal helpers need similarly useful
+failure output and the same bounded-progress property.
 
-That was not always so, and what was removed is worth knowing about whenever a
-wait looks unnecessary. An init script once wrapped `window.fetch` to count
-trips, and `LEAF_TEST_LOAD=1` added a second wrapper that held each `/api/state`
-answer back three and a half seconds, alongside a CPU throttle slowing the page's
-own JS twentyfold. Two tests had gone red on an ordinary busy run, and that
-slowed-down sweep found seven more standing on the same margin — `resized` and
-`open_page`'s upgrade-stamp wait among them, since `set_viewport_size` returns on
-a fact about the browser rather than about the page. The waits found that way
-still stand; the instrument is gone. So a wait that is missing today passes on
-every machine quick enough to hide the gap, and the next fault of that shape
-arrives by luck, on a genuinely busy machine, rather than on demand.
+## State races are arrangements, not probabilities
 
-The luck came, and it found the front door. `open_page` waited for the document's
-stamp and not the log's, so the page it handed over had heard nothing the
-log says. Network quiet happened to close that gap on this machine; a dockerised
-Linux runner did not, and three tests lost a keypress into a page that had
-nothing yet to answer it. All three were presses, because a press is the read
-with no second chance — `expect` re-asks for five seconds, but a keystroke is
-simply gone. So navigation waits for the load event, which says the resources
-shaping the page have arrived, and `open_page` waits for `lf-applied`, which says
-the log has — two stated facts replacing a quiet window for state readiness.
+If a race appears only on a loaded machine, make the ordering explicit with
+`page.route`; do not repeat the test until the machine happens to lose it. Register
+the route before the gesture whose request it must catch. For initial navigation,
+attach it through `primed` so no request is already in flight.
 
-## A race this machine won't lose is stated rather than run for
+A handler that appends a route to `held` has established only that the browser made
+the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a
+request event, or another fact named by the handler. Some resources are requested
+only after registry or state work, so layout becoming visible does not prove the
+request exists.
 
-Two picks a moment apart reached the log in reversed order on a CI runner,
-twice — and neither this machine nor `scripts/linux-suite.sh` reproduced it in
-two dozen runs. The race window is one request's flight, and a machine quick
-enough closes it before the next click. Running the race again is a rate to hope
-for, not a gate.
+Keep the three route operations distinct:
 
-`page.route` holds the window open instead. A route handler that keeps the route
-and returns leaves that request in the wire — the server has not taken it and
-cannot — so the gesture made after it happens under exactly the condition the
-runner supplied, and `route.continue_()` releases the request later. What the
-hold buys is a fact the page states on every run rather than only on a loaded
-one: if the send queue were gone, the second gesture's request would go out over
-the held first, and `Traffic.sends` says whether it did before anything has to be
-timed. The outcome asserted after the release is not the gate —
-`test_a_send_waits_for_the_send_before_it` does read the log's order too, but
-that order is the coin the runner tossed.
+- Returning from a handler without resolving the route holds the request before the
+  server receives it.
+- `route.fetch()` lets the server answer but still withholds the response from the
+  page. The log may therefore advance while the browser remains behind.
+- `refuse(route)` cancels a poll without manufacturing a console error. Use an
+  ordinary abort only when the failed request and its browser error are the subject.
 
-Releasing the hold is the handler's job too, wherever the hold exists to order
-something. Reaching for `held[0]` from outside the handler reaches for a request
-that may not have been made yet: the suggestion module is fetched behind the
-registry's own round trip, while the room the layout states needs no network at
-all — so a loaded runner laid the page out with the request still to come, and
-the reach was an `IndexError` rather than a failure with a name. A handler that
-waits for the fact the hold is about and then continues states the ordering
-whenever the request happens to arrive
-(`test_the_room_is_measured_after_a_late_rail`). Where the release is
-unconditional instead, `Traffic` counting the request out is what precedes the
-reach.
+Every hold has a release path. If the verdict depends on a response remaining lost,
+make the assertion first, then continue or fulfill the route, wait for the handler to
+finish, remove the route, and only then close the page. A route handler is a live
+browser resource even after product state no longer depends on it; abandoning one can
+hang context teardown after every assertion passed. Put release and `unroute` in
+cleanup that also runs when the assertion fails.
 
-A refusal states the other timing a busy machine supplies. Where the send race
-needs one request held in the wire, a page that has not yet heard the log needs
-its first `/api/state` stopped, so that replay lands on the 2s retry — after the
-upgrade stamp (`test_a_page_the_suite_opens_has_read_the_log`). Refusals are
-cheap enough to
-run over the whole suite, and that is worth doing when the fix is at the front
-door rather than in one test: refuse the first poll of every page `open_page`
-makes, throw the change away afterwards, and the suite says how far the fault
-reached. Twenty-two tests failed without the log's stamp waited for and passed
-with it, where the CI runner had named three. The front door was not the only
-door, either: `open_page` grew the log's stamp while the nine other places where
-a test navigates for itself did not, each spelling the wait predicate out by
-hand — which is what one shared `BOTH_STAMPS` is now for.
+The assertion should name the ordering the route created. For a serialized-send test,
+hold the first POST, make the second gesture, and inspect `Traffic.sends` before
+release. The final log order is useful too, but by itself it lets the scheduler choose
+the test's premise. For a stale-state test, withhold the exact state response that
+would otherwise reconcile the page and prove both the page's stale view and the
+server's newer view before release.
 
-## A test cannot assert over noise it makes itself
+### A test cannot assert over noise it makes itself
 
-`page.route` stops a request from outside the page, but what the browser then
-says about that request comes back to the test in the same list its own
-assertions read. A poll refused with `route.abort()`'s default reason counts as a
-failed load, and Chrome writes "Failed to load resource: net::ERR_FAILED" to the
-console for it — which `open_page` collects, where it sits indistinguishable from
-the page having actually broken. How many of those entries a test reads back is
-then the machine's answer, not the test's: a run that reaches its last assertion
-inside one 2s poll interval refuses nothing, while a loaded run refuses a poll
-per tick and hears about each one in time to fail on it. So the test written to
-instrument a slow machine was the one that failed on a slow machine — blaming the
-runtime for its own instrument.
+Instrumentation must not pollute the channel it later asserts is quiet. Chrome reports
+a default aborted request as a console load failure. That is why `refuse` uses the
+`aborted` cancellation reason for polling conditions. If a test intentionally produces
+an HTTP error, assert the enriched status-and-URL entry collected by `open_page`
+instead of filtering it out globally.
 
-`refuse` cancels the request instead, and the console has nothing to say about a
-cancellation — so `errors == []` means what it looks like it means, however many
-polls a run refuses. Where the failed request is the subject rather than the
-instrument — a send the server never takes — the plain abort stays, and the
-console entry it leaves is asserted on.
+## Distinguish a frame, a sequence, and an instant
 
-## A sequence and an instant are the readings the suite cannot take from outside
+Most visual behavior can be tested from stable states before and after a gesture. The
+test must cross the transition that could reveal the fault. Geometry measured twice
+within one final state proves nothing about motion between those reads.
 
-A motion is the first. Both ways of reading a motion from outside the page read
-states: a held frame (`HOLD_MOTION`) is one state, stopped where the assertions
-can reach it, and a geometry read before-and-after is two states. Each frame can
-be right on its own while the sequence they belong to is wrong, and that gap has
-exactly one shape — a frame that puts back what the frames before it took away.
+A frame is one held state. `HOLD_MOTION` pauses animations so a short-lived midpoint
+can remain available while Playwright inspects it. Step or release every held animation
+after the assertion so completion handlers run and teardown is not left waiting on a
+promise that cannot settle.
 
-That shape is reachable, not hypothetical, because a Web Animations effect stops
-applying at the end of its own interval. Between that instant and whatever the
-`finished` handler does, the element is its unanimated self again — full height,
-full opacity. Today the removal wins that race, in a microtask ahead of the
-paint; nothing in the code says so, and one frame's slip is the whole of the
-distance between a fold and a fold that flashes the thread back at full size
-before it goes. So the fold is watched frame by frame at real speed
-(`test_the_fold_never_paints_a_frame_that_undoes_the_last`), and that is the one
-check here that samples from inside the page: what painted, and in what order, is
-not a fact the browser reports to the outside. The wait is still not the
-sampler's — the node leaving the list is the browser's own statement — so what
-the injection buys is the record, not the wait.
+A sequence is ordered evidence across frames. A fold can have correct start, midpoint,
+and final values yet flash its unanimated state for one frame when the effect expires.
+`test_the_fold_never_paints_a_frame_that_undoes_the_last` records every painted frame
+inside the page because the browser exposes no durable outside event for that ordering.
+The node leaving the list remains the external completion fact. Use this pattern only
+when intermediate order is the contract; do not turn every transition test into a
+sampler.
 
-A recording of a motion owes the same reading. The frames of the first GIF of
-this fold were stepped by `currentTime`, and one was taken at exactly the
-duration — already past the animation's own interval — so it recorded the thread
-springing back to full size, a frame the product never paints. Every still was
-correct, the sequence was a lie, and nothing between the frames and the reader
-had looked at them in order.
+An instant is a state that exists within one rendering turn. In
+`test_the_room_is_measured_after_a_late_rail`, a `MutationObserver` records layout when
+the upgrade stamp changes, before the next frame can restate the room. A Playwright
+evaluation issued after the stamp would read the later corrected state and let the
+line under test disappear. Again, the injected observer captures the instant; the
+stamp is the completion fact.
 
-The other reading is an instant. A reading taken through the browser is a round
-trip, and the rendering step the page was in does not wait for it. The room a
-wide widget spends is restated and the page stamped done in the same block, and
-the layout observer restates the room again on the very next frame whatever that
-block did — so a page read any time after the stamp is right either way, and the
-test written to hold that line kept passing with the line deleted. A
-`MutationObserver` on the stamp runs a microtask after the stamp's own write,
-ahead of that next frame, and that is where the reading is taken now
-(`test_the_room_is_measured_after_a_late_rail`). The injection buys the record
-again; the wait is still the stamp's.
+Do not substitute frame counts or quiet windows for these distinctions. Under load,
+the first animation frame may arrive after the whole quiet window, and a pair of equal
+samples can both precede the transition. Ask whether the claim concerns the settled
+state, one frame, the order of frames, or the exact turn of a write, then choose the
+smallest observation that can preserve it.
 
-## A page's source is formatted, so ask what it says
+## Make a green test non-vacuous
 
-Prettier formats the `.html` under `docs/` and `examples/`, and it re-derives
-every line break in a paragraph — it moved half of the corpus's, measured. So a
-sentence asserted as a raw substring of a file is a sentence that fails the day
-it gets one word longer, somewhere else in the paragraph. Collapse whitespace
-before matching, which is what a test about what a page *says* meant anyway; the
-page's own reading (`spoken`) gives the same answer where a test already has a
-registry to hand.
+For each assertion, state the causal contrast: what single product change would make
+it fail? Arrange the fixture so that change reaches the measured surface. A test that
+cannot answer this is not yet evidence.
 
-Markup follows the same rule for the same reason. A whole tag written out as a
-literal encodes a formatter's opinion about attribute order and line breaks:
-prettier writes a void element as `<link … />` and splits a long one over four
-lines. Match the attribute that carries the meaning, or a pattern that admits any
-tag around it. What made this expensive once was a literal that lived in
-`scripts/site.py` rather than in a test. It silently stopped matching, a generic
-path rule took the stylesheet href instead, and every published page linked a
-GitHub source view in place of its CSS. The link resolved, so the build's
-dead-link check said nothing; what noticed was a palette test reading colours off
-the rendered page.
+Reintroduce a new defect and run the intended gate before accepting it. For an existing
+gate touched by a refactor, repeat the bug-back if the direction or representation of
+the failure changed. Bounds and geometry tests are especially prone to staying green
+after the fault moves to another edge.
 
-## A sweep that walks controls by index must prove it pressed them
+### A sweep that walks controls by index must prove it pressed them
 
-A control list read before the runtime injects its banner is a short list, and a
-short list skips silently rather than failing — the vacuous pass, wearing the
-same green as the real one. Pin the count of controls across reloads. And check a
-new gate by putting each bug back and watching the gate fail: a gate that has
-only ever passed has been tested for nothing.
+Sweeps must prove they exercised their specimens. If controls are discovered by index,
+pin the expected identities or count before and after reload so a shorter list cannot
+silently skip work. If a test iterates registry declarations, assert that the target
+declaration set is nonempty and that every expected kind was reached. Avoid conditional
+assertions whose condition can disappear with the behavior under test.
 
-## A test goes vacuous when the code stops being able to fail it
+An assertion that nothing moved must straddle a transition that would move without the
+rule. Moving a pick from one card to another can preserve total reserved space even if
+the reservation rule is gone. Moving from no pick to one pick exposes the missing
+space. The same principle applies to panel room, palette changes, reload restoration,
+and version replay: choose an anchor and a single-factor neighbor whose difference is
+the product rule being tested.
 
-The bug-back above is written for a new gate; the expensive case is an old one. A
-test asserts a bound, the code later changes so the bound cannot be crossed, and
-the assertion keeps passing while the fault it was named for moves somewhere the
-test is no longer looking. Nothing turns red on the way through.
+Check what a lower layer already guarantees. If the send queue prevents a second
+physical POST, counting held routes cannot prove that the widget itself rejected a
+second gesture. Inspect the later log or visible outcome where the widget's decision
+would survive after the queue drains. A test is vacuous when some unrelated mechanism
+makes its assertion true under both the good and bad implementation.
 
-Two tests here went vacuous at once. Both measured a wide widget against the
-right edge of the page's box, which was where an over-wide room used to spend
-itself. Then the right margin became claimed by whatever stands in it, so the
-widget could only ever grow leftward — the assertion became true by construction,
-and the same faults sailed through both tests. A room read too wide now runs off
-the *left* of the window, which is the worse direction: leftward overflow scrolls
-nothing in a left-to-right page, so what went past that edge is gone rather than
-merely out of view. A change that alters which way a fault can point owes its
-existing tests a bug-back, not only its new ones — and the question to put to
-each test is which edge the fault lands on now.
+The corpus has two important causal matrices. A first visit is the anchor for return
+state: `arrival_findings` reloads a page with the panel open, a board state standing,
+or design mode on and reports motion or failure that the first visit did not have. A
+static authored state is the anchor for semantic replay: apply standing actions or
+reports, reapply them, and verify both the visible state and idempotence. Keep those
+matrices declaration-driven so a new widget or event verb joins through the registry
+rather than a test-side name list.
 
-## An assertion that nothing moved must straddle the change that could move it
+Generated markup needs its own gates because the source lint cannot see what a module
+writes. Render tests check upgraded widget size and accessibility, undeclared author-
+namespace attributes, registry-declared record forms, and relative replays. When a
+widget changes the DOM, make sure the relevant render probe can fail with that change
+reintroduced; a source-only assertion cannot cover a generated attribute or a replay
+that moves on its second application.
 
-A geometry assertion is worth only as much as the transition it is measured
-across, and the transition that comes to hand is often one that cannot move
-anything, whatever the rule says. Room reserved for a pick mark is the case that
-taught this. Moving a pick from one card to another gives the reserved strip back
-exactly as fast as it takes it, so "the card is the same box after the pick as
-before it" held perfectly with the reservation deleted — and the gate written to
-catch that deletion passed with the bug in. Clearing the pick first is what makes
-the room actually go missing: the assertion has to run from a group holding no
-answer to a group holding one, not from one answer to another.
+The canonical probes are `interact.UNDECLARED_ATTRS` for attributes a module writes
+into the author's namespace without a record declaration, and
+`interact.RELATIVE_REPLAYS` for an action whose second application changes state.
+Call the product probes instead of maintaining test-side variants. Their fixtures
+must include at least one widget and verb that can trigger the finding; otherwise a
+clean result only says the probe received an empty population.
 
-So before writing "nothing moved", ask what would move if the rule were gone, and
-put the test across that transition. It is the same question
-`page.emulate_media` asks in its own register, and it is the question the
-bug-back check above answers for you when the measurement is too clever to reason
-about.
+## Fail with the evidence needed to act
 
-## A captured stream nothing reads is a failure that names nothing
+Do not combine `capture_output=True` with `check=True` unless the raised exception is
+unpacked and reported. Capturing a child process's streams removes them from pytest's
+normal failure output. When a test needs the streams for assertions, run without
+`check=True`, assert the return code explicitly, and include both stdout and stderr in
+the assertion message. When it does not need them, let the subprocess inherit pytest's
+captured streams.
 
-`check=True` on top of `capture_output=True` raises a `CalledProcessError` naming
-the command and the exit status, while the streams it captured — the only account
-of what actually went wrong — die with it, because nothing prints them. The demo
-recording failed that way three times in one stress run, and the cause stayed
-unconfirmable until the streams came back: two runs were sharing a page
-directory, and the traceback that said so had been sitting in `e.stderr` the
-whole time. Pytest already captures a child process's output and prints it under
-the failure. So capture output in the test only where something reads it — and
-where something does, assert the exit status yourself, with both streams in the
-assertion message.
+The same rule applies to helper failures. An assertion should name the URL, version,
+widget, event, or traffic counters that distinguish causes. `open_page` enriches HTTP
+failures with status and URL because the browser's generic console message is not
+actionable. `round_trip` reports both ends of its wait. A fixture cleanup failure should
+name the server or process it could not stop.
 
-A wait that runs out is the same silence, and it is the expensive one.
-`round_trip` used to report only the event Playwright had blocked on and nothing
-about the page — three times on CI, for a fault its own counters named exactly: a
-post that a reload kills mid-flight ends in neither a response nor a
-`requestfailed`, so `acked` sat one under `sends` for the rest of that page's
-life and every wait after it ran its timeout out. `_until` now carries the
-counters from both ends of the wait into the failure message, which is what tells
-"one fact stuck while polls keep arriving" from "a page that has stopped talking
-at all".
+At the end of a browser journey, assert the collected error list after all gestures,
+polls, reloads, and route releases, then close the page or let its owning context close
+it. Do not clear errors merely to make a later phase easier to read; if an earlier fault
+is intentionally induced, assert and remove that exact expected entry at the point it
+occurs.
 
-## An error channel nothing reads is a page that passes while reporting a fault
-
-Two channels carried what a page said had gone wrong — `pageerror` for an
-uncaught exception, and the console for what the page wrote itself — and a third
-channel went unread between them. A window `error` event with no exception behind
-it reaches neither, and it is not an exotic case: Chrome reports a ResizeObserver
-loop that way. So a page could say, on every single load, that a piece of its
-layout was not being delivered — with the whole suite green. A runtime change
-that put the layout's own writer inside an observation of the box that writer
-resizes did exactly that, and 754 tests had nothing to say about it. Found by
-hand, it turned 77 of the 112 render tests it was first put to red the moment the
-channel was read. `interact.WINDOW_ERRORS` is what reads the channel now — one
-string owned by the product, laid into the page by `watched` here and by
-`render_version` there, because a channel read on one side only is the drift
-between the suite and `version check --render` in its quietest form. It routes
-those events into the console, which every reader already collects, and takes
-only the events with no exception behind them, since the rest arrive on
-`pageerror` already and one fault should not become two strings.
-
-What is worth keeping from this is that the fault was in the runtime while the
-blindness was in the suite. A channel the tests do not read is not a quiet
-channel — it is a channel whose contents become someone else's problem, and the
-someone else is the reader of the page.
-
-One message on that channel needs a second reading. Chrome can report a
-ResizeObserver loop once, under load, on a page whose layout is delivered
-whole — while the feedback loop that opened this channel reported it on every
-load. A second complete attempt tells the two apart. `render_version` repeats
-both schemes and every probe, print included, because confirming only the
-navigation would declare a notice raised by a later reading permanent without
-ever reading again. `navigate` makes the same distinction for the suite's
-ordinary page handover, and only for errors raised inside that handover.
-`watched` still records every notice, so a notice raised by a later gesture, or
-by a test that drives its own navigation, remains a failure rather than
-disappearing into a global filter. Ordinary errors survive both readings, and a
-confirmation that does not complete pardons nothing.
-
-## Reloading is not resetting
-
-The panel's open state and every unsent draft live in `localStorage`, and the
-reading position lives in `sessionStorage` — all deliberately, so a fresh `goto`
-restores the state the last gesture left. Clear both stores where a test means
-the page as published: an open panel crowds the banner enough to absorb a
-shrinking button, and that alone once decided whether a real regression
-reproduced.
-
-A second page is not a second reader unless it is a second context — and for
-drafts the trap runs the other way: `Browser.new_page` opens each page in a
-context of its own, so two such pages share no storage, and nothing about a draft
-reaching another tab can be seen from them. `one_reader` is one context that two
-pages open in, which is what makes them tabs.
+Finally, assert durable output as meaning rather than formatter layout. Prettier may
+reflow prose and tags. Collapse whitespace when testing what a page says, use
+`spoken` when the registry-backed reading is already available, and match the attribute
+that carries a markup claim rather than a complete serialized tag. Reserve exact source
+and line assertions for tests whose subject is source structure or a diagnostic
+location.

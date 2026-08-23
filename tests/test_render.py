@@ -4,8 +4,8 @@ check is static — it parses the file and validates the vocabulary. Everything
 downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
 there are invisible to a linter. This suite drives the shipped examples through
-the Chrome already on the machine and asserts the handful of things that were
-each, at some point, wrong:
+Playwright's pinned Chromium headless shell and asserts the handful of things
+that were each, at some point, wrong:
 
   - a widget that upgrades into a box of no size (lf-tabs marked itself with a
     class the runtime's chrome had already claimed for its visually-hidden live
@@ -23,8 +23,8 @@ and asserts the event log those gestures leave behind. The log is the trail
 Claude actually reads, so it is the artifact worth pinning; the DOM along the
 way is checked only where a step depends on it.
 
-Chrome is driven through Playwright's `channel="chrome"`, which attaches to the
-installed browser: no download, no build step, `uv` still the one prerequisite.
+Playwright's default Chromium launch selects its separate headless shell. The
+matching build is installed once with `playwright install chromium --only-shell`.
 """
 
 import fcntl
@@ -63,24 +63,34 @@ assert EXAMPLES, "no examples found — parametrizing over an empty list tests n
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = Path(__file__).parent.parent / "examples" / "media"
 
-# A long page, so the document scrolls, and nothing else — the panel is the subject.
-LONG_PAGE = """<!doctype html>
+
+def leaf_page(title: str, body: str, *, head: str = "") -> str:
+    """A complete page carrying the presentation boundary every fixture shares."""
+    extra_head = f"{head}\n" if head else ""
+    return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>long</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>{title}</title>
+<meta http-equiv="Content-Security-Policy" content="{interact.PAGE_CSP}">
 <link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
+{extra_head}<script type="module" src="/leaf.js"></script>
 </head>
 <body>
-<main>
-<h1 id="t">Long</h1>
-{paras}
-</main>
+<main>{body}</main>
 </body>
 </html>
-""".format(
+"""
+
+
+# A long page, so the document scrolls, and nothing else — the panel is the subject.
+LONG_PAGE = leaf_page(
+    "long",
+    """
+<h1 id="t">Long</h1>
+{paras}
+""",
+).format(
     paras="\n".join(
         f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(60)
     )
@@ -92,17 +102,9 @@ LONG_PAGE = """<!doctype html>
 # to one selection), a widget whose body the runtime's own chrome sits inside, adjacent
 # blocks (a selection across them reads as one line to the browser and as none to the
 # source), a compound the page writes both ways, and a character straddling the quote cap.
-INLINE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>inline</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+INLINE_PAGE = leaf_page(
+    "inline",
+    """
 <h1 id="t">Inline</h1>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
@@ -123,10 +125,8 @@ first paragraph uncovered, which is what lets a test click a highlight up there.
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
 aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A specimen, for element anchors.</figcaption></figure>
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     filler="\n".join(
         f"<p id='f{i}'>Filler {i}. " + "Words. " * 20 + "</p>" for i in range(6)
     ),
@@ -136,17 +136,9 @@ stroke="currentColor"></rect></svg><figcaption>A specimen, for element anchors.<
 )
 
 # A decision already made and acted on, with the alternatives kept for the record.
-SETTLED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>settled</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SETTLED_PAGE = leaf_page(
+    "settled",
+    """
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
 <lf-options id="transport" choose settled>
@@ -157,27 +149,17 @@ SETTLED_PAGE = """<!doctype html>
   <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # A decision the page reports rather than offers: no `choose`, so there is nothing to
 # press, and the mark the upgrade puts on the carried option is the page saying which
 # one the document holds. The paragraph above it is the control — a passage nobody has
 # ever doubted was quotable.
-CARRIED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>carried</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CARRIED_PAGE = leaf_page(
+    "carried",
+    """
 <h1 id="h">Session transport</h1>
 <p id="lede">Where the decision stands, for the record.</p>
 <lf-options id="carried">
@@ -186,26 +168,16 @@ CARRIED_PAGE = """<!doctype html>
   <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # The words a widget renders from an attribute — a column's heading, a metric's number —
 # with room around them, so a drag across one is an ordinary drag and not a two-pixel
 # feat. Both column labels differ, so a quote can only anchor where it was picked.
-SAID_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>said</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SAID_PAGE = leaf_page(
+    "said",
+    """
 <h1 id="h">This week</h1>
 <lf-metrics id="numbers">
   <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
@@ -218,26 +190,16 @@ SAID_PAGE = """<!doctype html>
     <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
   </lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # Short card titles, so the whole board fits in an expected ARIA snapshot and the
 # snapshot stays about structure. One column starts empty: a keyboard user has to
 # hear it to move a card into it.
-BOARD_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>board</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+BOARD_PAGE = leaf_page(
+    "board",
+    """
 <h1 id="h">Sprint</h1>
 <lf-board id="sprint">
   <lf-column id="col-todo" label="Todo">
@@ -246,25 +208,15 @@ BOARD_PAGE = """<!doctype html>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # Exhibited widgets beside live ones, so a missing affordance can be pinned on the
 # quoting rather than on a broken upgrade.
-SPECIMEN_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>specimen</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SPECIMEN_PAGE = leaf_page(
+    "specimen",
+    """
 <h1 id="h">What a decision looks like</h1>
 <lf-specimen id="spec" label="a decision">
   <lf-options id="quoted-group" choose>
@@ -306,31 +258,19 @@ SPECIMEN_PAGE = """<!doctype html>
     <lf-old>Refill every feeder each morning.</lf-old>
     <lf-new>Refill when the camera shows it half-empty.</lf-new>
   </lf-suggestion></p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # A page with nothing to decide: the widgets under test arrive in the panel, on a
 # reply, which is the other place markup renders.
-REPLY_HOST_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>reply</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REPLY_HOST_PAGE = leaf_page(
+    "reply",
+    """
 <h1 id="h">Session store</h1>
 <p id="intro">Redis, with a signed-cookie fallback for reads.</p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # Claude answering with a question to put and, beside it, the framing that question
 # replaced — quoted, so the reply asks one thing rather than two. The words ride
@@ -356,17 +296,9 @@ SPECIMEN_MARKUP = """<lf-options id="rp-live" choose>
 IMPORTER_CARD = (
     '<lf-card id="card-importer"><strong>Wire the importer</strong></lf-card>'
 )
-REPLAYED_PAGE = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>replayed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REPLAYED_PAGE = leaf_page(
+    "replayed",
+    f"""
 <h1 id="t">Rollout</h1>
 <lf-options id="approach" choose>
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
@@ -376,15 +308,31 @@ REPLAYED_PAGE = f"""<!doctype html>
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
   <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # A page's key is minted per page; fixed here so a test can build a URL for a
 # server it did not start.
 TOKEN = "test-page-key"
+
+
+def record_claim(page, **fields):
+    record = {
+        "page": str(page.resolve()),
+        "id": "s",
+        "host": "claude-code",
+        "pid": os.getpid(),
+        "agent": "Claude",
+        "cwd": str(Path.cwd()),
+        "ts": "t",
+        "released": None,
+        **fields,
+    }
+    path = interact.claim_path(page)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    interact.write_json(path, record)
+    return record
 
 
 @pytest.fixture
@@ -427,6 +375,8 @@ def serve(tmp_path, monkeypatch):
         )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
+        go.httpd = httpd
+        go.servers = servers
         go.page_dir = d  # for tests that publish a v2 or read the event log
         # The key rides in the URL exactly as it does in a handover, so the first
         # navigation of each browser context earns the cookie the rest of the
@@ -450,6 +400,12 @@ def page_registry(page):
     return interact.served(page, page.url, "/registry.json").json()
 
 
+def post_event(page, url, **kwargs):
+    """An event arriving from another tab running this page's current layer."""
+    generation = page_registry(page)["$layer"]["generation"]
+    return page.request.post(url, headers={"Leaf-Layer": generation}, **kwargs)
+
+
 # What the page has sent and how much of it has come back, counted where the traffic is:
 # outside the page, on the browser's own request and response events. The runtime posts
 # every action and comment through fetch and reads state back the same way, so one watcher
@@ -464,39 +420,29 @@ def page_registry(page):
 class Traffic:
     """One page's trips to the server, counted as the browser reports them.
 
-    `read` is what makes `round_trip` a statement about this gesture rather than about
-    whichever poll happened to land last: a poll notes the posts already answered when it
-    goes out, so what it can have told the page on arrival is those and no later ones. Two
-    polls can be in flight at once — a post's own and the timer's — so the freshest reading
-    stands rather than the last one to arrive, which is what the max is for.
-
-    A trip that fails is over too, so `requestfailed` counts exactly where a response
-    would. A post the server refuses and a poll a test aborts have both finished going
-    round, and a wait that only counted successes would sit out the rest of its timeout on
-    the strength of a request that is never coming back.
-
-    Both readings are taken at the same moment the wrapper took them: it counted in
-    `res.then(...)`, which is the fetch promise settling, and that is the trip this event
-    reports. What the runtime then does about the answer is later than either, and it is
-    the auto-retrying `expect` after the wait that covers it — as it always did.
+    `pending` is keyed by the attempt the runtime sends, not by physical requests. A
+    failed request therefore stays pending while the outbox retries it; a definitive
+    refusal or a response naming the accepted attempt clears it. This tracks delivery,
+    observed outside the page. Whether the page then applied the returned state is a
+    separate product fact asserted on the surface that needs it.
 
     The count is the page's whole life, reloads included, where the init script started
-    over at each navigation. That only ever waits longer: a reloaded page's sends are
-    already answered, so the first poll after it carries `read` up to them, and a
-    `round_trip` that used to return on a zeroed counter now returns on a real one."""
+    over at each navigation. Navigation clears unresolved attempts because it destroys
+    that page's outbox; later sends still advance the lifetime counters."""
 
     def __init__(self, page):
         self.sends = 0  # events posted
         self.acked = 0  # posts the server has answered
-        self.read = 0  # answered posts the newest state the page has read accounts for
         self.asked = 0  # state the page has gone out for
         self.heard = 0  # ... and been given
-        self._asof = {}  # a poll in flight -> the posts already answered when it went out
+        self.pending = set()  # browser attempt ids with no known delivery outcome
+        self._token = {}  # outbox request -> its browser attempt
         self._flying = (
             set()
         )  # event posts in the air, each counted once whichever way it ends
+        self._responses = []  # bodies are read outside Playwright's response callback
         page.on("request", self._out)
-        page.on("response", lambda response: self._back(response.request))
+        page.on("response", self._responded)
         page.on("requestfailed", self._back)
         # A navigation is the third way a trip ends, and the one the browser reports
         # for neither kind: a post the reload kills mid-flight gets no `response` and
@@ -511,9 +457,13 @@ class Traffic:
         if "/api/event" in request.url:
             self.sends += 1
             self._flying.add(request)
+            event = request.post_data_json
+            token = event.get("attempt") if isinstance(event, dict) else None
+            if token:
+                self._token[request] = token
+                self.pending.add(token)
         elif "/api/state" in request.url:
             self.asked += 1
-            self._asof[request] = self.acked
 
     def _back(self, request):
         # Counted only while in the air, so a straggling report of a post the
@@ -524,24 +474,84 @@ class Traffic:
                 self.acked += 1
         elif "/api/state" in request.url:
             self.heard += 1
-            self.read = max(self.read, self._asof.pop(request, 0))
+
+    def _responded(self, response):
+        request = response.request
+        self._back(request)
+        self._responses.append(response)
+
+    def settle(self):
+        """Read queued bodies from ordinary test control flow, never an event callback.
+
+        Playwright may yield while `response.json()` asks its driver for the body. Doing
+        that inside `_responded` let the test re-enter between `acked` and `pending`,
+        after the response event that could wake it had already fired."""
+        while self._responses:
+            responses, self._responses = self._responses, []
+            for response in responses:
+                self._settle(response)
+
+    def _settle(self, response):
+        request = response.request
+        if "/api/event" in request.url:
+            try:
+                answer = response.json()
+            except Exception:  # noqa: BLE001 - malformed answers are retryable evidence
+                return
+            token = self._token.get(request)
+            state = answer.get("state")
+            state_events = state.get("events") if isinstance(state, dict) else None
+            state_attempts = (
+                {
+                    event.get("attempt")
+                    for event in state_events
+                    if isinstance(event, dict) and event.get("attempt")
+                }
+                if isinstance(state_events, list)
+                else set()
+            )
+            accepted = answer.get("ok") is True and token in state_attempts
+            refused = (
+                answer.get("ok") is False
+                and answer.get("final") is True
+                and ("attempt" not in answer or answer.get("attempt") == token)
+            )
+            if accepted or refused:
+                self.pending.discard(token)
+        elif "/api/state" in request.url and response.ok:
+            try:
+                state = response.json()
+            except Exception:  # noqa: BLE001 - it accounted for nothing the page can read
+                return
+            state_events = state.get("events") if isinstance(state, dict) else None
+            if not isinstance(state_events, list):
+                return
+            attempts = {
+                event.get("attempt")
+                for event in state_events
+                if isinstance(event, dict) and event.get("attempt")
+            }
+            self.pending.difference_update(attempts)
 
     def _navigated(self, frame):
         if frame.parent_frame is not None:
             return
-        while self._flying:
-            self._flying.pop()
-            self.acked += 1
+        self.acked += len(self._flying)
+        self._flying.clear()
+        self.pending.clear()
+        self._token.clear()
+        self._responses.clear()
 
     def __str__(self):
         return (
-            f"sends={self.sends} acked={self.acked} read={self.read} "
+            f"sends={self.sends} acked={self.acked} pending={len(self.pending)} "
             f"asked={self.asked} heard={self.heard}"
         )
 
 
 def _traffic(page):
     """The watcher `open_page` hung on this page when it made it."""
+    page.lf_traffic.settle()
     return page.lf_traffic
 
 
@@ -549,27 +559,29 @@ def _until(page, fact, wanted):
     """Block until `fact` holds of the page's traffic.
 
     The events the counters are built from arrive while the client is blocked inside a
-    Playwright call, so this blocks on the next response and asks again — no polling
-    interval to pick, and nothing added to the page.
+    Playwright call, so this blocks on each next response and asks again — no polling
+    interval to pick, and nothing added to the page. Response bodies are settled only
+    after that event returns, so the delivery fact changes atomically from this caller's
+    point of view.
 
     It wakes on responses alone, where the counters answer to failures too, so a fact that
     came true through a failed request waits for the next poll that is answered to be
     noticed. A page with every poll routed to `abort` has no such next, and a wait on one
     runs its timeout out and says so rather than passing.
 
-    A wait that runs out says what it was watching, `wanted` naming the fact in the words
-    of the caller that wanted it — required rather than defaulted, so the next wait written
-    here cannot quietly go back to saying nothing. Playwright's own message names the event
-    it blocked on ("response") and nothing about the page, while the counters that answer
-    it are already in hand, so the failure carries them from both ends of the wait: a fact
-    stuck while polls keep arriving reads differently from a page that has stopped talking
-    at all. Raised from the timeout rather than in place of it, the budget it ran out of
-    being the one fact this message hasn't got."""
+    A wait that runs out names the caller's wanted fact and prints its starting and final
+    counters. No response preserves Playwright's timeout as the cause; a busy response
+    stream reaches the same explicit deadline instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
+    deadline = time.monotonic() + 30
     try:
-        page.wait_for_event("response", predicate=lambda _: fact(_traffic(page)))
+        while not fact(_traffic(page)):
+            remaining = int((deadline - time.monotonic()) * 1000)
+            if remaining <= 0:
+                raise PlaywrightTimeout("responses outlived the wait deadline")
+            page.wait_for_event("response", timeout=remaining)
     except PlaywrightTimeout as ran_out:
         raise AssertionError(
             f"the page never {wanted}: the wait began on {began} and gave up on "
@@ -577,24 +589,42 @@ def _until(page, fact, wanted):
         ) from ran_out
 
 
-# A gesture that sends is not over when its response lands. The runtime answers a post by
-# polling, and what the page does about the gesture arrives with that poll rather than with
-# the post, so a read taken on the post is a read from before the gesture had an effect —
-# passing or failing by where the round trip happened to be. That is the flake CLAUDE.md
-# calls worse than an outright failure, and it hid the sign-off regression on about half
-# the runs meant to prove the press sweep catches it.
-#
-# So the wait is the round trip itself, watched rather than timed. Holding for the poll
-# interval instead would state a number the runtime is free to change, and would still
-# be a guess on a loaded machine — while charging every gesture two seconds for a trip
-# that takes ten milliseconds.
+def test_a_traffic_wait_stops_when_responses_outlive_its_deadline(monkeypatch):
+    """A busy response stream cannot keep a false delivery fact alive forever."""
+
+    class BusyTraffic:
+        def settle(self):
+            pass
+
+        def __str__(self):
+            return "busy"
+
+    class BusyPage:
+        lf_traffic = BusyTraffic()
+
+        def wait_for_event(self, *_args, **_kwargs):
+            raise AssertionError("the expired wait listened for another response")
+
+    times = iter((0, 31))
+    monkeypatch.setattr(time, "monotonic", lambda: next(times))
+
+    with pytest.raises(AssertionError, match="never reached a false fact"):
+        _until(BusyPage(), lambda _traffic: False, "reached a false fact")
+
+
+# A browser trip is over when the response names the accepted attempt, definitively
+# refuses it, or a periodic poll observes it after the response was lost. Traffic records
+# those delivery outcomes as one fact. It deliberately says nothing about whether the
+# runtime then applied the response state; tests assert that on the affected page surface.
+# A request failure does not finish delivery, because the outbox keeps the same attempt
+# and retries; waiting merely for `acked` would return on that ambiguous edge.
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
-    _until(page, lambda t: t.read >= t.sends, "heard back what it sent")
+    _until(page, lambda t: not t.pending, "heard back what it sent")
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory
-# announces itself — a declared status, a bumped heartbeat, an appended event all reach
+# announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when its next poll asks — so an assertion made straight after the write is
 # waiting out the poll interval on whatever budget expect() happens to carry. Timed, that
 # wait takes 1.8 to 2.3 of the default five seconds, and it takes them every time: an
@@ -609,14 +639,42 @@ def told(page):
     _until(page, lambda t: t.heard > asked, "finished a poll that went out from here")
 
 
+# `z` is the one press whose subject is read rather than pointed at, so the dispatcher
+# holds it dead while the page holds a gesture no log read has accounted for — this
+# press's own trip included (unrecordedGesture). Every other press acts on what is under
+# the reader and can be made the moment the paint is there; the paint arrives a turn
+# before the trip it was made on is over, so a `z` made on it is a press the dispatcher
+# refuses, and what the refusal leaves behind is the page an assertion on the un-undone
+# state would find anyway. A test cannot tell that from an undo that did the wrong thing:
+# it reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
+#
+# So the press waits on the fact the page states rather than on the gesture before it
+# having painted. The line and the dispatcher ask one predicate (`live`), so no surface
+# can promise a press the dispatcher refuses — which makes the offer standing on the
+# line the page saying this press will be taken. Then the trip: the press's own send is
+# not counted at the moment it is made, and a `round_trip` that reads the counters
+# before the browser has reported the request is a wait on a page that has not started
+# moving.
+#
+# The line answers about room as well as about liveness: renderLine drops chips from the
+# end when the window is too narrow to hold them, and the end is the outside of the
+# stack, where a page-level key like this one sits. So the wait needs the suite's
+# default 1200×900 or something near it; under a viewport set narrow on purpose it would
+# run its budget out on a press that is perfectly live.
+def undo(page):
+    """Take the last gesture back, from the moment the line offers to."""
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    sent = _traffic(page).sends
+    page.keyboard.press("z")
+    _until(page, lambda t: t.sends > sent, "put the withdrawal in the wire")
+    round_trip(page)
+
+
 # A poll a test stops is cancelled rather than failed. The page cannot tell the two
-# apart — both reject the fetch the runtime awaits and leave it on the same `catch` —
-# and `requestfailed` fires for either, so the trip still counts as over and every wait
-# built on `Traffic` is unchanged. The console can tell them apart, which is what the
-# reason is chosen for: tests/CLAUDE.md, "A test cannot assert over noise it makes
-# itself". A send the network refuses is the other act, and
-# test_a_decision_the_server_never_took_goes_back_to_pending aborts plainly for it —
-# there the failure is the subject, and the entry it leaves is what the test asserts.
+# apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
+# The console can tell them apart, which is what the reason is chosen for:
+# tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
+# request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
     route.abort("aborted")
@@ -632,9 +690,10 @@ def refuse(route):
 # later, against storage the test has moved in the meantime. Registered through
 # `primed`, the route is on the page before it navigates and no poll is ever unrouted.
 #
-# The first is let through because `open_page` waits for `lf-applied`, which rides on
-# it — and that same wait is what leaves nothing outstanding when the page is handed
-# over. Where the tab has to hear the log again, the test lifts the refusal itself.
+# The first is let through because `open_page` waits for the page's readiness facts,
+# including `lf-applied`, which rides on it — and that same wait is what leaves nothing
+# outstanding when the page is handed over. Where the tab has to hear the log again,
+# the test lifts the refusal itself.
 def held_stale(context):
     """A context whose next page is refused every poll after the one that stamps it."""
 
@@ -648,9 +707,10 @@ def held_stale(context):
     return primed(context, hold)
 
 
-# The two state-readiness stamps: `lf-upgraded` is the document's — widgets upgraded and
-# the anchor pass run — and `lf-applied` is the log's, written at the end of every replay
-# pass. They say the poll's state was applied, not that later layout work has settled.
+# The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
+# and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
+# pass, and `lf-presented` says a deliberately shown waiting surface has completed its
+# minimum dwell. Applied state is not yet a completed page while that surface stands.
 # The runtime stamps the document in the same breath as it starts that first poll and
 # never awaits it, so a page can be done becoming itself while knowing nothing of what
 # the reader has decided or which version is newest.
@@ -665,6 +725,7 @@ def held_stale(context):
 BOTH_STAMPS = (
     "() => document.body.dataset.lfUpgraded === '1'"
     " && document.body.dataset.lfApplied !== undefined"
+    " && document.body.dataset.lfPresented === '1'"
 )
 STORED_DRAFT_TEXT = """ctx => {
   try {
@@ -793,8 +854,8 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` takes the page's own two stamps for having finished, `BOTH_STAMPS` above
-    saying what each of them answers for. Twenty-two tests stood on the pair the day it
+    `upgraded` takes the page's three readiness facts for having finished, `BOTH_STAMPS`
+    above saying what each answers. Twenty-two tests stood on the first pair the day it
     was written here, and a dockerised Linux runner had named three.
 
     Navigation waits for `load`, so the stylesheet and media that determine layout have
@@ -963,25 +1024,15 @@ def compare_with(page, version=None):
     press.click()
 
 
-CUSTOM_WIDGET_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>custom widget</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-</head>
-<body>
-<main>
+CUSTOM_WIDGET_PAGE = leaf_page(
+    "custom widget",
+    """
 <h1 id="title">Project vocabulary</h1>
 <lf-callout id="custom-note">
   <strong>Heads up</strong> This widget came from the project layer.
 </lf-callout>
-</main>
-<script type="module" src="/leaf.js"></script>
-</body>
-</html>
-"""
+""",
+)
 
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
@@ -999,6 +1050,340 @@ def resize_notice_after_last_probe(page):
         return result
 
     page.evaluate = with_notice
+
+
+# What a returning reader's browser puts back before the page runs, declared by the
+# runtime that puts it back (leaf.js, ARRANGEMENTS). Read from the page rather than
+# listed here: which surfaces remember anything is the runtime's to say, and a list on
+# this side would stop at the ones it was taught.
+ARRANGEMENTS = "() => import('/leaf.js').then((leaf) => leaf.ARRANGEMENTS)"
+
+# One arrangement and no other, written the way a reader's own browser holds it. Both
+# stores are cleared first, so each arrival is the arrangement it names rather than that
+# one plus whatever the last reload left. Nothing is caught: a browser that will not
+# store is a browser this reading cannot make, and swallowing that would turn every
+# arrival into a first visit and every arrival finding into a pass.
+ARRANGE = """(a) => {
+  localStorage.clear();
+  sessionStorage.clear();
+  (a.store === "session" ? sessionStorage : localStorage).setItem(a.key, a.value);
+}"""
+
+
+def arrival_findings(browser, url):
+    """Whether a page comes up at all in each arrangement a reader can return to.
+
+    The suite's, not `render_version`'s, and the line between them is whose fault a
+    finding is. Everything the gate reads is something the page's author wrote and
+    can change; a restore is the layer's, identical under every version, so an agent
+    running the gate at handover would be paying for a verdict on code it did not
+    write and cannot fix.
+
+    What it reads: a fresh context holds nothing, so every other reading in the suite
+    is of a first visit — the comment panel shut, no board standing, design mode off —
+    and each of those is something a reader turns on once and gets back on every load
+    afterwards. That left the restores as the one road onto a page with nothing
+    watching it, and a board someone had left standing came up as a ReferenceError
+    instead of a page: it was put up by code running while the runtime was still
+    evaluating, which could reach almost nothing. It reached the reader, who reported
+    it.
+
+    One page, reloaded into each arrangement, which is what a returning reader does:
+    the store is written on the origin the page is already on and read while the next
+    load evaluates. What comes back is the upgrade stamp and the console and no more,
+    because coming up is the whole question here. Boxes are not measured again: every
+    shipped example was measured in each of these arrangements and none of them moved
+    a box that a first visit didn't.
+    """
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    errors = []
+    notices = []
+
+    def console_message(message):
+        if message.type != "error":
+            return
+        target = notices if interact.resize_observer_error(message.text) else errors
+        target.append(message.text)
+
+    page.on("console", console_message)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on(
+        "response",
+        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
+    )
+    page.add_init_script(interact.WINDOW_ERRORS)
+    found = []
+    try:
+        # A first visit, to be arranged from and to read the arrangements off. Reported
+        # rather than raised when it doesn't arrive: this is the reading that says what
+        # happens on a load, so a load it could not make is its own answer, and a page
+        # that never came up has nothing to be arranged into.
+        try:
+            # `load`, where the gate's scheme passes wait for network quiet: those read
+            # the served documents and want a page that has stopped asking for things,
+            # while everything here is either the stamp below — which the page raises
+            # for itself, and which is the stronger fact — or a console the handlers
+            # above are already attached to. Network quiet costs 3.5x what the load
+            # event does over the five navigations here, measured on
+            # design-decision.html, and buys this nothing.
+            page.goto(url, wait_until="load")
+            page.wait_for_function(interact.UPGRADED)
+        except PlaywrightTimeout:
+            return [
+                "[arrivals] the page never came up unarranged, so nothing could be "
+                "arranged — "
+                + ("; ".join([*errors, *notices]) or "and no console error says why")
+            ]
+        for arrangement in page.evaluate(ARRANGEMENTS):
+            page.evaluate(ARRANGE, arrangement)
+            # A console the last arrangement dirtied is not this one's news.
+            errors.clear()
+            notices.clear()
+            try:
+                page.reload(wait_until="load")
+                page.wait_for_function(interact.UPGRADED)
+            except PlaywrightTimeout:
+                found.append(
+                    f"[{arrangement['name']}] the page never finished coming up — "
+                    + (
+                        "; ".join([*errors, *notices])
+                        or "and no console error says why"
+                    )
+                )
+                continue
+            # A ResizeObserver notice is the gate's to adjudicate over two attempts on
+            # the same document; one seen here says nothing on its own.
+            found += [f"[{arrangement['name']}] console: {e}" for e in errors]
+    finally:
+        page.close()
+    return found
+
+
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+def test_an_example_comes_up_for_a_reader_who_left_something_standing(
+    browser, serve, example
+):
+    """The corpus read the way a reader reads it the second time. `test_example_renders`
+    above is every example's first visit; this is the same examples with the panel
+    open, a board standing, or design mode on, which is what the reader who opened one
+    of those gets back on every load until they close it."""
+    assert arrival_findings(browser, serve(example.read_text())) == []
+
+
+def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
+    """The sweep above asks whether each example survives an arrangement; this asks
+    whether the reading covers them. The probe speaks only to a returning reader, so
+    every finding here is the arrival pass's, and what it is held to is the
+    arrangements the runtime declares — all of them, in order, because a pass that
+    stopped at the first would leave every surface after it exactly as unwatched as it
+    was before."""
+
+    def prepare(page):
+        # At document start, before the page's own scripts, so what is read is what the
+        # gate seeded and not what the runtime has since written back over it.
+        page.add_init_script(
+            "const held = [...Object.keys(localStorage), ...Object.keys(sessionStorage)];"
+            "if (held.length) console.error('returned holding ' + held.join());"
+        )
+
+    url = serve(CUSTOM_WIDGET_PAGE)
+    declared = browser.new_page()
+    declared.goto(url, wait_until="load")
+    declared.wait_for_function(interact.UPGRADED)
+    arrangements = declared.evaluate(ARRANGEMENTS)
+    declared.close()
+    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+
+    arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
+    assert [f.split("]")[0].lstrip("[") for f in arrived] == [
+        a["name"] for a in arrangements
+    ]
+    # And each was the arrangement it names rather than that one plus everything the
+    # reloads before it left standing — a difference no finding could show on its own,
+    # since all of them would still be reported, each under a name that had stopped
+    # being true. Only the other arrangements' keys are held against an arrival: the
+    # page writes its own reading position on the way out of every load, so a store
+    # holding that too is a page that departed, not an arrangement that leaked.
+    arranged = {a["key"] for a in arrangements}
+    for finding, arrangement in zip(arrived, arrangements):
+        held = set(finding.split("returned holding ")[1].split(","))
+        assert held & arranged == {arrangement["key"]}, finding
+
+
+def motions(events):
+    """The settling motions the browser reported, keyed by the motion, not by its target.
+
+    Settling and not living, which is `interact.MOVING`'s distinction and is here for
+    its reason: the banner's dot pulses for as long as the tab is open, and something
+    that never ends never arrived anywhere. An unbounded iteration count cannot cross
+    JSON, so the browser omits it, and that omission is the reading.
+
+    A target is a backend node id, and the same board over two loads is two of them,
+    so an id cannot say whether the second load moved what the first one did. The kind
+    of motion, the property or keyframes it plays and how long it runs are one string
+    whichever load painted it, and that is the key. The id rides along beside it for
+    the failure message alone: a person reading one wants the element, and that is the
+    only place a name is worth a round trip.
+    """
+    found = {}
+    for event in events:
+        animation = event["animation"]
+        source = animation.get("source") or {}
+        if source.get("iterations") is None:
+            continue
+        key = (
+            f"{animation['type']} {animation.get('name') or ''}"
+            f" {source.get('duration')}ms"
+        )
+        found.setdefault(key, source.get("backendNodeId"))
+    return found
+
+
+def moved_at(cdp, node):
+    """Where a reported motion was, named the way the rest of the suite names elements."""
+    if node is None:
+        return "an element the browser did not identify"
+    # The node map is the inspector's own and is populated by asking for the document;
+    # a describeNode on a fresh document without it is refused outright.
+    cdp.send("DOM.getDocument", {"depth": 1})
+    described = cdp.send("DOM.describeNode", {"backendNodeId": node})["node"]
+    pairs = described.get("attributes", [])
+    attributes = dict(zip(pairs[::2], pairs[1::2]))
+    name = described.get("localName") or described.get("nodeName")
+    if attributes.get("id"):
+        return f"{name}#{attributes['id']}"
+    if attributes.get("class"):
+        return f"{name}.{attributes['class'].replace(' ', '.')}"
+    return name
+
+
+def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
+    browser, serve
+):
+    """A page put back the way the reader left it is simply there, and does not assemble
+    itself in front of them.
+
+    Standing a board up is a gesture and gestures move: the board slides in over a fifth
+    of a second and the document steps aside to make the room. Coming back to a board
+    that was already standing is not a gesture — nothing was just decided, and a page
+    that replays the decisions on arrival would be showing the reader a fifth of a
+    second of furniture instead of what they came back to read. The runtime says so in
+    two places, and neither had anything holding it: `motion` refuses to animate behind
+    the presentation boundary, and `restoreBoard` paints the board without going through
+    the opener a press uses. Route the restore through that opener — the natural tidy,
+    since it is otherwise two writers of one fact — and the board slides on every load,
+    with every gate here green.
+
+    What is read is every motion the browser reports, which it does through the
+    inspector's animation agent as it reports a request or a response: nothing is
+    injected, and nothing is timed. The report outlives the motion, so what has to be
+    caught is the frame a slide begins on and never the fifth of a second it runs
+    for — which is the whole difference from reading `getAnimations` once the page is
+    up, a race this machine wins and a loaded one does not.
+
+    Held against a first visit rather than against a list of what may move. The page
+    plays one animation of its own while it arrives — the waiting surface's — and a
+    list would have had to name it, which is naming the page's furniture, the closed
+    list this project keeps not writing. A return may move less than a first visit; it
+    may not move more.
+
+    That only works if every load here arrives the same way, and left to itself none
+    of them does: the waiting surface is what the page shows when the first poll has
+    not answered yet, so on a load quick enough to present without painting a frame it
+    never runs at all. Comparing two loads then compares two guesses about how busy
+    the machine was — the first visit came up too quickly to show it, the return did
+    not, and the return was reported as having moved a surface neither of them owns.
+    So the poll is held on every load and let go once the surface is up, which is this
+    suite's answer to a race wherever it finds one, and the reading it waits for is the
+    page's own. The window that opens is also the one this test is about: it is where a
+    restore is put back, and standing in it is strictly more than catching it.
+
+    What the reader left standing is the arrangement the runtime declares, all of them
+    in turn, so a fourth remembered surface is covered the day it starts remembering.
+    One thing was caught the day this was written: a panel left open moved the toast
+    across the page's foot, because its resting corner is the panel's and the
+    stylesheet transitions it there. Invisible, the toast being transparent until it
+    speaks — and exactly the shape of the visible one.
+    """
+    url = serve(CHANGE_SHAPES_PAGE)
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+
+    cdp = page.context.new_cdp_session(page)
+    started = []
+    cdp.on("Animation.animationStarted", lambda event: started.append(event))
+    cdp.send("DOM.enable")
+    cdp.send("Animation.enable")
+
+    def moved():
+        # One frame, then the flush. The report is made by the rendering update that
+        # starts the animation and not by the script call that created it — measured,
+        # thirty out of thirty on this browser — so a read taken between the two sees
+        # a still page and says so. It rarely does, which is the trouble: a read after
+        # a load has crossed a frame several times over, and the press below had not,
+        # so that was the one that came back empty, once in eighteen under contention.
+        # The flush is the command after it: replies and events travel one connection
+        # in order, so a reply that has arrived says every event the browser had
+        # already sent has too.
+        page.evaluate("() => new Promise(requestAnimationFrame)")
+        cdp.send("Animation.getPlaybackRate")
+        found = motions(started)
+        started.clear()
+        return found
+
+    def arrive():
+        """One load, standing in the arrival rather than catching it as it goes past."""
+        held = []
+        polls = itertools.count()
+        page.route(
+            "**/api/state*",
+            lambda route: held.append(route) if next(polls) == 0 else route.continue_(),
+        )
+        page.goto(url, wait_until="load")
+        page.wait_for_function(interact.UPGRADED)
+        # The page's own statement that it is waiting: the surface it shows while the
+        # log is outstanding has finished its dwell and is painting. Waiting for it is
+        # what makes every load here the same load, so what a return moves can be held
+        # against what a first visit moves without either answer depending on how busy
+        # the machine was.
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        assert held, "the first poll went through, so no arrival was stood in"
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        page.unroute("**/api/state*")
+        return moved()
+
+    arrangements = page.evaluate(ARRANGEMENTS)
+    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+
+    # The control, and the whole reason the silences below say anything: standing the
+    # board up by hand is the gesture whose motion the arrivals must not have. What it
+    # paints is the runtime's business and is not named here; that it paints at all is
+    # this reading's, and a reading that reports nothing when something moved would
+    # pass every assertion after it.
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    gesture = moved()
+    assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
+
+    page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+    first_visit = arrive()
+
+    for arrangement in arrangements:
+        page.evaluate(ARRANGE, arrangement)
+        extra = {k: v for k, v in arrive().items() if k not in first_visit}
+        assert not extra, (
+            f"returning to {arrangement['name']} moved what a first visit does not: "
+            + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
+        )
+    # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
+    # one document; one seen here is the platform under load and says nothing.
+    assert [e for e in errors if not interact.resize_observer_error(e)] == []
+    page.close()
 
 
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
@@ -1067,7 +1452,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
             resize_notice_after_last_probe(page)
-        elif number >= 2:
+        elif number >= 2:  # the arrival page, then the confirming attempt's two
             page.set_default_timeout(500)
             page.route("**/leaf.js", lambda route: route.abort())
         pages.append(page)
@@ -1389,27 +1774,17 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
 
 # Every cell one unbreakable token, so no amount of wrapping gets this table
 # inside the column and the third of the theme's three cases is the one on trial.
-WIDE_TABLE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>wide</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_TABLE_PAGE = leaf_page(
+    "wide",
+    """
 <h1 id="t">Sessions</h1>
 <p id="p">One row, and more of it than the measure holds.</p>
 <table id="sessions">
 <thead><tr>{heads}</tr></thead>
 <tbody><tr>{cells}</tr></tbody>
 </table>
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     heads="".join(f"<th>heading_number_{i}</th>" for i in range(8)),
     cells="".join(f"<td>value_number_{i}</td>" for i in range(8)),
 )
@@ -1473,10 +1848,10 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
 
 
 # Two wrappers that generate no box, differing only in whether anything inside them does.
-# `#veiled` is the shape the vocabulary already ships — a suggestion is display: contents,
-# and its slots are what the reader sees — and it is the control: the gate must not report
-# it, or it reports every suggestion on every page. `#ghost` is the same wrapper with its
-# words loose inside it, where there is nothing at all for a mark to hang on.
+# `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,
+# and any page can still write in a line — it is the control: the gate must not report
+# it, or it reports every page that styles a wrapper away. `#ghost` is the same wrapper
+# with its words loose inside it, where there is nothing at all for a mark to hang on.
 UNMARKABLE_PAGE = LONG_PAGE.replace(
     "</main>",
     "<div id='veiled' style='display: contents'>"
@@ -1812,6 +2187,336 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert errors == []
 
 
+# The two edges the reader draws, and what a reading of either has to know: a page that
+# offers the region, what puts it up, the region's own selector, which side of the window
+# it is held to, and the numbers the runtime holds it to. Two records rather than two
+# tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
+# reflected — a reading written for the panel alone would go on passing on the day the
+# board's edge stopped working, and the board's edge exists precisely because the panel's
+# did not have to be written a second time.
+#
+# `html` is a call rather than the markup, because the page the boards need is declared
+# with the other board readings a long way below here, and a parametrize list is read at
+# import. `squeeze` is the window that has no room for what the reader chose and the width
+# the region stands at there — per edge, because each is capped against its own half of a
+# window and covers the page at a different one.
+EDGES = [
+    SimpleNamespace(
+        name="comments",
+        html=lambda: LONG_PAGE,
+        comments=1,
+        stand=lambda page: page.locator(".lf-comments").click(),
+        region=".lf-panel",
+        side="right",
+        store="lf-panel-width",
+        wide=420,
+        squeeze=(1000, 500),
+    ),
+    SimpleNamespace(
+        name="boards",
+        html=lambda: ASKS_PAGE,
+        comments=0,
+        stand=lambda page: page.keyboard.press("a"),
+        region=".lf-asks-panel",
+        side="left",
+        store="lf-board-width",
+        wide=300,
+        squeeze=(800, 400),
+    ),
+]
+EDGE_IDS = [edge.name for edge in EDGES]
+
+
+def edge_settled(page, edge):
+    """Wait for the region to stand and for the page to finish making room for it.
+
+    Two animations, on two elements, and `panel_settled`'s reasoning covers both: the
+    strip the page yields is a transition on body, and the region's arrival is its own
+    slide. A geometry read between them is a read of a box still under a transform.
+    """
+    expect(page.locator(edge.region)).to_be_visible()
+    page.wait_for_function(
+        "(region) => document.body.getAnimations().length === 0"
+        " && document.querySelector(region).getAnimations().length === 0",
+        arg=edge.region,
+    )
+
+
+def geometry(page, edge):
+    """What the edge reads back as, and what the page has left beside it.
+
+    The two numbers are one fact asked from both sides: the strip is body's margin and
+    the region's own box, and the whole point of the width being the reader's is that
+    nothing may hold a copy of it their gesture doesn't reach.
+    """
+    return page.evaluate(
+        """([region, side, store]) => {
+            const box = document.querySelector(region).getBoundingClientRect();
+            const body = document.body.getBoundingClientRect();
+            return {
+                width: Math.round(box.width),
+                edge: Math.round(side === 'right' ? box.left : box.right),
+                page: Math.round(side === 'right' ? body.right : body.left),
+                chosen: localStorage.getItem(store),
+            };
+        }""",
+        [edge.region, edge.side, edge.store],
+    )
+
+
+def draw_edge(page, edge, by):
+    """Draw the region's edge `by` pixels wider, as a hand on it would.
+
+    Whole pixels, per `select`'s reason (tests/CLAUDE.md): a press on a fractional point
+    is a press the browser is free to round somewhere else. In steps, because one jump
+    from press to release is a drag with no `pointermove` between its ends, and the move
+    is the whole of what this gesture is made of. Wider is away from the side the region
+    is held to, which is the reading the runtime makes of the same gesture.
+    """
+    box = page.locator(f"{edge.region} .lf-edge").bounding_box()
+    x, y = math.floor(box["x"] + box["width"] / 2), math.floor(box["y"] + 200)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
+    page.mouse.up()
+    # The slide stands down for the length of a drag and comes back at its end, so what
+    # is waited on is the page holding still rather than a transition finishing — which
+    # `panel_settled` reads the same way, and which is empty here on both counts.
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+
+
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
+    """A conversation about a table wants room a conversation about a sentence does not,
+    and a board of long names wants room a board of short ones does not; only the reader
+    looking at one knows which this is. So each region's edge is a thing they take hold
+    of, and the page yields exactly the strip they leave it.
+
+    Both sides of that strip are read, because the failure this is written against does
+    not show on either alone: a region that resizes while the page keeps yielding the old
+    margin lays out perfectly well, with a band of page underneath it or a band of nothing
+    beside it, and either is a width stated twice by two writers who have come apart. They
+    are one number here — the property the runtime writes — and the reading is what says
+    so.
+
+    Then the same edge from the keyboard, because a reader who is not holding a pointer is
+    still reading the same page, and then a reload, because a width set once and lost on
+    the next version is a width they would have to set on every revision."""
+    page, errors = open_page(browser, serve(edge.html(), comments=edge.comments))
+    edge.stand(page)
+    edge_settled(page, edge)
+    default = geometry(page, edge)
+
+    draw_edge(page, edge, 160)
+    drawn = geometry(page, edge)
+
+    # Focus lands on the edge with the drag, so the arrows are live on what the hand was
+    # just holding; the press states that in the form a reader without a pointer makes it.
+    # Toward the side the region is held to narrows it.
+    page.locator(f"{edge.region} .lf-edge").press(
+        "ArrowRight" if edge.side == "right" else "ArrowLeft"
+    )
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    stepped = geometry(page, edge)
+
+    page.reload(wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+    edge_settled(page, edge)
+    returned = geometry(page, edge)
+    page.close()
+
+    assert default["width"] == edge.wide, (
+        f"the region did not start at the width a reader who has said nothing gets: "
+        f"{default}"
+    )
+    assert drawn["width"] == edge.wide + 160, (
+        f"the edge did not follow the hand: {default} then {drawn}"
+    )
+    assert drawn["page"] == drawn["edge"], (
+        f"the page yielded a strip of its own rather than the one the region took: {drawn}"
+    )
+    assert drawn["chosen"] == str(edge.wide + 160), (
+        f"the reader's width was not kept: {drawn}"
+    )
+    assert (stepped["width"], stepped["page"]) == (
+        drawn["width"] - 24,
+        stepped["edge"],
+    ), f"the arrow moved something other than the edge and the page with it: {stepped}"
+    assert returned["width"] == stepped["width"], (
+        f"the width did not survive the reload a version switch makes: {returned}"
+    )
+    assert errors == []
+
+
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
+    browser, serve, edge
+):
+    """A region may take half of a window it stands beside and no more — the same bargain
+    the covering breakpoint strikes one window down, that the page keeps at least what the
+    region takes. A window that shrinks past that is a window, not a retraction: the reader
+    said 580 once, and a laptop lid opened narrower is not them saying 400 instead.
+
+    So the choice and the standing width are two facts. Clamping the stored one would read
+    identically on the narrow window and lose the reader's answer for good on the wide one
+    they came back to, which is the failure this reading is here to catch — the third
+    geometry below is the whole of it."""
+    narrow, stands = edge.squeeze
+    page, errors = open_page(browser, serve(edge.html(), comments=edge.comments))
+    edge.stand(page)
+    edge_settled(page, edge)
+    draw_edge(page, edge, 160)
+    drawn = geometry(page, edge)
+
+    resized(page, narrow, 900)
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    squeezed = geometry(page, edge)
+
+    resized(page, 1400, 900)
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    roomy = geometry(page, edge)
+    page.close()
+
+    assert drawn["width"] == edge.wide + 160, f"the drag did not land: {drawn}"
+    assert squeezed["width"] == stands, (
+        f"a {narrow}px window left the page less than the region took: {squeezed}"
+    )
+    assert squeezed["page"] == squeezed["edge"], (
+        f"the page yielded a strip the region was not standing in: {squeezed}"
+    )
+    assert squeezed["chosen"] == str(edge.wide + 160), (
+        f"the narrow window un-said what the reader had said: {squeezed}"
+    )
+    assert roomy["width"] == edge.wide + 160, (
+        f"the width the reader chose did not come back with the room for it: {roomy}"
+    )
+    assert errors == []
+
+
+def test_both_boards_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
+    """Leaves and asks are the same furniture at two scopes, one at a time on one side of
+    the window, so the width is the side's rather than either board's. A reader who drew
+    the edge out to read long names has drawn the edge, and finding the other board back
+    at its default would be one fact kept in two places — which is what a width per board
+    would have been, and what the shared property is instead.
+
+    The `other_leaf` fixture is the whole reason there is a second board to swap to: a
+    board of one — the page the reader is already on — is not worth a control, so without
+    a neighbour `l` is dead."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    boards = EDGES[1]
+    boards.stand(page)
+    edge_settled(page, boards)
+    draw_edge(page, boards, 160)
+
+    page.keyboard.press("l")
+    expect(page.locator(".lf-others-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-others-panel').getAnimations().length === 0"
+    )
+    leaves = page.evaluate(
+        "() => document.querySelector('.lf-others-panel').getBoundingClientRect().width"
+    )
+    page.close()
+
+    assert round(leaves) == boards.wide + 160, (
+        f"the second board came up at a width the reader had already moved: {leaves}"
+    )
+    assert errors == []
+
+
+def test_a_board_that_takes_a_strip_is_counted_against_the_margins_floor(
+    browser, serve
+):
+    """The theme's margin idioms are granted by a media query, which asks the window; what
+    they hang in is the page's own box, which is the window less whatever the chrome holds
+    of it. The panel's strip was counted there and the board's was not, so a 1200px window
+    with a board standing granted a sidenote its margin against a 900px page — 84px under
+    the floor the theme states, on the most ordinary window there is.
+
+    Read as the veto rather than as a note's position, because the veto is the fact and a
+    note is one idiom that spends it: a reading of the note would go on passing the day a
+    second idiom stopped asking. Both states, because the attribute standing permanently
+    would read the same way here and would cost every wide page its margins."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 900)
+    cramped = "() => document.body.hasAttribute('data-lf-cramped')"
+    room = page.evaluate(cramped)
+
+    page.keyboard.press("a")
+    edge_settled(page, EDGES[1])
+    standing = page.evaluate(cramped)
+
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    given_back = page.evaluate(cramped)
+    page.close()
+
+    assert not room, "a 1200px window with no board was already short of the floor"
+    assert standing, (
+        "the board took 300px out of a 1200px page and the margins were granted anyway"
+    )
+    assert not given_back, "the page kept the veto after the board gave its strip back"
+    assert errors == []
+
+
+# The room, sampled every frame for as long as a slide lasts. A property is asked of the
+# root rather than of any element that spends it, because it is the fact and an exhibit is
+# one reader of it.
+ROOM_EVERY_FRAME = """(frames) => {
+  window.__room = [];
+  // The first sample is taken now rather than on the first frame, so the width before the
+  // press is always in the trace: a frame is free to land after the keypress that follows
+  // this call, and a trace that opens after the strip is taken has one value in it and
+  // nothing to compare.
+  const tick = () => {
+    window.__room.push(
+      getComputedStyle(document.documentElement).getPropertyValue('--lf-room'));
+    if (window.__room.length < frames) requestAnimationFrame(tick);
+  };
+  tick();
+}"""
+
+
+def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
+    """The room a wide exhibit may take is the page's box less the strips the chrome
+    holds, and for the fifth of a second a strip takes to arrive that box is neither the
+    width the page has nor the one it is going to. Written as the box minus the strip the
+    margin has not taken yet, the two readings are in different number systems — a client
+    box is an integer and a transitioning margin is not — and the sum landed a pixel either
+    way on alternate frames.
+
+    A pixel is nothing to look at and the flicker is not the failure. Each flip is a
+    relayout of every exhibit on the page, made from inside the observation that asked for
+    it, and Chrome answers a loop of those on the window's error channel and nowhere else:
+    the first sight of it was a press sweep going red on one example with nothing on screen
+    to say why.
+
+    So the reading is of the property rather than of anything laid out from it, and what it
+    asks is that the room never returns to a value it has left. That is true of a slide
+    both ways — arriving, the room is stated at once and holds; leaving, it grows back
+    frame by frame — and it is false the moment two readings disagree by a pixel."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 900)
+    page.evaluate(ROOM_EVERY_FRAME, 60)
+    page.keyboard.press("a")
+    edge_settled(page, EDGES[1])
+    page.wait_for_function("() => window.__room.length >= 60")
+    trace = page.evaluate("() => window.__room")
+    page.close()
+
+    steps = [room for i, room in enumerate(trace) if i == 0 or room != trace[i - 1]]
+    assert len(steps) > 1, (
+        f"the board took no room out of the page, so nothing here was measured: {steps}"
+    )
+    assert len(steps) == len(set(steps)), (
+        "the room went back to a width it had already left, which is a relayout of every "
+        f"exhibit on the page on alternate frames: {steps}"
+    )
+    assert errors == []
+
+
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 COLORED_CODE_PAGE = LONG_PAGE.replace(
@@ -2023,20 +2728,21 @@ BANNER_WATCH = f"""(sel) => {{
       .filter(window.__lfOnScreen);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
-# One reading, named once, so the settle loop and the assertion cannot measure differently.
+# One reading, named once, so the rendered-frame wait and the assertion cannot measure
+# differently.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => window.__lfOnScreen(n)
       ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
-SETTLE_MS = 50  # a few frames: enough for a transition to finish
-SETTLED = """(hold) => {
-  const now = JSON.stringify(window.__lfBoxes());
-  if (now !== window.__lfSettle) {
-    window.__lfSettle = now;
-    window.__lfSince = performance.now();
-    return false;
-  }
-  return performance.now() - window.__lfSince > hold;
-}"""
+# Nested animation-frame callbacks have one complete rendering turn between them, so
+# this states rendered progress rather than elapsed time between two frame polls.
+RENDERED = "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+
+
+def page_at_rest(page):
+    """Render the known edge, finish finite motion, then render its ending."""
+    page.evaluate(RENDERED)
+    page.wait_for_function(f"() => ({interact.MOVING})().length === 0")
+    page.evaluate(RENDERED)
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
@@ -2056,7 +2762,17 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
         "title", "Approve this work; the page stays open for follow-up"
     )
 
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     button.click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the approval in the wire")
+    expect(button).to_be_disabled()
+    expect(button).to_have_attribute("aria-busy", "true")
+    button.dispatch_event("click")
+    assert _traffic(page).sends == 1, "one approval press became two log events"
+
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
     event = interact.read_events(serve.page_dir)[-1]
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
@@ -2064,6 +2780,36 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     expect(button).to_be_disabled()
     assert errors == []
     page.close()
+
+
+def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
+    """Approval belongs to the presented page; runtime discussion does not wait for it."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    held = []
+    page = browser.new_page()
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/api/state*"):
+            page.goto(serve(html), wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the first state response"
+        button = page.locator(".lf-signoff")
+        expect(button).to_be_visible()
+        expect(button).to_be_disabled()
+
+        page.locator(".lf-comments").click()
+        expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(button).to_be_enabled()
+        assert errors == []
+    finally:
+        page.close()
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
@@ -2136,6 +2882,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
     silently masked by the sweep's own previous gesture."""
     url = serve(example.read_text())
     page, errors = open_page(browser, url)
+    page_at_rest(page)
     total = page.locator(PRESS).count()
     pressed, dirty = 0, False
     for i in range(total):
@@ -2149,7 +2896,11 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # the sign-off regression this test was written for passed or failed
             # according to how many times the sweep had toggled Comments.
             page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-            page.goto(url, wait_until="networkidle")
+            # `load`, the edge the first visit took (`open_page`): network silence is
+            # not a readiness fact and the two lines below are the ones that are, so
+            # waiting it out only added its own 500ms quiet window to every reload
+            # this sweep makes — a sixth of the test on the gallery, 50s to 42s.
+            page.goto(url, wait_until="load")
             # Both stamps, which the reload has to earn again: half these controls are
             # the runtime's own, and the last of them arrive with the log rather than
             # with the upgrade. A list read before that is a short list, and a short list
@@ -2158,6 +2909,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # below that says so out loud — refuse the first poll of each navigation here
             # and every one of the thirteen examples fails on it.
             page.wait_for_function(BOTH_STAMPS)
+            page_at_rest(page)
             dirty = False
             assert page.locator(PRESS).count() == total, (
                 f"{example.name} has a different set of controls after a reload, so the "
@@ -2183,10 +2935,9 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
         # The press's own effect is synchronous; what follows it is the round trip the
         # press started and whatever its answer repaints, which is as much part of
         # pressing as the frame before it. A press that sent nothing is already round
-        # tripped, so both kinds take the same short hold.
+        # tripped, so both kinds take the same rendered edge.
         round_trip(page)
-        page.evaluate("() => { window.__lfSettle = null; window.__lfSince = null; }")
-        page.wait_for_function(SETTLED, arg=SETTLE_MS)
+        page_at_rest(page)
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, (
             f"pressing {label} in {example.name} moved the controls beside it:\n  "
@@ -2327,8 +3078,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         target = page.locator(targets).nth(i)
         if not target.is_visible():
             continue
-        # A wrapper with no box of its own — a display: contents suggestion — is
-        # nowhere a user can aim (AIM_POINT finds no point in it either), and
+        # A wrapper with no box of its own — one a page's style leaves
+        # display: contents — is nowhere a user can aim (AIM_POINT finds no point
+        # in it either), and
         # scroll_into_view can wait on its stability forever when it stands inside
         # a table box (a specimen). Its slots are their own targets.
         if not target.evaluate("el => el.getClientRects().length"):
@@ -2474,9 +3226,10 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
-    assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [None, "card-notes"], (
-        "the press re-anchored the draft, so its new anchor alone should stand marked"
-    )
+    assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
+        None,
+        "card-notes",
+    ], "the press re-anchored the draft, so its new anchor alone should stand marked"
     round_trip(page)
     assert [
         e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
@@ -2504,6 +3257,122 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading.hover()  # the first move under the still-held key
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, serve):
+    """The layer epoch closes the gap between a stopped server and an open tab.
+
+    Polls are refused so the stale click, not a preceding state read, discovers the
+    change. Its old contract must append nothing and reload; the same real click then
+    succeeds under the replacement contract.
+    """
+    url = serve(REPLAYED_PAGE)
+    page, errors = open_page(browser, url)
+    old_layer = page_registry(page)["$layer"]["generation"]
+    page.route("**/api/state*", refuse)
+    page.wait_for_event(
+        "request", predicate=lambda request: "/api/state" in request.url
+    )
+
+    old_server = serve.httpd
+    address = old_server.server_address
+    old_server.shutdown()
+    old_server.server_close()
+    project = serve.page_dir.parent / ".leaf"
+    project.mkdir()
+    (project / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
+    initialized = CliRunner().invoke(
+        interact.cli, ["page", "init", str(serve.page_dir)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    new_layer = interact.layer_generation(serve.page_dir)
+    assert new_layer != old_layer
+    replacement = interact.LeafHTTPServer(
+        address, interact.handler_for(serve.page_dir, TOKEN)
+    )
+    threading.Thread(target=replacement.serve_forever, daemon=True).start()
+    serve.servers.append(replacement)
+    serve.httpd = replacement
+
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#opt-stage").click()
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert [
+        event
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == []
+
+    page.unroute("**/api/state*")
+    told(page)
+    page.wait_for_function(BOTH_STAMPS)
+    page.locator("#opt-stage").click()
+    round_trip(page)
+    actions = [
+        event
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert [(event["widget"], event["action"]) for event in actions] == [
+        ("approach", "choose")
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serve):
+    """The runtime bytes and registry are one contract, even across a slow fetch."""
+    url = serve(REPLAYED_PAGE)
+    gate_registry_once = """
+      if (!sessionStorage.getItem('lf-gated-registry')) {
+        sessionStorage.setItem('lf-gated-registry', '1');
+        const nativeFetch = window.fetch.bind(window);
+        window.lfRegistryGate = new Promise(
+          resolve => window.lfReleaseRegistry = resolve
+        );
+        window.fetch = (...args) => {
+          const input = args[0];
+          const requested = typeof input === 'string' ? input : input.url;
+          if (new URL(requested, location.href).pathname === '/registry.json') {
+            window.lfRegistryBlocked = true;
+            return window.lfRegistryGate.then(() => nativeFetch(...args));
+          }
+          return nativeFetch(...args);
+        };
+      }
+    """
+    page, errors = open_page(
+        browser,
+        url,
+        init_script=gate_registry_once,
+        wait_until="domcontentloaded",
+        upgraded=False,
+    )
+    page.wait_for_function("() => window.lfRegistryBlocked === true")
+    old_layer = interact.layer_generation(serve.page_dir)
+
+    old_server = serve.httpd
+    address = old_server.server_address
+    old_server.shutdown()
+    old_server.server_close()
+    initialized = CliRunner().invoke(
+        interact.cli, ["page", "init", str(serve.page_dir)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    assert interact.layer_generation(serve.page_dir) != old_layer
+    replacement = interact.LeafHTTPServer(
+        address, interact.handler_for(serve.page_dir, TOKEN)
+    )
+    threading.Thread(target=replacement.serve_forever, daemon=True).start()
+    serve.servers.append(replacement)
+    serve.httpd = replacement
+
+    with page.expect_navigation(wait_until="load"):
+        page.evaluate("() => window.lfReleaseRegistry()")
+    page.wait_for_function(BOTH_STAMPS)
+    assert page.evaluate("() => sessionStorage.getItem('lf-gated-registry')") == "1"
     assert errors == []
     page.close()
 
@@ -2607,8 +3476,71 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     ]
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    page.keyboard.press("Escape")
+
+    # And the comment panel, which is the case where the aim's own geometry had nothing to
+    # say. A fixed box is not clipped by the page's scroller, and body is that scroller
+    # narrowed to the column standing beside the panel — so the panel measured through its
+    # ancestors came back wholly clipped away, and a mode whose row promises a click on the
+    # chrome drew nothing over the chrome. Wide enough for the panel to stand beside the
+    # page, which is where body and the panel part company.
+    resized(page, 1280, 800)
+    page.locator(".lf-banner .lf-comments").click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-panel').getBoundingClientRect().left"
+        " >= document.body.clientWidth"
+    )
+    page.keyboard.press("i")
+    box = page.locator(".lf-panel").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-comments")
+    assert page.evaluate(
+        """() => {
+             const aim = document.querySelector('.lf-aim').getBoundingClientRect();
+             const panel = document.querySelector('.lf-panel').getBoundingClientRect();
+             return Math.abs(aim.width - panel.width) < 3
+                 && Math.abs(aim.left - panel.left) < 3;
+           }"""
+    ), "the aim's box does not stand on the panel it names"
     assert errors == []
     page.close()
+
+
+def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
+    """The mode promises that a press comments on what it lands on and does nothing else,
+    and a region's edge is the piece of chrome whose press moves the page rather than the
+    page's content. A drag on it under the mode leaves the region where it was and opens a
+    composer naming the edge, which is what a reader remarking on it has to be able to do.
+
+    Neither half is anything the edge knows: the mode takes the press above the runtime's
+    own handler, and the name comes of the platform's word for what the press landed on.
+    So this is a reading of whether a new control joins the mode by being one — which is
+    what it would stop doing the day an edge answered a press for itself. One edge is the
+    whole reading, both being one handler (`drawnEdge`); what the second edge could break
+    here it would break for the first too."""
+    edge = EDGES[0]
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 1280, 800)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    standing = geometry(page, edge)
+    page.keyboard.press("i")
+    draw_edge(page, edge, 160)
+    held = geometry(page, edge)
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · Comment panel width · comments"
+    )
+    page.close()
+
+    assert held["width"] == standing["width"], (
+        f"the mode moved the edge it was asked to comment on: {standing} then {held}"
+    )
+    assert held["chosen"] is None, (
+        f"a press the mode took was still recorded as the reader's width: {held}"
+    )
+    assert errors == []
 
 
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):
@@ -2667,9 +3599,9 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
 # Every legend box stands on its item: same corner, one pixel out, for every item wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
 # compared, and items off it have no box shown at all. An item with no box of its own —
-# a display: contents suggestion — reads as what its contents paint, mirroring
+# one a page styles display: contents — reads as what its contents paint, mirroring
 # shownRect's fallback: its host rect is 0×0 at the origin, which would otherwise count
-# as "wholly on screen" and fail every off-screen suggestion for its rightly hidden box.
+# as "wholly on screen" and fail every off-screen one for its rightly hidden box.
 LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
   const it = document.getElementById(b.dataset.for);
   let r = it.getBoundingClientRect();
@@ -2740,23 +3672,13 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page.close()
 
 
-CORNER_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>corner</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CORNER_PAGE = leaf_page(
+    "corner",
+    """
 <h1 id="t">Corner</h1>
 <section id="wrap"><p id="inner">The section's first block starts at its corner.</p></section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_two_names_at_one_corner_step_apart(browser, serve):
@@ -2894,17 +3816,9 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.close()
 
 
-AIM_PAINT_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>aim paint</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+AIM_PAINT_PAGE = leaf_page(
+    "aim paint",
+    """
 <h1 id="t">Aim paint</h1>
 <lf-options id="cards" choose>
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
@@ -2914,10 +3828,8 @@ AIM_PAINT_PAGE = """<!doctype html>
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
@@ -3304,6 +4216,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page.wait_for_function(
         f"() => document.querySelector('{comments}').textContent === 'Comments (9)'"
     )
+    page_at_rest(page)
 
     def publish_v2():
         (d / "versions" / "v2.html").write_text(html)
@@ -3371,8 +4284,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         )
         drive()
         page.wait_for_function(arrived)
-        page.evaluate("() => { window.__lfSettle = null; window.__lfSince = null; }")
-        page.wait_for_function(SETTLED, arg=SETTLE_MS)
+        page_at_rest(page)
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
@@ -3438,15 +4350,10 @@ def live_leaf(tmp_path, monkeypatch):
         # A live leaf has a session behind it, and what the board's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
-        interact.write_json(
-            d / "session.json",
-            {
-                "id": f"s-{name}",
-                "host": "claude-code",
-                "pid": os.getpid(),
-                "agent": "Claude",
-                "cwd": str(tmp_path / f"{name}-work"),
-            },
+        record_claim(
+            d,
+            id=f"s-{name}",
+            cwd=str(tmp_path / f"{name}-work"),
         )
         httpd = interact.LeafHTTPServer(
             ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
@@ -3454,29 +4361,28 @@ def live_leaf(tmp_path, monkeypatch):
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         port = httpd.server_address[1]
-        # Held, not merely written: the exclusive lock on the record is what
-        # says a server is up, so a neighbour this fixture stands up holds one
-        # exactly as `server run` does.
-        record = open(d / "server.json", "a+b")  # noqa: SIM115 - held, see above
-        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        record.write(
-            interact.json_bytes(
-                {
-                    "port": port,
-                    "pid": os.getpid(),
-                    "url": f"http://127.0.0.1:{port}/?t={TOKEN}",
-                }
-            )
+        # Desired address and a held, contentless lease are the two facts a real
+        # server exposes to neighbouring pages.
+        interact.write_json(
+            d / "service.json",
+            {
+                "host": "127.0.0.1",
+                "bind": "127.0.0.1",
+                "port": port,
+                "enabled": True,
+                "lifetime": "standing",
+            },
         )
-        record.flush()
-        held.append(record)
+        lease = open(d / "server.lock", "a+b")  # noqa: SIM115 - held, see above
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        held.append(lease)
         return f"http://127.0.0.1:{port}", d
 
     yield go
     for httpd in servers:
         httpd.shutdown()
-    for record in held:
-        record.close()
+    for lease in held:
+        lease.close()
 
 
 @pytest.fixture
@@ -3498,15 +4404,10 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     url = serve(LONG_PAGE)
     # This page has a session behind it too, so its own row can say the same thing a
     # neighbour's does.
-    interact.write_json(
-        serve.page_dir / "session.json",
-        {
-            "id": "s-self",
-            "host": "claude-code",
-            "pid": os.getpid(),
-            "agent": "Claude",
-            "cwd": str(tmp_path / "self-work"),
-        },
+    record_claim(
+        serve.page_dir,
+        id="s-self",
+        cwd=str(tmp_path / "self-work"),
     )
     page, errors = open_page(browser, url)
     btn = page.locator(".lf-others")
@@ -3538,11 +4439,13 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         "title",
         f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
+    destination = link.get_attribute("href")
     with page.context.expect_page() as opened:
         link.click()
-    # The other server's own redirect lands the new tab on its newest published
-    # version, authorized by the key the link carried.
-    expect(opened.value).to_have_url(f"{other_url}/versions/v1.html")
+    # The new tab keeps the other page's live root, authorized by the key its link
+    # carried, rather than being redirected onto one immutable version.
+    assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    expect(opened.value).to_have_url(destination)
     # The press left this tab alone, board still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -3591,8 +4494,8 @@ def test_a_panel_row_follows_its_pages_status_live(
     # A neighbour waiting on its own reader says so in this seat's shorter words, and
     # in the same term its banner uses: one word per state across the product, or a
     # user reading both surfaces has to work out whether they mean the same thing.
-    # Its own watcher has to be live for that, which is what the neighbour's heartbeat
-    # is — judged from the same evidence its banner judges itself on.
+    # Its own watcher has to be live for that, which is what the neighbour's held lease
+    # proves — judged from the same evidence its banner judges itself on.
     interact.write_json(
         other_dir / "status.json",
         {"state": "waiting", "detail": "", "ts": interact.now_iso()},
@@ -3641,10 +4544,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
-    interact.write_json(
-        other_dir / "session.json",
-        {"id": "s", "host": "claude-code", "pid": dead_pid, "agent": "Claude"},
-    )
+    record_claim(other_dir, pid=dead_pid)
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Unheld")
     expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
@@ -3714,9 +4614,11 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     expect(rows.first).to_be_focused()
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
+    destination = rows.nth(1).get_attribute("href")
     with page.context.expect_page() as opened:
         page.keyboard.press("Enter")
-    expect(opened.value).to_have_url(f"{other_url}/versions/v1.html")
+    assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    expect(opened.value).to_have_url(destination)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # Closing while focus is inside would drop the reader on the body; it lands on
@@ -3724,7 +4626,7 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     expect(btn).to_be_focused()
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
-    expect(help_el).to_contain_text("In the leaves panel")
+    expect(help_el).to_contain_text("In the leaves board")
     expect(help_el).to_contain_text("Walk the leaves")
     assert errors == []
     page.close()
@@ -3772,6 +4674,7 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
 # The page's scroll after it has stopped moving. A native Space is a smooth scroll, so
 # reading straight after the press reads a frame of the glide and calls it the answer —
 # which is the whole of what CLAUDE.md's wait norm is about.
+SCROLL_SETTLE_MS = 50
 SCROLL_STILL = """(hold) => {
   const at = document.body.scrollTop;
   if (at !== window.__lfScrollAt) {
@@ -3810,7 +4713,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
         # to get back to the top would be the very thing this test says is not needed.
         page.evaluate("() => { document.body.scrollTop = 0; }")
         page.keyboard.press(key)
-        page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
+        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert page.evaluate(top) > 0, (
             f"{key} moved nothing on a page nobody had clicked in"
         )
@@ -3847,7 +4750,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # than the runtime's (`d`/`u` are the rows; this key has none).
     page.keyboard.press("Space")
     page.wait_for_function("() => document.body.scrollTop > 0")
-    page.wait_for_function(SCROLL_STILL, arg=SETTLE_MS)
+    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
     was = page.evaluate(top)
 
     # Opened with the pointer, the button holds focus and the browser withholds the ring.
@@ -3905,9 +4808,72 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
     for _ in names:
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    board = page.locator(".lf-others-panel")
+    board = page.locator(".lf-others-panel .lf-board-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-others-panel');"
+        "() => { const b = document.querySelector('.lf-others-panel .lf-board-list');"
+        "        return b.scrollHeight > b.clientHeight; }"
+    ), (
+        "the board never overflowed, so the walk had nothing to scroll and proves nothing"
+    )
+    last = rows.last.bounding_box()
+    line = page.locator(".lf-keyline").bounding_box()
+    assert last["y"] + last["height"] <= line["y"], (
+        f"the walk parked the last row at {last} under the key line at {line}"
+    )
+    # And a reader who scrolls the board to its end by hand lands in the same place:
+    # scroll-padding answers the walk, the padding under it answers the wheel.
+    board.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
+    last = rows.last.bounding_box()
+    assert last["y"] + last["height"] <= line["y"], (
+        f"scrolled to its end the board put its last row at {last}, under the key "
+        f"line at {line}"
+    )
+    assert errors == []
+    page.close()
+
+
+# Twelve things waiting, which is more than any shipped example asks and the point: the
+# room a list reserves at its foot is invisible until the list is longer than the board.
+MANY_ASKS_PAGE = leaf_page(
+    "many asks",
+    """
+<h1>Many asks</h1>
+<p>A board long enough to scroll.</p>
+<lf-tasks id="plan">
+"""
+    + "\n".join(
+        f'<lf-task id="t-{i}" status="review" owner="wren">'
+        f"<strong>Waiting on you, item {i}</strong>"
+        f"<p>Something to decide about item {i}.</p></lf-task>"
+        for i in range(12)
+    )
+    + """
+</lf-tasks>
+""",
+)
+
+
+def test_a_walk_down_the_asks_board_stops_clear_of_the_key_line(browser, serve):
+    """The leaves board's reading above, made of the board beside it. The room is one
+    fact — the key line stands in the corner both lists reach — and it was written to one
+    list, so the asks board's walk parked its last row 47px under the line. Nothing said
+    so, because no example ships enough asks to fill a board and the walk that would have
+    shown it had only ever been made down the other one.
+
+    So the two lists reserve it together (`boardLists`), and this is the half of that the
+    leaves reading could not cover: a fact stated per board is a fact the second board
+    goes without, and the second board is the one nobody looks at."""
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
+    resized(page, 900, 420)
+    page.keyboard.press("a")
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(12)
+    for _ in range(12):
+        page.keyboard.press("ArrowDown")
+    expect(rows.last).to_be_focused()
+    board = page.locator(".lf-asks-panel .lf-board-list")
+    assert page.evaluate(
+        "() => { const b = document.querySelector('.lf-asks-panel .lf-board-list');"
         "        return b.scrollHeight > b.clientHeight; }"
     ), (
         "the board never overflowed, so the walk had nothing to scroll and proves nothing"
@@ -3933,17 +4899,9 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
 # where the box is a fixed 138px and the value is whatever the number turned out to be;
 # ordinary prose, which is where a page about code keeps its paths; and a tree, whose module
 # writes the name and its badges with no whitespace between them at all.
-UNBREAKABLE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>unbreakable</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+UNBREAKABLE_PAGE = leaf_page(
+    "unbreakable",
+    """
 <h1 id="h">Nothing to break on</h1>
 <lf-metrics id="numbers">
   <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
@@ -3956,10 +4914,8 @@ gateway/
     authentication/
       token_bucket_refill_strategy.py    +6 -2
 </pre></lf-tree>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
@@ -4000,16 +4956,9 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
 
 # One line past any phone column, so the box a diff renders in has to scroll and the
 # rule is the one on trial rather than the fit.
-WIDE_DIFF_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>wide diff</title>
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_DIFF_PAGE = leaf_page(
+    "wide diff",
+    """
 <h1 id="t">A diff wider than the column</h1>
 <lf-diff id="wide-diff"><pre>
 diff --git a/client/offline/merge.ts b/client/offline/merge.ts
@@ -4019,10 +4968,8 @@ diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 -  return apply(base, [...theirs, ...mine]);
 +  const clash = theirs.find((t) =&gt; t.field === edit.field &amp;&amp; t.at &gt; edit.at);
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
@@ -4091,7 +5038,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
     interact.append_event(
         d,
@@ -4273,21 +5220,16 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
 
 
 # Chips whose words are a price and nothing else, which is two or three characters and
-# about 30px. Nothing else on the page is unusual, so the chips are the only thing on it
-# that a floor written for widgets laying out a region could catch.
-SHORT_CHIP_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>chips</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+# about 30px — and an inline suggestion swapping one letter for another, about the same.
+# Nothing else on the page is unusual, so these are the only things on it that a floor
+# written for widgets laying out a region could catch.
+SHORT_CHIP_PAGE = leaf_page(
+    "chips",
+    """
 <h1 id="t">Feeder extras</h1>
-<p id="p">The bracket order goes in on Friday and there is room in it.</p>
+<p id="p">The bracket order goes in on Friday and there is room in it. Change the
+rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
+before it ships.</p>
 <lf-options id="extras" choose multiple>
 <lf-option id="x-tray"><lf-chip>£9</lf-chip>
 <strong>Seed tray</strong> Catches the spill under the south pair.
@@ -4296,10 +5238,8 @@ SHORT_CHIP_PAGE = """<!doctype html>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -4307,7 +5247,9 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     no width it was ever going to reach. Held to the floor written for a widget that lays
     out a region, a chip saying `£9` reads as a collapse, and the gate refuses a page with
     nothing wrong with it — for a price, which is the shortest thing an author is likely to
-    put in one.
+    put in one. A suggestion swapping one short word is the same case in a second tag,
+    there because the gate dispatches on the declaration: the day the wrapper took a box
+    it stood in front of this floor, and only x-inline says whose floor is whose.
 
     The floor a chip does keep is the height, since a line of words is a line tall under
     any layout. Both halves are asserted, because a floor deleted outright passes the
@@ -4320,6 +5262,24 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert errors == []
     assert widths and max(widths) < 40, (
         f"these chips are {widths}px, so they clear the floor and prove nothing"
+    )
+    sug_width = page.locator("#sug-flag").evaluate(
+        "el => Math.round(el.getBoundingClientRect().width)"
+    )
+    assert sug_width < 40, (
+        f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
+    )
+
+    # Asked without the declaration, the same floor flags it — so what passes the page
+    # is the declaration, not a floor gone missing.
+    undeclared = json.loads(json.dumps(page_registry(page)))
+    del undeclared["lf-suggestion"]["x-inline"]
+    assert [
+        box
+        for box in page.evaluate(interact.TINY_BOXES, undeclared)
+        if box["tag"] == "lf-suggestion"
+    ], (
+        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
     )
 
     # Flattened, the same chips are a collapse and the gate says so — the reading the
@@ -4693,7 +5653,7 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     panel, in the same pixels as the thread list's own — and the two thumbs would
     stack. The regions must not share an edge."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
 
     geom = page.evaluate("""() => {
@@ -5140,9 +6100,8 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
 
 def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     """A thread can move, not just appear: resolving the first one sends it to the
-    resolved disclosure and renumbers every thread after it — the reply box's armed
-    chip and its placeholder address together, on nodes that are kept rather than
-    remade. The
+    resolved disclosure and renumbers every thread after it — the address its reply
+    box speaks moving with it, on nodes that are kept rather than remade. The
     disclosure itself is kept too, so the user's open toggle survives the next
     resolution instead of snapping shut on every arrival, which is what the rebuild
     did."""
@@ -5152,9 +6111,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     c1, c2, c3 = [
         e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
     ]
-    expect(
-        page.locator(f'.lf-thread[data-id="{c2}"] .lf-compose > .lf-address')
-    ).to_have_text("2")
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
+        "placeholder", "Reply · g c 2"
+    )
     page.evaluate(
         """(id) => { window.__second = document.querySelector(`.lf-thread[data-id="${id}"]`); }""",
         c2,
@@ -5170,12 +6129,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
     expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
     # The survivors renumber without being remade: same node, new address, and the
-    # address its placeholder speaks moved with the badge.
-    expect(
-        page.locator(f'.lf-thread[data-id="{c2}"] .lf-compose > .lf-address')
-    ).to_have_text("1")
+    # address its placeholder speaks moved with it.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g 1"
+        "placeholder", "Reply · g c 1"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -5337,7 +6293,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     out of the keys' reach from the same frame, so j/k and the g addresses walk what
     is left rather than a corpse that is about to go. Its own reply box gives up the
     address with them: the box under it has just taken that digit, and two boxes
-    offering g 1 is a key line promising a press that lands on one of them.
+    offering g c 1 is a key line promising a press that lands on one of them.
 
     Held at its first frame rather than sampled mid-flight, the way the suggestion's
     own fold is read: mid-flight is a race with the clock that passes on a fast
@@ -5395,7 +6351,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g 1"
+        "placeholder", "Reply · g c 1"
     )
 
     # Half way down, the outcome is still on screen. A fold from the bottom takes the
@@ -5531,12 +6487,85 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         assert page.evaluate("() => window.__lfHeld.length") == 0, (
             "a reader who asked for less motion was given a fold to sit through"
         )
-        assert page.evaluate(LIST_STATE) == {"standing": [c2], "walkable": [c2]}, (
-            "the thread that declined its fold was left standing in the list"
-        )
+        assert page.evaluate(LIST_STATE) == {
+            "standing": [c2],
+            "walkable": [c2],
+        }, "the thread that declined its fold was left standing in the list"
         assert errors == []
     finally:
         context.close()
+
+
+def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
+    """A fold is a claim about a node standing in the list, and the reader can take
+    that node out from under it: `z` reopens the thread the fold is carrying away, and
+    the render that puts the thread back drops the folding node. Held past that, the
+    record would hand the spent node back the next time the thread settled — the fold
+    would be over before it started, and what stood in the list for its duration would
+    be the thread as it read before it reopened, one message short.
+
+    Reachable in the product, not only here: resolve, `z` and resolve are three round
+    trips through the real server in 78ms measured, against a fold of 220ms, so the
+    window is the reader's typing speed and nothing else. Holding the motion is what
+    makes it a state instead of a race — a paused animation never settles `finished`,
+    so the record stays exactly as long as the assertions need it."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    c1 = next(
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
+    going = page.locator(f'.lf-threads > .lf-going[data-id="{c1}"]')
+
+    before = page.evaluate("window.__lfHeld.length")
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    round_trip(page)
+    expect(going).to_have_count(1)
+    folds = page.evaluate("window.__lfHeld.length")
+    assert folds == before + 1, "the press drew something other than its one fold"
+
+    undo(page)
+    expect(thread).to_have_count(1)
+    expect(going).to_have_count(0)
+    # News the thread takes while it is open again, which the node the first fold was
+    # carrying away has never held — so what folds the second time says which node it is.
+    reply = interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "version": 1,
+            "parent": c1,
+            "text": "Reopened, and answered.",
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-msg")).to_have_count(2)
+
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    round_trip(page)
+    expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    assert page.evaluate("window.__lfHeld.length") > folds, (
+        "the second settlement drew no fold of its own"
+    )
+
+    # And the first fold runs out, which is the other half of two folds standing at
+    # once: its node left the list when the thread reopened, and the record it must
+    # not clear on its way is the live fold's. Cleared, the thread is pulled out of
+    # the list in the middle of the motion carrying it away.
+    page.evaluate(
+        "async (i) => { const m = window.__lfHeld[i];"
+        " m.play(); m.currentTime = m.effect.getComputedTiming().duration;"
+        " await m.finished; }",
+        before,
+    )
+    expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    assert errors == []
+    page.close()
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
@@ -5549,14 +6578,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     the shared vocabulary a widget wears on purpose."""
     page, _ = open_page(
         browser,
-        serve(
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; '
-            "img-src 'self' data:; style-src 'self' 'unsafe-inline'\">"
-            '<link rel="stylesheet" href="/theme.css">'
-            '<script type="module" src="/leaf.js"></script></head>'
-            "<body><main><h1>t</h1><section id=s><p>words</p></section></main></body></html>"
-        ),
+        serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
     )
     surface = page.evaluate("""() => {
         const sheet = [...document.styleSheets].find(
@@ -5571,9 +6593,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         collect(sheet.cssRules, global_);
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
-        // (lf-address, worn on a reply box and on an option's corner alike) is named
-        // by the scoped rule that says when to paint it, and it would answer this
-        // question with the reach it was given rather than with a leak.
+        // (lf-address, worn by the chord's own layer and by an option's corner alike)
+        // is named by the scoped rule that says when to paint it, and it would answer
+        // this question with the reach it was given rather than with a leak.
         probe.className = [...scoped].filter(c => !global_.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
         document.getElementById("s").append(plain, probe);
@@ -5590,9 +6612,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         f"scoped chrome rules reached an element in the page: {surface['moved']}"
     )
     # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container, which is exactly why a scoped rule could not reach it —
-    # except the last, which is worn by nothing and is here for the other half of the
-    # sentence. lf-copy is the medium `version export` marks on the root, and the runtime
+    # inside its own container — or, for lf-address, on both sides of that line at once,
+    # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
+    # last, which is worn by nothing and is here for the other half of the sentence. lf-copy is the medium `version export` marks on the root, and the runtime
     # names it under a negation to withhold the live page's scroller from a file that has
     # no panel to scroll beside; a rule that dresses no element can leak onto none, and
     # what the pin is for is the day one of these stops being either kind.
@@ -5625,15 +6647,15 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
     page, errors = open_page(
         browser,
         serve(
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title>'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; '
-            "img-src 'self' data:; style-src 'self' 'unsafe-inline'\">"
-            '<link rel="stylesheet" href="/theme.css"><style>'
-            "@keyframes lf-pulse { from { transform: translateX(0px); } "
-            "to { transform: translateX(40px); } }"
-            "#page-pulse { animation: lf-pulse 10s linear infinite; }"
-            '</style><script type="module" src="/leaf.js"></script></head>'
-            '<body><main><h1>t</h1><p id="page-pulse">Page-owned motion.</p></main></body></html>'
+            leaf_page(
+                "t",
+                '<h1>t</h1><p id="page-pulse">Page-owned motion.</p>',
+                head="<style>"
+                "@keyframes lf-pulse { from { transform: translateX(0px); } "
+                "to { transform: translateX(40px); } }"
+                "#page-pulse { animation: lf-pulse 10s linear infinite; }"
+                "</style>",
+            )
         ),
     )
     sampled = page.evaluate("""() => {
@@ -5660,17 +6682,9 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
     page.close()
 
 
-STACKED_OPTIONS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>stacked options</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+STACKED_OPTIONS_PAGE = leaf_page(
+    "stacked options",
+    """
 <h1 id="h">Clip storage</h1>
 <lf-options id="stacked" choose>
   <lf-option id="st-sd"><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
@@ -5711,10 +6725,8 @@ STACKED_OPTIONS_PAGE = """<!doctype html>
   <lf-variant id="cv-yew"><strong>Yew</strong> Slow.</lf-variant>
   <lf-variant id="cv-fir"><strong>Fir</strong> Cheap, and it rots at the ground.</lf-variant>
 </lf-compare>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
@@ -5843,9 +6855,10 @@ def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
     rows = {}
     for name, box in boxes.items():
         rows.setdefault(round(box["y"]), []).append(name)
-    assert [len(row) for row in rows.values()] == [3, 2], (
-        f"five terse variants come out three across at this width: {rows}"
-    )
+    assert [len(row) for row in rows.values()] == [
+        3,
+        2,
+    ], f"five terse variants come out three across at this width: {rows}"
     widths = [box["width"] for box in boxes.values()]
     assert max(widths) - min(widths) < 1, (
         f"a cell is one width whichever row it falls on: {widths}"
@@ -5984,9 +6997,10 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
             "() => [...CSS.highlights.get('lf-mark')].map(r => "
             "r.startContainer.parentElement.closest('[id]').id)"
         )
-    ) == ["opt-lax", "opt-strict"], (
-        "the comment landed on the summary line rather than the card it was made on"
-    )
+    ) == [
+        "opt-lax",
+        "opt-strict",
+    ], "the comment landed on the summary line rather than the card it was made on"
     row.click()  # closed again, so the reveal below has something to open
 
     # Sending opened the panel, so the thread is already listed. Its quote is on a card
@@ -6295,9 +7309,10 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
                               getComputedStyle(on).backgroundColor
                                 !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
     on, held, group_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
-    assert (on, held) == ("opt-shim", True), (
-        f"Tab did not land on the mark: {on} {held}"
-    )
+    assert (on, held) == (
+        "opt-shim",
+        True,
+    ), f"Tab did not land on the mark: {on} {held}"
     assert group_ring > 0 and card_ring == 0 and mark_ring == 0, (
         f"the focus ring is on the wrong box: group {group_ring}, card {card_ring}, "
         f"mark {mark_ring}"
@@ -6429,17 +7444,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 # (#bracket). Which is what makes a claim about arity testable on its own — #jobs against
 # #bracket differs in two things at once, and a rule that was really the list form's
 # would pass that pair either way.
-ASK_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>ask</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ASK_PAGE = leaf_page(
+    "ask",
+    """
 <h1 id="h">Three jobs</h1>
 <lf-options id="jobs" choose multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
@@ -6462,10 +7469,8 @@ mornings last winter.</p></section>
   <lf-option id="ord-mounts">Mounts, before the frost</lf-option>
   <lf-option id="ord-heater">Heater, after it</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def sent_events(page_dir):
@@ -6644,17 +7649,9 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     page.close()
 
 
-NESTED_ASK_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>nested</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+NESTED_ASK_PAGE = leaf_page(
+    "nested",
+    """
 <h1 id="h">Two jobs</h1>
 <lf-options id="outer" choose multiple>
   <lf-option id="out-drill"><strong>The revocation drill</strong>
@@ -6668,10 +7665,8 @@ NESTED_ASK_PAGE = """<!doctype html>
     <p id="keys-p">Cheap, and overdue since the split.</p>
   </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
@@ -6702,6 +7697,35 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     page.close()
 
 
+def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
+    """Attribute records are sets owned by one recorded widget. A chosen option in a
+    nested question must not enter the outer question's authored facet, or an outer log
+    choice that exactly matches its markup is falsely painted as awaiting the author."""
+    nested_choices = NESTED_ASK_PAGE.replace(
+        '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
+    ).replace('<lf-option id="in-now">', '<lf-option id="in-now" chosen>')
+    url = serve(nested_choices)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "outer",
+            "action": "choose",
+            "detail": {"options": ["out-drill"]},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#inner")).not_to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#out-drill")).to_have_attribute("chosen", "")
+    expect(page.locator("#in-now")).to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+
 # An option arguing its case with the evidence inside it, which is the whole reason the
 # card is more than a label. Three things to work stand in one option, one per vocabulary
 # the guard reads: a widget's own control (the shot's frame, a label injected through
@@ -6711,17 +7735,9 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
 # only by being inside a widget the option contains), and an element HTML calls
 # interactive that no widget put there (the disclosure). A page holding one of the three
 # would leave the other two to a guard that had never been asked about them.
-INLINE_CASE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>inline case</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+INLINE_CASE_PAGE = leaf_page(
+    "inline case",
+    """
 <h1 id="h">The status column</h1>
 <lf-options id="rollout" choose>
   <lf-option id="ro-column"><strong>Ship the column</strong>
@@ -6738,10 +7754,8 @@ Run status now shows on the run list itself.
     <p id="ro-leave-p">A failure stays one click away.</p>
   </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
@@ -6896,17 +7910,9 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     page.close()
 
 
-CHIP_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>chips</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CHIP_PAGE = leaf_page(
+    "chips",
+    """
 <h1 id="h">Short facts</h1>
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
 <lf-options id="picks" choose>
@@ -6915,10 +7921,8 @@ CHIP_PAGE = """<!doctype html>
 <lf-tasks id="plan">
   <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
 </lf-tasks>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_one_pill_holds_every_short_fact(browser, serve):
@@ -6960,17 +7964,9 @@ def test_one_pill_holds_every_short_fact(browser, serve):
     page.close()
 
 
-PAINTED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>painted</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+PAINTED_PAGE = leaf_page(
+    "painted",
+    """
 <h1 id="h">What the paint says</h1>
 <lf-timeline id="tl">
   <lf-event id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
@@ -6984,10 +7980,8 @@ PAINTED_PAGE = """<!doctype html>
   <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
   Waiting on the brackets.</lf-task>
 </lf-tasks>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
@@ -7129,6 +8123,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     )
 
     held[0].continue_()
+    _until(page, lambda traffic: traffic.sends == 2, "sent the queued second pick")
     round_trip(page)
     assert [
         e["detail"]["options"]
@@ -7140,82 +8135,48 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
 
 
 def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
-    """Replay states a widget whole, so the order is what it owes: an action applied
-    after the gesture that superseded it hands the reader their older state back, and
-    the gesture after that computes from what it painted and sends a decision they
-    never made. Applying each action once says nothing about *when* — a pick recorded
-    before a click can still be replayed after it, which is what a loaded machine does
-    to this page's own polls.
-
-    So the instrument is that answer, stated from outside: every poll is served the log
-    truncated to what the page may see, and the one that lands while the second pick is
-    still in flight carries only the first — a poll snapshotted between the two picks,
-    arriving after both, where a slow machine would have put it. Which poll that is
-    cannot be timed from here, so the answers are gated on the page's own traffic. After
-    it every poll is refused, so nothing heals what that answer did and the third pick
-    reads the page the answer left.
-
-    Another tab's pick on the group beside it rides the same answer, and is what says
-    the batch was replayed at all: a trip is over when its response lands, which is
-    before the page has done anything about it, so without that edge both the count
-    below and the third click would be about a page nothing had happened to yet."""
+    """The first POST's state contains only the first pick, but it may arrive after a
+    second local pick. Replay leaves the outbox's widget alone, so that older snapshot
+    cannot erase the newer gesture or corrupt the absolute state it later sends."""
     page, errors = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
-    # The log, and how much of it the page is shown. Seq 1 is the note it opened on,
-    # 2 the other tab's pick, 3 this tab's first — so an answer capped at 3 is one
-    # snapshotted between this tab's two picks, and one capped at 1 keeps the page
-    # from seeing either until then.
-    OPENED_ON, THROUGH_THE_FIRST_PICK = 1, 3
-    interact.append_event(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "bracket",
-            "action": "choose",
-            "detail": {"options": ["br-cedar"]},
-        },
+    held = []
+    sent_behind = []
+
+    def hold_answers(route):
+        # The first pick is stopped in the wire and released below, so the state its
+        # answer carries — that pick and nothing else, the second never having been
+        # sent behind it — reaches the page after the second pick is painted. Held
+        # rather than fetched here: a handler that goes to the server itself is still
+        # inside that call while the clicks below run, and the release would reach for
+        # a route the list hasn't got (tests/CLAUDE.md, on releasing a hold).
+        if held:
+            sent_behind.append(route)
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/event", hold_answers)
+    with page.expect_request("**/api/event"):
+        page.locator("#job-mounts").click()
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    page.locator("#job-camera").click()
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
+    assert _traffic(page).sends == 1, (
+        "the second pick went out over the first, so the answer released below is not "
+        "the older one this test is about"
     )
 
-    served = []  # what each answer was capped at, and so the record that one was
-
-    def answer(route):
-        # On posts answered rather than posts sent: the page asks for state the moment
-        # one comes back, so the first poll after the second answer is the one that
-        # pick's own send is still open across — which is the whole of the race.
-        if _traffic(page).acked < 2:
-            cap = OPENED_ON
-        elif THROUGH_THE_FIRST_PICK not in served:
-            cap = THROUGH_THE_FIRST_PICK
-        else:
-            refuse(route)
-            return
-        served.append(cap)
-        state = route.fetch().json()
-        state["events"] = [e for e in state["events"] if e["seq"] <= cap]
-        route.fulfill(json=state)
-
-    page.route("**/api/state*", answer)
-
-    page.locator("#job-mounts").click()
-    round_trip(page)
-    page.locator("#job-camera").click()
-    round_trip(page)
-    expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
-    # Nothing else here says the answers were the ones the test wrote: served at full
-    # length they carry the second pick too, and the page converges either way — so the
-    # day this route stops matching, the test goes quiet rather than red.
-    assert THROUGH_THE_FIRST_PICK in served, f"the log was never held back: {served}"
+    held[0].continue_()
+    _until(page, lambda traffic: traffic.sends == 2, "sent the second queued pick")
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
 
-    # The page is deaf from here, so half of a round trip is never coming back: what
-    # says the log holds this pick is the post's own answer, the server having appended
-    # before it. Counted from before the click, so the picks already answered can't
-    # satisfy it.
-    answered = _traffic(page).acked
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert len(sent_behind) == 1
     page.locator("#job-heater").click()
-    _until(page, lambda t: t.acked > answered, "had this click's send answered")
+    round_trip(page)
     assert [
         e["detail"]["options"] for e in sent_events(d) if e.get("widget") == "jobs"
     ] == [
@@ -7509,9 +8470,9 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
 
 
 # Where an exhibit's own boxes begin and end, which is what the marking beside them has
-# to meet. A widget that generates no box hands its boxes to the flow — a suggestion is
-# `display: contents` — so a child with no rect is walked through rather than skipped,
-# and that is the case no selector in the theme can reach for itself. The runtime's own
+# to meet. A widget that generates no box hands its boxes to the flow — any wrapper a
+# style leaves `display: contents` — so a child with no rect is walked through rather
+# than skipped, and that is the case no selector in the theme can reach for itself. The runtime's own
 # layer is not the exhibit: `.lf-ui` is chrome standing in the page's blocks, and a
 # marking drawn around it would be marking the reading rather than the page.
 EXHIBIT_EXTENT = """
@@ -7751,7 +8712,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(
         '#rp-live .lf-pick[role="button"]'
     )  # the reply's widgets upgraded
@@ -7838,7 +8799,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-msg-body table")
 
     # One client rect is one line: the figure is drawn as a single run, the URL
@@ -7925,7 +8886,7 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     means shrinking it to re-measure on every keystroke, and a box briefly too
     small for its own text flashes a scrollbar."""
     page, _ = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     box = page.locator(".lf-general textarea")
 
     page.evaluate("""() => {
@@ -7964,17 +8925,9 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
 # its own contents — the case where `left: 100%` resolves against the card rather
 # than the column, and drops the controls back into the text, unless the row is
 # the column's own child.
-SUGGESTION_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>suggestions</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SUGGESTION_PAGE = leaf_page(
+    "suggestions",
+    """
 <h1 id="h">Feeder notes</h1>
 <p id="replace">The camera survey found two dead zones.
   <lf-suggestion id="sug-refill">
@@ -7995,10 +8948,8 @@ SUGGESTION_PAGE = """<!doctype html>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_suggestion_controls_stay_out_of_the_column(browser, serve):
@@ -8049,7 +9000,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # keep their line, clear of the column on one side and of the panel on the
     # other. Measured after the layout has moved, since opening the panel resizes
     # the page and the rows re-place on the frame after that.
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
@@ -8087,17 +9038,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
 # shows a tint against the prose around it, and a pending deletion is a struck line
 # with an empty margin beside it — which is also exactly what a deletion looks like
 # once it has happened.
-PROPOSED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>proposed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+PROPOSED_PAGE = leaf_page(
+    "proposed",
+    """
 <h1 id="h">Feeder notes</h1>
 <p id="replace">The camera survey found two dead zones.
   <lf-suggestion id="sug-replace">
@@ -8112,10 +9055,8 @@ PROPOSED_PAGE = """<!doctype html>
   <lf-suggestion id="sug-delete">
     <lf-old>Check the thermostat every Sunday.</lf-old>
   </lf-suggestion></p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
@@ -8263,26 +9204,17 @@ def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
     page.close()
 
 
-SWAP_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>swap</title>
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SWAP_PAGE = leaf_page(
+    "swap",
+    """
 <h1 id="h">Feeder notes</h1>
 <p id="swapped">Plans changed.
   <lf-suggestion id="sug-swap">
     <lf-old>Refill every feeder each morning.</lf-old>
     <lf-new>The cameras watch seed levels overnight instead.</lf-new>
   </lf-suggestion></p>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_whole_swap_paints_no_emphasis(browser, serve):
@@ -8299,17 +9231,9 @@ def test_a_whole_swap_paints_no_emphasis(browser, serve):
     page.close()
 
 
-COLLAPSED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>collapsed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+COLLAPSED_PAGE = leaf_page(
+    "collapsed",
+    """
 <h1 id="h">Winter</h1>
 <p id="stocked">The feeders are stocked.
   <lf-suggestion id="sug-now">
@@ -8321,10 +9245,8 @@ COLLAPSED_PAGE = """<!doctype html>
     <lf-new>Order them in February.</lf-new>
   </lf-suggestion></p>
 </details>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
@@ -8476,17 +9398,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     page.close()
 
 
-SHORT_SUGGESTION = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>short suggestion</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+SHORT_SUGGESTION = leaf_page(
+    "short suggestion",
+    """
 <h1 id="t">Short</h1>
 <section id="s">
 <lf-suggestion id="sug">
@@ -8495,10 +9409,8 @@ SHORT_SUGGESTION = """<!doctype html>
 </lf-suggestion>
 <p id="after">The backoff is unchanged either way.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 @pytest.mark.parametrize(
@@ -8529,9 +9441,10 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
 
 
 # Every animation the page starts, held at time zero so a test can read it rather than
-# race it. The runtime's own chrome runs CSS animations, which this never sees; what it
-# catches is a widget's WAAPI motion, started synchronously inside the gesture that
-# causes it. Installed before anything runs, so the first frame is already held.
+# race it. What it catches is everything through `motion()`, which is the layer's only
+# caller of `animate` — the folds and the board's FLIP, each started synchronously
+# inside the gesture that causes it. CSS animations run outside it and are never seen,
+# `grow` among them. Installed before anything runs, so the first frame is already held.
 HOLD_MOTION = """
   window.__lfHeld = [];
   const inner = Element.prototype.animate;
@@ -8594,8 +9507,33 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     middle = page.evaluate(at)
     assert 0 < middle < tall, f"the fold's midpoint is not between its ends: {middle}"
 
-    page.evaluate("() => window.__lfHeld[0].play()")
+    # The endpoint is part of the motion, not a scheduling gap the finish handler has
+    # to beat. Read it synchronously at the exact duration: without a forwards fill the
+    # effect has already stopped applying here and the slot springs back to its
+    # unanimated height before cleanup gets its turn.
+    endpoint = page.evaluate(
+        """() => {
+          const m = window.__lfHeld[0];
+          m.currentTime = m.effect.getTiming().duration;
+          return {
+            height: m.effect.target.getBoundingClientRect().height,
+            opacity: Number(getComputedStyle(m.effect.target).opacity),
+            fill: m.effect.getTiming().fill,
+          };
+        }"""
+    )
+    assert endpoint["height"] == pytest.approx(0, abs=0.1), (
+        f"the fold exposed its unanimated box at the endpoint: {endpoint}"
+    )
+    assert endpoint["opacity"] == pytest.approx(0, abs=0.001), (
+        f"the fold exposed its unanimated ink at the endpoint: {endpoint}"
+    )
+
+    page.evaluate("() => window.__lfHeld[0].finish()")
     expect(old).to_be_hidden()
+    page.wait_for_function(
+        "() => document.querySelector('#sug lf-old').getAnimations().length === 0"
+    )
     assert after.evaluate("el => el.getBoundingClientRect().top") < below, (
         "the page never gave back the room the retired paragraph was holding"
     )
@@ -8670,9 +9608,9 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     # Nothing left to accept, so the button says nothing rather than saying zero.
     expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
 
-    # Every one of those settled optimistically — the page shows a decision before the
-    # server has taken it, which is the next test's whole subject — so the page reading
-    # done is not the log holding it, and the last of the three is still in flight here.
+    # The controls settle from their individual authoritative answers. Wait for the
+    # whole outbox as well: the rows are asserted one at a time above, while this is
+    # the boundary before reading the shared log as a sequence.
     round_trip(page)
     logged = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
     assert [(e["widget"], e["action"]) for e in logged] == [
@@ -8760,7 +9698,18 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     press against a closed session painted one frame of "✓ Accepted" over a folding
     slot before rewinding it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    page.route("**/api/event", lambda route: route.abort())
+
+    def refuse_attempt(route):
+        route.fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    page.route("**/api/event", refuse_attempt)
     # Watch the attribute across every frame, not just after: a rewind is only
     # visible while it is happening, and the end state is the same either way.
     page.evaluate(
@@ -8794,14 +9743,63 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
 
-    # The retry is a second click, not a reload: the widget is pending again.
+    # The retry is a second click, not a reload: a definitive refusal made the widget
+    # pending again, and the new press carries a fresh attempt of its own.
     page.unroute("**/api/event")
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    logged = actions(serve.page_dir)
+    assert [(event["widget"], event["action"]) for event in logged] == [
+        ("sug-refill", "accept")
+    ]
+    assert logged[0]["attempt"]
+    undo(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
+    """Losing an accepted action answer keeps the original press busy and retries
+    that exact attempt. Repeating the press cannot mint a second decision that one
+    undo would merely uncover."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    requests = []
+    accepted = []
+
+    def lose_first_answer(route):
+        requests.append(route.request.post_data_json)
+        if len(requests) == 1:
+            accepted.append(route.fetch().status)
+            refuse(route)
+        else:
+            route.continue_()
+
+    # Force recovery through the outbox rather than letting a periodic read observe
+    # the accepted attempt first. Both are valid recovery paths; this one proves the
+    # retry reuses the identity whose answer was lost.
+    page.route("**/api/state*", refuse)
+    page.route("**/api/event", lose_first_answer)
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: "/api/event" in request.url
+    ):
+        accept.click()
+    expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-toast")).to_contain_text("retrying your change")
+
+    accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    # The refused POST is the one thing the console may carry, and it is this
-    # test's own doing — anything else means the page broke on the way back to
-    # pending.
-    assert errors == ["Failed to load resource: net::ERR_FAILED"]
+    assert accepted == [200]
+    assert len(requests) == 2
+    assert len({request["attempt"] for request in requests}) == 1
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [("sug-refill", "accept")]
+
+    undo(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert errors == []
     page.close()
 
 
@@ -8812,7 +9810,12 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     answer, leaving a whole round trip in which both controls are still offering.
     Presses made in that gap would each be a line in the log for one act, and an
     accept followed by a reject would resolve the thread the accept answers and then
-    record the opposite outcome over it."""
+    record the opposite outcome over it.
+
+    Neither of those presses can be caught in the wire: `post` sends one action at a
+    time, so they queue behind the held one instead of reaching the route. What they
+    would leave is a line each in the log once the queue drains, and that is where
+    this reads them."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -8821,7 +9824,6 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
     row.locator(".lf-sug-accept").click()
     row.locator(".lf-sug-reject").click()
-    assert len(held) == 1, "a press while the decision was in flight sent a second one"
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -8945,17 +9947,9 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
 # Every shape the ask predicate has to tell apart, on one page: four things the page is
 # waiting on the reader for, and, beneath them, one of each way of not being one. The
 # four are in document order, because that is the order the walk below must take them in.
-ASKS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>asks</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ASKS_PAGE = leaf_page(
+    "asks",
+    """
 <h1 id="h">What is still open</h1>
 <lf-options id="live-question" label="Where should sessions live?" choose>
   <lf-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
@@ -8991,16 +9985,15 @@ ASKS_PAGE = """<!doctype html>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
   </lf-options>
 </lf-specimen>
-</main>
-</body>
-</html>
-"""
+""",
+)
 ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
-# The ask the walk is standing on. One ask wears the mark, on however many boxes it shows
-# through — a wrapper that generates none of its own hangs the ring on the boxes its
-# contents make — so what says the walk is in one place is the outermost element wearing
-# it, never the count of elements that do.
-STANDING_ASK = "[data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+# The ask the walk is standing on. One ask wears the mark, on however many boxes it
+# shows through — every shipped widget draws one, and a wrapper a page styles boxless
+# hangs it on the boxes its contents make — so what says the walk is in one place is
+# the outermost page element wearing it, never the count of elements that do. Scoped to
+# main because the asks board's row mirrors the same fact in the chrome.
+STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The document's scroll once it has stopped moving. A leaf's travel is a glide, so any
 # reading taken while it runs is of a place the gesture passes through rather than of
 # where it went — and "the ask is on screen" is one of those places, true for a moment
@@ -9069,8 +10062,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
 
     The landing is marked on the ask and focused on the control that answers it, so
     the reader can see what they were brought to and Tab straight into working it —
-    which is also the only landing available on a suggestion, whose element is
-    display: contents and can hold no focus of its own."""
+    on a suggestion that control is the ✓ Accept hoisted into the page margin, and
+    the walk follows it out there."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
     for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:  # one past the end: it wraps
@@ -9201,6 +10194,64 @@ ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map
   w: Math.round(r.getBoundingClientRect().width),
   h: Math.round(r.getBoundingClientRect().height),
 }))"""
+
+
+CHANGE_SHAPES_PAGE = leaf_page(
+    "retry policy",
+    """
+<h1 id="title">Retry policy</h1>
+<lf-suggestion id="sug-rewrite">
+  <lf-old><p id="p-job">The worker retries a failed job three times.</p></lf-old>
+  <lf-new><p>The worker retries a failed job, then parks it.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="sug-insert">
+  <lf-new><p>Parked jobs are listed on the run page.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="sug-delete">
+  <lf-old><p id="p-logs">Retries are logged at debug level.</p></lf-old>
+</lf-suggestion>
+<lf-options id="shapes-q" label="How long should a parked job wait?" choose>
+  <lf-option id="wait-day"><strong>A day</strong></lf-option>
+  <lf-option id="wait-week"><strong>A week</strong></lf-option>
+</lf-options>
+""",
+)
+
+
+def test_a_change_says_which_of_the_three_it_is(browser, serve):
+    """A row names its ask by kind and then by the ask's own opening words, and for a
+    change those opening words are whichever half comes first — the current text, where
+    there is one. So a deletion arrived on the board under the words it was proposing to
+    remove, with nothing to tell it from the insertion above it, which was proposing to
+    add its own. Three shapes, one tag, one word for all of them.
+
+    The tag is the right word wherever one tag is one kind of thing, which is every
+    other widget here, so the fix is not to teach the board about suggestions: the entry
+    declares that this tag's word comes from its module (x-word), and the module reads
+    it off the slots it holds. The group below is in this page to hold the other half of
+    that — a widget declaring nothing still gets its tag, and would go on getting it if
+    the declaration were dropped."""
+    page, errors = open_page(browser, serve(CHANGE_SHAPES_PAGE))
+    resized(page, 1200, 900)
+
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    rows = page.evaluate(ASK_ROW_SAYS)
+
+    assert {r["at"]: r["kind"] for r in rows} == {
+        "sug-rewrite": "rewrite",
+        "sug-insert": "insertion",
+        "sug-delete": "deletion",
+        "shapes-q": "options",
+    }
+    # The words beside the kind are still the element's own, and the two changes that
+    # keep a current paragraph still open on it — the reading did not move, only what
+    # is said about it.
+    said = {r["at"]: r["says"] for r in rows}
+    assert said["sug-delete"].startswith("Retries are logged"), said
+    assert said["sug-insert"].startswith("Parked jobs"), said
+    assert errors == []
+    page.close()
 
 
 def test_a_opens_a_board_of_what_the_page_is_waiting_for(browser, serve):
@@ -9417,19 +10468,20 @@ def test_one_board_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf)
     page.close()
 
 
-def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
-    """A suggestion's wrapper generates no box — that is what lets it sit mid-sentence or
-    around whole sections without disturbing either flow — and an element with no box
-    measures (0,0) at the document's origin. That is not a degenerate answer but a wrong
-    one, so everything that asked the wrapper where it was believed it: the ring painted
-    nothing, and the travel centred the top of the document. A page whose open asks were
-    all suggestions therefore answered `n` by appearing to do nothing at all, which is
-    how it was found — every earlier press had landed on a group or a task, which have
-    boxes, so the walk looked right for as long as something else was open.
+def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
+    """A suggestion is one ask, so it wears one ring, whatever its slots are made of.
 
-    The mark names the ask and hangs on the boxes the ask shows through, and the two
-    readings are asserted apart here: the wrapper is what the walk is standing on, and
-    the slots are what the reader can see it on."""
+    The wrapper generated no box once — the same "take the form your content takes" with
+    the box left out — and an element with none measures (0,0) at the document's origin,
+    which is not a degenerate answer but a wrong one. Everything that asked the wrapper
+    where it was believed it, so the travel centred the top of the document and a page
+    whose open asks were all suggestions answered `n` by appearing to do nothing at all.
+
+    Hanging the ring on the pieces instead covered that and said the wrong thing about
+    the change: two outlines meeting down the middle of a sentence, or stacked across
+    two block slots, read as two boxes touching rather than as the one ask the reader is
+    standing in. So what is asserted here is that the reader is taken to the change, and
+    that the wrapper alone wears the mark, in one box reaching round both slots."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
 
     # Short enough that reaching the change is travel rather than a press with the
@@ -9461,36 +10513,107 @@ def test_the_ask_walk_reaches_an_ask_that_draws_no_box(browser, serve):
     page.keyboard.press("n")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
-    # The condition the rest of the test is about, stated rather than assumed: with a box
-    # of its own on the wrapper there is nothing here to get wrong, and every assertion
-    # below would hold for the wrong reason.
-    assert page.evaluate(
+    # The condition everything below rests on, stated rather than assumed: put
+    # display: contents back on the wrapper and it measures (0,0), the mark paints
+    # nothing, and the count further down passes on an element no reader can see.
+    box = page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
-    ) == [0, 0]
+    )
+    assert box[0] > 40 and box[1] > 10, f"the wrapper drew no box to ring: {box}"
 
     # The travel is a glide, so the fact to wait on is that it has finished. Both
     # assertions are then about the landing: measured from the wrapper's own rect the
     # change sits at the document's origin, so the reader is carried to the top of the
     # page — up from where they stood, with the change still below the fold.
-    page.wait_for_function(SCROLL_SETTLED, arg=SETTLE_MS)
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     assert page.evaluate("() => document.body.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )
     assert page.evaluate(fully_shown), "the walk left the change out of the window"
 
-    # What wears the mark: the ask, which carries the id every reader of the mark asks
-    # after, and the slots, which are the only things here a ring can be seen on. Nothing
-    # else — the widget hangs its controls off an empty span inside the wrapper, which has
-    # a rect and no area, and a 2px mark of its own beside the change is not the promise.
-    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')].map(e => {
-      const r = e.getBoundingClientRect();
-      return { what: e.id || e.tagName, area: r.width > 0 && r.height > 0,
+    # What wears the mark: the wrapper, which carries the id every reader of the mark
+    # asks after. Not the slots, and not the empty span the widget prepends to itself to
+    # anchor its controls from — a 2px mark of its own beside the change is not the
+    # promise.
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')].map(e => {
+      return { what: e.id || e.tagName, fragments: e.getClientRects().length,
                ring: getComputedStyle(e).outlineStyle !== 'none' };
     })""")
-    assert [m["what"] for m in marks] == ["sug-refill", "LF-OLD", "LF-NEW"]
-    assert all(m["ring"] for m in marks)
-    assert [m["area"] for m in marks] == [False, True, True]
+    assert [m["what"] for m in marks] == ["sug-refill"]
+    assert marks[0]["ring"]
+    # One fragment, so the outline closes round the change once. An inline box broken
+    # around block children has three and draws no visible edge on any of them, which is
+    # what a wrapper that only says `inline` gets for a change made of paragraphs.
+    assert marks[0]["fragments"] == 1, marks
+
+    # And the box reaches round both slots, which a ring on the pieces could not promise:
+    # the reader is standing in the change, not in half of it.
+    assert page.evaluate("""() => {
+      const w = document.getElementById('sug-refill').getBoundingClientRect();
+      return ['refill-was', 'refill-now'].every(id => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return r.top >= w.top - 1 && r.bottom <= w.bottom + 1
+            && r.left >= w.left - 1 && r.right <= w.right + 1; });
+    }"""), "the wrapper's box does not reach round both slots"
+
+    assert errors == []
+    page.close()
+
+
+def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
+    """`display: contents` is one line of CSS, and a page or a project layer can put it
+    on anything. Nothing in the shipped vocabulary carries it now, so this case only
+    reaches the runtime from outside — which is where the reading has to hold, because
+    an element generating no box measures (0,0) at the document's origin and every
+    consumer that believes it travels to the top of the page.
+
+    The travel reads where the content paints (shownBox), and the ring hangs on the
+    boxes the ask shows through (shownParts) — the same answer an element-anchored
+    comment's outline gives, so the walk's mark and the thread's cannot disagree about
+    where a boxless ask is. The outermost mark still names the ask, one place for the
+    reader to be standing."""
+    styled = ASKS_PAGE.replace(
+        "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+    )
+    page, errors = open_page(browser, serve(styled))
+    resized(page, 900, 400)
+
+    # Asked of what the change paints, since the wrapper itself no longer says: this is
+    # the reading the runtime has to take for the travel to land anywhere real. Whole in
+    # the window because merely overlapping it is a state the glide passes through.
+    fully_shown = """() => { const r = document.createRange();
+      r.selectNodeContents(document.getElementById('sug-refill'));
+      const box = r.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= innerHeight; }"""
+
+    page.keyboard.press("n")
+    expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
+    was = page.evaluate("() => document.body.scrollTop")
+    assert was > 0, "the reader must have somewhere to have come from"
+
+    page.keyboard.press("n")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+    assert page.evaluate(
+        "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
+        " return [r.width, r.height]; }"
+    ) == [0, 0], "the page's own style no longer takes the wrapper's box away"
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    assert page.evaluate("() => document.body.scrollTop") > was, (
+        "the walk went up rather than down, which is where the document's origin is"
+    )
+    assert page.evaluate(fully_shown), "the walk left the change out of the window"
+
+    # The ask and the boxes it shows through wear the mark, the ask outermost — one
+    # place to stand, painted where the reader can see it.
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')]
+      .map(e => e.id || e.tagName)""")
+    assert marks == [
+        "sug-refill",
+        "LF-OLD",
+        "LF-NEW",
+    ], f"the mark went somewhere else than the ask and its shown boxes: {marks}"
+    expect(page.locator(STANDING_ASK)).to_have_count(1)
 
     assert errors == []
     page.close()
@@ -9512,8 +10635,15 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     so the first paint of a page sees no note and the ring is right; it moves onto the
     pixel on the next pass — which the ask walk always is, the reader having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
-    ring beside the change instead of on it."""
-    url = serve(ASKS_PAGE)
+    ring beside the change instead of on it.
+
+    The shipped wrapper draws a box of its own now, so the page supplies the boxless
+    one here — the line of CSS any page can write is what keeps this reachable."""
+    url = serve(
+        ASKS_PAGE.replace(
+            "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+        )
+    )
     interact.append_event(
         serve.page_dir,
         {
@@ -9539,18 +10669,266 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     # instead of naming the element.
     marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')]
       .map(e => e.id || e.tagName)""")
-    assert marks == ["sug-refill", "LF-OLD", "LF-NEW"], (
-        f"the ring reached past the page's own boxes: {marks}"
-    )
+    assert marks == [
+        "sug-refill",
+        "LF-OLD",
+        "LF-NEW",
+    ], f"the ring reached past the page's own boxes: {marks}"
     expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
     assert errors == []
     page.close()
 
 
+LIVE_READING = (
+    "The reader is halfway through this account of the cutover and its evidence."
+)
+LIVE_V1 = leaf_page(
+    "Live first",
+    """
+<h1 id="live-title">Live first</h1>
+{lead}
+<p id="live-reading">{reading}</p>
+{tail}
+""",
+    head='<meta name="description" content="first">',
+).format(
+    lead="\n".join(
+        f'<p id="live-lead-{i}">Lead {i}. ' + "Context. " * 18 + "</p>"
+        for i in range(18)
+    ),
+    reading=LIVE_READING,
+    tail="\n".join(
+        f'<p id="live-tail-{i}">Tail {i}. ' + "Context. " * 18 + "</p>"
+        for i in range(18)
+    ),
+)
+LIVE_V2 = (
+    LIVE_V1.replace("<title>Live first</title>", "<title>Live second</title>")
+    .replace(
+        'name="description" content="first"', 'name="description" content="second"'
+    )
+    .replace('<html lang="en">', '<html lang="fr" data-live-root="second">')
+    .replace(
+        "<body>",
+        '<body class="live-second" data-live-body="second" style="--live-body: 2">',
+    )
+    .replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live second</h1>'
+        + "\n".join(
+            f'<p id="live-new-{i}">New finding {i}. ' + "Fresh context. " * 18 + "</p>"
+            for i in range(5)
+        ),
+    )
+    .replace(
+        '<script type="module" src="/leaf.js"></script>',
+        '<meta name="lf-review" content="sign-off">\n'
+        "<style>#live-reading { --live-cut: 2; }</style>\n"
+        '<script type="module" src="/leaf.js"></script>',
+    )
+)
+LIVE_V3 = (
+    LIVE_V2.replace("<title>Live second</title>", "<title>Live third</title>")
+    .replace(
+        'name="description" content="second"', 'name="description" content="third"'
+    )
+    .replace('<html lang="fr" data-live-root="second">', '<html lang="en">')
+    .replace(
+        '<body class="live-second" data-live-body="second" style="--live-body: 2">',
+        "<body>",
+    )
+    .replace(
+        '<h1 id="live-title">Live second</h1>', '<h1 id="live-title">Live third</h1>'
+    )
+    .replace('<meta name="lf-review" content="sign-off">\n', "")
+    .replace("<style>#live-reading { --live-cut: 2; }</style>\n", "")
+)
+
+
+def live_url(version_url):
+    """The stable handover address for a served fixture's authenticated origin."""
+    return version_url.split("/versions/", 1)[0] + f"/?t={TOKEN}"
+
+
+def test_the_live_page_adopts_a_version_without_navigating_or_moving_the_reader(
+    browser, serve
+):
+    """Publishing advances the live surface, not the browser document.
+
+    The next file is fetched while the reader keeps this document, then its authored
+    main replaces the old one and replay catches it up. The URL, runtime identity, open
+    chrome, and passage's viewport coordinate therefore survive. Five paragraphs arrive
+    above that passage so a raw scroll offset cannot satisfy the position assertion.
+    """
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    assert "/versions/" not in page.url, f"the live address redirected to {page.url}"
+
+    page.locator("#live-reading").scroll_into_view_if_needed()
+    page.evaluate(
+        """() => { document.body.scrollBy({
+          top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
+          behavior: 'instant'
+        }); window.__leafDocument = 'the same runtime'; }"""
+    )
+    before = page.locator("#live-reading").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+    told(page)
+    expect(page).to_have_title("Live second")
+
+    assert page.evaluate("window.__leafDocument") == "the same runtime", (
+        "the version replaced the browser document rather than its authored page"
+    )
+    assert "/versions/" not in page.url, (
+        f"the update changed the live address to {page.url}"
+    )
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    after = page.locator("#live-reading").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    assert abs(after - before) <= 4, (
+        f"the passage moved from {before}px to {after}px in the viewport"
+    )
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator(".lf-signoff")).to_be_visible()
+    assert page.locator('meta[name="description"]').get_attribute("content") == "second"
+    assert page.locator("html").get_attribute("lang") == "fr"
+    assert page.locator("html").get_attribute("data-live-root") == "second"
+    expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
+    assert page.locator("body").get_attribute("data-live-body") == "second"
+    assert (
+        page.locator("body").evaluate(
+            "el => el.style.getPropertyValue('--live-body').trim()"
+        )
+        == "2"
+    ), "the new version's authored root attributes did not activate"
+    assert (
+        page.locator("#live-reading").evaluate(
+            "el => getComputedStyle(el).getPropertyValue('--live-cut').trim()"
+        )
+        == "2"
+    ), "the new version's page-local style did not activate"
+
+    page.locator(".lf-general textarea").fill("This comment belongs to the live v2.")
+    page.locator(".lf-general button").click()
+    round_trip(page)
+    assert interact.read_events(serve.page_dir)[-1]["version"] == 2
+    assert errors == []
+    page.close()
+
+
+def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
+    """Unsent words hold an arriving version, but clearing them releases it.
+
+    The chip is news during the hold, not a required confirmation: after the reader
+    leaves the textarea, the ordinary poll activates the already-published version.
+    """
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.locator(".lf-comments").click()
+    general = page.locator(".lf-general textarea")
+    general.fill("Do not replace the page under these words.")
+
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+    told(page)
+    expect(page).to_have_title("Live first")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+
+    # An explicit press may override the hold, but it is still an in-place activation:
+    # the live address and the panel draft both survive it.
+    page.locator(".lf-latest-chip").click()
+    expect(page).to_have_title("Live second")
+    assert "/versions/" not in page.url
+    expect(general).to_have_value("Do not replace the page under these words.")
+
+    # Keep editing after the explicit release. The chip press necessarily took focus,
+    # so state the active-composition condition again before asking v3 to honor it.
+    general.focus()
+    expect(general).to_be_focused()
+    (serve.page_dir / "versions" / "v3.html").write_text(LIVE_V3)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 3, "text": "more findings"},
+    )
+    told(page)
+    expect(page).to_have_title("Live second")
+
+    general.fill("")
+    page.locator("#live-reading").click()
+    told(page)
+    expect(page).to_have_title("Live third")
+    assert "/versions/" not in page.url
+    expect(page.locator(".lf-signoff")).to_have_count(0)
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blive-second\b"))
+    assert page.locator("body").get_attribute("data-live-body") is None
+    assert (
+        page.locator("body").evaluate(
+            "el => el.style.getPropertyValue('--live-body').trim()"
+        )
+        == ""
+    ), "the retired version's authored inline property survived"
+    assert page.locator("body").evaluate(
+        "el => el.style.getPropertyValue('--lf-head').trim()"
+    ), "activation erased a runtime-owned root property"
+    assert page.locator('meta[name="description"]').get_attribute("content") == "third"
+    assert errors == []
+    page.close()
+
+
+def test_overlapping_state_answers_share_one_live_version_activation(browser, serve):
+    """Two ordinary polls cannot replace the main twice.
+
+    Hold the shared version-file request past one polling interval, so a second timer
+    response joins the first while both await that document. One transition proves the
+    serialization is at the commit boundary, after asynchronous preparation, rather than
+    only before it.
+    """
+    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
+    page.evaluate(
+        """() => {
+          const start = document.startViewTransition.bind(document);
+          window.__leafTransitions = 0;
+          document.startViewTransition = update => {
+            window.__leafTransitions += 1;
+            return start(update);
+          };
+        }"""
+    )
+
+    def slow_version(route):
+        time.sleep(3)
+        route.continue_()
+
+    page.route("**/versions/v2.html", slow_version)
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+
+    expect(page).to_have_title("Live second", timeout=10_000)
+    assert page.evaluate("window.__leafTransitions") == 1
+    assert errors == []
+    page.close()
+
+
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
-    """A version arriving is a navigation, and the reader's place has to ride across it.
-    The passage they were reading does; where the walk had got to is a variable in a
-    module the navigation throws away, so it did not, and the reader was demoted without
+    """An immutable version follows by navigation, and the reader's place rides across.
+    The passage they were reading did; where the walk had got to was a variable in a
+    module the navigation threw away, so it did not, and the reader was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
     the third of four asks when v2 landed, they pressed `n` and were handed the third
     again — the block at the top of the window is above the ask they were centred on, so
@@ -9597,27 +10975,17 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
 # reading position's landmark is whichever id stands nearest the block the reader was
 # on, so the wrapper is it — which is what a suggestion around whole sections is, and
 # what any layer's wrapper may be.
-BOXLESS_SECTION_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>boxless section</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+BOXLESS_SECTION_PAGE = leaf_page(
+    "boxless section",
+    """
 <h1 id="t">Boxless</h1>
 {lead}
 <div id="wrap" style="display: contents">
 {held}
 </div>
 {tail}
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     lead="\n".join(
         f"<p id='lead{i}'>Lead {i}. " + "Filler. " * 20 + "</p>" for i in range(30)
     ),
@@ -9721,16 +11089,18 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("n")
     expect(question).to_have_attribute("data-lf-ask", "1")
     ask_ring = question.evaluate(RING)
-    assert ask_ring == ["solid", "2px", token_colour(page, "--accent")], (
-        f"the ask is not ringed in the page's own band: {ask_ring}"
-    )
+    assert ask_ring == [
+        "solid",
+        "2px",
+        token_colour(page, "--accent"),
+    ], f"the ask is not ringed in the page's own band: {ask_ring}"
 
-    # A suggestion hangs its ✓ Accept out in the page margin, and that control is the
-    # whole of the band the reader sees there: lf-suggestion is display: contents, so
-    # the ring it wears is an outline on a 0x0 box and paints nothing. The band comes
-    # from the runtime's own .lf-pill rule, which every press in that margin wears —
-    # the suggestion family spelled its own once, which is a family stating a fact
-    # about a shape the runtime owns.
+    # A suggestion hangs its ✓ Accept out in the page margin and the focus lands on
+    # it, so this arrival paints two marks for one fact — the ring on the change, the
+    # focus band on the pill deciding it — and they had better be one band. The pill's
+    # comes from the runtime's own .lf-pill rule, which every press in that margin
+    # wears: the suggestion family spelled its own once, which is a family stating a
+    # fact about a shape the runtime owns.
     page.keyboard.press("n")
     accept = page.locator(".lf-sug-accept")
     expect(accept).to_be_focused()
@@ -9826,17 +11196,9 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
 
 # One target of ordinary height and one taller than any viewport, both far enough down
 # that arriving at either is a real scroll.
-TRAVEL_PAGE = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>travel</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TRAVEL_PAGE = leaf_page(
+    "travel",
+    f"""
 <h1 id="h">Placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
 <lf-diagram id="flow"><pre>
@@ -9848,10 +11210,8 @@ graph LR
 <h2>The long tail</h2>
 {"".join(f"<p>Tail fill, paragraph {i}, deep enough that the section outgrows any viewport.</p>" for i in range(24))}
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
@@ -9884,7 +11244,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
         for section in ("flow", "long-part")
     }
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     quote = lambda section: page.locator(
         f'.lf-thread[data-id="{thread[section]}"] .lf-quote'
     )
@@ -9937,17 +11297,9 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
 
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
-REPORT_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>reports</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REPORT_PAGE = leaf_page(
+    "reports",
+    """
 <h1 id="h">The feeders</h1>
 <lf-tasks id="plan">
   <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
@@ -9955,10 +11307,8 @@ REPORT_PAGE = """<!doctype html>
     <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
   </lf-task>
 </lf-tasks>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
@@ -10047,28 +11397,18 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
 # Two workers, one claiming work and one idle, because silence is only news against a
 # claim: the elapsed line is about what a row said it was doing, not about the clock.
-ROSTER_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>fleet</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ROSTER_PAGE = leaf_page(
+    "fleet",
+    """
 <h1 id="h">The aviary crew</h1>
 <lf-roster id="crew">
-  <lf-agent id="ag-wren" state="working" doing="drilling the north post" branch="mounts">
+  <lf-agent id="ag-wren" state="working" branch="mounts">
     <strong>wren</strong> The feeders.</lf-agent>
   <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
   <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
 </lf-roster>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def stale_report(page_dir, widget, doing, hours, state="working"):
@@ -10094,12 +11434,10 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
 
 
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
-    """The half of a roster no version can write down. A published page states what
-    each worker is doing; only the log knows when it last said so, and a page that
-    keeps a fleet is at its least trustworthy exactly when the reader has been away
-    longest. So the row renders elapsed time from the newest standing report and
-    re-renders on every poll — and says nothing at all where nothing has been heard,
-    an empty log behind a fresh version being no fault to report.
+    """The half of a roster no version can write down. A standing report states what
+    each worker is doing; only the log knows when it last said so, and a page that keeps
+    a fleet is at its least trustworthy exactly when the reader has been away longest.
+    So the row renders elapsed time from the newest report and re-renders on every poll.
 
     Then the case the line exists for: a claim of work nobody has refreshed. It is
     called out in words rather than in the tint alone, on the rope the banner already
@@ -10112,7 +11450,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # Before any worker has spoken, the row dates from the version that asserted it —
     # not from nothing, which would leave a fleet dead since last night reading exactly
     # like one published a minute ago.
-    expect(wren.locator(".lf-heard")).to_have_text("last heard just now")
+    expect(wren.locator(".lf-heard")).to_contain_text("last heard")
     # The state is a word this module writes rather than paint the runtime speaks, so
     # a reader listening gets it from the row itself.
     assert "working" in wren.aria_snapshot()
@@ -10132,19 +11470,22 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     )
     assert sent.exit_code == 0, sent.output
     told(page)
-    expect(wren).to_have_attribute("doing", "rebasing onto main")
+    expect(wren.locator(".lf-doing")).to_have_text("rebasing onto main")
+    expect(wren).not_to_have_attribute("doing", "rebasing onto main")
     expect(wren).to_have_attribute("data-lf-reported", "1")
     expect(wren.locator(".lf-heard")).to_have_text("last heard just now")
     expect(wren.locator(".lf-cold")).to_have_count(0)
 
     stale_report(d, "ag-wren", "still rebasing", 3)
     told(page)
+    expect(wren.locator(".lf-doing")).to_have_text("still rebasing")
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
 
     # The same silence against no claim of work says nothing beyond its own age.
     stale_report(d, "ag-finch", "nothing", 3, state="idle")
     told(page)
+    expect(finch.locator(".lf-doing")).to_have_text("nothing")
     expect(finch.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(finch.locator(".lf-cold")).to_have_count(0)
 
@@ -10155,13 +11496,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # that claimed work, had the claim written into the document, and then died. The
     # provisional mark goes, because the document speaks again; the log's memory of who
     # last said anything does not, because no version can speak for that.
-    (d / "versions" / "v2.html").write_text(
-        ROSTER_PAGE.replace(
-            'doing="drilling the north post"', 'doing="still rebasing"'
-        ).replace(
-            'id="ag-finch" state="idle"', 'id="ag-finch" state="idle" doing="nothing"'
-        )
-    )
+    (d / "versions" / "v2.html").write_text(ROSTER_PAGE)
     published = CliRunner().invoke(
         interact.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "absorbing"],
@@ -10171,6 +11506,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     page.wait_for_function(BOTH_STAMPS)
     wren = page.locator("#ag-wren")
     expect(wren).not_to_have_attribute("data-lf-reported", "1")
+    expect(wren.locator(".lf-doing")).to_have_count(0)
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
     assert errors == []
@@ -10259,8 +11595,8 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     by wrapping, and it fails the same way: nothing errors, the page just stops taking
     the gesture.
 
-    So the clock touches one text node and the structure is rebuilt only where an
-    attribute moved. Asserted as node identity rather than as a selection, because
+    So the clock touches one text node and the structure is rebuilt only when a
+    report moves that row. Asserted as node identity rather than as a selection, because
     identity is the property the rendering owes and a selection is one thing that rests
     on it."""
     url = serve(ROSTER_PAGE)
@@ -10488,22 +11824,14 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
 
 
 # One instance for every verb the vocabulary declares an action or a report for, so a
-# log holding one event apiece leaves the whole of it standing at once. Two option
-# groups and two suggestions, because a fold is keyed by unit: a second verb recorded on
-# one widget supersedes the first, and a verb that never stands is a verb the gate never
-# applies. The floor below derives the list from the registry, so a twelfth widget's
+# log holding one event apiece leaves the whole of it standing at once. Selection and
+# completion share one option-group unit but occupy distinct facets, so both stand;
+# accept and reject share the settlement facet, so two suggestions let both competing
+# verbs stand. The floor below derives the list from the registry, so a twelfth widget's
 # verb fails here rather than passing unexercised.
-STANDING_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>standing state</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+STANDING_PAGE = leaf_page(
+    "standing state",
+    """
 <h1 id="ab-t">The v1 cutover</h1>
 <lf-options id="ab-pick" choose>
   <lf-option id="ab-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
@@ -10521,7 +11849,7 @@ STANDING_PAGE = """<!doctype html>
   <lf-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-task>
 </lf-tasks>
 <lf-roster id="ab-crew">
-  <lf-agent id="ab-wren" state="working" doing="wiring the importer"><strong>wren</strong> The importer.</lf-agent>
+  <lf-agent id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-agent>
 </lf-roster>
 <lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
 <lf-suggestion id="ab-sug-410">
@@ -10532,10 +11860,8 @@ STANDING_PAGE = """<!doctype html>
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # The event that leaves each declared verb standing, written out because a detail is
 # the verb's own shape and a schema is no help in inventing one.
@@ -10549,7 +11875,7 @@ STANDING_PAGE = """<!doctype html>
 # log's order, and with a single move on the page it passed either way.
 STANDING_ACTIONS = [
     ("ab-pick", "choose", {"options": ["ab-stage"]}),
-    ("ab-scope", "answer", {}),
+    ("ab-pick", "answer", {}),
     ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "index": 0}),
     ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "index": 0}),
     ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
@@ -10586,9 +11912,9 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         )
     # The agent channel through its own door, which is the only way a report is
     # written: both channels replay, so both rest on the same contract. A roster row
-    # moves two attributes under one verb, so re-applying has to leave both where they
-    # stand — the case a verb per attribute could not even reach, two of them on one
-    # widget being two entries competing for one fold key.
+    # carries recorded state and a generated clause under one verb, so re-applying has
+    # to leave both where they stand. Splitting the clause into another verb would make
+    # the two reports compete for one fold key.
     for widget, verb, fields in [
         ("ab-baffles", "status", ["status=done"]),
         ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
@@ -10600,7 +11926,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
     page, errors = open_page(browser, url)
     standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()
-        .map(({ widget, action }) => [widget.localName, action])""")
+        .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
     declared = {
@@ -10610,35 +11936,32 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         for channel in ("x-state", "x-report")
         for verb in entry.get(channel, {})
     }
-    assert {tuple(pair) for pair in standing} == declared, (
+    assert {(tag, verb) for _id, tag, _facet, verb in standing} == declared, (
         "the gate applies the standing state, so a declared verb missing from it is a "
         f"verb nothing here re-applies: page holds {standing}, registry declares "
         f"{sorted(declared)}"
     )
+    assert {
+        (facet, action)
+        for widget, _tag, facet, action in standing
+        if widget == "ab-pick"
+    } == {("selection", "choose"), ("completion", "answer")}
     assert errors == []
     assert interact.render_version(browser, url) == []
 
 
-RELATIVE_WIDGET_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>relative widget</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-</head>
-<body>
-<main>
+RELATIVE_WIDGET_PAGE = leaf_page(
+    "relative widget",
+    """
 <h1 id="tally-title">Squirrel baffles</h1>
 <lf-tally id="tally-fitted" count="2">
-  <strong>Baffles fitted</strong> Counted on the last walk round.
+  <pre>Baffles fitted. Counted on the last walk round.</pre>
 </lf-tally>
-<lf-tally id="tally-seen" count="0">Nothing at the feeders this week.</lf-tally>
-</main>
-<script type="module" src="/leaf.js"></script>
-</body>
-</html>
-"""
+<lf-tally id="tally-seen" count="0">
+  <pre>Nothing at the feeders this week.</pre>
+</lf-tally>
+""",
+)
 
 RELATIVE_WIDGET_MODULE = """\
 import { once } from "/leaf.js";
@@ -10650,31 +11973,265 @@ customElements.define(
       once(this);
     }
     applyAction(action, detail) {
-      // Both relative, one in markup the signature reads and one in words it
-      // looks away from: the count steps by the detail instead of stating it,
-      // and the caption is appended instead of replacing what stood there.
       if (action === "step")
-        this.setAttribute("count", Number(this.getAttribute("count")) + detail.count);
-      if (action === "caption") this.append(detail.text);
+        this.setAttribute(
+          "count",
+          Number(this.getAttribute("count")) + Number(detail.count),
+        );
+      if (action === "caption") this.querySelector("pre").append(detail.text);
     }
   },
 );
 """
 
 
+def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The projection, not channel replay order, is the DOM's authority. A worker's
+    later count remains report history, but it cannot paint over the reader's action
+    on the same unit and facet; both log records are ready once that one coordinate is
+    committed."""
+    monkeypatch.chdir(tmp_path)
+    made = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-tally", "--upgrade"]
+    )
+    assert made.exit_code == 0, made.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-tally"]["properties"]["count"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
+    entries["lf-tally"].setdefault("required", []).append("count")
+    entries["lf-tally"]["x-example"] = (
+        '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
+    )
+    entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
+    record = {"kind": "value", "attr": "count", "value": "count"}
+    count_detail = {
+        "type": "object",
+        "properties": {"count": {"type": "string", "pattern": "^[0-9]+$"}},
+        "required": ["count"],
+        "additionalProperties": False,
+    }
+    entries["lf-tally"]["x-state"] = {
+        "set": {
+            "detail": count_detail,
+            "facet": "count",
+            "unit": "widget",
+            "record": record,
+        }
+    }
+    entries["lf-tally"]["x-report"] = {
+        "measure": {
+            "detail": count_detail,
+            "facet": "count",
+            "unit": "widget",
+            "record": record,
+        }
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
+        """\
+import { once } from "/leaf.js";
+customElements.define("lf-tally", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) {
+    this.setAttribute("count", detail.count);
+  }
+});
+"""
+    )
+    url = serve(RELATIVE_WIDGET_PAGE)
+    for kind, author, widget, action, count in [
+        ("action", "user", "tally-fitted", "set", "7"),
+        ("report", "claude", "tally-fitted", "measure", "9"),
+        ("action", "user", "tally-seen", "set", "5"),
+    ]:
+        interact.append_event(
+            serve.page_dir,
+            {
+                "kind": kind,
+                "author": author,
+                "version": 1,
+                "widget": widget,
+                "action": action,
+                "detail": {"count": count},
+            },
+        )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#tally-fitted")).to_have_attribute("count", "7")
+    expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
+    standing = page.evaluate(
+        """async () => (await import('/leaf.js')).standingState()
+          .filter(state => state.widget?.id === 'tally-fitted')
+          .map(state => [state.action, state.detail.count])"""
+    )
+    assert standing == [["set", "7"]]
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#tally-seen")).to_have_attribute("count", "0")
+    assert errors == []
+    page.close()
+
+
+def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Facet names are local to their owning widget contract. A container's
+    placement of part `piece` and that element's own `placement` facet therefore
+    coexist even though unit and facet text are identical; both owners reconcile."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    for tag, upgrade in (
+        ("lf-owner", True),
+        ("lf-zone", False),
+        ("lf-piece", True),
+    ):
+        made = runner.invoke(
+            interact.cli,
+            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
+        )
+        assert made.exit_code == 0, made.output
+
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    owner = entries["lf-owner"]
+    owner["x-content"] = "items"
+    owner["x-state"] = {
+        "move": {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "piece": {"type": "string"},
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["piece", "to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "piece",
+            "record": {
+                "kind": "position",
+                "within": "lf-zone",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    }
+    owner["x-example"] = (
+        '<lf-owner id="sample-owner"><lf-zone id="sample-zone">'
+        '<lf-piece id="sample-piece" pinned="no">Piece</lf-piece>'
+        "</lf-zone></lf-owner>"
+    )
+    zone = entries["lf-zone"]
+    zone["x-parent"] = ["lf-owner"]
+    zone["x-content"] = "items"
+    zone.pop("x-example", None)
+    piece = entries["lf-piece"]
+    piece["x-parent"] = ["lf-zone"]
+    piece["properties"] |= {
+        "pinned": {"type": "string"},
+        "restated": {"type": "boolean"},
+    }
+    piece.setdefault("required", []).append("pinned")
+    piece["x-state"] = {
+        "pin": {
+            "detail": {
+                "type": "object",
+                "properties": {"pinned": {"type": "string"}},
+                "required": ["pinned"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "pinned", "value": "pinned"},
+        }
+    }
+    piece.pop("x-example", None)
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
+        """\
+import { once } from "/leaf.js";
+customElements.define("lf-owner", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) {
+    const piece = document.getElementById(detail.piece);
+    const zone = document.getElementById(detail.to);
+    zone.insertBefore(piece, [...zone.children][detail.index] ?? null);
+  }
+});
+"""
+    )
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
+        """\
+import { once } from "/leaf.js";
+customElements.define("lf-piece", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) { this.setAttribute("pinned", detail.pinned); }
+});
+"""
+    )
+    html = leaf_page(
+        "owned coordinates",
+        """<h1>Owned coordinates</h1><lf-owner id="owner">
+<lf-zone id="zone-a"><lf-piece id="piece" pinned="no">Piece</lf-piece></lf-zone>
+<lf-zone id="zone-b"></lf-zone></lf-owner>""",
+    )
+    url = serve(html)
+    for event in (
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "owner",
+            "action": "move",
+            "detail": {"piece": "piece", "to": "zone-b", "index": 0},
+        },
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "piece",
+            "action": "pin",
+            "detail": {"pinned": "yes"},
+        },
+    ):
+        interact.append_event(serve.page_dir, event)
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#zone-b > #piece")).to_have_count(1)
+    expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
+    standing = page.evaluate(
+        """async () => (await import('/leaf.js')).standingState()
+          .filter(state => state.unit === 'piece' && state.facet === 'placement')
+          .map(state => [state.widget.id, state.action])"""
+    )
+    assert standing == [["owner", "move"], ["piece", "pin"]]
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    assert errors == []
+    page.close()
+
+
 def test_the_render_gate_catches_a_relative_apply_action(
     browser, serve, tmp_path, monkeypatch
 ):
     """Bug-back for the contract the widget scaffold's own comment names first, and for
-    both readings the gate takes of it. A project widget steps its count from the count
-    it reads and appends its caption to the caption it reads: right once, and wrong
-    every time after, because the page has already replayed the action and the poll
-    replays the user's own gesture back at them. Each finding names its widget, its verb
-    and what moved.
+    both readings the gate takes of it. One project widget steps its count from the
+    count it reads and appends its caption to the caption it reads: right once, and
+    wrong every time after, because the page has already replayed the actions and the
+    poll replays the user's own gestures back at them. The finding names the widget,
+    both verbs, and what moved.
 
-    Two verbs on two instances, because a fold is keyed by unit and the two readings
+    Two facets on one unit prove both can stand while exercising the two readings that
     catch different things. The count is markup, so `shallowSigs` sees it; the caption
-    is text, which that signature excludes on purpose, so only the unit's declared
+    is text, which that signature excludes on purpose, so only the facet's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
@@ -10683,7 +12240,15 @@ def test_the_render_gate_catches_a_relative_apply_action(
     assert result.exit_code == 0, result.output
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-tally"]["properties"]["count"] = {"type": "integer", "minimum": 0}
+    entries["lf-tally"]["properties"]["count"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
+    entries["lf-tally"].setdefault("required", []).append("count")
+    entries["lf-tally"]["x-content"] = "data"
+    entries["lf-tally"]["x-example"] = (
+        '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
+    )
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
     entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
@@ -10691,10 +12256,11 @@ def test_the_render_gate_catches_a_relative_apply_action(
         "step": {
             "detail": {
                 "type": "object",
-                "properties": {"count": {"type": "integer", "minimum": 0}},
+                "properties": {"count": {"type": "string", "pattern": "^[0-9]+$"}},
                 "required": ["count"],
                 "additionalProperties": False,
             },
+            "facet": "count",
             "unit": "widget",
             "record": {"kind": "value", "attr": "count", "value": "count"},
         },
@@ -10705,6 +12271,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
                 "required": ["text"],
                 "additionalProperties": False,
             },
+            "facet": "caption",
             "unit": "widget",
             "record": {"kind": "body", "value": "text"},
         },
@@ -10713,8 +12280,8 @@ def test_the_render_gate_catches_a_relative_apply_action(
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
     url = serve(RELATIVE_WIDGET_PAGE)
     for widget, action, detail in [
-        ("tally-fitted", "step", {"count": 3}),
-        ("tally-seen", "caption", {"text": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"count": "3"}),
+        ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
     ]:
         interact.append_event(
             serve.page_dir,
@@ -10736,11 +12303,279 @@ def test_the_render_gate_catches_a_relative_apply_action(
         "from what the page shows"
     )
     assert [f for f in failures if "is relative" in f] == [
-        "[light] <lf-tally id=tally-fitted> applyAction(step) is relative — "
-        "re-applying the standing log moved tally-fitted" + tail,
-        "[light] <lf-tally id=tally-seen> applyAction(caption) is relative — "
-        "re-applying the standing log moved the state recorded on tally-seen" + tail,
+        "[light] <lf-tally id=tally-fitted> applyAction(step, caption) is relative — "
+        "re-applying the standing log moved tally-fitted, the caption state recorded "
+        "on tally-fitted" + tail,
     ], failures
+
+
+# A widget that stands out of place and settles into it, for the two tests below. The
+# distance is more than the blocks under it are tall, so while it is out of place its
+# words are over a neighbour's — which is a page the gate reports, and the whole of
+# what these tests measure. `offset` is the state and the transform is a rendering of
+# it, so the module never reads a position back off the page.
+DRIFT_PAGE = leaf_page(
+    "a page still settling",
+    """
+<h1 id="drift-title">The feeders</h1>
+<lf-drift id="drift-note" offset="120"><strong>Two greys at the north feeder</strong> They came over the fence at a run, took the sunflower hearts from the hanging tray, and were gone again before the camera on the shed had finished waking up.</lf-drift>
+<p id="drift-four">They came back at four and stayed until dusk.</p>
+<p id="drift-week">The baffles went up the following week.</p>
+<p id="drift-seed">Nothing has been at the seed since.</p>
+<p id="drift-count">The count runs again on Sunday.</p>
+<p id="drift-sunday">Sunday is when the tally goes in.</p>
+""",
+)
+
+DRIFT_MODULE = """\
+import { motion, once } from "/leaf.js";
+
+customElements.define(
+  "lf-drift",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      // `deep` renders the same words from inside the widget's own root, and moves
+      // them there: an animation a document-level reading cannot see.
+      if (this.hasAttribute("deep")) {
+        const root = this.attachShadow({ mode: "open" });
+        // `bare` stages the words with no element over them — the page refuses that,
+        // and the refusal is what one of the tests below reads.
+        if (this.hasAttribute("bare")) {
+          root.append(...this.childNodes);
+          return;
+        }
+        const held = document.createElement("div");
+        held.append(...this.childNodes);
+        root.append(held);
+        held.animate(
+          [{ transform: "translateY(120px)" }, { transform: "none" }],
+          { duration: 30000 },
+        );
+      }
+      this.#place();
+    }
+    // Absolute, as every applyAction is: the offset is stated, never stepped.
+    applyAction(action, detail) {
+      if (action !== "settle") return;
+      const from = this.getAttribute("offset");
+      this.setAttribute("offset", String(detail.offset));
+      this.#place();
+      // Held at the old offset for nine tenths of the run, so the words are over
+      // their neighbour's for as long as the motion lasts. A move that eased the
+      // whole way would leave a last fifth of a second in which a reading taken
+      // then happened to be clean, and the test would be measuring when the gate
+      // looked rather than whether it waited.
+      motion(
+        this,
+        [
+          { transform: `translateY(${from}px)` },
+          { transform: `translateY(${from}px)`, offset: 0.9 },
+          { transform: "none" },
+        ],
+        1200,
+      );
+    }
+    #place() {
+      this.style.transform = `translateY(${this.getAttribute("offset")}px)`;
+    }
+  },
+);
+"""
+
+
+def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
+    """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-drift", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-drift"]["properties"]["offset"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
+    entries["lf-drift"].setdefault("required", []).append("offset")
+    entries["lf-drift"]["x-example"] = entries["lf-drift"]["x-example"].replace(
+        'id="drift-example"', 'id="drift-example" offset="120"'
+    )
+    entries["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
+    entries["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
+    deep = deep or bare
+    if deep:
+        # The body is rendered from the widget's own root, so the entry stops
+        # claiming the reader gets it verbatim from the markup.
+        entries["lf-drift"]["x-shadow"] = True
+        del entries["lf-drift"]["x-verbatim"]
+    # The registry holds a widget-unit verb to the attribute a version retracts a
+    # decision with, so a state channel arrives with its way out of one.
+    entries["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
+    entries["lf-drift"]["x-state"] = {
+        "settle": {
+            "detail": {
+                "type": "object",
+                "properties": {"offset": {"type": "string", "pattern": "^[0-9]+$"}},
+                "required": ["offset"],
+                "additionalProperties": False,
+            },
+            "facet": "offset",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "offset", "value": "offset"},
+        }
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(DRIFT_MODULE)
+    if not deep:
+        return DRIFT_PAGE
+    opens = "<lf-drift deep bare id=" if bare else "<lf-drift deep id="
+    return DRIFT_PAGE.replace("<lf-drift id=", opens)
+
+
+def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The premise the test below rests on, stated where it can fail on its own.
+
+    With nothing in the log to settle it, <lf-drift> keeps the offset its markup
+    states for as long as the page is open, and its words sit over the paragraphs
+    under it. That is a page the covered-words reading reports — so the test below,
+    which serves this same markup and expects nothing, is measuring the gate's
+    patience rather than a page that was never broken."""
+    url = serve(drifting_widget(tmp_path, monkeypatch))
+
+    covered = [f for f in interact.render_version(browser, url) if "same place" in f]
+
+    assert covered and all("drift-note" in f for f in covered), covered
+
+
+def test_a_page_at_rest_is_read_across_a_widgets_own_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Whether the page is still moving is asked of every tree the page is in.
+
+    A document answers for its own tree alone: `document.getAnimations()` returns
+    nothing for an element inside a widget's shadow root, and `{subtree: true}` on
+    the root element returns nothing either. A widget drawing itself into place in
+    there grows the host box the gate's own readings measure, so a reading that
+    asked the document would call that page still and read it mid-move — the fault
+    the wait exists to prevent, surviving inside the one place a widget is most
+    likely to draw."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, deep=True))
+    page, errors = open_page(browser, url)
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    # The banner's dot pulses forever and is deliberately not the page moving, so the
+    # control asks after a finite end rather than after an empty list.
+    assert (
+        page.evaluate(
+            "() => document.getAnimations().filter(a => Number.isFinite("
+            "  a.effect?.getComputedTiming().endTime)).length"
+        )
+        == 0
+    ), "the document tree already answers for this one, so the reading proves nothing"
+    assert page.evaluate(interact.MOVING) == ["<lf-drift id=drift-note>"]
+    assert errors == []
+    page.close()
+
+
+def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The one text these walks reach with no element over it, and the page says whose.
+
+    A widget may render the page's words into its own shadow root, and the passage walk
+    crosses in after them. What it cannot take is a text node put straight on the root:
+    `parentElement` is null there, so those words have no block to sit in, no cell to be
+    fenced by and nothing for a mark to hang on, and admitting them would split the
+    page's reading from the file's. The page refuses to present at all, which is the
+    loud direction — but the refusal used to arrive as `Cannot read properties of null
+    (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
+    which is a bug report against leaf rather than against the module that caused it."""
+    url = serve(drifting_widget(tmp_path, monkeypatch, bare=True))
+    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    # The first thing the page says in anger, whatever that turns out to be: waiting
+    # for the wording under test would make a page that says something else read as a
+    # page that says nothing, and the message is the whole subject here.
+    with page.expect_console_message(lambda message: message.type == "error") as caught:
+        page.goto(url, wait_until="commit")
+    refusal = caught.value.text
+
+    assert '<lf-drift id="drift-note">' in refusal, refusal
+    assert "They came over the fence" in refusal, refusal
+    assert "closest" not in refusal, (
+        "the refusal is still a property name, which reads as leaf being broken: "
+        + refusal
+    )
+    assert page.evaluate("() => document.body.dataset.lfUpgraded") is None, (
+        "the page presented anyway, so the words with nothing over them are in it"
+    )
+    page.close()
+
+
+def test_the_render_gate_reads_a_page_that_has_finished_arriving(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A page finishes twice, and the second ending arrives moving.
+
+    `lf-upgraded` is the first: every widget upgraded, the geometry final. The
+    runtime writes it in the same breath as it *starts* the first poll and never
+    awaits that poll, so a gate reading there reads the authored page — here, a
+    widget standing 120px out of place with its words over the paragraphs below it.
+    `lf-applied` is the second, and the frame it lands in is the first frame of the
+    move it describes: a poll that brings nothing presents the authored page
+    deliberately, so the replay after it crosses the presentation boundary and moves
+    rather than teleports.
+
+    Both windows are load-shaped — a busy server, a few hundred milliseconds — which
+    is how this page passed at a desk and reported words drawn over words under a
+    full suite. Holding the action back until the first poll has answered makes the
+    window the same every run: the page reads as broken for about three seconds, and
+    the gate must have nothing to say about it. Either wait on its own leaves this
+    failing."""
+    # For the page directory and its vendored layer; this test serves it itself.
+    serve(drifting_widget(tmp_path, monkeypatch))
+    landed = []
+    settle = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "drift-note",
+        "action": "settle",
+        "detail": {"offset": "0"},
+    }
+
+    class TheLogArrivesLate(interact.handler_for(serve.page_dir, TOKEN)):
+        """The action reaches the log after the page's first poll has answered.
+
+        A page whose first poll brings nothing is presented on the authored markup
+        deliberately, so the replay that follows is past the presentation boundary
+        and moves rather than teleports. A poll is told from the gate's own reading
+        of the same document by the Referer a page fetch carries and an
+        APIRequestContext does not, so the gate always sees a log with the action
+        in it and always has a caught-up stamp to wait for."""
+
+        def do_GET(self):
+            super().do_GET()
+            page_fetch = self.headers.get("Referer") and self.path.startswith(
+                "/api/state"
+            )
+            if page_fetch and not landed:
+                landed.append(self.headers["Referer"])
+                interact.append_event(serve.page_dir, settle)
+
+    httpd = interact.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
+        assert interact.render_version(browser, late) == []
+    finally:
+        httpd.shutdown()
+    assert landed and "/versions/v1.html" in landed[0], (
+        "the action went in behind the gate's own reading rather than behind the "
+        f"page's first poll, so the window this rests on never opened: {landed}"
+    )
 
 
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
@@ -10937,17 +12772,9 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
 # widgets, so the mark on a chosen option can sit inside the half a decision removes.
 # `choose`, because that is the shape that bites: a group offering a pick renders the
 # mark as a press, which wears the chrome class *and* declares its word the page's.
-RETIRED_WIDGET_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>retired</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+RETIRED_WIDGET_PAGE = leaf_page(
+    "retired",
+    """
 <h1 id="h">Session transport</h1>
 <p id="lede">Replacing the whole decision block below.</p>
 <lf-suggestion id="sug-swap">
@@ -10958,32 +12785,82 @@ RETIRED_WIDGET_PAGE = """<!doctype html>
   </lf-old>
   <lf-new id="now"><p id="p-now">A bearer header, settled elsewhere.</p></lf-new>
 </lf-suggestion>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
-TWO_HOLDER_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>two holders</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWO_HOLDER_PAGE = leaf_page(
+    "two holders",
+    """
 <h1 id="th-t">The cache trial</h1>
 <lf-trial id="th-cache">
   <lf-current><p id="th-now">The cache is warmed on every deploy.</p></lf-current>
   <lf-proposed><p id="th-next">The cache is warmed on the first request.</p></lf-proposed>
 </lf-trial>
-</main>
-</body>
-</html>
-"""
+""",
+)
+
+
+def trial_family(tmp_path):
+    """A third-party settlement family in the project layer, built the way a project
+    builds one: `leaf customize widget` scaffolds each tag, and the registry edit
+    relates them — x-state verbs on the holders, x-parent/x-retired-when on the
+    slots. The holders upgrade, because a tag declaring x-state needs a module to
+    define its element; the scaffold module is all they get, so anything a test sees
+    settle is the layer's doing, not a module's. Only lf-proposed names two holders,
+    for the selector case the two-holder test is about."""
+    runner = CliRunner()
+    for tag, upgrade in (
+        ("lf-trial", True),
+        ("lf-pilot", True),
+        ("lf-current", False),
+        ("lf-proposed", False),
+    ):
+        made = runner.invoke(
+            interact.cli,
+            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
+        )
+        assert made.exit_code == 0, made.output
+    source = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(source.read_text())
+    verb = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "facet": "settlement",
+        "unit": "widget",
+    }
+    example = {
+        "lf-trial": '<lf-trial id="x-trial"><lf-current><p>As it stands.</p></lf-current>'
+        "<lf-proposed><p>As proposed.</p></lf-proposed></lf-trial>",
+        "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
+        "</lf-proposed></lf-pilot>",
+    }
+    # `pause` settles nothing: the widget-unit verb that displaces a decision in
+    # the fold, there for the test that holds the mark to following it out.
+    for tag, state in (
+        ("lf-trial", ("adopt", "shelve", "pause")),
+        ("lf-pilot", ("run", "shelve")),
+    ):
+        entries[tag]["x-state"] = {name: dict(verb) for name in state}
+        entries[tag]["properties"]["restated"] = {"type": "boolean"}
+        entries[tag]["x-content"] = "items"
+        entries[tag]["x-example"] = example[tag]
+    for tag, holders, outcome in (
+        ("lf-current", ["lf-trial"], "adopt"),
+        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
+    ):
+        entries[tag] |= {"x-parent": holders, "x-retired-when": outcome}
+        entries[tag].pop("x-example", None)
+        entries[tag].pop("required", None)
+    source.write_text(json.dumps(entries))
+    # The scaffold styles every tag as a card; a slot is a slot, the way the shipped
+    # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
+    # margins that stand trapped under the holder's frame once a settled sibling is
+    # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.
+    theme = tmp_path / ".leaf" / "theme.css"
+    theme.write_text(
+        theme.read_text() + "\nlf-current, lf-proposed "
+        "{ display: block; margin: 0; padding: 0; border: none; --lf-frame: initial; }\n"
+    )
 
 
 def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
@@ -11000,49 +12877,7 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     one holder — could never have said so. The page holds an undecided trial, so
     nothing here is retired and a quote inside it must anchor like any other."""
     monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    # The holders upgrade, because a tag declaring x-state must have a handler to
-    # replay one; the slots are markup and need none.
-    for tag, upgrade in (
-        ("lf-trial", True),
-        ("lf-pilot", True),
-        ("lf-current", False),
-        ("lf-proposed", False),
-    ):
-        made = runner.invoke(
-            interact.cli,
-            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
-        )
-        assert made.exit_code == 0, made.output
-    source = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(source.read_text())
-    verb = {
-        "detail": {"type": "object", "additionalProperties": False},
-        "unit": "widget",
-    }
-    example = {
-        "lf-trial": '<lf-trial id="x-trial"><lf-current><p>As it stands.</p></lf-current>'
-        "<lf-proposed><p>As proposed.</p></lf-proposed></lf-trial>",
-        "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
-        "</lf-proposed></lf-pilot>",
-    }
-    for tag, state in (
-        ("lf-trial", ("adopt", "shelve")),
-        ("lf-pilot", ("run", "shelve")),
-    ):
-        entries[tag]["x-state"] = {name: dict(verb) for name in state}
-        entries[tag]["properties"]["restated"] = {"type": "boolean"}
-        entries[tag]["x-content"] = "items"
-        entries[tag]["x-example"] = example[tag]
-    # Only lf-proposed names two, which is the whole of what this is for.
-    for tag, holders, outcome in (
-        ("lf-current", ["lf-trial"], "adopt"),
-        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
-    ):
-        entries[tag] |= {"x-parent": holders, "x-retired-when": outcome}
-        entries[tag].pop("x-example", None)
-        entries[tag].pop("required", None)
-    source.write_text(json.dumps(entries))
+    trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_PAGE, anchored=[("th-now", "warmed on every deploy")])
     page, errors = open_page(browser, url)
@@ -11056,6 +12891,261 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     )
     assert errors == []
     page.close()
+
+
+def test_a_settled_third_party_holder_wears_the_layers_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A settlement is the layer's rendering of the log's decision, never a module
+    obligation: the trial's module is the bare scaffold — it defines the element and
+    supplies no applyAction at all — and once its decision replays the holder wears
+    data-lf-state, the retired slot is marked and hidden by the theme's one generic
+    rule, and the quote anchored in it detaches instead of pointing at words the
+    page's reading has dropped. The mark and the hide used to be each holder
+    module's own duty, stated in the scaffold comment and the key table and enforced
+    nowhere, and the first family that forgot would have split the page's reading
+    from the file's in silence. The second half drives it all back out: the fold
+    keeps the last surviving action per facet and unit, so a widget-unit verb on
+    the settlement facet that settles nothing displaces the decision, and the mark,
+    the marker and the hide follow it."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+
+    url = serve(TWO_HOLDER_PAGE, anchored=[("th-next", "warmed on the first request")])
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") == "", (
+        "the quote matched inside a slot the logged decision retired: nothing wrote "
+        "the settlement mark for a module that doesn't"
+    )
+    assert errors == []
+    page.close()
+
+    # The mark follows the fold out as well as in: the file's standing state is the
+    # last surviving action per facet and unit, so a widget-unit verb on the same
+    # facet that settles nothing displaces the decision, and a mark left standing
+    # would silence a slot the log has handed back.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "pause",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
+    assert page.locator("#th-cache").get_attribute("data-lf-state") is None
+    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
+    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    assert painted(page, "lf-mark") != "", (
+        "the displaced decision's slot is back on the page, so its quote must "
+        "anchor again"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Authored reconstruction states markup, not a logged decision. A holder may
+    validly record the value carried by its settlement facet; restoring that value
+    after undo must not re-mark the withdrawn action or keep its slot retired."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    holder = entries["lf-trial"]
+    holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
+    holder.setdefault("required", []).append("decision")
+    holder["x-example"] = holder["x-example"].replace(
+        'id="x-trial"', 'id="x-trial" decision="open"'
+    )
+    detail = {
+        "type": "object",
+        "properties": {"decision": {"enum": ["open", "shelved"]}},
+        "required": ["decision"],
+        "additionalProperties": False,
+    }
+    record = {"kind": "value", "attr": "decision", "value": "decision"}
+    for spec in holder["x-state"].values():
+        spec["detail"] = detail
+        spec["record"] = record
+    registry_path.write_text(json.dumps(entries))
+    (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
+        """import { once } from "/leaf.js";
+customElements.define("lf-trial", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(_action, detail) { this.setAttribute("decision", detail.decision); }
+});
+"""
+    )
+    page_html = TWO_HOLDER_PAGE.replace(
+        '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
+    )
+    url = serve(page_html)
+    decision = interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {"decision": "shelved"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache")).to_have_attribute("decision", "shelved")
+    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
+
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": decision["id"]},
+    )
+    told(page)
+    expect(page.locator("#th-cache")).to_have_attribute("decision", "open")
+    expect(page.locator("#th-cache")).not_to_have_attribute(
+        "data-lf-state", re.compile(r".+")
+    )
+    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A module failure is terminal rather than an endless replay retry, and the
+    layer's generic settlement contract still applies: readiness, the holder mark,
+    and the visible fail-soft box must agree on that one consumed action."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+    (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
+        """\
+customElements.define("lf-trial", class extends HTMLElement {
+  applyAction() { throw new Error("trial replay broke"); }
+});
+"""
+    )
+    url = serve(TWO_HOLDER_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache .lf-error")).to_contain_text("trial replay broke")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
+    assert any(
+        "<lf-trial> applyAction(shelve) threw: trial replay broke" in error
+        for error in errors
+    ), errors
+    page.close()
+
+
+# The two-holder page with a second, undecided trial beside the first: the instance a
+# module that invents settlement gets caught on, since on the decided one its mark
+# only repeats the log.
+TWO_HOLDER_SPARE_PAGE = TWO_HOLDER_PAGE.replace(
+    "</main>",
+    """<lf-trial id="th-spare">
+  <lf-current><p id="sp-now">The spare stands as it is.</p></lf-current>
+  <lf-proposed><p id="sp-next">The spare would move.</p></lf-proposed>
+</lf-trial>
+</main>""",
+)
+
+
+def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for the settlement reading, in both directions. The bare family first
+    proves the gate accepts a holder that brings nothing of its own — the layer's
+    default hide is the whole of its disappearance. Then the one generic hide rule is
+    stripped from the vendored theme, standing in for whatever re-shows a retired
+    slot (a later layer's rule outranking the default, a module re-showing what it
+    folded): the words stay on screen where the reader can select what no comment
+    can anchor to, and the gate must say so. Then the theme goes back and the
+    vendored module is rewritten to mark every trial at upgrade: on the undecided
+    spare that is a settlement the log never decided, silencing words the reader can
+    still see, and the gate must say that too. Both failures render perfectly, which
+    is why each is put back deliberately."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+
+    url = serve(TWO_HOLDER_SPARE_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "th-cache",
+            "action": "shelve",
+            "detail": {},
+        },
+    )
+    assert interact.render_version(browser, url) == []
+
+    hide = "[data-lf-retired] { display: none; }"
+    vendored = serve.page_dir / "theme.css"
+    css = vendored.read_text()
+    assert css.count(hide) == 1
+    vendored.write_text(css.replace(hide, ""))
+    failures = interact.render_version(browser, url)
+    assert any(
+        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
+        in failure
+        for failure in failures
+    ), failures
+
+    vendored.write_text(css)
+    module = serve.page_dir / "widgets" / "lf-trial.js"
+    source = module.read_text()
+    upgrade_line = "if (!once(this)) return;"
+    assert source.count(upgrade_line) == 1
+    module.write_text(
+        source.replace(
+            upgrade_line,
+            upgrade_line + '\n      this.setAttribute("data-lf-state", "shelve");',
+        )
+    )
+    failures = interact.render_version(browser, url)
+    assert any(
+        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
+        "records no decision" in failure
+        for failure in failures
+    ), failures
 
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
@@ -11112,11 +13202,12 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     page, errors = open_page(browser, url)
     thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
-    # Pending, the outline hangs on the slot the wrapper shows through, and it is read as
-    # a box rather than as a class: the class sat on the wrapper for as long as this test
-    # existed, and a display: contents wrapper paints no outline, so the half of this
-    # docstring about drawing nothing was true of the attached case too.
-    shown = page.locator("#sug-thistle .lf-mark-el")
+    # Pending, the outline hangs on a box the reader can see, and it is read as a box
+    # rather than as a class: the class sat on the wrapper while the wrapper was
+    # display: contents and painted no outline, so the half of this docstring about
+    # drawing nothing was true of the attached case too. The wrapper draws its own box
+    # now, so the mark is the wrapper itself rather than the slot it showed through.
+    shown = page.locator("#sug-thistle.lf-mark-el")
     expect(shown).to_have_count(1)
     box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")
     assert box["width"] > 0 and box["height"] > 0, (
@@ -11125,7 +13216,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
 
     page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
-    expect(page.locator("#sug-thistle .lf-mark-el")).to_have_count(0)
+    expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -11175,7 +13266,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     body = page.locator(".lf-msg.claude .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
@@ -11191,17 +13282,9 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     page.close()
 
 
-REF_PAGE = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>refs</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+REF_PAGE = leaf_page(
+    "refs",
+    f"""
 <h1 id="h">Feeder placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
 <lf-tabs id="projects">
@@ -11216,10 +13299,8 @@ REF_PAGE = f"""<!doctype html>
 {"".join(f"<p>Tail fill, paragraph {i}, long enough to stand as a landmark of its own.</p>" for i in range(16))}
 <p id="tail-end">The last words on the page, where a reader who read to the end is.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_message_reference_travels_or_says_it_cant(browser, serve):
@@ -11247,7 +13328,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
@@ -11359,7 +13440,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     body = page.locator(".lf-msg-body.lf-suggest-body")
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
@@ -11367,12 +13448,14 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     page.close()
 
 
-def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
+def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     """A widget inside a reply exists only once the panel has rendered the log,
     which is later than everything on the page — so the replay runs at the end of
     a poll, after that render, and an action naming a widget it doesn't find is
     one no version will ever hold (an honored suggestion, whose id the honoring
-    version dropped) rather than one to look for again on the next poll."""
+    version dropped) rather than one to look for again on the next poll. Its authored
+    record is banked while the reply body is still detached, so withdrawing the action
+    restores that baseline without a version file for the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     interact.append_event(
@@ -11408,9 +13491,25 @@ def test_a_reply_widget_replays_its_action_when_the_page_loads(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
+
+    # Chrome belongs to the thread rather than the page version. Its action therefore
+    # still stands, and is still the reader's newest undoable gesture, after the page
+    # advances around the conversation.
+    (d / "versions" / "v2.html").write_text(REPLY_HOST_PAGE)
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
+    )
+    page.wait_for_url("**/v2.html*")
+    if not page.locator(".lf-panel").is_visible():
+        page.locator(".lf-comments").click()
+    expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -11447,11 +13546,11 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
-    home, so the group brings no box of its own — and an armed g leader keeps its
-    digits even from a mark, because the chord promised a thread.
+    home, so the group brings no box of its own — and an armed g chord keeps its
+    digits even from a mark, because the chord promised a comment.
 
-    The answer is said once, on the press. The log is where it is recorded, and the
-    group's own markup stays the author's: a module writes there only where the
+    The answer is said once, when the log takes it. The log is where it is recorded,
+    and the group's own markup stays the author's: a module writes there only where the
     registry declares the attribute as a record form, which a thread verb can never
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
@@ -11485,10 +13584,11 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.locator("#tq-set .lf-done").click()
     expect(asks).to_be_hidden()
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    # Said once, on the press. An `answered` attribute on the group said it again in
-    # the author's namespace, where the entry admits nothing undeclared and no version
-    # could ever have carried a record of a thread verb — invisible to every consumer
-    # but shallowSigs, which reads what no version can assert as state one authored.
+    # Said once, by the log's answer. An `answered` attribute on the group said it
+    # again in the author's namespace, where the entry admits nothing undeclared and no
+    # version could ever have carried a record of a thread verb — invisible to every
+    # consumer but shallowSigs, which reads what no version can assert as state one
+    # authored.
     assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
         "the Done press left an attribute on a widget its entry never declared"
     )
@@ -11510,14 +13610,244 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert other_errors == []
     other.close()
 
-    # The chord's promise holds from a mark: g then 1 reaches the first thread's
-    # reply box, and no pick is sent for the digit.
+    # Taking back a recordless chrome answer rebuilds its authored controls and the
+    # same standing projection opens the ask again. The selection is another facet,
+    # so it survives that rebuild.
+    undo(page)
+    expect(asks).to_have_text("Asks (1)")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+
+    # The chord's promise holds from a mark: g c then 1 reaches the first thread's
+    # reply box, and no pick is sent for the digit the chord took.
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
+    page.keyboard.press("c")
     page.keyboard.press("1")
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
-    assert sent[-1]["action"] == "answer", "the leader's digit must not pick"
+    assert sent[-1]["action"] == "answer", "the chord's digit must not pick"
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
+    browser, serve
+):
+    """The Done press paints only from replay. If one read first reveals both the
+    answer and its undo, the send continuation must not overwrite that authoritative
+    authored state after replay has accounted for the action."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    done = page.locator("#tq-set .lf-done")
+    with page.expect_request("**/api/event"):
+        done.click()
+    page.wait_for_timeout(0)
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    expect(done).to_have_attribute("aria-pressed", "false")
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [("tq-set", "answer")]
+    assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
+    page.close()
+
+
+def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
+    """Thread widgets arrive after page startup, but their comment markup is still
+    their authored baseline. A definitive refusal removes the optimistic choice from
+    that baseline instead of leaving a decision the log never took."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    with page.expect_request("**/api/event"):
+        page.locator("#tq-logs").click()
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
+    browser, serve
+):
+    """A recordless accepted action still belongs to the widget's history.
+    Reconstructing after a later refusal must replay both the recorded selection and
+    the separate completion facet, retaining both visible facts."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    page.locator("#tq-logs").click()
+    round_trip(page)
+    page.locator("#tq-set .lf-done").click()
+    round_trip(page)
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#tq-metrics").click()
+    expect(page.locator("#tq-metrics")).to_have_attribute("chosen", "")
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-metrics")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
+    assert [
+        (event["action"], event["detail"]) for event in actions(serve.page_dir)
+    ] == [
+        ("choose", {"options": ["tq-logs"]}),
+        ("answer", {}),
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve):
+    """The outbox is delivery order, not wholly an optimistic overlay. A recorded
+    choice is already painted, but the record-less Done press waits for acceptance;
+    correcting the older choice must not paint that queued press early."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#tq-logs").click()
+    done = page.locator("#tq-set .lf-done")
+    done.click()
+    expect(done).to_have_attribute("aria-busy", "true")
+    expect(done).to_have_attribute("aria-pressed", "false")
+
+    first_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": first_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    expect(done).to_have_attribute("aria-pressed", "false")
+    second_attempt = held[1].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[1].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": second_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    expect(done).to_have_attribute("aria-pressed", "false")
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
+    """The Done press waits for the log the way a suggestion's decision does, so it
+    owes the reader what every waiting press owes: `aria-busy` while the answer is in
+    the wire, and the pressed state only once the log has taken it. Nothing said the
+    press had landed before this, and a `button` styled by the theme gets no `:active`
+    of its own, so the reader had the round trip with no answer of any kind.
+
+    One press is one `answer` action, which this group's own comment has always
+    claimed and nothing checked. A second press cannot be caught in the wire — `post`
+    sends one action at a time, so it never reaches the route — so what it would leave
+    is a second line in the log once the queue drains, and that is where this reads it.
+    """
+    url = serve(REPLY_HOST_PAGE)
+    for event in THREAD_ASKS:
+        interact.append_event(serve.page_dir, event)
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    done = page.locator("#tq-set .lf-done")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    done.click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the answer in the wire")
+
+    expect(done).to_have_attribute("aria-busy", "true")
+    # The press is acknowledged; the answer it asks for is not painted, the log not
+    # having taken it yet.
+    expect(done).to_have_attribute("aria-pressed", "false")
+    done.click()
+    done.click()
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    assert [
+        (e["widget"], e["action"])
+        for e in interact.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [("tq-set", "answer")]
     assert errors == []
     page.close()
 
@@ -11573,17 +13903,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.close()
 
 
-ADDRESS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>addresses</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ADDRESS_PAGE = leaf_page(
+    "addresses",
+    """
 <h1 id="h">Two questions, two forms</h1>
 <lf-options id="cards" choose>
   <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
@@ -11595,10 +13917,8 @@ ADDRESS_PAGE = """<!doctype html>
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # The first ancestor that cuts this element, and by how much. `overflow` and `clip-path`
 # cut at the padding box, so the border comes off the ancestor's own box before the
@@ -11858,7 +14178,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # A comment landing from elsewhere re-runs the anchor pass, which splits the text
     # nodes the painted range is pinned to. The reader is mid-sentence; their passage
     # can neither blink out nor come back covering the wrong words.
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -11902,7 +14223,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     assert not composer_quote(page)["shown"], (
         "the outline is on the figure and the composer names its section as well"
     )
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "version": 1, "text": "and another"},
     )
@@ -11940,17 +14262,42 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.close()
 
 
-NOTED_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>noted</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+# Every list the g chord addresses, on one page: comments (the test adds them), an ask,
+# links, and a disclosure. The lists have to stand together, because what the chord is for
+# is that one letter chooses between them.
+ADDRESSED_PAGE = leaf_page(
+    "addressed",
+    """
+<h1 id="t">Addressed</h1>
+<p id="p1">The first passage under discussion, with words
+enough for two separate remarks to land in it.</p>
+<p id="refs">See <a id="lk1" href="#p1">the first passage, whose link text is long
+enough that it runs past the end of one line and carries on onto the next</a>, and then
+<a id="lk2" href="#p2">the second</a>.</p>
+<details id="dsc"><summary id="dsc-head">What the store costs</summary>
+<p id="dsc-body">A replica in each region, and a read on every request that carries a
+session.</p></details>
+<lf-options id="opts" choose>
+  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+  which costs a replica and buys revocation for free.</lf-option>
+  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  quietly puts one back.</lf-option>
+</lf-options>
+<p id="p2">A short second passage.</p>
+{tail}
+""",
+).format(
+    # Enough page below the ask that it can be scrolled up under the banner, which is where
+    # a chip placed from the page's geometry alone lands on the status line.
+    tail="\n".join(
+        f"<p id='t{i}'>Tail {i}. " + "Words. " * 20 + "</p>" for i in range(12)
+    )
+)
+
+
+NOTED_PAGE = leaf_page(
+    "noted",
+    """
 <h1 id="t">Noted</h1>
 <p id="p1">The first passage under discussion, with words
 enough for two separate remarks to land in it.</p>
@@ -11958,10 +14305,8 @@ enough for two separate remarks to land in it.</p>
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
 aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</figcaption></figure>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
@@ -12080,13 +14425,19 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.close()
 
 
-def test_the_leader_key_addresses_reply_boxes(browser, serve):
-    """A reply box's send shortcut is focus-scoped, so only the focused box claims it:
-    unfocused, the placeholder carries the box's own address — g plus the digit the
-    armed window paints on the box as a chip — and that sequence reaches the box from
-    anywhere outside a typing context. Inside one, g and digits are just letters; a
-    non-digit after g disarms the leader and keeps its ordinary meaning."""
-    url = serve(NOTED_PAGE)
+def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
+    """g names a list and then a place in it. The letter is what made the chord general:
+    it was one list deep — g then a digit, and the digit meant a reply box — so the one
+    list that asked first held the whole of a leader, and the line advertised a range that
+    only ever counted threads.
+
+    So each list states itself, and every surface reads the table: the letters on the line
+    are the lists the page has, the digits are the members the named one holds, each member
+    wears its own digit while it is aimed at, and a reply box's placeholder speaks the whole
+    address it answers to. What is asserted here is that the lists behave as one
+    mechanism — a comment, an ask, a link and a disclosure reached the same way — rather
+    than that any of them works, which is each list's own business elsewhere."""
+    url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
 
     def comment(anchor, text):
@@ -12103,53 +14454,227 @@ def test_the_leader_key_addresses_reply_boxes(browser, serve):
 
     c1 = comment({"quote": "first passage"}, "Sharpen this.")
     c2 = comment({"quote": "two separate remarks"}, "Second thought.")
-    c3 = comment({"section": "fig"}, "The figure too.")
+    c3 = comment({"section": "p2"}, "The short one too.")  # the third address
     page, errors = open_page(browser, url)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
+    line = page.locator(".lf-keyline")
 
-    # g then a digit lands in that thread's reply box, opening the panel on the way.
+    # The page's own key is the letter alone: what it opens is a table, and a range on the
+    # line here could only ever have counted one of the lists in it.
+    expect(line).to_contain_text("go to")
+    expect(line).not_to_contain_text("1–3")
+
+    # Wide enough that the panel will stand beside the page rather than over it, which is
+    # where a box in the chrome and the page's own scroller part company: body is narrowed
+    # to the column, the panel is fixed and is not inside it, and a chip placed by walking
+    # the page's clips came back with the whole reply box clipped away.
+    resized(page, 1280, 800)
+
+    # Armed, the line is the lists the page has — one chip each, counting what each holds.
     page.keyboard.press("g")
+    expect(line).to_contain_text("c 1–3")
+    expect(line).to_contain_text("comments")
+    expect(line).to_contain_text("a 1")
+    expect(line).to_contain_text("asks")
+    expect(line).to_contain_text("l 1–2")
+    expect(line).to_contain_text("links")
+    expect(line).to_contain_text("d 1")
+    expect(line).to_contain_text("disclosures")
+    # And nothing wears a digit yet: no list is named, so no digit is a promise.
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    # The chips are the eye's copy of a mode; a reader who cannot see them is told the
+    # window opened and what it holds, off the same rows the line just drew — the ranges
+    # among them, where a row whose label counts the page used to be read out key by key
+    # while an option group's, written as a string, was spelled "1–3".
+    expect(page.locator(".lf-live")).to_contain_text("c 1–3 comments")
+
+    # A letter names one, and naming it shows it: the comments live in a panel that draws
+    # nothing while it is shut, so the letter opens it and the members then wear their
+    # addresses — on the box the digit lands in, which for a comment is its reply box
+    # rather than the thread's own corner. Opened on the digit instead, the letter painted
+    # nothing at all and the addresses arrived after the choice they were for.
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    # Waited for rather than read, the strip the panel holds being the layout's answer to
+    # the open and not the open itself.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-thread > .lf-compose')"
+        ".getBoundingClientRect().left > document.body.clientWidth"
+    )
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(3)
+    assert page.evaluate(
+        """() => {
+             const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
+             const boxes = [...document.querySelectorAll('.lf-thread > .lf-compose')];
+             return chips.map((chip, i) => {
+               const c = chip.getBoundingClientRect(), b = boxes[i].getBoundingClientRect();
+               return chip.textContent === String(i + 1)
+                 && Math.abs(c.left + c.width / 2 - b.left) < 2
+                 && Math.abs(c.top + c.height / 2 - b.top) < 2;
+             });
+           }"""
+    ) == [True, True, True], "the chips are not the addresses of the boxes under them"
+    # The chord's own chip says which stage the reader is at, and the digits are now the
+    # whole of what the letter's row promises — spoken as well as drawn.
+    expect(line).to_contain_text("1–3")
+    expect(line).to_contain_text("cancel")
+    expect(page.locator(".lf-live")).to_contain_text("1–3 comments")
+
+    # And the digit arrives, however long the reader took over it: the mode stands until
+    # something ends it, where a clock used to end it at a second and a half — and a letter
+    # arriving after that clock was not a no-op but the page's own key, so a slow reader
+    # pressing `l` got the leaves board rather than the links.
+    page.wait_for_timeout(2000)
+    expect(line).to_contain_text("1–3")
     page.keyboard.press("2")
     ta2 = page.locator(f'.lf-thread[data-id="{c2}"] textarea')
     expect(ta2).to_be_focused()
-    # The focused box claims the send keys; an unfocused one its own address, which
-    # the armed window paints on the box as a chip.
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    # The focused box claims the send keys; an unfocused one speaks its own address, whole
+    # — the chip is the aimed moment's copy of a fact the placeholder states always.
     expect(ta2).to_have_attribute("placeholder", re.compile(r"Reply · (⌘⏎|Ctrl\+⏎)$"))
-    ta1 = page.locator(f'.lf-thread[data-id="{c1}"] textarea')
-    expect(ta1).to_have_attribute("placeholder", "Reply · g 1")
-    expect(
-        page.locator(f'.lf-thread[data-id="{c1}"] .lf-compose > .lf-address')
-    ).to_have_text("1")
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_attribute(
+        "placeholder", "Reply · g c 1"
+    )
 
-    # A digit with no leader is nothing: Esc backs out to the thread, and 3 stays put.
+    # A digit outside the window is nothing: Esc backs out to the thread, and 3 stays put
+    # rather than reaching the third address the window had just been offering.
     page.keyboard.press("Escape")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     page.keyboard.press("3")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
-    # The chip is the armed window's paint, worn on the box the digit lands in:
-    # hidden at rest (the placeholder speaks the standing address), visible while
-    # armed, gone when Esc takes the window down.
-    chip1 = page.locator(f'.lf-thread[data-id="{c1}"] .lf-compose > .lf-address')
-    expect(chip1).to_be_hidden()
+    # The same motion into a different list. An ask is reached by the control that decides
+    # it, wearing the ring that says where the reader is standing.
+    #
+    # Scrolled first so the banner has taken the ask's own corner. The bar stands over the
+    # page and clips none of it, so the reading that says where a member is (shownRect) is
+    # right to ignore it and the chip is the one thing that cannot: placed on that corner it
+    # is a digit floating over the status line, addressing nothing the reader can see there.
+    page.evaluate(
+        """() => { const ask = document.getElementById('opts');
+                   document.body.scrollTo(
+                     0, ask.getBoundingClientRect().top + document.body.scrollTop - 8); }"""
+    )
     page.keyboard.press("g")
-    expect(chip1).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(chip1).to_be_hidden()
-    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(1)
+    assert page.evaluate(
+        """() => document.querySelector('.lf-addresses > .lf-address')
+                   .getBoundingClientRect().top
+                 >= document.querySelector('.lf-banner').getBoundingClientRect().bottom"""
+    ), "the ask's address chip is drawn over the banner"
+    page.keyboard.press("1")
+    expect(page.locator("#opts .lf-pick").first).to_be_focused()
+    expect(page.locator("#opts[data-lf-ask]")).to_have_count(1)
 
-    # A non-digit disarms the leader and keeps its ordinary meaning: g j is a thread step.
+    # The links, from the head of the page where both are on screen. A chip is hung on the
+    # corner a member starts at, which for an inline that wraps is the corner of its first
+    # line and not of its bounding box — those run the width of the column, so a digit
+    # placed there sits a line above the words it addresses, over somebody else's sentence.
+    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    page.keyboard.press("l")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(2)
+    assert page.evaluate(
+        """() => {
+             const links = [...document.querySelectorAll('#refs a[href]')];
+             const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
+             return {wrapped: links[0].getClientRects().length > 1,
+                     on: chips.map((chip, i) => {
+                       const c = chip.getBoundingClientRect();
+                       const first = links[i].getClientRects()[0];
+                       return Math.abs(c.left + c.width / 2 - first.left) < 2
+                           && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                     })};
+           }"""
+    ) == {
+        "wrapped": True,
+        "on": [True, True],
+    }, "a chip is not on the corner its link starts at"
+    page.keyboard.press("Escape")
+
+    # And from the foot of the page, where neither of them can be seen.
+    # A list is the document's and not the window's, so an address means the same link at
+    # every scroll position and holds where no chip can be drawn for it — counted what is
+    # in the window, `g l 2` would name a different link each time the reader moved, and
+    # the line would go stale about which digits are live every time the page scrolled.
+    # The arrival is the focus, and the press that finishes the motion is the platform's:
+    # named on the line, or the reader lands with nothing said.
+    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    page.keyboard.press("g")
+    expect(line).to_contain_text("l 1–2")
+    page.keyboard.press("l")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(0)
+    page.keyboard.press("2")
+    expect(page.locator("#lk2")).to_be_focused()
+    expect(line).to_contain_text("follow")
+
+    # The panel folds its resolved comments into a <details> of its own, and that box is
+    # the chrome's. A list is what the document holds, so it is not addressed: read of the
+    # document at large, `d` would offer a digit for a disclosure the author never wrote
+    # and the reader never sees on the page.
+    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c3})
+    told(page)
+    expect(page.locator("details.lf-details")).to_have_count(1)
+    page.keyboard.press("g")
+    expect(line).to_contain_text("d 1")
+    expect(line).not_to_contain_text("d 1–2")
+    page.keyboard.press("Escape")
+
+    # The disclosures, and the one arrival that changes the page it arrives at. Every
+    # other member is reached through a reveal that opens the collapsed boxes on the way;
+    # here the box is the member, so that same reveal is the whole motion, and the reader
+    # who wanted a section open has it open having asked once.
+    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    page.keyboard.press("d")
+    expect(page.locator(".lf-addresses > .lf-address")).to_have_count(1)
+    assert page.evaluate(
+        """() => {
+             const c = document.querySelector('.lf-addresses > .lf-address')
+                        .getBoundingClientRect();
+             const first = document.getElementById('dsc-head').getClientRects()[0];
+             return Math.abs(c.left + c.width / 2 - first.left) < 2
+                 && Math.abs(c.top + c.height / 2 - first.top) < 2;
+           }"""
+    ), "the chip is not on the corner the summary starts at"
+    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
+    page.keyboard.press("1")
+    expect(page.locator("#dsc-head")).to_be_focused()
+    expect(page.locator("#dsc")).to_have_attribute("open", "")
+
+    # Standing there, the line says which way the next press goes — the platform's press,
+    # which the runtime names rather than binds, and which is Space as well as Enter here
+    # where a link takes Enter alone, Space under one being the page's own scroll. A word
+    # fixed at declaration could say only one of the two directions.
+    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"))
+    page.keyboard.press("Enter")
+    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
+    # Timed out short, because the poll would otherwise answer for the toggle. Opening a
+    # disclosure is the one change in what the next press does that no writer in the
+    # runtime reports, so the word stood at "close" for the three seconds until a poll
+    # came past — and every assertion that waits reads a stale line as an eventually
+    # right one.
+    expect(line).to_contain_text(re.compile(r"⏎ / space\s*open"), timeout=1500)
+    page.keyboard.press(" ")
+    expect(page.locator("#dsc")).to_have_attribute("open", "")
+    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"), timeout=1500)
+
+    # A key naming no list disarms the chord and keeps its ordinary meaning: g j is a
+    # thread step, so a mistyped g costs nothing.
     page.keyboard.press("g")
     page.keyboard.press("j")
-    expect(page.locator(f'.lf-thread[data-id="{c3}"]')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
 
-    # Typing contexts are untouched: in a box, g and 1 are text, and focus stays put.
+    # Typing contexts are untouched: in a box, the whole chord is text.
     page.keyboard.press("Enter")
-    ta3 = page.locator(f'.lf-thread[data-id="{c3}"] textarea')
-    expect(ta3).to_be_focused()
-    page.keyboard.type("g1")
-    expect(ta3).to_have_value("g1")
-    expect(ta3).to_be_focused()
+    ta1 = page.locator(f'.lf-thread[data-id="{c1}"] textarea')
+    expect(ta1).to_be_focused()
+    page.keyboard.type("gc1")
+    expect(ta1).to_have_value("gc1")
+    expect(ta1).to_be_focused()
     assert errors == []
     page.close()
 
@@ -12181,15 +14706,15 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(line).to_contain_text("keys")
     expect(line).not_to_contain_text("esc")
 
-    # Armed with the panel closed: the pending chord and its way out are on screen,
-    # and the digit chip counts the one thread there is rather than promising nine.
+    # Armed with the panel closed: the pending chord and its way out are on screen, and
+    # the letter's chip counts the one thread there is rather than promising nine.
     page.keyboard.press("g")
-    expect(line).to_contain_text("reply to thread")
-    expect(line).to_contain_text("1")
+    expect(line).to_contain_text("comments")
+    expect(line).to_contain_text("c 1")
     expect(line).not_to_contain_text("1–9")
     expect(line).to_contain_text("cancel")
     page.keyboard.press("Escape")
-    expect(line).not_to_contain_text("reply to thread")
+    expect(line).not_to_contain_text("comments")
 
     # c opens the panel into the general box: the line says send, and where Esc goes.
     page.keyboard.press("c")
@@ -12523,27 +15048,17 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
 
 # c's three destinations on one page: prose to select, a visual to click (no words to
 # quote, so it anchors on the element), and the page itself with neither in hand.
-TARGETS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>targets</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TARGETS_PAGE = leaf_page(
+    "targets",
+    """
 <h1 id="t">Targets</h1>
 <p id="prose">A paragraph with enough words in it to select by dragging across, which
 is what raises the button the key then presses.</p>
 <figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
 aria-label="specimen"><rect x="2" y="2" width="236" height="56" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
@@ -12617,7 +15132,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     the ? overlay didn't, and a shortcut could hold its liveness where no surface
     could ask — inside its own run — so the overlay offered g 1–9 with no thread to
     reply to, and named a walk through a list of one. Liveness is one declaration,
-    and the dispatcher, the line, and the overlay all ask it."""
+    and the dispatcher, the line, and the overlay all ask it. The chord's lists are
+    where that division earns its keep twice over: a list the page hasn't got is a
+    scope the reference must not name, and the scopes share a title, so the section
+    they build has to take its rows from the contributors the page actually has."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -12629,7 +15147,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # Nothing is selected, so c's own row says the box it would open — the word is the
     # press's, not the key's (see the row's neighbour test below).
     expect(help_el).to_contain_text("Comment on the page")
-    expect(help_el).not_to_contain_text("Reply to the nth")
+    expect(help_el).not_to_contain_text("With g armed")
+    expect(help_el).not_to_contain_text("open comment's reply box")
+    # And no link scope: this page holds none, while the machine's own board is full of
+    # them — a scope asked about the document at large was had by every page there is.
+    expect(help_el).not_to_contain_text("On a link")
     expect(help_el).not_to_contain_text("Next / previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
@@ -12648,8 +15170,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     line = page.locator(".lf-keyline")
     expect(line).not_to_contain_text("threads")
 
-    # Threads arrive, and the next open holds the rows they make live — the g
-    # range counting the two there are, not the nine there could be.
+    # Threads arrive, and the next open holds the rows they make live — the chord's
+    # comments row counting the two there are, not the nine there could be, and no
+    # row for the lists this page hasn't got.
     for text in ["A thread.", "Another."]:
         interact.append_event(
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
@@ -12660,7 +15183,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # change to lean on, so the repaint is the thread render's own.
     expect(line).to_contain_text("threads")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("g 1–2")
+    expect(help_el).to_contain_text("With g armed")
+    expect(help_el).to_contain_text("c 1–2")
+    expect(help_el).not_to_contain_text("link on screen")
+    expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next / previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("In the versions menu")
@@ -12677,7 +15203,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Walk the versions")
-    expect(help_el).to_contain_text("g 1–2")
+    expect(help_el).to_contain_text("c 1–2")
     page.keyboard.press("Escape")
 
     # A resolved thread stays focusable after the last open one is gone, and the
@@ -12694,6 +15220,16 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(resolved).to_be_focused()
     expect(line).to_contain_text("close comments")
     expect(line).not_to_contain_text("threads")
+
+    # And no disclosure scope, with the panel's own <details> standing open beside the
+    # reader. A capability is what they can reach from where the scope holds, and this box
+    # is the chrome's — it declares the keys it answers itself. Asked of the document at
+    # large, the scope arrives on every page that has ever had a comment resolved.
+    expect(page.locator(".lf-details[open]")).to_have_count(1)
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    expect(help_el).not_to_contain_text("On a disclosure")
+    page.keyboard.press("Escape")
     assert errors == []
     page.close()
 
@@ -12794,11 +15330,11 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     grip.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
-    # The contract's flip side: the leader refuses to arm over a control that has
+    # The contract's flip side: the chord refuses to arm over a control that has
     # claimed Escape, or one press would have two owners — the grip consuming it,
     # the chord promising its cancel.
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("reply to thread")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("comments")
     expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
     page.keyboard.press("Escape")
     # The grab is over (an uncancelled one would also leave the card in Todo),
@@ -12810,6 +15346,1902 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(page.locator(".lf-panel")).to_be_visible()
     assert errors == []
     page.close()
+
+
+UNDO_PAGE = leaf_page(
+    "undo",
+    """
+<h1 id="h">Undo</h1>
+<lf-draft id="note-cli"><pre>
+First line of the note.
+
+Second paragraph of the note.
+</pre></lf-draft>
+<lf-options id="picks" choose>
+  <lf-option id="opt-a">Keep the mounts</lf-option>
+  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
+</lf-options>
+""",
+)
+
+
+def actions(page_dir):
+    return [e for e in interact.read_events(page_dir) if e["kind"] == "action"]
+
+
+def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
+    """The gesture with no reverse in front of the reader: a resolved thread folds
+    into the disclosure at the foot of the list, so putting it back by hand means
+    opening that, finding it, and pressing Reopen. What `z` writes is a withdrawal
+    naming the resolve — not a second settlement, which would read as the reader
+    deciding to reopen a thread they had only meant not to close."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    comments = [
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
+    comment = comments[0]
+    # The reader has done nothing, so there is nothing to take back — a thread the
+    # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "claude", "agent": "A", "parent": comments[1]},
+    )
+    told(page)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    round_trip(page)
+
+    undo(page)
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
+    ).to_have_count(1)
+    log = interact.read_events(serve.page_dir)
+    assert log[-1] == {
+        **log[-1],
+        "kind": "undo",
+        "author": "user",
+        "undoes": next(
+            e["id"] for e in log if e["kind"] == "resolve" and e["author"] == "user"
+        ),
+    }
+    assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
+    # The undo is not itself a gesture to take back, so the offer goes with it.
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    page.close()
+
+
+def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
+    """Resolve and reopen are undoable gestures too. While a second resolve is in
+    the outbox, undo cannot name the older resolve still visible in the log."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads > .lf-thread")
+    threads.nth(0).locator(".lf-resolve").click()
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    sent = _traffic(page).sends
+    threads.nth(0).locator(".lf-resolve").click()
+    _until(page, lambda traffic: traffic.sends > sent, "held the second resolution")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    assert _traffic(page).sends == sent + 1
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    undo(page)
+    assert [
+        event["kind"]
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] in {"resolve", "undo"} and event["author"] == "user"
+    ] == ["resolve", "resolve", "undo"]
+    assert errors == []
+    page.close()
+
+
+def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
+    """A withdrawal leaves the log holding one gesture and one word taking it back,
+    and the page derives the rest. What it derives here is the placement this
+    version's markup arrived showing, read before replay first touched the page —
+    column *and* index, which is why a position record names the detail field
+    carrying the order. Compared, a column is the whole comparison; stated, it puts
+    a card back on the right list in the wrong place.
+
+    The card is told where it goes rather than the board being rebuilt around it,
+    because that state can be stated: the reader watches it travel back, and the
+    grip they were standing on is still under their hands."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    grip = page.locator("#card-baffle .lf-grip")
+    grip.focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+
+    undo(page)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    # Second of the two, as the version wrote it — not merely back on the list.
+    assert page.eval_on_selector_all(
+        "#col-todo > lf-card", "e => e.map(c => c.id)"
+    ) == [
+        "card-heater",
+        "card-baffle",
+    ]
+    expect(grip).to_be_focused()
+    log = interact.read_events(serve.page_dir)
+    (moved,) = actions(serve.page_dir)
+    assert moved["detail"] == {"card": "card-baffle", "to": "col-done", "index": 0}
+    assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
+        ("undo", moved["id"])
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
+    """Where a unit has no earlier action, the state a move is taken back to is what
+    this version's markup arrived showing — and a version written around the
+    decision shows the decision. So on v2 the authored placement of a card moved on
+    v1 is where the move put it, and a press offered there would paint nothing at
+    all. The conversation is not scoped this way and must not be: a thread outlives
+    the version it was opened on, which is why resolve carries no version."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.locator("#card-baffle .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    d = serve.page_dir
+    (d / "versions" / "v2.html").write_text(
+        BOARD_PAGE.replace(
+            '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n', ""
+        ).replace(
+            '<lf-column id="col-done" label="Done">',
+            '<lf-column id="col-done" label="Done">'
+            '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
+        )
+    )
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "carried"}
+    )
+    page.wait_for_url("**/v2.html*")
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    told(page)
+    # An undo posts no action, so counting actions says nothing about whether the
+    # press was refused — it stays at one either way, which is the assertion passing
+    # in exactly the failure the test is named for. The log holding no withdrawal is
+    # what says it, and the card still being where the move put it is what that means
+    # on the page.
+    assert [e["kind"] for e in interact.read_events(d) if e["kind"] == "undo"] == []
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
+    """The walk finds the last thing the reader did by reading the log, so while the
+    page holds a gesture the log has not taken it would name the gesture *before*
+    that one — and take the wrong thing back, with the card they had just moved
+    left where it was. A machine quick enough closes that window before the next
+    press can land in it, so the send is stopped in the wire and the press made
+    while it is still there."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    move = ["Enter", "ArrowRight", "Enter"]
+    page.locator("#card-heater .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    held = []
+
+    def hold(route):
+        # The first send only: what follows has to reach the server, or the press
+        # this test is about would be held too and prove nothing.
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/event", hold)
+    page.locator("#card-baffle .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    _until(page, lambda t: t.sends >= 2, "sent the move it was asked for")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    assert _traffic(page).sends == 2, (
+        "the press took back a gesture read off a log missing the one before it"
+    )
+
+    held[0].continue_()
+    round_trip(page)
+    undo(page)
+    # The newest move, which is the one the reader would have meant — and the older
+    # one still stands, where taking back the wrong gesture would have reversed it.
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
+    browser, serve
+):
+    """The event response is state through the event it accepted. Even when every
+    later GET is unavailable, the page can offer undo immediately and the press names
+    the newest gesture rather than the stale one before it."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    move = ["Enter", "ArrowRight", "Enter"]
+    page.locator("#card-heater .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    page.route("**/api/state*", refuse)
+    page.locator("#card-baffle .lf-grip").focus()
+    for key in move:
+        page.keyboard.press(key)
+    round_trip(page)
+
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    undo(page)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
+    """Attempt identity includes the gesture it names. Reusing a token while its
+    first action is still in the outbox must refuse the second locally; accounting
+    the first by token alone would otherwise resolve both callers with the first
+    event and silently discard the second payload before it reached the server."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    outcome = page.evaluate(
+        """async () => {
+          const {sendAction} = await import('/leaf.js');
+          const board = document.querySelector('#sprint');
+          const attempt = 'one-attempt-two-actions';
+          const first = sendAction(
+            board,
+            'move',
+            {card: 'card-heater', to: 'col-done', index: 0},
+            {attempt},
+          );
+          const second = sendAction(
+            board,
+            'move',
+            {card: 'card-baffle', to: 'col-done', index: 0},
+            {attempt},
+          );
+          return Promise.all([first, second]);
+        }"""
+    )
+    round_trip(page)
+
+    assert outcome[0]["detail"]["card"] == "card-heater"
+    assert outcome[1] is None
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater"
+    ]
+    assert _traffic(page).sends == 1
+    expect(page.locator(".lf-toast")).to_contain_text("is already in use")
+    assert errors == []
+    page.close()
+
+
+def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, serve):
+    """Acceptance and rendering are separate outcomes. A malformed response state
+    cannot be repaired by re-posting its accepted attempt, so delivery advances, while
+    replay and undo remain held until a later complete response accounts for it."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    older = []
+
+    def hold_older_state(route):
+        if older:
+            refuse(route)
+            return
+        older.append(route)
+
+    page.route("**/api/state*", hold_older_state)
+    with page.expect_request("**/api/state"):
+        pass
+    page.wait_for_timeout(0)
+    assert len(older) == 1
+    old_route = older[0]
+    old_state = old_route.fetch().json()
+
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+
+    requests = []
+    first_attempt = []
+    refused = []
+
+    def break_first_state(route):
+        event = route.request.post_data_json
+        if "attempt" not in event:
+            route.continue_()
+            return
+        requests.append(event)
+        if event.get("widget") == "sug-in-card" and not refused:
+            refused.append(event["attempt"])
+            route.fulfill(
+                status=400,
+                json={
+                    "ok": False,
+                    "attempt": event["attempt"],
+                    "error": "refused before append",
+                    "final": True,
+                },
+            )
+            return
+        response = route.fetch()
+        answer = response.json()
+        if not first_attempt:
+            first_attempt.append(event["attempt"])
+        if event["attempt"] == first_attempt[0]:
+            # A valid event list proves delivery, but the invalid neighbour makes
+            # receiveState fail after assigning that list globally. It is deliberately
+            # not a complete read, and a later stale response must not account from it.
+            answer["state"]["others"] = [None]
+        route.fulfill(status=response.status, json=answer)
+
+    page.route("**/api/event", break_first_state)
+    with page.expect_console_message(
+        lambda message: (
+            message.type == "error" and "leaf: state in event response" in message.text
+        )
+    ) as reported:
+        page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    expect(page.locator("#sug-thistle")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+
+    old_route.fulfill(json=old_state)
+    page.title()  # let the stale response run before reading the undo surface
+
+    # The caller knows the send succeeded, but no whole state containing it has been
+    # adopted. The stale response must not release the hold merely because the failed
+    # application assigned an event list containing the attempt before it threw.
+    assert first_attempt[0] not in _traffic(page).pending
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    sent = _traffic(page).sends
+    page.keyboard.press("z")
+    assert _traffic(page).sends == sent
+
+    # A later refusal is another asynchronous reconciliation wake-up. It may not use
+    # the accepted-but-incomplete event tail or release either hold merely because its
+    # delivery completed.
+    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#sug-in-card")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+
+    # A complete poll accounts for the older acceptance and the refused correction.
+    # The re-offered action can then send under a fresh attempt, whose valid answer
+    # includes both accepted gestures and makes the newest one safe to undo.
+    page.unroute("**/api/state*")
+    told(page)
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
+    round_trip(page)
+
+    assert [request["attempt"] for request in requests].count(first_attempt[0]) == 1
+    assert len(refused) == 1
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [
+        ("sug-refill", "accept"),
+        ("sug-thistle", "accept"),
+        ("sug-in-card", "accept"),
+    ]
+
+    undo(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator("#sug-in-card")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#sug-in-card lf-old")).to_be_visible()
+    assert "leaf: state in event response" in reported.value.text
+    assert reported.value.text in errors
+    assert all(error == reported.value.text or "400" in error for error in errors)
+    page.close()
+
+
+def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
+    browser, serve
+):
+    """A timer response installs candidate events only while rendering that state.
+    If a required neighbour makes the read fail, a focus repaint and z still read the
+    last fully adopted history—not the newer gesture whose DOM was never projected."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    heater = page.locator("#card-heater .lf-grip")
+    heater.focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+    first = actions(serve.page_dir)[0]
+
+    second = interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+        },
+    )
+
+    malformed_reads = []
+
+    def malformed_state(route):
+        if malformed_reads:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        state["others"] = [None]
+        malformed_reads.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", malformed_state)
+    with (
+        page.expect_console_message(lambda message: "poll failed" in message.text),
+        page.expect_request("**/api/state*"),
+    ):
+        pass
+
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    with page.expect_response(
+        lambda response: (
+            "/api/event" in response.url
+            and (response.request.post_data_json or {}).get("kind") == "undo"
+        )
+    ):
+        page.keyboard.press("z")
+    logged_undo = next(
+        event
+        for event in reversed(interact.read_events(serve.page_dir))
+        if event["kind"] == "undo"
+    )
+    assert logged_undo["undoes"] == first["id"]
+    assert logged_undo["undoes"] != second["id"]
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    assert any("poll failed" in error for error in errors)
+    page.close()
+
+
+def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
+    """A later absolute action on the same widget is already painted while an older
+    send waits. Refusing the older action must preserve that outbox overlay, including
+    while an accepted intermediate answer is older than the newest local gesture."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.locator("#card-heater .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+
+    page.route("**/api/state*", refuse)
+    held = []
+
+    page.route("**/api/event", lambda route: held.append(route))
+    baffle = page.locator("#card-baffle .lf-grip")
+    with page.expect_request("**/api/event"):
+        baffle.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+
+    # Reorder the same card twice while its move waits. Each action is queued locally
+    # and describes its placement whole; the newest says Done, before the heater.
+    baffle.focus()
+    for key in ["Enter", "ArrowDown", "Enter"]:
+        page.keyboard.press(key)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-heater", "card-baffle"]
+    assert _traffic(page).sends == 2
+    baffle.focus()
+    for key in ["Enter", "ArrowUp", "Enter"]:
+        page.keyboard.press(key)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    assert (
+        _traffic(page).sends == 2
+    )  # the later two actions are queued, not on the wire
+
+    first_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ) as second_request:
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": first_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    page.wait_for_timeout(0)
+    assert len(held) == 2
+    second_attempt = second_request.value.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt")
+            not in {first_attempt, second_attempt}
+        )
+    ):
+        held[1].continue_()
+    page.wait_for_timeout(0)
+    assert len(held) == 3
+
+    # The accepted second response states "after heater", but the third gesture is
+    # still unresolved and already painted "before heater". The older refusal and
+    # intermediate answer may disturb neither half of that local placement.
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+
+    held[2].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    assert [
+        (event["detail"]["card"], event["detail"]["to"], event["detail"]["index"])
+        for event in actions(serve.page_dir)
+    ] == [
+        ("card-heater", "col-done", 0),
+        ("card-baffle", "col-done", 1),
+        ("card-baffle", "col-done", 0),
+    ]
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+
+    undo(page)
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-heater", "card-baffle"]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
+    browser, serve
+):
+    """Rollback snapshots compose the wrong state: B captures optimistic A, so if
+    both are refused, B's snapshot resurrects A. The runtime instead removes each
+    action from one overlay and derives the widget from the log plus what survives."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.locator("#card-heater .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    baffle = page.locator("#card-baffle .lf-grip")
+    with page.expect_request("**/api/event"):
+        baffle.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    baffle.focus()
+    for key in ["Enter", "ArrowDown", "Enter"]:
+        page.keyboard.press(key)
+    baffle.focus()
+    for key in ["Enter", "ArrowUp", "Enter"]:
+        page.keyboard.press(key)
+    assert (
+        _traffic(page).sends == 2
+    )  # the later two actions are queued, not on the wire
+
+    for at in range(3):
+        attempt = held[at].request.post_data_json["attempt"]
+        if at < 2:
+            with page.expect_request(
+                lambda request, attempt=attempt: (
+                    "/api/event" in request.url
+                    and request.post_data_json.get("attempt") != attempt
+                )
+            ):
+                held[at].fulfill(
+                    status=400,
+                    json={
+                        "ok": False,
+                        "attempt": attempt,
+                        "error": "refused before append",
+                        "final": True,
+                    },
+                )
+            page.wait_for_timeout(0)
+        else:
+            with page.expect_response(lambda response: "/api/event" in response.url):
+                held[at].fulfill(
+                    status=400,
+                    json={
+                        "ok": False,
+                        "attempt": attempt,
+                        "error": "refused before append",
+                        "final": True,
+                    },
+                )
+        if at < 2:
+            assert len(held) == at + 2
+            assert page.eval_on_selector_all(
+                "#col-done > lf-card", "cards => cards.map(card => card.id)"
+            ) == ["card-baffle", "card-heater"]
+
+    round_trip(page)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater"
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
+    browser, serve
+):
+    """A position unit shares an ordered container with its siblings. Restoring only
+    the refused card's authored index can overwrite a different card's logged reorder;
+    reconciliation must fold the board whole in action order."""
+    page, errors = open_page(browser, serve(BOARD_PAGE), init_script=HOLD_MOTION)
+    baffle = page.locator("#card-baffle .lf-grip")
+    baffle.focus()
+    for key in ["Enter", "ArrowUp", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+    assert page.eval_on_selector_all(
+        "#col-todo > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    page.evaluate(
+        "() => { for (const a of window.__lfHeld) a.cancel(); window.__lfHeld = []; }"
+    )
+
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#card-heater .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+
+    assert page.eval_on_selector_all(
+        "#col-todo > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle"
+    ]
+    motions = page.evaluate(
+        """() => window.__lfHeld.map(animation => ({
+          target: animation.effect.target.id,
+          state: animation.playState,
+        }))"""
+    )
+    assert motions and motions[0] == {
+        "target": "card-heater",
+        "state": "idle",
+    }, "the optimistic move was not the cancelled animation positive control"
+    active = [motion["target"] for motion in motions if motion["state"] != "idle"]
+    assert len(motions) <= 3 and len(active) == len(set(active)), (
+        "reconstruction exposed synthetic authored/log placements as gestures: "
+        f"{motions}"
+    )
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, serve):
+    """Authored indices are one container composition, not per-card snapshots. A
+    refused move must reset every sibling before replaying a surviving reorder; putting
+    back only the refused card makes both indices relative to a synthetic order."""
+    three_cards = BOARD_PAGE.replace(
+        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
+        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n'
+        '    <lf-card id="card-third"><strong>Third card</strong></lf-card>',
+    )
+    url = serve(three_cards)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-heater", "to": "col-todo", "index": 2},
+        },
+    )
+    page, errors = open_page(browser, url)
+    cards = "cards => cards.map(card => card.id)"
+    assert page.eval_on_selector_all("#col-todo > lf-card", cards) == [
+        "card-baffle",
+        "card-third",
+        "card-heater",
+    ]
+
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.evaluate(
+            """() => { void import('/leaf.js').then(({sendAction}) => {
+              const widget = document.querySelector('#sprint');
+              const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
+              widget.applyAction('move', detail);
+              void sendAction(widget, 'move', detail);
+            }); }"""
+        )
+    expect(page.locator("#col-todo > lf-card")).to_have_count(3)
+    assert page.eval_on_selector_all("#col-todo > lf-card", cards) == [
+        "card-third",
+        "card-heater",
+        "card-baffle",
+    ]
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+    assert page.eval_on_selector_all("#col-todo > lf-card", cards) == [
+        "card-baffle",
+        "card-third",
+        "card-heater",
+    ]
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater"
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A recorded container owns only its nearest stateful parts. Projecting a
+    project's outer board must not capture cards owned by a nested shipped board merely
+    because both record positions within lf-column."""
+    monkeypatch.chdir(tmp_path)
+    made = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-outer-board", "--upgrade"]
+    )
+    assert made.exit_code == 0, made.output
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    outer = entries["lf-outer-board"]
+    outer["properties"]["restated"] = {"type": "boolean"}
+    outer["x-content"] = "items"
+    outer["x-example"] = (
+        '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
+        '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
+        "</lf-outer-board>"
+    )
+    outer["x-state"] = {
+        "move": {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "card": {"type": "string"},
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["card", "to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "card",
+            "record": {
+                "kind": "position",
+                "within": "lf-column",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    }
+    bundled = json.loads((interact.BUNDLED / "registry.json").read_text())
+    entries["lf-column"] = bundled["lf-column"]
+    entries["lf-column"]["x-parent"].append("lf-outer-board")
+    registry_path.write_text(json.dumps(entries))
+    (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
+        """import { once } from "/leaf.js";
+customElements.define("lf-outer-board", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  applyAction(action, detail) {
+    if (action !== "move") return;
+    const card = document.getElementById(detail.card);
+    const col = document.getElementById(detail.to);
+    if (!card?.matches("lf-card") || !col?.matches("lf-column") || !this.contains(col)) return;
+    const cards = [...col.children].filter(node => node.matches("lf-card") && node !== card);
+    col.insertBefore(card, cards[detail.index] ?? null);
+  }
+});
+"""
+    )
+    nested = leaf_page(
+        "nested owners",
+        """
+<h1 id="h">Nested owners</h1>
+<lf-outer-board id="outer">
+  <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card"><strong>Outer</strong>
+    <lf-board id="inner"><lf-column id="inner-todo" label="Todo">
+      <lf-card id="inner-card"><strong>Inner</strong></lf-card></lf-column>
+      <lf-column id="inner-done" label="Done"></lf-column></lf-board>
+  </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
+</lf-outer-board>""",
+    )
+    page, errors = open_page(browser, serve(nested))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    with page.expect_request("**/api/event"):
+        page.evaluate(
+            """() => { void import('/leaf.js').then(({sendAction}) => {
+              const widget = document.querySelector('#outer');
+              const detail = {card: 'outer-card', to: 'outer-done', index: 0};
+              widget.applyAction('move', detail);
+              void sendAction(widget, 'move', detail);
+            }); }"""
+        )
+    page.wait_for_timeout(0)
+    page.evaluate(
+        """() => { void import('/leaf.js').then(({sendAction}) => {
+          const widget = document.querySelector('#inner');
+          const detail = {card: 'inner-card', to: 'inner-done', index: 0};
+          widget.applyAction('move', detail);
+          void sendAction(widget, 'move', detail);
+        }); }"""
+    )
+    expect(page.locator("#inner-done #inner-card")).to_have_count(1)
+
+    outer_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != outer_attempt
+        )
+    ):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": outer_attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    expect(page.locator("#outer-todo > #outer-card")).to_have_count(1)
+    expect(page.locator("#inner-done #inner-card")).to_have_count(1)
+    held[1].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("#inner-done #inner-card")).to_have_count(1)
+    assert [
+        (event["widget"], event["detail"]["card"]) for event in actions(serve.page_dir)
+    ] == [("inner", "inner-card")]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
+    browser, serve
+):
+    """Acceptance may be known while a malformed state keeps the outbox hold. If
+    later log events arrive before another refusal, the retained accepted attempt is
+    replayed at its log sequence—not overlaid again as though it were newest."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+
+    def malformed_poll_state(route):
+        if malformed_polls:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        state["others"] = [None]
+        malformed_polls.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    def malformed_event_state(route):
+        response = route.fetch()
+        answer = response.json()
+        answer["state"]["others"] = [None]
+        route.fulfill(status=response.status, json=answer)
+
+    malformed_polls = []
+    page.route("**/api/state*", malformed_poll_state)
+    page.route("**/api/event", malformed_event_state)
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_console_message(
+        lambda message: "leaf: state in event response" in message.text
+    ):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    page.unroute("**/api/event")
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+        },
+    )
+    with (
+        page.expect_console_message(lambda message: "poll failed" in message.text),
+        page.expect_request("**/api/state*"),
+    ):
+        pass
+
+    refused = []
+
+    def refuse_move(route):
+        body = route.request.post_data_json or {}
+        if body.get("kind") != "action":
+            route.continue_()
+            return
+        attempt = body["attempt"]
+        refused.append(attempt)
+        route.fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    page.route("**/api/event", refuse_move)
+    with page.expect_response(
+        lambda response: (
+            "/api/event" in response.url
+            and (response.request.post_data_json or {}).get("kind") == "action"
+        )
+    ):
+        heater.focus()
+        for key in ["Enter", "ArrowLeft", "Enter"]:
+            page.keyboard.press(key)
+    assert len(refused) == 1
+    # Neither malformed read is a state the projector may consume. The accepted
+    # baffle move remains held until a complete poll can place it in chronology.
+    expect(page.locator("#col-done #card-baffle")).to_have_count(0)
+    page.unroute("**/api/state*")
+    with page.expect_response(
+        lambda response: "/api/state" in response.url and response.ok
+    ):
+        pass
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater",
+        "card-baffle",
+    ]
+    assert errors
+    page.close()
+
+
+def test_accounting_an_action_projects_newer_same_widget_news_before_release(
+    browser, serve
+):
+    """A complete poll can account for held A while also carrying newer B. Replay
+    skips the widget under A's outbox hold; releasing A must project A+B before that
+    hold disappears, or the page offers its next gesture against stale optimistic A."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_request("**/api/event"):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    older_answer = held[
+        0
+    ].fetch()  # the server appends A; its browser response stays held
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+        },
+    )
+    told(page)  # a complete state accounts A and projects A+B before release
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    page.route("**/api/state*", refuse)
+
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(response=older_answer)
+    page.title()  # let the stale response settle before reading the page again
+
+    assert page.eval_on_selector_all(
+        "#col-done > lf-card", "cards => cards.map(card => card.id)"
+    ) == ["card-baffle", "card-heater"]
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-heater",
+        "card-baffle",
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
+    browser, serve
+):
+    """A complete read may first reveal both optimistic A and another tab's undo of A.
+    The outbox entry is no longer a hold against that same read: the withdrawal must
+    restore authored state before accounting releases A, or the sender keeps showing a
+    gesture the log and every fresh page have already taken back."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_request("**/api/event"):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(0)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
+    page.close()
+
+
+def test_a_first_complete_read_restores_its_own_already_undone_action(browser, serve):
+    """Offline presentation has not replayed the log, but a recorded local action is
+    still optimistic DOM. If the first successful read contains both that action and an
+    undo from another tab, the startup guard must not mistake the painted action for one
+    this page never saw."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.lf_traffic = Traffic(page)
+    errors = watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(serve(BOARD_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    heater = page.locator("#card-heater .lf-grip")
+    with page.expect_request("**/api/event"):
+        heater.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    page.unroute("**/api/state*")
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(0)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
+    page.close()
+
+
+def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
+    browser, serve
+):
+    """A record-less decision waits for the log instead of painting optimistically.
+    If the first complete read contains both that decision and its undo, replay leaves
+    authored markup standing. The send continuation must not paint the withdrawn
+    decision after that authoritative read has released it."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.lf_traffic = Traffic(page)
+    errors = watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.wait_for_timeout(0)
+    accepted_answer = held[0].fetch()
+    attempt = held[0].request.post_data_json["attempt"]
+    accepted = next(
+        event
+        for event in accepted_answer.json()["state"]["events"]
+        if event.get("attempt") == attempt
+    )
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
+    )
+
+    page.unroute("**/api/state*")
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
+    page.close()
+
+
+def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve):
+    """A later record-less action on the same declared unit supersedes the first.
+    When one complete read accounts the held accept and also replays another tab's
+    reject, the older send continuation must not paint accept over that chronology."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.wait_for_timeout(0)
+    # Append the accept while its browser response remains held.
+    accepted_answer = held[0].fetch()
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-refill",
+            "action": "reject",
+            "detail": {},
+        },
+    )
+
+    told(page)
+    page.route("**/api/state*", refuse)
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(page.locator("#sug-refill lf-new")).to_be_hidden()
+    assert [
+        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+    ] == [
+        ("sug-refill", "accept"),
+        ("sug-refill", "reject"),
+    ]
+    assert errors == []
+    held[0].fulfill(response=accepted_answer)
+    page.unroute("**/api/event")
+    page.close()
+
+
+def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
+    """A complete poll containing an attempt is authoritative delivery evidence. Once
+    it accounts for A, the ordered outbox may send queued B even if A's original browser
+    response never finishes; the server append A was already observed before B starts."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator("#card-baffle .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+    assert len(held) == 1
+    first_answer = held[0].fetch()  # append A, but leave its response unresolved
+
+    page.locator("#card-heater .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    first_attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        told(page)
+
+    assert len(held) == 2
+    held[0].fulfill(response=first_answer)  # cleanup after B has proved release
+    with page.expect_response(
+        lambda response: (
+            "/api/event" in response.url
+            and response.request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        held[1].continue_()
+    page.unroute("**/api/event")
+
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle",
+        "card-heater",
+    ]
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, serve):
+    """A board grab owns its captured origin until release. A refusal arriving under
+    that grab must remain in the outbox, then reconcile after Escape, or the cancel can
+    resurrect the move the server refused."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    baffle = page.locator("#card-baffle .lf-grip")
+    with page.expect_request("**/api/event"):
+        baffle.focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    page.wait_for_timeout(0)
+
+    baffle.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#sprint")).to_have_class(re.compile(r"\blf-dragging\b"))
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+
+    # The live gesture still owns the DOM; its origin must not move under it.
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
+    """The outbox retries an accepted gesture whose response was lost before it
+    sends the next gesture. Both arrive once, in the order the reader made them."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    requests = []
+    accepted = []
+
+    def lose_first_answer(route):
+        requests.append(route.request.post_data_json)
+        if len(requests) == 1:
+            accepted.append(route.fetch().status)
+            refuse(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/state*", refuse)
+    page.route("**/api/event", lose_first_answer)
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: "/api/event" in request.url
+    ):
+        page.locator("#card-baffle .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+
+    first_attempt = requests[0]["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != first_attempt
+        )
+    ):
+        page.locator("#card-heater .lf-grip").focus()
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            page.keyboard.press(key)
+    round_trip(page)
+
+    assert accepted == [200]
+    assert [request["detail"]["card"] for request in requests] == [
+        "card-baffle",
+        "card-baffle",
+        "card-heater",
+    ]
+    assert requests[0]["attempt"] == requests[1]["attempt"]
+    assert requests[2]["attempt"] != first_attempt
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle",
+        "card-heater",
+    ]
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+
+    undo(page)
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
+    browser, serve
+):
+    """The centralized projector runs before a refused send resolves. A draft caller
+    may reopen the unsent text, but must not restore its stale pre-send body over a newer
+    remote edit the projector just applied and marked complete."""
+    page, errors = open_page(browser, serve(UNDO_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft = page.locator("#note-cli")
+    with page.expect_request("**/api/event"):
+        draft.locator(".lf-draft-pencil").click()
+        draft.locator("textarea").fill("Local C")
+        page.keyboard.press("Meta+Enter")
+    page.wait_for_timeout(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "note-cli",
+            "action": "edit",
+            "detail": {"text": "Remote B"},
+        },
+    )
+    told(page)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
+    page.route("**/api/state*", refuse)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+
+    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
+    page.keyboard.press("Escape")
+    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
+    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+        "Remote B"
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
+    """The walk steps past what it has already taken and reaches the gesture before
+    it — the edit here, whose authored text comes back with its paragraphs, where
+    the facet a comparison reads is collapsed. That is what withdrawing buys over
+    stating a counter-gesture: a second press would otherwise land on a statement
+    the first press had just made and put the reader back where they started."""
+    page, errors = open_page(browser, serve(UNDO_PAGE))
+    body = page.locator("lf-draft .lf-draft-body")
+    authored = body.inner_text()
+    assert "\n\n" in authored
+
+    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator("lf-draft textarea").fill("Rewritten.")
+    page.keyboard.press("Meta+Enter")
+    round_trip(page)
+    expect(body).to_have_text("Rewritten.")
+    page.locator("#opt-a").click()
+    round_trip(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+
+    undo(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    undo(page)
+    # The arrival first, read the way every assertion after a trip reads it, and then
+    # the reading a retry cannot make: `to_have_text` collapses the blank line, which
+    # is the very thing the authored text is here to bring back.
+    expect(body).to_have_text(authored)
+    assert body.inner_text() == authored
+    # Two gestures and two words taking them back, newest first: nothing in the log
+    # claims the reader chose opt-b or typed the authored draft, because they did
+    # neither — the page derived both from what still stands.
+    log = interact.read_events(serve.page_dir)
+    edit, choose = actions(serve.page_dir)
+    assert [(e["action"], e["detail"]) for e in (edit, choose)] == [
+        ("edit", {"text": "Rewritten."}),
+        ("choose", {"options": ["opt-a"]}),
+    ]
+    assert [e["undoes"] for e in log if e["kind"] == "undo"] == [
+        choose["id"],
+        edit["id"],
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
+    """A suggestion's accept records nothing and retires the losing half of the
+    page on its way through, so there is no value to state it back to: undecided
+    is not a value any verb carries. Withdrawing needs none — the fold drops the
+    accept, and the widget goes back to the markup this version wrote, with what
+    survives replayed onto it. That is the whole of the rebuild's reason, and why
+    it is chosen by a declaration (no record) rather than by the tag's name.
+
+    The controls come back with it, which is the half a subtree swap could lose:
+    the row hangs in the page margin as the column's child, outside the subtree
+    that was replaced, and it is the widget's own to take away and hang again."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    old = page.locator("#sug-refill lf-old")
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    expect(old).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+
+    accept.click()
+    round_trip(page)
+    expect(old).to_be_hidden()
+    expect(page.locator(".lf-asks")).to_have_text("Asks (2)")
+
+    undo(page)
+    # Pending again, in every reading of it: the retired half is back on the page,
+    # the control offers the decision rather than recording it, and the banner
+    # counts the question among the ones still waiting on the reader.
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_text(
+        "✓ Accept", use_inner_text=True
+    )
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
+        "the rebuilt change hung a second row beside the one it replaced"
+    )
+    (accepted,) = actions(serve.page_dir)
+    assert accepted["action"] == "accept"
+    assert [
+        e["undoes"] for e in interact.read_events(serve.page_dir) if e["kind"] == "undo"
+    ] == [accepted["id"]]
+    assert errors == []
+    page.close()
+
+
+def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
+    """Two things the rebuild owes beyond the state, and both were missing because a
+    rebuild is the one restore that replaces nodes rather than moving them.
+
+    The marks are painted ranges over text nodes, so the ones on a retired sentence
+    were pointing into a subtree the document no longer had: the sentence came back
+    and the comment on it did not, which reads as a thread detached from a passage
+    that is plainly there. Replay repaints them when it has moved the page's text,
+    and a restore is replay moving it.
+
+    The place is the reader's own. They pressed the key standing on the control
+    that decided the change, and that control went with the subtree — so the press
+    put them on <body> with nothing saying so, which is the silence the ladder's
+    rung exists to avoid. A widget told its state keeps its focus by itself, so only
+    this route ever lost it."""
+    url = serve(SUGGESTION_PAGE)
+    page, errors = open_page(browser, url)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "this one matters",
+            "anchor": {"quote": "Refill every feeder each morning."},
+        },
+    )
+    # Parenthesised, because `??` binds looser than a comparison: written
+    # `size ?? 0 === 0` the predicate is `size ?? true`, which is 0 — falsy — exactly
+    # when the assertion is meant to hold, and the wait runs its timeout out on a
+    # page that is doing the right thing.
+    marks = "() => (CSS.highlights.get('lf-mark')?.size ?? 0)"
+    page.wait_for_function(f"{marks} > 0")
+
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    accept.click()
+    round_trip(page)
+    # The sentence left the page with the decision, so the mark goes with it.
+    page.wait_for_function(f"{marks} === 0")
+    expect(accept).to_be_focused()
+
+    undo(page)
+    page.wait_for_function(f"{marks} === 1")
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_rebuild_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
+    """The place is handed back only to the reader who was standing in what was
+    replaced. Pressing the key from the page is not a request to be taken to the
+    change it takes back, and a focus move nobody asked for is the page moving
+    under the reader in the one way no geometry reports."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    page.evaluate("() => document.body.focus()")
+
+    undo(page)
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert errors == []
+    page.close()
+
+
+def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
+    """The withdrawal pass has to keep the discipline the replay loop keeps, because
+    it is replay: a widget the page has painted ahead of the log gets the next poll
+    rather than being written over. `lf-draft` says so outright — its applyAction
+    returns false while an editor stands, so the reader's unsent words are not yanked
+    out from under them — and a pass that drops that answer and marks the withdrawal
+    answered leaves the tab holding the withdrawn text for the rest of its life, with
+    the pending mark cleared because the fold agrees the edit is gone. A reload would
+    show the authored words; this tab never would again."""
+    url = serve(UNDO_PAGE)
+    one, errors_one = open_page(browser, url)
+    two, errors_two = open_page(browser, url)
+    body = "lf-draft .lf-draft-body"
+    authored = one.locator(body).inner_text()
+
+    one.locator("lf-draft .lf-draft-pencil").click()
+    one.locator("lf-draft textarea").fill("Rewritten.")
+    one.keyboard.press("Meta+Enter")
+    round_trip(one)
+    expect(two.locator(body)).to_have_text("Rewritten.")
+
+    # The second tab is now holding words of its own, so the log may not write over it.
+    two.locator("lf-draft .lf-draft-pencil").click()
+    expect(two.locator("lf-draft textarea")).to_be_focused()
+    undo(one)
+    expect(one.locator(body)).to_have_text(authored)
+    expect(one.locator("lf-draft .lf-draft-history > summary")).to_have_text(
+        "Changes · 1 edit"
+    )
+
+    # The withdrawal has to reach the second tab *while* its editor stands — heard
+    # after the box closes, it applies on the way past and says nothing about the
+    # hold. told() consumes the poll that carries it.
+    told(two)
+    expect(two.locator(body)).to_have_text("Rewritten.")
+
+    # Let go, and the withdrawal it could not take yet lands on the next poll.
+    two.keyboard.press("Escape")
+    expect(two.locator("lf-draft textarea")).to_have_count(0)
+    expect(two.locator(body)).to_have_text(authored)
+    expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
+        "Changes · 1 edit"
+    )
+    assert errors_one == [] and errors_two == []
+    one.close()
+    two.close()
+
+
+def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, serve):
+    """An undo names a gesture, and what the page owes afterwards is the unit's state
+    *now* — the fold minus that gesture — not the state that stood before it at the
+    time. The two differ whenever the withdrawn action is no longer the unit's last
+    word, which two tabs reach without trying: one presses `z` on the move it knows
+    about while the other has already moved the same card past it, and the door takes
+    it, recency not being a thing an event can be checked for.
+
+    The tab that hears it then paints the older reading over the standing move. Which
+    tab shows the damage is the part worth arranging: the tab that *made* the later
+    move painted it itself, so replay never marked it applied and the next poll lays
+    it down again, healing the page by luck. A tab that got that move through replay
+    has it marked applied and will never lay it down again — so it holds the wrong
+    board for the rest of its life, disagreeing with every fresh load of the same
+    log."""
+    url = serve(BOARD_PAGE)
+    order = "#col-todo > lf-card", "e => e.map(c => c.id)"
+    stale, errors_stale = open_page(browser, url)
+    mover, errors_mover = open_page(browser, url)
+
+    stale.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        stale.keyboard.press(key)
+    round_trip(stale)
+    expect(mover.locator("#col-done #card-baffle")).to_have_count(1)
+
+    # Hold the first tab's reading of the log where it is, so its `z` names the move
+    # it knows about while the second tab moves the same card on past it.
+    stale.route("**/api/state", refuse)
+    # Back to the list it came from and up past its neighbour, which is neither where
+    # the first move put it nor where the version wrote it: a second move that landed
+    # on the authored placement would make the wrong restore a no-op by luck, and the
+    # test would pass on a page doing the wrong thing.
+    mover.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowLeft", "ArrowUp", "Enter"]:
+        mover.keyboard.press(key)
+    round_trip(mover)
+    standing = ["card-baffle", "card-heater"]
+    assert mover.eval_on_selector_all(*order) == standing
+
+    # The tab the damage shows in: it reads the second move off the log rather than
+    # making it, so replay has it marked applied and will not lay it down twice.
+    heard, errors_heard = open_page(browser, url)
+    assert heard.eval_on_selector_all(*order) == standing
+
+    # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
+    # what it sends can never come back to it. The offer the helper waits on first is
+    # the part that still applies — the line and the dispatcher ask one predicate, so
+    # a press made before it stands is one the dispatcher refuses.
+    expect(stale.locator(".lf-keyline")).to_contain_text("undo")
+    stale.keyboard.press("z")
+    # The server answering the post is the fact this wait consumes.
+    _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
+    stale.unroute("**/api/state")
+    told(heard)
+    told(heard)
+
+    assert heard.eval_on_selector_all(*order) == standing, (
+        "a tab that heard the undo painted the state that stood before the move it "
+        "named, over the move that still stands"
+    )
+    fresh, errors_fresh = open_page(browser, url)
+    assert fresh.eval_on_selector_all(*order) == standing, (
+        "a tab reading the log fresh disagrees with the tab that heard the undo"
+    )
+    # The stale tab's own console too: `refuse` cancels rather than fails a
+    # request, so stopping its polls leaves nothing for it to report.
+    assert errors_stale == [] and errors_mover == []
+    assert errors_heard == [] and errors_fresh == []
+    stale.close()
+    mover.close()
+    heard.close()
+    fresh.close()
+
+
+def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
+    """Which version a gesture was made against decides whether `z` is *offered*, and
+    says nothing about whether an undo must be *heard*. A tab holding an older version
+    can still gesture — `?pin` is a URL a reader keeps, and a tab mid-composition holds
+    its version too — so its undo reaches a tab that has moved on, and that tab applied
+    the action being withdrawn (replay takes every action up to the version it reads).
+
+    Refusing to hear it there leaves the newer tab showing a gesture the log no longer
+    holds, and only until someone reloads it. What this load's markup says is the right
+    answer either way: a version written around the decision states the same placement,
+    so the restore is a no-op, and one that was not, like this one, catches up."""
+    url = serve(BOARD_PAGE)
+    pinned, errors_pinned = open_page(browser, url + "&pin")
+    moved_on, errors_moved_on = open_page(browser, url)
+
+    pinned.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        pinned.keyboard.press(key)
+    round_trip(pinned)
+    expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
+
+    # A second version that says nothing about the move — the card is where v1 wrote
+    # it — so what the two tabs owe the card afterwards is visibly different.
+    d = serve.page_dir
+    (d / "versions" / "v2.html").write_text(BOARD_PAGE)
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "unchanged"}
+    )
+    moved_on.wait_for_url("**/v2.html*")
+    expect(moved_on).to_have_url(re.compile("v2"))
+    expect(pinned).to_have_url(re.compile("v1"))
+    # Replay carries the v1 move onto v2, so this tab is showing it.
+    expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
+
+    undo(pinned)
+    told(moved_on)
+    told(moved_on)
+    expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
+    assert errors_pinned == [] and errors_moved_on == []
+    pinned.close()
+    moved_on.close()
+
+
+def test_a_second_tab_takes_the_decision_back_too(browser, serve):
+    """The rebuild happens in every tab off the log, not in the one that pressed off
+    the gesture — so a tab that never saw the press arrives at the same page. That
+    is the difference between taking a decision back and painting over it: this tab
+    applied the accept through replay, and what puts it right is the withdrawal
+    arriving, not anything the other tab did to its own DOM.
+
+    It is also where the reader is left free to decide again, the other way: the
+    accept is withdrawn rather than reversed, so a reject after it is an ordinary
+    first decision and both tabs follow it."""
+    url = serve(SUGGESTION_PAGE)
+    one, errors_one = open_page(browser, url)
+    two, errors_two = open_page(browser, url)
+    marks = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
+        [name, [...(CSS.highlights.get(name) ?? [])]
+            .filter(r => document.getElementById(id).contains(r.startContainer))
+            .length]))"""
+    pending = one.evaluate(marks, "sug-refill")
+    assert pending["lf-sug-del"] and pending["lf-sug-ins"]
+
+    one.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(one)
+    expect(two.locator("#sug-refill lf-old")).to_be_hidden()
+
+    undo(one)
+    expect(two.locator("#sug-refill lf-old")).to_be_visible()
+    expect(two.locator(".lf-asks")).to_have_text("Asks (3)")
+    # Everything the change had when it was pending, including what the theme paints
+    # from ranges the module registers — a rebuild that dropped those would leave a
+    # proposal on the page with nothing marking what it changes.
+    assert one.evaluate(marks, "sug-refill") == pending
+    assert (
+        one.evaluate("() => document.querySelectorAll('[data-lf-pending]').length") == 0
+    )
+
+    two.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    round_trip(two)
+    expect(one.locator("#sug-refill lf-new")).to_be_hidden()
+    assert [
+        e.get("action", e["kind"])
+        for e in interact.read_events(serve.page_dir)
+        if e["kind"] in ("action", "undo")
+    ] == ["accept", "undo", "reject"]
+    assert errors_one == [] and errors_two == []
+    one.close()
+    two.close()
+
+
+NESTED_SUGGESTION = SUGGESTION_PAGE.replace(
+    "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
+    "<lf-new>Switch the north feeder to thistle in autumn."
+    '<lf-options id="blend" choose>'
+    '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
+    '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
+    "</lf-options></lf-new>",
+)
+
+
+def test_a_rebuild_keeps_what_the_reader_did_inside_the_change(browser, serve):
+    """A change may propose markup that holds a widget — the family's own answer to
+    a widget-state change, there being no separate patch shape — and a pick the
+    reader made inside it is theirs, not part of the decision they took back.
+
+    The rebuild replaces the subtree those actions were applied to, so what this
+    load had already applied inside it has to land again on the new nodes. Counting
+    only the rebuilt widget's own events leaves the nested pick marked as applied to
+    a node the page no longer has, and it comes back authored with the reader's
+    answer silently gone."""
+    page, errors = open_page(browser, serve(NESTED_SUGGESTION))
+    page.locator("#blend-mixed").click()
+    round_trip(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+
+    page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    round_trip(page)
+    undo(page)
+
+    expect(page.locator("#sug-thistle lf-old, #sug-thistle lf-new")).to_have_count(1)
+    expect(page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")).to_have_text(
+        "✓ Accept", use_inner_text=True
+    )
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+    assert errors == []
+    page.close()
+
+
+def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
+    """The rebuild is how the page in front of the reader catches up; it is not
+    where the outcome lives. A page loaded after the fact never applies the
+    withdrawn accept at all — replay skips it exactly as it skips one a version
+    restated — so the same page comes back without a rebuild having run on it."""
+    url = serve(SUGGESTION_PAGE)
+    page, errors = open_page(browser, url)
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    undo(page)
+    page.close()
+
+    again, errors = open_page(browser, url)
+    expect(again.locator("#sug-refill lf-old")).to_be_visible()
+    expect(again.locator(".lf-asks")).to_have_text("Asks (3)")
+    assert errors == []
+    again.close()
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
@@ -12957,7 +17389,7 @@ def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, 
         "   >= document.querySelector('main').getBoundingClientRect().right"
     ), "the margin placement is the precondition — nothing strands a column-placed box"
     # A press on the banner's own button: standDown keeps a composer holding text.
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     page.wait_for_function("""() => {
         const box = document.querySelector('.lf-composer').getBoundingClientRect();
@@ -13037,7 +17469,8 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     assert len(held) == 19, (
         f"this assertion needs a selection to survive; it made {held!r}"
     )
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "version": 2, "text": "arriving from another tab"},
     )
@@ -13216,17 +17649,9 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     page.close()
 
 
-FENCED_CAPTURE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>fenced capture</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+FENCED_CAPTURE_PAGE = leaf_page(
+    "fenced capture",
+    """
 <h1 id="h">Roadmap</h1>
 <lf-milestones>
   <lf-milestone id="gate-milestone" status="active" when="week-1" tags="wood,solar">
@@ -13239,10 +17664,8 @@ FENCED_CAPTURE_PAGE = """<!doctype html>
     <strong>Classic feeder</strong> Easy to clean.
   </lf-option>
 </lf-options>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve):
@@ -13309,17 +17732,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
 # button is the panel's only name. Every word here is distinct, so a quote can only
 # anchor where it was picked, and the panels are long enough that a drag across one of
 # these labels is an ordinary drag.
-CONTROL_LABEL_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>labels</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CONTROL_LABEL_PAGE = leaf_page(
+    "labels",
+    """
 <h1 id="h">Aviary projects</h1>
 <p id="lede">Two workstreams, one page.</p>
 <lf-tabs id="projects">
@@ -13330,10 +17745,57 @@ CONTROL_LABEL_PAGE = """<!doctype html>
     <p id="p-bath">The thermostat arrived cracked and a replacement is on order.</p>
   </lf-tab>
 </lf-tabs>
-</main>
-</body>
-</html>
-"""
+""",
+)
+
+
+def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
+    """A focused stream may hide the earlier context, never its collaboration state.
+
+    The shipped example opens on the narrow work in hand. A comment and an ask in
+    inactive panels still stand in the page's one Comments list and one Asks board,
+    and either global surface opens the panel it points into. Switching panels is
+    reading the page, so it leaves the event log untouched."""
+    example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
+    quote = "The feed has been stable since the battery swap; one open follow-up on storage."
+    url = serve(example.read_text(), anchored=[("camera-note", quote)])
+    page, errors = open_page(browser, url)
+
+    implementation = page.get_by_role("tab", name="Bracket installation")
+    vision = page.get_by_role("tab", name="Vision")
+    evidence = page.get_by_role("tab", name="Field evidence")
+    expect(implementation).to_have_attribute("aria-selected", "true")
+
+    before = interact.read_events(serve.page_dir)
+    sent = _traffic(page).sends
+    vision.click()
+    implementation.click()
+    assert _traffic(page).sends == sent, "switching workstreams sent an event"
+    assert interact.read_events(serve.page_dir) == before
+
+    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    comment = page.locator(".lf-thread .lf-quote", has_text="The feed has been stable")
+    expect(comment).to_contain_text(quote)
+    comment.click()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+
+    page.get_by_role("button", name="Close comments").click()
+    asks = page.locator(".lf-asks")
+    expect(asks).to_have_text("Asks (2)")
+    asks.click()
+    hidden_ask = page.locator(
+        ".lf-asks-row", has_text="How should the bird bath stay open through January?"
+    )
+    expect(hidden_ask).to_have_count(1)
+    hidden_ask.click()
+    expect(vision).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()
+
+    assert _traffic(page).sends == sent
+    assert interact.read_events(serve.page_dir) == before
+    assert errors == []
+    page.close()
 
 
 def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, serve):
@@ -13538,30 +18000,31 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
 def test_one_chip_says_every_keyboard_address(browser, serve):
     """A digit that reaches something is drawn one way, on both sides of the scope line.
 
-    The panel's reply box wears the address the g leader answers and an option wears the
-    one a pick answers, and this page shows them at once — a question asked inside a
-    thread, so the two chips stand a couple of centimetres apart in the same panel. They
-    were two hand-matched copies of a dozen declarations, one in the chrome's stylesheet
-    and one in the theme, with nothing to say if either moved; the look is .lf-address in
-    the runtime's document-level vocabulary now, and each wearer states only where its
-    chip sits and when it shows.
+    The g chord's chips answer its digits and an option wears the one a pick answers, and
+    this page shows them at once — a question asked inside a thread, so the two chips
+    stand a couple of centimetres apart in the same panel. They were two hand-matched
+    copies of a dozen declarations, one in the chrome's stylesheet and one in the theme,
+    with nothing to say if either moved; the look is .lf-address in the runtime's
+    document-level vocabulary now, and each wearer states only where its chip sits and
+    when it shows.
 
-    Which is why the look is what this compares and placement is not: the reply box's
-    chip hangs off its own corner, and an option's is anchored from outside the group
-    that would otherwise clip it (see test_a_questions_digits_are_drawn_whole). Same
-    chip, two boxes to hang it from."""
+    Which is why the look is what this compares and placement is not: the chord's chips
+    are placed from the viewport in a layer of their own, and an option's is anchored
+    from outside the group that would otherwise clip it (see
+    test_a_questions_digits_are_drawn_whole). Same chip, two boxes to hang it from."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         interact.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
     # `n` opens the panel on the first ask and lands on its mark, which is what paints
-    # that group's digits; g then arms the leader, which paints the reply boxes'.
+    # that group's digits; g c then aims the chord at the comments, which paints theirs.
     page.keyboard.press("n")
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
-    addressed = page.locator(".lf-thread .lf-compose > .lf-address").first
+    page.keyboard.press("c")
+    addressed = page.locator(".lf-addresses > .lf-address").first
     expect(addressed).to_be_visible()
 
     face = """el => { const s = getComputedStyle(el);
@@ -13765,7 +18228,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         "spanning two blocks": "more than one text node. A neighbouring block",
     }
     for name, quote in forms.items():
-        page.request.post(
+        post_event(
+            page,
             url.rsplit("/versions/", 1)[0] + "/api/event",
             data={
                 "kind": "comment",
@@ -13774,7 +18238,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
                 "anchor": {"section": None, "quote": quote},
             },
         )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
@@ -13784,7 +18248,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
     # page's gaps are word boundaries, and a quote that runs across one is naming
     # something the page doesn't say — "never" must not find the tail of "on every".
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -13878,7 +18343,8 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     because a synthetic click event sails straight past the gap it lives in."""
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, url)
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -13930,7 +18396,8 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     # A quote inside the figure's caption: a painted range, so opening the panel reflows the
     # text out from under the pointer. An element anchor wouldn't show it — a figure still
     # covers the same point after the column narrows.
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -13967,17 +18434,9 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     page.close()
 
 
-CODE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>code</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CODE_PAGE = leaf_page(
+    "code",
+    """
 <h1 id="t">Code</h1>
 <section id="walk">
 <p id="lede">The key changes shape:</p>
@@ -13996,10 +18455,8 @@ $ leaf version check ./page --render
 v1.html: renders clean
 </pre></lf-code>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_code_is_colored_without_a_word_moving(browser, serve):
@@ -14065,7 +18522,8 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     )
 
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -14079,7 +18537,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
             },
         },
     )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     # Posted to the server rather than through the page, so the page hears about it
     # when its next poll asks.
     told(page)
@@ -14141,17 +18599,9 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
 # what is open, a yaml file (the grammar that reads a leading `-` as a sequence bullet
 # and a leading `+` as a string, so the prefix column has to be off before it looks),
 # and a file whose extension names no language at all.
-DIFF_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>diff</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DIFF_PAGE = leaf_page(
+    "diff",
+    """
 <h1 id="t">Diff</h1>
 <lf-diff id="patch"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
@@ -14186,10 +18636,8 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 -RUN pip install -r requirements.txt
 +RUN pip install --no-cache-dir -r requirements.txt
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
@@ -14299,17 +18747,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 # `limit = 3` is the leftover and `limit = 8` opens the block after the context line, so
 # a walk that ran the two blocks together would pair the leftover against `limit = 9` and
 # mark it — the fault that reads as one mark too many rather than as none at all.
-MOVED_WORDS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>moved words</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+MOVED_WORDS_PAGE = leaf_page(
+    "moved words",
+    """
 <h1 id="t">Moved words</h1>
 <lf-diff id="patch"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
@@ -14362,10 +18802,8 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 +CMD ["gunicorn", "gateway:app", "-w", "4"]
 +EXPOSE 9090
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
@@ -14655,7 +19093,8 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, url)
     for text in ("first on the figure", "second on the figure"):
-        page.request.post(
+        post_event(
+            page,
             url.rsplit("/versions/", 1)[0] + "/api/event",
             data={
                 "kind": "comment",
@@ -14664,7 +19103,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
                 "anchor": {"section": "fig"},
             },
         )
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
@@ -14678,7 +19117,8 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     painted range has to be asked again, so everything that moves the page asks."""
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
-    page.request.post(
+    post_event(
+        page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
@@ -14706,17 +19146,9 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
 # different ids. A unified diff is the case that matters and the reason the section can't
 # help: it holds the changed line on both sides, under one id, so the two occurrences are a
 # bug and its fix, and landing on the wrong one inverts what the comment means.
-TWICE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>twice</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWICE_PAGE = leaf_page(
+    "twice",
+    """
 <h1 id="t">Twice</h1>
 <section id="repeat">
 <p>Ahead of the repeat, so the copies have different neighbours before them.</p>
@@ -14734,10 +19166,8 @@ diff --git a/gateway/cache.py b/gateway/cache.py
 +    return request.path, request.headers.get("Accept")
  def store(self, request):
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
@@ -14772,26 +19202,16 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     page.close()
 
 
-DRIFT_V1 = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>drift</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DRIFT_V1 = leaf_page(
+    "drift",
+    """
 <h1 id="t">Drift</h1>
 <section id="drift">
 <p>Cache warmup runs first. {phrase}. Retries are capped at three.</p>
 <p>Queue drain runs first. {phrase}. Retries are capped at four.</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{phrase}", "The version stamp never lands")
+""",
+).replace("{phrase}", "The version stamp never lands")
 # v2 rewrites the words on both sides of the *commented* copy and leaves the other alone,
 # so the untouched copy is now the better match for the context the comment stored.
 DRIFT_V2 = DRIFT_V1.replace(
@@ -14859,28 +19279,20 @@ MARKERS = "🔴🟢🟡🔵🟣🟤🟠🟥🟩🟦🔴🟢🟡🔵🟣🟤"
 PAD = "   "
 assert all(ord(c) > 0xFFFF for c in MARKERS), "BMP markers will not reproduce this"
 assert len(PAD) in (3, 4), "outside the band the window is long enough either way"
-ASTRAL_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>astral</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+ASTRAL_PAGE = (
+    leaf_page(
+        "astral",
+        """
 <h1 id="t">Astral</h1>
 <section id="astral">
 <p>Ordinary prose ahead of the first copy here. {phrase} and a tail.</p>
 <p>A divider paragraph between the copies.</p>
 <p>{run}{phrase} and a tail.</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{run}", "".join(m + PAD for m in MARKERS)).replace(
-    "{phrase}", "TARGET PHRASE"
+""",
+    )
+    .replace("{run}", "".join(m + PAD for m in MARKERS))
+    .replace("{phrase}", "TARGET PHRASE")
 )
 
 
@@ -14929,17 +19341,9 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
 # Two copies of one phrase behind an identical lead, the second closing its section. The
 # words that tell them apart are the next section's, which only a capture reading past the
 # section edge can store.
-EDGE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>edge</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+EDGE_PAGE = leaf_page(
+    "edge",
+    """
 <h1 id="t">Edge</h1>
 <section id="edge">
 <p>First pass: when the deploy fails again in the night, the run is retried until it lands. Nothing else moves.</p>
@@ -14948,10 +19352,8 @@ EDGE_PAGE = """<!doctype html>
 <section id="tail">
 <p>Rollout resumes once the queue drains completely.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # The same page with nothing after the section, so the closing copy ends the document —
@@ -15083,17 +19485,9 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
 # matches both copies and only their neighbours tell them apart. Prose rather than
 # filler, because the walk that confirms the rest of a quote steps word by word.
 LONG_PASSAGE = "Note: the migration replays on every deploy because the version stamp never lands, and the guard reads a column the writer never fills, and the whole batch runs again from the top on each release, and the counters disagree with the log and with each other, and the retry budget is spent before anyone looks at it, and the operator reads the dashboard at noon and files the incident, and the fix ships behind a flag nobody remembers to turn on, and the runbook still names a host that was retired last spring."
-TWO_COPIES_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>long passages</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWO_COPIES_PAGE = leaf_page(
+    "long passages",
+    """
 <h1 id="t">Long passages</h1>
 <section id="copies">
 <p>Ahead of the first copy sits this line.</p>
@@ -15101,10 +19495,8 @@ TWO_COPIES_PAGE = """<!doctype html>
 <p>Between the copies sits this other line.</p>
 <p id="second">{passage}</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{passage}", LONG_PASSAGE)
+""",
+).replace("{passage}", LONG_PASSAGE)
 
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
@@ -15181,23 +19573,13 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
 # hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
 # would land inside the pass that draws every mark on the page, not just this one's. A
 # reader reaches it in one keystroke, so the guard is a page long enough to prove it.
-CEILING_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>everything</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+CEILING_PAGE = leaf_page(
+    "everything",
+    """
 <h1 id="t">Everything</h1>
 {paras}
-</main>
-</body>
-</html>
-""".format(
+""",
+).format(
     paras="\n".join(
         f"<p>Paragraph {i} of the record. "
         + f"The deploy replays and the guard reads a column the writer never fills, "
@@ -15247,26 +19629,16 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 # the section tag and the paragraph, which is what makes the copy's leading context empty
 # rather than short. Both copies carry the identical tail, so a suffix on its own is a bar
 # the other copy clears just as well.
-THIN_V1 = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>thin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+THIN_V1 = leaf_page(
+    "thin",
+    """
 <h1 id="t">Thin</h1>
 <section id="thin"><p>{phrase}. Retries are capped at three.</p>
 <p>An unrelated middle paragraph.</p>
 <p>Queue drain runs first. {phrase}. Retries are capped at three.</p>
 </section>
-</main>
-</body>
-</html>
-""".replace("{phrase}", "The version stamp never lands")
+""",
+).replace("{phrase}", "The version stamp never lands")
 # Only the commented copy's tail changes, so the untouched copy is now the better match for
 # the one neighbour the comment stored.
 THIN_V2 = THIN_V1.replace(
@@ -15939,17 +20311,9 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
 SENTENCE = "The version stamp never lands, so migration 0041 replays on every deploy."
 DRAFT_TEXT = "Run the migration before deploying.\nIt is online."
 DRAFT_EDITED = "Run the migration before deploying. It takes about a minute."
-JOURNEY_SCAFFOLD = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>journey</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+JOURNEY_SCAFFOLD = leaf_page(
+    "journey",
+    """
 <h1 id="t">Journey</h1>
 {before}
 <lf-board id="board">
@@ -15964,10 +20328,8 @@ JOURNEY_SCAFFOLD = """<!doctype html>
 </pre></lf-draft>
 <h2 id="notes">Notes</h2>
 {after}
-</main>
-</body>
-</html>
-"""
+""",
+)
 PASSAGE = f'<p id="intro">{SENTENCE}</p>'
 JOURNEY_V1 = JOURNEY_SCAFFOLD.format(
     before=PASSAGE, after="<p id='p-filler'>Filler.</p>"
@@ -16014,7 +20376,8 @@ def test_page_round_trip(browser, serve):
     (relocated) passage and the draft still wearing the user's words. The
     final assertion is the event log — the trail Claude reads — down to the
     anchor's quote, the move's placement, and the edit's text."""
-    page, errors = open_page(browser, serve(JOURNEY_V1))
+    page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
+    page.evaluate("window.__leafJourneyDocument = 'held'")
 
     # Select the passage from the keyboard's path: a real Range, then the keyup
     # the runtime watches for keyboard selections, then the c binding — which
@@ -16080,7 +20443,12 @@ def test_page_round_trip(browser, serve):
     interact.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "moved"}
     )
-    page.wait_for_url("**/v2.html")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    assert page.evaluate("window.__leafJourneyDocument") == "held", (
+        "the live journey navigated instead of activating its authored version"
+    )
+    assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -16318,8 +20686,12 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     expect(editor).to_have_value("Local unsent words.")
     expect(draft.locator(".lf-draft-history")).to_have_count(0)
 
+    page.route("**/api/state*", refuse)
     page.keyboard.press("Escape")
-    told(page)
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: "/api/state" in request.url
+    ):
+        pass
     expect(draft.locator(".lf-draft-body")).to_have_text("Foreign committed words.")
     expect(draft.locator(".lf-draft-history > summary")).to_have_text(
         "Changes · 2 edits"
@@ -16331,8 +20703,8 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
 
 def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
     """Empty text is a real replacement, not the absence of a saved draft. Deleting
-    the whole body must survive reload, keep the current version under the active
-    editor, and arrive in the log as an ordinary absolute edit."""
+    the whole body must hold a live editor on its version, survive reload, and arrive
+    in the log as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
     page, errors = open_page(browser, url)
     draft = page.locator("#draft-ops")
@@ -16369,12 +20741,15 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
         }"""
     )
     draft.get_by_role("button", name="Save").click()
-    expect(draft.locator("textarea")).to_be_focused()
-    expect(draft.locator("textarea")).to_have_value("")
+    # A 503 cannot say whether the server appended before its answer was lost. Keep
+    # the one saved gesture visibly pending and its draft recoverable; reopening the
+    # editor would invite a second gesture while this attempt is still retrying.
+    expect(draft).to_have_attribute("aria-busy", "true")
+    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("")
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
 
     page.evaluate("window.lfFailDraft = false")
-    draft.get_by_role("button", name="Save").click()
     page.wait_for_url("**/v2.html")
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text("")
     page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
@@ -16952,7 +21327,9 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
 def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     browser, serve, one_reader
 ):
-    """One request may fail while the same attempt from another tab is accepted."""
+    """One request may lose its answer while another tab gets the same attempt
+    accepted. The first tab adopts that durable outcome instead of reporting failure
+    or offering the words as a second message."""
     url = serve(ASK_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
@@ -16971,12 +21348,14 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
 
     refuse(held[0])
     first.unroute("**/api/event")
-    expect(first.locator(".lf-toast")).to_contain_text("Couldn't send")
+    round_trip(first)
+    expect(first.locator(".lf-toast")).to_contain_text("Sent to Claude")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw.strip()]
-    assert _traffic(first).sends + _traffic(second).sends == 2
+    expect(first_say).to_be_hidden()
+    expect(second_say).to_be_hidden()
     assert first_errors == []
     assert second_errors == []
 
@@ -17033,7 +21412,6 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     second_say = second.locator("#jobs > .lf-conversation > .lf-say")
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
-
     first.evaluate(
         """() => {
           const actualFetch = window.fetch.bind(window);
@@ -17838,17 +22216,9 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
 # The two presses this asks about, on one page: a draft's ✎ (a thing to do) and a pick
 # mark (a thing to do that becomes a thing the page says once it is pressed).
-KEYS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>keys</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+KEYS_PAGE = leaf_page(
+    "keys",
+    """
 <h1 id="h">Session store</h1>
 <lf-options id="opts" choose>
   <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
@@ -17857,10 +22227,8 @@ KEYS_PAGE = """<!doctype html>
 <lf-draft id="draft-ops"><pre>
     Run the migration before deploying.
 </pre></lf-draft>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_press_takes_the_keys_a_button_came_with(browser, serve):
@@ -18163,7 +22531,7 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     the user nothing, so the key reads as dead, and the document is somewhere else
     when the sheet closes."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
@@ -18240,6 +22608,767 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
     assert errors == []
     page.close()
+
+
+FIRST_PRESENTATION = """
+  window.__lfPresentation = { frames: [], releases: 0 };
+  new MutationObserver((changes) => {
+    window.__lfPresentation.releases += changes.length;
+  }).observe(document, {
+    subtree: true,
+    attributeFilter: ["data-lf-presented"],
+  });
+  const sample = () => {
+    const old = document.querySelector("#sug lf-old");
+    if (old) {
+      const box = old.getBoundingClientRect();
+      window.__lfPresentation.frames.push({
+        stale: old.checkVisibility({
+          opacityProperty: true,
+          visibilityProperty: true,
+        }),
+        interactive: old.contains(document.elementFromPoint(
+          box.left + box.width / 2,
+          box.top + box.height / 2,
+        )),
+        height: old.getBoundingClientRect().height,
+        note: getComputedStyle(document.body, "::after").content,
+        waitingPainted:
+          getComputedStyle(document.body, "::after").visibility !== "hidden"
+          && Number(getComputedStyle(document.body, "::after").opacity) > 0,
+      });
+    }
+    if (document.body?.dataset.lfPresented === undefined)
+      requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+"""
+
+
+def test_first_replay_is_the_pages_first_presentation(browser, serve):
+    """A version is not the page the reader left when the log already changed it.
+
+    Hold the first state response beyond the document stamp and record every frame the
+    browser offers to paint. The authored suggestion stays laid out — presentation is
+    paint, not a second rendering — but none of those frames may expose it. Releasing the
+    one held response applies the decision and releases the page exactly once."""
+    url = serve(
+        SHORT_SUGGESTION.replace(
+            "</head>",
+            """<style>
+main, main * {
+  visibility: visible !important;
+  opacity: 1 !important;
+  interactivity: auto !important;
+  pointer-events: auto !important;
+}
+</style></head>""",
+        )
+        .replace(
+            "<main>",
+            '<main style="visibility: visible; opacity: 1; interactivity: auto; '
+            'pointer-events: auto">',
+        )
+        .replace(
+            "<lf-old>",
+            '<lf-old style="visibility: visible; opacity: 1">'
+            '<button id="stale-control">Stale control</button>'
+            '<dialog id="stale-dialog" style="visibility: visible; opacity: 1; '
+            'interactivity: auto; pointer-events: auto">'
+            '<button style="visibility: visible">'
+            "Top-layer stale control</button></dialog>",
+        )
+        .replace("</main>", SHADOWED_DIFF)
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(FIRST_PRESENTATION)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
+        page.evaluate(
+            """() => {
+              const root = document.querySelector('#shadowed').shadowRoot;
+              const dialog = document.createElement('dialog');
+              dialog.id = 'shadow-stale-dialog';
+              dialog.innerHTML = '<button>Shadow top-layer stale control</button>';
+              root.append(dialog);
+              dialog.showModal();
+              const popover = document.createElement('div');
+              popover.id = 'shadow-stale-popover';
+              popover.setAttribute('popover', 'manual');
+              popover.textContent = 'Shadow top-layer stale popover';
+              root.append(popover);
+              popover.showPopover();
+              const nonmodal = document.createElement('dialog');
+              nonmodal.id = 'shadow-final-nonmodal';
+              nonmodal.textContent = 'Final state is non-modal';
+              root.append(nonmodal);
+              nonmodal.showModal();
+              nonmodal.close();
+              nonmodal.show();
+            }"""
+        )
+        frames = page.evaluate("() => window.__lfPresentation.frames")
+        assert held, "the positive control did not hold the first state response"
+        assert page.evaluate(
+            """() => [
+              getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-presentation-delay').trim(),
+              getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-presentation-dwell').trim(),
+            ]"""
+        ) == ["300ms", "400ms"], "the shipped first-presentation timing drifted"
+        assert frames and all(frame["height"] > 0 for frame in frames), (
+            f"the authored state was never laid out, so the paint gate tested nothing: {frames}"
+        )
+        assert not [frame for frame in frames if frame["stale"]], (
+            f"authored state was visibly painted before replay: {frames}"
+        )
+        assert not [frame for frame in frames if frame["interactive"]], (
+            f"authored state accepted a pointer before replay: {frames}"
+        )
+        assert not page.locator("#stale-control").evaluate(
+            "element => { element.focus(); return document.activeElement === element; }"
+        ), "authored state accepted keyboard focus before replay"
+        assert not page.locator("#stale-dialog").is_visible(), (
+            "authored top-layer content painted before replay"
+        )
+        assert not page.locator("#stale-dialog button").evaluate(
+            "element => { element.focus(); return document.activeElement === element; }"
+        ), "authored top-layer content accepted focus before replay"
+        assert not page.locator("#stale-dialog").evaluate(
+            """dialog => {
+              const box = dialog.getBoundingClientRect();
+              return dialog.contains(document.elementFromPoint(
+                box.left + box.width / 2,
+                box.top + box.height / 2,
+              ));
+            }"""
+        ), "authored top-layer content accepted a pointer before replay"
+        shadow_state = page.evaluate(
+            """() => {
+              const root = document.querySelector('#shadowed').shadowRoot;
+              const dialog = root.querySelector('#shadow-stale-dialog');
+              const control = dialog.querySelector('button');
+              control.focus();
+              const box = dialog.getBoundingClientRect();
+              return {
+                visibility: getComputedStyle(dialog).visibility,
+                opacity: getComputedStyle(dialog).opacity,
+                focused: root.activeElement === control,
+                hit: dialog.contains(root.elementFromPoint(
+                  box.left + box.width / 2,
+                  box.top + box.height / 2,
+                )),
+              };
+            }"""
+        )
+        assert shadow_state == {
+            "visibility": "hidden",
+            "opacity": "0",
+            "focused": False,
+            "hit": False,
+        }, f"authored shadow top-layer content escaped before replay: {shadow_state}"
+        shadow_popover = page.evaluate(
+            """() => {
+              const root = document.querySelector('#shadowed').shadowRoot;
+              const popover = root.querySelector('#shadow-stale-popover');
+              const box = popover.getBoundingClientRect();
+              return {
+                visibility: getComputedStyle(popover).visibility,
+                opacity: getComputedStyle(popover).opacity,
+                hit: popover.contains(root.elementFromPoint(
+                  box.left + box.width / 2,
+                  box.top + box.height / 2,
+                )),
+              };
+            }"""
+        )
+        assert shadow_popover == {
+            "visibility": "hidden",
+            "opacity": "0",
+            "hit": False,
+        }, f"authored shadow popover escaped before replay: {shadow_popover}"
+        assert page.locator("#stale-dialog").evaluate(
+            "dialog => dialog.open && !dialog.matches(':modal')"
+        ), "the held light dialog became modal before replay"
+        assert page.evaluate(
+            """() => {
+              const dialog = document.querySelector('#shadowed').shadowRoot
+                .querySelector('#shadow-stale-dialog');
+              return dialog.open && !dialog.matches(':modal');
+            }"""
+        ), "the held shadow dialog became modal before replay"
+        assert page.evaluate(
+            """() => {
+              const dialog = document.querySelector('#shadowed').shadowRoot
+                .querySelector('#shadow-final-nonmodal');
+              return dialog.open && !dialog.matches(':modal');
+            }"""
+        ), "the widget's final non-modal state did not stand before replay"
+        assert page.get_by_role("button", name=re.compile("^Comments")).evaluate(
+            "button => { button.focus(); return document.activeElement === button; }"
+        ), "a held authored modal disabled the usable Comments chrome"
+        page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-stale-popover').hidePopover()"
+        )
+        assert all("Applying current decisions" in frame["note"] for frame in frames), (
+            f"the boundary replaced the page with no useful visible state: {frames}"
+        )
+        painted = [i for i, frame in enumerate(frames) if frame["waitingPainted"]]
+        assert painted, f"the waiting explanation was never painted: {frames}"
+        assert painted == list(range(painted[0], len(frames))), (
+            f"the waiting explanation disappeared while replay was still held: {frames}"
+        )
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(page.locator("#sug lf-old")).to_be_hidden()
+        assert not page.locator("#stale-dialog").evaluate(
+            "dialog => dialog.open || dialog.matches(':modal')"
+        ), "replay retired a dialog but presentation promoted it anyway"
+        assert page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-stale-dialog').matches(':modal')"
+        ), "a still-current deferred dialog was not promoted after replay"
+        assert page.evaluate(
+            """() => {
+              const dialog = document.querySelector('#shadowed').shadowRoot
+                .querySelector('#shadow-final-nonmodal');
+              return dialog.open && !dialog.matches(':modal');
+            }"""
+        ), "a dialog whose final state was non-modal was promoted after replay"
+        page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-stale-dialog').close()"
+        )
+        assert page.evaluate("() => window.__lfPresentation.releases") == 1
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, serve):
+    """Restored runtime chrome may not publish authored asks as current log state.
+
+    The board was open on the prior visit and the log has since accepted its one
+    suggestion. Holding the first replay makes the dangerous interval deterministic:
+    discussion stays available, but the stale count, row, and bulk action stay withheld.
+    Once replay presents the page, the restored board paints the accepted state directly.
+    """
+    url = serve(SHORT_SUGGESTION)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    priming = context.new_page()
+    priming.goto(url, wait_until="load")
+    priming.wait_for_function(BOTH_STAMPS)
+    priming.evaluate("localStorage.setItem('lf-board-up', 'asks')")
+    priming.close()
+
+    held = []
+    page = context.new_page()
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        assert held, "the positive control did not hold the first state response"
+        expect(page.locator(".lf-asks")).to_be_hidden()
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(page.locator(".lf-answer-all")).to_be_hidden()
+
+        comments = page.get_by_role("button", name=re.compile("^Comments"))
+        expect(comments).to_be_enabled()
+        comments.click()
+        expect(page.locator(".lf-general textarea")).to_be_editable()
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+        expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
+        expect(page.locator(".lf-asks-panel")).to_be_visible()
+        expect(page.locator("button.lf-asks-row")).to_have_count(0)
+        expect(page.locator(".lf-answer-all")).to_be_hidden()
+        assert errors == []
+    finally:
+        context.close()
+
+
+def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
+    """Receiving state is not readiness while its message renderer is still loading."""
+    url = serve(SHORT_SUGGESTION)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "text": "A preloaded **comment**",
+        },
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/vendor/marked.esm.js"):
+            page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the Markdown renderer"
+
+        page.get_by_role("button", name=re.compile("^Comments")).click()
+        expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+        expect(page.locator(".lf-thread")).to_have_count(0)
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator(".lf-empty")).to_have_count(0)
+        expect(page.locator(".lf-thread")).to_have_count(1)
+        expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
+    """Presentation waits for an answer, not necessarily state.
+
+    When the first poll cannot reach the server there is no log to apply, so the honest
+    page is the authored one under an offline banner. It must be visible rather than
+    stranded behind the replay boundary, and the one failed answer releases it once."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(FIRST_PRESENTATION)
+    page.route("**/api/state*", refuse)
+    try:
+        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        page.wait_for_function(
+            "() => document.body.dataset.lfUpgraded === '1'"
+            " && document.body.dataset.lfPresented === '1'"
+        )
+        expect(page.locator("main")).to_be_visible()
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Server offline — comments won't send"
+        )
+        assert page.locator("body").get_attribute("data-lf-applied") is None
+        assert page.evaluate("() => window.__lfPresentation.releases") == 1
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
+    """A useful wait must not become a one-frame flash when there is no wait.
+
+    The held first-poll test above proves that the waiting surface is a real useful
+    screen. This takes its pixels as a reference, then records Chrome's actual compositor
+    frames while the same local page opens and reloads with an immediate successful
+    answer. Neither navigation may paint Leaf's held screen on its way to the ready page.
+    Playwright disables Chrome's PaintHolding, so its reload may still contribute a blank
+    platform frame; that is not a Leaf surface this runtime can remove. A DOM sample or a
+    duration would only say the wait was paintable; the screencast says whether the
+    reader's display was actually given its contentful pixels."""
+    import base64
+
+    from PIL import Image
+
+    # The banner carries changing connection text and controls; the center of the page
+    # is the stable region where Leaf's waiting explanation either did or did not reach
+    # the compositor. Cropping both screenshots and screencast frames to that same region
+    # makes exact pixels evidence about the surface under test rather than chrome churn.
+    content_crop = (240, 140, 960, 800)
+
+    def pixels(raw):
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        return image.crop(content_crop).tobytes()
+
+    def compositor_frames(page, navigate, ready):
+        cdp = page.context.new_cdp_session(page)
+        encoded = []
+
+        def record(event):
+            encoded.append(event["data"])
+            cdp.send("Page.screencastFrameAck", {"sessionId": event["sessionId"]})
+
+        cdp.on("Page.screencastFrame", record)
+        cdp.send(
+            "Page.startScreencast",
+            {"format": "png", "quality": 100, "everyNthFrame": 1},
+        )
+        navigate()
+        ready()
+        page.evaluate(
+            "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+        )
+        cdp.send("Page.stopScreencast")
+        assert encoded, "the compositor-frame positive control recorded nothing"
+        return [pixels(base64.b64decode(frame)) for frame in encoded]
+
+    delay_waiting_surface = """
+      const setDelay = () => {
+        if (!document.documentElement) return false;
+        document.documentElement.style.setProperty('--lf-presentation-delay', '2s');
+        return true;
+      };
+      if (!setDelay()) {
+        const delayObserver = new MutationObserver(() => {
+          if (setDelay()) delayObserver.disconnect();
+        });
+        delayObserver.observe(document, {childList: true});
+      }
+    """
+
+    url = serve(SHORT_SUGGESTION)
+    held = []
+    waiting = browser.new_page(viewport={"width": 1200, "height": 900})
+    waiting.route("**/api/state*", lambda route: held.append(route))
+
+    def wait_until_loader_is_painted():
+        waiting.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        waiting.wait_for_function(
+            """() => document.getAnimations().some(animation =>
+              animation.animationName === 'lf-presentation-wait'
+              && animation.playState === 'finished'
+            )"""
+        )
+
+    held_frames = compositor_frames(
+        waiting,
+        lambda: waiting.goto(url, wait_until="load"),
+        wait_until_loader_is_painted,
+    )
+    assert held, "the reference page never held the first state response"
+    assert "Applying current decisions" in waiting.evaluate(
+        "() => getComputedStyle(document.body, '::after').content"
+    )
+    waiting_pixels = pixels(waiting.screenshot())
+    assert waiting_pixels in held_frames, (
+        "the stable-content compositor detector missed a waiting surface held on screen"
+    )
+    held.pop(0).continue_()
+    waiting.wait_for_function(BOTH_STAMPS)
+    waiting.close()
+
+    fresh = browser.new_page(viewport={"width": 1200, "height": 900})
+    fresh.add_init_script(delay_waiting_surface)
+    fresh_frames = compositor_frames(
+        fresh,
+        lambda: fresh.goto(url, wait_until="load"),
+        lambda: fresh.wait_for_function(BOTH_STAMPS),
+    )
+    fresh.close()
+
+    reloaded = browser.new_page(viewport={"width": 1200, "height": 900})
+    reloaded.add_init_script(delay_waiting_surface)
+    reloaded.goto(url, wait_until="load")
+    reloaded.wait_for_function(BOTH_STAMPS)
+    reload_frames = compositor_frames(
+        reloaded,
+        lambda: reloaded.reload(wait_until="load"),
+        lambda: reloaded.wait_for_function(BOTH_STAMPS),
+    )
+    reloaded.close()
+
+    failures = []
+    if waiting_pixels in fresh_frames:
+        failures.append("fresh open painted Leaf's waiting surface")
+    if waiting_pixels in reload_frames:
+        failures.append("reload painted Leaf's waiting surface")
+    assert not failures, "; ".join(failures)
+
+
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
+    browser, serve, reduced_motion
+):
+    """The delayed wait is real pixels, and once paid for it cannot become a flash.
+
+    A paused CSS timeline makes both sides of the paint threshold observable without a
+    race against module load or screenshot speed. When the held response reaches fetch,
+    the probe starts a fresh dwell interval in that same browser task. The presentation
+    mutation must land beyond it, with response receipt before it as the positive control
+    that a missing release-time wait could not pass vacuously."""
+    from PIL import Image, ImageChops
+
+    held = []
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion=reduced_motion
+    )
+    page = context.new_page()
+    errors = watched(page)
+    page.add_init_script(
+        """
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = async (...args) => {
+          const response = await nativeFetch(...args);
+          const input = args[0];
+          const url = typeof input === 'string' ? input : input.url;
+          if (new URL(url, location.href).pathname !== '/api/state'
+              || window.__lfReplayReceivedAt !== undefined) return response;
+
+          const wait = document.getAnimations()
+            .find(a => a.animationName === 'lf-presentation-wait');
+          const timing = wait.effect.getTiming();
+          wait.currentTime = timing.delay + timing.duration;
+          const current = Number(wait.currentTime);
+          const dwell = Number(getComputedStyle(document.documentElement)
+            .getPropertyValue('--lf-presentation-dwell').replace('ms', ''));
+          window.__lfReplayReceivedAt = document.timeline.currentTime;
+          window.__lfEarliestPresentation =
+            window.__lfReplayReceivedAt - current + timing.delay + dwell;
+          window.__lfPresentationAt = null;
+          new MutationObserver((changes, observer) => {
+            if (!document.body.hasAttribute('data-lf-presented')) return;
+            window.__lfPresentationAt = document.timeline.currentTime;
+            observer.disconnect();
+          }).observe(document.body, {
+            attributes: true,
+            attributeFilter: ['data-lf-presented'],
+          });
+          return response;
+        };
+        """
+    )
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.evaluate(
+            """async () => {
+              const wait = document.getAnimations()
+                .find(a => a.animationName === 'lf-presentation-wait');
+              wait.pause();
+              await wait.ready;
+              wait.currentTime = 0;
+            }"""
+        )
+        before = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        assert (
+            page.evaluate(
+                "() => Number(getComputedStyle(document.body, '::after').opacity)"
+            )
+            == 0
+        ), "the waiting explanation painted before its threshold"
+
+        page.evaluate(
+            """() => {
+              const wait = document.getAnimations()
+                .find(a => a.animationName === 'lf-presentation-wait');
+              const timing = wait.effect.getTiming();
+              wait.currentTime = timing.delay + timing.duration;
+            }"""
+        )
+        assert (
+            page.evaluate(
+                "() => Number(getComputedStyle(document.body, '::after').opacity)"
+            )
+            == 1
+        ), "the waiting explanation did not paint beyond its threshold"
+        after = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        changed = ImageChops.difference(before, after)
+        assert changed.getbbox() is not None, (
+            "the computed waiting state changed without painting any pixels"
+        )
+        assert (
+            sum(pixel != (0, 0, 0) for pixel in changed.get_flattened_data()) > 100
+        ), "the waiting surface did not paint enough pixels to be a useful explanation"
+        assert held, "the positive control did not hold the first state response"
+        held.pop(0).continue_()
+        page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+        release = page.evaluate(
+            """() => [
+              window.__lfPresentationAt,
+              window.__lfEarliestPresentation,
+              window.__lfReplayReceivedAt,
+            ]"""
+        )
+        assert release[2] < release[1], (
+            "the held response arrived after the dwell boundary, so the release-time "
+            f"wait was not exercised: response at {release[2]:.1f}, "
+            f"boundary at {release[1]:.1f}"
+        )
+        assert release[0] + 1 >= release[1], (
+            "the ready page cut off a waiting explanation before its CSS dwell ended: "
+            f"presentation at {release[0]:.1f}, earliest {release[1]:.1f}"
+        )
+        assert errors == []
+    finally:
+        context.close()
+
+
+def test_a_startup_failure_never_presents_unapplied_authored_state(browser, serve):
+    """A failed runtime may explain itself; it may not present a state it never read.
+
+    A decision already stands in the log, then the registry fails after leaf.js has
+    evaluated and taken responsibility for presentation. The reader must receive a
+    fixed explanation rather than the authored alternatives underneath it: those words
+    predate the decision, and showing them as the live page would be a false answer."""
+    url = serve(SHORT_SUGGESTION)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/registry.json",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body="{}"
+        ),
+    )
+    try:
+        with page.expect_console_message(
+            predicate=lambda message: "page failed to start" in message.text
+        ):
+            page.goto(url, wait_until="load")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+
+        explanation = page.evaluate("""() => {
+            const pseudo = getComputedStyle(document.body, '::after');
+            const fixed = pseudo.visibility !== 'hidden'
+              && Number(pseudo.opacity) > 0
+              && !['none', 'normal', ''].includes(pseudo.content);
+            const named = [...document.body.querySelectorAll('*')].some(el =>
+              el.checkVisibility({visibilityProperty: true})
+              && /failed|offline|unavailable|reload/i.test(el.textContent));
+            return fixed || named;
+        }""")
+        assert explanation, "startup failed into a blank page with no recourse"
+        assert not page.locator("#sug lf-old").is_visible(), (
+            "startup failed before the log was read, but the authored alternative was "
+            "presented as though it were the reader's current decision"
+        )
+    finally:
+        page.close()
+
+
+def test_a_malformed_first_state_never_presents_unapplied_authored_state(
+    browser, serve
+):
+    """A successful response that cannot be replayed must retain the safety gate."""
+    url = serve(
+        SHORT_SUGGESTION.replace(
+            "</title>", '</title><meta name="lf-review" content="sign-off">', 1
+        )
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/api/state*",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body="not-json"
+        ),
+    )
+    try:
+        with page.expect_console_message(
+            predicate=lambda message: "poll failed" in message.text
+        ):
+            page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Page couldn't apply current state — reload"
+        )
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
+        assert not page.locator("#sug lf-old").is_visible(), (
+            "state processing failed before replay, but authored state was presented"
+        )
+        expect(page.locator(".lf-signoff")).to_be_disabled()
+    finally:
+        page.close()
+
+
+def test_a_root_module_failure_leaves_visible_recovery(browser, serve):
+    """The CSS boundary takes responsibility before the root module evaluates.
+
+    If that module itself throws, no runtime code exists to report the failure. The
+    stylesheet must still keep authored decisions withheld and paint its fixed recovery
+    message, so the safety boundary cannot turn a broken import into a blank page.
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    failures = []
+    page.on("pageerror", lambda error: failures.append(error))
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="throw new Error('root module failed')",
+        ),
+    )
+    try:
+        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        assert failures and "root module failed" in str(failures[0])
+        page.wait_for_function(
+            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+        )
+        recovery = page.evaluate(
+            "() => getComputedStyle(document.body, '::after').content"
+        )
+        assert "Applying current decisions" in recovery and "reload" in recovery
+        assert (
+            page.locator("main").evaluate(
+                "element => getComputedStyle(element).opacity"
+            )
+            == "0"
+        )
+    finally:
+        page.close()
 
 
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
@@ -18442,6 +23571,41 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     page.close()
 
 
+def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
+    """A poll may finish while Sortable owns real page nodes. Reconciliation leaves
+    the whole page alone until the pointer releases them, then paints the same logged
+    edit on the next pass."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    grip = page.locator("#card-x .lf-grip").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
+    expect(page.locator(".lf-dragging")).to_have_count(1)
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "draft-ops",
+            "action": "edit",
+            "detail": {"text": "Foreign words held behind the drag."},
+        },
+    )
+    told(page)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(DRAFT_TEXT)
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
+
+    page.mouse.up()
+    told(page)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
+        "Foreign words held behind the drag."
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     """A pure state change has no text of its own, so the content diff was blind
     to it: a card in a new column read as nothing changed. The state half
@@ -18512,12 +23676,85 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page.close()
 
 
+def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
+    """The panel reports where the question currently stands, not that it was once
+    answered. A second tab can reject a suggestion the first has already accepted —
+    the controls are gone in the tab that decided, not in the one that hasn't
+    polled — and the reader who turned the fix down would otherwise find their
+    question filed away as answered by it, while the suggestion beside it read as
+    rejected. Both readings come off the same log; here is where they have to
+    agree in front of the reader.
+
+    Then the same rule read the other way: `z` takes the reject back, the accept it
+    superseded is the widget's answer once more, and the thread closes under it. The
+    two ways an answer stops standing compose, and nothing is written down to say so:
+    an `unresolve` posted where the thread reopened would be a second record of the
+    same fact, and taking the reject back would leave it standing against the accept."""
+    url = serve(
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
+    )
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "version": 1,
+            "text": "does this take downtime?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+
+    # What the other tab's press leaves in the log, made against the same version:
+    # its own accept and reject controls are still standing, because it has not
+    # heard about this one's decision yet.
+    interact.append_event(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-fix",
+            "action": "reject",
+            "detail": {},
+        },
+    )
+    told(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
+    expect(page.locator(".lf-details")).to_have_count(0)
+    reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
+    expect(reopened.locator(".lf-resolve")).to_have_count(1)
+
+    # Offered here because the log says the reader made the reject; which tab they
+    # were in is not something the log records, and not something a withdrawal
+    # could turn on. The widget goes back to the markup and the surviving log is
+    # replayed onto it, so what the press restores is the accept, not a blank slate.
+    undo(page)
+    expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
+    expect(reopened).to_have_count(0)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    # What the log holds is the three gestures and not one word about the thread:
+    # it was reopened and closed again by that log being read.
+    assert [
+        e.get("action", e["kind"])
+        for e in interact.read_events(d)
+        if e["kind"] in ("action", "undo", "resolve", "unresolve")
+    ] == ["accept", "reject", "undo"]
+    assert errors == []
+    page.close()
+
+
 def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
     """The chrome is wired before the asynchronous registry fetch completes.
-    That interval is real state, not a missing-registry fallback: general
-    Comments remains usable, but an anchored comment waits until upgrades have
-    made the page's final words. The explicit gate proves each assertion runs on
-    the intended side of the fetch rather than racing a timer."""
+    That interval is real state, not a missing-registry fallback: general Comments
+    accepts a send but holds it until the layer identity arrives, while an anchored
+    comment waits until upgrades have made the page's final words. The explicit gate
+    proves each assertion runs on the intended side of the fetch rather than racing a
+    timer."""
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
       window.lfRegistryGate = new Promise(resolve => window.lfReleaseRegistry = resolve);
@@ -18551,23 +23788,40 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
         upgraded=False,
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+    )
+    expect(page.locator("body > main")).to_be_hidden()
+    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile("^Comments"))).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
     page.get_by_role("button", name=re.compile("^Comments")).click()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+    expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
-    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
-    page.locator("#gate-milestone").select_text()
-    page.keyboard.press("c")
+    # Authored content is deliberately not selectable until replay can make it honest.
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")
+    expect(page.locator(".lf-thread")).to_have_count(2)
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+    words = page.locator("#gate-milestone strong").bounding_box()
+    assert words, "the upgraded milestone never produced selectable words"
+    y = words["y"] + words["height"] / 2
+    select(
+        page,
+        (words["x"] + 2, y),
+        (words["x"] + words["width"] - 2, y),
+    )
     expect(page.locator(".lf-fab")).to_be_visible()
     page.locator(".lf-fab").click()
     page.locator(".lf-composer textarea").fill("Still anchored?")
@@ -18580,8 +23834,8 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
 
 
 def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
-    """A post-triggered poll and the timer can overlap. The append-only event
-    sequence makes an older response unambiguously stale."""
+    """Timer polls can overlap when one response is delayed. The append-only event
+    sequence makes the older response unambiguously stale."""
     delay_second_state = """
       const nativeFetch = window.fetch.bind(window);
       let stateCalls = 0;
@@ -18637,6 +23891,58 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     page.close()
 
 
+def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
+    """Sequence order is judged again after the lazy Markdown import. A newer POST
+    response can enter that await before an older held poll; when the shared import
+    finishes, the older continuation must not repaint the log backwards."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    panel_settled(page)
+
+    older = []
+
+    def hold_older_state(route):
+        if older:
+            refuse(route)
+            return
+        older.append(route)
+
+    page.route("**/api/state*", hold_older_state)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Older **snapshot**",
+        },
+    )
+    with page.expect_request("**/api/state"):
+        pass
+    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    assert len(older) == 1
+    old_route = older[0]
+    old_state = old_route.fetch().json()
+
+    marked = []
+    page.route("**/vendor/marked.esm.js", lambda route: marked.append(route))
+    page.locator(".lf-general textarea").fill("Newest **snapshot**")
+    with page.expect_request("**/vendor/marked.esm.js"):
+        page.locator(".lf-general button").click()
+    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    assert len(marked) == 1
+
+    old_route.fulfill(json=old_state)
+    page.title()  # let the old response join the shared import before releasing it
+    marked[0].continue_()
+    page.unroute("**/vendor/marked.esm.js")
+
+    expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
+    expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
     """Open or closed is state with one writer now — it was three writers and
     two classList read-backs, the exact shape the first norm forbids.
@@ -18684,25 +23990,15 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
 
 @contextmanager
 def live_watcher(page_dir, page):
-    """Bump heartbeat.json for the duration of the block, as `leaf wait` does.
-
-    Both ends wait for the poll that carries them, so the assertions on either side
-    read a page that has already been told a watcher arrived or left. The first beat
-    is written here rather than in the thread, so that wait cannot outrun it."""
-    stop = threading.Event()
-
-    def pump():
-        while not stop.wait(0.5):
-            interact.write_json(page_dir / "heartbeat.json", {"t": time.time()})
-
-    interact.write_json(page_dir / "heartbeat.json", {"t": time.time()})
-    threading.Thread(target=pump, daemon=True).start()
+    """Hold the exact lease `leaf wait` uses for the duration of the block."""
+    session = interact.page_claim(page_dir)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(page_dir, session))
+    assert lease
     told(page)
     try:
         yield
     finally:
-        stop.set()
-        (page_dir / "heartbeat.json").unlink(missing_ok=True)
+        lease.close()
     # Outside the finally: a block that raised has its own failure to report, and
     # nothing after it to wait for.
     told(page)
@@ -18745,17 +24041,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         if handoff:
             status["handoff"] = True
         if claimed:
-            interact.write_json(
-                d / "session.json",
-                {
-                    "id": "s",
-                    "pid": session_pid or os.getpid(),
-                    "agent": agent,
-                    "ts": "t",
-                },
-            )
+            record_claim(d, pid=session_pid or os.getpid(), agent=agent)
         else:
-            (d / "session.json").unlink(missing_ok=True)
+            interact.claim_path(d).unlink(missing_ok=True)
         interact.write_json(d / "status.json", status)
         told(page)
 
@@ -18770,11 +24058,23 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text("Claude awaits — select text to comment")
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
-        # A working claim gone quiet under a live watcher lands in this same branch,
-        # and its detail says what the agent was doing — the wrong half of the loop to
-        # read out after "awaits", so only a waiting claim's detail speaks here.
+        # A claim of work that has gone quiet is still a claim of work, and a live
+        # watcher does not turn it into one. This read "Claude awaits — select text to
+        # comment" once, which invited the reader to start something on a page already
+        # mid-answer and dropped the only news it had: a delegate had been holding the
+        # question for twenty minutes and nothing on the page said so. The words are
+        # the ones the branch with no watcher uses for the same silence, minus its
+        # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
-        expect(text).to_have_text("Claude awaits — select text to comment")
+        expect(text).to_have_text(
+            "Claude last checked in 20m ago: revising the plan. 1 update waiting."
+        )
+        expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        # And with no detail it is the bare silence, which is the same sentence with
+        # nothing to say after the colon rather than a second wording for it.
+        declare("working", quiet_for=20 * 60)
+        expect(text).to_have_text("Claude last checked in 20m ago. 1 update waiting.")
 
         # What the page wants back, in the agent's words, where the reader arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
@@ -18824,6 +24124,117 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     declare("idle")
     expect(text).to_have_text("Leaf closed")
+    page.close()
+
+
+def test_a_thread_says_what_the_agent_is_doing_about_it(
+    browser, serve, tmp_path, dead_pid
+):
+    """The banner says what the agent is doing; a note says which of the reader's
+    questions it is doing it about. Both are one claim written by one command
+    (`leaf status … --on`), which is what makes a delegate's check-in keep the page's
+    line true as well as its own thread's.
+
+    A reader with three questions open and no replies under any of them cannot tell a
+    question being worked from a question nobody has looked at, and the page holds the
+    answer: the agent said so. What the log holds is what happened, so this is not in
+    it — a sentence somebody rewrites every few minutes is a claim, and it is painted
+    as provisional news rather than as a message, because the answer is still owed.
+
+    Nothing writes a note off. Answering is what ends the work, so the agent's own next
+    word in the thread settles it, and a second act saying so would be a second writer
+    for one fact."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    d = tmp_path / "page"
+    comments = [e for e in interact.read_events(d) if e["kind"] == "comment"]
+    held, other = comments[0]["id"], comments[1]["id"]
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    note = page.locator(".lf-thread-note")
+    expect(note).to_have_count(0)
+
+    def status(*args):
+        assert (
+            CliRunner().invoke(interact.cli, ["status", str(d), *args]).exit_code == 0
+        )
+        told(page)
+
+    status("working", "reading the reconnect traces", "--on", held)
+    # One note, on the thread it names: a mark that stood on every open thread would
+    # say only that the agent is busy, which the banner above already says.
+    expect(note).to_have_count(1)
+    expect(note).to_have_text(
+        re.compile(r"^Claude is on this — reading the reconnect traces\s*just now$")
+    )
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-thread-note')).to_have_count(
+        1
+    )
+    expect(
+        page.locator(f'.lf-thread[data-id="{other}"] .lf-thread-note')
+    ).to_have_count(0)
+    # Under the words that asked and above the box that answers, so it reads in the
+    # thread's own order: what you said, what has been said back, what is being done.
+    assert page.evaluate(
+        f"""() => {{
+        const thread = document.querySelector('.lf-thread[data-id="{held}"]');
+        const kids = [...thread.children].map((el) => el.className);
+        return kids.indexOf('lf-thread-note') > kids.lastIndexOf('lf-msg user')
+            && kids.indexOf('lf-thread-note') < kids.indexOf('lf-compose');
+    }}"""
+    ), "the note is not between the thread's last message and its reply box"
+
+    # A later claim about the page as a whole is not an answer to the thread, so the
+    # note stands: the two seats are one claim, and only one of them has been rewritten.
+    status("working", "drafting v2")
+    expect(page.locator(".lf-status-text")).to_have_text(
+        re.compile(r"^Claude is working — drafting v2")
+    )
+    expect(note).to_have_count(1)
+    expect(note).to_contain_text("reading the reconnect traces")
+
+    # The answer is what ends it.
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": held,
+            "version": 1,
+            "text": "The traces say it is the vendor's timer, not ours.",
+        },
+    )
+    told(page)
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.claude')).to_have_count(
+        1
+    )
+    expect(note).to_have_count(0)
+
+    # And a note the agent renews after answering stands again: it is on the thread
+    # a second time, which is a fact about now rather than about what was said.
+    status("working", "re-running it against the rolling deploy", "--on", held)
+    expect(note).to_have_count(1)
+
+    # A conversation the reader has closed asks nothing and shows nothing, for the same
+    # reason its reply box is gone.
+    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    told(page)
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(note).to_have_count(0)
+
+    # And a note goes with the claim it is part of. The banner drops a claim nothing
+    # is behind rather than repeating it, and a note that outlived that judgment would
+    # sit under a line saying no session holds the page, the two halves of one claim
+    # arguing about it.
+    interact.append_event(d, {"kind": "unresolve", "author": "user", "parent": held})
+    told(page)
+    expect(note).to_have_count(1)
+    record_claim(d, pid=dead_pid)
+    told(page)
+    expect(page.locator(".lf-status-text")).to_have_text(
+        re.compile(r"^No session holds this page\.")
+    )
+    expect(note).to_have_count(0)
+    assert errors == []
     page.close()
 
 
@@ -18908,13 +24319,12 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
     # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
     # in the tab, which is the whole of what the reader can see of it from a tab strip.
-    interact.write_json(
-        d / "session.json", {"id": "s", "pid": dead_pid, "agent": "Claude", "ts": "t"}
-    )
+    record_claim(d, pid=dead_pid)
     unheld = tone("", "unheld")
-    assert unheld not in (working, awaits), (
-        f"a page nothing holds wears a tab claiming a session ({unheld})"
-    )
+    assert unheld not in (
+        working,
+        awaits,
+    ), f"a page nothing holds wears a tab claiming a session ({unheld})"
 
     # And the mark itself is an image the browser will render, which is the one thing
     # a string comparison above cannot say: an SVG this file mangles decodes to nothing
@@ -19095,25 +24505,15 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     page.close()
 
 
-TWIN_V1 = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>twin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+TWIN_V1 = leaf_page(
+    "twin",
+    """
 <h1 id="t">Twin</h1>
 <section id="twin">
 <p id="p-original">Cache warmup runs first. The version stamp never lands. Retries are capped at three.</p>
 </section>
-</main>
-</body>
-</html>
-"""
+""",
+)
 # A copy the anchor was not made on, added above it — so first-match now finds the wrong
 # one, and only the neighbours the capture stored say which was meant.
 TWIN_V2 = TWIN_V1.replace(
@@ -19187,10 +24587,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         .exit_code
         == 0
     )
-    interact.write_json(
-        d / "session.json",
-        {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
-    )
+    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-comments")
@@ -19227,10 +24624,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
             "text": "which host answers?",
         },
     )
-    interact.write_json(
-        d / "session.json",
-        {"id": "claude", "pid": os.getpid(), "agent": "Claude", "ts": "t"},
-    )
+    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 
@@ -19250,17 +24644,9 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
     page.close()
 
 
-PICTURE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>pictures</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+PICTURE_PAGE = leaf_page(
+    "pictures",
+    """
 <h1 id="t">Pictures</h1>
 <p id="p">Two renderings, neither of them the page's own words.</p>
 <lf-diagram id="flow"><pre>
@@ -19271,10 +24657,8 @@ graph LR
 feeders/
   mount.py  +2 -2
 </pre></lf-tree>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
@@ -19315,17 +24699,9 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
 # against 720 — and a board beside it, so what the assertions turn on is which kind each
 # widget declares rather than that both are widgets.
-WIDE_DIAGRAM_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>wide diagram</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_DIAGRAM_PAGE = leaf_page(
+    "wide diagram",
+    """
 <h1 id="t">Flow</h1>
 <lf-diagram id="flow"><pre>
 graph LR
@@ -19341,10 +24717,8 @@ graph LR
   <lf-column id="d2" label="Doing"></lf-column>
   <lf-column id="d3" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
@@ -19453,27 +24827,17 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 # first line is the length a real source has, because that line is what the box under
 # test is floored at: written short, this page passed the assertion below with the rule
 # it stands on deleted.
-BROKEN_DIAGRAM_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>broken diagram</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+BROKEN_DIAGRAM_PAGE = leaf_page(
+    "broken diagram",
+    """
 <h1 id="t">Broken</h1>
 <lf-diagram id="bad"><pre>
 sequenceDiagram
   Reader-&gt;&gt;Server: POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater"}}
   Server--&gt;&gt;&gt;--- {{{ not mermaid at all ]]]
 </pre></lf-diagram>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
@@ -19559,17 +24923,9 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
 # A margin with the page's own apparatus in it, and drawings either side of what the free
 # margin can hold. A rail is what most shipped pages that carry a wide widget also carry,
 # so this is the ordinary case rather than a corner.
-DIAGRAM_AND_RAIL_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>diagram and rail</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+DIAGRAM_AND_RAIL_PAGE = leaf_page(
+    "diagram and rail",
+    """
 <h1 id="t">Sessions</h1>
 <lf-suggestion id="sug-copy">
   <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
@@ -19590,10 +24946,8 @@ graph LR
   F --> H
   C -->|no| L[login]
 </pre></lf-diagram>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # Where each drawing sits against the column it explains and the controls it must not
 # reach. The axis is the column's, because that is the line the prose is centred on and
@@ -19684,17 +25038,9 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
 # A widget that declares width beside one that doesn't, so what the assertions turn on is
 # the declaration and not the tag: both are widgets, both hold more than the column shows
 # comfortably, and only one of them is entitled to more of the window than the prose gets.
-WIDE_AND_NARROW_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>room</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+WIDE_AND_NARROW_PAGE = leaf_page(
+    "room",
+    """
 <h1 id="t">Release</h1>
 <p id="prose">The board is as wide as its columns are; this sentence is not.</p>
 <lf-board id="sprint">
@@ -19716,10 +25062,8 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # main's content box, body's, and where three elements stand in them. Read together in
 # one pass because the whole subject is their relation: a width means nothing here except
@@ -19814,17 +25158,9 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 # the case the theme cannot name: it draws its box in the page's own style and declares
 # the frame there, which is the whole of what a project writes to hold an exhibit inside
 # its own card.
-FRAMED_WIDE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>framed</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+FRAMED_WIDE_PAGE = leaf_page(
+    "framed",
+    """
 <h1 id="t">Framed</h1>
 <section id="loose">
   <lf-board id="in-section">
@@ -19913,10 +25249,8 @@ graph LR
   B --> C[worker]
 </pre></lf-diagram>
 </div>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # A box of the page's own that both draws and scrolls, holding a wide widget. The theme
 # has no rule for a project's box and cannot, so what stands between it and a page drawn
@@ -19934,17 +25268,9 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 # A page that reserves the margin rail and stands a wide widget in the flow beside it —
 # the pair no shipped example had until ship-review, and the pair the room has to be
 # measured after rather than before.
-RAIL_AND_WIDE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>rail</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+RAIL_AND_WIDE_PAGE = leaf_page(
+    "rail",
+    """
 <h1 id="t">Release</h1>
 <lf-suggestion id="sug-copy">
   <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
@@ -19955,10 +25281,8 @@ RAIL_AND_WIDE_PAGE = """<!doctype html>
   <lf-column id="r2" label="Doing"></lf-column>
   <lf-column id="r3" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 
 # How far the exhibit stands outside the page's own box, and the rail it was supposed to
@@ -20197,16 +25521,9 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     page.close()
 
 
-LATE_MARGIN_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>late margin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-</head>
-<body>
-<main>
+LATE_MARGIN_PAGE = leaf_page(
+    "late margin",
+    """
 <h1 id="t">Release</h1>
 <lf-callout id="marginal"><strong>Note</strong> Its controls hang in the margin.</lf-callout>
 <lf-board id="plan">
@@ -20214,11 +25531,8 @@ LATE_MARGIN_PAGE = """<!doctype html>
   <lf-column id="r2" label="Doing"></lf-column>
   <lf-column id="r3" label="Done"></lf-column>
 </lf-board>
-</main>
-<script type="module" src="/leaf.js"></script>
-</body>
-</html>
-"""
+""",
+)
 
 # A widget that hangs its controls in the page margin, and can only say how wide a margin
 # once it has heard what they will say — so the claim rides an answer rather than the
@@ -20467,7 +25781,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name="Comments", exact=False).click()
+    page.locator(".lf-comments").click()
     panel_settled(page)
     expect(page.locator("#fallback-flow svg")).to_be_visible()
 
@@ -20717,6 +26031,12 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     own, from a viewport that is honest there: a file has no comment panel to yield a
     strip to.
 
+    The width that panel stands at is stated on the root by the same hand, and goes the
+    same way — not because a copy reads it, having no panel, but because both numbers
+    belong to a window and a reader that are not this file's. The reading asks for the
+    root's whole style rather than for either name, so the day a third number is stated
+    there is the day this says so.
+
     Both windows, because that estimate is the half that can be wrong in either
     direction, and it was: reading 96px off the viewport puts it under the true room on a
     narrow window, and the first draft of this stood every copied board 24px inside the
@@ -20730,9 +26050,11 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    assert "--lf-room" not in page.evaluate(
-        "() => document.documentElement.getAttribute('style') ?? ''"
-    ), "the copy carries this window's measurement into every window it is opened in"
+    stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
+    assert stated.strip() == "", (
+        "the copy carries this window's measurements into every window it is opened "
+        f"in: {stated}"
+    )
 
     wide = page.evaluate(ROOM_GEOMETRY)
     assert wide["board"]["width"] > wide["column"]["width"], (
@@ -20760,17 +26082,9 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
 # The two things on this page that want a margin, on one page and level with each other.
 # The note is written immediately before the board so they share a band of the page rather
 # than stacking, which is the only arrangement in which either can be over the other.
-NOTE_AND_WIDE_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>room and margin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>
-<body>
-<main>
+NOTE_AND_WIDE_PAGE = leaf_page(
+    "room and margin",
+    """
 <h1 id="t">Feeders</h1>
 <p id="prose">The board is as wide as its columns are; this sentence is not.</p>
 <aside class="sidenote" id="note">Counts are the warden's own, taken at dawn from the
@@ -20785,10 +26099,8 @@ south hide, and the perch numbers are the ones she disputes.</aside>
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-</main>
-</body>
-</html>
-"""
+""",
+)
 
 # Wide enough that the note has its strip (984px) and narrow enough that the room, not the
 # shared cap, is what decides the board's width — above about 1176px the cap binds first
@@ -20848,28 +26160,26 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     """The URL `server run` prints is the page root carrying the key, so every handover
-    arrives through the redirect to the latest version rather than at a version file.
-    Two things have to hold across that hop and only a real browser can say so: the
-    cookie is set on the redirect and sent on the request it redirects to, and it is
-    still sent once the page is polling — the runtime's own fetches are relative, and a
-    `SameSite` cookie the browser withheld from them would leave the page open and
-    frozen with no console error to show for it."""
+    reads the latest version there while keeping the live address. Two things only a
+    real browser can say have to hold: the arrival sets the cookie used by the page's
+    relative polling requests, and that cookie still admits a later query-less arrival.
+    A `SameSite` cookie withheld from either would leave the page open and frozen with
+    no console error to show for it."""
     url = serve(INLINE_PAGE)
     root = url.rsplit("/versions/", 1)[0] + f"/?t={TOKEN}"
 
     page, errors = open_page(browser, root)
 
-    expect(page).to_have_url(url.rsplit("?", 1)[0])
+    expect(page).to_have_url(root)
     expect(page.locator(".lf-banner")).to_be_visible()
     # The poll is the page's own fetch, relative and query-less: it answers only if the
     # cookie rode along.
     assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
-    # The version switcher and the latest chip leave the document by assigning
-    # location.href, which is a fresh top-level navigation carrying no query. A cookie
-    # the browser withheld from it would land the user on a refusal.
+    # A later top-level arrival carries no query. A cookie the browser withheld from it
+    # would land the user on a refusal rather than the same live page.
     page.evaluate("() => { location.href = '/' }")
-    page.wait_for_url(url.rsplit("?", 1)[0])
+    page.wait_for_url(root.rsplit("?", 1)[0])
     expect(page.locator(".lf-banner")).to_be_visible()
 
     assert errors == []

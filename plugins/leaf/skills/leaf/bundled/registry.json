@@ -20,11 +20,13 @@
     "x-state": {
       "choose": {
         "detail": {"type": "object", "properties": {"options": {"type": "array", "items": {"type": "string"}}}, "required": ["options"], "additionalProperties": false},
+        "facet": "selection",
         "unit": "widget",
         "record": {"kind": "attribute", "attr": "chosen", "value": "options"}
       },
       "answer": {
         "detail": {"type": "object", "additionalProperties": false},
+        "facet": "completion",
         "unit": "widget"
       }
     },
@@ -99,15 +101,14 @@
     "x-content": "items",
     "x-upgrade": false,
     "x-wide": "box",
-    "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\" branch=\"feeder-mounts\" doing=\"drilling the north post\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\" branch=\"baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the branch is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
+    "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\" branch=\"feeder-mounts\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\" branch=\"baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the branch is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
   },
   "lf-agent": {
-    "description": "One worker on the roster: a session, an agent, a person. Lead with a <strong> name — the one the worker reports under — and prose follows saying what this one is for, which is the half that does not change every ten minutes. Everything that does is an attribute the worker moves itself.\n\n`state` is where this worker stands: working (busy on `on`), waiting (finished, and what happens next is the reader's), blocked (stuck, and the prose or its task says on what), idle (nothing assigned), done (its part of the project is over). It is rendered as a word and not as a dot, which is the one place this widget parts company with lf-task's markers: a tree is read down its own shape, where a colour lands beside a title that already says what the work is, and a roster is read across a set of near-identical rows, where the state is the whole of what distinguishes them and a legend the reader has to hold in their head is a legend they will not. `doing` is the finer grain — one short clause naming the thing in front of it this minute, the per-worker twin of the detail `leaf status` puts in the banner for a page's one agent. `on` names the lf-task this worker holds and renders as a reference the reader can follow; `branch` is a free-text label for where its work is landing.\n\nBoth are agent-settable through one verb (x-report), which is the whole point of the widget: `leaf report <page> ag-finch state state=working doing=\"rebasing onto main\"` moves one row and nothing else, the page paints it live as provisional news, and it stands until a version absorbs or overrules it (see $report; `overruled` is the overruling version's word). A worker that reports keeps its own row true between versions, and the orchestrator's next version writes down what happened rather than what is happening.\n\nOne verb and not one per attribute, because the row is one sentence about one worker and a fold holds the last standing report *per unit*: two verbs on the same widget are two entries competing for one key, so reporting the clause would drop the standing state report — the page paints one of them as news, `version check` holds a version to one of them, and the other quietly stops existing. Both fields are required for the same reason a `state` moving alone would leave an hour-old clause standing under a new word. Only `state` is recorded, which is the other half of the shape: an enum a version can absorb or overrule is worth adjudicating, and a clause that was true for a minute is not — so the sentence moves whole and only the half a version can answer creates record debt.\n\nThe row also says when the log last heard from this worker, and that line is computed rather than authored — the newest report's own timestamp, re-read on every poll, and read past what a version has absorbed, since absorbing a report answers what the row says without hearing another word from whoever said it. It is the one fact on a hub an author cannot write down: \"12 min ago\" is true when the version publishes and a lie for every minute after, and a page whose freshness is stated in prose is at its least trustworthy exactly when the reader has been away longest. A worker claiming `working` that has said nothing for a quarter of an hour is called out on the row, on the same rope and by the same reckoning the banner gives a page's one agent — so \"gone quiet\" means one thing on the page, whoever is being judged. That rope only means anything if a working worker reports at something like that cadence, which is what the skill asks of one: silence read as a fault is a contract, not an observation.\n\nA roster row is a view and not an ask: it is deliberately not counted among the page's standing asks (see $awaits), because what a blocked worker is waiting on is its task, and a tree already asks there. Counting both would put one interruption in front of the reader twice. What the row is instead is somewhere to point: a comment anchored on it is a message about that worker, which is how a reader says \"stop, you're on the wrong file\" to one of five.",
+    "description": "One worker on the roster: a session, an agent, a person. Lead with a <strong> name — the one the worker reports under — and prose follows saying what this one is for, which is the half that does not change every ten minutes. The version carries `state`, `on`, and `branch`; the live activity clause comes only from a report.\n\n`state` is where this worker stands: working (busy on `on`), waiting (finished, and what happens next is the reader's), blocked (stuck, and the prose or its task says on what), idle (nothing assigned), done (its part of the project is over). It is rendered as a word and not as a dot, which is the one place this widget parts company with lf-task's markers: a tree is read down its own shape, where a colour lands beside a title that already says what the work is, and a roster is read across a set of near-identical rows, where the state is the whole of what distinguishes them and a legend the reader has to hold in their head is a legend they will not. `doing` is the report's finer grain — one short clause naming the thing in front of it this minute, the per-worker twin of the detail `leaf status` puts in the banner for a page's one agent. It is generated only while that report stands. `on` names the lf-task this worker holds and renders as a reference the reader can follow; `branch` is a free-text label for where its work is landing.\n\nBoth are agent-settable through one verb (x-report), which is the whole point of the widget: `leaf report <page> ag-finch state state=working doing=\"rebasing onto main\"` moves one row and nothing else, the page paints it live as provisional news, and it stands until a version absorbs or overrules it (see $report; `overruled` is the overruling version's word). A worker that reports keeps its own row true between versions, and the orchestrator's next version writes down what happened rather than what is happening.\n\nOne verb and not one per attribute, because the row is one sentence about one worker and both fields belong to its `activity` facet. A fold holds the last standing report per facet and unit; splitting this sentence across verbs on that same facet would make them compete for one coordinate, while assigning the fields different facets would falsely claim they can stand independently. Both fields are required for the same reason a `state` moving alone would leave an hour-old clause standing under a new word. Only `state` is recorded, which is the other half of the shape: an enum a version can absorb or overrule is worth adjudicating, and a clause that was true for a minute is not — so the sentence moves whole and only the half a version can answer creates record debt. When a version answers the report, the clause leaves with it.\n\nThe row also says when the log last heard from this worker, and that line is computed rather than authored — the newest report's own timestamp, re-read on every poll, and read past what a version has absorbed, since absorbing a report answers what the row says without hearing another word from whoever said it. It is the one fact on a hub an author cannot write down: \"12 min ago\" is true when the version publishes and a lie for every minute after, and a page whose freshness is stated in prose is at its least trustworthy exactly when the reader has been away longest. A worker claiming `working` that has said nothing for a quarter of an hour is called out on the row, on the same rope and by the same reckoning the banner gives a page's one agent — so \"gone quiet\" means one thing on the page, whoever is being judged. That rope only means anything if a working worker reports at something like that cadence, which is what the skill asks of one: silence read as a fault is a contract, not an observation.\n\nA roster row is a view and not an ask: it is deliberately not counted among the page's standing asks (see $awaits), because what a blocked worker is waiting on is its task, and a tree already asks there. Counting both would put one interruption in front of the reader twice. What the row is instead is somewhere to point: a comment anchored on it is a message about that worker, which is how a reader says \"stop, you're on the wrong file\" to one of five.",
     "type": "object",
     "properties": {
       "id":        {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
       "state":     {"enum": ["working", "waiting", "blocked", "idle", "done"]},
-      "doing":     {"type": "string"},
       "on":        {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
       "branch":    {"type": "string"},
       "overruled": {"type": "boolean"}
@@ -121,6 +122,7 @@
     "x-report": {
       "state": {
         "detail": {"type": "object", "properties": {"state": {"enum": ["working", "waiting", "blocked", "idle", "done"]}, "doing": {"type": "string"}}, "required": ["state", "doing"], "additionalProperties": false},
+        "facet": "activity",
         "unit": "widget",
         "record": {"kind": "value", "attr": "state", "value": "state"}
       }
@@ -158,6 +160,7 @@
     "x-report": {
       "status": {
         "detail": {"type": "object", "properties": {"status": {"enum": ["planned", "active", "blocked", "review", "done"]}}, "required": ["status"], "additionalProperties": false},
+        "facet": "status",
         "unit": "widget",
         "record": {"kind": "value", "attr": "status", "value": "status"}
       }
@@ -337,8 +340,9 @@
     "x-state": {
       "move": {
         "detail": {"type": "object", "properties": {"card": {"type": "string"}, "to": {"type": "string"}, "index": {"type": "integer", "minimum": 0}}, "required": ["card", "to", "index"], "additionalProperties": false},
+        "facet": "placement",
         "unit": "card",
-        "record": {"kind": "position", "within": "lf-column", "value": "to"}
+        "record": {"kind": "position", "within": "lf-column", "value": "to", "order": "index"}
       }
     },
     "x-wide": "box",
@@ -372,7 +376,7 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Parallel workstreams on one page: each lf-tab child is a self-contained sub-context (its own prose, boards, milestones) and a generated strip switches between them. The open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version — and the first panel is the default, so ordering carries emphasis. Find-in-page and comment-anchor jumps reach inactive tabs (the owning tab opens itself). Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
+    "description": "Workstreams on one page: use one family when broad context branches into focused work. Keep the shared title and lede before it, put the current stream first, and keep earlier context intact in a sibling panel so its stable ids retain their comments and decisions. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained sub-context with its own prose and widgets, while Comments, Asks, versions, and sign-off remain global. Find-in-page, ask travel, and comment-anchor jumps open the owning tab. Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -381,7 +385,7 @@
     "additionalProperties": false,
     "x-content": "items",
     "x-upgrade": true,
-    "x-example": "<lf-tabs id=\"aviary-projects\">\n  <lf-tab id=\"tab-feeders\" label=\"Feeders\">\n    <p>Rebuild underway; two of four feeders mounted.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-bath\" label=\"Bird bath\">\n    <p>Heater options under review.</p>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<lf-tabs id=\"workstreams\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
     "description": "One workstream panel. `label` names its tab in the strip (and the stacked heading before upgrade); content is open — prose, sections, and other widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
@@ -411,6 +415,7 @@
     "x-state": {
       "edit": {
         "detail": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"], "additionalProperties": false},
+        "facet": "body",
         "unit": "widget",
         "record": {"kind": "body", "value": "text"}
       }

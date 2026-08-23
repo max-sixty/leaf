@@ -32,6 +32,12 @@ widget adds its entry without copying the shipped registry, overriding a tag sup
 whole schema, and an idiom declared under `$idioms` joins the shipped catalog beside the
 theme rules that style it. The merged vocabulary is validated before vendoring.
 
+A replacement `leaf.js` must retain the quoted
+`"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
+with the same fresh epoch it writes into the merged registry; without that pair,
+a runtime loaded before a re-vendor could speak the replacement registry as though
+the two files were one contract.
+
 ## The commands
 
 ```bash
@@ -73,15 +79,11 @@ the whole of what a module gets.
 
 ## Seeing it
 
-```bash
-leaf page init <page>                       # re-vendor: the page takes the layer as it is now
-leaf version check <page> --render          # the browser gate, on the version that uses it
-```
+After the main skill's re-vendoring route restores the recorded URL, run
+`leaf version check <page> --render` on the version that uses the replacement
+layer. Note the re-vendor in the next version's changelog.
 
-Re-running `page init` on a live page is the explicit re-vendor; note it in the next
-version's changelog. It refuses when the incoming layer no longer accepts a logged
-event kind or action contract, since that event would stop replaying. The render gate
-is where a module's mistakes surface — an upgrade that defines no element, a widget of no
+The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
 declare, a word the registry promised that never reached the page, an attribute left on
 the element that its entry doesn't declare, an `applyAction` that moves under

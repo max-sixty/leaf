@@ -131,24 +131,19 @@ def dead_pid(spawn):
 
 @pytest.fixture(scope="session")
 def browser():
-    """The Chrome already on the machine, driven for the tests a static read
-    can't answer: what a widget upgrades into, and what the site fits on.
+    """Playwright's pinned Chromium headless shell, driven for the tests a static
+    read can't answer: what a widget upgrades into, and what the site fits on.
 
-    Session-scoped, which under xdist is one Chrome per worker that requests it.
-    The everyday smoke requests one; the complete run can occupy all eight. Module
-    scope launched a second whenever a worker crossed between the two integration
-    modules — eleven launches on a two-module slice where eight workers need eight.
-    Launches are all session scope saves: each Chrome is a browser process, a GPU
-    process, and a handful of windows registered with WindowServer. Five complete
-    suites registered 40 Chromes and drove WindowServer to 130%. The complete gate
-    keeps eight workers for its wall time; the everyday gate avoids that peak by
-    running only the smoke.
+    With no channel named, Playwright uses its separate headless shell rather than
+    installed Chrome's platform-window path. Session scope gives xdist one browser
+    per worker that requests it; the everyday smoke requests one, and the complete
+    run can occupy all eight.
 
     The scope does not reach isolation, which is per context: `new_page` opens a
     fresh context per call, and a fresh context has empty `localStorage` and
     `sessionStorage` — the state a `goto` inside one would carry over
     (tests/CLAUDE.md, "Reloading is not resetting")."""
     with sync_playwright() as p:
-        b = p.chromium.launch(channel="chrome")
+        b = p.chromium.launch()
         yield b
         b.close()

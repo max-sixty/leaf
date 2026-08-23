@@ -63,11 +63,12 @@
  * a later edit remains. The same path serves general and selection comments, question
  * messages and replies, and lf-draft actions.
  *
- * Versions: an unpinned page follows the newest version, navigating to each revision as
- * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
- * page stays put and offers the newest version as a chip instead. One control on the bar
- * holds all of it — the version being read, the list of the rest with what each changed,
- * and the press on any older one that marks that change on the page.
+ * Versions: the live page at `/` follows the newest version in the same document. It
+ * fetches the next immutable file, upgrades and replays it behind a view-transition
+ * boundary, then restores the reader's semantic landmark. Picking an older version
+ * leaves the live page for that immutable file and pins it (?pin in the URL). One control
+ * on the bar holds all of it — the version being read, the list of the rest with what each
+ * changed, and the press on any older one that marks that change on the page.
  *
  * Composing: every textarea behaves identically — saves its draft on each keystroke,
  * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
@@ -103,20 +104,22 @@
  * bar the aim chord's modifier latch. The full vocabulary — what a row's cells mean, and
  * how a scope's `when` differs from a row's — is written where the register is defined.
  *
- * One timed sequence exists: g arms a short leader window in which a digit addresses the
- * nth open thread's reply box — the address each box wears as a chip while the window is
- * armed and its placeholder speaks always — and any other key disarms the window and keeps
- * its ordinary meaning, which the dispatcher spells as disarming and walking the stack
- * again. Escape is a binding like any other, and the rung is whichever scope in reach
- * binds it first, so backing out is one layer per press and the promise cannot drift from
- * the press.
+ * One key sequence exists: g arms a mode in which a letter names one of the page's
+ * lists — its comments, its asks, its links — and a digit is a place in that list,
+ * so `g c 2` is the second reply box and `g l 3` the third link on screen. Which lists
+ * there are is one table (ADDRESSES) and no consumer branches on which one is aimed at.
+ * Each member of the named list wears its digit as a chip while the window stands, and any
+ * other key disarms it and keeps its ordinary meaning, which the dispatcher spells as
+ * disarming and walking the stack again. Escape is a binding like any other, and the rung
+ * is whichever scope in reach binds it first, so backing out is one layer per press and
+ * the promise cannot drift from the press.
  *
  * What a key would do right now is state the user can read, not recall. The key line (one
  * quiet fixed line, bottom left) renders the stack outward and drops what the room cannot
  * hold, `?` last and always, so what a narrow window costs is the page's keys and what it
  * keeps is the scope the reader stands in. The "?" overlay names every scope the page has,
  * live rows only. The line is aria-hidden: it is the eye's copy of facts spoken elsewhere
- * — placeholders speak each box's address, announce() speaks the leader arming and a
+ * — placeholders speak each box's address, announce() speaks each stage of the chord and a
  * grabbed card's keys, the overlay speaks the whole reference.
  *
  * A message arrives as logged and renders here, in the same vendored layer that owns
@@ -144,22 +147,114 @@ export const agentName = () => agent;
 // Attributes the runtime itself may paint onto elements the page owns. This is the
 // replay signature's one exclusion vocabulary as well as the source each writer uses:
 // a new kind of paint therefore has one place to join. The rest of data-lf-* is not
-// implicitly ours — a widget can carry real state there, and replay must see it.
+// implicitly ours — a widget can carry real state there, and replay must see it. The
+// settlement mark (data-lf-state) is deliberately in that rest: the layer paints it
+// (markSettled), but a module may paint it too as its own gesture's state, and the
+// replay signature must keep seeing it — its own gate is RETIRED_SLOTS, not the sigs.
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
   ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",
+  retired: "data-lf-retired",
   replayWrote: "data-lf-replay-wrote",
   reportWrote: "data-lf-report-wrote",
   applied: "data-lf-applied",
   pending: "data-lf-pending",
+  presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
   wide: "data-lf-wide",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 
+// The document roots may carry authored classes, data attributes, and inline custom
+// properties that page-local styles read. The live document also paints its own facts
+// onto those same two elements. Remember exactly the authored share before the runtime
+// writes anything so a version activation can replace that share without erasing the
+// presentation, layout, and mode facts the surviving runtime owns.
+const authoredAttributes = (root) =>
+  new Map([...root.attributes].map(({ name, value }) => [name, value]));
+let authoredHtmlAttributes = authoredAttributes(document.documentElement);
+let authoredBodyAttributes = authoredAttributes(document.body);
+const versionedHeadNode = (node) =>
+  !(
+    node.localName === "meta" &&
+    node.getAttribute("name") === "lf-version" &&
+    node.hasAttribute("data-lf-runtime")
+  ) &&
+  (node.localName === "title" ||
+    node.localName === "style" ||
+    node.localName === "base" ||
+    (node.localName === "meta" &&
+      (node.hasAttribute("name") || node.hasAttribute("property"))) ||
+    (node.localName === "link" &&
+      !(
+        node.rel === "stylesheet" &&
+        new URL(node.href, document.baseURI).pathname === "/theme.css"
+      )));
+let authoredHeadNodes = new Set([...document.head.children].filter(versionedHeadNode));
+
+// A modal is promoted into the top layer and makes the rest of the document inert. Both
+// facts escape an ancestor paint gate: hiding it with CSS alone would still disable the
+// Comments chrome that deliberately remains usable while first replay waits. Custom
+// widgets load after this module, so turn authored-main showModal() calls into measurable,
+// non-modal dialogs until replay has produced the page. A widget can still close one
+// while waiting; only a connected, still-open dialog whose post-replay place is visible
+// is promoted, so replay retiring its authored branch cannot resurrect stale UI on top.
+const nativeDialogShow = HTMLDialogElement.prototype.show;
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+const nativeDialogClose = HTMLDialogElement.prototype.close;
+const deferredModals = new Set();
+const inAuthoredMain = (node) => {
+  const main = document.querySelector("body > main");
+  for (let at = node; at;) {
+    if (at === main) return true;
+    if (at.parentElement) at = at.parentElement;
+    else {
+      const root = at.getRootNode();
+      at = root instanceof ShadowRoot ? root.host : null;
+    }
+  }
+  return false;
+};
+HTMLDialogElement.prototype.showModal = function () {
+  if (
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) &&
+    inAuthoredMain(this)
+  ) {
+    if (!this.open) nativeDialogShow.call(this);
+    deferredModals.add(this);
+    return;
+  }
+  return nativeDialogShowModal.call(this);
+};
+HTMLDialogElement.prototype.show = function () {
+  deferredModals.delete(this);
+  return nativeDialogShow.call(this);
+};
+HTMLDialogElement.prototype.close = function (returnValue) {
+  deferredModals.delete(this);
+  return nativeDialogClose.call(this, returnValue);
+};
+function promoteDeferredModals() {
+  for (const dialog of deferredModals) {
+    if (
+      !dialog.isConnected ||
+      !dialog.open ||
+      !inAuthoredMain(dialog) ||
+      !dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+    ) {
+      dialog.removeAttribute("open");
+      continue;
+    }
+    // Removing the non-modal state directly emits no spurious close event; the widget
+    // asked for one opening, and this is that opening finally becoming modal.
+    dialog.removeAttribute("open");
+    nativeDialogShowModal.call(dialog);
+  }
+  deferredModals.clear();
+}
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless, so upgrade order can't matter.
 export function once(el) {
@@ -195,12 +290,34 @@ export function failSoft(el, err, source) {
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
-const postEvent = (event) =>
-  fetch("/api/event", {
+const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
+let layerGeneration = vendoredLayerGeneration;
+let revealLayer;
+const layerReady = new Promise((resolve) => (revealLayer = resolve));
+let layerReloading = false;
+function sameLayer(generation) {
+  if (generation === layerGeneration) return true;
+  if (!layerReloading) {
+    layerReloading = true;
+    location.reload();
+  }
+  return false;
+}
+
+const postEvent = async (event) => {
+  await layerReady;
+  const response = await fetch("/api/event", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Leaf-Layer": layerGeneration,
+    },
     body: JSON.stringify(event),
   });
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
+  return response;
+};
 
 // The page reporting itself broken, to the party who can fix it: the agent
 // authored the page and its widgets, and before this the only route for a
@@ -222,7 +339,7 @@ function reportPageError(text) {
   postEvent({
     kind: "error",
     text,
-    ...(VNUM != null && { version: VNUM }),
+    ...(currentVersion != null && { version: currentVersion }),
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
@@ -262,13 +379,15 @@ const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 // and there each absolute jump left the page for a root that serves nothing. Resolved
 // against the document, the travel agrees with the path the version number itself was
 // read off, which is the one form that cannot disagree with what this document is.
-const versionUrl = (version) => `v${version}.html`;
+const versionUrl = (version) =>
+  `${location.pathname.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
 // Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
 // server serves one page at its own root, so every key below is spelled exactly as it was.
 // Two leaf pages on one origin is what needs it — web storage is the origin's, so the
 // reading position a reader left on one example was handed back on the next, at an offset
 // that meant nothing there.
-const PAGE_SCOPE = location.pathname.replace(VERSION_PATH, "");
+const PAGE_SCOPE =
+  location.pathname === "/" ? "" : location.pathname.replace(VERSION_PATH, "");
 
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —
@@ -310,6 +429,16 @@ const stored = (backing, scope = "") => ({
       /* a page that cannot remember still renders */
       return false;
     }
+  },
+  // Where this store puts a key, as the platform's own two names for its stores plus
+  // the key the backing actually holds. Only the browser gate asks: it seeds a store
+  // before the page has run, so it cannot ask a store that does not exist yet, and the
+  // alternative is a second copy of the scope rule kept over there to go stale.
+  where(key) {
+    return {
+      store: backing === sessionStorage ? "session" : "local",
+      key: scope + key,
+    };
   },
   // What this scope holds, spelled as the callers spell it. The drafts are what needs
   // it: a composer's key is the passage it is on, so which draft to reopen at load is a
@@ -498,15 +627,41 @@ async function highlightBlocks(root) {
 // this instead.
 export const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 export const SCROLL = REDUCED ? "instant" : "smooth";
+let projectingState = false;
 
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Ease, no options — the board's FLIP and the folds (FOLD_MS) are the motions
-// the product makes, and they agree.
+// state. The board's FLIP and the folds (FOLD_MS) are the motions the product makes;
+// they share one ease and one held-end-frame contract.
 export function motion(el, keyframes, ms) {
-  if (REDUCED) return null;
-  return el.animate(keyframes, { duration: ms, easing: "ease" });
+  // First replay happens behind the presentation boundary. Its state should be the
+  // first frame the reader sees, not a motion from authored state they never saw; it
+  // collapses exactly as reduced motion does. This one shared check reaches folds and
+  // FLIP alike without a widget learning whether the page has been presented.
+  if (
+    REDUCED ||
+    projectingState ||
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)
+  )
+    return null;
+  const played = el.animate(keyframes, {
+    duration: ms,
+    easing: "ease",
+    fill: "forwards",
+  });
+  // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
+  // that frame true in DOM/CSS, then release the effect. The extra microtask is the
+  // ordering: our reaction was registered first, so cancelling in it would expose the
+  // unanimated box before the caller removed, hid or restated it. A FLIP has no cleanup
+  // because its underlying placement already is its last frame; it still leaves no
+  // filled animation behind. Cancellation is already the release, and the rejection
+  // arm consumes it so an interrupted move reports no unhandled promise.
+  played.finished.then(
+    () => queueMicrotask(() => played.cancel()),
+    () => {},
+  );
+  return played;
 }
 
 // How long room takes to go back. Long enough that the eye can follow a paragraph's
@@ -776,17 +931,19 @@ export const pageScroller = document.body;
 
 // A widget's report of the user editing the document through it (a card dragged
 // between columns). The caller has already applied the edit to its own DOM; the
-// poll's replay re-applies it once (see applyActions), which is why applyAction
+// projection reconciler states it again once the log contains it, which is why applyAction
 // implementations must state an absolute placement, never a relative mutation.
 //
-// A map rather than a count because replay needs to know which widget: from the
-// gesture until the poll that reads its action back, the page holds state no log it
-// can read accounts for, and replay leaves that widget alone for exactly that long
-// (see applyActions). midComposition asks the same store whether anything at all is
-// in flight — navigating away could lose the unrecorded edit — and it lives here
-// because every widget's action passes through this door.
-const sending = new Map(); // widget id -> sends in flight for it
-export async function sendAction(el, action, detail, attempt = null) {
+// The outbox is the one representation of a gesture the page has made and has not yet
+// read back into a complete rendered state. It orders every user event, tells replay
+// which optimistic actions stand over authoritative state, and tells undo/navigation
+// whether any action is unresolved. An accepted entry may remain here after its caller is
+// answered: delivery can be certain while applying the response's state failed locally.
+// A second pending map used to mirror part of the same lifecycle and then needed a
+// protocol of its own to agree with the send queue and the polling loop.
+const outbox = [];
+let outboxOrder = 0;
+export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
   // mention must not become a decision Claude reads. Failing closed costs a
@@ -798,21 +955,35 @@ export async function sendAction(el, action, detail, attempt = null) {
     );
     return null;
   }
-  sending.set(el.id, (sending.get(el.id) ?? 0) + 1);
-  try {
-    return await post({
-      kind: "action",
-      version: VNUM,
-      widget: el.id,
-      action,
-      detail,
-      ...(attempt && { attempt }),
-    });
-  } finally {
-    const left = sending.get(el.id) - 1;
-    if (left) sending.set(el.id, left);
-    else sending.delete(el.id);
-  }
+  return post({
+    kind: "action",
+    version: currentVersion,
+    widget: el.id,
+    action,
+    detail,
+    ...(attempt && { attempt }),
+  });
+}
+
+// Whether the latest event list this tab has seen still leaves an accepted action as
+// the reader's statement of its semantic coordinate. An options `answer` does not erase
+// its picks because completion and selection are different facets, while a later
+// suggestion `reject` supersedes `accept` because both state settlement.
+// A response can fail before installing its event list at all; acceptance is then the
+// only statement this tab knows, so its caller may paint while the outbox keeps replay
+// and undo held for a complete read.
+export function actionStands(event) {
+  if (!events.some((candidate) => candidate.id === event.id)) return true;
+  const el = elementById(event.widget);
+  const spec = el && registry[el.localName]?.["x-state"]?.[event.action];
+  if (!el || !spec) return false;
+  const unit = unitOf(event, spec);
+  if (typeof unit !== "string") return false;
+  return (
+    stateProjection(currentVersion).actions.get(
+      stateCoordinate(event.widget, unit, spec),
+    )?.e.id === event.id
+  );
 }
 
 // The page seat of a widget's conversation (x-conversation). A module places the seat;
@@ -857,7 +1028,7 @@ export function conversationBox(el, hint) {
           (attempt) =>
             post({
               kind: "comment",
-              version: VNUM,
+              version: currentVersion,
               anchor: { section: el.id },
               text,
               attempt,
@@ -1096,8 +1267,30 @@ const walkRows = (rows, dir) => {
 // either says so — a `when` or an `at` nobody wrote means always, which is what makes the
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
+// The same or, for a predicate whose silence means no rather than yes: what any contributor
+// claims, the section claims. `either`'s identity is the wrong one here, and using it was
+// this file's own bug one field over — a scope's claim deleted by a contributor that stated
+// none, which is what `In a text box` is, the typing scope claiming the keys that put a
+// character in a box and every wired box contributing a second section under its title
+// claiming nothing. Takes the binding its callers take, where `when` and `at` take none.
+const anyOf = (a, b) => (a && b ? (...args) => a(...args) || b(...args) : (a ?? b));
 const elementScopes = new WeakMap();
-const declaredScopes = new Map(); // title → section
+// The weak map is the dispatcher's lookup. The reference also has to enumerate every
+// connected contributor, so keep weak references beside it. A live-version replacement
+// can then be collected, while an element temporarily moved out of the document keeps
+// its declaration when it reconnects. Holding the elements or merged closures here
+// retained an entire prior version.
+const scopeRefs = new Set();
+const scopeRefFor = new WeakMap();
+const pruneScopedElements = () => {
+  for (const ref of scopeRefs) if (!ref.deref()) scopeRefs.delete(ref);
+};
+function rememberScopedElement(el) {
+  if (scopeRefFor.has(el)) return;
+  const ref = new WeakRef(el);
+  scopeRefFor.set(el, ref);
+  scopeRefs.add(ref);
+}
 const sentence = (row) => (typeof row.does === "string" ? row.does : row);
 const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
 // One section per title, gathered from every contributor. Written once because the gathering
@@ -1106,15 +1299,21 @@ const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
 // core's scopes and the widgets' are gathered into one list of sections. The rules above are
 // this function — rows keyed by sentence, `when` and `at` joined by or — and a near-copy of a
 // merge is a merge that drifts on the day one of the three learns something.
-function merge(sections, { title, when, at, rows }) {
+function merge(sections, { title, when, at, claims, rows }) {
   const seen = sections.get(title);
   if (!seen) {
-    sections.set(title, { title, when, at, rows: new Map(rows) });
+    sections.set(title, { title, when, at, claims, rows: new Map(rows) });
     return;
   }
   for (const [key, row] of rows) seen.rows.set(key, row);
   seen.when = either(seen.when, when);
   seen.at = either(seen.at, at);
+  // The claim travels because the reference reads it: a section that takes the keyboard
+  // whole is one the reader is in or is not near at all, and its rows are then read by
+  // their own liveness (showHelp). Dropped here, the chord's section arrived claiming
+  // nothing, was listed whole, and named a list the page had not got — a fact stated on
+  // the scope and lost on the way to the one surface that asks for it.
+  seen.claims = anyOf(seen.claims, claims);
 }
 
 /** Declare a scope's keys where the code implementing them is.
@@ -1140,9 +1339,9 @@ function merge(sections, { title, when, at, rows }) {
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * every x-upgrade module loads on every page, so a scope declared at the top level is help
- * for a widget the page hasn't got. The scope leaves with its element; there is no
- * withdrawal, because a control that stops answering a key says so in the row's `when`,
- * where every surface can read it.
+ * for a widget the page hasn't got. The dispatch scope leaves through the weak map; the
+ * enumerable reference prunes its element when it disconnects. A connected control that
+ * stops answering a key says so in the row's `when`, where every surface can read it.
  *
  * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
  * grabbed card answers — reads them back off the declaration rather than restating them.
@@ -1154,7 +1353,7 @@ export function keys(where, title, rows, when) {
     rows: checked(rows, title ?? "a scope"),
     when,
   });
-  if (title) merge(declaredScopes, { title, when, rows: bySentence(rows) });
+  rememberScopedElement(where);
   paintHere();
   return rows;
 }
@@ -1167,12 +1366,17 @@ export const saying = (rows) =>
     .filter(live)
     .map((row) => `${spoken(row)} ${word(row.line)}`)
     .join(", ");
+// A row's own label where it has one, read the way every other surface reads a cell, and
+// the bindings where it has none — which is what keeps a listener hearing "Escape" rather
+// than the line's "esc". Asking whether the label was written as a string made the same fact
+// announce two ways by accident: an option group's digits are spelled "1–3" because its label
+// happens to be a string, while the chord's were read out as "1 or 2 or 3" because its label
+// counts what the page holds and so has to be a function.
 const spoken = (row) =>
-  typeof row.label === "string"
-    ? row.label
-    : bindings(row)
-        .map((b) => (b === " " ? "Space" : b))
-        .join(" or ");
+  word(row.label) ??
+  bindings(row)
+    .map((b) => (b === " " ? "Space" : b))
+    .join(" or ");
 /** Repaint the surfaces after a state change no focus event reports. */
 export const paintKeys = () => paintHere();
 
@@ -1193,6 +1397,12 @@ function paintHere() {
   requestAnimationFrame(() => {
     herePending = false;
     markHere();
+    // The chips are where the reader can go, beside the ring saying where they are and the
+    // line saying what the next press does — one paint, because it is one question, and
+    // because a chip repainted by its own door alone went stale on the door it did not
+    // have: a poll that retires an ask moves the list under an armed window, and only the
+    // panel's own render was calling the chip pass.
+    paintAddresses();
     renderLine();
   });
 }
@@ -1223,7 +1433,7 @@ function scopesFor(node) {
 }
 // Whether the focused control has claimed Escape for itself. Asked of the control's own
 // scopes and not of the stack, because both callers mean "this press already has an owner
-// where the reader is standing": the leader refuses to arm there, and focus entering one
+// where the reader is standing": the chord refuses to arm there, and focus entering one
 // disarms it. Every panel and mode in the runtime carries a rung of some kind, so a
 // question asked of the whole stack would answer yes almost everywhere and the chord would
 // never arm at all.
@@ -1323,6 +1533,22 @@ const pageShadowRoots = () => shadowRootsIn(document);
 // renders, so the stage below can stay synchronous for its callers.
 let shadowRules = "";
 const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//;
+// A top-layer element no longer composites through its light/shadow ancestors, so the
+// document's main gate cannot hide a dialog promoted out of an x-shadow widget. Every
+// legitimate page shadow tree is built here; put the same subtree boundary inside it,
+// in an anonymous first layer so later widget stylesheet rules cannot outrank it.
+const SHADOW_PRESENTATION_CSS = `
+@layer {
+  @media screen {
+    :host-context(body:not([data-lf-presented])) *,
+    :host-context(body:not([data-lf-presented])) *::backdrop {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      interactivity: inert !important;
+      pointer-events: none !important;
+    }
+  }
+}`;
 async function loadShadowRules() {
   const response = await fetch("/theme.css");
   if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
@@ -1371,16 +1597,16 @@ export function shadowStage(host, nodes) {
     host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
   root.adoptedStyleSheets = [markSheet];
   const style = document.createElement("style");
-  style.textContent = shadowRules;
+  style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
   root.replaceChildren(style, ...nodes);
   return root;
 }
 
-function rememberPassageParts() {
+function rememberPassageParts(scope = document) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
-    for (const root of document.querySelectorAll(tag)) {
+    for (const root of scope.querySelectorAll(tag)) {
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
     }
@@ -1390,7 +1616,13 @@ async function upgradeWidgets() {
   const response = await fetch("/registry.json");
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (responseGeneration && !sameLayer(responseGeneration)) return;
   registry = await response.json();
+  const registryGeneration = registry.$layer?.generation;
+  if (typeof registryGeneration !== "string" || !registryGeneration)
+    throw new Error("leaf: registry lacks $layer.generation");
+  if (!sameLayer(registryGeneration)) return;
   if (
     !registry.$events?.kinds ||
     !registry.$languages?.names ||
@@ -1398,7 +1630,9 @@ async function upgradeWidgets() {
     !registry.$tones?.names
   )
     throw new Error("leaf: registry lacks $events, $languages or $tones");
+  revealLayer();
   rememberPassageParts();
+  rememberAuthoredMarkup();
   markWide(document.body);
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
@@ -1410,17 +1644,26 @@ async function upgradeWidgets() {
       ),
     ),
   );
-  renderSaid(document.body);
-  renderQuiet(document.body);
-  // The page's own <pre><code> blocks, alongside the widgets and for the same reason: the
-  // tokenizer is vendored, so a page has it exactly when it has a widget layer at all.
-  settle(highlightBlocks(document.body));
+  settle(dress(document.body));
   // Importing defined the elements and ran their connectedCallbacks; async ones
   // registered their work via settle(). Wait it out so geometry is final.
   await Promise.allSettled(settling);
   // After the wait, because the box a widget scrolls is a box its module built: run this
   // with the rest of the upgrade and a diff's pre and a code block's are half there.
   reachScrollers(document.body);
+}
+
+// What an upgraded subtree owes beyond its module's own work: the words a widget says
+// through an attribute rendered as real text, the facts it paints spoken, and its
+// code — and the page's own <pre><code> blocks, alongside the widgets and for the same
+// reason: the tokenizer is vendored, so a page has it exactly when it has a widget
+// layer at all. Written once because it happens twice, over the page at the upgrade and
+// over a widget rebuilt from the version's markup (rebuild), and a near-copy of it
+// would go stale the day the vocabulary grows a fourth pass.
+function dress(root) {
+  renderSaid(root);
+  renderQuiet(root);
+  return highlightBlocks(root);
 }
 
 // Which widgets may stand wider than the column, from what they declare. Prose is set to
@@ -1585,7 +1828,15 @@ function reachScrollers(root) {
 // ---------- comment layer ----------
 
 const VERSION_MATCH = location.pathname.match(VERSION_PATH);
-const VNUM = VERSION_MATCH ? parseInt(VERSION_MATCH[1], 10) : null;
+const LIVE_ROOT = location.pathname.endsWith("/") && !VERSION_MATCH;
+const servedVersion = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
+)?.content;
+let currentVersion = VERSION_MATCH
+  ? parseInt(VERSION_MATCH[1], 10)
+  : servedVersion
+    ? parseInt(servedVersion, 10)
+    : null;
 const PINNED = new URLSearchParams(location.search).has("pin");
 // Sign-off is the page's ask, not standing chrome: the approve button exists only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
@@ -1596,29 +1847,70 @@ const PINNED = new URLSearchParams(location.search).has("pin");
 // So the one control a page that asks nothing put in front of its reader offered
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own ask.
-const SIGNOFF =
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
+let signoff = document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 const POLL_MS = 2000;
-// The panel's width, and so also the strip the page yields to it and the breakpoint
-// under which yielding one is worse than being covered by it. One number, written
-// into the stylesheet below rather than read back off the panel: the two have to
-// agree, and the panel measures zero for as long as it is closed, which is exactly
-// when the page most needs to know how wide it will be. 420 since threads carry
-// questions — option rows are the one thread content that can't scroll or scale
-// its width away, and 360 crowded them.
+// The width the panel stands at for a reader who has not moved its edge. 420 since
+// threads carry questions — option rows are the one thread content that can't scroll or
+// scale its width away, and 360 crowded them. A default rather than the width, because
+// what a conversation needs is a fact about the conversation: a thread quoting a table
+// wants room the same thread quoting a sentence does not, and only the reader looking at
+// it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
+// this is where it stands until they do.
 const PANEL_W = 420;
+// How narrow they may draw it in. 320 is the narrowest window the panel is held to
+// standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
+// so it is the narrowest width anything has laid a thread's reply box and its two
+// actions out at; below it nothing says they still fit. Wanting the panel gone is what
+// closing it is for, and narrowing it to nothing is not the same wish.
+const PANEL_MIN = 320;
 // The window under which yielding the strip is worse than being covered by it, as a
 // query rather than a number, because three things ask it: the rule that takes the strip,
 // the rule that hands scrolling to the sheet instead, and the runtime, for what follows
 // from which of those the page is under. Written as the covering half, since that is the
 // half the runtime asks about; the strip is its complement, spelled `not` where it is
 // taken.
+//
+// Asked of the default width and not of the reader's own, so widening the panel can never
+// flip the posture out from under the hand doing it: a panel dragged past half its window
+// would otherwise stop standing beside the page and cover it instead, which is the whole
+// page rearranging itself in answer to one pixel of a drag. What the reader's width does
+// answer to is the edge's own `cap`, which holds it to the same bargain this line
+// strikes — the page keeps at least what the panel takes — without putting the posture
+// itself in play.
 const COVERING = `(width <= ${PANEL_W * 2}px)`;
-// The left edge's width, and the window below which its board covers the page rather than
-// standing beside it — the same bargain the comment panel makes on the right, struck at
-// the same ratio, so a reader who has learned one edge has learned the other.
-const EDGE_W = 300;
-const EDGE_COVERING = `(width <= ${EDGE_W * 2}px)`;
+// The boards' edge, on the left, and everything said above said again for it: the width
+// it stands at until the reader moves it, how narrow they may draw it, and the window
+// under which a board covers the page rather than standing beside it. The same bargain at
+// the same ratio, because a reader who has learned one edge has learned the other.
+//
+// 220 is where the board's own row stops being one. A leaf's row spends 45px before any
+// word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
+// and the board take for padding — and what is left holds a title that ellipsizes rather
+// than wrapping, so under this the board is furniture showing the first syllable of every
+// name on it. The asks board's rows clamp to three lines instead and would go on reading
+// further down, which is why the floor is the leaves board's to set.
+const BOARD_W = 300;
+const BOARD_MIN = 220;
+const BOARD_COVERING = `(width <= ${BOARD_W * 2}px)`;
+// Where each standing width is written, and where the cascade reads it. Named rather than
+// spelled, because the stylesheet below and the runtime's writer are two ends of one fact
+// and a property spelled twice is two facts the day one of them moves.
+const PANEL_PROP = "--lf-panel-w";
+const BOARD_PROP = "--lf-board-w";
+// Which boards take their room out of the page rather than lying over it, read by the rule
+// that takes the strip and by the runtime for what the page has left — so the two cannot
+// disagree about whether the page is yielding one.
+//
+// The leaves board is not on the list, and that is not an inconsistency between two twins:
+// a leaf's row is a way out of this page and an ask's row is a way around it, so pressing
+// an ask's row scrolls the document to the ask and stands you on the control that answers
+// it — and a board lying over the document would be hiding the very thing it just sent you
+// to. A 300px board and a 720px column overlap on any window under about 1320px, which is
+// most of them, so this is the common case rather than the narrow one.
+const STRIP_BOARDS = ["asks"];
+const STRIP_BOARD_RULE = `body:is(${STRIP_BOARDS.map(
+  (board) => `[data-lf-board="${board}"]`,
+).join(",")})`;
 // The width the theme wants a page's box to have before it takes a strip of it for the
 // margin (theme.css's --strip-min, stated there because that is where the strips and
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
@@ -1650,6 +1942,11 @@ const MARK_RULES = `
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
 const style = document.createElement("style");
+style.dataset.lfRuntime = "1";
+// The chrome's whole stylesheet, and a template literal, so a backtick anywhere in
+// it — a CSS comment naming a command — ends the string and the rest of the sheet
+// parses as code. `node --check` accepts the result and the browser refuses it, so a
+// syntax check is not the gate here; the render suite is.
 style.textContent = `
   /* The document and the panel are two scroll regions side by side. If the document
      scrolled the viewport, its scrollbar would paint at the viewport's right edge —
@@ -1755,29 +2052,29 @@ style.textContent = `
      keyed on the stamp for the reasons given there — because an eye can follow a sentence
      that slides and cannot find one that teleports. */
   @media screen and (not ${COVERING}) {
-    body[data-lf-panel] { margin-right: ${PANEL_W}px; }
+    body[data-lf-panel] { margin-right: var(${PANEL_PROP}); }
   }
   @media screen and ${COVERING} {
     body[data-lf-panel] { overflow-y: hidden; }
   }
-  /* The asks board takes its room out of the page the same way, and the leaves board
-     beside it does not. That is not an inconsistency between two twins: a leaf's row is
-     a way out of this page and an ask's row is a way around it, so pressing an ask's row
-     scrolls the document to the ask and stands you on the control that answers it — and
-     a board lying over the document would be hiding the very thing it just sent you to.
-     A 300px board and a 720px column overlap on any window under about 1320px, which is
-     most of them, so this is the common case rather than the narrow one.
-
-     The rule names the board and not the edge for that reason, off the one attribute
-     showEdge writes to say which board is up. Everything else about the strip — that it
-     comes out of the page rather than being held aside, that it is carried as motion,
-     what it costs on a window narrow enough to rewrap — is the panel's story above,
-     told once for both sides. */
-  @media screen and (not ${EDGE_COVERING}) {
-    body[data-lf-edge="asks"] { margin-left: ${EDGE_W}px; }
+  /* The slide stands down for as long as the reader is holding the edge. A drag is a hand
+     on that edge, and 180ms of easing behind it is the page sliding out from under the
+     gesture that is moving it — the panel's own box follows the pointer exactly, so an
+     eased margin is the two edges of one edge coming apart. Every other way the margin
+     moves still wants the slide, an arrow step on the edge included: a step is one
+     discrete move the eye can follow, which is what the rule above is for. */
+  body[data-lf-sizing] { transition: none; }
+  /* A board that takes its room out of the page takes it the same way, off the one
+     attribute showBoard writes to say which board is up and the one list that says which
+     of them the page yields to (STRIP_BOARDS, where the reasons are). Everything else
+     about the strip — that it comes out of the page rather than being held aside, that it
+     is carried as motion, what it costs on a window narrow enough to rewrap — is the
+     panel's story above, told once for both sides. */
+  @media screen and (not ${BOARD_COVERING}) {
+    ${STRIP_BOARD_RULE} { margin-left: var(${BOARD_PROP}); }
   }
-  @media screen and ${EDGE_COVERING} {
-    body[data-lf-edge="asks"] { overflow-y: hidden; }
+  @media screen and ${BOARD_COVERING} {
+    ${STRIP_BOARD_RULE} { overflow-y: hidden; }
   }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -1883,14 +2180,14 @@ style.textContent = `
   .lf-btn:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
   .lf-pill:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
   /* The keyboard address: the digit that reaches this thing right now, worn as a chip
-     off its holder's corner so an address arriving moves nothing. The panel's reply box
-     wears the one the g leader answers and an option wears the one a pick answers, which
-     is the same promise made on the two sides of the chrome's scope line — so it is
-     stated here, at the level both can reach, rather than as the twelve declarations
-     each once carried. They had not drifted; nothing was going to say so if they did.
-     What a wearer keeps is where its chip sits and when it shows — a reply box's hangs
-     off the box's own corner while the leader is armed, an option's stands in a column
-     that option holds for it. This rule dresses; theirs place and paint.
+     off its holder's corner so an address arriving moves nothing. The g chord paints one
+     on every member of the list it has aimed at and an option wears the one a pick
+     answers, which is the same promise made on the two sides of the chrome's scope line —
+     so it is stated here, at the level both can reach, rather than as the twelve
+     declarations each once carried. They had not drifted; nothing was going to say so if
+     they did. What a wearer keeps is where its chip sits and when it shows — the chord's
+     stand in a layer of their own, placed on each member's visible corner, an option's in
+     a column that option holds for it. This rule dresses; theirs place and paint.
 
      Its two numbers are off the ladder because they are the disc rather than the type:
      a 17px circle with a 1px ring leaves 15px of interior, which is the line the digit
@@ -2002,11 +2299,13 @@ ${MARK_RULES}
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
   /* The open ask the reader is standing in (markHere), worn by the ask rather than by
      whichever of its controls holds the focus — they are standing in the whole thing,
-     however they got there. Exactly one ask wears it at a time, on however many boxes
-     it shows through: a wrapper that generates no box draws no outline, so an ask that
-     is one hangs the ring on the boxes its contents make (shownParts). It is an outline
-     like every other mark the runtime paints on the page's own elements, so arriving
-     moves nothing. */
+     however they got there. Exactly one ask wears it at a time: every shipped widget
+     draws one box for it to paint on, and one a page styles boxless hangs it on the
+     boxes its contents make (shownParts). While the asks board is open, its row mirrors
+     the same fact on the second surface. It is an outline like every other mark the
+     runtime paints on the page's own elements: it moves nothing on arriving, and it
+     keeps its place for nothing, being the element's own paint rather than a box in
+     the chrome that would have to chase it down every scroll, reflow and drag. */
   [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
@@ -2149,14 +2448,27 @@ ${MARK_RULES}
        the rows rather than the presses because the rows are the run that touch. */
     .lf-version-row.lf-compared::before { content: ""; position: absolute;
       left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-    /* The leaves panel: the comment panel's mirror on the left, a board of the
-       machine's live pages that stands while the reader works. Fixed over the content —
-       opening it moves nothing — and its own scroll region, so one wheel gesture moves
-       one region. */
-    .lf-others-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0; z-index: 8900;
-      width: min(300px, 100vw); background: var(--card); border-right: 1px solid var(--rule);
-      display: none; padding: 6px 4px; overflow-y: auto; overscroll-behavior: contain; }
-    .lf-others-panel.open { display: block; }
+    /* The boards' edge: the comment panel's mirror on the left, holding one board at a
+       time (showBoard), each its own scroll region so one wheel gesture moves one region.
+       Every metric is the edge's rather than either board's — a reader who has both keys
+       should not find two different regions where they learned one — and it is stated once
+       here for both. It used to be stated twice, in two rules with every declaration
+       duplicated, and by the time anyone looked one copy was carrying a literal 300 where
+       the other read the constant; what the two boards differ in is the row, below. */
+    .lf-board-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
+      z-index: 8900; width: var(${BOARD_PROP}); background: var(--card);
+      border-right: 1px solid var(--rule); display: none; flex-direction: column; }
+    .lf-board-panel.open { display: flex; }
+    /* The rows scroll in a box of their own rather than in the board, which is the comment
+       panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
+       all: a scroll container clips to its padding box, so an edge straddling the border
+       was cut to the three pixels inside it, and an absolutely positioned child of a
+       scroller travels with the content — the edge would have scrolled away down a long
+       list, an edge being a fact about the region rather than about how far down it the
+       reader has read. contain, so reaching the end of the list does not start scrolling
+       the page behind it: one wheel gesture moves one region. */
+    .lf-board-list { flex: 1; min-height: 0; padding: 6px 4px; overflow-y: auto;
+      overscroll-behavior: contain; }
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
     a.lf-others-row:hover { background: var(--chip); }
@@ -2169,16 +2481,9 @@ ${MARK_RULES}
        nothing. */
     .lf-others-line { color: var(--ink-2); margin-left: 17px; white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; }
-    /* The asks board: the leaves board's twin, on the same edge and one at a time with it
-       (showEdge), because the two are the same furniture at two scopes. Every metric here
-       is that board's, said once for both — a reader who has both keys should not find
-       two different regions where they learned one. What differs is the row: a leaf's row
-       is a link out to another page, and an ask's is a press that moves this one, so it is
-       a button and takes the button's own reset. */
-    .lf-asks-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0; z-index: 8900;
-      width: min(${EDGE_W}px, 100vw); background: var(--card); border-right: 1px solid var(--rule);
-      display: none; padding: 6px 4px; overflow-y: auto; overscroll-behavior: contain; }
-    .lf-asks-panel.open { display: block; }
+    /* An ask's row, against a leaf's above: a leaf's is a link out to another page and an
+       ask's is a press that moves this one, so it is a button and takes the button's own
+       reset. */
     .lf-asks-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
       border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
       cursor: pointer; }
@@ -2200,9 +2505,41 @@ ${MARK_RULES}
        was the exception, so a row with no room left took the width it states back off it,
        which put every reservation above back in play on any narrow enough window. */
     .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: min(${PANEL_W}px, 100vw); z-index: 8900;
+    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(${PANEL_PROP}); z-index: 8900;
       background: var(--card); border-left: 1px solid var(--rule); display: none; flex-direction: column; }
     .lf-panel.open { display: flex; }
+    /* An edge, offered as a thing to take hold of — the comment panel's on the right of
+       the page, the boards' on the left, and nothing here knows which it is drawing except
+       the two lines that place it. It draws nothing of its own: the region's inner border
+       is the line the reader already sees, and this is the room around that line in which
+       a pointer counts as being on it. It straddles the border rather than sitting inside
+       it, because the reader aims at the line and arrives from whichever side they were
+       reading — and where the region stands beside the page, the 3px of it outside is
+       body's own margin, which holds no words.
+       What hover and focus add is a line drawn over the border, growing a pixel each way
+       into room that was already the border's and the region's padding; never a thicker
+       border, which would move everything in the region under the pointer that had just
+       arrived (CLAUDE.md, "The page holds still under the user's aim"). touch-action, so a
+       finger on the edge resizes rather than scrolling the region behind it, and z-index
+       because a thread is positioned too and stands later in the panel than this does.
+
+       Named for what it is rather than for the gesture: a card's drag handle is a grip
+       (lf-board.js), and one word for a thing you pick up and a boundary you draw would
+       have been two meanings a selector cannot tell apart. */
+    .lf-edge { position: absolute; top: 0; bottom: 0; width: 8px; z-index: 1;
+      cursor: col-resize; touch-action: none; }
+    .lf-edge::before { content: ""; position: absolute; top: 0; bottom: 0;
+      width: 2px; background: var(--accent); opacity: 0; transition: opacity .12s; }
+    /* Which side of the window the region is fixed to, so the edge is its inner one: a
+       region held to the right is drawn by its left border and the other way about. */
+    .lf-edge[data-lf-side="right"] { left: -4px; }
+    .lf-edge[data-lf-side="right"]::before { left: 2px; }
+    .lf-edge[data-lf-side="left"] { right: -4px; }
+    .lf-edge[data-lf-side="left"]::before { right: 2px; }
+    /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
+       drag that follows it. */
+    .lf-edge:hover::before, .lf-edge:focus-visible::before { opacity: 1; }
+    .lf-edge:focus-visible { outline: var(--here-ring); }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* contain: reaching the end of the thread list must not start scrolling the page
        behind it — one wheel gesture moves one region.
@@ -2235,17 +2572,6 @@ ${MARK_RULES}
        jump: nothing above it moves, and the newcomer settles rather than appears. */
     .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
     .lf-thread:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
-    /* The g leader's address chip (.lf-address, dressed at document level), worn on the
-       reply box it addresses — where the digit lands, not the thread's corner — and
-       painted only while the window is armed: the placeholder speaks the address at all
-       times, so the chip is the armed moment's paint rather than a standing second copy
-       of the fact. Empty is unaddressed (a thread past the ninth); renderThreads writes
-       the number, it doesn't add or drop the element. Top-anchored: field-sizing grows
-       the box downward, and the chip must not ride the growth. Named through the box it
-       sits on, because a thread can hold a widget wearing an address of its own. */
-    .lf-compose { position: relative; }
-    .lf-compose > .lf-address { position: absolute; top: -8px; left: -8px; }
-    .lf-leader-armed .lf-compose > .lf-address:not(:empty) { display: block; }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
@@ -2296,6 +2622,22 @@ ${MARK_RULES}
     /* The general Send stays beside its field; a thread gives the field its own row. */
     .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-general textarea { flex: 1; min-width: 0; }
+    /* What the agent says it is doing about this thread (leaf status --on).
+       Provisional news, so it wears the amber dashed edge the page's own reported
+       state wears ([data-lf-reported] in theme.css) rather than a message's ink: it
+       is a claim somebody renews every few minutes, not something said to the reader,
+       and the answer when it comes is a message under it. The age is the half that
+       makes it worth reading, so it is on the line rather than in a hover — a note
+       nobody has renewed for twenty minutes is the case this exists to show. */
+    .lf-thread-note { display: flex; gap: 6px; align-items: baseline; margin: 8px 0 0;
+      padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
+      border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
+    .lf-thread-note span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    /* The age is two words wide and the detail is a sentence, so the words wrap and the
+       clock does not: broken over two lines it read as "just / now" down the right
+       edge, which is the one part of the line the eye goes to first. No width is
+       stated anywhere here, the panel's being the reader's to drag. */
+    .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-thread-action:hover { color: var(--ok); }
@@ -2425,6 +2767,22 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
+    /* The g chord's addresses: a chip per member of the list it has aimed at, in a layer
+       of the chrome's own so a digit can be hung on a link set mid-sentence without a
+       span being written into the paragraph. Fixed, because the members are in three
+       different scrollers — the document, the comment panel, a board's own overflow — and
+       one layer that follows none of them is what lets a single pass place them all from
+       the viewport rects it just read; the pass runs again when anything scrolls under
+       it. Each chip is centred on the corner its member starts at — the first line of an
+       inline that wraps, not the whole box it spans — half in and half out, the place a
+       reply box's chip has always been drawn. Nothing here is something to press. */
+    .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
+    .lf-addresses > .lf-address { position: absolute; display: block;
+      transform: translate(-50%, -50%); }
+    /* Under the banner there is no room to straddle the corner, so the chip hangs below
+       the covered edge instead — the same step the legend's tag makes, and the same class
+       name, because it is the same fact about the same bar. */
+    .lf-addresses > .lf-address.lf-in { transform: translate(-50%, 0); }
     .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
       box-sizing: border-box;
       border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
@@ -2456,6 +2814,204 @@ const el = (tag, cls, text) => {
   if (text !== undefined) node.textContent = text;
   return node;
 };
+
+// The step an arrow takes, in the column's own gutter: the smallest move that shows in a
+// page of prose.
+const EDGE_STEP = 24;
+/** A region held to one side of the window, and the boundary the reader draws it by.
+ *
+ * The page has two — the comment panel on the right, the board panel on the left — and
+ * they are the same furniture reflected, so this is one function rather than two
+ * near-copies. What differs is what it is handed: which side the region is held to, the
+ * width it stands at until the reader says otherwise, how narrow they may draw it, the
+ * property the cascade reads the standing width from, the key their store keeps the choice
+ * under, and one noun, which every surface that names the region says in its own sentence.
+ * Nothing below differs, which is the point: the second edge cost a call rather than a
+ * copy, and a third would too.
+ *
+ * The width the reader asked for and the width the region stands at are two facts rather
+ * than one. A window too narrow to honour a choice does not un-make it, and widening that
+ * window again is not a request to be told what the reader once said — so the choice is
+ * kept and the standing width is derived from it. Everything reads `width`; nothing holds
+ * the number.
+ *
+ * One width, and a handle for each region on that side: the left edge holds two boards one
+ * at a time, and each wears the edge it is drawn by, because a handle outside them both
+ * would not slide in with the board it belongs to. They are handles onto one fact rather
+ * than two facts — `state` is the one writer, and it says the same thing on every one.
+ */
+function drawnEdge({ side, noun, wide, min, prop, key, covering, when }) {
+  // Whether the region stands over the page rather than beside it — the same fact as
+  // which of the two rules that take the strip the page is under. Asked of the query
+  // rather than stored, so no reader of it can hold an answer from a window that has gone.
+  const over = matchMedia(covering);
+  const handles = new Set();
+  let chosen = wide;
+  // What the window will allow. Beside the page, half of it, which is the bargain the
+  // covering query already strikes for the default width — the page keeps at least what
+  // the region takes — asked here of whatever width this reader chose. Over the page the
+  // region takes nothing from it, so the only bound there is the window itself.
+  const cap = () => document.documentElement.clientWidth / (over.matches ? 1 : 2);
+  // The floor gives way to the cap and not the other way about: a window too narrow for
+  // the floor is still the window, and a region wider than the one it stands in has put
+  // its own controls off the screen. Asked in two places and written once — of a width the
+  // reader is dragging to, so the edge never goes anywhere their hand did not, and of the
+  // width they chose on some other day, whose window is not this one.
+  const held = (want) => Math.min(cap(), Math.max(min, want));
+  const width = () => held(chosen);
+  // The one writer of the property the cascade reads that width from: the region's own box
+  // and the strip the page yields are both stated against it. Written rather than read back
+  // off the region because a closed one measures zero, which is exactly when the page most
+  // needs to know how wide it will be. The runtime's own readers — the toast's corner, the
+  // room a wide widget spends — ask `width` instead of this property, so what the cascade
+  // lays out and what the runtime measures cannot come apart.
+  function state() {
+    document.documentElement.style.setProperty(prop, width() + "px");
+    // Where the edge stands and how far it may go, which is what a listener hears change
+    // on every step — the platform's own announcement, and the whole reason the edge is a
+    // separator. The cap moves with the window, so it is restated wherever the width is.
+    for (const handle of handles) {
+      handle.setAttribute("aria-valuenow", String(Math.round(width())));
+      handle.setAttribute("aria-valuemax", String(Math.round(cap())));
+    }
+  }
+  // The reader's answer, taken and kept. Held to the window on the way in, because a drag
+  // is direct: what they see is what they asked for, and storing a width the window
+  // refused would hand it back to them on some later window as a place they never put the
+  // edge.
+  function set(want) {
+    chosen = Math.round(held(want));
+    readerStore.set(key, String(chosen));
+    state();
+    stateStrip();
+    syncLayout();
+  }
+  /** The region's own edge, said as what it is: a separator between two regions, which is
+   * the platform's word for a boundary the reader moves. That word is worth having for
+   * what comes with it — the edge carries the width it stands at, so an arrow step is
+   * announced by the platform itself, where a press built for the job would have had to say
+   * so in words of its own and would have promised an activation an edge has not got.
+   *
+   * It goes in the region rather than beside it, so it travels with whatever the region
+   * does: the board panel's edge slides in with the board standing on it, and a closed
+   * region's edge is hidden by the same rule that hides the region.
+   */
+  function handle(region) {
+    const edge = el("div", "lf-ui lf-edge");
+    edge.dataset.lfSide = side;
+    edge.setAttribute("role", "separator");
+    edge.setAttribute("aria-orientation", "vertical");
+    // The name a listener hears, and the one design mode shows under the pointer, where
+    // it is cut at CONTROL_WORD_CAP — so the noun leads and the word for what is being
+    // measured follows it, which is what keeps the longer of the two inside the cut.
+    edge.setAttribute("aria-label", `${noun[0].toUpperCase()}${noun.slice(1)} width`);
+    edge.setAttribute("aria-valuemin", String(min));
+    edge.tabIndex = 0;
+    // Where on the edge the reader took hold, kept for the length of the drag so the
+    // boundary stays under the point they grabbed. Without it the region jumps by up to
+    // the handle's own width on the first move, which is the page moving under an aim that
+    // had just arrived.
+    let grab = 0;
+    edge.addEventListener("pointerdown", (event) => {
+      // Refusing the press stops the compatibility mouse events, and with them the
+      // selection a drag makes: without it a gesture about the edge would drop whatever the
+      // reader had selected and paint a new one over the paragraphs it passed. Focus is
+      // then taken by hand, refusing the press having refused that too, so the arrows are
+      // live on the edge the reader is holding.
+      event.preventDefault();
+      edge.setPointerCapture(event.pointerId);
+      const box = region.getBoundingClientRect();
+      grab = event.clientX - (side === "right" ? box.left : box.right);
+      edge.focus({ preventScroll: true });
+      document.body.toggleAttribute("data-lf-sizing", true);
+    });
+    edge.addEventListener("pointermove", (event) => {
+      if (!edge.hasPointerCapture(event.pointerId)) return;
+      // The region's far edge is the window's, so the width is what the pointer leaves
+      // between the two — read off the window rather than off the region, which is the box
+      // this is about to resize.
+      const at = event.clientX - grab;
+      set(side === "right" ? document.documentElement.clientWidth - at : at);
+    });
+    // Both ends of the gesture, because a drag the browser takes away — a window losing the
+    // pointer, a touch cancelled — leaves the page in the sizing posture otherwise, and the
+    // slide would be gone for the rest of the session with nothing to say why.
+    for (const ending of ["pointerup", "pointercancel"])
+      edge.addEventListener(ending, () =>
+        document.body.toggleAttribute("data-lf-sizing", false),
+      );
+    // Arrows, and not a pair of letters, because the reader is standing on the edge
+    // itself — the direction is the whole of what they have left to say. Away from the
+    // side the region is held to widens it, which is the same reading the pointer makes of
+    // the same gesture.
+    const wider = side === "right" ? "ArrowLeft" : "ArrowRight";
+    keys(
+      edge,
+      `On the ${noun}'s edge`,
+      [
+        {
+          keys: ["ArrowLeft", "ArrowRight"],
+          label: "arrows",
+          does: `Resize the ${noun}`,
+          line: `resize the ${noun}`,
+          repeat: true,
+          run: (binding) => set(width() + (binding === wider ? EDGE_STEP : -EDGE_STEP)),
+        },
+      ],
+      when,
+    );
+    handles.add(edge);
+    region.prepend(edge);
+    state();
+    return edge;
+  }
+  // The reader's own answer, put back over the default at the foot of the module, where
+  // every other remembered arrangement is restored. Stated whether or not they have chosen
+  // one, since a reader who has said nothing is a reader whose answer is the default.
+  function restore() {
+    chosen = parseFloat(readerStore.get(key)) || wide;
+    state();
+  }
+  return { width, state, restore, handle, key, over };
+}
+// The rows' own box, one per board. Collected as they are made, because what syncLayout
+// reserves at the foot of one it reserves at the foot of every one — and a second place
+// to remember that is exactly where the asks board was left out of it: its walk parked
+// the last row 47px under the key line, on the one board nothing had ever walked to the
+// end of.
+const boardLists = [];
+function boardList(panel) {
+  const list = el("div", "lf-board-list");
+  panel.append(list);
+  boardLists.push(list);
+  return list;
+}
+// The comment panel's edge, on the right, and the board panel's, on the left. Each keeps
+// the reader's choice in their own store rather than the tab's, because where a reader
+// keeps their conversations, and how much of the page they will give a board, is the
+// chrome they arrange and expect to find arranged wherever they are reading (see
+// `readerStore`). Live activation keeps the edges themselves; document travel and reload
+// restore the same choices, so no revision or visit asks the reader to draw them again.
+const commentsEdge = drawnEdge({
+  side: "right",
+  noun: "comment panel",
+  wide: PANEL_W,
+  min: PANEL_MIN,
+  prop: PANEL_PROP,
+  key: "lf-panel-width",
+  covering: COVERING,
+});
+const boardsEdge = drawnEdge({
+  side: "left",
+  noun: "board panel",
+  wide: BOARD_W,
+  min: BOARD_MIN,
+  prop: BOARD_PROP,
+  key: "lf-board-width",
+  covering: BOARD_COVERING,
+  // A page with no board to open has no edge to draw, so the reference does not name one.
+  when: () => leavesOffered() || asksOffered(),
+});
 
 const banner = el("div", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
@@ -2499,18 +3055,21 @@ asksBtn.title = "Go to the next thing this page is waiting on you for";
 // status change repaints the row's own dot and words without moving it.
 const othersBtn = el("button", "lf-btn lf-others", "");
 othersBtn.title = "Leaves live on this machine, and what each is doing";
-othersBtn.setAttribute("aria-expanded", "false");
 // A nav, because navigation is what it is and a bare div may not carry the
 // aria-label the card needs (axe: aria-prohibited-attr, serious).
-const othersPanel = el("nav", "lf-ui lf-others-panel");
+const othersPanel = el("nav", "lf-ui lf-board-panel lf-others-panel");
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
+boardsEdge.handle(othersPanel);
+const leavesList = boardList(othersPanel);
 let others = [];
 // A board of the page's own open asks, on the same edge: one row per thing the page is
 // waiting on the reader for, in the order the page asks them. The list is openAsks() and
 // nothing else, so a widget joins the board by declaring x-awaits and no row here knows
 // what kind of thing it is standing for.
-const asksPanel = el("nav", "lf-ui lf-asks-panel");
+const asksPanel = el("nav", "lf-ui lf-board-panel lf-asks-panel");
 asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
+boardsEdge.handle(asksPanel);
+const asksList = boardList(asksPanel);
 
 // The left edge holds one board at a time. Leaves and asks are the same furniture asking
 // at two scopes — which page needs me, and what this page needs of me — and each has to
@@ -2523,16 +3082,22 @@ asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
 // Registered rather than listed, for the same reason the widgets are: the toggle, the
 // press, the reload and the Escape rung all read this map, so a third board joins by
 // registering and none of them names a board to do its job.
-const edges = new Map();
-const EDGE_KEY = "lf-edge-board";
+const boards = new Map();
+const BOARD_KEY = "lf-board-up";
 // The board survives a reload like the comment panel does (see PANEL_KEY): reloading is
-// not resetting, and a board someone stood up to watch stays stood.
-let edgeUp = readerStore.get(EDGE_KEY) || null;
-const openEdge = (key) => edgeUp === key;
-function showEdge(key) {
-  if (edgeUp === key) return;
-  edgeUp = key;
-  for (const [name, { panel, btn, paint }] of edges) {
+// not resetting, and a board someone stood up to watch stays stood. Null until the
+// restore at the foot of this module puts it back, which it does by opening the board
+// the way a press does. Reading the store into this declaration instead is what made
+// registration a second opener, and a second opener here can reach almost nothing: it
+// runs while this module is still evaluating, so the page's own asks — declared
+// thousands of lines below — are not initialized yet, and the reader who had left the
+// board standing got a ReferenceError where their page should have been.
+let boardUp = null;
+const openBoard = (key) => boardUp === key;
+function showBoard(key) {
+  if (boardUp === key) return;
+  boardUp = key;
+  for (const [name, { panel, btn, paint }] of boards) {
     const open = name === key;
     btn.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -2556,45 +3121,63 @@ function showEdge(key) {
         160,
       );
       const hide = () => {
-        if (edgeUp === name) return; // reopened mid-slide; it stays up, list and all
+        if (boardUp === name) return; // reopened mid-slide; it stays up, list and all
         panel.classList.remove("open");
         paint?.();
       };
-      if (out) out.onfinish = hide;
+      if (out) out.finished.then(hide, () => {});
       else hide();
       if (panel.contains(document.activeElement)) btn.focus();
     }
   }
-  readerStore.set(EDGE_KEY, key ?? "");
+  // Both of the page's answers to the board are made here rather than left to the
+  // observation, for the reasons setPanel gives at the same two lines: the strip the
+  // idioms hang in is body's own padding, which the observation's writer may not touch,
+  // and a board that covers the page moves body's box by nothing at all, so there is no
+  // observation to deliver.
+  stateStrip();
+  syncLayout();
+  readerStore.set(BOARD_KEY, key ?? "");
   // Which board is up, on the document, so the stylesheet can say what each one costs the
   // page's own box. One writer for it, here, beside the one variable that holds the fact.
-  if (key) document.body.dataset.lfEdge = key;
-  else delete document.body.dataset.lfEdge;
+  if (key) document.body.dataset.lfBoard = key;
+  else delete document.body.dataset.lfBoard;
   paintHere();
 }
-function edgeIs(key, panel, btn, paint) {
-  edges.set(key, { panel, btn, paint });
-  btn.onclick = () => showEdge(openEdge(key) ? null : key);
-  btn.setAttribute("aria-expanded", String(openEdge(key)));
-  // A board the reader left standing comes back standing — but it is not filled here.
-  // This runs while the module is still evaluating, and a board's paint reads the page's
-  // open asks, whose own reading is declared far below this line: calling it now throws a
-  // ReferenceError in front of the reader, which is how this was found. The startup pass
-  // fills it (syncAsks, with the rest of the restore), by which point everything exists.
-  if (openEdge(key)) {
-    panel.classList.add("open");
-    document.body.dataset.lfEdge = key;
-  }
+// Registration and nothing else: no board is up while this module is evaluating, and
+// the one the reader left standing goes up in the restore section at the foot of the
+// file, through showBoard. So there is one opener, and every fact that carries "this
+// board is up" is written where it is decided.
+function boardIs(key, panel, btn, paint) {
+  boards.set(key, { panel, btn, paint });
+  btn.onclick = () => showBoard(openBoard(key) ? null : key);
+  btn.setAttribute("aria-expanded", "false");
 }
-edgeIs("leaves", othersPanel, othersBtn);
-edgeIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
+boardIs("leaves", othersPanel, othersBtn);
+boardIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
+// A persisted board is state-dependent chrome: Asks folds the log and Leaves comes from
+// the first state response. Keep the remembered intent in boardUp, but restore its pixels
+// only once that response has produced the page's presentation. Unlike showBoard, this
+// first paint does not animate — it is part of the page arriving, not a reader gesture.
+function restoreBoard() {
+  if (!boardUp) return;
+  const board = boards.get(boardUp);
+  if (!board) return;
+  board.btn.setAttribute("aria-expanded", "true");
+  board.paint?.();
+  board.panel.classList.add("open");
+  document.body.dataset.lfBoard = boardUp;
+}
 // Each board's one offer: something to show, or the board already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the board's own predicate, so the two surfaces cannot
 // disagree about whether there is a board to open. A leaves board of one — the page the
 // reader is already on — is not worth a control; an asks board of none is the same.
-const boardOffered = () => others.length > 0 || openEdge("leaves");
-const asksOffered = () => openAsks().length > 0 || openEdge("asks");
+const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+const leavesOffered = () =>
+  pagePresented() && (others.length > 0 || openBoard("leaves"));
+const asksOffered = () =>
+  pagePresented() && (openAsks().length > 0 || openBoard("asks"));
 // The board's own scope. The walk is the board's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
@@ -2620,7 +3203,7 @@ keys(asksPanel, "In the asks board", [
 ]);
 keys(
   othersPanel,
-  "In the leaves panel",
+  "In the leaves board",
   [
     {
       keys: ["ArrowUp", "ArrowDown"],
@@ -2635,7 +3218,7 @@ keys(
     // the line is for.
     { keys: ["Enter"], does: "Open that leaf in a tab", line: "open it in a tab" },
   ],
-  boardOffered, // the scope's own liveness: a board with something to walk
+  leavesOffered, // the scope's own liveness: a board with something to walk
 );
 // A row's whole account of a page: the dot's tone and one line of words, from the
 // same judgment the banner's sentences come from — the judgment is shared, the
@@ -2643,6 +3226,7 @@ keys(
 const TONE = {
   working: "working",
   listening: "listening",
+  stalled: "away",
   away: "away",
   unheld: "",
   unattended: "",
@@ -2661,15 +3245,17 @@ function rowPresence(entry) {
       ? stated("Working")
       : kind === "listening"
         ? stated("Awaits")
-        : kind === "away"
-          ? quiet
-            ? `Quiet (${ago(entry.status.ts)})`
-            : "Away"
-          : kind === "unheld"
-            ? "Unheld"
-            : kind === "unattended"
-              ? "Unattended"
-              : "Closed";
+        : kind === "stalled"
+          ? stated(`Quiet (${ago(entry.status.ts)})`)
+          : kind === "away"
+            ? quiet
+              ? `Quiet (${ago(entry.status.ts)})`
+              : "Away"
+            : kind === "unheld"
+              ? "Unheld"
+              : kind === "unattended"
+                ? "Unattended"
+                : "Closed";
   return { tone: TONE[kind], line };
 }
 // The whole of what the board knows about one page, for its hover. Everything drawn
@@ -2708,7 +3294,7 @@ function renderOthers(state) {
   // never dropped: a reader looking at a closed page is still looking at it.
   others = (state.others ?? []).filter((entry) => presented(entry).kind !== "closed");
   // While the panel stands its button stands too, whatever the count just did.
-  showNews(othersBtn, boardOffered());
+  showNews(othersBtn, leavesOffered());
   const wanted = [
     { key: "self", title: document.title, entry: state },
     ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
@@ -2750,8 +3336,8 @@ function renderOthers(state) {
     // Everything the row was too narrow to say, on the row itself (see rowAccount).
     const account = rowAccount(entry, title, line);
     if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : othersPanel.firstElementChild;
-    if (place !== row) othersPanel.insertBefore(row, place);
+    const place = anchor ? anchor.nextElementSibling : leavesList.firstElementChild;
+    if (place !== row) leavesList.insertBefore(row, place);
     anchor = row;
   }
   for (const [key, row] of othersRows)
@@ -2778,7 +3364,7 @@ for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false)
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
 //
-// Which version this is, is the document's own answer (VNUM, off the path), so the
+// Which version this is, is the live document's answer, so the
 // press says it now rather than standing empty until the first poll answers, and the
 // only word it ever rewrites is the Δ that says a comparison is standing — enumerable,
 // so the room for it is taken from the words themselves at load (reserve) and the
@@ -2787,7 +3373,7 @@ for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false)
 // has only this control to read it back off, and a colour is not a thing a screen
 // reader announces.
 const versionLabel = (comparing) =>
-  (comparing ? "Δ " : "") + (VNUM === null ? "▾" : `v${VNUM} ▾`);
+  (comparing ? "Δ " : "") + (currentVersion === null ? "▾" : `v${currentVersion} ▾`);
 const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
 versionBtn.setAttribute("aria-haspopup", "menu");
 versionBtn.setAttribute("aria-expanded", "false");
@@ -2814,7 +3400,7 @@ function showVersionMenu(open) {
   if (open)
     (
       versionRows().find(
-        (r) => r.dataset.lfVersion === String(diffOn ? diffBase : VNUM),
+        (r) => r.dataset.lfVersion === String(diffOn ? diffBase : currentVersion),
       ) ?? versionRows()[0]
     )?.focus();
   else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
@@ -2924,6 +3510,10 @@ toggleBtn.title = "Show or hide the comment panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 const approveBtn = el("button", "lf-btn primary lf-signoff", "✓ Looks good");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
+// The page's ask is not actionable until the page itself is present. Discussion chrome
+// stays live during replay, but approving hidden authored content would decide a version
+// the reader has not seen yet.
+approveBtn.disabled = true;
 banner.append(
   dot,
   statusText,
@@ -2934,7 +3524,21 @@ banner.append(
   versionBtn,
   toggleBtn,
 );
-if (SIGNOFF) banner.append(approveBtn);
+if (signoff) banner.append(approveBtn);
+
+// Sign-off belongs to the authored version, while the control belongs to the live
+// chrome that survives one. A soft activation can therefore add or remove the same
+// control; rebuilding the banner would throw away focus and every reserved neighbour.
+function stateSignoff(next) {
+  if (next === signoff) return;
+  signoff = next;
+  if (signoff) {
+    banner.append(approveBtn);
+    reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+    paintApproval();
+  } else approveBtn.remove();
+  syncLayout();
+}
 
 const panel = el("aside", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
@@ -2944,6 +3548,7 @@ const closeBtn = Object.assign(el("button", "lf-btn", "×"), {
 });
 closeBtn.setAttribute("aria-label", "Close comments");
 panelHead.append(el("span", "", "Comments"), closeBtn);
+commentsEdge.handle(panel);
 const threadsBox = el("div", "lf-threads");
 // An Escape rung: backing out of the general box lands on the list (visible ring,
 // j/k walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
@@ -3007,6 +3612,11 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
+// The g chord's addresses: a numbered chip on every member of the list it has aimed at,
+// drawn here for the same reason the legend is (paintAddresses, its one writer). The eye's
+// copy of what the chord announces, so it says nothing to a screen reader.
+const addressBoard = el("div", "lf-ui lf-addresses");
+addressBoard.setAttribute("aria-hidden", "true");
 // The runtime's parts, named: a design comment can point at one, and an anchor names an
 // element by id, so each part that is a thing to point at carries a stable one under the
 // runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
@@ -3035,6 +3645,7 @@ chromeRoot.append(
   asksPanel,
   panel,
   legendRoot,
+  addressBoard,
   aimBox,
   fab,
   composer,
@@ -3050,7 +3661,7 @@ document.body.append(chromeRoot);
 // The counters hold the widest they reach anywhere below a thousand, so no count
 // they write can move them — a page with a thousand open threads, or a machine with
 // a thousand live pages, is not one anyone hands a user.
-if (SIGNOFF) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+if (signoff) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
 reserve(versionBtn, [versionLabel(false), versionLabel(true)]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
@@ -3066,11 +3677,29 @@ document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 
 // ---------- state ----------
 let events = [];
+// Until the first state answer, [] means "not read", not "no comments". Keep that
+// distinction for a Comments panel restored or opened during startup; its General
+// composer stays usable while the log-derived list says what it is waiting for.
+let statePhase = "waiting";
 let lastEventSeq = -1;
 let lastVersionsKey = "";
 let latestVersion = null;
 let versions = [];
 let agentMsgCount = -1;
+// The agent's dated claim that it is working on one thread (`leaf status … --on`),
+// keyed by that thread's root id. It is the banner's own claim read at a second seat:
+// the page's line says what the agent is doing, and the thread it is doing it about
+// says so under the words that asked for it. It lives in status.json beside the page's
+// claim rather than in the log, because it is a sentence somebody revises every few
+// minutes and the log is the record of what happened — and because one writer for the
+// two seats is what makes a delegate's check-in keep the banner true (set_status).
+let agentNotes = {};
+// The threads the panel last reconciled. The note line repaints on the poll's clock and
+// not only on the log's, because its age is half of what it says and a note nobody
+// renews is exactly the one whose age has stopped moving. Keeping the last fold is what
+// makes that cheap: buildThreads walks the log and the page, and a second walk every two
+// seconds would answer nothing the last one didn't.
+let threadList = [];
 let panelOpen = false;
 let pendingAnchor = null;
 
@@ -3092,14 +3721,16 @@ function sequence(widget, verb, kind, live) {
         event.kind === kind &&
         event.widget === widget.id &&
         (!verb || event.action === verb) &&
-        (inChrome(widget) || event.version <= VNUM) &&
+        (inChrome(widget) || event.version <= currentVersion) &&
         live(event),
     )
     .map((event) => structuredClone(event));
 }
 
-export const actionSequence = (widget, action) =>
-  sequence(widget, action, "action", (e) => appliedActions.has(e.seq));
+export const actionSequence = (widget, action) => {
+  const projection = stateProjection(currentVersion);
+  return sequence(widget, action, "action", (e) => projectionCommitted(projection, e));
+};
 
 // Every report a worker has made about this widget, newest last. `ts` is what a module
 // usually wants here: when the log heard from that worker, which is the one statement
@@ -3109,8 +3740,8 @@ export const actionSequence = (widget, action) =>
 // Unfiltered, where the action half takes only what replay has settled, and the two
 // asymmetries are the same rule read in each channel. An action's liveness is replay's,
 // because a widget that deferred one under live input has a body that does not hold it
-// yet and must not narrate it. A report's liveness is the *fold's* — answered by a
-// version, and `reportFold` is what asks that — while a consumer asking when the log
+// yet and must not narrate it. A report's liveness is the projection's — answered by a
+// version — while a consumer asking when the log
 // last heard from this worker is asking about the log and not about the fold.
 //
 // Filtering the answered ones out here was the same words meaning two things, and it
@@ -3134,7 +3765,8 @@ export const reportSequence = (widget, verb) =>
 // one section below the banner.
 export const publishedAt = () => {
   let ts = null;
-  for (const e of events) if (e.kind === "note" && e.version === VNUM) ts = e.ts;
+  for (const e of events)
+    if (e.kind === "note" && e.version === currentVersion) ts = e.ts;
   return ts;
 };
 
@@ -3144,18 +3776,24 @@ export const publishedAt = () => {
 // its complete rendering in one function whether the first state arrived before or
 // after it connected — and again on every poll, whether or not the log grew, which is
 // what lets a rendering of elapsed time stay true without a timer of its own.
-const watch = (read, callback) => {
-  const update = () => callback(read());
+const watch = (owner, read, callback) => {
+  const update = () => {
+    if (!owner.isConnected) {
+      document.removeEventListener("lf-actions", update);
+      return;
+    }
+    callback(read());
+  };
   document.addEventListener("lf-actions", update);
   update();
   return () => document.removeEventListener("lf-actions", update);
 };
 
 export const watchActions = (widget, action, callback) =>
-  watch(() => actionSequence(widget, action), callback);
+  watch(widget, () => actionSequence(widget, action), callback);
 
 export const watchReports = (widget, verb, callback) =>
-  watch(() => reportSequence(widget, verb), callback);
+  watch(widget, () => reportSequence(widget, verb), callback);
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -3447,19 +4085,22 @@ function mirrorDraft(ta, sync, ctx) {
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
-// Panel open/closed is remembered too: a version switch reloads the document, and
-// reopening the panel by hand after every revision gets old fast.
+// Panel open/closed is remembered too: it survives live activation, document travel,
+// and reload, so reopening the panel by hand after every revision gets old fast.
 const PANEL_KEY = "lf-panel-open";
 // Whether the panel stands over the page rather than beside it — the same fact as which
 // of the two rules that take the strip the page is under, and as which region the
-// reader's own scrolling moves. Asked of the query rather than stored, so no reader of it
-// can hold an answer from a window that has gone.
-const covering = matchMedia(COVERING);
-const panelCovers = () => panelOpen && covering.matches;
-// The strip the panel holds, which is the panel's width until the window is too narrow
-// to give one up — one expression, because the margin the rule takes and the room
-// measured against it have to mean the same thing by it.
-const panelStrip = () => (panelOpen && !panelCovers() ? PANEL_W : 0);
+// reader's own scrolling moves. Asked of the edge's query rather than stored, so no reader
+// of it can hold an answer from a window that has gone.
+const panelCovers = () => panelOpen && commentsEdge.over.matches;
+// The strip each side of the page yields, which is that edge's width until the window is
+// too narrow to give one up — one expression each, because the margin the rule takes and
+// the room measured against it have to mean the same thing by it. The board panel yields
+// one only for the boards the page gives room to at all, which is the same list the rule
+// reads (STRIP_BOARDS).
+const panelStrip = () => (panelOpen && !panelCovers() ? commentsEdge.width() : 0);
+const boardStrip = () =>
+  STRIP_BOARDS.includes(boardUp) && !boardsEdge.over.matches ? boardsEdge.width() : 0;
 // Whether the page still has room for the margin the theme's idioms hang in. The strips
 // are granted by a media query, which asks the window; the page's box is the window less
 // whatever the panel holds of it, and this is the only thing that knows the difference. So
@@ -3484,10 +4125,17 @@ const panelStrip = () => (panelOpen && !panelCovers() ? PANEL_W : 0);
 function stateStrip() {
   document.body.toggleAttribute(
     "data-lf-cramped",
-    document.documentElement.clientWidth - panelStrip() < STRIP_MIN,
+    document.documentElement.clientWidth - panelStrip() - boardStrip() < STRIP_MIN,
   );
 }
-addEventListener("resize", stateStrip);
+// A window that has changed is a cap that has changed, so the width each edge stands at
+// is restated beside the veto — one listener, every fact on it being an answer to the same
+// event, and none of them a reading of the box syncLayout measures.
+addEventListener("resize", () => {
+  commentsEdge.state();
+  boardsEdge.state();
+  stateStrip();
+});
 // Every writer here is a writer of the chrome, so nothing this function does resizes the
 // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
 // it yields to a margin idiom is stated above.
@@ -3496,7 +4144,7 @@ function syncLayout() {
   // The toast lives in the same corner as the panel's Send button. Beside a wide
   // panel it steps left; over a covering sheet it stays inside the viewport and
   // rises above the whole composer, including a textarea grown by an unsent draft.
-  toastEl.style.right = (panelBeside ? PANEL_W + 18 : 18) + "px";
+  toastEl.style.right = (panelBeside ? commentsEdge.width() + 18 : 18) + "px";
   toastEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 18 : 18) + "px";
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
@@ -3514,8 +4162,8 @@ function syncLayout() {
   // in the flow, holds nothing but out-of-flow chrome, and is watched by nobody, so what
   // it takes is room the document has and no measurement's business.
   chromeRoot.style.paddingBottom = clear;
-  // The board is the page's other scroll region, in the corner the line is written
-  // into, so it reserves the same room — and states it twice, because its list reaches
+  // A board's list is the page's other scroll region, in the corner the line is
+  // written into, so it reserves the same room — and states it twice, because it reaches
   // the bottom two ways that take their room from different places. A wheel to the end
   // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
   // scroll-into-view stops short of, and without it the last row's clearance is however
@@ -3523,9 +4171,11 @@ function syncLayout() {
   // line standing there. Stepping the line clear instead was the other answer, and it
   // takes the board's width off the line's: a busy scope already fills a laptop's, so
   // the room it gives up is chips clipped off the right-hand end.
-  othersPanel.style.paddingBottom = clear;
-  othersPanel.style.scrollPaddingBottom = clear;
-  stateRoom(panelStrip());
+  for (const list of boardLists) {
+    list.style.paddingBottom = clear;
+    list.style.scrollPaddingBottom = clear;
+  }
+  stateRoom();
   syncFloats();
 }
 // The room a widget declared wide may take: the document's own content box, less the
@@ -3533,23 +4183,34 @@ function syncLayout() {
 // axis and stops where the page stops.
 //
 // Measured, and measured here, because the panel is the thing no stylesheet can see: it
-// is 420px of the window while it is open and nothing in CSS says so, and a rule written
-// against 100vw would also spend the rail a suggestion hangs in and the classic scrollbar
-// this platform doesn't draw. The three of them come off body's own box for free. That box
-// is watched (layoutSizes), so the room is restated whenever it changes shape whatever
-// changed it, for the same reason the floats are placed again.
+// holds whatever of the window the reader has drawn it to while it is open, and no query
+// can ask that, and a rule written against 100vw would also spend the rail a suggestion
+// hangs in and the classic scrollbar this platform doesn't draw. The three of them come
+// off body's own box for free. That box is watched (layoutSizes), so the room is restated
+// whenever it changes shape whatever changed it, for the same reason the floats are
+// placed again.
 //
 // The gutter is read off the column rather than stated, since 24px is theme.css's number
 // and a second copy here would be a release behind it. Below the column's own width the
 // two coincide exactly, so the rule that spends this is a no-op on a narrow window rather
 // than a case anyone has to write.
 //
-// The strip the panel holds is the one part of that box which isn't settled when this
-// runs: it is handed over as motion, so body's margin is still the old one for the length
-// of the transition and the box in front of us is neither the width the page has nor the
-// one it is going to. Both readings are wrong, in opposite directions and at different
-// prices, so the room takes whichever of the two is smaller and the page never owes room
-// it hasn't got. Opening, that is the width being arrived at, stated at once: the strip
+// The strips the chrome holds are the part of that box which isn't settled when this
+// runs: each is handed over as motion, so body's margins are still the old ones for the
+// length of the transition and the box in front of us is neither the width the page has
+// nor the one it is going to. Both readings are wrong, in opposite directions and at
+// different prices, so the room takes whichever of the two is smaller and the page never
+// owes room it hasn't got. Both sides, because both yield one: the board panel's margin
+// eases exactly as the comment panel's does, and reading it off the box alone left every
+// exhibit a board's width too wide for the fifth of a second the board took to arrive.
+//
+// The two readings are compared rather than added, which is the same arithmetic done in
+// whole pixels. Subtracting the margin the box has already taken from the strip it is
+// going to take says the same thing and says it in two number systems at once: a client
+// box is an integer and a transitioning margin is not, so their sum flickered a pixel
+// either way on every frame of a slide — and a property every wide exhibit is laid out
+// from cannot flicker, because each flicker is a relayout inside the observation that
+// asked for it. Opening, that is the width being arrived at, stated at once: the strip
 // is being taken away, and an exhibit that waited out the slide would spend it hanging
 // over the panel with a sideways scrollbar underneath. Closing, it is the width in front
 // of us: the strip is coming back, and an exhibit that took it before the page had it
@@ -3557,14 +4218,21 @@ function syncLayout() {
 // is what the suggestion sweep caught, on a window narrow enough for the returning strip
 // to matter. What is given back is picked up as it is given: the box is watched, so every
 // frame of the slide is a reading of it, and the growth lands the frame the room is real.
-function stateRoom(strip) {
+function stateRoom() {
   const main = document.querySelector("main");
   if (!main) return;
   const body = getComputedStyle(document.body);
   const column = getComputedStyle(main);
+  // The gutter body reserves for its own scrollbar, which the window does not know about
+  // and the box in front of us has already given up. Read as the difference between the
+  // two boxes rather than asked of the platform, which has no way to be asked; it is a
+  // constant through a slide, both boxes moving with the margin together.
+  const gutter = document.body.offsetWidth - document.body.clientWidth;
   const room =
-    document.body.clientWidth -
-    Math.max(0, strip - parseFloat(body.marginRight)) -
+    Math.min(
+      document.body.clientWidth,
+      document.documentElement.clientWidth - panelStrip() - boardStrip() - gutter,
+    ) -
     parseFloat(body.paddingLeft) -
     parseFloat(body.paddingRight) -
     parseFloat(column.paddingLeft) -
@@ -3666,54 +4334,186 @@ function showToast(msg, onClick) {
 
 // Returns the event the server minted — the id is the sender's only handle on the
 // thread or message it just created, which is what revealThread is handed — or null
-// when the send failed. The poll is awaited before returning, so by the time a caller
-// holds the minted event the panel has already rendered it.
+// when the server definitively refused it. Every event carries one browser-minted
+// attempt, so a lost answer is retried without becoming a second gesture.
 //
-// One send at a time, because the log's order is the order the user acted in and two
-// requests in flight are not: the server answers each on a thread of its own, so a pick
-// made a moment after another can be appended before it. Replay states a widget whole,
-// so the log read back then hands the reader the older decision as their standing state
-// and the gesture after that computes from it — the very drift the poll's own ordering
-// is written around, arriving through the log instead. It cost two CI runs: two clicks
-// three lines apart in a test reached the log reversed on a loaded runner, where two
-// dozen tries under the dockerised Linux suite never once managed it.
+// The outbox sends one at a time because the log's order is the order the reader acted
+// in and concurrent requests are not. It is also the page's only record of unresolved
+// work: an action in this list is the widget replay leaves alone and the fact that keeps
+// undo dead. A separate promise chain plus a pending-widget map used to describe those
+// same records twice, then reconcile them through a later poll.
 //
-// A gesture that painted itself has nothing the reader is looking at waiting on this;
-// a press has its own paint waiting, since it shows the decision only once the log has
-// taken it (see CLAUDE.md). Either way what waits behind is the next event's request,
-// until this one has been taken. A failed send is not a queue that stops: the turn
-// passes on whatever the fetch did. And only the send is ordered; the poll each one
-// ends with is a read, and no fact about the log turns on when a read lands.
-let taken = Promise.resolve();
-async function post(event) {
-  // One attempt. A send the server never took changes nothing — the page says so,
-  // and puts back whatever the gesture had painted — and a send it took whose
-  // response was lost is put back by the next poll, the log being what the page
-  // renders from. Retrying instead would need the sender to mint the id (a
-  // second send is only safe if the door can tell it from a second decision),
-  // and it would hold the queue below through its own backoff, delaying every
-  // later gesture to soften a case the log already reconciles.
-  const mine = taken.then(() => postEvent(event));
-  // The turn passes on whatever the send did, failures included — and the
-  // catch is what makes that true: a rejection left in `taken` is a promise
-  // every later send would chain onto and none would ever run from.
-  taken = mine.catch(() => {});
-  let minted;
-  try {
-    const res = await mine;
-    if (!res.ok) throw new Error(await res.text());
-    ({ event: minted } = await res.json());
-  } catch {
-    showToast("Couldn't send — server offline?");
-    return null;
+// A successful POST returns the server's state through the event it accepted. Acceptance
+// answers the caller and lets the next entry send. The entry itself leaves only after a
+// complete state application accounts for its attempt, keeping replay and undo away from
+// stale history if rendering the response fails. A periodic poll may account for the
+// attempt first after a response is lost, or later after a local render fault.
+const retryPause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS));
+let drainingOutbox = false;
+function removeOutbox(entry) {
+  const index = outbox.indexOf(entry);
+  if (index >= 0) outbox.splice(index, 1);
+}
+function accountOutbox(readEvents) {
+  let removed = false;
+  for (const entry of [...outbox]) {
+    const accepted = readEvents.find(
+      (candidate) => candidate.attempt === entry.event.attempt,
+    );
+    if (!accepted) continue;
+    entry.readEvent = accepted;
+    entry.resolveRead(accepted);
+    if (!entry.answered) continue;
+    if (entry.event.kind !== "action") {
+      removeOutbox(entry);
+      removed = true;
+    }
   }
-  // The send succeeded the moment the server minted the event. The poll only
-  // brings the panel up to date, so a fault in its render pipeline is its own
-  // news and must not claim the send failed — a caller told null takes back a pick
-  // the log already holds, or withholds a decision the log already holds, and the
-  // next timer poll paints it back two seconds later either way.
-  await poll().catch((error) => console.error("leaf: poll after send", error));
-  return minted;
+  if (releaseProjectedOutbox()) removed = true;
+  if (removed) paintKeys();
+}
+async function deliver(entry) {
+  let announced = false;
+  for (;;) {
+    const { event } = entry;
+    if (entry.readEvent) return { answer: entry.readEvent };
+    const sent = await Promise.race([
+      postEvent(event).then(
+        (res) => ({ res }),
+        (error) => ({ error }),
+      ),
+      entry.read.then((answer) => ({ answer })),
+    ]);
+    if (sent.answer) return { answer: sent.answer };
+    if (sent.error) {
+      if (!announced) showToast("Connection lost — retrying your change…");
+      announced = true;
+      await retryPause();
+      continue;
+    }
+    const res = sent.res;
+    // A newer layer is taking this tab over, and `postEvent` has already started the
+    // reload. The server refused to read this body in a vocabulary it no longer
+    // speaks, so nothing was appended and there is nothing here to retry: the page
+    // comes back from the log, under the layer it is reloading into.
+    if (!res) return { answer: null };
+    const decoded = await Promise.race([
+      res.json().then(
+        (answer) => ({ answer }),
+        (error) => ({ error }),
+      ),
+      entry.read.then((answer) => ({ readAnswer: answer })),
+    ]);
+    if (decoded.readAnswer) return { answer: decoded.readAnswer };
+    if (decoded.error) {
+      if (!announced) showToast("Couldn't read the answer — retrying your change…");
+      announced = true;
+      await retryPause();
+      continue;
+    }
+    const answer = decoded.answer;
+    const acceptedEvent = answer?.state?.events?.find(
+      (candidate) => candidate.attempt === event.attempt,
+    );
+    if (res.ok && answer?.ok === true && acceptedEvent) {
+      // The send succeeded the moment the answer named the accepted event. A fault
+      // rendering that state is its own news and must not re-send: the next poll
+      // paints it, and re-posting an attempt the log already holds is a request the
+      // server can only answer the same way. Where the throw lands before the events
+      // are stored, the retry would not even end at the top of this loop — the
+      // attempt is in no list to be found — so the page would post forever and this
+      // gesture would never settle.
+      const settled = receiveState(answer.state).catch((error) =>
+        console.error("leaf: state in event response", error),
+      );
+      return {
+        answer: acceptedEvent,
+        settled,
+      };
+    }
+    if (
+      answer?.final === true &&
+      (!("attempt" in answer) || answer.attempt === event.attempt) &&
+      answer.ok === false
+    ) {
+      showToast(`Couldn't send — ${answer.error || "the server refused it"}`);
+      return { answer: null };
+    }
+    if (!announced) showToast("Server answer was incomplete — retrying your change…");
+    announced = true;
+    await retryPause();
+  }
+}
+async function drainOutbox() {
+  if (drainingOutbox) return;
+  drainingOutbox = true;
+  try {
+    for (;;) {
+      const entry = outbox.find((candidate) => !candidate.answered);
+      if (!entry) break;
+      const { answer, settled } = await deliver(entry);
+      entry.answered = true;
+      entry.rejected = !answer && entry.event.kind === "action";
+      if (entry.event.kind !== "action" && (!answer || entry.readEvent))
+        removeOutbox(entry);
+      // A rejected action stops contributing its optimistic winner immediately, but
+      // stays in this outbox until the semantic projector has committed the resulting
+      // authoritative state. Delivery can advance; replay and undo cannot see the hold
+      // disappear first. Accepted entries are released by the complete read that
+      // contains their attempt, never merely by a response whose rendering failed.
+      if (entry.rejected || entry.readEvent) {
+        if (reconcileKnownState()) releaseProjectedOutbox();
+      }
+      // The list is an input to the key line and no focus/mouse event accompanies
+      // either edge. Repaint before resolving the caller, whose own settlement may
+      // move a second row on the same frame.
+      paintKeys();
+      // Acceptance opens the delivery queue immediately, but a successful caller
+      // resumes only after this answer's state has either painted or reported why it
+      // could not. Comment callers reveal and focus the thread that state creates;
+      // tying their continuation to POST delivery made that focus a race. A failed
+      // render still resolves with the accepted event and leaves this outbox entry
+      // holding replay and undo for the next complete poll.
+      if (settled) void settled.then(() => entry.resolve(answer));
+      else entry.resolve(answer);
+    }
+  } finally {
+    drainingOutbox = false;
+  }
+}
+function post(event) {
+  const attempted = { ...event, attempt: event.attempt || newAttempt() };
+  // One attempt names one gesture. A caller that reuses it while the first gesture
+  // is still here has made a local protocol conflict; letting both entries wait for
+  // the same attempt would make the first accepted read resolve the second with the
+  // wrong payload before that payload ever reached the server's conflict gate.
+  if (outbox.some((entry) => entry.event.attempt === attempted.attempt)) {
+    showToast(`Couldn't send — attempt ${attempted.attempt} is already in use`);
+    return Promise.resolve(null);
+  }
+  const answer = new Promise((resolve) => {
+    let resolveRead;
+    const read = new Promise((readResolve) => {
+      resolveRead = readResolve;
+    });
+    const entry = {
+      event: attempted,
+      resolve,
+      read,
+      resolveRead,
+      answered: false,
+      rejected: false,
+      readEvent: null,
+      order: ++outboxOrder,
+      localId: Symbol("uncommitted local action"),
+      projection: null,
+    };
+    outbox.push(entry);
+    stageOutboxAction(entry);
+  });
+  paintKeys();
+  void drainOutbox();
+  return answer;
 }
 
 // ---------- text inputs ----------
@@ -3738,8 +4538,8 @@ function wireInput(
   // The hint goes in the placeholder, where it's visible exactly while the box is
   // empty and can't be found any other way; the button's tooltip spells the send key
   // out. The send shortcut is focus-scoped, so only the focused box may claim it —
-  // unfocused, the placeholder carries the box's own address instead (the leader
-  // sequence that reaches it), where the box has one. hint is a function where the
+  // unfocused, the placeholder carries the box's own address instead (the chord
+  // that reaches it), where the box has one. hint is a function where the
   // label changes under a live box (the composer's suggest mode); address is always
   // one, because a thread's number renumbers as earlier threads resolve while its box
   // stands.
@@ -3826,12 +4626,33 @@ function buildThreads() {
   // The whole log, not this version's window: a conversation is not version-scoped, so
   // the panel shows the same threads whichever version is pinned and a retraction
   // settles a thread's state from wherever it was declared. interact.py's callers pass
-  // upto=None for the same reason. Replay windows to VNUM instead, and on any version
+  // upto=None for the same reason. Replay windows to currentVersion instead, and on any version
   // but the newest the two are meant to disagree — the rule binds both sites, so it is
   // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
   // never the conversation".
   const floors = retractionFloors(Infinity);
+  const withdrawn = takenBack();
+  // widget id -> its last action the log still lets stand: not one the reader took
+  // back, not one a version retracted under it. The widget is what an ask is
+  // (x-awaits), so what answers one is that widget's own last word; and it is the
+  // only key the log carries by itself, which is why the page projection cannot be
+  // borrowed for this: it drops an action whose widget the page no longer holds, and the
+  // version that honors a decision retires the widget that made it, precisely when the
+  // thread it settled most needs to stay settled. x-state holds a verb declaring
+  // `resolves` to a widget-absolute unit so the two keys are the same one.
+  const answers = new Map();
+  for (const e of events)
+    if (
+      e.kind === "action" &&
+      !withdrawn.has(e.id) &&
+      !retractedIds(e, floors, elementById(e.widget)).length
+    )
+      answers.set(e.widget, e);
   for (const e of events) {
+    // A gesture the reader took back settles nothing, whichever way it settled: the
+    // log holds it and no reading of the log stands on it. The same sentence
+    // interact.py's build_threads reads, because it is the same reading.
+    if (withdrawn.has(e.id)) continue;
     if (e.kind === "comment") {
       // `resolved` is the event that settled the thread, or null. Either side can
       // close one, so a flag beside a second field naming who would be two readings
@@ -3841,10 +4662,10 @@ function buildThreads() {
       threadFor.set(e.id, thread);
       continue;
     }
-    // An action that names a thread settles it. The answer snapshots the thread
-    // it was made in, because the honoring version retires the wrapper that held
-    // the mapping and one atomic event can't half-arrive the way a second POST
-    // could — so the log is the only place that pairing survives.
+    // A widget's standing answer settles the thread it names. The answer snapshots
+    // the thread it was made in, because the honoring version retires the wrapper
+    // that held the mapping and one atomic event can't half-arrive the way a second
+    // POST could — so the log is the only place that pairing survives.
     //
     // Read off the detail rather than the verb, because the naming is the
     // mechanism's and the verb is a member's: `accept` stood here once, which was
@@ -3854,14 +4675,22 @@ function buildThreads() {
     // nobody wired up rather than as an error. A verb carries only the detail
     // keys its entry declares (additionalProperties: false), so a `resolves` is
     // one on purpose, and an answer that settles no thread carries none.
-    if (e.kind === "action" && e.detail.resolves) {
+    //
+    // Standing is every way the log currently holds an answer: not retracted by a
+    // version that rewrote what the decision rested on (`restated`), not taken back
+    // by the reader (the skip above), and not superseded by a later action on the
+    // same widget. Without that last one, a
+    // reject after an accept left the reader's question filed away as answered by
+    // the fix they had just turned down, while the fold reported the suggestion
+    // rejected: the log held one thing, the panel showed another, and nothing on
+    // either side said so.
+    //
+    // Settled at the answer's own place in the walk rather than after it: a resolve
+    // pressed between two decisions is the last word on the thread, and a
+    // superseded answer has nothing to clear because it never stood.
+    if (e.kind === "action") {
       const answered = threads.get(e.detail.resolves);
-      // Only while the action still stands. A version that rewrote what the decision
-      // rested on retracts it (`restated`), and replay drops it — so a thread left
-      // resolved here would be the one reading the log said nothing about, exactly the
-      // second store this design has none of.
-      if (answered && !retractedIds(e, floors, elementById(e.widget)).length)
-        answered.resolved = e;
+      if (answered && answers.get(e.widget) === e) answered.resolved = e;
       continue;
     }
     if (e.kind === "reply") {
@@ -3911,10 +4740,50 @@ const loadMarked = () =>
     }));
 
 // Bodies are cached per event id and re-adopted when a thread node is rebuilt — which
-// the reconcile leaves one occasion for, a thread resolving: the log is append-only so
-// a body's text never changes, and re-adopting the node keeps a widget in a reply
+// the reconcile leaves one occasion for, a thread resolving. The log is append-only,
+// so a message's text never changes, and re-adopting the node keeps a widget in a reply
 // (a rendered diagram) from re-upgrading across that rebuild.
 const msgBodies = new Map();
+function buildMsgBody(m) {
+  const body = el("div", "lf-msg-body");
+  if (m.suggestion) {
+    // Verbatim: a suggestion's characters are bound for the page as typed, and a
+    // rendering would show an italic where the next version carries the asterisks.
+    body.classList.add("lf-suggest-body");
+    body.textContent = m.text;
+  } else {
+    body.innerHTML = renderMarkdown(m.text);
+    // The widget markup beside the text, injected as the CLI gate validated it. A
+    // template is deliberately inert: an already-defined custom element's constructor
+    // runs even in a detached ordinary div, which would make generated state look like
+    // the thread event's authored baseline. Capture the literal event markup first,
+    // then move those same nodes into the body; they upgrade when the body is connected.
+    // The passes below don't come along with that upgrade — the said and quiet passes
+    // write a widget's declared words, spoken and silent, and a fenced block is a
+    // <pre><code class="language-…"> like any the page holds.
+    //
+    // markWide is the pass that deliberately stays behind, and the reason is what
+    // it hands out: the room the *document* has, which is not the room in here. A
+    // diagram in a reply is a widget the vocabulary calls wide, and marked as one
+    // it would lay itself out to the page's measure inside the panel. The room
+    // a message has is the message's, and it already has it.
+    if (m.markup) {
+      const authored = document.createElement("template");
+      authored.innerHTML = m.markup;
+      rememberAuthoredMarkup(authored.content);
+      captureAuthoredFacets(authored.content);
+      body.append(authored.content);
+    }
+    renderSaid(body);
+    renderQuiet(body);
+    // Not settle()d: that queue holds the page's geometry still for the first anchor
+    // pass, and a message colors in the panel, where no anchor is captured and nothing
+    // waits. Each block already fails soft to its own plain source.
+    highlightBlocks(body);
+  }
+  return body;
+}
+
 function msgNode(m) {
   const div = el("div", `lf-msg ${m.author}`);
   div.dataset.mid = m.id; // the reconcile's key, and revealThread's address for it
@@ -3925,33 +4794,7 @@ function msgNode(m) {
   );
   let body = msgBodies.get(m.id);
   if (!body) {
-    body = el("div", "lf-msg-body");
-    if (m.suggestion) {
-      // Verbatim: a suggestion's characters are bound for the page as typed, and a
-      // rendering would show an italic where the next version carries the asterisks.
-      body.classList.add("lf-suggest-body");
-      body.textContent = m.text;
-    } else {
-      body.innerHTML = renderMarkdown(m.text);
-      // The widget markup beside the text, injected as the CLI gate validated it.
-      // Already-defined widgets upgrade on insertion; the passes below don't come
-      // along with them — the said and quiet passes write a widget's declared words,
-      // spoken and silent, and a fenced block is a <pre><code class="language-…">
-      // like any the page holds.
-      //
-      // markWide is the pass that deliberately stays behind, and the reason is what
-      // it hands out: the room the *document* has, which is not the room in here. A
-      // diagram in a reply is a widget the vocabulary calls wide, and marked as one
-      // it would lay itself out to the page's measure inside a 420px panel. The room
-      // a message has is the message's, and it already has it.
-      if (m.markup) body.insertAdjacentHTML("beforeend", m.markup);
-      renderSaid(body);
-      renderQuiet(body);
-      // Not settle()d: that queue holds the page's geometry still for the first anchor
-      // pass, and a message colors in the panel, where no anchor is captured and nothing
-      // waits. Each block already fails soft to its own plain source.
-      highlightBlocks(body);
-    }
+    body = buildMsgBody(m);
     msgBodies.set(m.id, body); // the id is server-minted, on every event
   }
   div.append(head);
@@ -3993,12 +4836,13 @@ function anchorLabel(anchor, about) {
   return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
 }
 
-// The thread's address under the g leader: 1–9 by open order, 0 past the ninth. One
-// writer, renderThreads, because the number is the list's and not the thread's —
-// resolving an early thread renumbers every one after it without touching their nodes.
-// The reply box's armed chip and its placeholder are both renderings of this map,
-// repainted after every reconcile; nothing reads either back.
-const threadAddress = new Map();
+// The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
+// children rather than a record kept beside them: a thread the log settles is renamed out
+// of them in that frame (foldOut), which takes it out of the walk, out of the addresses and
+// out of r's press in one stroke. A map of id → address stood here once, written by
+// renderThreads and read back by the chip and the placeholder — one list held twice, and
+// the copy free to be a reconcile behind the panel it described.
+const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
 
 // The reconcile's one mover, shared by the list and the resolved disclosure: make
 // `parent`'s children `nodes`, in that order, touching nothing already in its place.
@@ -4022,6 +4866,7 @@ const emptyNote = el(
   "lf-empty",
   "No comments yet. Select any text on the page to comment on it, or use the box below.",
 );
+const waitingNote = el("div", "lf-empty", "Loading current comments…");
 
 // A terminal event's row, keyed like everything else in the list so its clock can
 // refresh in place.
@@ -4068,7 +4913,7 @@ async function sendReply(t, text, raw, owns) {
     post({
       kind: "reply",
       parent: id,
-      version: VNUM,
+      version: currentVersion,
       text,
       attempt,
     }),
@@ -4219,7 +5064,10 @@ function threadNode(t, grow) {
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
     const compose = existing.querySelector(":scope > .lf-compose");
-    const tail = compose ?? existing.querySelector(":scope > .lf-thread-actions");
+    const tail =
+      existing.querySelector(":scope > .lf-thread-note") ??
+      compose ??
+      existing.querySelector(":scope > .lf-thread-actions");
     for (const m of t.msgs) {
       let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
       if (!msg) {
@@ -4248,22 +5096,18 @@ function threadNode(t, grow) {
   t.msgs.forEach((m) => div.append(msgNode(m)));
   if (!t.resolved) {
     const row = el("div", "lf-compose");
-    // The box's address under the g leader, worn on the box the digit lands in and
-    // painted only while the window is armed. The placeholder speaks the same
-    // address at all times ("Reply · g 2"), which is what a screen reader hears —
-    // the chip is the armed moment's copy for the eye, so it stays out of the tree.
-    // Written by renderThreads, because the number is positional: it changes
-    // without this node changing.
-    const badge = el("span", "lf-address");
-    badge.setAttribute("aria-hidden", "true");
-    row.append(badge);
     const input = document.createElement("textarea");
     const send = el("button", "lf-btn primary lf-thread-send", "Send");
     row.append(input);
     div.lfSync = wireReply(t, input, send, {
+      // The box's address, spoken by its own placeholder at all times ("Reply · g c 2")
+      // — which is what a screen reader hears, the chip the chord paints being the eye's
+      // copy of the same fact. Read off the list rather than off a number written here,
+      // because the address is positional: resolving an early thread renumbers every one
+      // after it without touching their nodes, and renderThreads repaints them all.
       address: () => {
-        const num = threadAddress.get(t.root.id);
-        return num ? `g ${num}` : "";
+        const num = addressed(COMMENTS).indexOf(div) + 1;
+        return num ? addressLabel(COMMENTS, num) : "";
       },
       landed: (sent) => revealThread(sent.id),
     });
@@ -4281,15 +5125,14 @@ function threadNode(t, grow) {
     // send that failed, where the press must stay pressable; where it went through,
     // the fold has made the whole node inert and there is nothing to re-enable into.
     resolve.onclick = async () => {
-      const open = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
-      const at = open.indexOf(div);
+      const at = openThreads().indexOf(div);
       resolve.disabled = true;
       try {
         await post({ kind: "resolve", parent: t.root.id });
       } finally {
         resolve.disabled = false;
       }
-      const kept = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+      const kept = openThreads();
       (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
     };
     actions.append(send, resolve);
@@ -4348,7 +5191,19 @@ function threadNode(t, grow) {
 const folding = new Map(); // thread id -> the node folding out of the open list
 function foldOut(t) {
   const going = folding.get(t.root.id);
-  if (going) return going;
+  // For as long as it stands in the list, which is the whole of what the record
+  // claims. A reader who reopens a thread mid-fold has that render drop the folding
+  // node from the list, and the entry left behind names a node in nothing: handed
+  // back when they settle the thread again, it would stand a spent animation where
+  // the thread is, saying what the thread said before it reopened, and the thread
+  // would leave with no fold at all. The node's own connectedness is that fact, read
+  // here rather than written from wherever a node leaves the list, which is the
+  // difference between one writer and every caller of setChildren remembering.
+  // Dropped rather than passed over, because the two returns below leave without
+  // setting one, and an entry over a thread nothing is folding hides that thread
+  // from the disclosure that should be holding it by then.
+  if (going?.isConnected) return going;
+  folding.delete(t.root.id);
   const node = threadsBox.querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`);
   if (!node) return null;
   // Measured before anything about the node changes, and stated as a border box —
@@ -4385,20 +5240,63 @@ function foldOut(t) {
   // box says on its way out is "Reply" and no promise.
   node.lfSync();
   folding.set(t.root.id, node);
-  // Straight off the promise, and nothing between: the effect stops applying at the
-  // end of its own interval, so from that instant until this runs the node is its
-  // unanimated self — full height, full opacity — and a frame painted in that window
-  // puts the whole thread back before it goes. The microtask beats the paint and one
-  // deferral loses it, which is the distance a `requestAnimationFrame` here would
-  // travel. What holds the line is
+  // Straight off the promise, and nothing between: motion() holds the last keyframe
+  // while this direct reaction makes that frame true by removing the node, then its
+  // shared reaction releases the effect. Deferring this cleanup past that contract
+  // would put the whole thread back before it goes. What holds the line is
   // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
   // see it.
   played.finished.then(() => {
-    folding.delete(t.root.id);
+    // This node's own entry, never whatever the thread's key holds now: a fold the
+    // line above superseded is still running, and the older one finishing must not
+    // take the live one's record with it.
+    if (folding.get(t.root.id) === node) folding.delete(t.root.id);
     node.remove();
     renderPanel();
   });
   return node;
+}
+
+// A note stands until the agent's own next word in this thread. Nothing writes one off:
+// answering is what ends the work, so a second act saying so would be a second writer
+// for one fact — and a note whose answer landed while this tab was asleep is settled by
+// the next poll with no help from anyone. A resolved thread shows none for the same
+// reason its reply box is gone: the conversation is over, whoever closed it.
+function standingNote(t) {
+  const note = agentNotes[t.root.id];
+  if (!note || t.resolved) return null;
+  const since = Date.parse(note.ts);
+  return t.msgs.some((m) => m.author === "claude" && Date.parse(m.ts) > since)
+    ? null
+    : note;
+}
+
+// One writer for the line, called from the reconcile that builds the thread nodes and
+// from every poll after it — the first because a new node has none, the second because
+// a note arrives and ages without the log changing at all.
+function paintNotes() {
+  for (const t of threadList) {
+    const div = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
+    if (!div) continue;
+    const note = standingNote(t);
+    let line = div.querySelector(":scope > .lf-thread-note");
+    if (!note) {
+      line?.remove();
+      continue;
+    }
+    if (!line) {
+      line = el("div", "lf-thread-note");
+      line.append(el("span"), el("time"));
+      div.insertBefore(line, div.querySelector(":scope > .lf-compose"));
+    }
+    const [what, when] = line.children;
+    // Written only on change, like the message clocks beside it: an unchanged poll must
+    // not hand the reader's screen reader the same sentence every two seconds.
+    const said = `${agentName()} is on this — ${note.detail}`;
+    if (what.textContent !== said) what.textContent = said;
+    const age = ago(note.ts);
+    if (when.textContent !== age) when.textContent = age;
+  }
 }
 
 // The DOM is the one record of what's rendered, reconciled against the log: nodes the
@@ -4420,22 +5318,18 @@ function renderThreads(threads) {
 
   const wanted = [];
   if (!threads.length) wanted.push(emptyNote);
-  threadAddress.clear();
   // Walked in the log's order rather than the open list's, because a thread on its way
   // out still stands between its neighbours while it folds (foldOut) and the two
   // orders are the same walk with one of them filtered. The first nine open threads
-  // are addressable (g 1–9), in the order j/k walk; past nine, digits stop and j/k
+  // are addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k
   // still reach everything. A folding thread takes no address and is walked by
   // nothing: the log has already settled it, and only its room is still here.
-  let nth = 0;
   for (const t of threads) {
     if (t.resolved) {
       const going = foldOut(t);
       if (going) wanted.push(going);
       continue;
     }
-    threadAddress.set(t.root.id, nth < 9 ? nth + 1 : 0);
-    nth += 1;
     wanted.push(threadNode(t, grow));
   }
   for (const e of events) {
@@ -4462,6 +5356,12 @@ function renderThreads(threads) {
     wanted.push(resolvedBox);
   }
   setChildren(threadsBox, wanted);
+  // A thread's widget markup is authored too, but it arrives after the page's startup
+  // capture. Take its baseline on the first frame it is connected, before a reader can
+  // act on it; later reconciles keep the first capture rather than mistaking a live
+  // choice for authored state. Thread markup is frozen in its event, so unlike page
+  // markup it has no version window to move under.
+  captureAuthoredFacets(threadsBox);
   // A comment carries whatever widget markup the gate allows, so the panel holds the
   // same scroll boxes the page does, in a column half the width — and reachScrollers
   // wants two things that are only true here, after this line. A message body is built
@@ -4474,17 +5374,13 @@ function renderThreads(threads) {
   // joined: nothing about the page's own first anchor pass waits on a message.
   Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
 
-  // The chip and the reply placeholder both speak the thread's address, repainted
-  // after ordering because resolving an early thread renumbers everything after it.
-  for (const div of threadsBox.querySelectorAll(":scope > .lf-thread")) {
-    const num = threadAddress.get(div.dataset.id);
-    const worn = num ? String(num) : "";
-    const badge = div.querySelector(".lf-compose > .lf-address");
-    if (badge.textContent !== worn) badge.textContent = worn;
-    div.lfSync();
-  }
+  // Each reply box speaks its own address, repainted after ordering because resolving an
+  // early thread renumbers everything after it — and read off the list this reconcile has
+  // just written, which is why the loop is here and not where the boxes were built.
+  for (const div of openThreads()) div.lfSync();
   toggleBtn.textContent = `Comments (${open.length})`;
-  paintHere(); // the key line's j/k and g rows stand only over threads (threadAddress)
+  paintNotes();
+  paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
 }
 
 // A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
@@ -4496,7 +5392,19 @@ threadsBox.addEventListener("animationend", (ev) => ev.target.classList.remove("
 // The panel and the page marks are two views of the same threads, and the paint pass
 // reports back to the list renderThreads just reconciled — always render them as a pair.
 function renderPanel() {
+  if (statePhase !== "ready") {
+    waitingNote.textContent =
+      statePhase === "offline"
+        ? "Current comments are unavailable while the server is offline."
+        : "Loading current comments…";
+    setChildren(threadsBox, [waitingNote]);
+    toggleBtn.textContent = "Comments";
+    threadList = [];
+    paintHere();
+    return;
+  }
   const threads = buildThreads();
+  threadList = threads;
   renderThreads(threads);
   renderConversations(threads);
   paintAnchors(threads);
@@ -4575,6 +5483,40 @@ function retiredSlots() {
   if (Object.keys(registry).length) retiredSlotsMemo = value;
   return value;
 }
+// The same relation read the other way: holder tag → each settling outcome and the
+// slot tags that leave the page under it. Replay reads it to paint the settlement
+// (markSettled, renderRetired), so which verbs settle a holder is the registry's fact
+// here exactly as it is in the selector above. Same registry-loaded guard, for the
+// same aim-window reason.
+let settlementSlotsMemo;
+function settlementSlots() {
+  if (settlementSlotsMemo != null) return settlementSlotsMemo;
+  const value = {};
+  for (const [tag, entry] of widgetEntries().filter(([, e]) => e["x-retired-when"]))
+    for (const parent of entry["x-parent"])
+      ((value[parent] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
+  if (Object.keys(registry).length) settlementSlotsMemo = value;
+  return value;
+}
+
+// The rendering of a settlement, in one place for the two occasions that paint it —
+// replay (markSettled) and a module saying its own gesture (lf-suggestion's #settle):
+// reads the holder's mark and paints data-lf-retired onto the slots the standing
+// outcome retires, clearing it from the rest. One static theme rule hides the marked
+// slots, so a family a project declares hides what a settlement removes the day it
+// declares it — by-name rules in theme.css were the closed list wearing CSS's
+// clothes — and the same pair of marker and rule is what carries the disappearance
+// into an exported copy, which keeps markup and stylesheet and drops every module.
+export function renderRetired(el) {
+  const outcomes = settlementSlots()[el.localName];
+  if (!outcomes) return;
+  const mark = el.getAttribute("data-lf-state");
+  for (const [outcome, tags] of Object.entries(outcomes))
+    for (const tag of tags)
+      for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
+        for (const slot of root.querySelectorAll(`:scope > ${tag}`))
+          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, outcome === mark);
+}
 // What no label can speak through, however it is marked: an inline script, the
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
 // decision took off the page. Chrome is the rest of what the anchor pass skips and
@@ -4621,7 +5563,7 @@ const SAID = "[data-lf-said]";
 // control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
 // the answer once, and it is a look — which is how a user ended up reading a heading
 // they could not point at, twice.
-const inUi = (node) => {
+export const inUi = (node) => {
   const near = (node?.nodeType === 1 ? node : node?.parentElement)?.closest(
     `.lf-ui, ${SAID}`,
   );
@@ -4649,20 +5591,38 @@ const TEXT_BLOCK =
 //
 // Built per walk rather than per node, because the retired half of the wall is read out
 // of the registry each time it is asked for.
-// A text node's parent is an element, and these two say so the way the other two
-// readings of the same nodes already do (pageText's cell walk, snapOut's seam). Written
-// four ways it was four answers to one question, three of them asserting the parent and
-// one quietly admitting a node without one — which is a claim about the page nothing
-// backs: what a widget stages into a shadow root is the only text these walks reach
-// with no element over it, and a module staging a bare text node would be handing the
-// page words no cell, no fence and no block. It throws here now, out of the pass the
-// render gate reads the console for, which is the loud direction and in front of
-// whoever staged it.
+// A text node's parent is an element, and all four readings of these nodes say so:
+// the two below, pageText's cell walk and snapOut's seam. Written four ways it was four
+// answers to one question, three of them asserting the parent and one quietly admitting
+// a node without one — which is a claim about the page nothing backs: what a widget
+// stages into a shadow root is the only text these walks reach with no element over it,
+// and a module staging a bare text node would be handing the page words no cell, no
+// fence and no block. So the assertion is one function, and refusing is what it does.
+//
+// It refuses in the words of the mistake, which is the half that was missing. Throwing
+// out of the pass the render gate reads the console for is the loud direction, and the
+// throw was `Cannot read properties of null (reading 'closest')` on a page showing
+// nothing at all — naming neither the widget that staged the text nor what was wrong
+// with it. A refusal whose message is a property name reaches its author as the runtime
+// being broken, which is the one thing it isn't.
+const elementOver = (n) => {
+  if (n.parentElement) return n.parentElement;
+  const host = n.getRootNode()?.host;
+  const at = host
+    ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
+    : "a module";
+  throw new Error(
+    `${at} staged bare text into a shadow root: ` +
+      `${JSON.stringify(n.data.trim().slice(0, 40).trim())} has no element over it, ` +
+      `so the page holds no block, cell or fence for it. Give a module's rendered ` +
+      `words an element to sit in.`,
+  );
+};
 const quotable = () => {
   const gone = silenced();
-  return (n) => !inUi(n) && !n.parentElement.closest(gone);
+  return (n) => !inUi(n) && !elementOver(n).closest(gone);
 };
-const authored = () => (n) => !n.parentElement.closest(GENERATED);
+const authored = () => (n) => !elementOver(n).closest(GENERATED);
 // The composed tree, not the light one: a widget that renders the page's words into an
 // open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
 // own children stop rendering the moment it has one. A TreeWalker sees none of that — it
@@ -5170,9 +6130,7 @@ function pageText() {
   // become fences; x-says spans are already present in the file-side reading.
   const dynamicWords = new WeakSet();
   for (const seg of segments) {
-    // A text node written directly under a declared shadow root has no element
-    // parent in its tree; it is nobody's generated cell.
-    const generated = seg.node.parentElement?.closest("[data-lf-gen]");
+    const generated = elementOver(seg.node).closest("[data-lf-gen]");
     if (!generated) continue;
     const attr = generated.getAttribute("data-lf-said");
     const hostEntry = registry[generated.parentElement?.localName];
@@ -5311,10 +6269,11 @@ function findQuote(text, quote, anchor, within) {
 }
 
 // ---------- view continuity ----------
-// Following a new version is a navigation, so without help the reader lands at the top
-// of a fresh document mid-session, standing nowhere in the walk they were making. Where
-// they are rides across in tabStore — per-tab like unsent drafts, because a place in a
-// page belongs to a tab and shouldn't outlive it. Two things are recorded, because
+// Following a new version replaces the authored main, whether the live root keeps this
+// document or historical travel opens another one. A raw replacement leaves the reader
+// at the top mid-session, standing nowhere in the walk they were making. Where they are
+// rides across as one semantic view — and through tabStore on document travel, per-tab
+// because a place in a page shouldn't outlive it. Two things are recorded, because
 // askPosition reads two the runtime can write down: the passage they were reading, and
 // the ask the n/p walk had stepped them to. The passage travels as a landmark rather
 // than a pixel offset, since content moves between versions: re-find it by its text
@@ -5346,12 +6305,12 @@ function* blocksOnScreen() {
 // filtered to a section the text isn't in and can only ever fail — restore then falls back
 // to the section, which doesn't absorb content added above the reader inside it.
 function captureView() {
-  const view = { v: VNUM, y: pageScroller.scrollTop };
+  const view = { v: currentVersion, y: pageScroller.scrollTop };
   // Where the ask walk left off, which is the reader's place stated more exactly than
-  // any block can state it — the walk put them there on purpose. It is a variable in a
-  // module the navigation is about to throw away, so this is the only way it survives
-  // the document being replaced. The ring is not recorded beside it: it is painted from
-  // the focus, and a reader arriving at a fresh document is standing on the page.
+  // any block can state it — the walk put them there on purpose. Its element identity
+  // does not survive an authored-main replacement, and the module variable does not
+  // survive document travel, so the id is the one form both can restore. The ring is not
+  // recorded beside it: it is painted from focus, and another document starts on the page.
   view.ask = landed?.id;
   for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
@@ -5379,8 +6338,8 @@ function captureView() {
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
-// animating from the top of a fresh document is worse than the jump it replaces. Moving to
-// a mark the reader asked for is the other case, and says so.
+// animating from the replacement's raw position is worse than the jump it replaces.
+// Moving to a mark the reader asked for is the other case, and says so.
 const jumpBy = (dy, behavior = "instant") =>
   pageScroller.scrollBy({ top: dy, behavior });
 function restoreView(view) {
@@ -5512,6 +6471,16 @@ const HTML_WORDS = {
 function itemWord(item) {
   if (!item) return "";
   const tag = item.tagName.toLowerCase();
+  // A widget whose kind is not its tag says which it is. Three shapes of change are all
+  // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks board
+  // under the words it proposed to remove, reading exactly like the insertion above it.
+  // Asked only where an entry says there is something to ask, and answered only by an
+  // element that has upgraded — before that, and for every widget that declares nothing,
+  // the tag is the word.
+  if (registry[tag]?.["x-word"] === "module") {
+    const own = item.lfWord?.();
+    if (own) return own;
+  }
   if (tag.startsWith("lf-")) return tag.slice(3);
   // A <pre> is a block of something and the something is in the markup: the documented
   // shape for source is <pre><code class="language-*">, and a <pre> without the <code> is
@@ -5610,20 +6579,18 @@ export function shownBand(el) {
   };
 }
 // The box an element shows as. An element that generates none of its own — a
-// display: contents wrapper, which is how a suggestion sits mid-sentence or around whole
-// sections without disturbing either flow — shows as what its contents paint, so its
-// bounds are theirs, and a range asks the platform for that union in one read. Its own
-// rect is (0,0) at the document's origin, which is not a degenerate box but a wrong one:
-// it reads as a real place at the top of the page, so whatever measured it travelled
-// there.
+// display: contents wrapper — shows as what its contents paint, so its bounds are
+// theirs, and a range asks the platform for that union in one read. Its own rect is
+// (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
+// reads as a real place at the top of the page, so whatever measured it travelled there.
 //
-// This lived inside the legend's own reading, which is where the case was first met, and
-// that is what left it a fact about one consumer rather than about elements. The other
-// two went on asking the element directly and got the wrong place each in the shape of
-// its own job: scrollToElement centred the top of the document, and the ask walk's ring
-// painted nothing, so a page whose open asks were all suggestions answered n by appearing
-// to do nothing at all. One answer to "where is this element", so there is no second way
-// to ask.
+// No widget in the vocabulary is one now — lf-suggestion was, and its theme comment
+// carries what that cost — but the wrong answer is the platform's rather than that
+// widget's: a page or a project layer styles any wrapper this way in a line. This
+// lived inside the legend's own reading once, where it stood as a fact about the
+// legend rather than about elements, which is exactly why the travel went on asking
+// the element directly and centred the top of the document. One answer to "where is
+// this element", so there is no second way to ask.
 export function shownBox(el) {
   const r = el.getBoundingClientRect();
   if (r.width || r.height) return r;
@@ -5666,19 +6633,74 @@ export function shownParts(el) {
 // off screen has no rect, and a legend draws boxes for what is on it and nothing for
 // the rest.
 //
+// The walk stops at a box the viewport holds rather than the document: nothing above a
+// `position: fixed` element clips it, so the ancestors past that one are answering about a
+// flow the element left. Every box in the chrome is behind one — the comment panel is
+// fixed, and body is the page's scroller narrowed to the column beside it — so a reply box
+// measured through body's band came back wholly clipped away, at any window wide enough for
+// the panel to stand beside the page rather than over it. The one caller before this asked
+// only about the page's own items, none of which is ever inside a fixed box, which is why
+// the walk could be written as "every ancestor" and read as complete.
+//
+// Which leaves the viewport itself, applied to everything: for a box in the page it is
+// what body's own band already said, and for one in a fixed layer it is the whole of what
+// clips it.
+//
 // `clips` caches each ancestor's answer for one pass: the legend asks for every item
 // on the page in one breath, and the items share their scrollers, so what a pass spends
-// on the walk is one style read per ancestor rather than one per item per ancestor.
+// on the walk is two style reads per ancestor rather than two per item per ancestor.
 function shownRect(item, clips) {
-  let { left, top, right, bottom } = shownBox(item);
-  for (let a = item.parentElement; a; a = a.parentElement) {
+  return clipped(shownBox(item), item, clips);
+}
+// Where a member begins, as the reader sees it: the first of the boxes it paints that
+// survives the clips, rather than the bounds of all of them. They are the same box for
+// anything in flow and different for an inline that wraps, whose bounds run from the
+// column's left margin to its right — so a digit placed on that corner sat four hundred
+// pixels from the link it addressed, a line above it, on top of somebody else's sentence.
+// `shownBox`'s union answers "how much room does this take", which is what a legend box and
+// an aim outline want; this answers "where does it start", which is what anything hung on a
+// corner wants. The first that survives rather than the first outright, since a link whose
+// opening line has scrolled away still has a corner on the line below it.
+const startsAt = (item, clips) => {
+  const fragments = item.getClientRects();
+  return (fragments.length ? [...fragments] : [shownBox(item)])
+    .map((box) => clipped(box, item, clips))
+    .find(Boolean);
+};
+// The clips standing over a box, applied to it. Taken apart from shownRect because the two
+// readings above want the same walk over different boxes.
+function clipped(box, item, clips) {
+  let left = Math.max(box.left, 0),
+    top = Math.max(box.top, 0),
+    right = Math.min(box.right, innerWidth),
+    bottom = Math.min(box.bottom, innerHeight);
+  // From the box itself, not from its parent: an element is not clipped by its own
+  // overflow — that clips what it holds — so its band is skipped and only its position is
+  // read. Starting at the parent instead asked the question of every ancestor of a fixed
+  // box and never of the box, which is the same bug one level up: in design mode the aim
+  // resolves the comment panel itself, and the panel measured through body's band came
+  // back wholly clipped away, so a mode whose row promises a click on the chrome drew
+  // nothing over the chrome.
+  for (let a = item; a; a = a.parentElement) {
     let c = clips.get(a);
-    if (c === undefined) clips.set(a, (c = shownBand(a)));
-    if (!c) continue;
-    left = Math.max(left, c.left);
-    top = Math.max(top, c.top);
-    right = Math.min(right, c.right);
-    bottom = Math.min(bottom, c.bottom);
+    if (c === undefined)
+      clips.set(
+        a,
+        (c = {
+          band: shownBand(a),
+          // Read here rather than out of shownBand, whose answer is a band and is the
+          // render gate's too: what clips a box and what a box is positioned against are
+          // two facts, and one of them is this walk's alone.
+          fixed: getComputedStyle(a).position === "fixed",
+        }),
+      );
+    if (a !== item && c.band) {
+      left = Math.max(left, c.band.left);
+      top = Math.max(top, c.band.top);
+      right = Math.min(right, c.band.right);
+      bottom = Math.min(bottom, c.band.bottom);
+    }
+    if (c.fixed) break;
   }
   return right > left && bottom > top ? { left, top, right, bottom } : null;
 }
@@ -5902,7 +6924,7 @@ function paintAnchors(threads = buildThreads()) {
   // The panel's side of the same fact, read off the pass's own record so the two views
   // can't disagree: a passage rewritten in a later version has no home to jump to, and a
   // dead-looking link is worse than one that says so.
-  for (const div of threadsBox.querySelectorAll(":scope > .lf-thread")) {
+  for (const div of openThreads()) {
     const quote = div.querySelector(".lf-quote");
     if (!quote) continue;
     const found = marked.has(div.dataset.id);
@@ -6321,7 +7343,7 @@ function snapOut(reading, at, back) {
   const { raw, origin, fences } = reading;
   const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
   const ahead = fences.find((f) => f >= at) ?? raw.length;
-  const spoke = (o) => o.node.parentElement.closest("[data-lf-gen]");
+  const spoke = (o) => elementOver(o.node).closest("[data-lf-gen]");
   // An EDGE's neighbours are the nearest characters, not the nearest cells: an empty
   // text node is an empty segment, which puts two EDGEs flush, and every reader of
   // `origin` steps over its nulls.
@@ -6446,7 +7468,7 @@ document.addEventListener("keyup", (ev) => {
 // the composer that press just opened. Hence one function, called from both.
 // The two side panels are absent from it on purpose. A float answers the press in front
 // of it and stands down behind it; the comment panel and the leaves board are
-// workspaces the reader stood up, kept through a reload (PANEL_KEY, EDGE_KEY) and so
+// workspaces the reader stood up, kept through a reload (PANEL_KEY, BOARD_KEY) and so
 // through a click all the more — a board any press removes cannot be watched while
 // working, which is the board's point. Each closes by its own button, its key, or Esc.
 function standDown(target) {
@@ -6612,10 +7634,10 @@ for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, tru
 // `about: "layer"`, which is how the agent tells a remark about the layer from one about
 // the page's words.
 let designOn = false;
-// Kept per tab across a reload, the way the panel's open state is (PANEL_KEY): a version
-// landing mid-batch reloads the document, and a reader put out of the mode by news they
-// didn't ask for is a mode error the page made for them. Working state of this tab, so
-// the tab's store rather than the reader's.
+// Kept per tab across document travel and reload, the way the panel's open state is
+// (PANEL_KEY). Live activation keeps the variable itself; historical travel restores it.
+// A reader put out of the mode by news they didn't ask for is a mode error the page made
+// for them. Working state of this tab, so the tab's store rather than the reader's.
 const DESIGN_KEY = "lf-design";
 function setDesign(on, { spoken = true } = {}) {
   designOn = on;
@@ -6784,8 +7806,13 @@ function paintLegend() {
 // are different remarks. Nothing where the press is the mode's own machinery: the
 // composer being typed into, the 💬 that opens it, the name floating under the pointer.
 const DESIGN_OWN = ".lf-composer, .lf-fab, .lf-inspect";
+// The platform's own words for a thing the user works, which is what design mode names a
+// press by. A separator is on the list because a focusable one is a window splitter — the
+// panel's edge is the case — and a press that lands on it has landed on something the
+// reader can point at by name rather than on the region behind it.
 const CONTROLS =
-  "[data-lf-offer], button, [role=button], a, select, summary, input, textarea, label";
+  "[data-lf-offer], button, [role=button], [role=separator], a, select, summary," +
+  " input, textarea, label";
 function designTarget(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || closestAcross(at, DESIGN_OWN)) return null;
@@ -6929,7 +7956,13 @@ const syncComposer = wireInput(composerInput, {
       ctx,
       () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
       (attempt) => {
-        const event = { kind: "comment", version: VNUM, anchor, text, attempt };
+        const event = {
+          kind: "comment",
+          version: currentVersion,
+          anchor,
+          text,
+          attempt,
+        };
         if (suggestion) event.suggestion = true;
         if (about) event.about = about;
         return post(event);
@@ -7092,7 +8125,7 @@ const syncGeneral = wireInput(generalInput, {
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
   send: async (text, raw) => {
-    const event = { kind: "comment", version: VNUM, text };
+    const event = { kind: "comment", version: currentVersion, text };
     if (designOn) event.about = "layer";
     const sent = await sendDraft(
       "general",
@@ -7106,13 +8139,34 @@ const syncGeneral = wireInput(generalInput, {
 });
 mirrorDraft(generalInput, syncGeneral, "general");
 
-approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good" });
+let approving = false;
+function paintApproval() {
+  const approved = events.some((e) => e.kind === "done");
+  approveBtn.disabled =
+    approving ||
+    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+    approved;
+  approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
+}
+approveBtn.onclick = async () => {
+  if (approving) return;
+  approving = true;
+  approveBtn.setAttribute("aria-busy", "true");
+  paintApproval();
+  try {
+    await post({ kind: "done", version: currentVersion, text: "Looks good" });
+  } finally {
+    approving = false;
+    approveBtn.removeAttribute("aria-busy");
+    paintApproval();
+  }
+};
 
 // ---------- keyboard ----------
 // The register's scopes, and the one dispatcher that walks them. What a row and a scope
 // are is written where the vocabulary is defined (the key register, above).
 //
-// The stack is innermost-first: the leader and the help overlay above everything, then
+// The stack is innermost-first: the g chord and the help overlay above everything, then
 // whatever element scopes focus stands inside, then the page's own modes and the page. The
 // line walks it outward, the dispatcher matches down it, and a row sharing any binding with
 // one already named is skipped — so a focused control's keys shadow the page's without
@@ -7129,48 +8183,244 @@ approveBtn.onclick = () => post({ kind: "done", version: VNUM, text: "Looks good
 // action. The dispatcher runs the innermost rung and no other, so the promise is
 // structural.
 
-// ---------- the leader ----------
-// g arms a short window in which a digit is an address — the nth open thread's reply box,
-// in the order j/k walk. While armed each addressable box wears its digit as a chip and
-// the line shows the chord, so the window is visible wherever the user is looking, panel
-// open or closed. A digit consumes it; any other key disarms and keeps its ordinary
-// meaning, which the dispatcher spells as disarming and walking again rather than as a
-// rule of its own, so a mistyped g costs nothing. Escape, the timeout, and focus entering
-// a box disarm too.
-const LEADER_MS = 1500;
-let leaderTimer = null;
+// ---------- the g chord: the page's addresses ----------
+// g arms a mode in which a letter names one of the page's lists and a digit is a place in
+// it: `g c 2` is the second open comment's reply box, `g a 1` the first thing the page is
+// waiting on, `g l 3` the third link. Naming a list shows it — the panel opens for the
+// comments — and each of its addressable members then wears its digit as a chip, so the
+// addresses are on screen wherever the reader is looking. A digit consumes the mode; so
+// does Escape, and so does focus entering a box. Any other key disarms and then runs with
+// its ordinary meaning, which the dispatcher spells as disarming and walking the stack
+// again rather than as a rule of its own — a mistyped g therefore costs the reader nothing
+// beyond the press their next key was going to make anyway.
+//
+// The chord was one list deep once — g then a digit, and the digit meant a reply box —
+// which spent the whole of a leader on the one list that had asked for it first. The letter
+// is what opens that: a second list costs a letter rather than a second chord, and the line
+// says `g` alone rather than a range that only ever counted threads.
+//
+// Which lists there are is this table and nothing else. The chord's scope, the chips, the
+// line's words and the reference are all readings of it, so a fourth list is an entry here
+// rather than an edit to four consumers, and nothing that reads the table asks which list
+// it is holding. One place names a list at all, and it is not a reader of the table: a
+// member with a surface of its own has to say which list that surface belongs to, which is
+// the reply box's placeholder (COMMENTS, below). An entry says its letter, the word every surface calls the list by, the sentence
+// the reference reads, its members in address order, and how to arrive at one. `spot` is
+// where the chip hangs when that is not the member itself — a comment's address belongs on
+// the box the digit lands in, not on the thread's far corner.
+// What the document holds, in reading order, as against what the chrome holds: the banner,
+// the versions and the leaves board have keys of their own, and a comment's message is the
+// panel's rather than the page's. The addresses and the scopes that name a platform key
+// read the page through here alike, so a part `g` sends the reader to is exactly a part the
+// reference says they can stand on.
+//
+// The whole document and not the parts on screen, which is the tempting reading and the
+// wrong one twice over. An address that counted what is in the window is an address that
+// means a different link at every scroll position, so a reader who has just learnt that the
+// PR is `g l 2` is wrong a moment later; and it would put the key line's own truth on the
+// scroll, since a row that goes dead as the page moves is a row the line has to be
+// repainted to stop promising — a paint measured at 1.3ms on the gallery, on every scroll
+// frame of every page, for one row. Document order costs the pages holding more than nine
+// links their tail, which is the bound every list here has.
+//
+// Above the table rather than beside the other readings below it, because an entry
+// holds the function itself and the array literal reads it as the module evaluates.
+const pageParts = (sel) =>
+  [...document.querySelectorAll(sel)].filter((el) => !inChrome(el));
+const pageLinks = () => pageParts("a[href]");
+// The summaries rather than the boxes they head: a summary is what the reader stands on,
+// what a chip sits beside, and the only part of a disclosure the platform gives a key to —
+// so a <details> whose author wrote no summary has nothing here to address. Every
+// disclosure and not the shut ones, for the reason above: a list counting what is shut
+// means a different section the moment one of them opens.
+const pageDisclosures = () => pageParts("details > summary");
+
+// How many members of a list a digit can reach. The bound is the keyboard's — ten digits,
+// one of them no ordinal — and not any list's, so it is stated once here rather than in
+// each entry.
+const ADDRESS_CAP = 9;
+// The one entry with a name of its own, because one of its members has a standing
+// surface to speak its address on: a reply box's placeholder says "Reply · g c 2" at
+// all times, and the panel builds that box (threadNode). Every other list is reached
+// through the table.
+const COMMENTS = {
+  key: "c",
+  word: "comments",
+  does: "Go to the nth open comment's reply box",
+  list: openThreads,
+  spot: (thread) => thread.querySelector(":scope > .lf-compose"),
+  // What it takes to show this list: the panel holds it and draws nothing while closed, so
+  // a letter that named it and left the panel shut painted no chip at all. An entry whose
+  // members are on the page states none.
+  reveal: () => setPanel(true),
+  // stepThread-to-nth and its Enter in one press. The box by its place in the thread and
+  // not the first textarea inside it, a message being free to carry a widget with one of
+  // its own — a draft's open editor stands before the reply box in the DOM.
+  go: (thread) => {
+    thread
+      .querySelector(":scope > .lf-compose textarea")
+      .focus({ preventScroll: true });
+    thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    scrollToThread(thread.dataset.id);
+  },
+};
+const ADDRESSES = [
+  COMMENTS,
+  {
+    key: "a",
+    word: "asks",
+    does: "Go to the nth thing this page is waiting on you for",
+    // The list n/p walk, addressed rather than stepped: one reading, so the digit and the
+    // walk cannot disagree about which ask is the third one. The arrival is handed that
+    // whole list and not the nine a digit can spell, so what it announces is the ask's
+    // place among everything the page is waiting on.
+    list: openAsks,
+    go: (ask) => goToAsk(ask, openAsks()),
+  },
+  {
+    key: "l",
+    word: "links",
+    does: "Go to the nth link",
+    list: pageLinks,
+    // Focus, not a follow: g says go, and what a focused link then answers is the
+    // platform's Enter, which the link scope names on the line. A press that navigated
+    // would be a door with no landing to look at first.
+    go: (link) => {
+      scrollToElement(link);
+      link.focus({ preventScroll: true });
+    },
+  },
+  {
+    key: "d",
+    word: "disclosures",
+    does: "Go to the nth disclosure and open it",
+    list: pageDisclosures,
+    // Opening is the arrival and not a press that follows it. Every arrival here reveals
+    // the collapsed containers on its way — this is the one whose target is the container,
+    // so the reveal that was travel for the others is the whole motion for this one, and a
+    // reader who wanted the section open has it open having asked once. The scroll takes
+    // the box rather than the summary, since a section taller than the window starts at its
+    // start where a centred summary would put half the screen above it. Standing on the
+    // summary afterwards leaves the platform's own press to close it again, which the
+    // disclosure scope names on the line.
+    go: (summary) => {
+      scrollToElement(summary.parentElement);
+      summary.focus({ preventScroll: true });
+    },
+  },
+];
+// A list's addressable members, and the range its label names. Capped where it is read
+// rather than where each list is written, so an entry states what it holds and this states
+// what the keyboard can reach.
+const addressed = (entry) => entry.list().slice(0, ADDRESS_CAP);
+const range = (n) => (n > 1 ? `1–${n}` : "1");
+// How an address is spelled, in one place and off the row that binds the key (GOTO): a
+// member with a standing surface of its own says the whole motion there — a reply box's
+// placeholder reads "Reply · g c 2" — and the armed chip is built the same way. Written
+// out at each of them, `g` was a letter three sites had agreed on and none could correct.
+const addressLabel = (entry, n) => `${labelOf(GOTO)} ${entry.key} ${n}`;
+
+// Whether the chord is up, and the list a digit addresses once a letter has named one.
 // The armed window is a mode the whole keyboard is in, and a digit pressed inside it
 // belongs to the chord wherever focus sits. A widget's own digit keys used to have to ask
 // this before consuming one; they no longer do, and lf-options no longer imports it — the
-// leader scope is `only`, so the dispatcher never reaches an inner scope while the window
-// stands, and the mode enforces itself where it was a rule each widget had to keep.
-const leaderArmed = () => Boolean(leaderTimer);
-function setLeader(on) {
+// chord's scope claims everything, so the dispatcher never reaches an inner scope while the
+// window stands, and the mode enforces itself where it was a rule each widget had to keep.
+//
+// `aimedList` and not `aimed`, which this file already spends on the aim chord's element
+// (refreshAim, aimTarget, aimBox): two concepts under one word, in one file, shadowing each
+// other inside the functions that hold both.
+let chordArmed = false;
+let aimedList = null;
+// Arming, aiming and disarming are one call, because they are one window: naming a list
+// re-opens it rather than starting a second, and every way down — Escape, a stray key,
+// focus entering a box — takes the aim with it.
+//
+// It stands until one of those, where it stood for a second and a half. A timeout is how a
+// keyboard resolves an ambiguous prefix, and there is none here: `g` is a prefix and
+// nothing else, any key the chord does not bind disarms it and then runs with its ordinary
+// meaning, so nothing is ever swallowed by a window left open. What the clock did instead
+// was charge the reader for reading the menu the press had just painted — and a letter
+// arriving a moment late is not a no-op but the page's own key, so a slow reader pressing
+// `l` got the leaves board rather than the links.
+function setChord(on, list = null) {
   // Armed over a control that has claimed Escape, one press would have two owners — the
-  // control's rung and the chord's cancel — so the leader refuses to arm there at all.
-  if (on && claimsEsc(focused())) return;
-  const was = Boolean(leaderTimer);
-  if (leaderTimer) clearTimeout(leaderTimer);
-  leaderTimer = on ? setTimeout(() => setLeader(false), LEADER_MS) : null;
-  panel.classList.toggle("lf-leader-armed", on);
-  // The chips are the eye's copy; the arming itself is spoken, or the mode change is
-  // silent to exactly the user who can't see them.
-  if (on && !was) announce(`Reply to thread — ${saying(LEADER.rows)}`);
+  // control's rung and the chord's cancel — so the chord refuses to arm there at all.
+  if (on && !chordArmed && claimsEsc(focused())) return;
+  chordArmed = on;
+  aimedList = on ? list : null;
+  // A list the reader cannot see is a list wearing no addresses: the panel holds the
+  // comments and draws nothing while closed, so naming that list opens it, and the chips
+  // land on boxes that have a geometry to be placed from. The open belongs here rather
+  // than in the arrival, where it left the letter painting nothing at all.
+  if (list?.reveal) list.reveal();
+  // The chips are the eye's copy; the window itself is spoken, or the mode change is
+  // silent to exactly the reader who can't see them. Off the rows either way, since the
+  // rows are what the window answers now — the letters at the first stage, the named
+  // list's digits at the second — and a sentence written here for the second would have
+  // been the row's own words, restated where nothing could correct them.
+  if (on) announce(`Go to — ${saying(GO.rows)}`);
   paintHere();
 }
-// What a digit does with the window: stepThread-to-nth and its Enter in one press.
-function replyTo(n) {
-  if (!panelOpen) setPanel(true);
-  const thread = threadsBox.querySelectorAll(":scope > .lf-thread")[n - 1];
-  const ta = thread?.querySelector("textarea");
-  if (!ta) return;
-  ta.focus({ preventScroll: true });
-  thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
-  scrollToThread(thread.dataset.id);
+
+// The chips: one per addressable member, drawn in the chrome's layer (addressBoard) and
+// placed from the member's own visible box, so a chip cannot claim room the page has
+// already refused — a thread scrolled out of the panel's list, a card half out of a board.
+// Painted only once a letter has named a list: before that there is no digit to promise,
+// and nine chips over a page nobody has aimed at yet are nine promises the next press
+// won't keep.
+//
+// The layer is the chrome's rather than the page's own markup for the reason every mark is
+// (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
+// span written into a paragraph to carry a number is a span the passage walk then has to
+// know about.
+//
+// Every chip is built detached and the board takes them in one write, which is the rule
+// the legend states for this same layer: a chip in the tree is a DOM write, and the next
+// member's rect read after one is a layout forced per member — nine of them on every
+// scroll frame an armed window stands through.
+function paintAddresses() {
+  const chips = [];
+  if (aimedList) {
+    const clips = new Map();
+    // The banner stands over the page rather than in it, so shownRect says nothing about
+    // it — that reading is what the page's own boxes clip, and the bar clips none of them.
+    // The chip is the one thing that has to care, being drawn above the bar: placed on a
+    // corner the bar has taken, it is a digit floating over the status line, addressing
+    // nothing the reader can see there. So it rides the covered edge, and a member with
+    // nothing left below that edge wears no chip at all.
+    const covered = banner.getBoundingClientRect().bottom;
+    for (const [i, member] of addressed(aimedList).entries()) {
+      const r = startsAt(aimedList.spot?.(member) ?? member, clips);
+      if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
+      const chip = el("span", "lf-address", String(i + 1));
+      if (r.top < covered) chip.classList.add("lf-in");
+      chip.style.left = `${r.left}px`;
+      chip.style.top = `${Math.max(r.top, covered)}px`;
+      chips.push(chip);
+    }
+  }
+  addressBoard.replaceChildren(...chips);
 }
+// A page that moves under an armed window moves the boxes the chips were placed from, so
+// the chips follow it rather than standing where the page used to be. Capture, because the
+// panel's list and a board's own overflow scroll in boxes of their own and a scroll event
+// does not bubble.
+//
+// Only while a list is aimed at, which is why this is a listener of its own rather than a
+// line in the page's own repaint door (pageShifted): what the line says about the chord
+// holds at every scroll position, no list's membership moving with the page, so the door
+// that repaints on every scroll of every page would be repainting for nobody. Aimed, the
+// paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
+// one door is what stops the chips having a repaint set of their own to keep in step.
+addEventListener("scroll", () => aimedList && paintHere(), {
+  capture: true,
+  passive: true,
+});
+addEventListener("resize", () => aimedList && paintHere());
 
 // ---------- what the page's keys are live over ----------
-const hasThreads = () => threadAddress.size > 0;
+const hasThreads = () => openThreads().length > 0;
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
 // takes ask the same question, so they cannot disagree about which thread this is. Not a
 // control inside it, whose own press is its own; nor a resolved thread, which has no reply
@@ -7179,10 +8429,6 @@ const focusedThread = () => {
   const active = document.activeElement;
   return active?.classList?.contains("lf-thread") ? active : null;
 };
-// A label naming a range counts what is there rather than promising nine: at most nine
-// open threads are addressable, fewer when fewer are open.
-const addressable = () => Math.min(9, threadAddress.size);
-const digits = () => (addressable() > 1 ? `1–${addressable()}` : "1");
 // What c would comment on, read off the anchor the 💬 carries — the same one commentKey
 // acts on, so the word and the button on screen cannot name different things. An element
 // anchor answers in its own word (a figure, a card), the way the panel names one.
@@ -7276,11 +8522,11 @@ function rung() {
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever board holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the board" over two of them.
-  if (edgeUp && !panel.contains(active))
+  if (boardUp && !panel.contains(active))
     return {
-      says: `close ${edgeUp}`,
-      does: `Close the ${edgeUp} board`,
-      out: () => showEdge(null),
+      says: `close ${boardUp}`,
+      does: `Close the ${boardUp} board`,
+      out: () => showBoard(null),
     };
   if (panelOpen)
     return {
@@ -7351,33 +8597,58 @@ function allButTheReference(binding) {
 }
 
 // ---------- the scopes ----------
-// Above everything: a chord is armed, or the reference is up. Both claim everything — the
+// Above everything: the chord is armed, or the reference is up. Both claim everything — the
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
-const LEADER = {
-  title: "With the reply chord armed",
-  // The chord addresses open threads, so a page with none has no chord to arm and the
-  // reference says nothing about one — the scope's own capability, where the rows say what
-  // a press does once the window stands.
-  when: hasThreads,
-  chord: "g",
-  at: leaderArmed,
+
+// The chord: one scope, a row per addressable list, and the window's own way out. The row
+// holds the whole motion — its letter names the list, and the digits it then binds are the
+// addresses into it. That is `v`'s shape, a chooser whose second key belongs to the scope
+// the first one stood up, and the reason it is one row rather than two is that a digits row
+// of its own could not name which list it meant.
+//
+// A row's `when` carries both questions here, where a scope usually carries one of them: a
+// list the page hasn't got is a capability, and which list is aimed at is whether the press
+// moves now. They can share the answer because a mode is not somewhere the reader stands
+// near — see showHelp, which reads a mode's rows by their own liveness for exactly that
+// reason. Written as a scope per list instead, each stating its own capability, the two
+// were named apart at the price of three scopes under one title, and the reference then
+// gathered them in the order it walks the stack — backwards, so it named the lists in the
+// opposite order to the line that had just offered them.
+const GO = {
+  title: "With g armed",
+  when: () => ADDRESSES.some((entry) => entry.list().length > 0),
+  chord: () => (aimedList ? `${labelOf(GOTO)} ${aimedList.key}` : labelOf(GOTO)),
+  at: () => chordArmed,
   claims: EVERYTHING,
   rows: [
-    {
-      // The digits the page actually has, so the row cannot offer an address no box wears;
-      // rendered as the range its label already counted rather than as nine alternatives.
-      keys: () => Array.from({ length: addressable() }, (_, i) => String(i + 1)),
-      label: digits,
-      does: "Reply to the nth open thread",
-      line: "reply to thread",
-      run: (binding) => replyTo(+binding),
-    },
+    ...ADDRESSES.map((entry) => ({
+      keys: () =>
+        aimedList === entry
+          ? addressed(entry).map((_, i) => String(i + 1))
+          : [entry.key],
+      // The range the list actually holds, so the label cannot offer an address no member
+      // wears; the letter drops off it once it has been pressed, the armed chip having
+      // taken it (`g c`).
+      label: () =>
+        aimedList === entry
+          ? range(addressed(entry).length)
+          : `${entry.key} ${range(addressed(entry).length)}`,
+      does: entry.does,
+      line: entry.word,
+      when: () => entry.list().length > 0 && (!aimedList || aimedList === entry),
+      run: (binding) => {
+        if (aimedList !== entry) return setChord(true, entry);
+        const member = addressed(entry)[+binding - 1];
+        setChord(false); // before the travel, so the arrival's own scrolling paints nothing
+        entry.go(member);
+      },
+    })),
     {
       keys: ["Escape"],
       does: "Cancel the chord",
       line: "cancel",
-      run: () => setLeader(false),
+      run: () => setChord(false),
     },
   ],
 };
@@ -7486,6 +8757,51 @@ const THREAD = {
   ],
 };
 
+// The platform's own controls in the page, and the press each already answers. The control
+// scope below cannot cover them: it works a span `offer` made pressable, where these arrive
+// with their keys already bound, and which keys differ — Enter follows an <a> while Space
+// scrolls the page out from under it, and both open a <summary>. So neither row binds a
+// `run`, the press being the browser's; nothing here promises more than the browser already
+// does, and what a row adds is the promise being on screen. `g` puts the reader on both of
+// these by key, and until a scope existed the line went quiet at exactly the moment they
+// arrived, with the press that finishes the motion unnamed.
+//
+// A table and not a scope apiece, for the reason the addresses are one: two scopes differing
+// only in a selector and a word are two things to edit the day either the chrome rule or the
+// shape of a capability changes, and the third platform control would make it three. The
+// page's controls and not every one, which is the reading the addresses take as well: the
+// chrome's own links are the leaves board's and its resolved comments are the panel's, and
+// both of those declare what they answer themselves. Asked of the document at large, "On a
+// link" was had by every page — a machine with one neighbour has a board full of links — so
+// the reference named it wherever the reader went, on pages holding none to stand on.
+const NATIVE = [
+  {
+    title: "On a link",
+    sel: "a[href]",
+    press: ["Enter"],
+    does: "Follow it",
+    line: "follow",
+  },
+  {
+    title: "On a disclosure",
+    sel: "details > summary",
+    press: PRESS,
+    does: "Open or close it",
+    // Read where it is painted rather than named once for both branches, the way a diff's
+    // own file rows read theirs: what this press does is whichever way the disclosure is
+    // standing, and a word fixed at declaration could only ever say one of them.
+    line: () => (focused().parentElement.open ? "close" : "open"),
+  },
+].map(({ title, sel, press, does, line }) => ({
+  title,
+  at: () => {
+    const el = focused();
+    return Boolean(el?.matches?.(sel)) && !inChrome(el);
+  },
+  when: () => pageParts(sel).length > 0,
+  rows: [{ keys: press, does, line }],
+}));
+
 // Every press the runtime builds out of a span, in one declaration. `offer` writes
 // role="button" onto an element the platform gives no keys, so these two are the UA's
 // contract restored — and the survey's largest hole was that nine classes of control
@@ -7564,6 +8880,23 @@ const REFERENCE = {
   line: "keys",
   run: toggleHelp,
 };
+// The way in to the chord, named for the reason the two rows above it are: the armed chip
+// and every address a member speaks are built from this row's own key (addressLabel), so
+// the letter the reader presses and the letter the page prints cannot be two decisions.
+//
+// The key alone on the line: what it opens is a table, and a label naming one of its lists
+// would be the chord's old shape wearing a letter — `g 1–9` said "threads" without saying
+// it, and the day a second list arrived there was no honest range to print. The scope the
+// press stands up names them all, one chip each.
+const GOTO = {
+  keys: ["g"],
+  does: "Go by address — the next key names one of the page's lists",
+  line: "go to",
+  // The scope this press stands up, read rather than restated: a key that armed a window
+  // with nothing in it would be the one promise the chord cannot keep.
+  when: GO.when,
+  run: () => setChord(true),
+};
 const PAGE = {
   rows: [
     {
@@ -7589,16 +8922,6 @@ const PAGE = {
       run: (binding) => stepThread(binding === "j" ? 1 : -1),
     },
     {
-      keys: ["g"],
-      // The chord's motion: its own key and the leader scope's row, which counts the
-      // threads that are there rather than promising nine.
-      label: () => `g ${digits()}`,
-      does: "Reply to the nth open thread",
-      line: "reply",
-      when: hasThreads,
-      run: () => setLeader(true),
-    },
-    {
       // A borrowed pair, like the walks either side of it: j/k is vim's list, d/u is
       // less's half page, and n/p is next and previous wherever a keyboard walks a list
       // of things. The walk held `a` alone and then `a`/`p`, and
@@ -7619,16 +8942,16 @@ const PAGE = {
       // there was no way to see what was waiting without visiting each one in turn.
       keys: ["a"],
       does: () =>
-        `${openEdge("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
-      line: () => `${openEdge("asks") ? "hide" : "show"} asks`,
+        `${openBoard("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
+      line: () => `${openBoard("asks") ? "hide" : "show"} asks`,
       also: asksBtn, // the banner count opens the same board, which then names this key
       when: asksOffered,
       run: () => {
-        showEdge(openEdge("asks") ? null : "asks");
+        showBoard(openBoard("asks") ? null : "asks");
         // Opening lands on the first row, so the board's own keys are the next press
         // rather than a Tab-hunt across the banner — the move `l` makes into the leaves.
-        // Closing hands focus back, which showEdge owns.
-        if (openEdge("asks")) askRows()[0]?.focus();
+        // Closing hands focus back, which showBoard owns.
+        if (openBoard("asks")) askRows()[0]?.focus();
       },
     },
     {
@@ -7644,17 +8967,17 @@ const PAGE = {
       // it promised — so the key went on spelling a word nothing on screen said, and
       // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
       keys: ["l"],
-      does: () => `${openEdge("leaves") ? "Hide" : "Show"} the machine's leaves`,
-      line: () => `${openEdge("leaves") ? "hide" : "show"} leaves`,
+      does: () => `${openBoard("leaves") ? "Hide" : "Show"} the machine's leaves`,
+      line: () => `${openBoard("leaves") ? "hide" : "show"} leaves`,
       also: othersBtn,
-      when: boardOffered,
+      when: leavesOffered,
       run: () => {
-        showEdge(openEdge("leaves") ? null : "leaves");
+        showBoard(openBoard("leaves") ? null : "leaves");
         // Opening lands on the first neighbour, so the board's own keys are the next press
         // rather than a Tab-hunt across the banner — the move c makes into the comment
-        // panel's box. Closing hands focus back, which showEdge owns. The key is dead
+        // panel's box. Closing hands focus back, which showBoard owns. The key is dead
         // with nothing to show, so an open always has a row to land on.
-        if (openEdge("leaves")) othersLinks()[0].focus();
+        if (openBoard("leaves")) othersLinks()[0].focus();
       },
     },
     {
@@ -7678,12 +9001,37 @@ const PAGE = {
         for (const { btn } of standingAnswers()) btn.click();
       },
     },
+    {
+      // The last thing the reader did to this page, put back. Its own key rather
+      // than the platform's ⌘Z, which belongs to the box a reader is typing in and
+      // is taken by the browser everywhere else: this is a page-level press like
+      // every other letter here, and the typing scope keeps it off a composer's
+      // words by claiming its letters. The word is "undo" and never the verb it is
+      // about to state — `move` is one widget's word, and a line that said it would
+      // be naming a member where the mechanism is what holds.
+      keys: ["z"],
+      does: "Take back the last change you made here",
+      line: "undo",
+      // Dead while the page holds a gesture no log read accounts for, this one's
+      // own send included: the walk would name the gesture *before* the one they
+      // just made and take that back instead. The line drops the chip for as long
+      // as that is true rather than promising a press that would undo the wrong thing.
+      when: () => !unaccountedGesture() && Boolean(undoable()),
+      run: undoLast,
+    },
     // Above the page's furniture, because it is the way out of wherever the reader is
     // standing and they are standing somewhere far more often than a panel is open: it
     // ranks with the presses that act on where they are, not with the versions and the
     // modes. Below it, the line drops chips a window at a time, and this is the one that
     // says how to undo the press that put them there.
     BACK_OUT,
+    // And the chord below it, having sat among the walks and pushed it off the end of a
+    // 1280px line — the reader standing on an ask, which is the one place the way out was
+    // written for. What it costs to yield is small and what it buys is not: `g` opens a
+    // door to three lists the walks above already reach one at a time, so a narrow window
+    // hides a second way to somewhere; the press it was crowding out is the only way back
+    // from where a press had just put the reader.
+    GOTO,
     CHOOSER,
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
@@ -7718,13 +9066,14 @@ const PAGE = {
 // same bug waiting on the next mode.
 const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
-  LEADER,
+  GO,
   HELP,
   ELEMENTS,
   VERSIONS,
   COMPOSER,
   TYPING,
   THREAD,
+  ...NATIVE,
   CONTROL,
   DESIGN,
   PAGE,
@@ -7749,7 +9098,16 @@ latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = (scope) => !scope.when || scope.when();
 const readerIn = (scope) => !scope.at || scope.at();
-const standing = (scope) => pageHas(scope) && readerIn(scope);
+// Where the reader is first, and what the page has second: both are pure and the and is
+// the same either way round, but `at` is a class check and a `when` may be the whole event
+// log folded — so the walk asks the cheap question of every scope and the dear one only of
+// the scopes it is already standing in. That is the rule the dispatcher's row loop already
+// keeps and the control scope's own comment already claims ("`at` is asked first and answers
+// false wherever this could be in doubt, so a paint never reaches it"), and the scope walk
+// was the one place it was not true. The chord is what made it bite: its `when` reaches the
+// asks fold and then every link on the page, once per keydown, from the first keystroke of
+// the first comment.
+const standing = (scope) => readerIn(scope) && pageHas(scope);
 // Every scope the reader is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
@@ -7787,6 +9145,7 @@ const shadow = () => {
 // and reads inward, and the widgets' sections land where their scopes stand in it rather than
 // wherever a second list happened to put them.
 function declaredStack() {
+  pruneScopedElements();
   const sections = new Map();
   const named = (section) =>
     scopesFor(focused()).some((s) => s.title === section.title);
@@ -7798,7 +9157,15 @@ function declaredStack() {
     // Where the reader is, for a widget's section, is whether the focused element declares it
     // — the one thing core's own scopes state for themselves and an element scope cannot,
     // since it is gathered here by title and the elements wearing that title are many.
-    for (const section of declaredScopes.values())
+    const declared = new Map();
+    for (const ref of scopeRefs) {
+      const el = ref.deref();
+      if (!el?.isConnected) continue;
+      const section = elementScopes.get(el);
+      if (section?.title)
+        merge(declared, { ...section, rows: bySentence(section.rows) });
+    }
+    for (const section of declared.values())
       merge(sections, { ...section, at: () => named(section) });
   }
   // The way out reads last, after what the scope is for. A section gathers its rows from
@@ -7821,10 +9188,12 @@ document.addEventListener("keydown", (ev) => {
   if (ev.isComposing) return;
   if (run(ev)) return;
   // Any other key disarms the chord and keeps its ordinary meaning, so a mistyped g costs
-  // nothing: g j is a thread step and g g re-arms. Spelled as walking again rather than as
-  // a rule, so the meaning a key keeps is the meaning the register gives it.
-  if (leaderTimer) {
-    setLeader(false);
+  // nothing: g j is a thread step and g g re-arms. A letter naming no list disarms the same
+  // way, and so does a digit past the end of the list a letter named. Spelled as walking
+  // again rather than as a rule, so the meaning a key keeps is the meaning the register
+  // gives it.
+  if (chordArmed) {
+    setChord(false);
     run(ev);
   }
 });
@@ -7858,17 +9227,27 @@ function run(ev) {
 // A focus move is the one change in where the reader is standing that no state writer
 // sees, so it asks for the paint itself — the ring and the line both, which is why one
 // call answers for it. Focus entering a box, or a control that claims Escape, also disarms
-// the leader — a digit typed in a box is text, and a chip left blooming would promise a
+// the chord — a digit typed in a box is text, and a chip left blooming would promise a
 // cancel the control would consume.
 document.addEventListener("focusin", () => {
-  // The same question `setLeader` asks before arming, so it takes the same answer: two
+  // The same question `setChord` asks before arming, so it takes the same answer: two
   // readings of where the reader is standing would refuse to arm somewhere they then
   // failed to disarm.
   const active = focused();
-  if (leaderTimer && (takesLetters(active) || claimsEsc(active))) setLeader(false);
+  if (chordArmed && (takesLetters(active) || claimsEsc(active))) setChord(false);
   paintHere();
 });
 document.addEventListener("focusout", () => paintHere());
+// A disclosure opening or closing changes what the next press does, and no writer in this
+// file reports it: the word on a summary's row is read off `open`, and the reader standing
+// there has moved nothing else. Left unpainted, the line said "close" for the three seconds
+// until a poll happened past — a key line stale about the press under the reader's finger,
+// where every gate reads it as eventually right. The event does not bubble, so this
+// captures; and it is the document's rather than each <details>'s, because the disclosures
+// on a page are whatever its author wrote and whatever its widgets built, which is not a
+// list this file can hold. lf-diff had exactly that listener on each file it renders, which
+// is one widget's answer to a question the runtime is the one that asks.
+document.addEventListener("toggle", () => paintHere(), true);
 
 // ---------- the key line ----------
 // What the next press does, walked outward from where the reader stands and cut where the
@@ -7880,9 +9259,9 @@ document.addEventListener("focusout", () => paintHere());
 // The rows the line shows, innermost scope first: the ones carrying a word for it. A row
 // is skipped where any of its bindings has been named already, so an inner scope's own
 // word for a press wins and the generic one behind it stays quiet — the case that names
-// this is `g` armed over an option's pick mark, where the chord's "1–3 reply to thread"
-// and the mark's "1–5 toggle the nth" would otherwise stand side by side, two promises for
-// one press.
+// this is `g c` aimed over an option's pick mark, where the chord's "1–3 comments" and the
+// mark's "1–5 toggle the nth" would otherwise stand side by side, two promises for one
+// press.
 function lineRows(scopes) {
   const named = new Set();
   const nearer = shadow();
@@ -7915,7 +9294,9 @@ function renderLine() {
   const ref = rows.findIndex((row) => bindings(row).includes("?"));
   const ordered =
     ref === -1 ? rows : [...rows.slice(0, ref), ...rows.slice(ref + 1), rows[ref]];
-  const chord = scopes.find((s) => s.chord)?.chord;
+  // Read where it is painted, like every other cell: the chord's chip says which stage the
+  // reader is at (`g`, then `g c`), and a string fixed at declaration could only say one.
+  const chord = word(scopes.find((s) => s.chord)?.chord);
   keylineEl.textContent = "";
   const chip = (key, said, armed) => {
     const span = el("span", "lf-key");
@@ -7980,7 +9361,7 @@ function commentKey() {
 // wrote here in the same synchronous pass.
 function stepThread(dir) {
   if (!panelOpen) setPanel(true);
-  const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+  const threads = openThreads();
   const at = threads.indexOf(document.activeElement?.closest?.(".lf-thread"));
   const next =
     threads[
@@ -8113,7 +9494,13 @@ function showHelp(open) {
       // "arrows move" belongs in the reference though no card is held and `r` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
-      const inIt = readerIn(scope);
+      //
+      // A mode is the exception, and it is one because there is no standing near it: the
+      // reader is in it or it is not there, so its rows answer about here whichever way the
+      // reference was opened. The chord is what needs this said — its rows are the lists
+      // the page has, and `?` reaches the reference only from a page nobody has armed, so
+      // listed whole it would name `l` on a page holding no link at all.
+      const inIt = readerIn(scope) || scope.claims === EVERYTHING;
       const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
       if (!rows.length) continue;
       if (scope.title) helpEl.append(el("h3", "", scope.title));
@@ -8158,13 +9545,14 @@ const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
 // being its presence and its absence, since it carries none of its own.
 function answeredAsk(el, fold) {
   const specs = Object.entries(registry[el.tagName.toLowerCase()]["x-state"] ?? {});
-  // The fold holds one entry per unit whatever the verb, so a recordless verb is
+  // The fold holds one entry per facet and unit, so a recordless verb is
   // answered only by an entry that is actually its own — a `choose` surviving in
-  // the slot says nothing about `answer`, and a cleared pick must ask again.
+  // the selection facet says nothing about `answer`'s completion facet, and a
+  // cleared pick must ask again.
   return specs.some(([verb, spec]) =>
     spec.record?.kind === "attribute"
       ? domFacet(el, spec.record) !== ""
-      : fold.get(el.id)?.e.action === verb,
+      : fold.get(stateCoordinate(el.id, el.id, spec))?.e.action === verb,
   );
 }
 const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
@@ -8175,9 +9563,13 @@ const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
 // is a request to the reader wherever it stands, and the panel's count is a different
 // fact — threads open, not answers owed.
 function openAsks() {
+  // Before the first replay, the DOM carries authored initial state while the log may
+  // already answer it. This list drives both pixels and actions, so an empty list is the
+  // only honest answer until the presentation boundary says replay is complete.
+  if (!pagePresented()) return [];
   const tags = askTags();
   if (!tags.length) return [];
-  const fold = stateFold(VNUM);
+  const projection = stateProjection(currentVersion);
   // A question in a thread is the thread's, so a thread the log has settled asks
   // nothing more — the same reading paintAnchors makes when it takes a resolved
   // thread's mark off the page. Settlement comes from the log and placement from the
@@ -8198,21 +9590,21 @@ function openAsks() {
       return false;
     const thread = closestAcross(el, ".lf-thread, .lf-going");
     if (thread && settled.has(thread.dataset.id)) return false;
-    return !(inChrome(el) ? answeredThreadAsk(el, fold) : answeredAsk(el, fold));
+    return !(inChrome(el)
+      ? answeredThreadAsk(el, projection.actions)
+      : answeredAsk(el, projection.actions));
   });
 }
-// A thread ask has no version to answer it and no restated to retract it, so every
-// action on it stands and answered needs no floors. Only a widget with an action
-// channel asks in a thread at all — nothing there could ever answer one without —
-// and `x-awaits.until` (consulted only here, where no record can close a set) holds
-// a matching ask open until the reader has posted the verb it names.
+// A thread ask has no version or restatement, but undo still withdraws an action.
+// `x-awaits.until` therefore reads the same standing action projection as the DOM:
+// a posted answer closes the ask, and taking it back opens the ask again.
 function answeredThreadAsk(el, fold) {
   const entry = registry[el.tagName.toLowerCase()];
   if (!Object.keys(entry["x-state"] ?? {}).length) return true;
   const until = entry["x-awaits"].until;
   if (until && matchesWhen(el, until.when))
-    return events.some(
-      (e) => e.kind === "action" && e.widget === el.id && e.action === until.verb,
+    return [...fold.values()].some(
+      ({ e }) => e.widget === el.id && e.action === until.verb,
     );
   return answeredAsk(el, fold);
 }
@@ -8285,13 +9677,13 @@ function syncAsks() {
   // Only while the board is up: the count above is what a closed board says, and these
   // rows are what an open one says. A closed board reconciling a list on every poll is
   // work for a reader who cannot see it, and rows in a document nothing can press.
-  if (openEdge("asks")) renderAsks(asks);
+  if (openBoard("asks")) renderAsks(asks);
   for (const { btn, label, n } of blanketAnswers(asks)) {
     showNews(btn, Boolean(n));
     btn.textContent = `✓ ${label} all (${n})`;
   }
   // The n/p and A rows stand on this list, so the surfaces reading them are repainted
-  // where it changes — the rule showFab and showEdge already keep for the words
+  // where it changes — the rule showFab and showBoard already keep for the words
   // they write.
   paintHere();
 }
@@ -8321,7 +9713,7 @@ document.addEventListener("lf-actions", syncAsks);
 const askRowsById = new Map();
 function renderAsks(asks) {
   let anchor = null;
-  if (!openEdge("asks")) {
+  if (!openBoard("asks")) {
     for (const [, row] of askRowsById) row.remove();
     askRowsById.clear();
     return;
@@ -8351,8 +9743,8 @@ function renderAsks(asks) {
     if (says.textContent !== said) says.textContent = said;
     const account = `${word} · ${said}`;
     if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : asksPanel.firstElementChild;
-    if (place !== row) asksPanel.insertBefore(row, place);
+    const place = anchor ? anchor.nextElementSibling : asksList.firstElementChild;
+    if (place !== row) asksList.insertBefore(row, place);
     anchor = row;
   }
   const live = new Set(asks.map((a) => a.id));
@@ -8377,9 +9769,8 @@ function renderAsks(asks) {
 //
 // A press this control belongs to: one inside the ask, or one hoisted out of it and
 // pointing back (a suggestion's row is the column's child, so that it can hang in the
-// page margin). Landing on it rather than on the ask means Tab walks the rest of that
-// ask's own controls from there, and it is the only landing available where the
-// element has no box of its own to hold focus (a suggestion renders display: contents).
+// page margin). Landing on it rather than on the ask puts the reader on the press that
+// answers it, and Tab walks the rest of that ask's own controls from there.
 const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).
@@ -8453,12 +9844,15 @@ function standingIn() {
 // than about where the reader is: the Asks button's own press lands the focus by script
 // after a click, and the ask it brought the reader to would wear nothing at all.
 //
-// The ask wears it, and so does every box the ask shows through: the ask is what the
-// readers of the mark ask after, since it carries the id captureView writes down and the
-// place askStep measures from, while an outline needs a box to hang on. For nearly every
-// ask those are one element. Where they differ the mark is still a single answer, because
-// an ask precedes what it renders, so the querySelector asking which ask the reader is on
-// still names the ask.
+// The ask wears it, and so does every box it shows through (shownParts): the ask is
+// what carries the id captureView writes down and the place askStep measures from,
+// while an outline needs a box to hang on. Every widget in the vocabulary draws one
+// box now — the wrapper that declined to took a form instead, in its own stylesheet,
+// after the ring went out over its pieces and read as two boxes touching rather than
+// as the one ask the reader is standing in — so on shipped pages the parts are the
+// ask itself, and the fallback answers the wrapper any page can still style boxless
+// in a line, the same way the thread's mark does (paintAnchors).
+//
 // The board's row for the ask is a second surface showing this one fact, so it is
 // painted from this one reading rather than from a mark the board keeps for itself —
 // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
@@ -8473,11 +9867,11 @@ function markHere() {
   // A walk that runs past the foot of an open board leaves its mark off screen, which is
   // the board saying nothing exactly while the reader is using it. `nearest` so a row
   // already in view moves nothing.
-  if (row && openEdge("asks")) row.scrollIntoView({ block: "nearest" });
+  if (row && openBoard("asks")) row.scrollIntoView({ block: "nearest" });
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent !== here) lend(null);
-  for (const el of wearing) el.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
+  for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
 }
 const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // Where the walk measures from: where the reader is standing, rather than where the walk
@@ -8524,28 +9918,39 @@ function askStep(asks, dir) {
   });
   return dir > 0 ? (reach[0] ?? asks[0]) : (reach.at(-1) ?? asks.at(-1));
 }
-function stepAsk(dir) {
-  const asks = openAsks();
-  if (!asks.length) return; // never: the key and the control are live only with asks
-  goToAsk(askStep(asks, dir), asks);
+// Where the reader stands when they are put on an ask: the control that works it —
+// one inside the ask, or one the widget hoisted into the margin and pointed back at
+// it — or the ask itself, lent a tab stop where it holds nothing to work. Named
+// because two presses put a reader on an ask and one of them is not a walk: a widget
+// rebuilt under the reader (rebuild) has to hand back the place they were standing,
+// and a second answer to "where is that" would drift from this one the first time the
+// control rule changed.
+function standOn(el) {
+  const control =
+    el.querySelector(ASK_CONTROL) ??
+    document.querySelector(`[${ASK_ROW}="${el.id}"] ${ASK_CONTROL}`);
+  if (!control) lend(el);
+  (control ?? el).focus({ preventScroll: true });
 }
-// Standing on one ask: what n and p do once they have decided which, and what a press on
-// a board row does having been told outright. One function because it is one act — the
-// board would otherwise be a second answer to "how do I put the reader on an ask", and
-// the two would drift the first time either the reveal or the focus rule changed.
+
+// Standing on one ask: what n and p do once they have decided which, what a press on a
+// board row does having been told outright, and where `g a` lands a digit. One function
+// because it is one act — a second would be a second answer to "how do I put the reader on
+// an ask", and the two would drift the first time either the reveal or the focus rule
+// changed.
+//
+// The list comes with the ask, because the announcement names a place in it and the caller
+// is the one that knows which list it walked: the walk's own, the board's, or the whole of
+// what the page is waiting on where an address reached past the nine it can spell.
 function goToAsk(next, asks) {
   // A thread's ask lives in the panel, which has no geometry while closed — the
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelOpen) setPanel(true);
   reveal(next); // a settled group or an inactive tab has no geometry until it opens
-  const control =
-    next.querySelector(ASK_CONTROL) ??
-    document.querySelector(`[${ASK_ROW}="${next.id}"] ${ASK_CONTROL}`);
-  if (!control) lend(next); // nothing to work: the ask itself takes the focus
   landed = next;
   // The ring follows: the focus move is what paints it, so the walk says where to stand
   // and markHere says where the reader is standing, rather than both saying the second.
-  (control ?? next).focus({ preventScroll: true });
+  standOn(next);
   // Each ask centres in the region it stands in. The banner clearance
   // scrollToElement answers for is the document scroller's alone, and a thread's
   // ask is in the panel's own list, which has none — so that one is the platform's
@@ -8553,6 +9958,11 @@ function goToAsk(next, asks) {
   if (inChrome(next)) next.scrollIntoView({ behavior: SCROLL, block: "center" });
   else scrollToElement(next);
   announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
+}
+function stepAsk(dir) {
+  const asks = openAsks();
+  if (!asks.length) return; // never: the key and the control are live only with asks
+  goToAsk(askStep(asks, dir), asks);
 }
 
 // ---------- version diff ----------
@@ -8671,14 +10081,13 @@ function applyDiff(doc, baseVersion) {
   // just as an action did, so what the reader saw includes it) against the
   // live DOM, which already wears the current folds. Body facets are words and
   // the block keys above own them.
-  const baseFold = stateFold(baseVersion);
-  const baseReports = reportFold(baseVersion);
-  for (const [tag, spec] of stateSpecs()) {
+  const baseProjection = stateProjection(baseVersion);
+  for (const { tag, spec } of stateSpecs()) {
     if (!spec.record || spec.record.kind === "body") continue;
     for (const widget of document.body.querySelectorAll(tag)) {
       if (inChrome(widget) || quoted(widget)) continue;
       const units =
-        spec.unit === "widget" || !spec.unit
+        spec.unit === "widget"
           ? widget.id
             ? [widget]
             : []
@@ -8686,14 +10095,13 @@ function applyDiff(doc, baseVersion) {
       for (const el of units) {
         const baseEl = doc.getElementById(el.id);
         if (!baseEl) continue; // new to this version: the content half marks it
-        // The later writer wins between the channels, as replay's seq order has
-        // it; a fold entry whose detail lacks this record's field wrote some
-        // other facet of the unit and says nothing about this one.
-        const writers = [baseFold.get(el.id), baseReports.get(el.id)]
-          .filter((c) => c && spec.record.value in c.e.detail)
-          .sort((a, b) => a.e.seq - b.e.seq);
-        const before = writers.length
-          ? foldedFacet(writers.at(-1).e, spec.record)
+        // A reader's action outranks provisional agent news on the same fact;
+        // otherwise the standing writer is the report. The facet coordinate
+        // means an unrelated fact on this unit never enters the choice.
+        const coordinate = stateCoordinate(widget.id, el.id, spec);
+        const writer = baseProjection.desired.get(coordinate);
+        const before = writer
+          ? foldedFacet(writer.e, spec.record)
           : domFacet(baseEl, spec.record);
         const now = domFacet(el, spec.record);
         if (before === now) continue;
@@ -8714,7 +10122,7 @@ function applyDiff(doc, baseVersion) {
 }
 // Whether a version can be compared with the one being read: anything published
 // before it, which is which rows the menu builds a press onto.
-const comparable = (version) => VNUM !== null && version < VNUM;
+const comparable = (version) => currentVersion !== null && version < currentVersion;
 // Every rendering of the pair above, written in one place: the chooser's word, its
 // paint and what it says it will do, the checked state of each row's Δ, and the rail
 // down the rows the comparison spans. Called by the setter, by a menu rebuild — the
@@ -8733,7 +10141,7 @@ function paintDiff() {
     const version = +row.dataset.lfVersion;
     row.classList.toggle(
       "lf-compared",
-      diffOn && version >= diffBase && version <= VNUM,
+      diffOn && version >= diffBase && version <= currentVersion,
     );
   }
   for (const press of versionMenu.querySelectorAll(".lf-version-diff"))
@@ -8819,15 +10227,21 @@ const WORKING_GRACE_MS = 15 * 60 * 1000;
 // only one of.
 export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
   Boolean(ts) && Date.now() - new Date(ts).getTime() > grace;
-// Which claim each kind reads out, and so whose detail it may speak. A `working`
-// claim gone quiet under a live watcher is judged `listening` too, and that detail
-// names what the agent was doing rather than what it wants back — the wrong half of
-// the loop to read out after "awaits". The question sits here rather than at each
-// seat, for the reason `kind` does: two seats answering it separately is two answers
-// to what the page may say it is waiting for. A kind absent here is a judgment
-// against the claim — nobody is behind the page, or the page is closed — and the
-// claim's words about the work are not the news there.
-const DETAIL_FROM = { working: "working", listening: "waiting" };
+// Which claim each kind reads out, and so whose detail it may speak. The question
+// sits here rather than at each seat, for the reason `kind` does: two seats answering
+// it separately is two answers to what the page may say it is waiting for. A kind
+// absent here is a judgment against the claim — nobody is behind the page, or the page
+// is closed — and the claim's words about the work are not the news there.
+//
+// `stalled` reads a `working` claim's detail like `working` does, and that is the whole
+// difference between the two: same words, a sentence that dates them. They were one
+// judgment once, folded into `listening` because a watcher was live, and the detail was
+// dropped on the way — so a page whose agent had said "revising the plan" and then
+// spent twenty minutes in a delegate's hands read "Claude awaits — select text to
+// comment", inviting the reader to start something over a page already mid-answer. The
+// dropping was right for the sentence it was under: what the agent was doing is the
+// wrong half of the loop to read out after "awaits". The sentence was the mistake.
+const DETAIL_FROM = { working: "working", listening: "waiting", stalled: "working" };
 // The claim-against-proof judgment, one function for every surface that shows a
 // status: the banner's sentence about this page and a panel row about a neighbour
 // read the same fields the server gathers in one place (`presence`), so the two can
@@ -8845,8 +10259,8 @@ function presented(state) {
     status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
   );
   // Nothing is behind the claim. The claimant pid settles it where there is one: gone
-  // is gone, whatever the claim says and however lately a stray `leaf wait` bumped
-  // the heartbeat for a session that can no longer read it. Where nothing claimed the
+  // is gone, whatever the claim says and whether a stray `leaf wait` still holds
+  // a lease for a session that can no longer read it. Where nothing claimed the
   // page — a server started outside an agent host — there is no pid to look for, so a
   // live watcher or a claim still inside its grace is the whole of the evidence, and
   // once both are spent the page is unheld too.
@@ -8858,14 +10272,33 @@ function presented(state) {
       ? "closed"
       : unheld
         ? "unheld"
-        : status.state === "working" && !quiet
-          ? "working"
+        : status.state === "working"
+          ? // A claim of work outranks the watcher under it, fresh or stale: what the
+            // agent said it was doing is the news either way, and going quiet on it is
+            // the news the reader is least able to work out for themselves. The rope is
+            // the same one a roster row holds a worker to, so "gone quiet" means one
+            // thing on the page whoever is being judged — and a note on a thread
+            // (`leaf status … --on`) renews the claim, which is how work handed to a
+            // delegate stays true across a turn boundary the session cannot write over.
+            !quiet
+            ? "working"
+            : listening
+              ? "stalled"
+              : "away"
           : listening
             ? "listening"
             : "away";
   return {
     kind,
     quiet,
+    // Whether anything at all answers for the claim. The banner drops a claim
+    // nothing is behind rather than repeating it, and every other seat reading
+    // the same claim has to drop it on the same evidence: a note left on a
+    // thread by a session that has since died would sit under a line saying no
+    // session holds the page, each half arguing with the other about the same
+    // fact. Not the same question as `quiet`, which is about a claim going
+    // unrenewed by somebody who is still there.
+    held: kind !== "unheld" && kind !== "unattended",
     detail: status.state === DETAIL_FROM[kind] ? status.detail : "",
   };
 }
@@ -8967,6 +10400,10 @@ const showStatus = (tone, ...parts) => {
   paintTab();
 };
 function renderStatus(state) {
+  if (state instanceof Error) {
+    showStatus("offline", "Page couldn't apply current state — reload");
+    return;
+  }
   if (state === null) {
     showStatus("offline", "Server offline — comments won't send");
     return;
@@ -9008,6 +10445,17 @@ function renderStatus(state) {
     // per `presented`, so a row in the leaves panel leads with the bare word and
     // carries the same ask behind it.
     text = `${agentName()} awaits — ${detail || "select text to comment"}`;
+  } else if (kind === "stalled") {
+    // The claim stands, dated, with no remedy attached: a watcher is live, so the
+    // reader's next word reaches the agent without anyone touching a terminal. What
+    // they are owed is the age, which is the one thing they cannot see for themselves
+    // and the whole of what separates a delegate mid-answer from a dropped thread. It
+    // is spoken in the same words the branch below uses for the same silence, rather
+    // than in the muted parenthesis a live `working` claim wears: there the age is a
+    // footnote to news, and here it is the news.
+    text =
+      `${agentName()} last checked in ${ago(status.ts)}` +
+      `${detail ? ": " + detail : ""}. ${saved}`;
   } else {
     // Somebody is behind the page and isn't attending: say which and what to do. A
     // long silence means Claude lost the thread; a recent check-in means it is
@@ -9029,9 +10477,144 @@ function renderStatus(state) {
   showStatus(TONE[kind], ...line);
 }
 
+// ---------- live version activation ----------
+const versionDocuments = new Map();
+let activatingState = null;
+function versionDocument(version) {
+  if (versionDocuments.has(version)) return versionDocuments.get(version);
+  const name = versionUrl(version);
+  const loading = fetch(name)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`couldn't load ${name} (${response.status})`);
+      const generation = response.headers.get("Leaf-Layer");
+      if (generation && !sameLayer(generation)) return null;
+      const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+      if (
+        !doc.querySelector("body > main") ||
+        doc.querySelectorAll("body > main").length !== 1
+      )
+        throw new Error(`${name} has no single authored main`);
+      return doc;
+    })
+    .catch((error) => {
+      versionDocuments.delete(version);
+      throw error;
+    });
+  versionDocuments.set(version, loading);
+  return loading;
+}
+
+function replaceAuthoredAttributes(target, source, prior) {
+  const scratch = document.createElement(target.localName);
+  for (const [name, value] of prior) scratch.setAttribute(name, value);
+  for (const name of prior.keys()) {
+    if (name === "class")
+      for (const token of scratch.classList) target.classList.remove(token);
+    else if (name === "style")
+      for (const property of scratch.style) target.style.removeProperty(property);
+    else target.removeAttribute(name);
+  }
+  const next = authoredAttributes(source);
+  for (const [name, value] of next) {
+    if (name === "class")
+      for (const token of source.classList) target.classList.add(token);
+    else if (name === "style")
+      for (const property of source.style)
+        target.style.setProperty(
+          property,
+          source.style.getPropertyValue(property),
+          source.style.getPropertyPriority(property),
+        );
+    else target.setAttribute(name, value);
+  }
+  return next;
+}
+
+function activateHead(doc, version) {
+  for (const node of authoredHeadNodes) node.remove();
+  const runtimeStyle = style;
+  const next = new Set();
+  for (const node of doc.head.children) {
+    if (!versionedHeadNode(node)) continue;
+    const imported = document.importNode(node, true);
+    document.head.insertBefore(imported, runtimeStyle);
+    next.add(imported);
+  }
+  authoredHeadNodes = next;
+  let marker = document.querySelector('meta[name="lf-version"][data-lf-runtime]');
+  if (!marker) {
+    marker = document.createElement("meta");
+    marker.name = "lf-version";
+    marker.dataset.lfRuntime = "1";
+    document.head.insertBefore(marker, runtimeStyle);
+  }
+  marker.content = String(version);
+  stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
+}
+
+function resetAuthoredPage() {
+  authoredFacets.clear();
+  authoredDetails.clear();
+  authoredStatements.clear();
+  authoredMarkup.clear();
+  authoredWidgets.clear();
+  committedProjection.clear();
+  for (const attr of [
+    PAGE_PAINT_ATTRIBUTE.applied,
+    PAGE_PAINT_ATTRIBUTE.replayWrote,
+    PAGE_PAINT_ATTRIBUTE.reportWrote,
+  ])
+    document.body.removeAttribute(attr);
+}
+
+async function activateVersion(doc, version) {
+  const view = captureView();
+  const source = doc.querySelector("body > main");
+  const fresh = document.importNode(source, true);
+  versionDocuments.delete(version);
+  const settlingFrom = settling.length;
+  const comparedFrom = diffOn ? diffBase : null;
+  if (diffOn) setDiff(false);
+
+  resetAuthoredPage();
+  rememberAuthoredMarkup(source);
+  rememberPassageParts(fresh);
+  markWide(fresh);
+  authoredHtmlAttributes = replaceAuthoredAttributes(
+    document.documentElement,
+    doc.documentElement,
+    authoredHtmlAttributes,
+  );
+  authoredBodyAttributes = replaceAuthoredAttributes(
+    document.body,
+    doc.body,
+    authoredBodyAttributes,
+  );
+  currentVersion = version;
+  activateHead(doc, version);
+  document.querySelector("body > main").replaceWith(fresh);
+  pruneScopedElements();
+  settle(dress(fresh));
+  await Promise.allSettled(settling.slice(settlingFrom));
+  reachScrollers(fresh);
+  captureAuthoredFacets(fresh);
+  stateStrip();
+  syncLayout();
+  if (designOn) paintLegend();
+  return { view, comparedFrom };
+}
+
 // Navigate to a version with the pin semantics every chooser shares: an older
 // version pins the view, the newest unpins it.
+let forceActivation = false;
 const goVersion = (version) => {
+  if (LIVE_ROOT && version === currentVersion) return;
+  if (LIVE_ROOT && version === latestVersion) {
+    forceActivation = true;
+    showVersionMenu(false);
+    poll();
+    return;
+  }
   const path = versionUrl(version);
   location.href = version === latestVersion ? path : `${path}?pin`;
 };
@@ -9040,7 +10623,7 @@ function renderVersions(state) {
   const notes = {};
   for (const e of events) if (e.kind === "note") notes[e.version] = e.text;
   const key = JSON.stringify([state.versions, notes]);
-  const current = state.versions.includes(VNUM) ? VNUM : null;
+  const current = state.versions.includes(currentVersion) ? currentVersion : null;
   // Rebuilt rather than reconciled: this runs only when the versions or their notes
   // actually changed, which on a page's whole life is a handful of times, and the
   // menu is only ever read while it is open — where a rebuild would take the focused
@@ -9095,64 +10678,65 @@ function renderVersions(state) {
     paintDiff(); // a fresh list, and a standing comparison to show on it
   }
   latestVersion = state.versions.at(-1) ?? null;
-  const behind = latestVersion !== null && VNUM !== null && latestVersion !== VNUM;
-  // Follow the newest version unless pinned or the user is mid-composition:
-  // drafts survive navigation, but an open composer or a live selection
-  // doesn't. While deferred, the chip shows instead.
-  if (behind && !PINNED && !midComposition()) {
+  const behind =
+    latestVersion !== null &&
+    currentVersion !== null &&
+    latestVersion !== currentVersion;
+  // An immutable unpinned document still follows by navigation. The live root's
+  // activation decision was made before this rendering, where its fetched document and
+  // the composition hold were both available. Either route leaves the chip as news
+  // while it is behind.
+  if (behind && !LIVE_ROOT && !PINNED && !midComposition()) {
     location.replace(versionUrl(latestVersion));
     return;
   }
   showNews(latestChip, behind);
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
 }
-// The user is mid-something navigation would destroy, asked of the layer's own
-// signals rather than of any widget by name: a drag wears .lf-dragging (the module
-// sets it), a send in flight is sendAction's own record, and a composition surface is a
-// focused textarea — any holding words, or a widget-built one (data-lf-offer) even
-// empty, because deleting everything is still an edit.
+// A gesture of the reader's that the page has not accounted for in a log read, asked of
+// the layer's own signals rather than of any widget by name: a drag wears .lf-dragging
+// (the module sets it), every unresolved browser event is in the outbox, and an undo
+// in flight is its own — it is tracked separately because the walk itself cannot be
+// offered again while its event is being answered.
+// Two questions want the answer,
+// which is why it has a name of its own: navigating away would destroy such a gesture,
+// and the undo walk reads the log to find the last thing the reader did, so it cannot
+// answer while the page is holding one. Its own press included — a second `z` landing
+// inside the first one's trip would read the log from before it and withdraw the same
+// gesture again, which the door refuses and the reader hears as a page that couldn't
+// reach its server.
+const unaccountedGesture = () =>
+  undoing || outbox.length > 0 || Boolean(document.querySelector(".lf-dragging"));
+// The user is mid-something navigation would destroy: the above, and the words they
+// have typed — a composition surface is a focused textarea, any holding words, or a
+// widget-built one (data-lf-offer) even empty, because deleting everything is still an
+// edit.
 const midComposition = () =>
   composerOpen ||
   Boolean(fabAnchor) ||
-  sending.size > 0 ||
-  Boolean(document.querySelector(".lf-dragging")) ||
+  unaccountedGesture() ||
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
       document.activeElement.hasAttribute("data-lf-offer")));
-// Through the chooser's own travel, so the chip opens the version it names. `/` reached
-// the same place by asking the server which version is newest — a second route to what
-// goVersion states, and one that could land the reader on a version the chip had not
-// offered, since the answer is re-derived at the press rather than at the render.
+// Through the chooser's one door, so the chip opens exactly the version it names. At the
+// live root that is an explicit in-place release of the composition hold; on an immutable
+// page it is ordinary version travel.
 latestChip.onclick = () => goVersion(latestVersion);
 
 // ---------- polling ----------
-// Rendering version V shows V plus every action recorded up to it, replayed in
-// seq order: a reload keeps the user's drag, a second tab follows along
-// live, and a decision made on v10 still stands on v25. Widgets opt in by
-// exposing applyAction(action, detail) — an absolute placement, so replaying
-// the sender's own action is a no-op. The first poll runs after upgrades
-// settle, so the methods exist, and the pass runs at the end of a poll, so the
-// panel's own widgets do too.
+// Rendering version V means making its DOM equal the log's desired projection.
+// Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
+// a reader action outranking provisional agent news on the same coordinate. Widgets state
+// those winners through an absolute applyAction(action, detail); when several units
+// share one ordered container, their winners are applied together in log order.
 //
-// Absolute is what makes replay converge, and the order is the rest of what it
-// owes: an action applied after the gesture that superseded it states the widget
-// from its older place in that order, and the reader's next gesture computes from
-// what it painted and sends a decision they never made. Applying each action once
-// says nothing about *when* — an action recorded before a click can still be applied
-// after it. Two facts keep the order between them. A widget whose own send is in
-// flight is left alone (`sending`): until the log has taken that gesture, the page's
-// copy of the widget is ahead of every log it can read, so nothing in one can be
-// shown to sit after it. And that hold ends on the poll `post` awaits, which has
-// read the log past the gesture — from there the log being append-only carries it,
-// since an answer the page has already read past is stale whole and dropped (poll).
-//
-// Reports ride the same pass with the precedence reversed. A report is a
-// worker's provisional news (`leaf report`, x-report in the registry): it
-// paints onto the versions published before it and stops at the version whose
-// note answers it by id (`reports`, the mirror of `restated`) — where an
-// action outranks every later version until a retraction. The two channels
-// never share a record today, so their order within one poll is unobservable;
-// each keeps seq order within itself.
+// Absolute is what makes projection converge. Reader actions outrank provisional agent
+// reports on the same coordinate; winners on different coordinates are applied in their
+// original order so sibling position units compose. Recorded outbox actions form an
+// optimistic overlay after the log until accepted or definitively refused. A refusal
+// removes only its overlay, then the same projector derives the widget from authored
+// records, authoritative winners, and every surviving local action. Live drags and
+// widgets that return false defer that correction without advancing its commit.
 //
 // The log outranks the markup, and that is the whole rule: authored state is the
 // initial condition, never a later correction, so nothing a version does or
@@ -9162,7 +10746,11 @@ latestChip.onclick = () => goVersion(latestVersion);
 // premise nothing checked, and acknowledgement is not assent. Only a version can say
 // what the agent did with an action, and saying it is `version check`'s business now
 // (restatement_errors), not something inferred here from silence.
-const appliedActions = new Set();
+// The DOM's one checkpoint: each semantic coordinate names the projected winner
+// painted there and the widget/unit nodes that held it. Event ids alone cannot prove
+// state survived a recordless rebuild or a thread reconcile; node identity can. A
+// coordinate with no winner is committed too, once its authored baseline stands.
+const committedProjection = new Map();
 // What an action rests on: the widget that sent it, and the parts of that widget
 // its detail names — a `move` rests on its card as much as on the board. Either
 // can be taken back, which is what lets a rewritten card drop its own moves while
@@ -9198,34 +10786,31 @@ function retractedIds(e, floors, widget) {
 // Reading it from the log rather than from the markup is what makes it last —
 // the version *after* the rewrite declares nothing, and its silence would
 // otherwise hand the user's retracted state straight back.
-// Memoized on the log's identity: `events` has one writer, which replaces the
-// array wholesale (poll), and the floors read nothing else — so a cached answer
-// can never be stale, and the full-log walk stops running two to four times per
-// poll (stateFold, buildThreads, replay each asked it fresh).
-const floorsMemo = new WeakMap();
-function retractionFloors(upto) {
-  let byUpto = floorsMemo.get(events);
-  if (!byUpto) floorsMemo.set(events, (byUpto = new Map()));
-  if (byUpto.has(upto)) return byUpto.get(upto);
+// The two note fields are the reviewer and agent channels' readings of one durable
+// relation: a version answers ids, and its answer lasts without being repeated.
+// Memoized on the log's identity and the field/window query: `events` has one writer,
+// which replaces the array wholesale (poll), so a cached answer cannot be stale and
+// every consumer shares the same filter-and-max fold.
+const noteFloorsMemo = new WeakMap();
+function noteFloors(field, upto) {
+  let byQuery = noteFloorsMemo.get(events);
+  if (!byQuery) noteFloorsMemo.set(events, (byQuery = new Map()));
+  const query = `${field}:${upto}`;
+  if (byQuery.has(query)) return byQuery.get(query);
   const floors = new Map();
   for (const e of events)
     if (e.kind === "note" && e.version <= upto)
-      for (const id of e.restated || [])
+      for (const id of e[field] || [])
         floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
-  byUpto.set(upto, floors);
+  byQuery.set(query, floors);
   return floors;
 }
+const retractionFloors = (upto) => noteFloors("restated", upto);
 // A report's end: the ids the notes in the window answered, absorbed or
 // overruled — the agent channel's mirror of retractionFloors, read from the
 // log for the same reason (the version after the answer declares nothing, and
 // its silence must not hand the report back).
-function answeredReports(upto) {
-  const answered = new Set();
-  for (const e of events)
-    if (e.kind === "note" && e.version <= upto)
-      for (const id of e.reports || []) answered.add(id);
-  return answered;
-}
+const answeredReports = (upto) => noteFloors("reports", upto);
 // An id-bearing element's state as markup can say it: tag, attributes, and
 // place among its id-bearing kin. Text is deliberately absent — words are the
 // static gate's subject (restatement_errors); this is the rest, the state no
@@ -9252,166 +10837,52 @@ export function shallowSigs(root) {
   }
   return sigs;
 }
-function applyActions() {
-  // Never mutate the page under a live gesture — a replayed foreign action could
-  // move the nodes a drag preview is holding. Retry next poll.
-  if (document.querySelector(".lf-dragging")) return;
-  const takenBack = retractionFloors(VNUM);
-  const answered = answeredReports(VNUM);
-  const deferredWidgets = new Set();
-  let applied = false;
-  const started = [];
-  // Actions first, then reports, each pass bracketed by its own snapshot so what
-  // replay wrote is attributed to the channel that wrote it: version check
-  // --render reads the reviewer channel's record (replayWrote) as "state the log
-  // replays over", and a report's write there would lay a worker's news at the
-  // user's door. The loop inside a pass is synchronous, so between a pass's two
-  // readings nothing but its applyAction calls — no gesture, no widget rendering
-  // itself — can touch the page, and the diff of the ends is exactly what that
-  // channel wrote.
-  for (const [kind, wroteAttr] of [
-    ["action", PAGE_PAINT_ATTRIBUTE.replayWrote],
-    ["report", PAGE_PAINT_ATTRIBUTE.reportWrote],
-  ]) {
-    const before = events.some((e) => e.kind === kind && !appliedActions.has(e.seq))
-      ? shallowSigs(document.body)
-      : null;
-    const priorMotion = before && new Set(document.getAnimations());
-    let wrote = false;
-    for (const e of events) {
-      // Held rather than decided, both of them: a widget the page has painted ahead
-      // of the log (`sending`, see above) has its events reconsidered on the poll
-      // that reads its own gesture back, and a widget that asked for time gets the
-      // next poll — so nothing here is retired on a page state that was temporary.
-      if (
-        e.kind !== kind ||
-        appliedActions.has(e.seq) ||
-        deferredWidgets.has(e.widget) ||
-        sending.has(e.widget)
-      )
-        continue;
-      const el = elementById(e.widget);
-      // Every terminal action is decided here and never looked at again. This pass runs
-      // after the panel has rendered the log, so a widget that isn't here is one no
-      // version can carry — an honored suggestion, whose wrapper the version replaced.
-      if (!el) {
-        appliedActions.add(e.seq);
-        continue;
-      }
-      // Present but never upgraded is a different fact from absent: the module
-      // failed, its own fail-soft box says so, and retiring the decision here
-      // would silently drop what the user recorded. The events wait while the
-      // upgrade pass may still deliver the module; once it has finished, no
-      // import retries this load, and holding them forever stalls the
-      // caught-up stamp the export and render gates wait on. Retiring is this
-      // load's memory alone (appliedActions), so a later load with the module
-      // healthy replays them.
-      if (!el.applyAction) {
-        if (document.body.dataset.lfUpgraded === "1") appliedActions.add(e.seq);
-        continue;
-      }
-      if (e.kind === "report") {
-        // A report paints the versions published before it and ends at the one
-        // whose note answered it: a pinned older version predates the news, and
-        // an answered report's state is the document's to speak. No retraction
-        // floors here — a report is not a decision `restated` can take back.
-        if (e.version > VNUM || answered.has(e.id)) {
-          appliedActions.add(e.seq);
-          continue;
-        }
-      } else if (!inChrome(el)) {
-        // A pinned older version is a historical view, so it shows what the user
-        // had done by then and not what they did later. A widget inside the comment
-        // layer (.lf-chrome — a reply's inline question) has no version at all: its markup
-        // is frozen in the log, and no version can rewrite or retract it.
-        if (e.version > VNUM) {
-          appliedActions.add(e.seq);
-          continue;
-        }
-        const gone = retractedIds(e, takenBack, el);
-        if (gone.length) {
-          // Say so on the page: a decision undone looks exactly like one never
-          // made, and the user is owed the difference.
-          for (const id of gone) {
-            const target = elementById(id);
-            if (target) target.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-          }
-          appliedActions.add(e.seq);
-          continue;
-        }
-      }
-      // A widget may briefly own live local input. `false` asks replay to leave this
-      // action and later actions for the same widget in order for the next poll.
-      // A throw is contained to the event that threw: unretired, it re-throws on
-      // every poll, and everything after it in this pass — paintPending, the
-      // caught-up stamp the render gate awaits — never runs again. The console
-      // error makes it a finding of that gate, the same bargain the import path
-      // strikes with failSoft.
-      let outcome;
-      try {
-        outcome = el.applyAction(e.action, e.detail);
-      } catch (error) {
-        reportPageError(
-          `<${el.tagName.toLowerCase()}> applyAction(${e.action}) threw: ${error?.message ?? error}`,
-        );
-        failSoft(el, error);
-        appliedActions.add(e.seq);
-        wrote = true;
-        continue;
-      }
-      if (outcome === false) {
-        deferredWidgets.add(e.widget);
-        continue;
-      }
-      appliedActions.add(e.seq);
-      wrote = true;
-    }
-    if (!wrote) continue;
-    applied = true;
-    const now = shallowSigs(document.body);
-    // What the pass wrote — the ids whose shallow state its calls changed —
-    // recorded on the body, where version check --render reads it. A no-op says the
-    // markup already held the state; only a page widget can contradict its
-    // version, so a reply's widget (.lf-chrome, no version) goes unrecorded.
-    const changed = [...new Set([...before.keys(), ...now.keys()])].filter(
-      (id) => before.get(id) !== now.get(id) && !inChrome(elementById(id)),
-    );
-    if (changed.length) {
-      const prior = document.body.getAttribute(wroteAttr)?.split(" ") ?? [];
-      document.body.setAttribute(
-        wroteAttr,
-        [...new Set([...prior, ...changed])].join(" "),
-      );
-    }
-    started.push(...document.getAnimations().filter((a) => !priorMotion.has(a)));
+// The settlement mark is the layer's paint of a logged decision, never a module
+// obligation: x-retired-when and x-parent already state which verbs settle a holder,
+// so the writer with the registry and the log both in hand is this replay. It used to
+// be each holder module's duty, documented in the scaffold and enforced nowhere — the
+// suggestion remembered, and the first module that forgot would have silently split
+// the page's reading from the file's, with `leaf comment` refusing quotes as the only
+// symptom. A module is still free to say the mark sooner as its own gesture's paint
+// (lf-suggestion does, choreographing its fold around it); this write is then the
+// no-op that makes the guarantee unconditional. Written only where an action retires
+// behind the version and retraction gates — applied, thrown, or with no applyAction
+// to call — so a pinned older page and a restated decision stay unmarked. The mark
+// follows the fold both ways: the file's standing settlement is the last surviving
+// action at that owner-unit-facet coordinate, so another outcome there displaces the
+// decision and the mark goes with it — left standing, the page would silence slots the
+// log had handed back. Returns whether it wrote, for the one caller that would otherwise
+// report nothing written.
+function markSettled(el, action) {
+  const outcomes = settlementSlots()[el.localName];
+  if (!outcomes) return false;
+  if (outcomes[action]) {
+    el.setAttribute("data-lf-state", action);
+    renderRetired(el);
+    return true;
   }
-  if (applied) {
-    // A replay moves the page's text — a card to another column, a suggestion to its
-    // settled slot — so the marks are repainted where they now belong. Said here rather
-    // than left to the caller's order: a pass held off by a live drag lands on a poll
-    // that has nothing else to re-render.
-    paintAnchors();
-    // A FLIP a widget starts in applyAction keeps the moved element's hit box over
-    // its old home until the motion lands, so the pass above asked what is under the
-    // pointer mid-flight. The batch's own animations are the fact to consume — never
-    // the document's, whose chrome runs one that has no end — and when the last of
-    // them lands, ask again.
-    Promise.allSettled(started.map((a) => a.finished)).then(() => pageShifted());
+  const state = registry[el.localName]?.["x-state"] ?? {};
+  const spec = state[action];
+  const settlementFacet = state[el.getAttribute("data-lf-state")]?.facet;
+  if (
+    spec?.unit === "widget" &&
+    spec.facet === settlementFacet &&
+    el.hasAttribute("data-lf-state")
+  ) {
+    el.removeAttribute("data-lf-state");
+    renderRetired(el);
+    return true;
   }
-  // Beside paintPending, and outside the `applied` gate above, because the two facts
-  // this speaks arrive by different doors: a status a report moved is a widget the pass
-  // applied, and a retraction is painted by the pass that *declines* to apply one, which
-  // never marks itself as having written. Free to run every poll because the writer is
-  // idempotent — it re-reads nothing to whoever is listening unless the word or its seat
-  // has actually moved.
-  renderQuiet(document.body);
-  paintPending();
-  // Every action and report in the log is now decided (applied, skipped, or
-  // retired), and the stamp says so — it is what version check --render awaits
-  // before reading the replay's record, so the gate never reads a page mid-replay.
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.applied, String(appliedActions.size));
+  return false;
 }
-
+function clearSettled(el, facet) {
+  const action = el.getAttribute("data-lf-state");
+  const spec = registry[el.localName]?.["x-state"]?.[action];
+  if (!action || spec?.unit !== "widget" || spec.facet !== facet) return false;
+  el.removeAttribute("data-lf-state");
+  renderRetired(el);
+  return true;
+}
 // ---------- decided, awaiting the honoring version ----------
 // The registry's x-state names each verb's fold unit and record form, so one
 // pass renders "the user decided this and no version has carried it yet"
@@ -9420,17 +10891,40 @@ function applyActions() {
 // authored facets are captured once per page load, after upgrades and before
 // the first replay: the markup's initial condition, which replay then
 // overwrites in the DOM.
-const authoredFacets = new Map(); // unit id -> the facet this version arrived showing
+const authoredFacets = new Map(); // (owner, unit, facet) -> authored record value
 
 // Both channels: a report's record form is a facet exactly as an action's is,
 // so the authored-facet capture and the diff's state half serve the two alike.
+// Named members rather than a tuple, because every consumer takes a different subset
+// and positional destructuring once bound a verb where it wanted the spec. Nothing
+// threw; the diff simply marked no recorded state.
 function stateSpecs() {
   const specs = [];
   for (const [tag, entry] of widgetEntries())
-    for (const key of ["x-state", "x-report"])
-      for (const spec of Object.values(entry[key] ?? {})) specs.push([tag, spec]);
+    for (const channel of ["x-state", "x-report"])
+      for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
+        specs.push({ tag, channel, verb, spec });
   return specs;
 }
+
+// A recorded part belongs to the nearest widget that owns recorded state, regardless
+// of tag. Custom containers and shipped widgets compose through the same registry, so
+// same-tag scoping is too weak: an outer group must not read or reset a nested group's
+// chosen members merely because the inner owner has another name.
+const recordedOwner = (member) => {
+  const selector = [
+    ...new Set(
+      stateSpecs()
+        .filter(({ spec }) => spec.record)
+        .map(({ tag }) => tag),
+    ),
+  ].join(",");
+  return selector ? member.closest(selector) : null;
+};
+const ownedRecordMembers = (widget, selector) =>
+  [...widget.querySelectorAll(selector)].filter(
+    (member) => recordedOwner(member) === widget,
+  );
 
 // What the page shows for one unit's declared record form, asked of the live
 // DOM or of the diff's parsed base document alike. An attribute record is the
@@ -9445,7 +10939,7 @@ function stateSpecs() {
 // came out with a leading space on this one.
 function domFacet(el, record) {
   if (record.kind === "attribute")
-    return [...el.querySelectorAll(`[${record.attr}]`)]
+    return ownedRecordMembers(el, `[${record.attr}]`)
       .map((o) => o.id)
       .filter(Boolean)
       .sort()
@@ -9461,74 +10955,257 @@ function domFacet(el, record) {
 function foldedFacet(e, record) {
   const value = e.detail[record.value];
   if (record.kind === "body")
-    return [
-      ...String(value ?? "")
-        .replace(COLLAPSE, " ")
-        .trim(),
-    ].join("");
+    return String(value ?? "")
+      .replace(COLLAPSE, " ")
+      .trim();
   if (record.kind === "attribute") return [...value].sort().join(" ");
   return value ?? null;
 }
 
-function captureAuthoredFacets() {
-  for (const [tag, spec] of stateSpecs()) {
-    if (!spec.record) continue;
-    for (const widget of document.querySelectorAll(tag)) {
-      if (spec.unit === "widget" || !spec.unit) {
-        if (widget.id) authoredFacets.set(widget.id, domFacet(widget, spec.record));
-      } else
-        // Per-part units, at the record form's own key: a position facet is
-        // carried by the container's direct children (a column's cards), and
-        // an id'd element nested inside one — a draft in a card — is not a
-        // unit, just a passenger whose `closest()` would echo its carrier's.
-        for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
-          authoredFacets.set(part.id, domFacet(part, spec.record));
+// The same capture read the other way: the detail that *states* each unit's
+// authored placement, keyed by the verb that would state it. The facet above is
+// what a comparison needs, and it is deliberately lossy — a position collapses to
+// its column, a body to its collapsed words — because the log's own detail is
+// compared collapsed. Taking a gesture back needs a statement rather than a
+// comparison, and the two are different questions about one record: a card put
+// back on the right list in the wrong place is the facet's answer, correct and
+// useless.
+const authoredDetails = new Map(); // (owner, unit, facet) -> the detail stating it
+// Reconciliation resets a dirty widget as one composition boundary before replaying
+// its winners. Position units share sibling order, so restoring only the unit whose
+// winner disappeared would make its authored index relative to a still-projected
+// container and then replay the other units from the wrong order.
+const authoredStatements = new Map(); // widget id -> coordinate -> absolute statement
+
+// And the markup itself, for the widgets whose state cannot be stated at all: one whose
+// durable verb has no record — a settlement, where "undecided" is a value no
+// verb carries. Kept only for those, because a clone is the whole subtree and every
+// other widget can be told its state in a sentence.
+//
+// Taken beside the passage fences and for the same reason, which is that both are
+// readings of what the *version* wrote: the moment after the registry lands and before
+// the modules import is the only one at which the page holds the author's markup and
+// nothing else. A clone taken a moment later is a clone of the upgraded page — the
+// injected controls, the marks, and `once`'s own stamp with them — so putting it back
+// would put back a widget that had already been upgraded and would never upgrade again.
+const authoredMarkup = new Map(); // widget id -> the markup this version wrote
+// By tag rather than by verb, because a family declaring two record-less verbs — a
+// suggestion's accept and its reject — would otherwise clone every one of its
+// instances once per verb and keep the last.
+function rememberAuthoredMarkup(root = document) {
+  const settlements = new Set(
+    stateSpecs()
+      .filter(({ spec }) => !spec.record)
+      .map(({ tag }) => tag),
+  );
+  for (const tag of settlements) {
+    for (const widget of root.querySelectorAll(tag))
+      if (widget.id && !authoredMarkup.has(widget.id))
+        authoredMarkup.set(widget.id, widget.cloneNode(true));
+  }
+}
+
+const authoredWidgets = new Set();
+function captureAuthoredFacets(root = document) {
+  const byTag = new Map();
+  for (const statement of stateSpecs()) {
+    if (!statement.spec.record) continue;
+    const statements = byTag.get(statement.tag) ?? [];
+    statements.push(statement);
+    byTag.set(statement.tag, statements);
+  }
+  for (const [tag, statements] of byTag) {
+    for (const widget of root.querySelectorAll(tag)) {
+      if (!widget.id || authoredWidgets.has(widget.id)) continue;
+      for (const { verb, spec } of statements) {
+        if (spec.unit === "widget")
+          rememberAuthored(widget, widget, widget.id, verb, spec);
+        else
+          // A position facet is carried by the container's direct id'd children.
+          // Ownership stops at the nearest widget declaring recorded state, so an
+          // outer custom container cannot capture a nested widget's parts.
+          for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
+            if (recordedOwner(part.parentElement) === widget)
+              rememberAuthored(widget, part, part.id, verb, spec);
+      }
+      authoredWidgets.add(widget.id);
     }
   }
 }
 
-// The user's standing state as of `upto`: the last surviving action per
-// declared unit. Every applyAction is absolute, which is what makes this a
-// fold — one linear scan, no replay simulation. Surviving means not under a
-// retraction floor keyed on what the action rests on — the same containment
-// set replay skips by, so the two can't disagree about what a `restated` took
-// back.
-// The two folds' shared walk, which is everything about them that is the same:
-// the events of one kind inside the window whose widget is still on the page
-// and whose tag still declares the verb, each with the unit it folds to. What
-// differs is only what each channel counts as ended — a retraction floor for
-// the reviewer's, a note's answer for the agent's — so that is the caller's
-// `live` predicate and nothing else is duplicated. Named for interact.py's
-// `event_spec`/`fold_unit`, the same seam on the file side.
-function* foldable(kind, channel, upto, live) {
-  for (const e of events) {
-    if (e.kind !== kind || e.version > upto) continue;
-    const el = elementById(e.widget);
-    // The element, not its module: the fold reads the registry's declaration,
-    // so a decided widget whose module failed to load still folds — asking for
-    // applyAction here silently dropped its decision from every derived view.
-    if (!el || inChrome(el)) continue;
-    const spec = registry[el.tagName.toLowerCase()]?.[channel]?.[e.action];
-    if (!spec || !live(e, el)) continue;
-    const unit = spec.unit === "widget" || !spec.unit ? e.widget : e.detail[spec.unit];
-    if (typeof unit === "string") yield [unit, { e, spec }];
+// The facet and the statement that restores it are both authored facts. Reports are
+// not undoable gestures, but a report can be the projected state displaced by an
+// action; when that action is withdrawn, reconciliation needs the same baseline.
+function rememberAuthored(widget, el, unit, verb, spec) {
+  const coordinate = stateCoordinate(widget.id, unit, spec);
+  authoredFacets.set(coordinate, domFacet(el, spec.record));
+  const detail = authoredDetail(el, unit, spec);
+  if (!detail) return;
+  authoredDetails.set(coordinate, detail);
+  const statements = authoredStatements.get(widget.id) ?? new Map();
+  if (!statements.has(coordinate))
+    statements.set(coordinate, { coordinate, unit, action: verb, detail, spec });
+  authoredStatements.set(widget.id, statements);
+}
+
+// Built from the record form alone, so no widget is named here and a twelfth one is
+// covered the day it declares. Null where this version's markup states no placement
+// at all — an unset scalar, a part standing outside the container its record names —
+// and a unit with no authored statement simply has no first gesture to take back.
+function authoredDetail(el, unit, spec) {
+  const record = spec.record;
+  const detail = spec.unit !== "widget" ? { [spec.unit]: unit } : {};
+  if (record.kind === "attribute")
+    detail[record.value] = ownedRecordMembers(el, `[${record.attr}]`)
+      .map((o) => o.id)
+      .filter(Boolean)
+      .sort();
+  else if (record.kind === "value") {
+    const value = el.getAttribute(record.attr);
+    if (value === null) return null;
+    detail[record.value] = value;
+  } else if (record.kind === "body")
+    // Uncollapsed, where domFacet collapses: what is being reproduced is the
+    // words, and a draft's paragraphs are the whole of the difference. The same
+    // walk either way, so the two readings cannot disagree about *which* words
+    // are the page's — only about the whitespace between them.
+    detail[record.value] = textNodesUnder(el)
+      .map((seg) => seg.node.data.slice(seg.start, seg.end))
+      .join("");
+  else {
+    const within = el.closest(record.within);
+    if (!within?.id) return null;
+    detail[record.value] = within.id;
+    // Among the container's id'd children, which is the same list the capture
+    // above walks — and the same one a board counts, a column admitting nothing
+    // but cards.
+    detail[record.order] = [...within.children].filter((c) => c.id).indexOf(el);
   }
+  return detail;
 }
 
-function stateFold(upto) {
+// Which element one event states, per the verb's declared fold unit: the widget itself
+// where the verb is absolute across the group, and the element its detail names where
+// it is absolute per part. One sentence, because two copies of it are two readings of
+// the registry free to disagree about what an event is about.
+const unitOf = (e, spec) => (spec.unit === "widget" ? e.widget : e.detail[spec.unit]);
+// One stable representation for the semantic coordinate in every derived view.
+// JSON's array form preserves the boundary even when an id contains punctuation.
+const stateCoordinate = (owner, unit, spec) =>
+  JSON.stringify([owner, unit, spec.facet]);
+
+// A recorded action has already been painted by its widget when it enters this door.
+// Give that optimistic value the same semantic coordinate as authoritative state, and
+// commit it on the exact nodes that carry it. Record-less actions paint only after
+// acceptance, so putting one in this overlay would show a decision the server may refuse.
+function stageOutboxAction(entry) {
+  const e = entry.event;
+  if (e.kind !== "action") return;
+  const widget = elementById(e.widget);
+  const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
+  if (!spec?.record) return;
+  const unit = unitOf(e, spec);
+  if (typeof unit !== "string") return;
+  const coordinate = stateCoordinate(e.widget, unit, spec);
+  const projection = {
+    unit,
+    spec,
+    coordinate,
+    localOrder: entry.order,
+    e: { ...e, id: entry.localId },
+  };
+  entry.projection = projection;
+  committedProjection.set(coordinate, {
+    widgetId: e.widget,
+    widget,
+    unit: elementById(unit),
+    entry: projection,
+  });
+}
+
+function compareProjected(a, b) {
+  const aLogged = Number.isInteger(a.e.seq);
+  const bLogged = Number.isInteger(b.e.seq);
+  if (aLogged && bLogged) return a.e.seq - b.e.seq;
+  if (aLogged) return -1;
+  if (bLogged) return 1;
+  return a.localOrder - b.localOrder;
+}
+
+// Both durable channels projected in one pass. Actions holds the last surviving
+// reader action per coordinate. Reports keeps every live report because publishing
+// answers all of them there. Desired gives the reader's action precedence over
+// provisional agent news on the same fact.
+// The projection is deliberately pure and uncached: its declarations resolve through
+// the live DOM, which panel construction and a recordless rebuild can replace.
+function stateProjection(upto, without = null) {
   const floors = retractionFloors(upto);
-  return new Map(
-    foldable("action", "x-state", upto, (e, el) => !retractedIds(e, floors, el).length),
-  );
-}
-
-// The agent channel's fold: the last standing report per declared unit as of
-// `upto`. Standing means inside the window and not answered by a note there —
-// no retraction floors, because a report is not a decision `restated` can take
-// back; a note naming it is the one way it ends.
-function reportFold(upto) {
+  const withdrawn = takenBack();
   const answered = answeredReports(upto);
-  return new Map(foldable("report", "x-report", upto, (e) => !answered.has(e.id)));
+  const actions = new Map();
+  const reports = new Map();
+  const classified = new Map();
+  for (const e of events) {
+    if (e.kind !== "action" && e.kind !== "report") continue;
+    const el = elementById(e.widget);
+    if (!el) {
+      classified.set(e.id, { e, terminal: true });
+      continue;
+    }
+    const chrome = inChrome(el);
+    // Reply widgets live in frozen log markup and therefore see the whole action
+    // sequence. Reports belong to versions, as do actions on page widgets.
+    if (
+      e.kind === "report" ? chrome || e.version > upto : !chrome && e.version > upto
+    ) {
+      classified.set(e.id, { e, terminal: true });
+      continue;
+    }
+    const channel = e.kind === "action" ? "x-state" : "x-report";
+    const spec = registry[el.tagName.toLowerCase()]?.[channel]?.[e.action];
+    if (!spec) {
+      classified.set(e.id, { e, terminal: true });
+      continue;
+    }
+    const unit = unitOf(e, spec);
+    if (typeof unit !== "string") {
+      classified.set(e.id, { e, terminal: true });
+      continue;
+    }
+    const coordinate = stateCoordinate(e.widget, unit, spec);
+    const entry = { unit, e, spec, coordinate };
+    classified.set(e.id, entry);
+    if (e.kind === "action") {
+      if (e.id === without || withdrawn.has(e.id)) continue;
+      const restated = chrome ? [] : retractedIds(e, floors, el);
+      entry.restated = restated;
+      if (restated.length) continue;
+      actions.set(coordinate, entry);
+    } else if (!answered.has(e.id)) {
+      const standing = reports.get(coordinate) ?? [];
+      standing.push(entry);
+      reports.set(coordinate, standing);
+    }
+  }
+  // A retained accepted attempt already appears above at its true log position. Every
+  // other surviving recorded action is newer local state, in the order the one outbox
+  // will deliver it. Rejections are tombstones, not winners.
+  const loggedAttempts = new Set(events.map((e) => e.attempt).filter(Boolean));
+  for (const out of outbox) {
+    const entry = out.projection;
+    if (!entry || out.rejected || loggedAttempts.has(out.event.attempt)) continue;
+    actions.set(entry.coordinate, entry);
+  }
+  const desired = new Map(
+    [...reports].map(([coordinate, standing]) => [coordinate, standing.at(-1)]),
+  );
+  for (const [coordinate, entry] of actions) desired.set(coordinate, entry);
+  return {
+    actions,
+    reports,
+    classified,
+    desired,
+  };
 }
 
 // What this page's folds hold, handed out so the one premise underneath them can
@@ -9548,7 +11225,7 @@ function reportFold(upto) {
 // *sequence's* result rather than any one action's: two cards dragged to the
 // head of one column leave it holding the second above the first, and replaying
 // the first alone lifts it back over the second. Neither implementation moved;
-// the reading did. A fold is keyed by unit and a Map keeps each key where it
+// the reading did. A fold is keyed by coordinate and a Map keeps each key where it
 // first appeared, so the surviving events have to be put back in `seq` order
 // rather than taken as the fold hands them over.
 //
@@ -9556,21 +11233,469 @@ function reportFold(upto) {
 // an application earlier in the batch is free to have replaced the element a
 // later one names. A unit the current version dropped has no facet at all —
 // its widget survived it.
-export const standingState = () =>
-  [...stateFold(VNUM), ...reportFold(VNUM)]
-    .sort(([, a], [, b]) => a.e.seq - b.e.seq)
-    .map(([unit, { e, spec }]) => ({
+export const standingState = () => {
+  const projection = stateProjection(currentVersion);
+  return [...projection.desired]
+    .filter(([, entry]) => !inChrome(elementById(entry.e.widget)))
+    .sort(([, a], [, b]) => compareProjected(a, b))
+    .map(([_coordinate, { unit, e, spec }]) => ({
       get widget() {
         return elementById(e.widget);
       },
       unit,
+      facet: spec.facet,
+      record: spec.record?.kind ?? null,
       action: e.action,
       detail: e.detail,
-      facet: () => {
+      read: () => {
         const el = spec.record && elementById(unit);
         return el ? domFacet(el, spec.record) : null;
       },
     }));
+};
+
+// ---------- taking a gesture back ----------
+// Undo withdraws; it never deletes. The log is append-only and the page is a fold over
+// it, so `z` posts one event naming the gesture it takes back, and every fold and the
+// thread reading drop that gesture. The page is then the version plus what still
+// stands — the same sentence a reload has always read, and the same one `restated`
+// already writes from the author's side. Nothing states a counter-gesture into the
+// log: a card put back where it came from would read as a decision to move it there,
+// and "undecided" is not a value any verb can carry, so a page whose reader takes back
+// an accept could never have been stated at all.
+//
+// What the reader *sees* is derived from that rather than restated, and by the
+// cheapest faithful means. Where the log still leaves the unit a state that can be
+// stated — a prior action's detail, or the placement this version's markup arrived
+// showing — the widget is told it, so the card travels back under the reader's eye and
+// keeps its focus. Where the verb records nothing, there is no such state, so the
+// widget is rebuilt from the version's own markup and whatever survives is replayed
+// onto it. Both routes are chosen by a declaration and neither knows a widget's name.
+const takenBack = () => new Set(events.filter((e) => e.undoes).map((e) => e.undoes));
+// Whether removing one action leaves the reconciler a state it can paint. The actual
+// transition belongs to reconciliation; this is only the keyboard offer, bounded to
+// the version where the gesture was made.
+function canUndoAction(e) {
+  const el = elementById(e.widget);
+  if (!el || !el.applyAction) return false;
+  const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
+  if (!spec) return false;
+  if (!spec.record) return authoredMarkup.has(e.widget);
+  const unit = unitOf(e, spec);
+  const coordinate = stateCoordinate(e.widget, unit, spec);
+  return (
+    stateProjection(currentVersion, e.id).desired.has(coordinate) ||
+    authoredDetails.has(coordinate)
+  );
+}
+
+// The newest gesture of the reader's own that still stands and can still be taken off
+// the page. Newest-first over the whole log rather than a stack this tab keeps,
+// because a stack is a second store: it would die on the reload a new version
+// performs, and a second tab would hold a different one. The reader's own — an agent's
+// `leaf resolve` is not theirs to undo — and never an undo itself, which is what makes
+// repeated presses a walk backwards instead of a toggle.
+function undoable() {
+  const withdrawn = takenBack();
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.author !== "user" || e.kind === "undo" || withdrawn.has(e.id)) continue;
+    if (e.kind === "resolve" || e.kind === "unresolve") return e;
+    // On the version it was made against: a later version may have been written
+    // around the decision, and a press that paints nothing is not one to offer. What
+    // *hearing* such an undo owes is reconciliation's, and is not the same answer.
+    const widget = e.kind === "action" && elementById(e.widget);
+    if (
+      widget &&
+      (inChrome(widget) || e.version === currentVersion) &&
+      canUndoAction(e)
+    )
+      return e;
+  }
+  return null;
+}
+
+// Said in the kinds this file owns, never in the verb the action carries: `move` and
+// `edit` read as nouns in that sentence and `choose` does not, and which of the two a
+// widget's word is is not core's to know. It is the same rule that keeps "accept" out
+// of the answer-all row's words, met here in its smallest form.
+const UNDO_WORDS = {
+  resolve: "Reopened the thread",
+  unresolve: "Resolved the thread again",
+  action: "Took back your last change",
+};
+
+// This press's own record of being in flight, read by unaccountedGesture with the
+// layer's other two.
+let undoing = false;
+
+// The press posts and nothing else. What the page does about it is reconciliation's,
+// where it is done once for every tab off the log rather than here for this one off
+// the gesture — the second tab has to arrive at the same page, and a route only this
+// tab took would be a second answer to converge with. The round trip is the cost, and
+// it is the one gesture that can afford it: a drag has to follow the pointer, where a
+// keypress has nothing on screen waiting on the frame.
+async function undoLast() {
+  const e = undoable();
+  if (!e) return;
+  undoing = true;
+  paintKeys();
+  try {
+    if (await post({ kind: "undo", undoes: e.id }))
+      toast(`${UNDO_WORDS[e.kind]} — sent to ${agentName()}`);
+  } finally {
+    undoing = false;
+    paintKeys();
+  }
+}
+
+// The widget put back as the version wrote it, for the withdrawal no state can state.
+// A rebuild rather than an un-apply, because there is no un-apply to call: applyAction
+// states a value, and the value here is "whatever the markup says", which only the
+// markup holds. The clone is this version's, taken before replay first touched the
+// page, so what goes back is exactly what a reload would render before the log is read
+// — and the log is then read onto it, the same pass that reads it onto a fresh load.
+function rebuild(el) {
+  const id = el.id;
+  // Whether the reader is standing in what is about to be replaced — inside it, or on
+  // a control the widget hoisted out of it — because they have to be handed the place
+  // back afterwards. The other route never asks: a widget told its state keeps its own
+  // focus, and it was only the rebuild that dropped a reader onto <body> without a
+  // word, which is the silence the ladder's own rung exists to avoid.
+  const here = focused();
+  const standing =
+    Boolean(here) &&
+    (containsAcross(el, here) || Boolean(here.closest?.(`[${ASK_ROW}="${id}"]`)));
+  // Chrome the widget hoisted out of itself goes with it, and the widget is what takes
+  // it: a control hung in the page margin is outside the subtree being replaced, so
+  // only its owner knows to take it away, and disconnectedCallback is where the
+  // platform already asks. Sweeping `[data-lf-for]` here as well would be a second
+  // writer for one fact — and one that a widget hoisting chrome under some other
+  // marker would silently escape anyway. What holds it is the render gate, where a row
+  // left behind shows as two rows on one change.
+  const fresh = authoredMarkup.get(id).cloneNode(true);
+  // Before the insertion, as the load writes it before the modules import: a widget
+  // that declares a width model asks for it on its first render, and connectedCallback
+  // is that render.
+  markWide(fresh);
+  el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
+  // The rest of what the upgrade gives every subtree beyond its module's own work. Not
+  // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
+  // widget with async work of its own settles it the way it always does.
+  dress(fresh);
+  reachScrollers(fresh);
+  // The fences the passage reading walks are node identities, and these are new nodes
+  // holding the same markup — so the index is taken again rather than left naming a
+  // subtree the page no longer has.
+  rememberPassageParts();
+  if (standing) standOn(fresh);
+  return fresh;
+}
+
+const committedEvent = (commit) => commit?.entry?.e.id ?? null;
+
+function projectionCommitted(projection, e) {
+  const entry = projection.classified.get(e.id);
+  if (!entry) return false;
+  if (entry.terminal) return true;
+  const desired = projection.desired.get(entry.coordinate);
+  const commit = committedProjection.get(entry.coordinate);
+  return (
+    commit?.widget === elementById(entry.e.widget) &&
+    commit.unit === elementById(entry.unit) &&
+    committedEvent(commit) === (desired?.e.id ?? null)
+  );
+}
+
+function localCoordinateCommitted(projection, entry) {
+  const local = entry.projection;
+  if (!local) return true; // record-less actions never painted before acceptance
+  const widget = elementById(local.e.widget);
+  if (!widget) return true;
+  const desired = projection.desired.get(local.coordinate) ?? null;
+  const commit = committedProjection.get(local.coordinate);
+  return (
+    commit?.widget === widget &&
+    commit.unit === elementById(local.unit) &&
+    committedEvent(commit) === (desired?.e.id ?? null)
+  );
+}
+
+// Delivery and projection are separate facts. Accepted entries leave only after a
+// complete read has committed the coordinate that now represents them; rejected
+// entries leave only after their optimistic token no longer represents the DOM.
+function releaseProjectedOutbox() {
+  const projection = stateProjection(currentVersion);
+  let removed = false;
+  for (const entry of [...outbox]) {
+    if (!entry.answered || entry.event.kind !== "action") continue;
+    const settled = entry.rejected
+      ? localCoordinateCommitted(projection, entry)
+      : Boolean(entry.readEvent && projectionCommitted(projection, entry.readEvent));
+    if (!settled) continue;
+    removeOutbox(entry);
+    removed = true;
+  }
+  return removed;
+}
+
+// Readiness remains event-counted even though painting is coordinate-based. Every
+// superseded action and absorbed report is settled when the one state that represents
+// its coordinate has been committed; an undo is settled by that same transition back
+// to a prior winner or the authored baseline.
+function projectionCoverage(projection) {
+  let covered = 0;
+  for (const e of events) {
+    if (e.kind === "action" || e.kind === "report") {
+      if (projectionCommitted(projection, e)) covered += 1;
+    } else if (e.kind === "undo") {
+      const target = projection.classified.get(e.undoes);
+      if (!target || target.terminal || projectionCommitted(projection, target.e))
+        covered += 1;
+    }
+  }
+  return covered;
+}
+
+function rememberWrites(before, kind) {
+  const now = shallowSigs(document.body);
+  const changed = [...new Set([...before.keys(), ...now.keys()])].filter(
+    (id) => before.get(id) !== now.get(id) && !inChrome(elementById(id)),
+  );
+  if (!changed.length) return;
+  const attr =
+    kind === "action"
+      ? PAGE_PAINT_ATTRIBUTE.replayWrote
+      : PAGE_PAINT_ATTRIBUTE.reportWrote;
+  const prior = document.body.getAttribute(attr)?.split(" ") ?? [];
+  document.body.setAttribute(attr, [...new Set([...prior, ...changed])].join(" "));
+}
+
+let projectionDragObserver = null;
+function watchProjectionDrag() {
+  if (projectionDragObserver) return;
+  projectionDragObserver = new MutationObserver(() => {
+    if (document.querySelector(".lf-dragging")) return;
+    projectionDragObserver.disconnect();
+    projectionDragObserver = null;
+    if (reconcileKnownState() && releaseProjectedOutbox()) paintKeys();
+    document.dispatchEvent(new Event("lf-actions"));
+  });
+  projectionDragObserver.observe(document.body, {
+    attributes: true,
+    subtree: true,
+    attributeFilter: ["class"],
+  });
+}
+
+// Make the DOM equal the projection. A widget is the application boundary: if any of
+// its coordinates changed, all of its surviving winners are replayed in log order so
+// sibling units sharing an ordered container retain their collective placement.
+function reconcileState() {
+  if (document.querySelector(".lf-dragging")) {
+    watchProjectionDrag();
+    return;
+  }
+  projectionDragObserver?.disconnect();
+  projectionDragObserver = null;
+
+  const started = [];
+  let painted = false;
+  let projection;
+  const priorProjectionMode = projectingState;
+  if (outbox.some((entry) => entry.rejected && entry.projection))
+    projectingState = true;
+  try {
+    // A recordless baseline replaces a subtree. Restarting from the pure projection is
+    // what discovers every surviving nested coordinate on the new node identities.
+    for (;;) {
+      projection = stateProjection(currentVersion);
+      for (const entry of projection.classified.values())
+        for (const id of entry.restated ?? [])
+          elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
+
+      for (const [coordinate, commit] of committedProjection)
+        if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
+
+      const coordinates = new Map();
+      for (const entry of projection.classified.values())
+        if (!entry.terminal) coordinates.set(entry.coordinate, entry);
+      for (const [coordinate, entry] of projection.desired)
+        if (!coordinates.has(coordinate)) coordinates.set(coordinate, entry);
+      for (const [coordinate, commit] of committedProjection)
+        if (!coordinates.has(coordinate)) coordinates.set(coordinate, commit.entry);
+
+      const widgets = new Map();
+      for (const [coordinate, sample] of coordinates) {
+        if (!sample) continue;
+        const widgetId = sample.e.widget;
+        const widget = elementById(widgetId);
+        if (!widget) continue;
+        const desired = projection.desired.get(coordinate) ?? null;
+        const commit = committedProjection.get(coordinate);
+        const unit = elementById(sample.unit);
+        const clean =
+          commit?.widget === widget &&
+          commit.unit === unit &&
+          committedEvent(commit) === (desired?.e.id ?? null);
+        const states = widgets.get(widgetId) ?? [];
+        states.push({ coordinate, sample, desired, commit, clean });
+        widgets.set(widgetId, states);
+      }
+
+      let rebuilt = false;
+      for (const [widgetId, states] of widgets) {
+        if (states.every((state) => state.clean)) continue;
+        let widget = elementById(widgetId);
+        if (!widget) continue;
+
+        // A newly constructed thread widget or rebuilt descendant already carries its
+        // authored baseline. A dirty recorded widget is reset whole below: its units
+        // compose through shared containers, so restoring only one authored placement
+        // would make its index relative to still-projected siblings.
+        const removals = states.filter(
+          ({ desired, commit }) =>
+            !desired && commit?.entry && commit.widget === widget,
+        );
+        const recordless = removals.find(({ commit }) => !commit.entry.spec.record);
+        if (recordless) {
+          widget = rebuild(widget);
+          committedProjection.set(recordless.coordinate, {
+            widgetId,
+            widget,
+            unit: elementById(recordless.sample.unit),
+            entry: null,
+          });
+          painted = true;
+          rebuilt = true;
+          break;
+        }
+
+        if (!widget.applyAction) {
+          if (document.body.dataset.lfUpgraded !== "1") continue;
+          for (const { commit } of removals)
+            if (commit.entry.e.kind === "action")
+              painted = clearSettled(widget, commit.entry.spec.facet) || painted;
+          for (const { desired } of states) {
+            if (desired?.e.kind !== "action") continue;
+            const before = inChrome(widget) ? null : shallowSigs(document.body);
+            if (!markSettled(widget, desired.e.action)) continue;
+            if (before) rememberWrites(before, desired.e.kind);
+            painted = true;
+          }
+        } else {
+          let deferred = false;
+          // Authored records are the zero point. Restore the widget's complete authored
+          // composition before replaying every current winner in log/local order.
+          for (const statement of authoredStatements.get(widgetId)?.values() ?? []) {
+            widget = elementById(widgetId);
+            if (!widget?.applyAction) {
+              deferred = true;
+              break;
+            }
+            const priorMotion = new Set(document.getAnimations());
+            try {
+              if (widget.applyAction(statement.action, statement.detail) === false)
+                deferred = true;
+              else clearSettled(widget, statement.spec.facet);
+            } catch (error) {
+              reportPageError(
+                `<${widget.localName}> applyAction(${statement.action}) threw: ${error?.message ?? error}`,
+              );
+              failSoft(widget, error);
+              clearSettled(widget, statement.spec.facet);
+            }
+            if (deferred) break;
+            started.push(
+              ...document
+                .getAnimations()
+                .filter((animation) => !priorMotion.has(animation)),
+            );
+            painted = true;
+          }
+          if (deferred) continue;
+
+          const desired = states
+            .map((state) => state.desired)
+            .filter(Boolean)
+            .sort(compareProjected);
+          for (const entry of desired) {
+            widget = elementById(widgetId);
+            if (!widget?.applyAction) {
+              deferred = true;
+              break;
+            }
+            const before = inChrome(widget) ? null : shallowSigs(document.body);
+            const priorMotion = new Set(document.getAnimations());
+            try {
+              if (widget.applyAction(entry.e.action, entry.e.detail) === false) {
+                deferred = true;
+                break;
+              }
+              if (entry.e.kind === "action") markSettled(widget, entry.e.action);
+            } catch (error) {
+              reportPageError(
+                `<${widget.localName}> applyAction(${entry.e.action}) threw: ${error?.message ?? error}`,
+              );
+              failSoft(widget, error);
+              if (entry.e.kind === "action") markSettled(widget, entry.e.action);
+            }
+            if (before) rememberWrites(before, entry.e.kind);
+            started.push(
+              ...document
+                .getAnimations()
+                .filter((animation) => !priorMotion.has(animation)),
+            );
+            painted = true;
+          }
+          if (deferred) continue;
+        }
+
+        widget = elementById(widgetId);
+        if (!widget) continue;
+        for (const { coordinate, sample } of states) {
+          const desired = projection.desired.get(coordinate) ?? null;
+          committedProjection.set(coordinate, {
+            widgetId,
+            widget,
+            unit: elementById(sample.unit),
+            entry: desired,
+          });
+        }
+      }
+      if (!rebuilt) break;
+    }
+
+    if (painted) {
+      paintAnchors();
+      Promise.allSettled(started.map((animation) => animation.finished)).then(() =>
+        pageShifted(),
+      );
+    }
+    renderQuiet(document.body);
+    paintPending();
+    projection = stateProjection(currentVersion);
+    document.body.setAttribute(
+      PAGE_PAINT_ATTRIBUTE.applied,
+      String(projectionCoverage(projection)),
+    );
+  } finally {
+    projectingState = priorProjectionMode;
+  }
+}
+
+// `events` is installed before every other state surface renders, so a later throw can
+// leave it ahead of the last complete read. Only receiveState may project that candidate
+// while completing the read itself; every asynchronous wake-up must use either the
+// authored-only starting point or an event list whose whole state already committed.
+function reconcileKnownState() {
+  const eventSeq = events.at(-1)?.seq ?? 0;
+  const complete = statePhase === "ready" && eventSeq <= lastEventSeq;
+  const authoredOnly = lastEventSeq < 0 && events.length === 0;
+  if (!complete && !authoredOnly) return false;
+  reconcileState();
+  return true;
+}
 
 // data-lf-pending: this element's decided state differs from what the version's
 // markup arrived showing — the record is behind the log. It clears when a
@@ -9581,98 +11706,271 @@ export const standingState = () =>
 function paintPending() {
   for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
     for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-  for (const [unit, { e, spec }] of stateFold(VNUM)) {
+  const projection = stateProjection(currentVersion);
+  for (const [coordinate, { unit, e, spec }] of projection.desired) {
     const el = elementById(unit);
-    if (!el) continue;
+    if (!el || inChrome(el)) continue;
     const behind = spec.record
-      ? foldedFacet(e, spec.record) !== authoredFacets.get(unit)
+      ? foldedFacet(e, spec.record) !== authoredFacets.get(coordinate)
       : true;
-    if (behind) el.setAttribute(PAGE_PAINT_ATTRIBUTE.pending, "1");
-  }
-  // The mirror mark, kept apart so a worker's news never wears the user's
-  // color: data-lf-reported says this element's state is a standing report the
-  // version's markup has not absorbed — provisional until a version answers it,
-  // where data-lf-pending says the reader decided and the record lags.
-  for (const [unit, { e, spec }] of reportFold(VNUM)) {
-    const el = elementById(unit);
-    if (!el) continue;
-    if (foldedFacet(e, spec.record) !== authoredFacets.get(unit))
-      el.setAttribute(PAGE_PAINT_ATTRIBUTE.reported, "1");
+    if (!behind) continue;
+    // The channels keep separate marks so provisional worker news never wears
+    // the reader's color. The desired projection chooses which channel owns a
+    // coordinate; independent facets can still leave both marks on one unit.
+    const attr =
+      e.kind === "action"
+        ? PAGE_PAINT_ATTRIBUTE.pending
+        : PAGE_PAINT_ATTRIBUTE.reported;
+    el.setAttribute(attr, "1");
   }
 }
 async function poll() {
-  let state;
+  let res;
   try {
-    const res = await fetch("/api/state");
-    // A refusal is not state: the server answers a missing key with error-shaped
-    // JSON at 403, and indexing that as state threw before the banner could say
-    // anything. A live server refusing the key and a dead one both leave the
-    // page unreachable from here, and the terminal link is the recourse for both.
-    state = res.ok ? await res.json() : null;
+    res = await fetch("/api/state");
   } catch {
-    state = null;
+    // Network absence is a completed answer: there is no log to replay, so the offline
+    // authored page is honest. A successful but malformed response is different — let
+    // JSON or processing errors escape so the caller retains the recovery boundary.
+    res = null;
   }
+  const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
+  if (responseGeneration && !sameLayer(responseGeneration)) return;
+  // A refusal is not state: the server answers a missing key with error-shaped JSON at
+  // 403. A live server refusing the key and a dead one both leave the page unreachable
+  // from here, and the terminal link is the recourse for both.
+  const state = res?.ok ? await res.json() : null;
   if (!state) {
+    const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
+    if (statePhase === "waiting") statePhase = "offline";
     renderStatus(null);
+    if (panelOpen) renderPanel();
     // The sequence consumers still hear the tick. A poll that brought nothing changes
     // no history, so they re-render what they already held — but anything of theirs
     // that reads a clock rather than the log has to keep moving, and a dead server is
     // exactly when it matters: the banner says the server is gone while a roster row
     // froze its "last heard 4m ago" at the moment the answers stopped, which is the
     // authored freshness this widget layer exists to replace, produced by the layer
-    // itself. Replay is deliberately not run — there is nothing new to apply.
+    // itself. A first failed read has no projection to claim. Once a complete read has
+    // installed one, though, an offline tick is still the wake-up for a correction a
+    // live editor deferred; a definitively refused local action has the same authored
+    // correction even when no read has succeeded yet. Never project a newer event list
+    // whose surrounding state threw before lastEventSeq advanced.
+    if (
+      (statePhase === "ready" || refusedCorrection) &&
+      reconcileKnownState() &&
+      releaseProjectedOutbox()
+    )
+      paintKeys();
     document.dispatchEvent(new Event("lf-actions"));
     return;
   }
+  return receiveState(state);
+}
+async function receiveState(state) {
+  // Every state this page reads passes here — the poll's, and the one an accepted
+  // event response carries — so the generation is checked once for both rather than
+  // at each door it arrives through.
+  if (!sameLayer(state.layer)) return;
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
   // post() and the timer can poll together. The log is append-only, so a response
   // behind one already rendered is unambiguously stale; accepting it would move
   // every event-derived view backwards until the next poll.
   if (eventSeq < lastEventSeq) return;
-  // Messages render from Markdown; have the renderer in hand before the panel
-  // builds a body, so msgNode stays synchronous.
-  if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
-    await loadMarked();
-  events = nextEvents;
-  settleAcceptedDrafts();
-  agent = state.agent || "Claude";
-  renderStatus(state);
-  renderVersions(state);
-  renderOthers(state);
-  if (eventSeq > lastEventSeq) {
-    lastEventSeq = eventSeq;
-    renderPanel();
-    // Sign-off is a fact in the log, not a click this tab happens to remember, so a
-    // reload (or the other tab) shows it too.
-    const approved = events.some((e) => e.kind === "done");
-    approveBtn.disabled = approved;
-    approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
-    const agentReplies = events.filter(
-      (e) => e.author === "claude" && e.kind === "reply",
-    );
-    if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelOpen)
-      showToast(`${agentReplies.at(-1).agent || "Agent"} replied — open Comments`, () =>
-        setPanel(true),
-      );
-    agentMsgCount = agentReplies.length;
+  // Polls and POST answers may overlap. A document activation is the one state read
+  // that cannot safely interleave: a second one would capture or replace the halfway
+  // upgraded main. Let it commit, then judge this response against its resulting
+  // version and sequence.
+  if (activatingState) await activatingState;
+  if (eventSeq < lastEventSeq) return;
+  const targetVersion = state.versions.at(-1) ?? null;
+  const wantsActivation =
+    LIVE_ROOT &&
+    targetVersion !== null &&
+    currentVersion !== null &&
+    targetVersion > currentVersion;
+  let incoming = null;
+  let incomingFailed = false;
+  if (wantsActivation) {
+    latestVersion = targetVersion;
+    latestChip.textContent = `New version available → open v${targetVersion}`;
+    showNews(latestChip, true);
   }
-  // Last, because the panel has just rendered the log: a widget carried by a reply is
-  // on the page by now, so an action naming one that isn't names a widget no version
-  // holds, and applyActions can retire it instead of looking for it forever.
-  applyActions();
-  // Sequence consumers render after replay, so their history and the widget's
-  // standing body describe the same poll. This also fires when the event list did
-  // not grow: applyAction may have deferred while a user was typing, then become
-  // applicable on the next poll after they close the editor.
-  document.dispatchEvent(new Event("lf-actions"));
+  // Messages render from Markdown; have the renderer in hand before the panel
+  // builds a body, so msgNode stays synchronous. Fetch the next authored document on
+  // the same background stretch rather than making either network trip wait on the
+  // other.
+  const preparations = [];
+  if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
+    preparations.push(loadMarked());
+  if (wantsActivation)
+    preparations.push(
+      versionDocument(targetVersion)
+        .then((doc) => (incoming = doc))
+        .catch((error) => {
+          incomingFailed = true;
+          reportPageError(
+            `version v${targetVersion} failed to load: ${error?.message ?? error}`,
+          );
+        }),
+    );
+  await Promise.all(preparations);
+  if (wantsActivation && incoming === null && !incomingFailed) return;
+  // The preparation above yields. A newer response may have completed while this one was
+  // waiting, and two responses may have joined the same version-file promise before
+  // either had an activation to await. Serialize again at the commit boundary, then
+  // judge this candidate against the version and sequence the winner installed.
+  if (activatingState) await activatingState;
+  if (eventSeq < lastEventSeq) return;
+  const willActivate =
+    Boolean(incoming) &&
+    targetVersion > currentVersion &&
+    (!midComposition() || forceActivation) &&
+    !versionMenuOpen &&
+    targetVersion === state.versions.at(-1);
+  const priorEvents = events;
+  const priorStatePhase = statePhase;
+  const priorLastEventSeq = lastEventSeq;
+  const apply = async () => {
+    events = nextEvents;
+    let activation = null;
+    statePhase = "ready";
+    if (willActivate) {
+      forceActivation = false;
+      activation = await activateVersion(incoming, targetVersion);
+    }
+    settleAcceptedDrafts();
+    agent = state.agent || "Claude";
+    agentNotes = presented(state).held ? state.status.on || {} : {};
+    renderStatus(state);
+    renderVersions(state);
+    renderOthers(state);
+    if (eventSeq > lastEventSeq || activation) {
+      renderPanel();
+      // Sign-off is a fact in the log, not a click this tab happens to remember, so a
+      // reload (or the other tab) shows it too.
+      paintApproval();
+      const agentReplies = events.filter(
+        (e) => e.author === "claude" && e.kind === "reply",
+      );
+      if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelOpen)
+        showToast(
+          `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
+          () => setPanel(true),
+        );
+      agentMsgCount = agentReplies.length;
+    }
+    // Outside the block above, which only the log's own growth enters: a note lands,
+    // ages and is settled by an answer, and the first two of those change no event
+    // this tab holds. Inside the try with the rest, so a paint that refuses the state
+    // rolls the whole reading back like any other.
+    paintNotes();
+    // Last, because the panel has just rendered the log: a widget carried by a reply is
+    // on the page by now, so an action naming one that isn't names a widget no version
+    // holds, and reconciliation can retire it instead of looking for it forever.
+    reconcileState();
+    if (activation) {
+      restoreView(activation.view);
+      paintAnchors();
+      updateFab();
+      if (activation.comparedFrom !== null) showComparison(activation.comparedFrom);
+      showToast(`Updated to v${currentVersion}`);
+    }
+    // Only a complete application advances the read boundary. A render fault may
+    // already have changed some local surfaces, but it has not made a state safe to use
+    // for replay or undo; leaving the sequence unresolved retries the whole read.
+    lastEventSeq = Math.max(lastEventSeq, eventSeq);
+    // Accounting changes no hold by itself. It first projects this complete log plus
+    // every surviving optimistic action, then releases the entries whose attempts the
+    // read contained. A same-widget event later in this state can therefore never be
+    // skipped under the hold and exposed only after the hold disappears.
+    accountOutbox(nextEvents);
+    // Sequence consumers render after replay, so their history and the widget's
+    // standing body describe the same poll. This also fires when the event list did
+    // not grow: applyAction may have deferred while a user was typing, then become
+    // applicable on the next poll after they close the editor.
+    document.dispatchEvent(new Event("lf-actions"));
+  };
+  try {
+    if (willActivate) {
+      const running = (async () => {
+        if (document.startViewTransition) {
+          document.documentElement.classList.add("lf-versioning");
+          try {
+            const transition = document.startViewTransition(apply);
+            await transition.finished;
+          } finally {
+            document.documentElement.classList.remove("lf-versioning");
+          }
+        } else await apply();
+      })();
+      activatingState = running;
+      try {
+        await running;
+      } finally {
+        if (activatingState === running) activatingState = null;
+      }
+    } else await apply();
+  } catch (error) {
+    // Candidate history is useful only while this one synchronous application is
+    // rendering it. If any required surface refuses the state, restore the last whole
+    // reading so focus, panel, and undo cannot consume a log tail the page never
+    // adopted. The next poll retries the candidate from the same complete boundary.
+    events = priorEvents;
+    statePhase = priorStatePhase;
+    lastEventSeq = priorLastEventSeq;
+    if (willActivate) location.reload();
+    throw error;
+  }
 }
 // ---------- restore ----------
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general") ?? "";
+// The widths first, so a panel or a board put back open is open at the width the reader
+// left it at rather than sliding to it afterwards.
+commentsEdge.restore();
+boardsEdge.restore();
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
+// Remembered board intent is staged here, after every declaration exists. Its strip is
+// part of the arrival geometry, but its state-dependent rows stay hidden until the first
+// replay presents the page and restoreBoard paints them. An already-presented document
+// (an exported or pre-presented DOM) can restore immediately through the same function.
+boardUp = readerStore.get(BOARD_KEY) || null;
+if (boardUp) document.body.dataset.lfBoard = boardUp;
+if (pagePresented()) restoreBoard();
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
+// Every way this page can come up that is not a first visit — the restores above, each
+// named by the fact its store holds. The browser gate arrives once in each, because
+// every other reading it takes is of a first visit: a fresh context holds nothing, so
+// the panel is shut, no board stands and the mode is off. That made the restores the one
+// road onto the page with no gate on it, and a board left standing came up as a
+// ReferenceError rather than a page — on every load, for the only readers who had asked
+// for it. Declared here rather than listed in the gate, because a list over there stops
+// at the surfaces it was taught; this one is read on the day a surface starts
+// remembering something. One stored fact each rather than the combinations of them: what
+// a finding has to name is the restore that broke, and the geometry the combinations
+// would add is measured on the first visit already.
+export const ARRANGEMENTS = [
+  { name: "the comment panel open", ...readerStore.where(PANEL_KEY), value: "1" },
+  {
+    name: "the comment panel at the width the reader drew it to",
+    ...readerStore.where(commentsEdge.key),
+    value: "560",
+  },
+  {
+    name: "the board panel at the width the reader drew it to",
+    ...readerStore.where(boardsEdge.key),
+    value: "260",
+  },
+  ...[...boards.keys()].map((board) => ({
+    name: `the ${board} board standing`,
+    ...readerStore.where(BOARD_KEY),
+    value: board,
+  })),
+  { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
+];
 // Where the reader stands, which is the half of an arrival the browser cannot answer on
 // a page that moves its own scrolling: `html` is `overflow: hidden` so the document
 // scrolls in `body`, and the browser scrolls whichever box it last saw the reader put
@@ -9683,12 +11981,14 @@ if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // focus rather than a blur among them, and CLAUDE.md's "The reader has to be standing
 // somewhere" holds the rest.
 //
-// Here rather than in the start block below, which runs a mermaid render later with the
-// chrome clickable throughout: a reader who took a control in that window would have had
-// it taken back off them, and this placement is what makes the guard unnecessary.
+// Here rather than in the start block below, which runs asynchronous upgrades with the
+// chrome clickable throughout: a reader who took a control in that window would have it
+// taken back off them. Main is withheld from paint, but body is the visible scroll box and
+// can name itself to Chrome now.
 letGo();
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
-// panel is restored just above, so the column is already reflowed). The browser answers
+// panel and a remembered board's strip are restored just above, so the column is already
+// reflowed; the board's pixels wait for replay). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:
 // upgrades change its height afterwards (tabs collapse, diagrams render, diff files
 // fold), so a restored offset points into a document that no longer exists and a
@@ -9730,20 +12030,68 @@ function landArrival() {
 const savedComposer = pendingComposer();
 
 // ---------- start ----------
+const PRESENTATION_WAIT_ANIMATION = "lf-presentation-wait";
+const cssMilliseconds = (name) => {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  if (value.endsWith("ms")) return Number(value.slice(0, -2));
+  if (value.endsWith("s")) return Number(value.slice(0, -1)) * 1000;
+  return Number(value);
+};
+
+// One positive fact for the one presentation boundary. Success has applied the log;
+// an unavailable first poll has painted the offline status and deliberately hands the
+// authored page back. A caught startup failure cannot make that promise, so it leaves
+// the fixed recovery surface in place rather than exposing decisions it never read. A
+// fast answer releases before the delayed waiting surface can paint. Once that surface
+// has started, its CSS animation is the clock and the CSS dwell is the budget: the message
+// stays long enough to read instead of becoming the flash it was meant to prevent.
+async function presentPage() {
+  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  const wait = document
+    .getAnimations()
+    .find((animation) => animation.animationName === PRESENTATION_WAIT_ANIMATION);
+  const current = Number(wait?.currentTime);
+  const delay = Number(wait?.effect.getTiming().delay);
+  if (wait && Number.isFinite(current) && current >= delay) {
+    const shownAt = (wait.startTime ?? document.timeline.currentTime - current) + delay;
+    const releaseAt = shownAt + cssMilliseconds("--lf-presentation-dwell");
+    // Timers are a wake-up hint, not the presentation clock: a browser may service one
+    // a few milliseconds before its requested deadline. Re-read the CSS timeline after
+    // every wake so the recovery message never loses the end of its promised dwell.
+    while (document.timeline.currentTime < releaseAt) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, releaseAt - document.timeline.currentTime),
+      );
+    }
+  }
+  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  // Repaint state-dependent chrome in this same task. The presentation attribute opens
+  // the gate, replay is already complete, and no frame can expose the authored count or
+  // an empty persisted board between those facts.
+  restoreBoard();
+  showNews(othersBtn, leavesOffered());
+  syncAsks();
+  paintApproval();
+  promoteDeferredModals();
+}
+
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced DOM, not the pre-upgrade one. A .then chain,
-// never a top-level await: widget modules import this module's helpers, and awaiting
-// their import at top level would deadlock the cycle (their evaluation waits on this
-// module's async evaluation completing).
-Promise.all([
-  upgradeWidgets(),
-  // Alongside rather than after, and caught rather than fatal: the tab icon is not
-  // what the page is for, so a layer missing it says so in the console and leaves the
-  // rest working — the same bargain a widget module that fails to import makes. It is
-  // still awaited here, because `version export` copies the page at the stamp below
-  // and a mark that arrived after it would leave the copy's tab to chance.
-  loadIcon().catch((err) => console.error(err)),
-]).then(() => {
+// positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
+// never a top-level await: widget modules import this module's helpers, and awaiting their
+// import at top level would deadlock the cycle (their evaluation waits on this module's
+// async evaluation completing).
+async function startPage() {
+  await Promise.all([
+    upgradeWidgets(),
+    // Alongside rather than after, and caught rather than fatal: the tab icon is not
+    // what the page is for, so a layer missing it says so in the console and leaves the
+    // rest working — the same bargain a widget module that fails to import makes. It is
+    // still awaited here, because `version export` copies the page at the stamp below
+    // and a mark that arrived after it would leave the copy's tab to chance.
+    loadIcon().catch((err) => console.error(err)),
+  ]);
   // The box the page ends up with is not the one it started in, because a module may
   // change it while upgrading: a page with a change to decide gives up a rail of the
   // controls' own width, and lf-suggestion states that from the first row it builds,
@@ -9771,7 +12119,8 @@ Promise.all([
   updateFab(); // an early selection is now read from the fully upgraded page
   paintHere(); // c is live again, whether or not that selection raised the button
   landArrival();
-  if (savedView && savedView.v < VNUM) showToast(`Updated to v${VNUM}`);
+  if (savedView && savedView.v < currentVersion)
+    showToast(`Updated to v${currentVersion}`);
   if (savedComposer)
     openComposer(
       savedComposer.anchor,
@@ -9781,12 +12130,42 @@ Promise.all([
       Boolean(savedComposer.suggest),
       savedComposer.about ?? null,
     );
-  poll();
-  setInterval(poll, POLL_MS);
+  // Start replay before stamping the document, preserving the two readiness facts, but
+  // present neither half on its own. The first completed read — state or offline — is the
+  // presentation boundary; only after it settles does the ordinary polling cadence begin,
+  // so a held first request cannot be overtaken by a second answer and leave presentation
+  // waiting on the wrong call.
+  let presentationAttempt;
+  const ensurePresentation = () => {
+    if (!presentationAttempt)
+      presentationAttempt = presentPage().finally(() => {
+        presentationAttempt = null;
+      });
+    return presentationAttempt;
+  };
+  const pollAndPresent = async () => {
+    try {
+      await poll();
+      if (!document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
+        await ensurePresentation();
+    } catch (error) {
+      reportPageError(`poll failed: ${error?.message ?? error}`);
+      renderStatus(error);
+    }
+  };
+  pollAndPresent().finally(() => setInterval(pollAndPresent, POLL_MS));
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and
   // networkidle only says a bundle finished downloading, not that it finished
   // drawing. The stamp says the document is done becoming itself.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+}
+
+startPage().catch((error) => {
+  // The boundary itself must fail visibly. The fixed recovery surface stays in front:
+  // this failure happened before the log was read, so the authored decisions underneath
+  // are not an honest page to release.
+  reportPageError(`page failed to start: ${error?.message ?? error}`);
+  renderStatus(error);
 });

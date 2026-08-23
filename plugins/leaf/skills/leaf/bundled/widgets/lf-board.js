@@ -47,9 +47,10 @@ customElements.define(
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
+    #namesObserver = null;
 
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) return this.#observeNames();
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the "?" overlay — it stays the static board the theme renders anyway.
@@ -76,15 +77,7 @@ customElements.define(
       // cancel, replay) plus the pending pass, any of which would eventually
       // forget. Only the pending attribute is observed, so #names writing an
       // aria-label cannot feed the pass back into itself.
-      const names = new MutationObserver(() => this.#names());
-      for (const col of this.querySelectorAll(":scope > lf-column")) {
-        names.observe(col, { childList: true });
-        for (const card of this.#cards(col))
-          names.observe(card, {
-            attributes: true,
-            attributeFilter: ["data-lf-pending"],
-          });
-      }
+      this.#observeNames();
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -148,7 +141,26 @@ customElements.define(
     // drop a live grab here or it wedges the .lf-dragging gate open — freezing
     // action replay and version-follow.
     disconnectedCallback() {
+      this.#namesObserver?.disconnect();
+      this.#namesObserver = null;
       if (this.#grabbed) this.#cancel();
+    }
+
+    #observeNames() {
+      if (
+        this.#namesObserver ||
+        !this.querySelector(":scope > lf-column > lf-card > .lf-grip")
+      )
+        return;
+      this.#namesObserver = new MutationObserver(() => this.#names());
+      for (const col of this.querySelectorAll(":scope > lf-column")) {
+        this.#namesObserver.observe(col, { childList: true });
+        for (const card of this.#cards(col))
+          this.#namesObserver.observe(card, {
+            attributes: true,
+            attributeFilter: ["data-lf-pending"],
+          });
+      }
     }
 
     #title(card) {
@@ -235,7 +247,8 @@ customElements.define(
     #grab(card, grip) {
       const from = card.parentElement;
       const cards = this.#cards(from);
-      this.#grabbed = { card, grip, from, index: cards.indexOf(card) };
+      const index = cards.indexOf(card);
+      this.#grabbed = { card, grip, from, index };
       this.classList.add("lf-dragging");
       card.classList.add("lf-lift");
       paintKeys(); // a grab is a press on an already-focused grip, so no focus event fires
@@ -243,7 +256,7 @@ customElements.define(
       // move it needs the position the moves count from.
       announce(
         `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
-          cards.indexOf(card) + 1
+          index + 1
         } of ${cards.length} — ${saying(this.#rows.get(grip))}`,
       );
     }
@@ -265,10 +278,11 @@ customElements.define(
       grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
       card.scrollIntoView({ behavior: SCROLL, block: "nearest" });
       const now = card.parentElement;
+      const cards = this.#cards(now);
       announce(
         `${this.#title(card)} — ${now.getAttribute("label")}, position ${
-          this.#cards(now).indexOf(card) + 1
-        } of ${this.#cards(now).length}`,
+          cards.indexOf(card) + 1
+        } of ${cards.length}`,
       );
     }
 
@@ -277,7 +291,7 @@ customElements.define(
       this.#release();
       const to = card.parentElement;
       if (to === from && this.#cards(to).indexOf(card) === index) return;
-      this.#send(card, from, index, to);
+      this.#send(card, from, to);
     }
 
     #cancel(refocus = false) {
@@ -299,7 +313,7 @@ customElements.define(
     }
 
     // The one writer of "card X sits at index i among column C's cards": arrow steps,
-    // a cancelled grab, a failed send's restore, and replay all place through it. Every
+    // a cancelled grab, refusal reconciliation, and replay all place through it. Every
     // placement FLIPs from where the card stood, so a move reads as motion wherever it
     // came from — a restore arriving at response time has no gesture behind it, which
     // is the case the norm says needs the motion more. A FLIP already in flight is
@@ -322,8 +336,10 @@ customElements.define(
 
     // One completed move, drag or keyboard: an absolute placement, sent once. The
     // toast's word follows the branch the reader can see — a card kept in its column
-    // was reordered, not moved to where it already was.
-    #send(card, from, oldIndex, to) {
+    // was reordered, not moved to where it already was. A refusal is restored by the
+    // layer from the declared record plus its outbox, never from this gesture's DOM
+    // snapshot: that snapshot may be another queued move the server also refused.
+    #send(card, from, to) {
       sendAction(this, "move", {
         card: card.id,
         to: to.id,
@@ -335,7 +351,6 @@ customElements.define(
               "label",
             )} — sent to ${agentName()}`,
           );
-        else this.#place(card, from, oldIndex);
       });
     }
 
@@ -384,13 +399,13 @@ customElements.define(
           // silent both ways: a superseded grab compares its own card index
           // against a child index, so a card dragged one place up from where it
           // was grabbed reads as unmoved and the move is never sent, and a
-          // failed send restores through #place, which counts cards, one slot
+          // cancelled move restores through #place, which counts cards, one slot
           // late.
           const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;
           const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
           if (from === to && oldIndex === newIndex) return;
-          this.#send(card, from, oldIndex, to);
+          this.#send(card, from, to);
         },
       });
     }
@@ -404,7 +419,8 @@ customElements.define(
       if (
         !card?.matches("lf-card") ||
         !col?.matches("lf-column") ||
-        !this.contains(col)
+        card.closest("lf-board") !== this ||
+        col.closest("lf-board") !== this
       )
         return;
       const grip = card.querySelector(":scope > .lf-grip");

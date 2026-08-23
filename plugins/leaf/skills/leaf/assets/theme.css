@@ -42,6 +42,10 @@
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
+  /* One timing contract for first presentation. leaf.js reads the dwell here,
+     so the paint and release cannot drift into two ideas of "shown". */
+  --lf-presentation-delay: 300ms;
+  --lf-presentation-dwell: 400ms;
   /* --rail, the comment margin, has no value here: it is the widest control row plus
      its gap, which is a fact about the controls' own words and face, so lf-suggestion.js
      measures the first row it builds and states it on the root element. The rule that
@@ -246,6 +250,113 @@
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        padding-left: var(--strip-l, 0px); padding-right: var(--strip-r, 0px); }
+/* The document arrives with authored initial state while the log may already hold
+ * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
+ * after the first poll has either replayed the log or said the server is offline, so a
+ * version navigation never presents the old decision for one fetch-width and then
+ * replaces it. Visibility keeps the ordinary case out of the accessibility and hit-test
+ * trees, opacity closes the paint boundary under descendants that explicitly make
+ * themselves visible, and interactivity makes the whole flat-tree subtree inert even if
+ * one of those descendants opts back into focus or pointer handling. All three preserve
+ * every box: replay measures the page it will reveal rather than a display:none document
+ * with no geometry.
+ *
+ * The hold is opted into by the canonical module tag as soon as the stylesheet can paint.
+ * Waiting to infer it from JavaScript left one paint between HTML parse and module
+ * evaluation. Runtime chrome is deliberately outside main: Comments remains usable while
+ * widgets upgrade, and its panels stand above the waiting surface. A scriptless rendering
+ * therefore stays ordinary prose, while a module that never evaluates or fails before
+ * reading the log leaves a fixed recovery message rather than unread authored decisions.
+ * Screen only: paper and an exported copy carry no live log to wait for. */
+/* The anonymous layer is first in the merged theme, so its important declarations
+   outrank every later layer and unlayered stylesheet declaration without reserving a
+   named layer custom CSS could append to. Inline importance ranks higher still, so the
+   version gate refuses it on the protected properties below. */
+@layer {
+  @media screen {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main,
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main * {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      interactivity: inert !important;
+      pointer-events: none !important;
+    }
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main *::backdrop {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    /* Arriving is not a gesture, said here for the cascade as leaf.js's `motion`
+       already says it for the runtime's own Web Animations. The chrome a reader left
+       standing is put back while the page is still arriving, and every put-back is a
+       property changing: the panel opens, the board goes up, the toast steps aside
+       into the corner the open panel leaves it. Each of those is a move the reader
+       made once and is not making now, so animating it plays a decision back at
+       somebody who came here to read what follows from it. The hold above cannot
+       cover this — it hides `main`, and the chrome is deliberately outside `main` so
+       discussion stays usable while widgets upgrade, which is exactly what leaves the
+       moving parts on screen. A gesture actually made inside this window loses its
+       motion too, and should: `motion` has collapsed one to its end state for as long
+       as the boundary has existed, and one sentence with two answers would be the
+       cheaper bug.
+
+       Two selectors, because the sentence is about two things and not about every
+       element: the page's own box, which the panel's strip moves, and the runtime's
+       chrome, which wears `lf-ui` on each of the boxes it builds. Written as a
+       descendant `*` instead — which is what "nothing transitions yet" wants to say —
+       it costs the page for its whole life rather than for this window, because a
+       rule whose rightmost compound is universal is weighed against every element on
+       every recalculation and cannot know the window has closed. Measured on the
+       shipped examples: 70ms of style recalculation became 83 on design-decision and
+       896 became 955 on the gallery, where these two selectors are inside the run to
+       run spread of the same pages. `transition` does not inherit, so what an
+       unreached descendant can still play is a transition of its own declaring; that
+       is the trade, and the check that finds one is the suite's rather than this
+       rule's (test_render.py, the reader who left something standing). */
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]),
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) .lf-ui {
+      transition: none !important;
+    }
+  }
+}
+@media screen {
+  html:has(script[type="module"][src="/leaf.js"])
+    body:not([data-lf-presented])::after {
+    content: "Applying current decisions\2026  If this stays, reload the page.";
+    visibility: visible;
+    opacity: 0;
+    animation: lf-presentation-wait 1ms step-start
+      var(--lf-presentation-delay) forwards;
+    position: fixed;
+    inset: var(--lf-banner-h, 0px) 0 0;
+    z-index: 8800;
+    /* This fixed sheet is also the pointer boundary. A descendant can override an
+       inherited visibility or pointer-events value; it cannot paint through its
+       ancestor's opacity or receive a pointer through a higher stacking layer. Leaf's
+       banner and panels stand above it, so discussion remains usable while authored
+       content waits. */
+    pointer-events: auto;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 24px;
+    background: var(--paper);
+    color: var(--muted);
+    font: var(--t-5)/1.5 var(--sans);
+    text-align: center;
+  }
+}
+@keyframes lf-presentation-wait {
+  from,
+  to {
+    opacity: 1;
+  }
+}
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.
@@ -324,13 +435,13 @@ main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: rela
  * needs — the same bargain it already has with every affordance a copy keeps. A copy is a
  * screen and does keep this, on its own reading of the room: it has no comment panel to
  * yield a strip to and no session to grow one in, so the viewport is an honest answer
- * there where on the live page it is 420px of lie. It is an estimate all the same, since
- * `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet can ask
- * how wide one is; 96px covers a gutter and any scrollbar a platform has, and the floor
- * above covers the estimate coming in under the column on a narrow window. The strips are
- * the half of it a window cannot show — an exported board stood 35px into a decided
- * change's rail at a laptop's width — so the room subtracts the same pair the padding
- * added, which is what those tokens are for. */
+ * there where on the live page it is a panel's width of lie. It is an estimate all the
+ * same, since `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet
+ * can ask how wide one is; 96px covers a gutter and any scrollbar a platform has, and the
+ * floor above covers the estimate coming in under the column on a narrow window. The
+ * strips are the half of it a window cannot show — an exported board stood 35px into a
+ * decided change's rail at a laptop's width — so the room subtracts the same pair the
+ * padding added, which is what those tokens are for. */
 @media screen {
   html.lf-copy body {
     --lf-room: calc(100vw - 96px - var(--strip-l, 0px) - var(--strip-r, 0px));
@@ -643,13 +754,14 @@ dd { margin: 0 0 8px 0; }
    The strip comes out of body's padding, as --rail does on the other side, so the column
    centres in what is left rather than hanging the note in whatever the centring happened
    to leave over. It is held for as long as the page can afford it and no longer, and the
-   panel is what takes the room without the window saying so: 420px off the page's box at
-   an unchanged window width. Held through that, a 1024px window left the column 151px
-   and its widest widgets painting out past the edge of it — and `version check --render`
-   cannot see any of it, rendering at 1200 with no panel to open. Handing the strip back
-   the moment the panel opens is the other wrong answer, since on a wide window that
-   moves every note on the page for room the page still has. So the floor is a width
-   rather than a state (--strip-min), and syncLayout asks it of the box the panel left.
+   panel is what takes the room without the window saying so: its own width off the page's
+   box at an unchanged window width, and a width the reader is free to draw wider still.
+   Held through that, a 1024px window left the column 151px and its widest widgets painting
+   out past the edge of it — and `version check --render` cannot see any of it, rendering at
+   1200 with no panel to open. Handing the strip back the moment the panel opens is the
+   other wrong answer, since on a wide window that moves every note on the page for room the
+   page still has. So the floor is a width rather than a state (--strip-min), and syncLayout
+   asks it of the box the panel left.
 
    The breakpoint below is that same width asked of the window; under it the strip would
    come out of the column's own width. Under it, and on paper, the note is a small
@@ -782,12 +894,32 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 }
 
 /* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
- * wrapper generates no box, so a suggestion sits inline mid-sentence or wraps
- * whole sections without disturbing either flow; the slots carry the marks,
- * inline by default and block when they hold block content. A decision is the
- * end of the matter visually: the settled slot loses every mark and reads as
- * ordinary prose, and a suggestion with nothing left to show disappears. */
-lf-suggestion { display: contents; }
+ * wrapper takes the form its content takes — inline among the words for a change of a
+ * phrase, block around the slots for one of whole paragraphs — so a suggestion sits
+ * mid-sentence or wraps whole sections without disturbing either flow, and either way
+ * the change is one box. The slots carry the marks. A decision is the end of the matter
+ * visually: the settled slot loses every mark and reads as ordinary prose, and a
+ * suggestion with nothing left to show disappears.
+ *
+ * It generated no box at all once (display: contents), which is this same reading of
+ * "follow the content" with the box left out — and a box is what anything asking where
+ * the change is has to have. An element generating none measures (0,0) at the document's
+ * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
+ * Four consumers met that separately and each worked around it where it stood: the ring
+ * had nothing to hang on, the ask walk's travel centred the document, a container's edge
+ * rule reached past the wrapper to the slots, and the widget prepends a span to itself
+ * for its controls to anchor from. None of the first three arises here now. The fourth
+ * outlived the reason it was written for and earns its place on another: what a widget
+ * builds for itself is what it can rely on, and which form this wrapper takes is a
+ * stylesheet's to say — a layer restyling it boxless would take the controls off the
+ * page altogether (see lf-suggestion.js). A wrapper that draws nothing still has to be
+ * somewhere.
+ *
+ * Having a box also puts the wrapper in front of the render gate's floors, and the
+ * width floor is written for widgets that reserve a region. This one's box is its
+ * content's in both forms, words included — a one-word swap is ~30px and correct — so
+ * the entry declares x-inline, which is the key that names whose floor is whose. */
+lf-suggestion { display: inline; }
 lf-old, lf-new { border-radius: 3px; padding: 0 3px; }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
@@ -819,27 +951,36 @@ lf-new { background: var(--add-tint); }
  * other, and it cannot see a name dropped from both.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
- * reads as a stack. A suggestion generates no box, so these slots are the flow's own
- * boxes and their outer margins are what a container reads at its own edge — which is
- * how a quoted change came to stand 10px inside the gutter marking it, with nothing
- * able to reach it: a rule for the specimen's last child finds the suggestion, and the
- * suggestion is boxless. Asking for the room on one side is what a box in a stack can
- * say without claiming a container's edge, and it costs the pair nothing, since the
- * gap between two slots and between two suggestions is the second one's either way.
- * Nor does it cost the prose around a change: collapsing already took the larger of
- * this 10px and the 13px a paragraph reserves, so the side that went was one no reader
- * ever saw. The inline form needs no guard here — a vertical margin on a non-replaced
- * inline box lays nothing out.
+ * reads as a stack. That was once the only room the slots could ask for: while the
+ * wrapper was boxless they were the flow's own boxes, their outer margins were what a
+ * container read at its own edge, and a quoted change stood 10px inside the gutter
+ * marking it with nothing able to reach it — a rule for the specimen's last child found
+ * the suggestion, and the suggestion had no box. The wrapper is that box now, and the
+ * room stays on one side because it is the better answer anyway: it costs the pair
+ * nothing, the gap between two slots and between two suggestions being the second one's
+ * either way. Nor does it cost the prose around a change: collapsing already took the
+ * larger of this 10px and the 13px a paragraph reserves, so the side that went was one
+ * no reader ever saw.
+ *
+ * Both slots take the block form together, the wrapper being what asks the question:
+ * what the reader is deciding is one change, not two halves with their own layouts. A
+ * paragraph replaced by a phrase used to render as a full-width struck field with a
+ * three-word pill under it, which is what a suggestion looks like when each slot
+ * answers for itself.
  *
  * The padding then frames what the slot holds, so the slot says so: a block change is a
  * whole paragraph in a tinted field, and the 2px it states came out 15 at each end on
  * every one in the corpus. */
-:is(lf-old, lf-new):has(> :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
-    cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
-    label, link, map, mark, math, meta, meter, noscript, object, output, picture,
-    progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip)) {
-  display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
+lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo, br,
+    button, canvas, cite, code, data, datalist, del, dfn, em, embed, i, iframe, img,
+    input, ins, kbd, label, link, map, mark, math, meta, meter, noscript, object,
+    output, picture, progress, q, ruby, s, samp, script, select, slot, small, span,
+    strong, sub, sup, svg, template, textarea, time, u, var, video, wbr, lf-old,
+    lf-new, lf-chip, lf-suggestion)) {
+  display: block;
+  & > :is(lf-old, lf-new) {
+    display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }
+}
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
@@ -856,8 +997,14 @@ lf-new { background: var(--add-tint); }
 lf-old, lf-new { transition: padding .22s ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
-lf-suggestion[data-lf-state="accept"] > lf-old,
-lf-suggestion[data-lf-state="reject"] > lf-new { display: none; }
+/* A slot the standing decision retired, marked by the runtime from the registry's own
+ * relation (data-lf-retired, leaf.js renderRetired). One rule for every family, so a
+ * holder a project declares hides what a settlement removes the day it declares it —
+ * the by-name pair that stood here was the closed list wearing CSS's clothes. A
+ * module's fold outranks this with its inline display for the length of the motion,
+ * and an exported copy keeps marker and rule with no module behind them. What no
+ * relation can say stays the family's own, like the emptied wrapper below. */
+[data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* Whose job it is to say the change is only proposed, in each medium. On screen the
@@ -987,6 +1134,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
             font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
+
+/* A live-version transition is a paint boundary, not motion. The old pixels remain
+ * while the replacement upgrades and replays, then the restored reading lands in one
+ * frame rather than cross-fading text under the reader's eyes. */
+html.lf-versioning::view-transition-group(root),
+html.lf-versioning::view-transition-old(root),
+html.lf-versioning::view-transition-new(root) {
+  animation-duration: .01ms !important;
+}
 
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so

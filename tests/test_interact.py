@@ -6048,9 +6048,9 @@ def server(page_dir):
 
 def fetch(url, data=None, token=TOKEN, layer=None):
     """A request arriving the way a user's does: the key in the query, and a
-    cookie jar to carry it onward — `/` redirects to the latest version, and the
-    followed request is authorized by the cookie the redirect set, not by the query
-    it drops. Pass token=None for the reader who never had the link."""
+    cookie jar to carry it onward. The live root and the runtime's later query-less
+    requests are authorized by the cookie that first keyed arrival set. Pass token=None
+    for the reader who never had the link."""
     if token:
         url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"t": token})
     opener = urllib.request.build_opener(
@@ -6139,8 +6139,12 @@ def test_server_round_trip(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     version = page_dir / "versions" / "v1.html"
     version.write_text(
-        version.read_text().replace(
-            "</section>", registry["lf-board"]["x-example"] + "\n</section>"
+        version.read_text()
+        .replace("</section>", registry["lf-board"]["x-example"] + "\n</section>")
+        .replace(
+            '<script type="module" src="/leaf.js"></script>',
+            '<style>.probe::before { content: "</head>"; }</style>\n'
+            '<script type="module" src="/leaf.js"></script>',
         )
     )
     # Unnoted version: nothing published yet.
@@ -6148,12 +6152,29 @@ def test_server_round_trip(server, page_dir):
     assert status == 404
     status, _ = fetch(f"{server}/versions/v1.html")
     assert status == 404
-    CliRunner().invoke(
+    published = CliRunner().invoke(
         interact.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
-    status, body = fetch(f"{server}/")  # urllib follows the 302
+    assert published.exit_code == 0, published.output
+    # The handover address is the live page, not an alias for one immutable file.
+    # It stays put while the browser adopts later versions, so the first response
+    # must contain the version itself rather than redirecting the address away.
+    peer = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
+    peer.request("GET", f"/?t={TOKEN}")
+    arrived = peer.getresponse()
+    body = arrived.read()
+    assert arrived.status == 200 and arrived.getheader("Location") is None
+    peer.close()
+    status = arrived.status
     assert status == 200 and b"lf-options" in body
+    marker = b'<meta name="lf-version" data-lf-runtime content="1">'
+    assert marker in body
+    assert (
+        body.index(b"</style>")
+        < body.index(marker)
+        < body.index(b'<script type="module" src="/leaf.js"></script>')
+    )
     # Vendored files serve; the log and directory paths don't.
     for path in ["/leaf.js", "/theme.css", "/registry.json", "/widgets/lf-tabs.js"]:
         assert fetch(server + path)[0] == 200, path
@@ -9858,7 +9879,7 @@ def test_versions_publish_only_once_noted(page_dir):
 
 def test_versions_run_in_number_order_past_v9(page_dir):
     """Everything downstream reads "the latest version" off the end of this list —
-    what `version publish` exposes, what the server redirects to, what
+    what `version publish` exposes, what the server projects at the live root, what
     `version check` diffs the new version with. Sorted as names, v10 would land
     before v2 and every one of those would quietly answer with the wrong version."""
     for n in range(2, 12):

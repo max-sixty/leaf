@@ -2070,7 +2070,7 @@ class Handler(BaseHTTPRequestHandler):
         # Every response ends here — answered, redirected, or refused — so the
         # cookie has one writer rather than one per path that sends a header.
         path = urlsplit(self.path).path
-        if path.startswith("/api/") or path == "/registry.json":
+        if path.startswith(("/api/", "/versions/")) or path in {"/registry.json", "/"}:
             self.send_header("Leaf-Layer", self.layer)
         if self.set_cookie:
             self.send_header(
@@ -2173,11 +2173,31 @@ class Handler(BaseHTTPRequestHandler):
             if not versions:
                 self._json({"error": "no published versions yet"}, 404)
                 return
-            self.send_response(302)
-            self.send_header("Location", f"/versions/{version_name(versions[-1])}")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
+            version = versions[-1]
+            source = (self.page_dir / "versions" / version_name(version)).read_text(
+                encoding="utf-8"
+            )
+            # The live address serves one immutable version but does not become that
+            # version's address. The marker tells the runtime exactly which file this
+            # response projected; deriving it from the next state poll would race a
+            # publish between the document response and that poll.
+            parsed = parse_structure(source)
+            scripts = [
+                script
+                for script in parsed.external_scripts
+                if script["attrs"] == {"src": "/leaf.js", "type": "module"}
+            ]
+            if len(scripts) != 1:
+                self._json({"error": "published version has no canonical script"}, 500)
+                return
+            line, column = scripts[0]["position"]
+            offset = sum(
+                len(part) for part in source.splitlines(keepends=True)[: line - 1]
+            )
+            offset += column
+            marker = f'<meta name="lf-version" data-lf-runtime content="{version}">'
+            projected = (source[:offset] + marker + source[offset:]).encode()
+            self._send(200, "text/html; charset=utf-8", projected)
             return
         if path == "/api/state":
             # A poll is the one proof a browser holds the page open, and before
@@ -4812,8 +4832,8 @@ class _StructParser(HTMLParser):
         self.stack = []  # (tag, lineno, lf_record | None, id | None)
         self.errors = []
         self.all_ids = []
-        # {attrs, parent, early_head} per external asset. Applicability and placement
-        # belong to the asset record: parallel lists made one fact several
+        # {attrs, parent, position, early_head} per external asset. Applicability and
+        # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
         self.stylesheets = []
@@ -4929,6 +4949,7 @@ class _StructParser(HTMLParser):
                 {
                     "attrs": attrs_d,
                     "parent": self.stack[-1][0] if self.stack else None,
+                    "position": self.getpos(),
                     "early_head": bool(self.head_elements)
                     and self.head_elements[-1][1]
                     and not self.body_lines,

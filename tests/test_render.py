@@ -4439,11 +4439,13 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         "title",
         f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
+    destination = link.get_attribute("href")
     with page.context.expect_page() as opened:
         link.click()
-    # The other server's own redirect lands the new tab on its newest published
-    # version, authorized by the key the link carried.
-    expect(opened.value).to_have_url(f"{other_url}/versions/v1.html")
+    # The new tab keeps the other page's live root, authorized by the key its link
+    # carried, rather than being redirected onto one immutable version.
+    assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    expect(opened.value).to_have_url(destination)
     # The press left this tab alone, board still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -4612,9 +4614,11 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     expect(rows.first).to_be_focused()
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
+    destination = rows.nth(1).get_attribute("href")
     with page.context.expect_page() as opened:
         page.keyboard.press("Enter")
-    expect(opened.value).to_have_url(f"{other_url}/versions/v1.html")
+    assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    expect(opened.value).to_have_url(destination)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # Closing while focus is inside would drop the reader on the body; it lands on
@@ -10675,10 +10679,256 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     page.close()
 
 
+LIVE_READING = (
+    "The reader is halfway through this account of the cutover and its evidence."
+)
+LIVE_V1 = leaf_page(
+    "Live first",
+    """
+<h1 id="live-title">Live first</h1>
+{lead}
+<p id="live-reading">{reading}</p>
+{tail}
+""",
+    head='<meta name="description" content="first">',
+).format(
+    lead="\n".join(
+        f'<p id="live-lead-{i}">Lead {i}. ' + "Context. " * 18 + "</p>"
+        for i in range(18)
+    ),
+    reading=LIVE_READING,
+    tail="\n".join(
+        f'<p id="live-tail-{i}">Tail {i}. ' + "Context. " * 18 + "</p>"
+        for i in range(18)
+    ),
+)
+LIVE_V2 = (
+    LIVE_V1.replace("<title>Live first</title>", "<title>Live second</title>")
+    .replace(
+        'name="description" content="first"', 'name="description" content="second"'
+    )
+    .replace('<html lang="en">', '<html lang="fr" data-live-root="second">')
+    .replace(
+        "<body>",
+        '<body class="live-second" data-live-body="second" style="--live-body: 2">',
+    )
+    .replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live second</h1>'
+        + "\n".join(
+            f'<p id="live-new-{i}">New finding {i}. ' + "Fresh context. " * 18 + "</p>"
+            for i in range(5)
+        ),
+    )
+    .replace(
+        '<script type="module" src="/leaf.js"></script>',
+        '<meta name="lf-review" content="sign-off">\n'
+        "<style>#live-reading { --live-cut: 2; }</style>\n"
+        '<script type="module" src="/leaf.js"></script>',
+    )
+)
+LIVE_V3 = (
+    LIVE_V2.replace("<title>Live second</title>", "<title>Live third</title>")
+    .replace(
+        'name="description" content="second"', 'name="description" content="third"'
+    )
+    .replace('<html lang="fr" data-live-root="second">', '<html lang="en">')
+    .replace(
+        '<body class="live-second" data-live-body="second" style="--live-body: 2">',
+        "<body>",
+    )
+    .replace(
+        '<h1 id="live-title">Live second</h1>', '<h1 id="live-title">Live third</h1>'
+    )
+    .replace('<meta name="lf-review" content="sign-off">\n', "")
+    .replace("<style>#live-reading { --live-cut: 2; }</style>\n", "")
+)
+
+
+def live_url(version_url):
+    """The stable handover address for a served fixture's authenticated origin."""
+    return version_url.split("/versions/", 1)[0] + f"/?t={TOKEN}"
+
+
+def test_the_live_page_adopts_a_version_without_navigating_or_moving_the_reader(
+    browser, serve
+):
+    """Publishing advances the live surface, not the browser document.
+
+    The next file is fetched while the reader keeps this document, then its authored
+    main replaces the old one and replay catches it up. The URL, runtime identity, open
+    chrome, and passage's viewport coordinate therefore survive. Five paragraphs arrive
+    above that passage so a raw scroll offset cannot satisfy the position assertion.
+    """
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    assert "/versions/" not in page.url, f"the live address redirected to {page.url}"
+
+    page.locator("#live-reading").scroll_into_view_if_needed()
+    page.evaluate(
+        """() => { document.body.scrollBy({
+          top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
+          behavior: 'instant'
+        }); window.__leafDocument = 'the same runtime'; }"""
+    )
+    before = page.locator("#live-reading").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+    told(page)
+    expect(page).to_have_title("Live second")
+
+    assert page.evaluate("window.__leafDocument") == "the same runtime", (
+        "the version replaced the browser document rather than its authored page"
+    )
+    assert "/versions/" not in page.url, (
+        f"the update changed the live address to {page.url}"
+    )
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    after = page.locator("#live-reading").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    assert abs(after - before) <= 4, (
+        f"the passage moved from {before}px to {after}px in the viewport"
+    )
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator(".lf-signoff")).to_be_visible()
+    assert page.locator('meta[name="description"]').get_attribute("content") == "second"
+    assert page.locator("html").get_attribute("lang") == "fr"
+    assert page.locator("html").get_attribute("data-live-root") == "second"
+    expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
+    assert page.locator("body").get_attribute("data-live-body") == "second"
+    assert (
+        page.locator("body").evaluate(
+            "el => el.style.getPropertyValue('--live-body').trim()"
+        )
+        == "2"
+    ), "the new version's authored root attributes did not activate"
+    assert (
+        page.locator("#live-reading").evaluate(
+            "el => getComputedStyle(el).getPropertyValue('--live-cut').trim()"
+        )
+        == "2"
+    ), "the new version's page-local style did not activate"
+
+    page.locator(".lf-general textarea").fill("This comment belongs to the live v2.")
+    page.locator(".lf-general button").click()
+    round_trip(page)
+    assert interact.read_events(serve.page_dir)[-1]["version"] == 2
+    assert errors == []
+    page.close()
+
+
+def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
+    """Unsent words hold an arriving version, but clearing them releases it.
+
+    The chip is news during the hold, not a required confirmation: after the reader
+    leaves the textarea, the ordinary poll activates the already-published version.
+    """
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.locator(".lf-comments").click()
+    general = page.locator(".lf-general textarea")
+    general.fill("Do not replace the page under these words.")
+
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+    told(page)
+    expect(page).to_have_title("Live first")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+
+    # An explicit press may override the hold, but it is still an in-place activation:
+    # the live address and the panel draft both survive it.
+    page.locator(".lf-latest-chip").click()
+    expect(page).to_have_title("Live second")
+    assert "/versions/" not in page.url
+    expect(general).to_have_value("Do not replace the page under these words.")
+
+    # Keep editing after the explicit release. The chip press necessarily took focus,
+    # so state the active-composition condition again before asking v3 to honor it.
+    general.focus()
+    expect(general).to_be_focused()
+    (serve.page_dir / "versions" / "v3.html").write_text(LIVE_V3)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 3, "text": "more findings"},
+    )
+    told(page)
+    expect(page).to_have_title("Live second")
+
+    general.fill("")
+    page.locator("#live-reading").click()
+    told(page)
+    expect(page).to_have_title("Live third")
+    assert "/versions/" not in page.url
+    expect(page.locator(".lf-signoff")).to_have_count(0)
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blive-second\b"))
+    assert page.locator("body").get_attribute("data-live-body") is None
+    assert (
+        page.locator("body").evaluate(
+            "el => el.style.getPropertyValue('--live-body').trim()"
+        )
+        == ""
+    ), "the retired version's authored inline property survived"
+    assert page.locator("body").evaluate(
+        "el => el.style.getPropertyValue('--lf-head').trim()"
+    ), "activation erased a runtime-owned root property"
+    assert page.locator('meta[name="description"]').get_attribute("content") == "third"
+    assert errors == []
+    page.close()
+
+
+def test_overlapping_state_answers_share_one_live_version_activation(browser, serve):
+    """Two ordinary polls cannot replace the main twice.
+
+    Hold the shared version-file request past one polling interval, so a second timer
+    response joins the first while both await that document. One transition proves the
+    serialization is at the commit boundary, after asynchronous preparation, rather than
+    only before it.
+    """
+    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
+    page.evaluate(
+        """() => {
+          const start = document.startViewTransition.bind(document);
+          window.__leafTransitions = 0;
+          document.startViewTransition = update => {
+            window.__leafTransitions += 1;
+            return start(update);
+          };
+        }"""
+    )
+
+    def slow_version(route):
+        time.sleep(3)
+        route.continue_()
+
+    page.route("**/versions/v2.html", slow_version)
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+
+    expect(page).to_have_title("Live second", timeout=10_000)
+    assert page.evaluate("window.__leafTransitions") == 1
+    assert errors == []
+    page.close()
+
+
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
-    """A version arriving is a navigation, and the reader's place has to ride across it.
-    The passage they were reading does; where the walk had got to is a variable in a
-    module the navigation throws away, so it did not, and the reader was demoted without
+    """An immutable version follows by navigation, and the reader's place rides across.
+    The passage they were reading did; where the walk had got to was a variable in a
+    module the navigation threw away, so it did not, and the reader was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
     the third of four asks when v2 landed, they pressed `n` and were handed the third
     again — the block at the top of the window is above the ask they were centred on, so
@@ -20126,7 +20376,8 @@ def test_page_round_trip(browser, serve):
     (relocated) passage and the draft still wearing the user's words. The
     final assertion is the event log — the trail Claude reads — down to the
     anchor's quote, the move's placement, and the edit's text."""
-    page, errors = open_page(browser, serve(JOURNEY_V1))
+    page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
+    page.evaluate("window.__leafJourneyDocument = 'held'")
 
     # Select the passage from the keyboard's path: a real Range, then the keyup
     # the runtime watches for keyboard selections, then the c binding — which
@@ -20192,7 +20443,12 @@ def test_page_round_trip(browser, serve):
     interact.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "moved"}
     )
-    page.wait_for_url("**/v2.html")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    assert page.evaluate("window.__leafJourneyDocument") == "held", (
+        "the live journey navigated instead of activating its authored version"
+    )
+    assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -25904,28 +26160,26 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     """The URL `server run` prints is the page root carrying the key, so every handover
-    arrives through the redirect to the latest version rather than at a version file.
-    Two things have to hold across that hop and only a real browser can say so: the
-    cookie is set on the redirect and sent on the request it redirects to, and it is
-    still sent once the page is polling — the runtime's own fetches are relative, and a
-    `SameSite` cookie the browser withheld from them would leave the page open and
-    frozen with no console error to show for it."""
+    reads the latest version there while keeping the live address. Two things only a
+    real browser can say have to hold: the arrival sets the cookie used by the page's
+    relative polling requests, and that cookie still admits a later query-less arrival.
+    A `SameSite` cookie withheld from either would leave the page open and frozen with
+    no console error to show for it."""
     url = serve(INLINE_PAGE)
     root = url.rsplit("/versions/", 1)[0] + f"/?t={TOKEN}"
 
     page, errors = open_page(browser, root)
 
-    expect(page).to_have_url(url.rsplit("?", 1)[0])
+    expect(page).to_have_url(root)
     expect(page.locator(".lf-banner")).to_be_visible()
     # The poll is the page's own fetch, relative and query-less: it answers only if the
     # cookie rode along.
     assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
-    # The version switcher and the latest chip leave the document by assigning
-    # location.href, which is a fresh top-level navigation carrying no query. A cookie
-    # the browser withheld from it would land the user on a refusal.
+    # A later top-level arrival carries no query. A cookie the browser withheld from it
+    # would land the user on a refusal rather than the same live page.
     page.evaluate("() => { location.href = '/' }")
-    page.wait_for_url(url.rsplit("?", 1)[0])
+    page.wait_for_url(root.rsplit("?", 1)[0])
     expect(page.locator(".lf-banner")).to_be_visible()
 
     assert errors == []

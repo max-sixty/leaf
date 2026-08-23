@@ -133,8 +133,11 @@ const SECTION = "In a question's options";
 customElements.define(
   "lf-options",
   class extends HTMLElement {
+    #diffEvents = null;
+    #diffable = false;
+
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) return this.#listenForDiff();
       // An authored `chosen` (the honoring version carrying an earlier pick) wears the
       // same mark a live pick wears, so honoring doesn't change the look — but worded as
       // the document's state, not attributed to this reader.
@@ -491,7 +494,21 @@ customElements.define(
       this.#retitle();
       this.#open(tabStore.get(SETTLED_KEY + this.id) === "1", false);
       // Δ badges follow the version diff; the runtime announces each toggle.
-      document.addEventListener("lf-diff", () => this.#delta());
+      this.#diffable = true;
+      this.#listenForDiff();
+    }
+
+    disconnectedCallback() {
+      this.#diffEvents?.abort();
+      this.#diffEvents = null;
+    }
+
+    #listenForDiff() {
+      if (!this.#diffable || this.#diffEvents) return;
+      this.#diffEvents = new AbortController();
+      document.addEventListener("lf-diff", () => this.#delta(), {
+        signal: this.#diffEvents.signal,
+      });
     }
 
     #open(open, remember) {

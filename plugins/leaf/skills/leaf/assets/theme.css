@@ -1135,6 +1135,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
             font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
 
+/* A live-version transition is a paint boundary, not motion. The old pixels remain
+ * while the replacement upgrades and replays, then the restored reading lands in one
+ * frame rather than cross-fading text under the reader's eyes. */
+html.lf-versioning::view-transition-group(root),
+html.lf-versioning::view-transition-old(root),
+html.lf-versioning::view-transition-new(root) {
+  animation-duration: .01ms !important;
+}
+
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so
  * JS-driven transitions stop too). JS-driven motion goes through the runtime's

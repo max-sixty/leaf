@@ -63,11 +63,12 @@
  * a later edit remains. The same path serves general and selection comments, question
  * messages and replies, and lf-draft actions.
  *
- * Versions: an unpinned page follows the newest version, navigating to each revision as
- * Claude ships it. Picking an older version pins the view (?pin in the URL); a pinned
- * page stays put and offers the newest version as a chip instead. One control on the bar
- * holds all of it — the version being read, the list of the rest with what each changed,
- * and the press on any older one that marks that change on the page.
+ * Versions: the live page at `/` follows the newest version in the same document. It
+ * fetches the next immutable file, upgrades and replays it behind a view-transition
+ * boundary, then restores the reader's semantic landmark. Picking an older version
+ * leaves the live page for that immutable file and pins it (?pin in the URL). One control
+ * on the bar holds all of it — the version being read, the list of the rest with what each
+ * changed, and the press on any older one that marks that change on the page.
  *
  * Composing: every textarea behaves identically — saves its draft on each keystroke,
  * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
@@ -166,6 +167,33 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   wide: "data-lf-wide",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
+
+// The document roots may carry authored classes, data attributes, and inline custom
+// properties that page-local styles read. The live document also paints its own facts
+// onto those same two elements. Remember exactly the authored share before the runtime
+// writes anything so a version activation can replace that share without erasing the
+// presentation, layout, and mode facts the surviving runtime owns.
+const authoredAttributes = (root) =>
+  new Map([...root.attributes].map(({ name, value }) => [name, value]));
+let authoredHtmlAttributes = authoredAttributes(document.documentElement);
+let authoredBodyAttributes = authoredAttributes(document.body);
+const versionedHeadNode = (node) =>
+  !(
+    node.localName === "meta" &&
+    node.getAttribute("name") === "lf-version" &&
+    node.hasAttribute("data-lf-runtime")
+  ) &&
+  (node.localName === "title" ||
+    node.localName === "style" ||
+    node.localName === "base" ||
+    (node.localName === "meta" &&
+      (node.hasAttribute("name") || node.hasAttribute("property"))) ||
+    (node.localName === "link" &&
+      !(
+        node.rel === "stylesheet" &&
+        new URL(node.href, document.baseURI).pathname === "/theme.css"
+      )));
+let authoredHeadNodes = new Set([...document.head.children].filter(versionedHeadNode));
 
 // A modal is promoted into the top layer and makes the rest of the document inert. Both
 // facts escape an ancestor paint gate: hiding it with CSS alone would still disable the
@@ -311,7 +339,7 @@ function reportPageError(text) {
   postEvent({
     kind: "error",
     text,
-    ...(VNUM != null && { version: VNUM }),
+    ...(currentVersion != null && { version: currentVersion }),
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
@@ -351,13 +379,15 @@ const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 // and there each absolute jump left the page for a root that serves nothing. Resolved
 // against the document, the travel agrees with the path the version number itself was
 // read off, which is the one form that cannot disagree with what this document is.
-const versionUrl = (version) => `v${version}.html`;
+const versionUrl = (version) =>
+  `${location.pathname.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
 // Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
 // server serves one page at its own root, so every key below is spelled exactly as it was.
 // Two leaf pages on one origin is what needs it — web storage is the origin's, so the
 // reading position a reader left on one example was handed back on the next, at an offset
 // that meant nothing there.
-const PAGE_SCOPE = location.pathname.replace(VERSION_PATH, "");
+const PAGE_SCOPE =
+  location.pathname === "/" ? "" : location.pathname.replace(VERSION_PATH, "");
 
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —
@@ -927,7 +957,7 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
   }
   return post({
     kind: "action",
-    version: VNUM,
+    version: currentVersion,
     widget: el.id,
     action,
     detail,
@@ -950,8 +980,9 @@ export function actionStands(event) {
   const unit = unitOf(event, spec);
   if (typeof unit !== "string") return false;
   return (
-    stateProjection(VNUM).actions.get(stateCoordinate(event.widget, unit, spec))?.e
-      .id === event.id
+    stateProjection(currentVersion).actions.get(
+      stateCoordinate(event.widget, unit, spec),
+    )?.e.id === event.id
   );
 }
 
@@ -997,7 +1028,7 @@ export function conversationBox(el, hint) {
           (attempt) =>
             post({
               kind: "comment",
-              version: VNUM,
+              version: currentVersion,
               anchor: { section: el.id },
               text,
               attempt,
@@ -1244,7 +1275,22 @@ const either = (a, b) => (a && b ? () => a() || b() : undefined);
 // claiming nothing. Takes the binding its callers take, where `when` and `at` take none.
 const anyOf = (a, b) => (a && b ? (...args) => a(...args) || b(...args) : (a ?? b));
 const elementScopes = new WeakMap();
-const declaredScopes = new Map(); // title → section
+// The weak map is the dispatcher's lookup. The reference also has to enumerate every
+// connected contributor, so keep weak references beside it. A live-version replacement
+// can then be collected, while an element temporarily moved out of the document keeps
+// its declaration when it reconnects. Holding the elements or merged closures here
+// retained an entire prior version.
+const scopeRefs = new Set();
+const scopeRefFor = new WeakMap();
+const pruneScopedElements = () => {
+  for (const ref of scopeRefs) if (!ref.deref()) scopeRefs.delete(ref);
+};
+function rememberScopedElement(el) {
+  if (scopeRefFor.has(el)) return;
+  const ref = new WeakRef(el);
+  scopeRefFor.set(el, ref);
+  scopeRefs.add(ref);
+}
 const sentence = (row) => (typeof row.does === "string" ? row.does : row);
 const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
 // One section per title, gathered from every contributor. Written once because the gathering
@@ -1293,9 +1339,9 @@ function merge(sections, { title, when, at, claims, rows }) {
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * every x-upgrade module loads on every page, so a scope declared at the top level is help
- * for a widget the page hasn't got. The scope leaves with its element; there is no
- * withdrawal, because a control that stops answering a key says so in the row's `when`,
- * where every surface can read it.
+ * for a widget the page hasn't got. The dispatch scope leaves through the weak map; the
+ * enumerable reference prunes its element when it disconnects. A connected control that
+ * stops answering a key says so in the row's `when`, where every surface can read it.
  *
  * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
  * grabbed card answers — reads them back off the declaration rather than restating them.
@@ -1307,7 +1353,7 @@ export function keys(where, title, rows, when) {
     rows: checked(rows, title ?? "a scope"),
     when,
   });
-  if (title) merge(declaredScopes, { title, when, rows: bySentence(rows) });
+  rememberScopedElement(where);
   paintHere();
   return rows;
 }
@@ -1556,11 +1602,11 @@ export function shadowStage(host, nodes) {
   return root;
 }
 
-function rememberPassageParts() {
+function rememberPassageParts(scope = document) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
-    for (const root of document.querySelectorAll(tag)) {
+    for (const root of scope.querySelectorAll(tag)) {
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
     }
@@ -1782,7 +1828,15 @@ function reachScrollers(root) {
 // ---------- comment layer ----------
 
 const VERSION_MATCH = location.pathname.match(VERSION_PATH);
-const VNUM = VERSION_MATCH ? parseInt(VERSION_MATCH[1], 10) : null;
+const LIVE_ROOT = location.pathname.endsWith("/") && !VERSION_MATCH;
+const servedVersion = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
+)?.content;
+let currentVersion = VERSION_MATCH
+  ? parseInt(VERSION_MATCH[1], 10)
+  : servedVersion
+    ? parseInt(servedVersion, 10)
+    : null;
 const PINNED = new URLSearchParams(location.search).has("pin");
 // Sign-off is the page's ask, not standing chrome: the approve button exists only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
@@ -1793,8 +1847,7 @@ const PINNED = new URLSearchParams(location.search).has("pin");
 // So the one control a page that asks nothing put in front of its reader offered
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own ask.
-const SIGNOFF =
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
+let signoff = document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 const POLL_MS = 2000;
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -1889,6 +1942,7 @@ const MARK_RULES = `
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
 const style = document.createElement("style");
+style.dataset.lfRuntime = "1";
 // The chrome's whole stylesheet, and a template literal, so a backtick anywhere in
 // it — a CSS comment naming a command — ends the string and the rest of the sheet
 // parses as code. `node --check` accepts the result and the browser refuses it, so a
@@ -2936,8 +2990,8 @@ function boardList(panel) {
 // the reader's choice in their own store rather than the tab's, because where a reader
 // keeps their conversations, and how much of the page they will give a board, is the
 // chrome they arrange and expect to find arranged wherever they are reading (see
-// `readerStore`) — and a version switch is a reload, so a width set by hand would
-// otherwise be set again on every revision.
+// `readerStore`). Live activation keeps the edges themselves; document travel and reload
+// restore the same choices, so no revision or visit asks the reader to draw them again.
 const commentsEdge = drawnEdge({
   side: "right",
   noun: "comment panel",
@@ -3310,7 +3364,7 @@ for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false)
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
 //
-// Which version this is, is the document's own answer (VNUM, off the path), so the
+// Which version this is, is the live document's answer, so the
 // press says it now rather than standing empty until the first poll answers, and the
 // only word it ever rewrites is the Δ that says a comparison is standing — enumerable,
 // so the room for it is taken from the words themselves at load (reserve) and the
@@ -3319,7 +3373,7 @@ for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false)
 // has only this control to read it back off, and a colour is not a thing a screen
 // reader announces.
 const versionLabel = (comparing) =>
-  (comparing ? "Δ " : "") + (VNUM === null ? "▾" : `v${VNUM} ▾`);
+  (comparing ? "Δ " : "") + (currentVersion === null ? "▾" : `v${currentVersion} ▾`);
 const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
 versionBtn.setAttribute("aria-haspopup", "menu");
 versionBtn.setAttribute("aria-expanded", "false");
@@ -3346,7 +3400,7 @@ function showVersionMenu(open) {
   if (open)
     (
       versionRows().find(
-        (r) => r.dataset.lfVersion === String(diffOn ? diffBase : VNUM),
+        (r) => r.dataset.lfVersion === String(diffOn ? diffBase : currentVersion),
       ) ?? versionRows()[0]
     )?.focus();
   else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
@@ -3470,7 +3524,21 @@ banner.append(
   versionBtn,
   toggleBtn,
 );
-if (SIGNOFF) banner.append(approveBtn);
+if (signoff) banner.append(approveBtn);
+
+// Sign-off belongs to the authored version, while the control belongs to the live
+// chrome that survives one. A soft activation can therefore add or remove the same
+// control; rebuilding the banner would throw away focus and every reserved neighbour.
+function stateSignoff(next) {
+  if (next === signoff) return;
+  signoff = next;
+  if (signoff) {
+    banner.append(approveBtn);
+    reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+    paintApproval();
+  } else approveBtn.remove();
+  syncLayout();
+}
 
 const panel = el("aside", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
@@ -3593,7 +3661,7 @@ document.body.append(chromeRoot);
 // The counters hold the widest they reach anywhere below a thousand, so no count
 // they write can move them — a page with a thousand open threads, or a machine with
 // a thousand live pages, is not one anyone hands a user.
-if (SIGNOFF) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+if (signoff) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
 reserve(versionBtn, [versionLabel(false), versionLabel(true)]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
@@ -3653,14 +3721,14 @@ function sequence(widget, verb, kind, live) {
         event.kind === kind &&
         event.widget === widget.id &&
         (!verb || event.action === verb) &&
-        (inChrome(widget) || event.version <= VNUM) &&
+        (inChrome(widget) || event.version <= currentVersion) &&
         live(event),
     )
     .map((event) => structuredClone(event));
 }
 
 export const actionSequence = (widget, action) => {
-  const projection = stateProjection(VNUM);
+  const projection = stateProjection(currentVersion);
   return sequence(widget, action, "action", (e) => projectionCommitted(projection, e));
 };
 
@@ -3697,7 +3765,8 @@ export const reportSequence = (widget, verb) =>
 // one section below the banner.
 export const publishedAt = () => {
   let ts = null;
-  for (const e of events) if (e.kind === "note" && e.version === VNUM) ts = e.ts;
+  for (const e of events)
+    if (e.kind === "note" && e.version === currentVersion) ts = e.ts;
   return ts;
 };
 
@@ -3707,18 +3776,24 @@ export const publishedAt = () => {
 // its complete rendering in one function whether the first state arrived before or
 // after it connected — and again on every poll, whether or not the log grew, which is
 // what lets a rendering of elapsed time stay true without a timer of its own.
-const watch = (read, callback) => {
-  const update = () => callback(read());
+const watch = (owner, read, callback) => {
+  const update = () => {
+    if (!owner.isConnected) {
+      document.removeEventListener("lf-actions", update);
+      return;
+    }
+    callback(read());
+  };
   document.addEventListener("lf-actions", update);
   update();
   return () => document.removeEventListener("lf-actions", update);
 };
 
 export const watchActions = (widget, action, callback) =>
-  watch(() => actionSequence(widget, action), callback);
+  watch(widget, () => actionSequence(widget, action), callback);
 
 export const watchReports = (widget, verb, callback) =>
-  watch(() => reportSequence(widget, verb), callback);
+  watch(widget, () => reportSequence(widget, verb), callback);
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -4010,8 +4085,8 @@ function mirrorDraft(ta, sync, ctx) {
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
-// Panel open/closed is remembered too: a version switch reloads the document, and
-// reopening the panel by hand after every revision gets old fast.
+// Panel open/closed is remembered too: it survives live activation, document travel,
+// and reload, so reopening the panel by hand after every revision gets old fast.
 const PANEL_KEY = "lf-panel-open";
 // Whether the panel stands over the page rather than beside it — the same fact as which
 // of the two rules that take the strip the page is under, and as which region the
@@ -4551,7 +4626,7 @@ function buildThreads() {
   // The whole log, not this version's window: a conversation is not version-scoped, so
   // the panel shows the same threads whichever version is pinned and a retraction
   // settles a thread's state from wherever it was declared. interact.py's callers pass
-  // upto=None for the same reason. Replay windows to VNUM instead, and on any version
+  // upto=None for the same reason. Replay windows to currentVersion instead, and on any version
   // but the newest the two are meant to disagree — the rule binds both sites, so it is
   // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
   // never the conversation".
@@ -4838,7 +4913,7 @@ async function sendReply(t, text, raw, owns) {
     post({
       kind: "reply",
       parent: id,
-      version: VNUM,
+      version: currentVersion,
       text,
       attempt,
     }),
@@ -6194,10 +6269,11 @@ function findQuote(text, quote, anchor, within) {
 }
 
 // ---------- view continuity ----------
-// Following a new version is a navigation, so without help the reader lands at the top
-// of a fresh document mid-session, standing nowhere in the walk they were making. Where
-// they are rides across in tabStore — per-tab like unsent drafts, because a place in a
-// page belongs to a tab and shouldn't outlive it. Two things are recorded, because
+// Following a new version replaces the authored main, whether the live root keeps this
+// document or historical travel opens another one. A raw replacement leaves the reader
+// at the top mid-session, standing nowhere in the walk they were making. Where they are
+// rides across as one semantic view — and through tabStore on document travel, per-tab
+// because a place in a page shouldn't outlive it. Two things are recorded, because
 // askPosition reads two the runtime can write down: the passage they were reading, and
 // the ask the n/p walk had stepped them to. The passage travels as a landmark rather
 // than a pixel offset, since content moves between versions: re-find it by its text
@@ -6229,12 +6305,12 @@ function* blocksOnScreen() {
 // filtered to a section the text isn't in and can only ever fail — restore then falls back
 // to the section, which doesn't absorb content added above the reader inside it.
 function captureView() {
-  const view = { v: VNUM, y: pageScroller.scrollTop };
+  const view = { v: currentVersion, y: pageScroller.scrollTop };
   // Where the ask walk left off, which is the reader's place stated more exactly than
-  // any block can state it — the walk put them there on purpose. It is a variable in a
-  // module the navigation is about to throw away, so this is the only way it survives
-  // the document being replaced. The ring is not recorded beside it: it is painted from
-  // the focus, and a reader arriving at a fresh document is standing on the page.
+  // any block can state it — the walk put them there on purpose. Its element identity
+  // does not survive an authored-main replacement, and the module variable does not
+  // survive document travel, so the id is the one form both can restore. The ring is not
+  // recorded beside it: it is painted from focus, and another document starts on the page.
   view.ask = landed?.id;
   for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
@@ -6262,8 +6338,8 @@ function captureView() {
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
-// animating from the top of a fresh document is worse than the jump it replaces. Moving to
-// a mark the reader asked for is the other case, and says so.
+// animating from the replacement's raw position is worse than the jump it replaces.
+// Moving to a mark the reader asked for is the other case, and says so.
 const jumpBy = (dy, behavior = "instant") =>
   pageScroller.scrollBy({ top: dy, behavior });
 function restoreView(view) {
@@ -7558,10 +7634,10 @@ for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, tru
 // `about: "layer"`, which is how the agent tells a remark about the layer from one about
 // the page's words.
 let designOn = false;
-// Kept per tab across a reload, the way the panel's open state is (PANEL_KEY): a version
-// landing mid-batch reloads the document, and a reader put out of the mode by news they
-// didn't ask for is a mode error the page made for them. Working state of this tab, so
-// the tab's store rather than the reader's.
+// Kept per tab across document travel and reload, the way the panel's open state is
+// (PANEL_KEY). Live activation keeps the variable itself; historical travel restores it.
+// A reader put out of the mode by news they didn't ask for is a mode error the page made
+// for them. Working state of this tab, so the tab's store rather than the reader's.
 const DESIGN_KEY = "lf-design";
 function setDesign(on, { spoken = true } = {}) {
   designOn = on;
@@ -7880,7 +7956,13 @@ const syncComposer = wireInput(composerInput, {
       ctx,
       () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
       (attempt) => {
-        const event = { kind: "comment", version: VNUM, anchor, text, attempt };
+        const event = {
+          kind: "comment",
+          version: currentVersion,
+          anchor,
+          text,
+          attempt,
+        };
         if (suggestion) event.suggestion = true;
         if (about) event.about = about;
         return post(event);
@@ -8043,7 +8125,7 @@ const syncGeneral = wireInput(generalInput, {
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
   send: async (text, raw) => {
-    const event = { kind: "comment", version: VNUM, text };
+    const event = { kind: "comment", version: currentVersion, text };
     if (designOn) event.about = "layer";
     const sent = await sendDraft(
       "general",
@@ -8072,7 +8154,7 @@ approveBtn.onclick = async () => {
   approveBtn.setAttribute("aria-busy", "true");
   paintApproval();
   try {
-    await post({ kind: "done", version: VNUM, text: "Looks good" });
+    await post({ kind: "done", version: currentVersion, text: "Looks good" });
   } finally {
     approving = false;
     approveBtn.removeAttribute("aria-busy");
@@ -9063,6 +9145,7 @@ const shadow = () => {
 // and reads inward, and the widgets' sections land where their scopes stand in it rather than
 // wherever a second list happened to put them.
 function declaredStack() {
+  pruneScopedElements();
   const sections = new Map();
   const named = (section) =>
     scopesFor(focused()).some((s) => s.title === section.title);
@@ -9074,7 +9157,15 @@ function declaredStack() {
     // Where the reader is, for a widget's section, is whether the focused element declares it
     // — the one thing core's own scopes state for themselves and an element scope cannot,
     // since it is gathered here by title and the elements wearing that title are many.
-    for (const section of declaredScopes.values())
+    const declared = new Map();
+    for (const ref of scopeRefs) {
+      const el = ref.deref();
+      if (!el?.isConnected) continue;
+      const section = elementScopes.get(el);
+      if (section?.title)
+        merge(declared, { ...section, rows: bySentence(section.rows) });
+    }
+    for (const section of declared.values())
       merge(sections, { ...section, at: () => named(section) });
   }
   // The way out reads last, after what the scope is for. A section gathers its rows from
@@ -9478,7 +9569,7 @@ function openAsks() {
   if (!pagePresented()) return [];
   const tags = askTags();
   if (!tags.length) return [];
-  const projection = stateProjection(VNUM);
+  const projection = stateProjection(currentVersion);
   // A question in a thread is the thread's, so a thread the log has settled asks
   // nothing more — the same reading paintAnchors makes when it takes a resolved
   // thread's mark off the page. Settlement comes from the log and placement from the
@@ -10031,7 +10122,7 @@ function applyDiff(doc, baseVersion) {
 }
 // Whether a version can be compared with the one being read: anything published
 // before it, which is which rows the menu builds a press onto.
-const comparable = (version) => VNUM !== null && version < VNUM;
+const comparable = (version) => currentVersion !== null && version < currentVersion;
 // Every rendering of the pair above, written in one place: the chooser's word, its
 // paint and what it says it will do, the checked state of each row's Δ, and the rail
 // down the rows the comparison spans. Called by the setter, by a menu rebuild — the
@@ -10050,7 +10141,7 @@ function paintDiff() {
     const version = +row.dataset.lfVersion;
     row.classList.toggle(
       "lf-compared",
-      diffOn && version >= diffBase && version <= VNUM,
+      diffOn && version >= diffBase && version <= currentVersion,
     );
   }
   for (const press of versionMenu.querySelectorAll(".lf-version-diff"))
@@ -10386,9 +10477,144 @@ function renderStatus(state) {
   showStatus(TONE[kind], ...line);
 }
 
+// ---------- live version activation ----------
+const versionDocuments = new Map();
+let activatingState = null;
+function versionDocument(version) {
+  if (versionDocuments.has(version)) return versionDocuments.get(version);
+  const name = versionUrl(version);
+  const loading = fetch(name)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`couldn't load ${name} (${response.status})`);
+      const generation = response.headers.get("Leaf-Layer");
+      if (generation && !sameLayer(generation)) return null;
+      const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+      if (
+        !doc.querySelector("body > main") ||
+        doc.querySelectorAll("body > main").length !== 1
+      )
+        throw new Error(`${name} has no single authored main`);
+      return doc;
+    })
+    .catch((error) => {
+      versionDocuments.delete(version);
+      throw error;
+    });
+  versionDocuments.set(version, loading);
+  return loading;
+}
+
+function replaceAuthoredAttributes(target, source, prior) {
+  const scratch = document.createElement(target.localName);
+  for (const [name, value] of prior) scratch.setAttribute(name, value);
+  for (const name of prior.keys()) {
+    if (name === "class")
+      for (const token of scratch.classList) target.classList.remove(token);
+    else if (name === "style")
+      for (const property of scratch.style) target.style.removeProperty(property);
+    else target.removeAttribute(name);
+  }
+  const next = authoredAttributes(source);
+  for (const [name, value] of next) {
+    if (name === "class")
+      for (const token of source.classList) target.classList.add(token);
+    else if (name === "style")
+      for (const property of source.style)
+        target.style.setProperty(
+          property,
+          source.style.getPropertyValue(property),
+          source.style.getPropertyPriority(property),
+        );
+    else target.setAttribute(name, value);
+  }
+  return next;
+}
+
+function activateHead(doc, version) {
+  for (const node of authoredHeadNodes) node.remove();
+  const runtimeStyle = style;
+  const next = new Set();
+  for (const node of doc.head.children) {
+    if (!versionedHeadNode(node)) continue;
+    const imported = document.importNode(node, true);
+    document.head.insertBefore(imported, runtimeStyle);
+    next.add(imported);
+  }
+  authoredHeadNodes = next;
+  let marker = document.querySelector('meta[name="lf-version"][data-lf-runtime]');
+  if (!marker) {
+    marker = document.createElement("meta");
+    marker.name = "lf-version";
+    marker.dataset.lfRuntime = "1";
+    document.head.insertBefore(marker, runtimeStyle);
+  }
+  marker.content = String(version);
+  stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
+}
+
+function resetAuthoredPage() {
+  authoredFacets.clear();
+  authoredDetails.clear();
+  authoredStatements.clear();
+  authoredMarkup.clear();
+  authoredWidgets.clear();
+  committedProjection.clear();
+  for (const attr of [
+    PAGE_PAINT_ATTRIBUTE.applied,
+    PAGE_PAINT_ATTRIBUTE.replayWrote,
+    PAGE_PAINT_ATTRIBUTE.reportWrote,
+  ])
+    document.body.removeAttribute(attr);
+}
+
+async function activateVersion(doc, version) {
+  const view = captureView();
+  const source = doc.querySelector("body > main");
+  const fresh = document.importNode(source, true);
+  versionDocuments.delete(version);
+  const settlingFrom = settling.length;
+  const comparedFrom = diffOn ? diffBase : null;
+  if (diffOn) setDiff(false);
+
+  resetAuthoredPage();
+  rememberAuthoredMarkup(source);
+  rememberPassageParts(fresh);
+  markWide(fresh);
+  authoredHtmlAttributes = replaceAuthoredAttributes(
+    document.documentElement,
+    doc.documentElement,
+    authoredHtmlAttributes,
+  );
+  authoredBodyAttributes = replaceAuthoredAttributes(
+    document.body,
+    doc.body,
+    authoredBodyAttributes,
+  );
+  currentVersion = version;
+  activateHead(doc, version);
+  document.querySelector("body > main").replaceWith(fresh);
+  pruneScopedElements();
+  settle(dress(fresh));
+  await Promise.allSettled(settling.slice(settlingFrom));
+  reachScrollers(fresh);
+  captureAuthoredFacets(fresh);
+  stateStrip();
+  syncLayout();
+  if (designOn) paintLegend();
+  return { view, comparedFrom };
+}
+
 // Navigate to a version with the pin semantics every chooser shares: an older
 // version pins the view, the newest unpins it.
+let forceActivation = false;
 const goVersion = (version) => {
+  if (LIVE_ROOT && version === currentVersion) return;
+  if (LIVE_ROOT && version === latestVersion) {
+    forceActivation = true;
+    showVersionMenu(false);
+    poll();
+    return;
+  }
   const path = versionUrl(version);
   location.href = version === latestVersion ? path : `${path}?pin`;
 };
@@ -10397,7 +10623,7 @@ function renderVersions(state) {
   const notes = {};
   for (const e of events) if (e.kind === "note") notes[e.version] = e.text;
   const key = JSON.stringify([state.versions, notes]);
-  const current = state.versions.includes(VNUM) ? VNUM : null;
+  const current = state.versions.includes(currentVersion) ? currentVersion : null;
   // Rebuilt rather than reconciled: this runs only when the versions or their notes
   // actually changed, which on a page's whole life is a handful of times, and the
   // menu is only ever read while it is open — where a rebuild would take the focused
@@ -10452,11 +10678,15 @@ function renderVersions(state) {
     paintDiff(); // a fresh list, and a standing comparison to show on it
   }
   latestVersion = state.versions.at(-1) ?? null;
-  const behind = latestVersion !== null && VNUM !== null && latestVersion !== VNUM;
-  // Follow the newest version unless pinned or the user is mid-composition:
-  // drafts survive navigation, but an open composer or a live selection
-  // doesn't. While deferred, the chip shows instead.
-  if (behind && !PINNED && !midComposition()) {
+  const behind =
+    latestVersion !== null &&
+    currentVersion !== null &&
+    latestVersion !== currentVersion;
+  // An immutable unpinned document still follows by navigation. The live root's
+  // activation decision was made before this rendering, where its fetched document and
+  // the composition hold were both available. Either route leaves the chip as news
+  // while it is behind.
+  if (behind && !LIVE_ROOT && !PINNED && !midComposition()) {
     location.replace(versionUrl(latestVersion));
     return;
   }
@@ -10488,10 +10718,9 @@ const midComposition = () =>
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
       document.activeElement.hasAttribute("data-lf-offer")));
-// Through the chooser's own travel, so the chip opens the version it names. `/` reached
-// the same place by asking the server which version is newest — a second route to what
-// goVersion states, and one that could land the reader on a version the chip had not
-// offered, since the answer is re-derived at the press rather than at the render.
+// Through the chooser's one door, so the chip opens exactly the version it names. At the
+// live root that is an explicit in-place release of the composition hold; on an immutable
+// page it is ordinary version travel.
 latestChip.onclick = () => goVersion(latestVersion);
 
 // ---------- polling ----------
@@ -11005,7 +11234,7 @@ function stateProjection(upto, without = null) {
 // later one names. A unit the current version dropped has no facet at all —
 // its widget survived it.
 export const standingState = () => {
-  const projection = stateProjection(VNUM);
+  const projection = stateProjection(currentVersion);
   return [...projection.desired]
     .filter(([, entry]) => !inChrome(elementById(entry.e.widget)))
     .sort(([, a], [, b]) => compareProjected(a, b))
@@ -11055,7 +11284,7 @@ function canUndoAction(e) {
   const unit = unitOf(e, spec);
   const coordinate = stateCoordinate(e.widget, unit, spec);
   return (
-    stateProjection(VNUM, e.id).desired.has(coordinate) ||
+    stateProjection(currentVersion, e.id).desired.has(coordinate) ||
     authoredDetails.has(coordinate)
   );
 }
@@ -11076,7 +11305,11 @@ function undoable() {
     // around the decision, and a press that paints nothing is not one to offer. What
     // *hearing* such an undo owes is reconciliation's, and is not the same answer.
     const widget = e.kind === "action" && elementById(e.widget);
-    if (widget && (inChrome(widget) || e.version === VNUM) && canUndoAction(e))
+    if (
+      widget &&
+      (inChrome(widget) || e.version === currentVersion) &&
+      canUndoAction(e)
+    )
       return e;
   }
   return null;
@@ -11192,7 +11425,7 @@ function localCoordinateCommitted(projection, entry) {
 // complete read has committed the coordinate that now represents them; rejected
 // entries leave only after their optimistic token no longer represents the DOM.
 function releaseProjectedOutbox() {
-  const projection = stateProjection(VNUM);
+  const projection = stateProjection(currentVersion);
   let removed = false;
   for (const entry of [...outbox]) {
     if (!entry.answered || entry.event.kind !== "action") continue;
@@ -11276,7 +11509,7 @@ function reconcileState() {
     // A recordless baseline replaces a subtree. Restarting from the pure projection is
     // what discovers every surviving nested coordinate on the new node identities.
     for (;;) {
-      projection = stateProjection(VNUM);
+      projection = stateProjection(currentVersion);
       for (const entry of projection.classified.values())
         for (const id of entry.restated ?? [])
           elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
@@ -11441,7 +11674,7 @@ function reconcileState() {
     }
     renderQuiet(document.body);
     paintPending();
-    projection = stateProjection(VNUM);
+    projection = stateProjection(currentVersion);
     document.body.setAttribute(
       PAGE_PAINT_ATTRIBUTE.applied,
       String(projectionCoverage(projection)),
@@ -11473,7 +11706,7 @@ function reconcileKnownState() {
 function paintPending() {
   for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
     for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-  const projection = stateProjection(VNUM);
+  const projection = stateProjection(currentVersion);
   for (const [coordinate, { unit, e, spec }] of projection.desired) {
     const el = elementById(unit);
     if (!el || inChrome(el)) continue;
@@ -11545,27 +11778,75 @@ async function receiveState(state) {
   // behind one already rendered is unambiguously stale; accepting it would move
   // every event-derived view backwards until the next poll.
   if (eventSeq < lastEventSeq) return;
-  // Messages render from Markdown; have the renderer in hand before the panel
-  // builds a body, so msgNode stays synchronous.
-  if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
-    await loadMarked();
-  // The import above yields. A newer response may have completed while this one was
-  // waiting, so the sequence judgment must be repeated at the boundary where this
-  // state would start changing globals and the page.
+  // Polls and POST answers may overlap. A document activation is the one state read
+  // that cannot safely interleave: a second one would capture or replace the halfway
+  // upgraded main. Let it commit, then judge this response against its resulting
+  // version and sequence.
+  if (activatingState) await activatingState;
   if (eventSeq < lastEventSeq) return;
+  const targetVersion = state.versions.at(-1) ?? null;
+  const wantsActivation =
+    LIVE_ROOT &&
+    targetVersion !== null &&
+    currentVersion !== null &&
+    targetVersion > currentVersion;
+  let incoming = null;
+  let incomingFailed = false;
+  if (wantsActivation) {
+    latestVersion = targetVersion;
+    latestChip.textContent = `New version available → open v${targetVersion}`;
+    showNews(latestChip, true);
+  }
+  // Messages render from Markdown; have the renderer in hand before the panel
+  // builds a body, so msgNode stays synchronous. Fetch the next authored document on
+  // the same background stretch rather than making either network trip wait on the
+  // other.
+  const preparations = [];
+  if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
+    preparations.push(loadMarked());
+  if (wantsActivation)
+    preparations.push(
+      versionDocument(targetVersion)
+        .then((doc) => (incoming = doc))
+        .catch((error) => {
+          incomingFailed = true;
+          reportPageError(
+            `version v${targetVersion} failed to load: ${error?.message ?? error}`,
+          );
+        }),
+    );
+  await Promise.all(preparations);
+  if (wantsActivation && incoming === null && !incomingFailed) return;
+  // The preparation above yields. A newer response may have completed while this one was
+  // waiting, and two responses may have joined the same version-file promise before
+  // either had an activation to await. Serialize again at the commit boundary, then
+  // judge this candidate against the version and sequence the winner installed.
+  if (activatingState) await activatingState;
+  if (eventSeq < lastEventSeq) return;
+  const willActivate =
+    Boolean(incoming) &&
+    targetVersion > currentVersion &&
+    (!midComposition() || forceActivation) &&
+    !versionMenuOpen &&
+    targetVersion === state.versions.at(-1);
   const priorEvents = events;
   const priorStatePhase = statePhase;
   const priorLastEventSeq = lastEventSeq;
-  events = nextEvents;
-  try {
+  const apply = async () => {
+    events = nextEvents;
+    let activation = null;
     statePhase = "ready";
+    if (willActivate) {
+      forceActivation = false;
+      activation = await activateVersion(incoming, targetVersion);
+    }
     settleAcceptedDrafts();
     agent = state.agent || "Claude";
     agentNotes = presented(state).held ? state.status.on || {} : {};
     renderStatus(state);
     renderVersions(state);
     renderOthers(state);
-    if (eventSeq > lastEventSeq) {
+    if (eventSeq > lastEventSeq || activation) {
       renderPanel();
       // Sign-off is a fact in the log, not a click this tab happens to remember, so a
       // reload (or the other tab) shows it too.
@@ -11589,6 +11870,13 @@ async function receiveState(state) {
     // on the page by now, so an action naming one that isn't names a widget no version
     // holds, and reconciliation can retire it instead of looking for it forever.
     reconcileState();
+    if (activation) {
+      restoreView(activation.view);
+      paintAnchors();
+      updateFab();
+      if (activation.comparedFrom !== null) showComparison(activation.comparedFrom);
+      showToast(`Updated to v${currentVersion}`);
+    }
     // Only a complete application advances the read boundary. A render fault may
     // already have changed some local surfaces, but it has not made a state safe to use
     // for replay or undo; leaving the sequence unresolved retries the whole read.
@@ -11603,6 +11891,27 @@ async function receiveState(state) {
     // not grow: applyAction may have deferred while a user was typing, then become
     // applicable on the next poll after they close the editor.
     document.dispatchEvent(new Event("lf-actions"));
+  };
+  try {
+    if (willActivate) {
+      const running = (async () => {
+        if (document.startViewTransition) {
+          document.documentElement.classList.add("lf-versioning");
+          try {
+            const transition = document.startViewTransition(apply);
+            await transition.finished;
+          } finally {
+            document.documentElement.classList.remove("lf-versioning");
+          }
+        } else await apply();
+      })();
+      activatingState = running;
+      try {
+        await running;
+      } finally {
+        if (activatingState === running) activatingState = null;
+      }
+    } else await apply();
   } catch (error) {
     // Candidate history is useful only while this one synchronous application is
     // rendering it. If any required surface refuses the state, restore the last whole
@@ -11611,6 +11920,7 @@ async function receiveState(state) {
     events = priorEvents;
     statePhase = priorStatePhase;
     lastEventSeq = priorLastEventSeq;
+    if (willActivate) location.reload();
     throw error;
   }
 }
@@ -11809,7 +12119,8 @@ async function startPage() {
   updateFab(); // an early selection is now read from the fully upgraded page
   paintHere(); // c is live again, whether or not that selection raised the button
   landArrival();
-  if (savedView && savedView.v < VNUM) showToast(`Updated to v${VNUM}`);
+  if (savedView && savedView.v < currentVersion)
+    showToast(`Updated to v${currentVersion}`);
   if (savedComposer)
     openComposer(
       savedComposer.anchor,

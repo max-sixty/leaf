@@ -47,9 +47,10 @@ customElements.define(
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
+    #namesObserver = null;
 
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) return this.#observeNames();
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the "?" overlay — it stays the static board the theme renders anyway.
@@ -76,15 +77,7 @@ customElements.define(
       // cancel, replay) plus the pending pass, any of which would eventually
       // forget. Only the pending attribute is observed, so #names writing an
       // aria-label cannot feed the pass back into itself.
-      const names = new MutationObserver(() => this.#names());
-      for (const col of this.querySelectorAll(":scope > lf-column")) {
-        names.observe(col, { childList: true });
-        for (const card of this.#cards(col))
-          names.observe(card, {
-            attributes: true,
-            attributeFilter: ["data-lf-pending"],
-          });
-      }
+      this.#observeNames();
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -148,7 +141,26 @@ customElements.define(
     // drop a live grab here or it wedges the .lf-dragging gate open — freezing
     // action replay and version-follow.
     disconnectedCallback() {
+      this.#namesObserver?.disconnect();
+      this.#namesObserver = null;
       if (this.#grabbed) this.#cancel();
+    }
+
+    #observeNames() {
+      if (
+        this.#namesObserver ||
+        !this.querySelector(":scope > lf-column > lf-card > .lf-grip")
+      )
+        return;
+      this.#namesObserver = new MutationObserver(() => this.#names());
+      for (const col of this.querySelectorAll(":scope > lf-column")) {
+        this.#namesObserver.observe(col, { childList: true });
+        for (const card of this.#cards(col))
+          this.#namesObserver.observe(card, {
+            attributes: true,
+            attributeFilter: ["data-lf-pending"],
+          });
+      }
     }
 
     #title(card) {

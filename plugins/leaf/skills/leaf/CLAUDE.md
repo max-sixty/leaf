@@ -30,6 +30,7 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
+| version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
@@ -86,6 +87,23 @@ would contain generated controls and the module's once-only stamp. It stores
 only widget families with a recordless durable action. `captureAuthoredFacets`
 runs after upgrade because record-bearing widgets may arrange the authored state
 in `connectedCallback`, but it must run before replay changes that state.
+
+The served page root is a stable live document. Its first response projects the
+latest immutable version and carries a runtime-only version marker. On a later
+state read, `versionDocument` fetches the next immutable file in the background.
+`activateVersion` replaces the authored head declarations, root attributes, and
+`body > main`; runs the same fence, clone, dressing, settlement, and authored-facet
+passes as startup; reconciles the log; and restores the semantic reading landmark.
+The chrome, browser document, module globals, panel, and address remain standing.
+
+That activation is one presentation boundary. Its async work runs in a
+`startViewTransition` update callback where the platform supplies one, including
+for reduced motion (whose transition duration collapses in the theme). Concurrent
+state responses serialize behind `activatingState`; none may capture or replace a
+half-upgraded main. A runtime without the API applies the same ordered boundary
+without animation. If activation fails after advancing the document, reload the
+stable root rather than leaving a mixed version. A layer-generation change always
+reloads: soft activation is only valid within one vendored contract.
 
 The page has three readiness facts:
 
@@ -383,7 +401,7 @@ renderings of the projection, never inputs to it.
 
 ### Version and conversation windows
 
-A page widget's projection stops at `VNUM`. Later actions and reports belong to
+A page widget's projection stops at `currentVersion`. Later actions and reports belong to
 documents written after this version. A widget instantiated inside frozen thread
 markup is in chrome and reads the whole action sequence because the conversation,
 not a page version, owns it.
@@ -432,7 +450,7 @@ render deferred by live input without owning a timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchReports` when their element disconnects.
 
-`publishedAt` is the timestamp of the note that published `VNUM`. It is the
+`publishedAt` is the timestamp of the note that published `currentVersion`. It is the
 freshness floor for authored state when no report exists. A page that reports no
 worker update is not timeless; its authored assertion is as old as its version.
 
@@ -1018,11 +1036,21 @@ older/newer page keys. A comparison base is the focused row in the menu; opening
 the menu lands on the current base, and walking to the version being read clears
 the comparison because it has no earlier base to mark against.
 
-An unpinned page follows the newest version unless `midComposition` is true.
-A pinned page stays at `VNUM` and shows a newest-version chip. `goVersion` is
-the only navigation door for those controls. The view record carries reading
-position and the ask-walk landmark; focus and a selection do not cross to a new
-document.
+The live root follows the newest version without navigating. It begins fetching
+as soon as the poll announces the version, but `midComposition` or an open version
+menu defers activation and leaves the newest-version chip visible. Ending the
+composition releases the version on the ordinary next poll; pressing the chip is
+an explicit override and still keeps the live address. `goVersion` is the one door
+for both that in-place newest-version request and travel to an older immutable
+version.
+
+An older version is historical rather than live: choosing one navigates to its
+immutable file with `?pin`, and it stays at `currentVersion` while offering the
+newest-version chip. The view record carries reading position and the ask-walk
+landmark across that document navigation. Focus and a selection do not cross to a
+new document. On live activation, runtime-chrome nodes and their focus survive;
+authored-main nodes are replaced, so the semantic landmark—not a DOM node—is the
+continuity guarantee.
 
 The left side holds one board at a time. `showBoard` owns `boardUp` and renders
 the complete outcome for leaves and asks. The leaves board overlays the

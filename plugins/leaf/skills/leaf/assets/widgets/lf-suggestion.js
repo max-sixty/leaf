@@ -95,7 +95,8 @@ const verb = (btn) => (btn.matches(".lf-sug-accept") ? "accept" : "reject");
 // all of them and the pass can ask each whether its change is on screen.
 const rows = new Map();
 let pending = 0;
-let observing = false;
+let observer = null;
+let observedColumn = null;
 let railStated = false; // --rail is measured off the first row and holds for the page
 
 const schedule = () => {
@@ -105,6 +106,18 @@ const schedule = () => {
 
 // What the row hangs off, and so also what it hangs in.
 const column = () => document.querySelector("main") || document.body;
+
+function observeLayout() {
+  const nextColumn = column();
+  if (!observer) {
+    observer = new ResizeObserver(schedule);
+    observer.observe(document.body);
+  }
+  if (observedColumn === nextColumn) return;
+  if (observedColumn) observer.unobserve(observedColumn);
+  observedColumn = nextColumn;
+  observer.observe(observedColumn);
+}
 
 // ---------- word-level emphasis ----------
 // A block replacement asked the reader to eyeball-diff two paragraphs for the words
@@ -205,7 +218,11 @@ customElements.define(
       // must be harmless, and the row is no longer in the subtree that moves, so
       // hanging it again is what carries it along (the emphasis ranges ride the
       // text nodes and move with them).
-      if (!once(this)) return this.#hang();
+      if (!once(this)) {
+        this.#hang();
+        if (this.#row) observeLayout();
+        return;
+      }
       // Presentation, not input, so an exhibited pending change gets it too:
       // quoting gates the action channel, never what a change looks like.
       this.#emphasize();
@@ -246,20 +263,21 @@ customElements.define(
           parseFloat(getComputedStyle(this.#row).marginLeft);
         document.documentElement.style.setProperty("--rail", Math.ceil(width) + "px");
       }
-      if (!observing) {
-        observing = true;
-        // The body's box carries the horizontal question (viewport, comment
-        // panel); the column's carries the vertical one, since anything that
-        // moves content down the page changes its height.
-        const observer = new ResizeObserver(schedule);
-        observer.observe(document.body);
-        observer.observe(column());
-      }
+      // The body's box carries the horizontal question (viewport, comment panel);
+      // the current main's carries the vertical one, since anything that moves content
+      // down the page changes its height. A live version replaces that main, so the one
+      // shared observer follows it rather than retaining the detached version.
+      observeLayout();
     }
 
     disconnectedCallback() {
       rows.delete(this.#row);
       this.#row?.remove(); // it is no longer in the subtree that took it before
+      if (!rows.size) {
+        observer?.disconnect();
+        observer = null;
+        observedColumn = null;
+      }
       emphasized.delete(this);
       repaintEmphasis();
       schedule();

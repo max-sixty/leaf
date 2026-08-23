@@ -6120,6 +6120,23 @@ def test_check_reads_a_column_the_theme_states_as_a_token():
     )
 
 
+def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
+    """A page pinning `var(--wide)` is stating the vocabulary's own breakout width, which
+    is wider than the column by design. The page's `<style>` declares no such token, so
+    the reading resolves it against the layer the page vendored — the order the cascade
+    reads the two roots in. Without the layer behind it, a page could take any width the
+    theme names and never be measured for it."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><p id="w" style="width: var(--wide)">Wide by name.</p>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "inline style width: 1080px (column is 720px)" in result.output
+
+
 def test_the_strip_floor_is_one_number():
     """The width a page's box needs before the theme takes a margin strip out of it is
     asked by two parties that cannot share a form: a media query, which asks it of the

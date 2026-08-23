@@ -6146,14 +6146,21 @@ def _column_width(page_css: str, theme_css: str) -> int:
     return COLUMN_FALLBACK
 
 
-def _overwide_elements(parser: _StructParser, column: int) -> list:
+def _overwide_elements(
+    parser: _StructParser, column: int, theme_tokens: dict | None = None
+) -> list:
     """Everything a version pins wider than the column: its own rules, its inline
     styles, and the width="" attributes that count as pixels.
 
     A conditional rule counts here, where it cannot define the column: a pin is a risk
-    rather than a baseline, and it overflows whenever its condition holds."""
+    rather than a baseline, and it overflows whenever its condition holds.
+
+    A width naming a token resolves against the page's own root first and the layer's
+    behind it, which is the order the cascade reads them in. A page pinning
+    `var(--wide)` is stating the layer's number, and a reading that knew only the page's
+    own tokens would let the vocabulary's own widths through unmeasured."""
     hits = []
-    tokens = root_tokens(parser.css)
+    tokens = {**(theme_tokens or {}), **root_tokens(parser.css)}
     for selector, block, _ in css_rules(parser.css):
         for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
             if px > column:
@@ -8666,7 +8673,7 @@ def cmd_check(
     errors.extend(css_syntax_errors(theme_css, "theme.css"))
     errors.extend(inline_presentation_override_errors(parser))
     column = _column_width(parser.css, theme_css)
-    errors.extend(_overwide_elements(parser, column))
+    errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))
 
     if errors:
         print(f"✗ {name}: {len(errors)} issue(s)", file=sys.stderr)

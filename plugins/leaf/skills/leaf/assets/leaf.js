@@ -943,6 +943,20 @@ export const pageScroller = document.body;
 // protocol of its own to agree with the send queue and the polling loop.
 const outbox = [];
 let outboxOrder = 0;
+const actionMatches = (el, action, detail) => {
+  const spec = registry[el.localName]?.["x-state"]?.[action];
+  if (!spec) return false;
+  if (spec.requires && !requirementMatches(el, spec, detail)) return false;
+  return true;
+};
+
+// Whether this action is available from the durable state the tab currently projects.
+// Modules use it to paint controls and guard gestures; sendAction asks it again at the
+// common browser door. POST interprets the same x-state declaration under the append
+// lock, because this tab's projection may be stale rather than authoritative.
+export const actionAvailable = (el, action, detail) =>
+  !quoted(el) && actionMatches(el, action, detail);
+
 export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
@@ -955,6 +969,7 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
     );
     return null;
   }
+  if (!actionMatches(el, action, detail)) return null;
   return post({
     kind: "action",
     version: currentVersion,
@@ -1498,9 +1513,9 @@ const tagsDeclaring = (holds) =>
   widgetEntries()
     .filter(([, entry]) => holds(entry))
     .map(([tag]) => tag);
-// The registry's shared predicate vocabulary: every declared attribute holds one of
-// the admitted values. A boolean asks whether a flag is present; other values compare
-// with the attribute's text. The lint holds each value to the attribute's schema.
+// Every declared attribute holds one of the admitted values. A boolean asks whether a
+// flag is present; other values compare with the attribute's text. The lint holds each
+// value to the attribute's schema.
 export const matchesWhen = (el, when) =>
   Object.entries(when ?? {}).every(([attr, values]) =>
     values.some((value) =>
@@ -9551,30 +9566,127 @@ function toggleHelp() {
 // Both halves of "unanswered" were already written down. Asking is the entry's own
 // condition over the element's attributes: a group takes picks only with `choose` and
 // stops asking once it is `settled`, a task waits only at `review` or `blocked`. And
-// answered is the state x-state already declares — where a verb records itself as an
-// attribute the page carries the answer, so a version that honors a pick reads as
-// answered with no log at all (the shipped examples arrive that way) and a pick the
-// reader cleared reads as open again. Every other verb answers through its own
-// surviving fold entry, and the dispatch below is on the attribute kind rather than on
-// having a record at all, because the two cases that aren't attributes come to the same
-// thing: accept and reject record nothing, honoring retiring the whole wrapper, and a
-// draft's edit records into the body, which no attribute read could reach either.
+// answered is the state of one of x-awaits' explicit answer verbs. An attribute record
+// lets authored markup honor a pick and lets clearing it reopen the ask; another named
+// verb answers through its surviving fold entry. Verbs not named there are orthogonal
+// state, so moving a deadline cannot silently answer the decision it postpones.
 const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
 // Every declared attribute holding one of the values that ask — a flag's two values
 // being its presence and its absence, since it carries none of its own.
-function answeredAsk(el, fold) {
-  const specs = Object.entries(registry[el.tagName.toLowerCase()]["x-state"] ?? {});
+function answeredAsk(el, projection) {
+  const entry = registry[el.tagName.toLowerCase()];
+  const verbs = entry["x-awaits"].answers ?? [];
   // The fold holds one entry per facet and unit, so a recordless verb is
   // answered only by an entry that is actually its own — a `choose` surviving in
   // the selection facet says nothing about `answer`'s completion facet, and a
   // cleared pick must ask again.
-  return specs.some(([verb, spec]) =>
-    spec.record?.kind === "attribute"
-      ? domFacet(el, spec.record) !== ""
-      : fold.get(stateCoordinate(el.id, el.id, spec))?.e.action === verb,
-  );
+  return verbs.some((verb) => {
+    const spec = entry["x-state"][verb];
+    return spec.record?.kind === "attribute"
+      ? projectedFacet(el, spec, projection.actions) !== ""
+      : projection.actions.get(stateCoordinate(el.id, el.id, spec))?.e.action === verb;
+  });
 }
 const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
+
+function askContext(projection = stateProjection(currentVersion)) {
+  const positionedParents = new Map();
+  for (const { unit, e, spec } of projection.desired.values()) {
+    if (spec.record?.kind !== "position") continue;
+    const parent = elementById(e.detail[spec.record.value]);
+    const moved = elementById(unit);
+    let holder = parent;
+    while (holder && !registry[holder.localName])
+      holder = authoredParents.get(holder) ?? holder.parentElement;
+    if (
+      parent &&
+      moved &&
+      holder &&
+      (registry[moved.localName]?.["x-parent"] ?? []).includes(holder.localName)
+    )
+      positionedParents.set(unit, parent);
+  }
+  return {
+    projection,
+    positionedParents,
+    settled: new Set(
+      buildThreads()
+        .filter((thread) => thread.resolved)
+        .map((thread) => thread.root.id),
+    ),
+  };
+}
+
+function askExists(el, context) {
+  if (quoted(el) || settledAway(el)) return false;
+  const thread = closestAcross(el, ".lf-thread, .lf-going");
+  return !thread || !context.settled.has(thread.dataset.id);
+}
+
+function projectedParent(el, context) {
+  return (
+    (el.id && context.positionedParents.get(el.id)) ??
+    authoredParents.get(el) ??
+    el.parentElement
+  );
+}
+
+function nearestRollup(el, context) {
+  for (
+    let node = projectedParent(el, context);
+    node;
+    node = projectedParent(node, context)
+  )
+    if (askEntry(node)?.rollup) return node;
+  return null;
+}
+
+function projectedContains(ancestor, el, context) {
+  for (let node = el; node; node = projectedParent(node, context))
+    if (node === ancestor) return true;
+  return false;
+}
+
+function locallyAsks(el, context) {
+  return (
+    askExists(el, context) &&
+    matchesProjectedWhen(el, askEntry(el).when, context.projection)
+  );
+}
+
+// The ordinary case is one local request. A roll-up is the same request projected
+// through a nested plan: a non-requesting node stops the walk; direct interventions
+// take precedence; otherwise child roll-ups recurse; a leaf
+// that matches its condition waits. Every relation is discovered from x-awaits, so
+// a custom goal and a custom intervention join without a tag branch.
+function isAwaiting(el, context) {
+  if (!askExists(el, context)) return false;
+  if (!matchesProjectedWhen(el, askEntry(el).when, context.projection)) return false;
+  const entry = askEntry(el);
+  if (!entry.rollup)
+    return !(inChrome(el)
+      ? answeredThreadAsk(el, context.projection)
+      : answeredAsk(el, context.projection));
+
+  const tags = askTags();
+  const direct = tags.length
+    ? [...document.querySelectorAll(tags.join(","))].filter(
+        (candidate) => candidate !== el && nearestRollup(candidate, context) === el,
+      )
+    : [];
+  const interventions = direct.filter(
+    (candidate) => !askEntry(candidate).rollup && locallyAsks(candidate, context),
+  );
+  if (interventions.length)
+    return interventions.some((candidate) => isAwaiting(candidate, context));
+  const children = direct.filter((candidate) => askEntry(candidate).rollup);
+  if (children.length)
+    return children.some((candidate) => isAwaiting(candidate, context));
+  return !(inChrome(el)
+    ? answeredThreadAsk(el, context.projection)
+    : answeredAsk(el, context.projection));
+}
+
 // In document order, because that is the order the page asks them in and the order
 // the reader walks — the chrome container sits after the page's blocks, so a thread's
 // question queues behind the page's own. Quoted material asks nothing (an exhibited
@@ -9588,44 +9700,33 @@ function openAsks() {
   if (!pagePresented()) return [];
   const tags = askTags();
   if (!tags.length) return [];
-  const projection = stateProjection(currentVersion);
-  // A question in a thread is the thread's, so a thread the log has settled asks
-  // nothing more — the same reading paintAnchors makes when it takes a resolved
-  // thread's mark off the page. Settlement comes from the log and placement from the
-  // DOM, and the node keeps its id while it folds out of the open list, so the count
-  // drops in the frame the resolve lands, whoever posted it. Without this, a question
-  // the agent asked and then withdrew by resolving would stand in the banner's count
-  // for the life of the page, and n would step the reader into a shut disclosure.
-  const settled = new Set(
-    buildThreads()
-      .filter((t) => t.resolved)
-      .map((t) => t.root.id),
+  const context = askContext();
+  const open = [...document.querySelectorAll(tags.join(","))].filter((el) =>
+    isAwaiting(el, context),
   );
-  return [...document.querySelectorAll(tags.join(","))].filter((el) => {
-    // settledAway: an ask inside a slot the log retired left the page with it —
-    // a group in a rejected suggestion's lf-new counted on, and the walk
-    // stepped the reader to a hidden element.
-    if (quoted(el) || settledAway(el) || !matchesWhen(el, askEntry(el).when))
-      return false;
-    const thread = closestAcross(el, ".lf-thread, .lf-going");
-    if (thread && settled.has(thread.dataset.id)) return false;
-    return !(inChrome(el)
-      ? answeredThreadAsk(el, projection.actions)
-      : answeredAsk(el, projection.actions));
-  });
+  // A roll-up delegates its visible request to the open intervention or child that
+  // made it true. Keep the actionable leaf in the banner and keyboard walk, not the
+  // same request repeated at each ancestor.
+  return open.filter(
+    (el) =>
+      !askEntry(el).rollup ||
+      !open.some(
+        (candidate) => candidate !== el && projectedContains(el, candidate, context),
+      ),
+  );
 }
 // A thread ask has no version or restatement, but undo still withdraws an action.
 // `x-awaits.until` therefore reads the same standing action projection as the DOM:
 // a posted answer closes the ask, and taking it back opens the ask again.
-function answeredThreadAsk(el, fold) {
+function answeredThreadAsk(el, projection) {
   const entry = registry[el.tagName.toLowerCase()];
   if (!Object.keys(entry["x-state"] ?? {}).length) return true;
   const until = entry["x-awaits"].until;
-  if (until && matchesWhen(el, until.when))
-    return [...fold.values()].some(
+  if (until && matchesProjectedWhen(el, until.when, projection))
+    return [...projection.actions.values()].some(
       ({ e }) => e.widget === el.id && e.action === until.verb,
     );
-  return answeredAsk(el, fold);
+  return answeredAsk(el, projection);
 }
 
 // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding
@@ -10597,6 +10698,7 @@ async function activateVersion(doc, version) {
 
   resetAuthoredPage();
   rememberAuthoredMarkup(source);
+  rememberAuthoredMarkup(fresh);
   rememberPassageParts(fresh);
   markWide(fresh);
   authoredHtmlAttributes = replaceAuthoredAttributes(
@@ -10981,6 +11083,77 @@ function foldedFacet(e, record) {
   return value ?? null;
 }
 
+// One canonical current reading for action admission as for replay: the latest desired
+// action/report at an owner-unit-facet coordinate, falling back to the version's
+// captured authored facet. A gesture may already have changed the live DOM before it
+// calls sendAction, so eligibility never reads that mutable rendering.
+function projectedFacet(
+  widget,
+  spec,
+  winners = stateProjection(currentVersion).desired,
+) {
+  const coordinate = stateCoordinate(widget.id, widget.id, spec);
+  const winner = winners.get(coordinate);
+  return winner
+    ? foldedFacet(winner.e, winner.spec.record)
+    : authoredFacets.get(coordinate);
+}
+
+// x-awaits conditions normally name authored configuration attributes (choose,
+// multiple), but a value record can make the tested attribute itself current state
+// (a task's reported status). Read that field from the same fold that replay uses,
+// never from DOM a gesture or a not-yet-painted poll may already have changed.
+function matchesProjectedWhen(widget, when, projection) {
+  return Object.entries(when ?? {}).every(([attr, values]) => {
+    const declaration = stateSpecs().find(
+      ({ tag, spec }) =>
+        tag === widget.localName &&
+        spec.unit === "widget" &&
+        spec.record?.kind === "value" &&
+        spec.record.attr === attr,
+    );
+    const value = declaration
+      ? projectedFacet(widget, declaration.spec, projection.desired)
+      : widget.getAttribute(attr);
+    const present = declaration ? value !== null : widget.hasAttribute(attr);
+    return values.some((candidate) =>
+      typeof candidate === "boolean" ? present === candidate : value === candidate,
+    );
+  });
+}
+
+// Parent means the nearest enclosing vocabulary widget. The registry boundary has
+// already proved it is one of the sender's x-parent holders and that every permitted
+// holder declares this facet, so runtime code neither names nor skips widget families.
+function requirementTarget(widget, target, context) {
+  if (target === "self") return widget;
+  const permitted = registry[widget.localName]["x-parent"] ?? [];
+  for (
+    let node = projectedParent(widget, context);
+    node;
+    node = projectedParent(node, context)
+  )
+    if (registry[node.localName])
+      return permitted.includes(node.localName) && askEntry(node) ? node : null;
+  return null;
+}
+
+function requirementMatches(widget, spec, detail) {
+  if (!pagePresented()) return false;
+  const requirement = spec.requires;
+  if (requirement.change === "increase") {
+    const current = projectedFacet(widget, spec);
+    const proposed = detail?.[spec.record.value];
+    if (!/^\d+$/.test(current ?? "") || !/^\d+$/.test(proposed ?? "")) return false;
+    if (BigInt(proposed) <= BigInt(current)) return true;
+  }
+  const context = askContext();
+  const target = requirementTarget(widget, requirement.target, context);
+  if (!target) return false;
+  const awaiting = isAwaiting(target, context);
+  return awaiting === requirement.awaiting;
+}
+
 // The same capture read the other way: the detail that *states* each unit's
 // authored placement, keyed by the verb that would state it. The facet above is
 // what a comparison needs, and it is deliberately lossy — a position collapses to
@@ -11008,10 +11181,17 @@ const authoredStatements = new Map(); // widget id -> coordinate -> absolute sta
 // injected controls, the marks, and `once`'s own stamp with them — so putting it back
 // would put back a widget that had already been upgraded and would never upgrade again.
 const authoredMarkup = new Map(); // widget id -> the markup this version wrote
+const authoredParents = new WeakMap(); // element -> its pre-upgrade parent
 // By tag rather than by verb, because a family declaring two record-less verbs — a
 // suggestion's accept and its reject — would otherwise clone every one of its
 // instances once per verb and keep the last.
 function rememberAuthoredMarkup(root = document) {
+  const elements = root.nodeType === Node.ELEMENT_NODE ? [root] : [];
+  elements.push(...root.querySelectorAll("*"));
+  for (const element of elements)
+    if (!authoredParents.has(element))
+      authoredParents.set(element, element.parentElement);
+
   const settlements = new Set(
     stateSpecs()
       .filter(({ spec }) => !spec.record)

@@ -265,6 +265,17 @@ declare the fold unit, facet, detail schema, and optional record form for every
 verb. `unitOf` finds the unit from the declaration. No core consumer branches on
 a widget tag or verb to determine state identity.
 
+An `x-state` verb may also declare `requires`, a prerequisite over the standing
+request projection `x-awaits` already defines. Its target is the sender or its
+declared parent, and it may apply only when an absolute unsigned value would
+increase. `actionAvailable` paints and guards the exact gesture, `sendAction`
+checks at the common browser door, and POST evaluates the same declaration from
+the authoritative log under the append lock. No eligibility cache sits beside
+the ordinary ask and state projections. `x-awaits.answers` says which actions
+actually close the request; orthogonal actions do not. `x-awaits.rollup` derives
+a nested request from direct interventions and child roll-ups, using the same
+reducer in the browser and file projection.
+
 `stateProjection(upto)` is the pure derived view. It classifies every action and
 report, applies version and retraction windows, drops withdrawn actions and
 answered reports, folds the last action for each coordinate, retains report
@@ -487,12 +498,12 @@ The extension keys describe general behavior:
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
 | `x-verbatim` | authored data must agree with the rendered words |
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
-| `x-state` | reader action verbs, semantic facets, units, schemas, and records |
+| `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
 | `x-parent` | the child widgets whose decisions belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
-| `x-awaits` | the condition under which a widget is waiting on the reader |
+| `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
 | `x-conversation` | the condition under which the widget owns a conversation seat |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
@@ -549,6 +560,9 @@ inside a module. The scaffold names the minimum obligations:
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
   browser schema.
+- For a verb with `requires`, use `actionAvailable(el, verb, detail)` for both its
+  visible control state and its gesture guard. `sendAction` and POST repeat that
+  declared check at their respective doors.
 - Read authored or user-facing words with `says`, never raw `textContent`.
 - Build injected controls with `offer`. Use `relabel` when a control's label is
   also one of the page's words.
@@ -1067,6 +1081,12 @@ Ask rows come from `x-awaits`, not from a list of ask tags. `itemSays` supplies
 each row's own label. Selecting a row travels through the same ask-arrival
 function as `n` and `p`, so numbered and directional navigation agree about
 focus, reveal, scroll, and `landed`.
+
+An ask is answered only through a verb listed in `x-awaits.answers`; do not infer
+that every state change is an answer. A `rollup` instance evaluates its own `when`,
+then matching direct non-rollup interventions, then child
+roll-ups, and finally itself as a leaf. The visible list keeps the deepest open
+member, while `actionAvailable` may query an ancestor's exact value.
 
 ### Address chord
 

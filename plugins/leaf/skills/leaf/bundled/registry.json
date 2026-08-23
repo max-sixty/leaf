@@ -16,7 +16,7 @@
     "x-says": {"label": "before"},
     "x-upgrade": true,
     "x-conversation": {"when": {"choose": [true]}},
-    "x-awaits": {"when": {"choose": [true], "settled": [false]}, "until": {"verb": "answer", "when": {"multiple": [true]}}},
+    "x-awaits": {"when": {"choose": [true], "settled": [false]}, "answers": ["choose"], "until": {"verb": "answer", "when": {"multiple": [true]}}},
     "x-state": {
       "choose": {
         "detail": {"type": "object", "properties": {"options": {"type": "array", "items": {"type": "string"}}}, "required": ["options"], "additionalProperties": false},

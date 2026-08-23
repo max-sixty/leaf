@@ -73,9 +73,9 @@ A CSS-only widget is an entry and a theme rule. One with behavior takes a module
 scaffold's header comment lists what a module owes — every item is a section of the
 skill's own `CLAUDE.md`, one directory up from this file, learned by getting it wrong: an absolute
 `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
-injected, `keys()` at upgrade, `quoted()` before wiring input, durable state in
-attributes because export drops the scripts. The helper surface `/leaf.js` exports is
-the whole of what a module gets.
+injected, `keys()` at upgrade, `quoted()` before wiring input, `actionAvailable()` for
+an x-state verb with `requires`, and durable state in attributes because export drops
+the scripts. The helper surface `/leaf.js` exports is the whole of what a module gets.
 
 ## Seeing it
 

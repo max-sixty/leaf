@@ -201,16 +201,13 @@ lf-options {
                 the reader — a question with no pick, a change nobody has decided, a
                 piece of work the page says is waiting on them. One declaration is the
                 whole of it. The banner's count, the <code>n</code>/<code>p</code> walk
-                that steps them, and the <code>?</code> overlay's row are three readings
-                of one list, so nothing counts asks by naming a tag and the twelfth
-                widget joins by declaring rather than by being taught to three
-                consumers. Quoted material asks nothing — an exhibited decision is a
-                mention (x-exhibit). A widget inside a thread asks like one on the page
-                — a question is a request to the reader wherever it stands, and the walk
-                opens the panel to reach it — with one bound set by what a thread is:
-                its markup is frozen, so no version can answer there, and only a widget
-                with an action channel (x-state) asks in a thread at all. Its fields —
-                <code>when</code>, <code>until</code>, <code>all</code> — are $awaits'.
+                that steps them, the <code>?</code> overlay's row, and conditional
+                x-state actions are readings of one projection, so nothing names a tag
+                and the twelfth widget joins by declaring. Quoted material asks nothing.
+                A widget inside a thread asks like one on the page, with one bound set
+                by frozen thread markup: only an action can answer it there. Its fields
+                — <code>when</code>, <code>answers</code>, <code>rollup</code>,
+                <code>until</code>, <code>all</code> — are $awaits'.
               </td>
             </tr>
             <tr>
@@ -369,8 +366,9 @@ lf-options {
               <td>
                 What x-state declares, once per widget with an action channel: each
                 verb's detail schema (the payload half of the log's forever-contract),
-                its semantic facet, fold unit, and the record form its state takes in
-                markup. The owning widget instance, unit, and facet together name one
+                its semantic facet, fold unit, optional current-state
+                <code>requires</code>, and the record form its state takes in markup.
+                The owning widget instance, unit, and facet together name one
                 independently standing fact: verbs on the same tag and facet share their
                 unit and record form, competing verbs there supersede one another, and
                 distinct facets coexist. Every applyAction is absolute, so the user's
@@ -380,11 +378,13 @@ lf-options {
                 contradicts the fold without <code>restated</code> is refused; writing
                 the folded state is honoring; re-emitting the previous version's state
                 is blessed silence), the record-lag report, the runtime's
-                decided-but-unhonored mark, and the version diff's state half. One
-                detail field name is reserved across every verb:
-                <code>resolves</code> means the comment thread this action answers,
-                thread settlement reads it on any action, and the lint holds a verb
-                declaring the name to a plain string on a widget-absolute unit — a
+                decided-but-unhonored mark, and the version diff's state half. The
+                browser uses <code>requires</code> for its controls and common send
+                door; POST interprets the same prerequisite against the authoritative
+                fold under the append lock. One detail field name is reserved across
+                every verb: <code>resolves</code> means the comment thread this action
+                answers, thread settlement reads it on any action, and the lint holds a
+                verb declaring the name to a plain string on a widget-absolute unit — a
                 thread is answered by the ask, and an ask is a widget instance
                 ($awaits). Because thread history can outlive its markup, every action
                 verb on a resolves-bearing tag shares one answer facet. A report verb
@@ -393,7 +393,8 @@ lf-options {
                 thread is the widget's standing answer rather than the fact an answer
                 was once given, so an answer that a later action at that coordinate
                 supersedes, or that a <code>restated</code> takes back, leaves the
-                thread open again. The facet, unit, and record forms are $state's.
+                thread open again. The facet, unit, requires, and record forms are
+                $state's.
               </td>
             </tr>
             <tr>

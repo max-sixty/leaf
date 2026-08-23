@@ -4379,6 +4379,52 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
     assert "detail" in result.output
 
 
+def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_dir):
+    """Eligibility governs fresh transitions, not the log's forever-contract.
+
+    A recorded action remains structurally meaningful even if a replacement layer
+    would no longer offer that gesture in the same state. Re-vendoring must preserve
+    and replay it rather than applying today's admission policy retroactively.
+    """
+    registry = json.loads((page_dir / "registry.json").read_text())
+    options = registry["lf-options"]["x-example"]
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", options + "\n</section>")
+    )
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "run-status",
+            "action": "choose",
+            "detail": {"options": ["rs-column"]},
+        },
+    )
+
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "self",
+        "awaiting": True,
+    }
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps({"lf-options": registry["lf-options"]})
+    )
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert [
+        event["action"]
+        for event in interact.read_events(page_dir)
+        if event["kind"] == "action"
+    ] == ["choose"]
+
+
 def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_dir):
     """A report is the log's forever-contract exactly as an action is: an
     incoming layer that drops the widget's x-report verb strands every recorded
@@ -5547,6 +5593,18 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
             {"until": {"verb": "answer", "when": {"batch": [True]}}},
             "names undeclared attribute `batch`",
         ),
+        (
+            "lf-options",
+            "x-awaits",
+            {"answers": ["submit"]},
+            "names undeclared answer verbs",
+        ),
+        (
+            "lf-chip",
+            "x-awaits",
+            {"rollup": True},
+            "does not require an id",
+        ),
     ],
 )
 def test_check_refuses_a_predicate_no_page_could_carry(
@@ -5566,6 +5624,137 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     result = check(page_dir)
     assert result.exit_code != 0
     assert f"<{tag}> {key}" in result.output and message in result.output
+
+
+def test_rollup_false_is_omitted_instead_of_becoming_a_second_form(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-awaits"] = {"rollup": False}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "<lf-options> registry extensions are invalid" in result.output
+    assert "True was expected" in result.output
+
+
+def test_an_unconditional_request_declaration_is_valid(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-awaits"] = {}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    assert check(page_dir).exit_code == 0
+
+
+def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-chip"]["x-awaits"] = {}
+    registry["lf-options"]["x-parent"] = ["lf-chip"]
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "parent",
+        "awaiting": True,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "['lf-chip'] do not require an id" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "verb", "requires", "message"),
+    [
+        (
+            "lf-board",
+            "move",
+            {"target": "self", "awaiting": True},
+            "do not declare x-awaits",
+        ),
+        (
+            "lf-options",
+            "choose",
+            {"target": "parent", "awaiting": True},
+            "declares no x-parent",
+        ),
+    ],
+)
+def test_check_refuses_action_prerequisites_without_a_declared_request_target(
+    page_dir, tag, verb, requires, message
+):
+    """Both runtime interpreters may assume a prerequisite passed this one door."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry[tag]["x-state"][verb]["requires"] = requires
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert f"<{tag}> x-state verb `{verb}`" in result.output
+    assert message in result.output
+
+
+def test_only_reader_actions_admit_current_eligibility(page_dir):
+    """Reports state agent news; they are not gestures the reader can disable."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-report"]["status"]["requires"] = {
+        "target": "self",
+        "awaiting": False,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "<lf-task> registry extensions are invalid" in result.output
+    assert "requires" in result.output
+
+
+def test_check_refuses_increase_condition_without_an_unsigned_scalar_record(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "self",
+        "awaiting": True,
+        "change": "increase",
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "conditions an increase" in result.output
+    assert "unsigned-integer value record" in result.output
+
+
+def test_a_self_position_record_stays_within_the_declared_parent_relation(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-parent"] = ["lf-task"]
+    registry["lf-options"]["x-state"]["move"] = {
+        "detail": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "index": {"type": "integer", "minimum": 0},
+            },
+            "required": ["to", "index"],
+            "additionalProperties": False,
+        },
+        "facet": "placement",
+        "unit": "widget",
+        "record": {
+            "kind": "position",
+            "within": "lf-column",
+            "value": "to",
+            "order": "index",
+        },
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "records its own position within <lf-column>" in result.output
+    assert "x-parent does not admit" in result.output
 
 
 @pytest.mark.parametrize(
@@ -5760,7 +5949,7 @@ def test_a_record_contract_does_not_open_a_browser_event_kind(server, page_dir):
         data=json.dumps({"kind": "signal", "text": "hello"}).encode(),
     )
 
-    assert status == 400
+    assert status == 400, body
     assert "kind must be one of" in json.loads(body)["error"]
 
 
@@ -6792,6 +6981,244 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
     )
     assert status == 400
     assert "unknown action widget" in json.loads(body)["error"]
+
+
+@pytest.mark.parametrize("in_thread", [False, True])
+def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
+    server, page_dir, in_thread
+):
+    """A child attribute record closes the sender's standing request."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["defer"] = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "facet": "deferral",
+        "unit": "widget",
+        "requires": {"target": "self", "awaiting": True},
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="eligibility-options" choose>'
+            '<lf-option id="eligibility-a">A</lf-option>'
+            '<lf-option id="eligibility-b">B</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+
+    publish(page_dir)
+    widget = "eligibility-options"
+    option = "eligibility-a"
+    if in_thread:
+        interact.append_event(
+            page_dir,
+            {
+                "kind": "comment",
+                "id": "c-eligibility",
+                "author": "user",
+                "version": 1,
+                "text": "change this task",
+            },
+        )
+        reply = CliRunner().invoke(
+            interact.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c-eligibility",
+                "--text",
+                "Here it is:",
+                "--markup",
+                (
+                    '<lf-options id="thread-options" choose>'
+                    '<lf-option id="thread-a">A</lf-option>'
+                    '<lf-option id="thread-b">B</lf-option>'
+                    "</lf-options>"
+                ),
+            ],
+        )
+        assert reply.exit_code == 0, reply.output
+        widget = "thread-options"
+        option = "thread-a"
+
+    choose = {
+        "kind": "action",
+        "version": 1,
+        "widget": widget,
+        "action": "choose",
+        "detail": {"options": [option]},
+    }
+    nonanswer = {**choose, "action": "defer", "detail": {}}
+    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
+    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
+    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
+    before = len(interact.read_events(page_dir))
+
+    status_code, body = fetch(
+        f"{server}/api/event", data=json.dumps(nonanswer).encode()
+    )
+
+    assert status_code == 400
+    assert "action 'defer' is unavailable" in json.loads(body)["error"]
+    assert "no longer awaiting the reader" in json.loads(body)["error"]
+    assert len(interact.read_events(page_dir)) == before
+
+
+def test_server_checks_recursive_parent_prerequisite_under_append_lock(
+    server, page_dir
+):
+    """A custom scalar reads the declared roll-up, not ask containment."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-awaits"]["rollup"] = True
+    scalar = {"type": "string", "pattern": "^[0-9]+$"}
+    detail = {
+        "type": "object",
+        "properties": {"slots": scalar},
+        "required": ["slots"],
+        "additionalProperties": False,
+    }
+    record = {"kind": "value", "attr": "slots", "value": "slots"}
+    registry["lf-quota"] = {
+        "description": "A project-defined absolute scalar control.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "slots": scalar,
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id", "slots"],
+        "additionalProperties": False,
+        "x-parent": ["lf-task"],
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-state": {
+            "move": {
+                "detail": {
+                    "type": "object",
+                    "properties": {
+                        "to": {"type": "string"},
+                        "index": {"type": "integer", "minimum": 0},
+                    },
+                    "required": ["to", "index"],
+                    "additionalProperties": False,
+                },
+                "facet": "placement",
+                "unit": "widget",
+                "record": {
+                    "kind": "position",
+                    "within": "lf-task",
+                    "value": "to",
+                    "order": "index",
+                },
+            },
+            "set": {
+                "detail": detail,
+                "facet": "capacity",
+                "unit": "widget",
+                "record": record,
+                "requires": {
+                    "target": "parent",
+                    "awaiting": False,
+                    "change": "increase",
+                },
+            },
+        },
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="active">'
+            "<strong>Task</strong>"
+            '<lf-quota id="quota" slots="1"></lf-quota>'
+            '<lf-options id="quota-intervention" choose label="Proceed?">'
+            '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+            '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
+            "</lf-task>"
+            '<lf-task id="quota-destination" status="active">'
+            "<strong>Destination</strong></lf-task>"
+            "</lf-tasks></section>",
+        )
+    )
+    publish(page_dir)
+
+    event = {
+        "kind": "action",
+        "version": 1,
+        "widget": "quota",
+        "action": "set",
+        "detail": {"slots": "2"},
+    }
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "agent",
+            "version": 1,
+            "widget": "quota-task",
+            "action": "status",
+            "detail": {"status": "blocked"},
+        },
+    )
+    # The answered direct intervention takes precedence over the nested task, so the
+    # stopped parent is available while that answer stands.
+    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "agent",
+            "version": 1,
+            "widget": "quota-child",
+            "action": "status",
+            "detail": {"status": "blocked"},
+        },
+    )
+    increase = {**event, "detail": {"slots": "3"}}
+    assert fetch(f"{server}/api/event", data=json.dumps(increase).encode())[0] == 200
+
+    # Clearing the direct answer reopens that intervention. It now overrides the
+    # blocked child in the other direction and closes capacity under the same lock.
+    choose = {
+        "kind": "action",
+        "version": 1,
+        "widget": "quota-intervention",
+        "action": "choose",
+        "detail": {"options": []},
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
+    increase = {**event, "detail": {"slots": "4"}}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(increase).encode())
+    assert status == 400
+    assert "still awaiting the reader" in json.loads(body)["error"]
+
+    decrease = {**event, "detail": {"slots": "0"}}
+    assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
+
+    # Placement is projected too. After the absolute move, admission reads the
+    # active destination rather than the blocked parent in authored markup.
+    move = {
+        "kind": "action",
+        "version": 1,
+        "widget": "quota",
+        "action": "move",
+        "detail": {"to": "quota-destination", "index": 0},
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(move).encode())[0] == 200
+    increase_after_move = {**event, "detail": {"slots": "1"}}
+    assert (
+        fetch(f"{server}/api/event", data=json.dumps(increase_after_move).encode())[0]
+        == 200
+    )
+    assert [
+        logged["action"]
+        for logged in interact.read_events(page_dir)
+        if logged["kind"] == "action"
+    ] == ["set", "set", "choose", "set", "move", "set"]
 
 
 def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(

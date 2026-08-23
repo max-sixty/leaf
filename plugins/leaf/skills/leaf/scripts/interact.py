@@ -292,12 +292,13 @@ vocabulary for rides in the custom keywords below:
                 declares and theme.css spends the room the layout measured, so a
                 page's shape follows what it holds and no page states a width.
     x-state     the widget's action verbs: each verb's detail schema, semantic
-                facet, fold unit, and the record form its state takes in markup. Every
-                applyAction is absolute, so the user's standing state is a
-                fold — the last surviving action per owner, unit, and facet — and one declaration
-                drives the POST and re-vendor contract gates, check's state gate,
-                the record-lag report, the runtime's pending mark, and the diff's
-                state half (see $state in the registry).
+                facet, fold unit, optional current-state prerequisite, and the record
+                form its state takes in markup. Every applyAction is absolute, so the
+                user's standing state is a fold — the last surviving action per owner,
+                unit, and facet — and one declaration drives the browser and POST
+                eligibility doors, the re-vendor contract gate, check's state gate,
+                the record-lag report, the runtime's pending mark, and the diff's state
+                half (see $state in the registry).
     x-report    the widget's agent channel: report verbs a worker folds onto the
                 page through `leaf report`, each with a detail schema, facet,
                 fold unit, and *required* record form — declared state only, never
@@ -326,14 +327,11 @@ vocabulary for rides in the custom keywords below:
                 author's to take back and which hold the page's own words.
     x-awaits    an instance of this tag is a standing request to the reader.
                 `when` says which instances ask (attribute values, a flag's
-                being true and false); `all` names the verb one press answers
-                every one
-                with. What counts as answered needs no new bookkeeping: a verb
-                that records as an attribute answers on the record the replayed
-                page carries, and every other verb answers through its own
-                surviving fold entry, whatever else it records — so the banner's
-                count, the key that steps through open asks, and the `?` overlay
-                all read one list (see $awaits).
+                being true and false); `answers` names the x-state verbs that
+                close it; `rollup` derives nested requests from ordinary
+                interventions and child roll-ups; `all` names the answer one
+                blanket press takes. The banner, navigation, help, and
+                conditional actions all read this projection (see $awaits).
     x-example   one authored example, printed by `page catalog`
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
@@ -564,43 +562,9 @@ _RECORD_VALUE = {
 }
 
 
-def _verbs_schema(records: list, required: list) -> dict:
-    """The shape x-state and x-report share: verbs to
-    {detail, facet, unit, record}, differing only in which record forms a
-    channel admits and whether one is required at all."""
-    return {
-        "type": "object",
-        "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {
-            "type": "object",
-            "properties": {
-                "detail": {"type": "object"},
-                "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "unit": {"type": "string", "minLength": 1},
-                "record": {"oneOf": records},
-            },
-            "required": required,
-            "additionalProperties": False,
-        },
-    }
-
-
-STATE_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
-    ["detail", "facet", "unit"],
-)
-# A report moves declared state only, never body words — no body record, so the
-# passage reading never has to model one — and the record itself is required:
-# the gate compares record forms, and a recordless report would be a claim
-# nothing could check a version against.
-REPORT_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
-    ["detail", "facet", "unit", "record"],
-)
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves every registry consumer because
-# they ask the same question of the same attributes.
+# present or absent). One condition shape serves asks and conversations because they
+# ask the same question of the same authored attributes.
 ASK_CONDITION = {
     "type": "object",
     "minProperties": 1,
@@ -611,10 +575,71 @@ ASK_CONDITION = {
         "minItems": 1,
     },
 }
+
+# Current action eligibility reuses Leaf's standing-request projection. `self` is the
+# sending widget; `parent` is the holder relation its x-parent already declares.
+ACTION_REQUIREMENT = {
+    "type": "object",
+    "properties": {
+        "target": {"enum": ["self", "parent"]},
+        "awaiting": {"type": "boolean"},
+        "change": {"const": "increase"},
+    },
+    "required": ["target", "awaiting"],
+    "additionalProperties": False,
+}
+
+
+def _verbs_schema(records: list, required: list, *, conditional: bool = False) -> dict:
+    """The shape x-state and x-report share: verbs to
+    {detail, facet, unit, record}, differing only in which record forms a
+    channel admits, whether one is required at all, and whether the reader's
+    channel may declare current applicability."""
+    properties = {
+        "detail": {"type": "object"},
+        "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "unit": {"type": "string", "minLength": 1},
+        "record": {"oneOf": records},
+    }
+    if conditional:
+        properties["requires"] = ACTION_REQUIREMENT
+    return {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "additionalProperties": {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
+        },
+    }
+
+
+STATE_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
+    ["detail", "facet", "unit"],
+    conditional=True,
+)
+# A report moves declared state only, never body words — no body record, so the
+# passage reading never has to model one — and the record itself is required:
+# the gate compares record forms, and a recordless report would be a claim
+# nothing could check a version against.
+REPORT_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
+    ["detail", "facet", "unit", "record"],
+)
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": ASK_CONDITION,
+        "answers": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
+            "uniqueItems": True,
+        },
+        "rollup": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "until": {
             "type": "object",
@@ -2357,9 +2382,9 @@ class Handler(BaseHTTPRequestHandler):
                 if registry is None:
                     return self.event_rejection(event, "the page has no registry.json")
                 if error := action_contract_error(
+                    self.page_dir,
                     event,
-                    parse_version(self.page_dir, event["version"]).by_id,
-                    thread_structure(events),
+                    events,
                     registry,
                 ):
                     return self.event_rejection(event, error)
@@ -3091,6 +3116,9 @@ def custom_widget_module(tag: str) -> str:
 //   what was decided (renderRetired paints the same state sooner on the sender's
 //   own gesture). `version check --render` reads the result, and reports a settled
 //   slot that shows words anyway, or a mark the log never decided.
+// - An x-state verb's `requires` is its one current-eligibility rule. Use
+//   actionAvailable(el, verb, detail) to paint and guard the exact gesture;
+//   sendAction and the server repeat that declaration at their own doors.
 // - Read your own slot with says(el), never textContent: the runtime's hidden
 //   comment line lands inside widgets legitimately.
 // - Anything you inject is chrome only if marked: offer() for a control,
@@ -3818,10 +3846,10 @@ def declared_event_error(
     return None
 
 
-def action_contract_error(
+def declared_action_error(
     event: dict, page_by_id: dict, thread: ThreadStructure, registry: dict
 ):
-    """Why a structurally complete action violates its sending widget's contract."""
+    """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own published version. Thread widgets
     # inhabit the panel's other live document. Either record answers both which
     # tag sent the action and whether it stands inside an exhibit.
@@ -3842,6 +3870,81 @@ def action_contract_error(
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
+        )
+    return None
+
+
+def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
+    """Why a fresh action violates its declaration or current applicability.
+
+    Eligibility is derived inside the append transaction from the action's
+    authored document and the standing log. A browser evaluates the same
+    declaration for honest controls, but its possibly stale reading never
+    authorizes this boundary.
+    """
+    version = event["version"]
+    page = parse_version(page_dir, version)
+    thread = thread_structure(events)
+    if error := declared_action_error(event, page.by_id, thread, registry):
+        return error
+    page_rec = page.by_id.get(event["widget"])
+    rec = page_rec or thread.by_id[event["widget"]]
+    tag = rec["tag"]
+    spec = registry[tag]["x-state"][event["action"]]
+    requirement = spec.get("requires")
+    if not requirement:
+        return None
+
+    if page_rec:
+        html = version_path(page_dir, version).read_text(encoding="utf-8")
+        projection, parser, spk = page_projection(html, events, registry, version)
+        byid = parser.by_id
+        current = parser.by_id[event["widget"]]
+        passages = page_passages(
+            html, registry, decisions(projection.actions, registry)
+        )
+        _, awaiting_values = page_ask_projection(
+            parser,
+            projection,
+            byid,
+            spk,
+            registry,
+            set(passages.retired) | set(passages.gone),
+        )
+    else:
+        # Thread markup is frozen in the log: it has no version retraction floor
+        # and its actions read the whole conversation window.
+        byid, spk = {}, {}
+        for logged in events:
+            if markup := logged.get("markup"):
+                fragment = thread.fragments[logged["id"]]
+                byid.update(fragment.by_id)
+                spk.update(spoken(markup, registry))
+        projection = state_projection(events, byid, spk, registry, None, floors={})
+        current = byid[event["widget"]]
+        page_html = version_path(page_dir, version).read_text(encoding="utf-8")
+        threads = build_threads(events, spoken(page_html, registry))
+        settled = {root for root, value in threads.items() if value["resolved"]}
+        _, awaiting_values = thread_ask_projection(events, registry, settled)
+
+    if requirement.get("change") == "increase":
+        current_value = replayed_attrs(current, projection)[spec["record"]["attr"]]
+        proposed = event["detail"][spec["record"]["value"]]
+        if int(proposed) <= int(current_value):
+            return None
+    holders = projected_action_holders(projection, byid, registry)
+    target = (
+        current
+        if requirement["target"] == "self"
+        else holders.get(current["attrs"]["id"], current["holder"])
+    )
+    target_id = target["attrs"]["id"]
+    awaiting = awaiting_values.get(target_id, False)
+    if awaiting != requirement["awaiting"]:
+        return (
+            f"<{tag}> {event['widget']!r} action {event['action']!r} is "
+            f"unavailable: {requirement['target']} {target_id!r} is "
+            f"{'still ' if awaiting else 'no longer '}awaiting the reader"
         )
     return None
 
@@ -6358,10 +6461,25 @@ def validate_registry(registry: dict, source) -> dict:
                         )
         # A blanket answer is one of this widget's own verbs, so the log records it
         # the way every other decision is recorded.
+        answers = awaits.get("answers", [])
+        if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"
+            )
+        if awaits.get("rollup") and "id" not in entry.get("required", []):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits rollup through descendants does "
+                "not require an id"
+            )
         if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
             raise RegistryError(
                 f"{path}: <{tag}> x-awaits answers every one at once with "
                 f"`{blanket}`, which it does not declare as an x-state verb"
+            )
+        if blanket and blanket not in answers:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
+                "its answer verbs"
             )
         # The until verb closes a thread ask, so it too is one of the widget's own
         # verbs — same rule as `all`, same reason.
@@ -6447,6 +6565,61 @@ def validate_registry(registry: dict, source) -> dict:
                     "(or both remain recordless)"
                 )
 
+        # Eligibility reuses the one standing-request projection. Close the target
+        # relation here: self must be an ask, and every holder a child permits must be
+        # one. Runtime evaluators then neither guess a widget family nor maintain a
+        # second representation of whether the request remains open.
+        for verb, spec in entry.get("x-state", {}).items():
+            requirement = spec.get("requires")
+            if not requirement:
+                continue
+            target_tags = (
+                [tag] if requirement["target"] == "self" else entry.get("x-parent", [])
+            )
+            if not target_tags:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires its parent, "
+                    f"but <{tag}> declares no x-parent"
+                )
+            if not all(
+                widgets[target].get("x-awaits") is not None for target in target_tags
+            ):
+                missing = sorted(
+                    target
+                    for target in target_tags
+                    if widgets[target].get("x-awaits") is None
+                )
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires "
+                    f"{requirement['target']} awaiting state, but {missing} do not "
+                    "declare x-awaits"
+                )
+            idless = sorted(
+                target
+                for target in target_tags
+                if requirement["target"] == "parent"
+                and "id" not in widgets[target].get("required", [])
+            )
+            if idless:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires "
+                    f"{requirement['target']} awaiting state, but {idless} do not "
+                    "require an id"
+                )
+            record = spec.get("record")
+            if requirement.get("change") and (
+                spec["unit"] != "widget"
+                or not record
+                or record["kind"] != "value"
+                or spec["detail"]["properties"][record["value"]]
+                != {"type": "string", "pattern": "^[0-9]+$"}
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` conditions an "
+                    "increase, which requires a widget-unit unsigned-integer "
+                    "value record"
+                )
+
         # A facet is semantic, but its record writes a physical slot. Body and
         # position have one per unit; value and attribute-set are keyed by attr.
         physical_slots: dict[tuple[str, str, str | None], tuple[str, str, str]] = {}
@@ -6509,6 +6682,14 @@ def validate_registry(registry: dict, source) -> dict:
                         raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` records a "
                             f"position within unknown widget <{record['within']}>"
+                        )
+                    if spec["unit"] == "widget" and record["within"] not in entry.get(
+                        "x-parent", []
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"its own position within <{record['within']}>, which "
+                            "its x-parent does not admit"
                         )
                 if record["kind"] == "body":
                     if entry.get("x-content") != "data":
@@ -6726,6 +6907,24 @@ def validate_registry(registry: dict, source) -> dict:
                 f"({mapping}); every retirement outcome for one holder must "
                 "share one facet"
             )
+    # Asked only after the record and retirement gates above have reported their
+    # more fundamental structural errors. An answer closes the whole ask, so its
+    # fold coordinate must be the widget rather than one detail-named child.
+    for tag, entry in widgets.items():
+        answers = (entry.get("x-awaits") or {}).get("answers", [])
+        if non_widget := sorted(
+            verb for verb in answers if entry["x-state"][verb]["unit"] != "widget"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits answer verbs {non_widget} must fold on "
+                "the widget"
+            )
+        until = (entry.get("x-awaits") or {}).get("until")
+        if until and entry["x-state"][until["verb"]]["unit"] != "widget":
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
+                "on the widget"
+            )
     return registry
 
 
@@ -6873,7 +7072,7 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
-            error := action_contract_error(
+            error := declared_action_error(
                 e, page_by_id(e["version"]), thread, incoming
             )
         ):
@@ -7612,14 +7811,16 @@ def answered_ask(
     spk: dict,
     registry: dict,
 ) -> bool:
-    """The runtime's `answeredAsk`: a verb that records as an attribute answers
-    on the record the replayed page carries — the fold's where an action
-    survives on the unit, the authored markup's otherwise, so a version that
-    honors a pick reads as answered with no log at all and a pick the reader
-    cleared reads as open again. Any other verb answers only through its own
-    fold entry."""
+    """Whether one of x-awaits' explicit answer verbs stands on this ask.
+
+    An attribute record reads through authored markup as well as the fold, so an
+    honoring version remains answered. Other records need their verb's standing
+    action. Actions absent from `answers` are orthogonal state — notably a deadline
+    snooze — and cannot close the request by accident.
+    """
     unit = rec["attrs"].get("id")
-    for verb, spec in (entry.get("x-state") or {}).items():
+    for verb in entry["x-awaits"].get("answers", []):
+        spec = entry["x-state"][verb]
         held = projection.actions.get(state_coordinate(unit, unit, spec))
         record = spec.get("record")
         if record and record["kind"] == "attribute":
@@ -7651,35 +7852,173 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     )
 
 
-def page_asks(parser, projection, byid, spk, registry: dict, dropped: set) -> list:
-    """The published page's standing asks — the list the banner counts and the
-    `n`/`p` walk steps, read from the file and the log instead of the DOM. An
-    instance asks when its replayed attributes match its entry's `when`;
-    quoted material asks nothing; an instance a decision dropped from the page
-    (`dropped`: ids under retired slots, and decided-empty ids, from the passage
-    reading) asks nothing either, the way the runtime's own list skips what
-    `settledAway` hides; answered is what x-state already declares
-    (`answered_ask`)."""
-    asks = []
-    for rec in parser.lf_elements:
-        entry = registry.get(rec["tag"]) or {}
-        awaits = entry.get("x-awaits")
-        if not awaits:
+def projected_action_holders(
+    projection: StateProjection, byid: dict, registry: dict
+) -> dict[str, dict]:
+    """Unit id → its enclosing vocabulary widget after standing position records."""
+    holders = {}
+    for (_owner, unit, _facet), (event, spec) in projection.desired.items():
+        record = spec.get("record") or {}
+        if record.get("kind") != "position":
             continue
+        target = byid.get(event["detail"][record["value"]])
+        unit_rec = byid.get(unit)
+        if target and unit_rec:
+            holder = target if target["tag"] in registry else target.get("holder")
+            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-parent", [])
+            if holder and holder["tag"] in permitted:
+                holders[unit] = holder
+    return holders
+
+
+def page_ask_projection(
+    source,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+    *,
+    thread: bool = False,
+) -> tuple[list, dict[str, bool]]:
+    """The page's visible asks and exact awaiting value for every declared target.
+
+    An ordinary x-awaits instance is its local condition minus an explicit answer.
+    A roll-up projects the same fact through a nested plan: a false local condition
+    stops; direct ordinary interventions take precedence;
+    otherwise child roll-ups recurse; a matching leaf waits. The browser implements
+    this reducer over the DOM and the same standing fold.
+    """
+    elements = source.lf_elements if hasattr(source, "lf_elements") else source
+    records = [
+        rec
+        for rec in elements
+        if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+    ]
+    positioned_holders = projected_action_holders(projection, byid, registry)
+
+    def entry(rec):
+        return registry[rec["tag"]]
+
+    def holder(rec):
         unit = rec["attrs"].get("id")
-        if unit and unit in dropped:
-            continue
-        if quoted_in(rec, registry):
-            continue
-        if not asking(replayed_attrs(rec, projection), awaits.get("when")):
-            continue
-        if answered_ask(rec, entry, projection, byid, spk, registry):
-            continue
-        asks.append({"id": unit, "tag": rec["tag"], "thread": None})
-    return asks
+        return positioned_holders.get(unit, rec.get("holder"))
+
+    def contains(ancestor, rec):
+        while rec:
+            if rec is ancestor:
+                return True
+            rec = holder(rec)
+        return False
+
+    def answered(rec):
+        rec_entry = entry(rec)
+        if thread:
+            if not rec_entry.get("x-state"):
+                return True
+            until = rec_entry["x-awaits"].get("until")
+            attrs = replayed_attrs(rec, projection)
+            if until and asking(attrs, until["when"]):
+                unit = rec["attrs"].get("id")
+                return any(
+                    action["widget"] == unit and action["action"] == until["verb"]
+                    for action, _spec in projection.actions.values()
+                )
+        return answered_ask(rec, rec_entry, projection, byid, spk, registry)
+
+    def rollup_owner(rec):
+        rec = holder(rec)
+        while rec:
+            if (registry.get(rec["tag"]) or {}).get("x-awaits", {}).get("rollup"):
+                return rec
+            rec = holder(rec)
+        return None
+
+    exists: dict[int, bool] = {}
+    local: dict[int, bool] = {}
+    for rec in records:
+        unit = rec["attrs"].get("id")
+        exists[id(rec)] = not ((unit and unit in dropped) or quoted_in(rec, registry))
+        local[id(rec)] = exists[id(rec)] and asking(
+            replayed_attrs(rec, projection), entry(rec)["x-awaits"].get("when")
+        )
+
+    direct: dict[int, list] = {}
+    for rec in records:
+        if owner := rollup_owner(rec):
+            direct.setdefault(id(owner), []).append(rec)
+
+    values: dict[int, bool] = {}
+
+    def awaits(rec):
+        key = id(rec)
+        if key in values:
+            return values[key]
+        if not exists[key]:
+            values[key] = False
+            return False
+        if not local[key]:
+            values[key] = False
+            return False
+        declaration = entry(rec)["x-awaits"]
+        if not declaration.get("rollup"):
+            values[key] = not answered(rec)
+            return values[key]
+        descendants = direct.get(key, [])
+        interventions = [
+            candidate
+            for candidate in descendants
+            if not entry(candidate)["x-awaits"].get("rollup") and local[id(candidate)]
+        ]
+        if interventions:
+            values[key] = any(awaits(candidate) for candidate in interventions)
+            return values[key]
+        children = [
+            candidate
+            for candidate in descendants
+            if entry(candidate)["x-awaits"].get("rollup")
+        ]
+        values[key] = (
+            any(awaits(candidate) for candidate in children)
+            if children
+            else not answered(rec)
+        )
+        return values[key]
+
+    open_records = [rec for rec in records if awaits(rec)]
+    visible = [
+        rec
+        for rec in open_records
+        if not entry(rec)["x-awaits"].get("rollup")
+        or not any(inner is not rec and contains(rec, inner) for inner in open_records)
+    ]
+    return (
+        [
+            {"id": rec["attrs"].get("id"), "tag": rec["tag"], "thread": None}
+            for rec in visible
+        ],
+        {
+            rec["attrs"]["id"]: values[id(rec)]
+            for rec in records
+            if rec["attrs"].get("id")
+        },
+    )
 
 
-def thread_asks(events: list, registry: dict, settled: set) -> list:
+def page_asks(
+    parser,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+) -> list:
+    return page_ask_projection(parser, projection, byid, spk, registry, dropped)[0]
+
+
+def thread_ask_projection(
+    events: list, registry: dict, settled: set
+) -> tuple[list, dict]:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
@@ -7693,7 +8032,7 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
     structure = thread_structure(events)
-    asks, records, byid, spk = [], [], {}, {}
+    records, byid, spk = [], {}, {}
     thread_of = {}
     for e in events:
         if e["kind"] == "comment":
@@ -7710,28 +8049,22 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
         spk.update(spoken(markup, registry))
         records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
     projection = state_projection(events, byid, spk, registry, None, {})
-    for thread, rec in records:
-        entry = registry.get(rec["tag"]) or {}
-        awaits = entry.get("x-awaits")
-        if not awaits or not entry.get("x-state"):
-            continue
-        unit = rec["attrs"].get("id")
-        if quoted_in(rec, registry):
-            continue
-        attrs = replayed_attrs(rec, projection)
-        if not asking(attrs, awaits.get("when")):
-            continue
-        until = awaits.get("until")
-        if until and asking(attrs, until["when"]):
-            answered = any(
-                action["widget"] == unit and action["action"] == until["verb"]
-                for action, _spec in projection.actions.values()
-            )
-        else:
-            answered = answered_ask(rec, entry, projection, byid, spk, registry)
-        if not answered:
-            asks.append({"id": unit, "tag": rec["tag"], "thread": thread})
-    return asks
+
+    asks, values = page_ask_projection(
+        [rec for _thread, rec in records],
+        projection,
+        byid,
+        spk,
+        registry,
+        set(),
+        thread=True,
+    )
+    thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}
+    return ([{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks], values)
+
+
+def thread_asks(events: list, registry: dict, settled: set) -> list:
+    return thread_ask_projection(events, registry, settled)[0]
 
 
 def unpointable_blocks(parser: _StructParser) -> list:

@@ -232,7 +232,9 @@ Declarations describe general behavior:
 
 - `x-upgrade` says that a module enhances the element.
 - `x-awaits` says the element can hold a request for the reader. It feeds the
-  banner count, asks board, keyboard walk, and help.
+  banner count, asks board, keyboard walk, help, and conditional actions. Its
+  answer verbs are explicit; `rollup` derives a nested plan from ordinary
+  interventions and child roll-ups without naming either family.
 - `x-parent` declares the members that make up a holder. Combined with
   `x-retired-when`, it defines which slots a settlement retires.
 - `x-withdrawn-as` states what an unanswered member becomes when the author
@@ -279,11 +281,15 @@ by member. A tag entry replaces whole because it is one indivisible schema
 contract. `merge_layer_entries` supplies the same merged result to the stamp and
 all gates.
 
-An action's detail schema, semantic facet, fold unit, and record form come from
-`x-state`; reports use the parallel `x-report` channel. `applyAction` states an
-absolute result and is idempotent because polling may apply a standing winner
-again. `version check --render` exercises represented verbs in log order through
-`RELATIVE_REPLAYS`.
+An action's detail schema, semantic facet, fold unit, current-state eligibility,
+and record form come from `x-state`; reports use the parallel `x-report` channel.
+The browser presents and guards a conditional action from that declaration, while
+POST interprets it again against the authoritative fold under the append lock.
+Eligibility reuses the standing-request projection declared by `x-awaits`; it has
+no separate cache or widget-state vocabulary.
+`applyAction` states an absolute result and is idempotent because polling may apply
+a standing winner again. `version check --render` exercises represented verbs in
+log order through `RELATIVE_REPLAYS`.
 
 `shallowSigs` reads authored state without text, while a record form extracts the
 declared words and placement fields. The render gate reapplies every standing

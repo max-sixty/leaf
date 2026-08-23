@@ -2191,9 +2191,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "published version has no canonical script"}, 500)
                 return
             line, column = scripts[0]["position"]
-            offset = sum(
-                len(part) for part in source.splitlines(keepends=True)[: line - 1]
-            )
+            # The parser's own line break and no other. `_StructParser` counts lines
+            # by "\n", while splitlines() also breaks on U+2028, U+2029, U+0085 and
+            # the form feeds — so one of those ahead of the script counts a line the
+            # position never did, and the marker lands that much earlier, inside
+            # whatever the document says further up. The event log's reader states
+            # the same rule for the same reason (see read_events).
+            offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1])
             offset += column
             marker = f'<meta name="lf-version" data-lf-runtime content="{version}">'
             projected = (source[:offset] + marker + source[offset:]).encode()

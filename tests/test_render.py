@@ -15160,6 +15160,24 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     expect(page.locator("#dsc")).to_have_attribute("open", "")
     expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"), timeout=1500)
 
+    # The two completions that take no digit: an edge of the page is one place, so the
+    # second key is the whole address — G glides to the bottom, g to the top.
+    foot = page.evaluate(
+        "() => document.body.scrollHeight - document.body.clientHeight"
+    )
+    assert foot > 0, "the page must scroll for an edge to be a move at all"
+    page.keyboard.press("g")
+    expect(line).to_contain_text("top / bottom")
+    # Shift spelled out: a bare press("G") synthesizes key "G" with no shift modifier,
+    # which a real keyboard cannot do, and the dispatcher rightly reads it as g.
+    page.keyboard.press("Shift+G")
+    page.wait_for_function(
+        "foot => Math.abs(document.body.scrollTop - foot) < 1", arg=foot
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function("() => document.body.scrollTop === 0")
+
     # A key naming no list disarms the chord and keeps its ordinary meaning: g j is a
     # thread step, so a mistyped g costs nothing.
     page.keyboard.press("g")
@@ -15632,8 +15650,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     reply to, and named a walk through a list of one. Liveness is one declaration,
     and the dispatcher, the line, and the overlay all ask it. The chord's lists are
     where that division earns its keep twice over: a list the page hasn't got is a
-    scope the reference must not name, and the scopes share a title, so the section
-    they build has to take its rows from the contributors the page actually has."""
+    row the reference must not name, and the section holds only what this page can
+    answer — the edges always among them, every page having a top."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -15645,7 +15663,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # Nothing is selected, so c's own row says the box it would open — the word is the
     # press's, not the key's (see the row's neighbour test below).
     expect(help_el).to_contain_text("Comment on the page")
-    expect(help_el).not_to_contain_text("With g armed")
+    # The chord's section stands on every page — the edges need no list — but holds
+    # no row for a list this page hasn't got.
+    expect(help_el).to_contain_text("With g armed")
+    expect(help_el).to_contain_text("top / bottom")
     expect(help_el).not_to_contain_text("open comment's reply box")
     # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.

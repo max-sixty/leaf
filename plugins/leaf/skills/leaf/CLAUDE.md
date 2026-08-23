@@ -1099,7 +1099,11 @@ member, while `actionAvailable` may query an ancestor's exact value.
 ### Address chord
 
 `g` opens one address mode. A second letter names a list, and a digit names a
-member. `ADDRESSES` is the whole list vocabulary. Each entry declares:
+member. `g g` and `g G` complete the chord themselves, gliding to the top and
+bottom of the visible scroller: an edge is one place, so the second key is the
+whole address, and because every page has a top the mode never arms empty and
+the page-level `g` row needs no capability gate. `ADDRESSES` is the whole list
+vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;

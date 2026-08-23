@@ -106,8 +106,10 @@
  *
  * One key sequence exists: g arms a mode in which a letter names one of the page's
  * lists — its comments, its asks, its links — and a digit is a place in that list,
- * so `g c 2` is the second reply box and `g l 3` the third link on screen. Which lists
- * there are is one table (ADDRESSES) and no consumer branches on which one is aimed at.
+ * so `g c 2` is the second reply box and `g l 3` the third link on screen; `g g` and
+ * `g G` are the page's own edges, the top and the bottom, addresses with no list to name.
+ * Which lists there are is one table (ADDRESSES) and no consumer branches on which one is
+ * aimed at.
  * Arming shows the whole offer: everything addressable the reader can see wears its own
  * two-key address as a chip — `c 1`, `l 2` — so the first press states what the rest of
  * the chord reaches. A letter then narrows the chips to its own list, and reveals that
@@ -1156,6 +1158,10 @@ const GLYPH = {
 // Read off `answers` rather than chosen here, so the list cannot claim more than the
 // dispatcher does — a fourth name would have to be taught to both.
 const MODIFIERS = ["Mod", "Alt", "Shift"];
+// The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
+// goes down alone, ahead of the key it modifies. The dispatcher's chord asks this to tell
+// half a press from a key of its own.
+const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 // One reading of a binding's syntax, for the three questions asked of it: how it is
 // spelled, whether a press answers it, and whether a text box's letters cover it. Three
 // hand-agreed splits is one representation too few — the moment one of them had to state
@@ -8286,9 +8292,13 @@ approveBtn.onclick = async () => {
 // ---------- the g chord: the page's addresses ----------
 // g arms a mode in which a letter names one of the page's lists and a digit is a place in
 // it: `g c 2` is the second open comment's reply box, `g a 1` the first thing the page is
-// waiting on, `g l 3` the third link. Naming a list shows it — the panel opens for the
-// comments — and each of its addressable members then wears its digit as a chip, so the
-// addresses are on screen wherever the reader is looking. A digit consumes the mode; so
+// waiting on, `g l 3` the third link. Two completions take no digit: `g g` is the top of
+// the page and `g G` the bottom — each edge is one place, so the second key is the whole
+// address. `g G` rather than vim's bare G because g is the page's one go-to prefix, and
+// an edge is one more place it names rather than a second leader. Naming a list shows it
+// — the panel opens for the comments — and each of its addressable members then wears its
+// digit as a chip, so the addresses are on screen wherever the reader is looking. A digit
+// consumes the mode; so
 // does Escape, and so does focus entering a box. Any other key disarms and then runs with
 // its ordinary meaning, which the dispatcher spells as disarming and walking the stack
 // again rather than as a rule of its own — a mistyped g therefore costs the reader nothing
@@ -8754,11 +8764,14 @@ function allButTheReference(binding) {
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
 
-// The chord: one scope, a row per addressable list, and the window's own way out. The row
-// holds the whole motion — its letter names the list, and the digits it then binds are the
-// addresses into it. That is `v`'s shape, a chooser whose second key belongs to the scope
-// the first one stood up, and the reason it is one row rather than two is that a digits row
-// of its own could not name which list it meant.
+// The chord: one scope, a row per addressable list, a row for the page's two edges, and
+// the window's own way out. A list row holds the whole motion — its letter names the
+// list, and the digits it then binds are the addresses into it. That is `v`'s shape, a
+// chooser whose second key belongs to the scope the first one stood up, and the reason it
+// is one row rather than two is that a digits row of its own could not name which list it
+// meant. The edges row is the same motion one key shorter: an edge is one place, so its
+// letter is the whole address, and it is why the scope has no `when` — every page has a
+// top, so the window g arms is never empty.
 //
 // A row's `when` carries both questions here, where a scope usually carries one of them: a
 // list the page hasn't got is a capability, and which list is aimed at is whether the press
@@ -8770,7 +8783,6 @@ function allButTheReference(binding) {
 // opposite order to the line that had just offered them.
 const GO = {
   title: "With g armed",
-  when: () => ADDRESSES.some((entry) => entry.list().length > 0),
   chord: () => (aimedList ? `${labelOf(GOTO)} ${aimedList.key}` : labelOf(GOTO)),
   at: () => chordArmed,
   claims: EVERYTHING,
@@ -8797,6 +8809,17 @@ const GO = {
         entry.go(member);
       },
     })),
+    {
+      keys: ["g", "Shift+g"],
+      does: "Go to the top / bottom of the page",
+      line: "top / bottom",
+      when: () => !aimedList,
+      run: (binding) => {
+        setChord(false); // before the travel, so the arrival's own scrolling paints nothing
+        const box = seenScroller();
+        glideTo(box, binding === "g" ? 0 : box.scrollHeight);
+      },
+    },
     {
       keys: ["Escape"],
       does: "Cancel the chord",
@@ -9043,11 +9066,9 @@ const REFERENCE = {
 // press stands up names them all, one chip each.
 const GOTO = {
   keys: ["g"],
-  does: "Go by address — the next key names one of the page's lists",
+  does: "Go by address — the next key names one of the page's lists, or its top or bottom",
   line: "go to",
-  // The scope this press stands up, read rather than restated: a key that armed a window
-  // with nothing in it would be the one promise the chord cannot keep.
-  when: GO.when,
+  // No `when`: the window this press stands up always holds at least the page's edges.
   run: () => setChord(true),
 };
 const PAGE = {
@@ -9344,8 +9365,10 @@ document.addEventListener("keydown", (ev) => {
   // nothing: g j is a thread step and g g re-arms. A letter naming no list disarms the same
   // way, and so does a digit past the end of the list a letter named. Spelled as walking
   // again rather than as a rule, so the meaning a key keeps is the meaning the register
-  // gives it.
-  if (chordArmed) {
+  // gives it. A modifier alone is half a press rather than a key: the Shift that
+  // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
+  // took the window down before the G it was armed for.
+  if (chordArmed && !MODIFIER_KEYS.includes(ev.key)) {
     setChord(false);
     run(ev);
   }
@@ -9565,17 +9588,21 @@ let glide = null; // {box, goal, wrote, raf}
 // in that gap otherwise measures from a goal the box has already left.
 const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
+// The box these motions move is the one the reader can see: the document's, or the
+// thread list where the panel covers the page — a key is no different from a wheel
+// there, and a page scrolling behind the sheet shows the reader nothing.
+const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
 function stepPage(fraction) {
-  const box = panelCovers() ? threadsBox : pageScroller;
+  const box = seenScroller();
   const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
   const from = holding(box) ? glide.goal : box.scrollTop;
-  const goal = Math.max(
-    0,
-    Math.min(
-      box.scrollHeight - box.clientHeight,
-      from + fraction * (box.clientHeight - clear),
-    ),
-  );
+  glideTo(box, from + fraction * (box.clientHeight - clear));
+}
+// One eased travel to a goal, shared by the half-page step and the chord's edges. The
+// goal is clamped here, so a step pressed on at the foot banks no debt for u to press
+// back through, and an edge may be asked for as the height it cannot exceed.
+function glideTo(box, goal) {
+  goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
   if (REDUCED) {
     box.scrollTo({ top: goal, behavior: "instant" });
     return;

@@ -357,9 +357,15 @@ window.addEventListener("error", (e) => {
   if (e.message?.startsWith("ResizeObserver loop")) return;
   reportPageError(`${e.message} (${e.filename}:${e.lineno})`);
 });
-window.addEventListener("unhandledrejection", (e) =>
-  reportPageError(String(e.reason?.stack ?? e.reason)),
-);
+window.addEventListener("unhandledrejection", (e) => {
+  // Chrome's stack embeds "Error: message"; Firefox's carries frames only, so a
+  // stack alone can post an error event that never says what failed.
+  const reason = String(e.reason);
+  const stack = e.reason?.stack;
+  reportPageError(
+    !stack ? reason : stack.includes(reason) ? stack : `${reason}\n${stack}`,
+  );
+});
 
 // An upgrade whose work is async (lf-diagram's mermaid render) registers its
 // promise here, so the runtime can hold the view restore and first anchor pass

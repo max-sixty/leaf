@@ -34,9 +34,10 @@ jobs:
       # on `failure` alone, so a wedge there is the one red `main` nothing sees —
       # and nothing here lands through a pull request, so this run is the only
       # gate a commit gets. A timed-out command exits 124, which is a failure like
-      # any other. `--kill-after` because the TERM has to reach eight xdist workers
-      # and a headless shell. 30 minutes is well past the 11.6-minute worst of the
-      # last 40 healthy runs.
+      # any other. `--kill-after` covers `uv` itself ignoring the TERM — the xdist
+      # workers and the headless shell are grandchildren, and `timeout` returns as
+      # soon as `uv` is reaped, so those fall to the runner's orphan cleanup. 30
+      # minutes is well past the 11.6-minute worst of the last 40 healthy runs.
       - name: 🧪 Test suite
         run: timeout --kill-after=1m 30m uv run pytest tests --run-nightly
 

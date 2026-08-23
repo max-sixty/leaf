@@ -6053,22 +6053,73 @@ def _number(text: str):
         return None
 
 
-def _px(declaration):
-    """The pixel length a declaration states, or None where it states something else: a
-    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
-    hard overflow, and only a lone length is fixed. A value keeps the whitespace around
-    it, which is a token like any other and not part of what the value says."""
-    value = [t for t in declaration.value if t.type != "whitespace"]
-    if len(value) == 1 and value[0].type == "dimension" and value[0].lower_unit == "px":
-        return value[0].value
+def _lone_px(value):
+    """The pixel length a value states outright, or None. A value keeps the whitespace
+    around it, which is a token like any other and not part of what the value says."""
+    tokens = [t for t in value if t.type != "whitespace"]
+    if (
+        len(tokens) == 1
+        and tokens[0].type == "dimension"
+        and tokens[0].lower_unit == "px"
+    ):
+        return tokens[0].value
     return None
 
 
-def _px_widths(declarations, props: tuple):
+def root_tokens(css: str) -> dict:
+    """The pixel lengths a stylesheet states outright as custom properties on the root.
+
+    A width naming one of these states a number as certainly as writing it out, so the
+    readings below resolve it. Only the root, and only unconditionally: a token set on
+    some element or inside a query is that element's or that condition's, and taking it
+    for the page's would be the same reading the column refuses a media query for.
+
+    One level. A token defined as another token is a stylesheet answering a different
+    question than these readings ask, and following it would be a resolver rather than
+    the two facts this needs."""
+    tokens = {}
+    for selector, block, conditional in css_rules(css):
+        if conditional or selector.strip() != ":root":
+            continue
+        for declaration in block:
+            if declaration.type == "declaration" and declaration.name.startswith("--"):
+                px = _lone_px(declaration.value)
+                if px is not None:
+                    tokens[declaration.name] = px
+    return tokens
+
+
+def _px(declaration, tokens: dict | None = None):
+    """The pixel length a declaration states, or None where it states something else: a
+    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
+    hard overflow, and only a lone length is fixed.
+
+    A lone `var()` naming a root token is one too. The stylesheet stated the number and
+    then named it, and a check that stopped at the name would read the fallback width
+    for a theme that had tidied its own constants into `:root` — which is a check that
+    quietly stops measuring the moment the file it measures gets tidier. The `var()`'s
+    own fallback answers where nothing declared the token, which is what the browser
+    would use."""
+    value = [t for t in declaration.value if t.type != "whitespace"]
+    px = _lone_px(value)
+    if px is not None:
+        return px
+    if len(value) == 1 and value[0].type == "function" and value[0].lower_name == "var":
+        args = [t for t in value[0].arguments if t.type != "whitespace"]
+        if args and args[0].type == "ident" and args[0].value.startswith("--"):
+            named = (tokens or {}).get(args[0].value)
+            if named is not None:
+                return named
+            if len(args) > 2 and args[1] == ",":
+                return _lone_px(args[2:])
+    return None
+
+
+def _px_widths(declarations, props: tuple, tokens: dict | None = None):
     """(property, pixels) per declaration in `props` pinned to a fixed pixel length."""
     for declaration in declarations:
         if declaration.type == "declaration" and declaration.lower_name in props:
-            px = _px(declaration)
+            px = _px(declaration, tokens)
             if px is not None:
                 yield declaration.lower_name, px
 
@@ -6083,11 +6134,12 @@ def _column_width(page_css: str, theme_css: str) -> int:
     disable this check with one line of print CSS — `@media print { main { max-width:
     2000px } }` measured every screen element against 2000px."""
     for css in (page_css, theme_css):
+        tokens = root_tokens(css)
         widths = [
             px
             for selector, block, conditional in css_rules(css)
             if not conditional and _names_column(selector)
-            for _, px in _px_widths(block, ("max-width",))
+            for _, px in _px_widths(block, ("max-width",), tokens)
         ]
         if widths:
             return int(max(widths))
@@ -6101,14 +6153,15 @@ def _overwide_elements(parser: _StructParser, column: int) -> list:
     A conditional rule counts here, where it cannot define the column: a pin is a risk
     rather than a baseline, and it overflows whenever its condition holds."""
     hits = []
+    tokens = root_tokens(parser.css)
     for selector, block, _ in css_rules(parser.css):
-        for prop, px in _px_widths(block, OVERFLOW_PROPS):
+        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
             if px > column:
                 hits.append(
                     f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
                 )
     for style in parser.inline_styles:
-        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS):
+        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS, tokens):
             if px > column:
                 hits.append(f"inline style {prop}: {px:g}px (column is {column}px)")
     for tag, value in parser.attr_widths:
@@ -10446,22 +10499,23 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
 BAKE = """() => {
     document.documentElement.classList.add('lf-copy');
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
-    // A measurement of this window is not a fact about the reader's. The room a wide
-    // widget may take is measured on the live page (syncLayout) and stated inline on the
-    // root, and an inline value outranks every rule a stylesheet could write — so a copy
-    // carrying it would hold whatever width the exporter's headless window happened to
-    // have, on a file whose whole point is being opened somewhere else. The theme states
-    // the copy's own room from its viewport, which is honest there: no panel takes a
-    // strip from a file, and no session grows one. Taken off the way the chrome above is,
-    // rather than guarded against in the theme, because the stale number is the thing
-    // that is wrong here and a rule written around it would leave it there to be read by
-    // the next thing that asks.
+    // A measurement of this window is not a fact about the reader's. The live page
+    // measures two of them and states each inline on the root — the room a wide widget
+    // may take (syncLayout) and the width of the page's own box, which is what the
+    // margin strips are sized against (stateStrip) — and an inline value outranks every
+    // rule a stylesheet could write, so a copy carrying either would hold whatever width
+    // the exporter's headless window happened to have, on a file whose whole point is
+    // being opened somewhere else. Each rule that reads one falls back to the viewport,
+    // which is honest in a copy: no panel takes a strip from a file, and no session grows
+    // one. Taken off the way the chrome above is, rather than guarded against in the
+    // theme, because the stale number is the thing that is wrong here and a rule written
+    // around it would leave it there to be read by the next thing that asks.
     //
     // The width each edge stands at is the same kind of number and goes for the same
     // reason rather than because anything in a copy reads it: both are stated on the
     // root by the same hand, and each is a fact about a region this file hasn't got and
     // about a reader who is not the one opening it.
-    for (const stale of ['--lf-room', '--lf-panel-w', '--lf-tray-w'])
+    for (const stale of ['--lf-room', '--lf-avail', '--lf-panel-w', '--lf-tray-w'])
         document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has
     // no session behind it — a copy keeping the tone it was exported under would claim

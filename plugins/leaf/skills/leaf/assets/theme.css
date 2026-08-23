@@ -54,6 +54,12 @@
      off anything the way --rail is. The 192px it leaves the note sets about thirty
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below. */
   --note: 216px;
+  /* The measure, and the gutter main sets it in. Named because three rules now want
+     main's width: the element itself, the strip arithmetic beside aside.sidenote, and
+     the room a copy states for itself. A second copy of 720 would be a release behind
+     the first. */
+  --col: 720px;
+  --col-pad: 24px;
   /* The width a page's box needs before a strip is worth taking out of it: main's own
      768px and the strip. Two things ask it and they cannot share one form — the media
      query below asks it of the window, which is the only reading a file with no runtime
@@ -384,8 +390,8 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * 640px — so prose set to a book's measure and evidence set to source's cannot both come
  * out of one column, and the way to have both would be two of them rather than a smaller
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
-main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; position: relative;
-       --lf-frame: 1; }
+main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
+       position: relative; --lf-frame: 1; }
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -773,16 +779,72 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
 @media screen and (min-width: 984px) {
   body:not([data-lf-cramped]):has(aside.sidenote) {
-    --strip-l: var(--note);
-    /* The left margin is a note's, so a wide widget grows to the right alone — the same
-       claim the rail makes on the other side, and for the same reason: the note hangs a
-       gutter off the column while the strip comes out of the far edge of the page, so a
-       board grown to the strip is drawn over the note it stands level with. Inside the
-       veto with the strip it claims, because they are one condition: a cramped page has
-       handed the strip back and its notes are indented blocks in the flow, so there is
-       nothing out there for an exhibit to be drawn over and the margin is the page's
-       again. */
-    & [data-lf-wide] { --lf-grow-l: 0px; }
+    /* What the page still owes the note, and nothing beyond it. The strip comes out of
+       body's padding and the column centres in what is left, so every pixel reserved here
+       is half a pixel of the whole page moved right. Reserving the note's full width
+       whenever a note exists spends that on pages that had the room anyway: at a 1600px
+       window the centred column already leaves 440px on each side, so the flat claim moved
+       the page 108px off the window's centre to buy a 216px note room it was standing in.
+       The shortfall buys nothing where nothing is owed and the page stays centred, and it
+       grows only as the window closes in — 64px at 1024, where the centring alone would
+       have painted the note 76px off the left edge.
+
+       `--lf-avail` is the page's box: the window less whatever the comment panel holds of
+       it, which is the one fact no query can ask (stateStrip). A copy runs no script and
+       falls back to the viewport, which is honest there — it has no panel — and is the same
+       estimate the room below already makes. Below --strip-min the veto above takes over
+       and the note is an indented block in the flow, so this arithmetic never has to reach
+       zero on its own.
+
+       Twice the shortfall, because the column recentres in what the strip leaves and so
+       moves by half of what is taken: a strip sized to the gap it was closing closes half
+       of it, and the note still hung 13px off the edge of a 1100px window. What the note
+       needs is room to main's left edge for its own painted width and a gutter to match
+       the one main gives its prose, and doubling is what buys it. Below 1200px the two
+       move together and the note's gutter stays at --col-pad while the column walks
+       right.
+
+       The other strip is a term because the column centres between both of them, so a rail
+       on the right pulls the column left and takes the note's room with it: measured, a
+       page carrying both had its note painted 70px off the left edge of a 1200px window.
+       What the note is owed is room to main's left edge, and both claims decide where that
+       edge lands. */
+    --strip-l: max(0px, calc(2 * (var(--note) - var(--sp-4) + var(--col-pad))
+                             + var(--col) + 2 * var(--col-pad)
+                             + var(--strip-r, 0px)
+                             - var(--lf-avail, 100vw)));
+    /* An exhibit and a note both want the left margin, and only one of them can have it
+       at a given height. The note hangs a gutter off the column while the strip comes out
+       of the far edge of the page, so a board grown to the strip is drawn over the note it
+       stands level with.
+
+       The collision is a fact about one height, so the answer is stated at that height. A
+       wide widget that would have been drawn over a note drops below it and then takes the
+       whole margin; one no note reaches keeps its place and grows both ways, which is the
+       layout a page with no note at all already has. Refusing the margin page-wide answers
+       the same collision by never having it, and charges every exhibit on the page for a
+       note somewhere above it: measured, one note near the top of a page held a diagram
+       977px below it to the column's own width and clipped 286px of it away, with the
+       margin beside the diagram empty the whole time.
+
+       `clear` says this and the browser already knows how: the note is a float, floats have
+       a flow of their own, and clearing one is how a block declines to share its band. It
+       needs no measurement, so an exported copy that runs no script gets the same answer as
+       the live page. Inside the rule with the strip it claims, because they are one
+       condition — a cramped page has handed the strip back and its notes are indented
+       blocks in the flow, so there is no float out there to clear and no margin to take.
+
+       Only the left. The rail claims the other side for a suggestion's controls, which are
+       positioned rather than floated, so `clear` cannot see them and that claim is still
+       spent page-wide below.
+
+       Every wide element, including one inside a box that withheld the room from it. A
+       widget with no room has no negative margin and could not have reached the note, so
+       clearing buys it nothing and costs it the drop — 11px, measured, for a diagram in a
+       disclosure level with a note. Asking which elements have room needs the element's
+       own value and a style query answers for its container, so the alternative is a
+       second reading of the room rather than a tighter rule. */
+    & [data-lf-wide] { clear: left; }
   }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a

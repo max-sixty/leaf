@@ -4198,11 +4198,18 @@ const trayStrip = () =>
 // the slide is the posture flipping and flipping back across a fifth of a second, which is
 // a page rewrapping its notes into the margin and out of it while the panel opens. Stated,
 // it is the width being arrived at.
+// Two answers from the one reading, because they are the same fact asked coarsely and
+// finely: whether the page can afford a margin strip at all, and how much of one it still
+// owes. The width is published rather than spent here for the reason the floor is read
+// blind — the runtime says how wide the page's box is and never learns which idiom hangs
+// something in the margin, so an idiom's own rule does its own arithmetic against it, the
+// way the wide rules already spend --lf-room. A query cannot see the panel and this can,
+// which is the whole of what the runtime adds; a page with no runtime behind it falls back
+// to the viewport in each rule that reads it.
 function stateStrip() {
-  document.body.toggleAttribute(
-    "data-lf-cramped",
-    document.documentElement.clientWidth - panelStrip() - trayStrip() < STRIP_MIN,
-  );
+  const avail = document.documentElement.clientWidth - panelStrip() - trayStrip();
+  document.body.toggleAttribute("data-lf-cramped", avail < STRIP_MIN);
+  document.documentElement.style.setProperty("--lf-avail", avail + "px");
 }
 // A window that has changed is a cap that has changed, so the width each edge stands at
 // is restated beside the veto — one listener, every fact on it being an answer to the same

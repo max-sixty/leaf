@@ -25693,12 +25693,13 @@ ROOM_GEOMETRY = """() => {
         if (!el) return null;
         const b = el.getBoundingClientRect();
         return { left: b.left, right: b.right, width: b.width,
+                 top: b.top, bottom: b.bottom,
                  centre: (b.left + b.right) / 2 };
     };
     return { column: span(document.querySelector('main')),
              room: span(document.body),
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
-             note: box('note'),
+             note: box('note'), later: box('later'),
              sideways: document.body.scrollWidth - document.body.clientWidth };
 }"""
 
@@ -26791,6 +26792,14 @@ south hide, and the perch numbers are the ones she disputes.</aside>
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
+<p id="gap" style="margin-block: 600px">Prose far enough below the note that nothing of
+it reaches this part of the page.</p>
+<lf-board id="later">
+  <lf-column id="late-todo" label="Todo">
+    <lf-card id="card-seed"><strong>Seed mix</strong> Switch to sunflower hearts.</lf-card>
+  </lf-column>
+  <lf-column id="late-done" label="Done"></lf-column>
+</lf-board>
 """,
 )
 
@@ -26806,11 +26815,19 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     thing on top — and the reader loses words the page states, which is the same fault
     the clipped-float reading refuses a version for.
 
+    The claim is settled at the height it arises and nowhere else, which is what the two
+    boards are for. One stands level with the note and drops below it to take the margin;
+    the other is 600px further down with nothing out there, and takes the margin where it
+    stands. Asserting only the first would pass just as well for a page that refused every
+    exhibit the margin because a note existed somewhere above it — the reading that held a
+    diagram to the column's own width with the margin beside it empty.
+
     Both media, because they answer the question differently and only one of them
     measures. The live page reads the room off the box the layout actually produced, so a
     strip reserved by any rule at all is already out of it; a copy runs no script and the
     theme states the room from the viewport, which knows about a strip only if the rule
-    that states the room subtracts the same one the padding added."""
+    that states the room subtracts the same one the padding added. `clear` is the same
+    answer in both, being layout rather than measurement."""
     url = serve(NOTE_AND_WIDE_PAGE)
     out = tmp_path / "standalone.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))
@@ -26832,9 +26849,23 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
         assert wide["note"]["width"] > 0, (
             f"{medium} lost the note entirely, so this proves nothing about the margin"
         )
-        assert wide["board"]["left"] >= wide["note"]["right"] - 1, (
-            f"{medium} stands the board over the note it shares the margin with: board "
-            f"from {wide['board']['left']:.0f}px, note to {wide['note']['right']:.0f}px"
+        note = wide["note"]
+        for name in ("board", "later"):
+            exhibit = wide[name]
+            across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
+            down = exhibit["top"] < note["bottom"] and exhibit["bottom"] > note["top"]
+            assert not (across and down), (
+                f"{medium} stands the {name} board over the note it shares the margin "
+                f"with: board {exhibit['left']:.0f}–{exhibit['right']:.0f}px across and "
+                f"{exhibit['top']:.0f}–{exhibit['bottom']:.0f}px down, note "
+                f"{note['left']:.0f}–{note['right']:.0f}px and "
+                f"{note['top']:.0f}–{note['bottom']:.0f}px"
+            )
+        assert wide["later"]["left"] < wide["column"]["left"] - 1, (
+            f"{medium} held a board with no note anywhere near it to the column's own "
+            f"left edge: board from {wide['later']['left']:.0f}px, column from "
+            f"{wide['column']['left']:.0f}px. A note claims the margin at its own height, "
+            f"not down the whole page."
         )
         assert wide["sideways"] == 0, (
             f"{medium} scrolls sideways, so the room it took was not the room it had"
@@ -26847,6 +26878,53 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     assert errors == []
     assert copy_errors == []
     copy.close()
+    page.close()
+
+
+def test_a_note_moves_the_page_only_where_the_page_owes_it_room(browser, serve):
+    """The strip a note claims comes out of body's padding and the column centres in what
+    is left, so the page moves right by half of whatever is reserved. Reserving the note's
+    full width whenever a note exists charges that to every window, including the ones
+    already leaving more room than the note can use: a 1600px window centres a 768px
+    column with 416px each side, and the flat claim still pushed the whole page 108px off
+    the window's centre to buy room the note was standing in.
+
+    So the reservation is the shortfall and nothing more. On a window with the room the
+    page keeps the centring it would have had with no note at all, and the note is read
+    in the margin that centring already left. On one without, the strip appears and buys
+    exactly enough: the note stays on the page with the same gutter main gives its prose.
+
+    The narrow half is what stops this being answered by never reserving anything, which
+    would pass the wide assertion and paint the note off the edge of the window."""
+    url = serve(NOTE_AND_WIDE_PAGE)
+    page, errors = open_page(browser, url)
+
+    resized(page, 1600, 900)
+    roomy = page.evaluate(ROOM_GEOMETRY)
+    centred = (1600 - roomy["column"]["width"]) / 2
+    assert abs(roomy["column"]["centre"] - 800) <= 1, (
+        f"a note pushed the whole page off the window's centre on a window with room to "
+        f"spare: column centred at {roomy['column']['centre']:.0f}px of 1600px"
+    )
+    assert roomy["note"]["left"] > 0, (
+        f"the note is off the left edge at 1600px: {roomy['note']['left']:.0f}px"
+    )
+    assert centred > 0  # the arithmetic above is only meaningful while the column fits
+
+    resized(page, NOTE_BAND, 900)
+    tight = page.evaluate(ROOM_GEOMETRY)
+    assert tight["note"]["left"] >= 0, (
+        f"the page kept its centring on a window too narrow to read the note in, so the "
+        f"note is painted {-tight['note']['left']:.0f}px off the left edge"
+    )
+    assert tight["column"]["centre"] > NOTE_BAND / 2, (
+        "a window that cannot fit the note beside a centred column has to move the page, "
+        f"and this one did not: column centred at {tight['column']['centre']:.0f}px of "
+        f"{NOTE_BAND}px"
+    )
+    assert tight["sideways"] == 0
+
+    assert errors == []
     page.close()
 
 

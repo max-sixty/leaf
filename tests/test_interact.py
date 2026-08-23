@@ -6093,6 +6093,33 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     assert "exceeds column (720px)" in result.output
 
 
+def test_check_reads_a_column_the_theme_states_as_a_token():
+    """A width naming a root token is a width the stylesheet stated, so the column reads
+    it. The theme keeps its own constants in `:root` and more than one rule now wants the
+    measure; a reading that stopped at the name would fall back to a default column and
+    go on printing a number, which is a check that stops measuring exactly when the file
+    it measures gets tidier.
+
+    Only the root, and only what is stated outright. A token declared inside a query is
+    that condition's, the same reason the column will not read a media query's width, and
+    a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
+    stated = ":root { --col: 640px }\nmain { max-width: var(--col) }"
+    assert interact._column_width("", stated) == 640
+
+    conditional = (
+        "@media screen { :root { --col: 640px } }\nmain { max-width: var(--col) }"
+    )
+    assert interact._column_width("", conditional) == interact.COLUMN_FALLBACK
+
+    fallback = "main { max-width: var(--col, 512px) }"
+    assert interact._column_width("", fallback) == 512
+
+    # The shipped theme is the case that motivated this: it must still read as itself.
+    assert (
+        interact._column_width("", (interact.ASSETS / "theme.css").read_text()) == 720
+    )
+
+
 def test_the_strip_floor_is_one_number():
     """The width a page's box needs before the theme takes a margin strip out of it is
     asked by two parties that cannot share a form: a media query, which asks it of the

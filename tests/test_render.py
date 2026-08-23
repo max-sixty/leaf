@@ -6461,6 +6461,364 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     page.close()
 
 
+# A page with an outline: three headings, and passages under each to hang threads on.
+# LONG_PAGE has one heading and sixty paragraphs, which cannot tell an order that
+# follows the page from one that follows the log — every thread on it is in the same run.
+PANEL_PAGE = leaf_page(
+    "panel",
+    """
+<h1 id="t">Shipping offline editing</h1>
+<p id="lede">The lede, which is the first thing anybody reads on the way in.</p>
+<section id="s-how">
+  <h2 id="h-how">How it works</h2>
+  <p id="how-store">A queue holds every edit until the connection comes back.</p>
+  <p id="how-cap">The store is capped at forty megabytes a workspace.</p>
+  <lf-diff id="how-patch"><pre>
+diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -1,3 +1,4 @@
+ def ceiling(limit, approvals):
+-    return limit
++    # the ceiling doubles per approval
++    return "over" if approvals > 12 else limit
+</pre></lf-diff>
+</section>
+<section id="s-merge">
+  <h2 id="h-merge">The merge rule</h2>
+  <p id="merge-both">Two people editing one document offline is the case to answer.</p>
+  """
+    + "\n".join(
+        f"<p id='m{i}'>Filler {i}. " + "Words. " * 24 + "</p>" for i in range(20)
+    )
+    + """
+</section>
+""",
+)
+
+# The panel's list, in the order it stands, with the headings among the threads: a
+# heading is its own words, a thread its id. One query, because what is asserted about
+# the order is always about both — a run is a heading and the threads it names.
+LIST_RUNS = """() => [...document.querySelector(".lf-threads").children]
+  .map((n) => (n.dataset.group ? "§ " + n.textContent : n.dataset.id))
+  .filter(Boolean)"""
+
+
+def panel_comment(d, text, anchor=None, author="user"):
+    """One thread's opening message, written straight to the log."""
+    event = {"kind": "comment", "author": author, "version": 1, "text": text}
+    if author == "claude":
+        event["agent"] = "Claude"
+    if anchor:
+        event["anchor"] = anchor
+    return interact.append_event(d, event)["id"]
+
+
+def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
+    """The list is the page's order, not the log's. A reader walking a long
+    conversation walks it the way they walk the prose it is about, and every other
+    reading of these threads already does: the marks down the page, the j/k walk, the
+    g c digits. So the threads are written here in the reverse of the page's order and
+    the panel is asked for its own, which is only the page's if something sorted it.
+
+    A thread with nowhere in the page to be — a comment about the whole of it — comes
+    after the ones that have somewhere, under its own heading, rather than at the
+    moment it happened to be written."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    whole = panel_comment(d, "The middle third is too long.")
+    merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
+    cap = panel_comment(d, "Is forty enough?", {"section": "how-cap"})
+    lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    assert page.evaluate(LIST_RUNS) == [
+        "§ Shipping offline editing",
+        lede,
+        "§ How it works",
+        cap,
+        "§ The merge rule",
+        merge,
+        "§ About the page as a whole",
+        whole,
+    ], "the panel is not reading in the page's order"
+
+    # The addresses and the walk are the same order, because both read the list itself.
+    expect(page.locator(f'.lf-thread[data-id="{lede}"] textarea')).to_have_attribute(
+        "placeholder", "Reply · g c 1"
+    )
+    page.locator("body").click()
+    page.keyboard.press("j")
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
+    page.keyboard.press("j")
+    expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve):
+    """The order is the page's whether or not the page has an outline; the landmarks are
+    the outline's. A page its author wrote no headings into gets the first without the
+    second, rather than one line reading "Above the first heading" over the whole list —
+    a landmark naming a landmark the page hasn't got."""
+    url = serve(
+        leaf_page(
+            "bare",
+            """
+<p id="one">The first paragraph, with nothing above it.</p>
+<p id="two">The second paragraph, with nothing above it either.</p>
+""",
+        )
+    )
+    d = serve.page_dir
+    second = panel_comment(d, "On the second.", {"section": "two"})
+    first = panel_comment(d, "On the first.", {"section": "one"})
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    assert page.evaluate(LIST_RUNS) == [first, second], (
+        "a page with no outline did not get the page's order, or was given a landmark"
+    )
+    expect(page.locator(".lf-group")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
+    browser, serve
+):
+    """A widget may render the page's words into a declared shadow tree, and a passage
+    inside one is placed inside that tree. Asked to compare it with an element of the
+    document, `compareDocumentPosition` answers "disconnected" in an order of its own
+    choosing, and `contains` answers no across the same boundary — so the thread would
+    sort and group by something the reader has never seen.
+
+    The host is the element the page holds, and where the page holds it is where those
+    words are. So the thread reads after the paragraphs above the widget and under the
+    heading the widget itself is under."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+    patch = panel_comment(
+        d, "Twelve is arbitrary.", {"quote": "the ceiling doubles per approval"}
+    )
+    both = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    # The passage really is inside the widget's shadow tree, so the reading under test is
+    # the cross-tree one rather than an ordinary document comparison.
+    assert page.evaluate(
+        """() => {
+             const root = document.getElementById('how-patch').shadowRoot;
+             return Boolean(root) && [...(CSS.highlights.get('lf-mark') ?? [])]
+               .some((r) => root.contains(r.startContainer));
+           }"""
+    ), "the fixture's passage is not marked inside a shadow tree"
+    assert page.evaluate(LIST_RUNS) == [
+        "§ Shipping offline editing",
+        lede,
+        "§ How it works",
+        patch,
+        "§ The merge rule",
+        both,
+    ], "the thread on the widget's words does not stand where the widget does"
+    assert errors == []
+    page.close()
+
+
+def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve):
+    """A heading over each run, and it stays on screen while the run scrolls past it —
+    which is the whole of what it is for. A list four thousand pixels long is scrolled
+    past its landmarks inside one gesture, so a heading that scrolled away with its own
+    threads would answer "where am I" only at the moment the reader already knew.
+
+    Pressing one takes the reader to that part of the page, the move a thread's quote
+    makes for one passage made here for the section it is in."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(6):
+        panel_comment(d, f"On the merge rule, {i}.", {"section": "merge-both"})
+    panel_comment(d, "On the lede.", {"section": "lede"})
+
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 800)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    heading = page.locator(".lf-group[data-group]", has_text="The merge rule")
+    expect(heading).to_have_count(1)
+
+    # Scroll the run's own threads up past the top of the list, and the heading is still
+    # there — pinned at the top edge rather than gone with them. Opaque, because what it
+    # covers is the thread passing underneath it.
+    page.evaluate(
+        """() => { const box = document.querySelector('.lf-threads');
+                   box.scrollTop = box.scrollHeight; }"""
+    )
+    page.wait_for_function(
+        """() => { const box = document.querySelector('.lf-threads');
+                   return box.scrollTop + box.clientHeight >= box.scrollHeight - 1; }"""
+    )
+    assert page.evaluate(
+        """() => {
+             const box = document.querySelector('.lf-threads').getBoundingClientRect();
+             const head = [...document.querySelectorAll('.lf-group')]
+               .find((n) => n.textContent === 'The merge rule');
+             const first = document.querySelector('.lf-threads > .lf-thread')
+               .getBoundingClientRect();
+             const paint = getComputedStyle(head).backgroundColor;
+             const r = head.getBoundingClientRect();
+             return { pinned: r.top <= box.top + 1 && r.bottom > box.top + 8,
+                      scrolledPast: first.top < box.top,
+                      opaque: !/rgba\\(.*, 0\\)$/.test(paint) };
+           }"""
+    ) == {"pinned": True, "scrolledPast": True, "opaque": True}, (
+        "the run's heading did not stay over the run"
+    )
+
+    heading.click()
+    page.wait_for_function(
+        """() => { const r = document.getElementById('h-merge').getBoundingClientRect();
+                   return Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2; }"""
+    )
+    assert errors == []
+    page.close()
+
+
+def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve):
+    """A search box is what every panel with a long list has, and the trap every one of
+    them has too: the list goes quiet about the threads it is hiding. So the head says
+    how much of the conversation is in front of the reader for as long as a narrowing
+    stands, and a thread asked for by name — a mark on the page, a send that landed —
+    lets the narrowing go rather than declining to appear.
+
+    The narrowing reads the words, the part of the page, and nothing else: the count in
+    the banner is the log's and does not move."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+    cap = panel_comment(d, "Is forty megabytes enough?", {"section": "how-cap"})
+    merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
+
+    page, errors = open_page(browser, url)
+    # Searching a list is a press on that list, so the key is the panel's: out on the
+    # prose it does nothing, and `c` then Escape is the route in. Read against the same
+    # press landing two lines below, which is what makes the silence a rule.
+    page.locator("body").click()
+    page.keyboard.press("/")
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    page.keyboard.press("c")
+    panel_settled(page)
+    page.keyboard.press("Escape")  # out of the general box, onto the list
+    page.keyboard.press("/")
+    expect(page.locator(".lf-find-box")).to_be_focused()
+
+    page.keyboard.type("megabytes")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
+    expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 3")
+    # The page's own count is the log's and says so throughout.
+    expect(page.locator(".lf-comments")).to_have_text("Comments (3)")
+
+    # The part of the page a thread is on is one of its words: a reader looking for the
+    # merge rule finds the thread under that heading without its message saying so.
+    page.fill(".lf-find-box", "merge rule")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{merge}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(0)
+
+    # Asked for a thread the narrowing hides, the panel shows it rather than nothing:
+    # the press came from the page, where no narrowing was ever visible.
+    page.locator("#lede").click()
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(1)
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    expect(page.locator(".lf-panel-head span")).to_have_text("Comments")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
+
+    # Escape spends one rung on the narrowing and the next on the box, rather than
+    # both on one press: the reader can see which of the two they are backing out of.
+    page.locator(".lf-find-box").click()
+    page.keyboard.type("megabytes")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
+    expect(page.locator(".lf-find-box")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
+    """Which threads the reader still owes an answer to is a question the log already
+    answers: the agent spoke last. So the panel asks it rather than keeping a record of
+    what this reader has read — nothing to go stale in a second tab, and nothing to
+    remember across a reload.
+
+    The count is the whole page's; the list is the ones it names."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    mine = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "claude")
+
+    page, errors = open_page(browser, url)
+    # The key belongs to the panel, not to the page: a list the reader is not looking at
+    # is not a thing to narrow. Out on the prose the line never offers it and the press
+    # does nothing — read against the same press landing a few lines below, which is what
+    # makes the silence a rule rather than a page that happened not to react.
+    page.locator("body").click()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("waiting on you")
+    page.keyboard.press("w")
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+
+    # `c` puts the reader in the panel, in its general box — where `w` is a character
+    # like any other, the typing scope claiming what types one. Escape backs out onto the
+    # list, and there the key is live and the line says so. The control names it, off the
+    # row, so the two cannot come to spell it differently.
+    page.keyboard.press("c")
+    panel_settled(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
+    expect(page.locator(".lf-keyline")).not_to_contain_text("waiting on you")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
+    page.keyboard.press("w")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
+    expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+
+    # Answering it takes it out of the list it is filtered to, because the fact the
+    # filter reads is who spoke last and the reader has now spoken.
+    reply = page.locator(f'.lf-thread[data-id="{theirs}"] textarea')
+    reply.click()
+    reply.type("Forty is plenty.")
+    page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
+    round_trip(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-empty")).to_have_text("Nothing is waiting on you.")
+    # The reader was standing in the thread that just left. Focus lands on the list
+    # rather than falling to body, where the next Space would scroll the page behind
+    # the panel instead of the list in front of them.
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    # Escape unwinds the narrowing before it closes the panel, from wherever the reader
+    # is standing: a list that is not the whole conversation is a layer they put on.
+    expect(page.locator(".lf-keyline")).to_contain_text("show all")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
+    expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
+    expect(page.locator(".lf-panel-head span")).to_have_text("Comments")
+    assert errors == []
+    page.close()
+
+
 # What the list is holding, from the one query that answers both halves of the
 # question a departing thread raises: what stands where, and what the keys can still
 # reach. The two lists differ by exactly the thread on its way out.
@@ -14945,7 +15303,11 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
             },
         )["id"]
 
-    c1 = comment({"quote": "first passage"}, "Sharpen this.")
+    # The addresses are the panel's order, which is the page's: p1's two passages in the
+    # order they are written, then p2. Each quote occurs once — a repeated one resolves to
+    # nowhere by design, and a thread with nowhere to be is addressed after the ones that
+    # have somewhere, which would make these three numbers a fact about that instead.
+    c1 = comment({"quote": "passage under discussion"}, "Sharpen this.")
     c2 = comment({"quote": "two separate remarks"}, "Second thought.")
     c3 = comment({"section": "p2"}, "The short one too.")  # the third address
     page, errors = open_page(browser, url)

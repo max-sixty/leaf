@@ -36,8 +36,10 @@ Each mutable fact has one writer:
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
+| where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
+| the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | tray visibility | `trayUp` | `showTray` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -710,6 +712,15 @@ through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
 
+The same pass answers a second question and records it apart. `placed` is where
+each thread's passage lands in this version; `marked` is what was drawn for it.
+They differ for a resolved thread, which has a place and no paint, and for an
+element anchor, whose paint is the boxes its contents show through rather than
+the element the anchor named. The panel's order reads `placed`, so the list and
+the page cannot disagree about which of two threads comes first, and one walk of
+the document's text answers both. `renderPanel` therefore paints before it
+renders the list. Do not resolve a thread's anchor a second time to sort it.
+
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer
 up, and creates a second DOM representation for the passage. `markAt` performs
@@ -944,6 +955,43 @@ of rows applies and which platform keys that context claims. The dispatcher,
 key line, `?` reference, control tooltips, and announcements are projections of
 those objects.
 
+The register owns capabilities, not controls. Every capability the chrome offers
+has a row, and each control that reaches one names its key through `also`; a
+control is a route to a capability rather than a capability of its own, so a
+second route needs no second row. A run heading in the comment panel presses the
+page to where that run is about, which is what `g c` already reaches through any
+thread in the run — where `w` and `/` are capabilities nothing else reaches, and
+each earns a row. A capability with no row is one the key line never advertises,
+the reference never lists, and a reader working from the keyboard never finds,
+because those three are projections of the register. Add the row in the change
+that adds the capability.
+
+The letter comes from a word the surface says. `l` opens the leaves, `a` the
+asks, `w` the comments waiting on the reader — each spelling what the reader can
+read off the control it presses. Where the letter a control's word wants is
+already taken, change the word or take a different capability's: a key spelling
+something nothing on screen says is a key nobody reaches for twice.
+
+A row whose press turns a mode on and off states the mode rather than the toggle.
+`does` and `line` are functions of whether it stands, so the sentence says which
+way this press will go, and Escape takes the mode off through the rung ladder
+rather than through a second binding of its own.
+
+Which scope a row belongs to follows from what its press acts on. The page holds
+the presses whose subject is the page: `c` comments on it, `a` and `l` open what
+is about it. A surface holds the presses whose subject is that surface's own
+contents, because contents the reader is not looking at are not a thing to act
+on: `w` narrows the comment panel's list and `/` searches it, and both live in
+`PANEL`. The page's alphabet is small and every letter spent there is spent on
+every page, so a letter earns page scope only by acting on the page.
+
+Standing in a surface is where focus is, not merely that the surface is open. A
+tray's or panel's own button lives in the banner, so opening by pointer leaves
+the reader outside it, and a key, a Tab or a click on its contents is what puts
+them in. Inside a text box the letter is a character — the typing scope claims
+what types one — so a reader reaches a surface's letters from its list rather
+than from its composer.
+
 Widgets register through `keys(el, title, rows)` in
 `connectedCallback`. A module loaded on a page with no instance must contribute
 no scope or help section. Runtime scopes live in `SCOPES`; `merge` is the only
@@ -991,6 +1039,11 @@ either scope naming the other.
 answers them. A text entry scope uses `takesLetters` and claims only keys that
 would type into that specific control. It does not blanket radio, checkbox,
 slider, Enter, Escape, or a send chord merely because they are form-related.
+
+One box inside another scope states only what it does differently. `FINDING`
+stands before `TYPING` in `SCOPES`, so the find box keeps every text-box key and
+shadows the one it answers for itself: Escape lets the narrowing go, and the box
+on the press after that. One press is one rung there as everywhere else.
 
 A true mode may own the keyboard. An armed address chord and the open reference
 claim the relevant keys through their scope. A longer-lived menu keeps the
@@ -1182,6 +1235,47 @@ stands. Polling must not discard a reader's caret, focus, reply text, disclosure
 state, or scroll anchor. The browser's scroll anchoring keeps the visible thread
 steady when a message is inserted above it; tests pin the thread's box rather
 than a particular scroll offset.
+
+### The order the list reads in
+
+The list is the page's order, not the log's. `inPageOrder` sorts by where the
+anchor pass placed each thread and breaks ties by log order, so the panel, the
+marks down the page, the j/k walk and the `g c` digits are one order. A thread
+whose passage this version rewrote falls back to the element its anchor names,
+because an id survives a rewrite that takes a quote down with it. A thread that
+resolves nowhere — a comment about the page as a whole, or one whose element is
+gone too — goes under the list rather than into the middle of it.
+
+`pageOutline` reads the page's own headings, and `groupFor` names the run of
+threads under each. A run's heading is one node kept across reconciles and stuck
+to the top of the list while its run scrolls past. A stuck box is held by its
+margin edge inside the scroller's content, so the room above a heading is its own
+padding and the pin is drawn back over `--lf-list-inset`, the property the list
+spends its own inset from. A margin there, or a `top` of zero, leaves a strip the
+list scrolls through in full view.
+
+### Narrowing the list
+
+Two narrowings compose: the words the reader is looking for (`finding`, over each
+thread's messages, its anchor label, and the part of the page it is on) and
+whether the agent spoke last (`needsYou`, through `awaitsReader`). Both are the
+panel's own view. The page's marks, the inline conversation seats and the
+banner's count go on saying what the log says, and the panel's head says
+`Showing N of M` for as long as a narrowing stands, because a list that goes
+quiet about what it is hiding is a trap.
+
+Neither is stored. A remembered narrowing greets a returning reader with part of
+a conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the
+page restores; a look at a list is not one.
+
+`revealThread` and `showThread` are two asks, not one with a flag.
+`revealThread` confirms something the reader was already watching — a reply
+landing in a thread in front of them — and takes the list as it stands.
+`showThread` insists: a press out on the page or in a message knows nothing of
+the narrowing it would be asking past, and a comment the reader has just written
+cannot vanish into a narrowing it does not match, so the narrowing goes instead.
+A reveal that widened for a reply would take the reader's narrowing away for
+having been used, which is how the waiting-on-you list is emptied.
 
 Messages render from Markdown after escaping raw HTML. Literal text such as a
 generic type remains text and cannot inject markup. Interactive event `markup`

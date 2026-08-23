@@ -2622,15 +2622,53 @@ ${MARK_RULES}
     .lf-edge:hover::before, .lf-edge:focus-visible::before { opacity: 1; }
     .lf-edge:focus-visible { outline: var(--here-ring); }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+    /* The narrowing row, under the head and above the list it narrows. Standing rather
+       than raised by a key or a count, for the reason every other control here stands:
+       a row that arrives at the eighth thread moves the list under the reader at the
+       moment they are reading it, and a reader who cannot see the box cannot know the
+       list in front of them is the whole of it. What it says while a narrowing stands
+       is the head's line ("Showing 3 of 24"), which is the one place a count belongs. */
+    .lf-find { display: flex; gap: 6px; align-items: center; padding: 8px 14px;
+      border-bottom: 1px solid var(--rule); }
+    /* type=search, so the platform's own clear control does that work: an ✕ of the
+       runtime's own would be a second way to say the same thing, drawn worse. */
+    .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: var(--t-6);
+      padding: 3px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
+      background: var(--paper); color: var(--ink); }
+    .lf-find-box:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
     /* contain: reaching the end of the thread list must not start scrolling the page
        behind it — one wheel gesture moves one region.
        The frame is declared because the inset is read at both ends of a scroll region:
        the list opened 10px above its first thread and stopped 22px under the last, the
        last thread's own 12px having nowhere to collapse to. See theme.css. */
-    .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; --lf-frame: 1; }
+    .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain;
+      --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-frame: 1; }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
     .lf-threads:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
+    /* Which part of the page the threads under it are about — the page's own heading,
+       said once over the run of threads that share it. Sticky, so the answer to "where
+       am I" is on screen for the whole run rather than only at its start: a list four
+       thousand pixels long is scrolled past its landmarks within one gesture. Opaque
+       (--card), because the threads pass underneath it. The resolved disclosure's
+       summary sticks in the same slot and later in the list, so it takes the pin from
+       the last heading when the reader reaches it.
+
+       The room above a heading is its own padding and never a margin, and the pin is
+       drawn back over the list's own inset. Both for one reason: a stuck box is held by
+       its margin edge inside the scroller's content, so a margin there — or the
+       container's padding — is a strip between the pin and the ink through which the
+       list scrolls in full view. The inset is read from where it is spent, so the two
+       numbers cannot drift apart. */
+    .lf-group { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
+      display: block; width: 100%; box-sizing: border-box; margin: 0;
+      padding: 14px 0 7px; border: none; background: var(--card); font: inherit;
+      font-size: var(--t-6); font-weight: 600; letter-spacing: .04em;
+      text-transform: uppercase; text-align: left; color: var(--muted);
+      overflow-wrap: anywhere; }
+    button.lf-group { cursor: pointer; }
+    button.lf-group:hover { color: var(--ink-2); }
+    button.lf-group:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
     /* A thread and the room a resolved one is still giving back (foldOut) are the same
        box, so the fold starts from the box the reader was looking at rather than from
        a second description of it. What .lf-going adds is the clip the fold needs and
@@ -2730,7 +2768,12 @@ ${MARK_RULES}
     .lf-thread-action:hover { color: var(--ok); }
     .lf-resolved-by { color: var(--muted); }
     .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
-    .lf-details { margin-top: 6px; color: var(--muted); background: none; border: none; padding: 0; }
+    .lf-details { margin-top: 16px; color: var(--muted); background: none; border: none; padding: 0; }
+    /* The last landmark in the list, pinned like the headings above it: it stands later
+       than every one of them, so opening it hands the pinned slot from the section the
+       reader was in to the disclosure they are now inside. */
+    .lf-details > summary { position: sticky; top: calc(-1 * var(--lf-list-inset));
+      z-index: 2; padding: 14px 0 7px; background: var(--card); }
     .lf-system { color: var(--ok); margin: 8px 0; }
     /* The two floats that point at the page live in the document's coordinate space
        (absolute, body their containing block), because what they point at does: a
@@ -3635,8 +3678,35 @@ const closeBtn = Object.assign(el("button", "lf-btn", "×"), {
   onclick: () => setPanel(false),
 });
 closeBtn.setAttribute("aria-label", "Close comments");
-panelHead.append(el("span", "", "Comments"), closeBtn);
+// The head's own line: the panel's name while it shows the whole conversation, and what
+// it is showing instead the moment a narrowing stands. One slot, because they are one
+// fact — how much of the log is in front of the reader — and a count in a second place
+// is a count free to disagree with the list under it.
+const panelTitle = el("span", "", "Comments");
+panelHead.append(panelTitle, closeBtn);
 commentsEdge.handle(panel);
+// Narrowing the list, which is the panel's own view and not the page's state: neither
+// box is remembered across a reload, the way a browser's find bar is not. A remembered
+// narrowing is a trap: the reader returns to three of twenty-four threads with nothing on
+// screen saying why, and a comment arriving outside it never appears at all. Here the head
+// says "Showing 3 of 24" for as long as one stands, and a reload is the whole conversation
+// again.
+const findRow = el("div", "lf-find");
+const findInput = document.createElement("input");
+findInput.type = "search";
+findInput.className = "lf-find-box";
+findInput.placeholder = "Find in comments";
+findInput.setAttribute("aria-label", "Find in comments");
+// The register appends the key that reaches it (`also`), so the control and the row
+// cannot spell the binding differently.
+findInput.title = "Find in comments";
+// What is waiting on the reader: an open thread whose last word is the agent's. Derived
+// from the log rather than stored, so it needs no record of what this reader has read and
+// cannot go stale in another tab — and it is the same question the asks board asks of the
+// page's widgets, asked of the conversation.
+const needsBtn = el("button", "lf-btn lf-needs", "Waiting on you");
+needsBtn.setAttribute("aria-pressed", "false");
+findRow.append(findInput, needsBtn);
 const threadsBox = el("div", "lf-threads");
 // An Escape rung: backing out of the general box lands on the list (visible ring,
 // j/k walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
@@ -3645,7 +3715,7 @@ const generalRow = el("div", "lf-general");
 const generalInput = document.createElement("textarea");
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-panel.append(panelHead, threadsBox, generalRow);
+panel.append(panelHead, findRow, threadsBox, generalRow);
 
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
@@ -3752,6 +3822,7 @@ document.body.append(chromeRoot);
 if (signoff) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
 reserve(versionBtn, [versionLabel(false), versionLabel(true)]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
+reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
 reserve(othersBtn, ["All leaves (999)"]);
 // The room the head of the document leaves for the bar, measured off the bar as
@@ -4943,6 +5014,142 @@ function anchorLabel(anchor, about) {
 // the copy free to be a reconcile behind the panel it described.
 const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
 
+// ---------- where the panel puts a thread ----------
+// The list reads in the page's order, not the log's. A page is a document with a
+// beginning and an end, and the reader walks the conversation the way they walk the
+// prose it is about: the thread on the lede is the first one, the thread on the punch
+// list is the last, and j/k, the g c digits, the marks out on the page and the panel's
+// own scroll all say the same order. Log order answered a different question — when a
+// thread was opened — which is a question about one thread rather than about a list, and
+// the message clocks already answer it.
+//
+// Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
+// same resolution the marks are drawn from, so the list and the page cannot disagree about
+// which of two threads comes first.
+//
+// A passage this version has rewritten falls back to the element the anchor names, which
+// is the whole point of an anchor carrying one: an id survives a rewrite that takes the
+// quote down with it, so a thread whose words are gone still belongs where it was about.
+// It reads as detached in the list and sits under its own heading, which are two true
+// things rather than one true and one lost.
+//
+// What is left resolves nowhere at all: a general comment, which names nowhere, and an
+// anchor whose element this version no longer holds either. Both go under the list rather
+// than at some point in the middle of it.
+// Where a thread stands, said in the document's own tree. A passage a widget renders into
+// a declared shadow root is placed inside that root, and `compareDocumentPosition` answers
+// across trees with "disconnected, in an implementation-specific order" — an order no
+// reader has ever seen, and one `contains` cannot correct. The host is the element the
+// page holds, and where the page holds it is where those words are. A place in no tree at
+// all — an element a version activation has replaced — is no place, which is the same
+// answer an anchor that resolves nowhere gets.
+const inPage = (el) => {
+  let at = el;
+  while (at && at.getRootNode() !== document) at = at.getRootNode().host ?? null;
+  return at;
+};
+
+const threadPlace = (t) =>
+  inPage(placed.get(t.root.id) ?? (t.root.anchor ? sectionOf(t.root.anchor) : null));
+
+// Which of two elements the reader reaches first. `compareDocumentPosition` answers for
+// a containing element too — a section reaches the reader before the paragraph inside it
+// — which is what makes it the whole reading rather than a comparison of two indexes
+// into a list this file would have to keep.
+const pageOrder = (a, b) =>
+  a === b
+    ? 0
+    : a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+      ? -1
+      : 1;
+
+// The log's order is the tiebreak, so two threads on one paragraph read in the order they
+// were opened, and a page that gave nothing an id keeps exactly the list it had.
+function inPageOrder(threads) {
+  const seat = new Map(threads.map((t, i) => [t, i]));
+  const place = new Map(threads.map((t) => [t, threadPlace(t)]));
+  return [...threads].sort((a, b) => {
+    const pa = place.get(a);
+    const pb = place.get(b);
+    if (!pa || !pb) return (pa ? 0 : 1) - (pb ? 0 : 1) || seat.get(a) - seat.get(b);
+    return pageOrder(pa, pb) || seat.get(a) - seat.get(b);
+  });
+}
+
+// The page's own outline, in document order. Read off the headings the author wrote
+// rather than off <section> nesting, because both shapes are in the corpus and a heading
+// is the thing a reader navigates by in either — a page written as one flow of h2s has an
+// outline just as much as one written as nested sections. The runtime's own chrome
+// contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
+// of the page's outline.
+const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
+
+// Which part of the page an element is in: the heading that names everything from itself
+// to the next one. A place that contains a heading takes that heading rather than the one
+// before it — an anchor on a whole <section> is about that section, not about the end of
+// the one above.
+function headingFor(place, outline) {
+  let above = null;
+  for (const heading of outline) {
+    if (heading === place || place.contains(heading)) return heading;
+    if (heading.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING)
+      above = heading;
+    else break;
+  }
+  return above;
+}
+
+// The run of threads a heading stands over, named. The key is what the panel reconciles
+// the heading node by, so it is positional (the outline's own index) rather than an id the
+// author may not have written. The three keys below it name the places a page has no seat
+// for; none of them ever carries a target, so a group's node keeps its kind — a button
+// where there is somewhere to go, a plain line where there is not — across every
+// reconcile.
+function groupFor(t, outline) {
+  const place = threadPlace(t);
+  if (!place)
+    return t.root.anchor
+      ? { key: "gone", label: "No longer in this version" }
+      : { key: "page", label: "About the page as a whole" };
+  if (inChrome(place)) return { key: "layer", label: "The page's own layer" };
+  const heading = headingFor(place, outline);
+  // A page its author wrote no headings into has no runs to name, and a run with no name
+  // gets no line: "Above the first heading" over the whole list would be a landmark
+  // naming a landmark the page hasn't got. The list is still the page's order.
+  if (!heading)
+    return { key: "top", label: outline.length ? "Above the first heading" : "" };
+  return {
+    key: "h" + outline.indexOf(heading),
+    label: itemSays(heading) || itemWord(heading),
+    target: heading,
+  };
+}
+
+// ---------- narrowing the list ----------
+// Two narrowings, and they compose: the words a reader is looking for, and whether the
+// thread is one the agent has left with them. Neither is stored — see the find row's own
+// comment for why a remembered narrowing is the trap rather than the convenience.
+let finding = "";
+let needsYou = false;
+const narrowed = () => Boolean(finding) || needsYou;
+
+// A thread the agent spoke in last is a thread waiting on the reader; one the reader spoke
+// in last is waiting on the agent. A resolved thread waits on nobody.
+const awaitsReader = (t) => !t.resolved && t.msgs.at(-1).author === "claude";
+
+// What a search reads: everything the panel shows of a thread, plus the part of the page
+// it is on — so "merge rule" finds the threads under that heading as well as the ones
+// that say the words. The label is the panel's own rendering of the anchor, which is what
+// the reader can see and therefore what they would search for.
+const threadWords = (t, group) =>
+  [anchorLabel(t.root.anchor, t.root.about), group.label, ...t.msgs.map((m) => m.text)]
+    .join("\n")
+    .toLowerCase();
+
+const inFilter = (t, group) =>
+  (!needsYou || awaitsReader(t)) &&
+  (!finding || threadWords(t, group).includes(finding));
+
 // The reconcile's one mover, shared by the list and the resolved disclosure: make
 // `parent`'s children `nodes`, in that order, touching nothing already in its place.
 // Not touching it matters beyond economy: reinserting a node restarts its CSS
@@ -4966,6 +5173,43 @@ const emptyNote = el(
   "No comments yet. Select any text on the page to comment on it, or use the box below.",
 );
 const waitingNote = el("div", "lf-empty", "Loading current comments…");
+// The page has comments and the reader's narrowing is standing between them and it. It
+// names the narrowing rather than saying nothing was found, because the reader may have
+// arrived here from a key or from a second tab and what is on screen has to say why.
+const noMatch = el("div", "lf-empty");
+function noMatchNote() {
+  const said = finding
+    ? needsYou
+      ? `Nothing waiting on you says “${finding}”.`
+      : `No comment says “${finding}”.`
+    : "Nothing is waiting on you.";
+  if (noMatch.textContent !== said) noMatch.textContent = said;
+  return noMatch;
+}
+
+// The heading over a run of threads, kept across reconciles so a scroll position, a focus
+// ring and the sticky pin survive a poll. A button where the page still holds the heading
+// it names — pressing it takes the reader there, which is the same move a thread's quote
+// makes — and a plain line for the three runs that name no place (groupFor). A key never
+// changes kind, so the node a key holds never has to.
+const groupNodes = new Map();
+function groupNode(key, group) {
+  let node = groupNodes.get(key);
+  if (!node) {
+    node = group.target ? el("button", "lf-group") : el("div", "lf-group");
+    if (group.target) {
+      node.type = "button";
+      node.title = "Jump to this part of the page";
+    }
+    node.dataset.group = key;
+    groupNodes.set(key, node);
+  }
+  if (node.textContent !== group.label) node.textContent = group.label;
+  // The press is rewired on every reconcile and the word is not: a version activation
+  // replaces the heading the group names with a new element, and the same sentence.
+  if (group.target) node.onclick = () => scrollToElement(group.target);
+  return node;
+}
 
 // A terminal event's row, keyed like everything else in the list so its clock can
 // refresh in place.
@@ -5083,7 +5327,7 @@ function conversationMessageNode(thread, message) {
   node.append(head, body);
   if (message.markup) {
     const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
-    open.onclick = () => revealThread(message.id);
+    open.onclick = () => showThread(message.id);
     node.append(open);
   }
   return node;
@@ -5259,7 +5503,7 @@ function threadNode(t, grow) {
       threadsBox
         .querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`)
         ?.focus({ preventScroll: true });
-      revealThread(t.root.id);
+      showThread(t.root.id);
     };
     actions.append(status, reopen);
     div.append(actions);
@@ -5420,7 +5664,15 @@ function paintNotes() {
 // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
 function renderThreads(threads) {
   const open = threads.filter((t) => !t.resolved);
-  const resolved = threads.filter((t) => t.resolved);
+  // The page's outline, read once for the whole reconcile: every thread asks it where it
+  // stands and which run it belongs to.
+  const outline = pageOutline();
+  const group = new Map(threads.map((t) => [t, groupFor(t, outline)]));
+  // Where the reader's own narrowing applies, and the only place it does: the page's
+  // marks, the inline conversation seats and the banner's count are readings of the log
+  // and go on saying what the log says. What the panel shows is the panel's business.
+  const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
+  const resolved = shown.filter((t) => t.resolved);
   // Newcomers settle in (`grow`) only when the user already has the list in front
   // of them: the first populated render is the page loading, not news arriving, and a
   // node animated while the panel is closed would replay the moment it opens.
@@ -5430,19 +5682,31 @@ function renderThreads(threads) {
 
   const wanted = [];
   if (!threads.length) wanted.push(emptyNote);
-  // Walked in the log's order rather than the open list's, because a thread on its way
-  // out still stands between its neighbours while it folds (foldOut) and the two
-  // orders are the same walk with one of them filtered. The first nine open threads
-  // are addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k
-  // still reach everything. A folding thread takes no address and is walked by
-  // nothing: the log has already settled it, and only its room is still here.
-  for (const t of threads) {
-    if (t.resolved) {
-      const going = foldOut(t);
-      if (going) wanted.push(going);
-      continue;
+  else if (!shown.length) wanted.push(noMatchNote());
+  // Walked in the page's order rather than the log's (inPageOrder), because that is the
+  // order every other reading of these threads is in: the marks down the page, the walk
+  // j/k makes, the digits g c spells. A thread on its way out still stands between its
+  // neighbours while it folds (foldOut), which is why the walk is over the whole list
+  // with the resolved ones taken at their own place. The first nine open threads are
+  // addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k still
+  // reach everything. A folding thread takes no address and is walked by nothing: the log
+  // has already settled it, and only its room is still here.
+  //
+  // A heading goes in wherever the run changes, so the reader scrolling a list four
+  // thousand pixels long is told which part of the page they are reading about — and,
+  // the headings being sticky, is still told halfway down a long run.
+  let standing = null;
+  for (const t of shown) {
+    // A resolved thread is either still giving its room back in place, or gone from this
+    // list entirely and rebuilt under the disclosure below.
+    const node = t.resolved ? foldOut(t) : threadNode(t, grow);
+    if (!node) continue;
+    const here = group.get(t);
+    if (here.key !== standing) {
+      standing = here.key;
+      if (here.label) wanted.push(groupNode(here.key, here));
     }
-    wanted.push(threadNode(t, grow));
+    wanted.push(node);
   }
   for (const e of events) {
     if (e.kind === "done") wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
@@ -5453,10 +5717,12 @@ function renderThreads(threads) {
       resolvedBox.append(el("summary"));
     }
     const summary = resolvedBox.firstChild;
-    // Counted off the log, listed off the page: a thread still folding out of the
-    // open list is resolved and says so in the count from the first frame, and is
-    // rebuilt in here when its fold is done rather than standing in two places at
-    // once.
+    // Counted off what the panel is showing, listed off the page: a thread still folding
+    // out of the open list is resolved and says so in the count from the first frame, and
+    // is rebuilt in here when its fold is done rather than standing in two places at
+    // once. Under a narrowing the count is of the resolved threads that match it, for the
+    // same reason the head says "Showing 3 of 24" — a disclosure promising five where the
+    // list holds one is the trap the head exists to close.
     const said = `Resolved (${resolved.length})`;
     if (summary.textContent !== said) summary.textContent = said;
     setChildren(resolvedBox, [
@@ -5467,7 +5733,14 @@ function renderThreads(threads) {
     ]);
     wanted.push(resolvedBox);
   }
+  // A narrowing can take the thread the reader is standing in out of the list —
+  // answering the last one waiting on the reader is exactly that — and a removed node drops
+  // focus to body, which hands the next Space to the page behind the panel. Land them on
+  // the list, where Escape lands them and j/k can walk on from.
+  const standingIn = threadsBox.contains(focused());
   setChildren(threadsBox, wanted);
+  if (standingIn && !threadsBox.contains(focused()))
+    threadsBox.focus({ preventScroll: true });
   // A thread's widget markup is authored too, but it arrives after the page's startup
   // capture. Take its baseline on the first frame it is connected, before a reader can
   // act on it; later reconciles keep the first capture rather than mistaking a live
@@ -5491,8 +5764,83 @@ function renderThreads(threads) {
   // just written, which is why the loop is here and not where the boxes were built.
   for (const div of openThreads()) div.lfSync();
   toggleBtn.textContent = `Comments (${open.length})`;
+  paintNarrowing(open, shown);
   paintNotes();
+  // The anchor pass wrote its record before this list existed, and this reconcile may have
+  // built the nodes that wear it. Both passes therefore repaint it: the one that changes
+  // the record, and the one that changes what the record is painted on.
+  paintThreadQuotes();
   paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
+}
+
+// The two surfaces that say what the narrowing is doing, written together because they
+// are one fact told twice: how much of the conversation is in front of the reader, and
+// how much of it is still theirs to answer. One writer, so the phase before the log has
+// been read and the phase after it cannot come to spell the same state differently.
+//
+// The banner counts what the page has; the head says how much of that is on screen. They
+// differ only while a narrowing stands, which is exactly when the reader needs telling
+// that the list is not the whole of it — and there is nothing to tell where the page has
+// no open threads to narrow.
+function paintNarrowing(open, shown) {
+  const showing = shown.filter((t) => !t.resolved).length;
+  panelTitle.textContent =
+    narrowed() && open.length ? `Showing ${showing} of ${open.length}` : "Comments";
+  const waiting = open.filter(awaitsReader).length;
+  needsBtn.textContent = waiting ? `Waiting on you (${waiting})` : "Waiting on you";
+  // Pressable while it stands pressed, so the reader can always let it go; dead only when
+  // there is nothing for it to show and it is not the thing hiding the list.
+  needsBtn.disabled = !needsYou && !waiting;
+}
+
+// Re-render the list alone, for the one change that is the panel's own rather than the
+// log's: the reader narrowing it. Nothing about the page moved, so the anchor pass is not
+// asked again — the list is rebuilt from the record it already wrote.
+function renarrow() {
+  if (statePhase !== "ready") return;
+  renderThreads(threadList);
+  // A new set of results starts at its own beginning. Keeping the old offset lands the
+  // reader in the middle of a shorter list, or past the end of it, over a change they
+  // made a keystroke at a time.
+  threadsBox.scrollTop = 0;
+}
+findInput.addEventListener("input", () => {
+  finding = findInput.value.trim().toLowerCase();
+  renarrow();
+});
+needsBtn.onclick = () => {
+  needsYou = !needsYou;
+  needsBtn.setAttribute("aria-pressed", String(needsYou));
+  needsBtn.classList.toggle("on", needsYou);
+  renarrow();
+};
+// Everything the reader narrowed, let go at once — what Escape in the find box does, and
+// what a thread arriving from outside the narrowing needs before it can be revealed.
+function widen() {
+  if (!narrowed()) return false;
+  finding = "";
+  needsYou = false;
+  findInput.value = "";
+  needsBtn.setAttribute("aria-pressed", "false");
+  needsBtn.classList.remove("on");
+  renarrow();
+  return true;
+}
+
+// The panel's side of what the anchor pass drew, read off that pass's own record so the
+// two views can't disagree: a passage rewritten in a later version has no home to jump to,
+// and a dead-looking link is worse than one that says so. Called by the pass that writes
+// the record, and again by a narrowing that rebuilt the nodes the record was painted on.
+function paintThreadQuotes() {
+  for (const div of openThreads()) {
+    const quote = div.querySelector(".lf-quote");
+    if (!quote) continue;
+    const found = marked.has(div.dataset.id);
+    quote.classList.toggle("detached", !found);
+    quote.title = found
+      ? "Jump to this passage"
+      : "This passage can't be identified in the version you're viewing";
+  }
 }
 
 // A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
@@ -5511,15 +5859,23 @@ function renderPanel() {
         : "Loading current comments…";
     setChildren(threadsBox, [waitingNote]);
     toggleBtn.textContent = "Comments";
+    // Nothing read yet, so nothing to count and nothing to narrow. The same writer, so
+    // the button says exactly what it will say the moment the log arrives empty.
+    paintNarrowing([], []);
     threadList = [];
     paintHere();
     return;
   }
   const threads = buildThreads();
   threadList = threads;
+  // The marks first, because the list is ordered by where they landed: one resolution of
+  // every anchor, read by the page for its paint and by the panel for its order. Resolving
+  // a second time for the order would be a second answer to where a thread is, free to
+  // disagree with the first over a page that changed between them — and it would walk the
+  // document's whole text again to say it.
+  paintAnchors(threads);
   renderThreads(threads);
   renderConversations(threads);
-  paintAnchors(threads);
 }
 
 // One answer to "show me that thread", whoever asks: a click on a mark out on the page
@@ -5528,11 +5884,12 @@ function renderPanel() {
 // a different question — and flashes the thread. The flash takes over from a running
 // grow explicitly: both classes bind the element's one animation declaration, and the
 // send's confirmation is the one the gesture asked for.
+const listNode = (id) =>
+  threadsBox.querySelector(`.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`);
+
 function revealThread(id) {
   setPanel(true);
-  const node = threadsBox.querySelector(
-    `.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`,
-  );
+  const node = listNode(id);
   if (!node) return;
   const thread = node.closest(".lf-thread");
   node.scrollIntoView({
@@ -5542,6 +5899,22 @@ function revealThread(id) {
   thread.classList.remove("grow");
   thread.classList.add("flash");
   setTimeout(() => thread.classList.remove("flash"), 1300);
+}
+
+// The same ask, insisted on. Two callers mean the thread has to be on screen and cannot
+// see the narrowing they would be asking past: a press out on the page or in a message,
+// which knows nothing of the panel at all, and a comment the reader has just written,
+// which cannot be allowed to vanish into a narrowing it does not match. So the narrowing
+// goes rather than the thread.
+//
+// Every other reveal is a confirmation of something the reader was already watching — a
+// reply landing in a thread in front of them — and takes the list as it stands. A
+// narrowing that let go for having been used would be worse than one that hid something:
+// answering a thread is exactly how the reader empties the waiting-on-you list.
+function showThread(id) {
+  setPanel(true);
+  if (!listNode(id)) widen();
+  revealThread(id);
 }
 
 // ---------- passages ----------
@@ -6645,6 +7018,13 @@ const MARK = "lf-mark";
 const PENDING = "lf-pending";
 const NOTE = "lf-mark-note";
 const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record of what it drew
+// thread id -> the element its passage lands in. A different question from `marked`, and
+// the one the panel's order asks: where a thread is, rather than what was drawn for it. A
+// resolved thread has a place and no paint, and an element anchor's paint is the boxes its
+// contents show through (shownParts) rather than the element the anchor named — so neither
+// record answers for the other. Written only by the pass that resolves the anchors, so the
+// two readings can never come from different resolutions.
+const placed = new Map();
 let pendingMarks = []; // the same record for the open composer's own passage
 let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
 // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
@@ -6921,15 +7301,21 @@ function paintAnchors(threads = buildThreads()) {
     if (where instanceof Element) where.classList.remove("lf-mark-el");
   for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
   marked.clear();
+  placed.clear();
   pendingOutline = [];
 
   const text = pageText(); // read once, for every anchor this pass places
   const posted = [];
   const noted = new Map(); // element -> ordered thread ids marking something inside it
   for (const t of threads) {
-    if (t.resolved || !t.root.anchor) continue;
+    if (!t.root.anchor) continue;
     const found = resolveAnchor(t.root.anchor, text);
     if (!found) continue;
+    // Where the thread's passage lands in this version, recorded for every thread the
+    // page still holds — the resolved ones too, which take no paint but do take a place
+    // in the panel's order and keep the one they had while they fold out of it.
+    placed.set(t.root.id, found.element ?? elementOver(found.segments[0].node));
+    if (t.resolved) continue;
     if (found.element) {
       // The boxes the element shows through, for the same reason the ask ring hangs on
       // those: an outline needs a box, and a wrapper that generates none took its ring
@@ -7033,18 +7419,7 @@ function paintAnchors(threads = buildThreads()) {
   noteMarks(noted); // and the same fact for a reader who can't see any of it
   pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
 
-  // The panel's side of the same fact, read off the pass's own record so the two views
-  // can't disagree: a passage rewritten in a later version has no home to jump to, and a
-  // dead-looking link is worse than one that says so.
-  for (const div of openThreads()) {
-    const quote = div.querySelector(".lf-quote");
-    if (!quote) continue;
-    const found = marked.has(div.dataset.id);
-    quote.classList.toggle("detached", !found);
-    quote.title = found
-      ? "Jump to this passage"
-      : "This passage can't be identified in the version you're viewing";
-  }
+  paintThreadQuotes();
 
   // A message pointing at the page — [the group](#d-channel) — travels by the
   // browser's own fragment navigation, which is already the whole feature within one
@@ -7988,7 +8363,7 @@ document.addEventListener("click", (ev) => {
     return;
   }
   const threadId = markAt(ev.clientX, ev.clientY);
-  if (threadId) return revealThread(threadId);
+  if (threadId) return showThread(threadId);
   if (ev.target.closest?.("a")) return;
   const sel = visualSel();
   let visual = ev.target.closest?.(sel);
@@ -8084,7 +8459,7 @@ const syncComposer = wireInput(composerInput, {
     // A later edit is still the reader's standing gesture. The earlier comment may
     // render in the panel, but it may not close or move the composer holding that edit.
     if (loadDraft(ctx) !== null) return;
-    revealThread(sent.id);
+    showThread(sent.id);
     // The composer this was sent from is gone with the send; the thread it became
     // carries the same conversation, so its reply box is where typing continues.
     landTyping(threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`));
@@ -8245,7 +8620,7 @@ const syncGeneral = wireInput(generalInput, {
       (attempt) => post({ ...event, attempt }),
     );
     if (!sent) return;
-    revealThread(sent.id);
+    showThread(sent.id);
     landTyping(generalInput); // both send routes end where typing was
   },
 });
@@ -8697,6 +9072,13 @@ function rung() {
       does: `Close the ${trayUp} tray`,
       out: () => showTray(null),
     };
+  // A narrowing is a layer of the panel the way a tray is a layer of the page: the
+  // reader put it on, and the list in front of them is not the whole of the conversation
+  // until it comes off. So it unwinds before the panel does, and from wherever they are
+  // standing — the find box binds the same step for itself, being the one place the
+  // reader can see what they are backing out of.
+  if (panelOpen && narrowed())
+    return { says: "show all", does: "Show every comment again", out: widen };
   if (panelOpen)
     return {
       says: "close comments",
@@ -8887,6 +9269,40 @@ const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
 // The keys nothing here reimplemented — c, the walks, the versions, the reference — were
 // swallowed and stayed swallowed, which is the whole argument for claiming rather than
 // swallowing.
+// The find box is a text box and takes the letters like any other, so it stands inside the
+// typing scope and states only what it does differently: Escape lets the narrowing go
+// rather than merely leaving the box, and Enter walks into the list the words just found.
+// Nearer than TYPING in the stack, which is the whole of how it shadows that scope's own
+// Escape — no listener of its own, no preventDefault written by hand.
+const FINDING = {
+  title: "In the find box",
+  at: () => focused() === findInput,
+  rows: [
+    {
+      keys: ["Escape"],
+      does: () =>
+        narrowed()
+          ? "Show every comment again"
+          : "Leave the box, keeping what is typed",
+      line: () => (narrowed() ? "show all" : "back to list"),
+      // One press, one step, like every other Escape in the register: the narrowing goes
+      // first and the box is left on the next press, rather than both at once.
+      run: () => {
+        if (widen()) return;
+        findInput.blur();
+        threadsBox.focus();
+      },
+    },
+    {
+      keys: ["Enter"],
+      does: "Go to the first comment found",
+      line: "first found",
+      when: hasThreads,
+      run: () => stepThread(1),
+    },
+  ],
+};
+
 const TYPING = {
   title: "In a text box",
   at: () => takesLetters(focused()),
@@ -8901,6 +9317,63 @@ const TYPING = {
         const thread = focusedThreadOf();
         document.activeElement.blur();
         (thread ?? threadsBox).focus();
+      },
+    },
+  ],
+};
+
+// The panel's own keys. What a press acts on is whose scope it belongs to: the page holds
+// the presses whose subject is the page — `c` comments on it, `a` and `l` open what is
+// about it — and a surface holds the presses whose subject is its own contents. `w`
+// narrows this list and `/` searches it, and a list the reader is not looking at is
+// neither a thing to narrow nor a thing to search. At page scope they were two bare
+// letters spent on a panel that might be shut, promised by the key line over prose the
+// presses said nothing about.
+//
+// Standing in the panel is where its focus is, not merely that it is open: the Comments
+// button is the banner's, so opening by pointer leaves the reader outside, and `c`, `j`,
+// Tab or a click on a thread is what puts them in. The same line `THREAD` draws one step
+// further in, which is why that scope sits before this one and its rows shadow these.
+const PANEL = {
+  title: "In the comment panel",
+  at: () => panelOpen && containsAcross(panel, focused()),
+  when: () => statePhase === "ready",
+  rows: [
+    {
+      // `w` for the words the control says, the way `l` spells the leaves and `a` the
+      // asks. It is the phrase the page already uses for the same question asked of its
+      // widgets (n/p), asked here of the conversation — so the reader learns one idea and
+      // reaches it two ways rather than learning "needs you" beside it. The control was
+      // renamed to earn the letter: `n` belongs to the asks walk, and a key spelling a
+      // word nothing on screen says is a key nobody reaches for twice.
+      //
+      // A narrowing is a mode, so the row states it as one: the sentence and the line
+      // both turn on whether it stands, and Escape takes it off through the rung ladder
+      // rather than through a second binding here. Dead while there is nothing waiting
+      // and nothing hidden, which is the same fact that greys the control.
+      keys: ["w"],
+      does: () =>
+        needsYou ? "Show every comment again" : "Show only the comments waiting on you",
+      line: () => (needsYou ? "all comments" : "waiting on you"),
+      also: needsBtn,
+      when: () => needsYou || threadList.some(awaitsReader),
+      run: () => needsBtn.click(),
+    },
+    {
+      // `/` is what every list with a search field takes it with, and the one letter a
+      // text box does not shadow: the typing scope claims what types a character, so the
+      // press only ever reaches here from the list rather than from a box in it.
+      keys: ["/"],
+      does: "Find in the comments",
+      line: "find",
+      also: findInput,
+      // A conversation with nothing in it has nothing to find in, and the panel says so
+      // itself; a page still reading the log is not yet a page with no comments, which
+      // the scope's own `when` answers for both rows here.
+      when: () => threadList.length > 0,
+      run: () => {
+        findInput.focus();
+        findInput.select();
       },
     },
   ],
@@ -9251,8 +9724,10 @@ const SCOPES = [
   ELEMENTS,
   VERSIONS,
   COMPOSER,
+  FINDING,
   TYPING,
   THREAD,
+  PANEL,
   ...NATIVE,
   CONTROL,
   DESIGN,

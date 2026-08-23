@@ -414,6 +414,54 @@ it doesn't is the session already at your terminal, a page directory on your dis
 comment anchored to a passage. Nothing in leaf runs the other way — it serves one page
 to one session, and has no notion of an application at all.
 
+## herdr
+
+Read on 2026-08-23, from the repository and its own docs.
+[herdr](https://github.com/herdrdev/herdr) is a terminal multiplexer that knows which of
+its panes are running coding agents. It keeps tmux's model, where a background server owns
+the workspaces, tabs and panes and clients detach from it and reattach. On top of that
+each pane's agent has a state, `idle`, `working`, `blocked` or `done`, which rolls up from
+the pane to its tab and workspace, so the sidebar says which agent is waiting on you.
+Apache-2.0, started March 2026, 31.7k stars. It has no document and no browser surface, so
+this note's first question has no answer here. It is in the note because the user and the
+agents rearrange one live structure between them, which is the relationship leaf builds
+around a document.
+
+|                      | herdr                                                                                                                                                                           | leaf                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Shared structure     | Workspaces, tabs, panes and the splits between them, owned by a server that outlives any client                                                                                 | The page: authored HTML published as numbered versions, each with a changelog note to step back to               |
+| Home                 | A background server on your machine, drawn by a TUI you detach from and reattach to                                                                                             | A page directory on your machine, served where your session reached it, behind a key                             |
+| The agent's controls | The socket API and the CLI that wraps it: `pane.split`, `pane.move`, `pane.zoom`, `tab.create`, `layout.export` and `layout.apply`, `agent.start`, `agent.prompt`, `agent.wait` | Publishing a version, and answering a thread in the margin beside the passage it belongs to                      |
+| The user's controls  | Mouse and keys on the same objects: click a pane, tab or workspace, drag a split border, right-click for a menu, run a prefix-mode command                                      | The affordances the page offers: comment, drag a card, pick an option, rewrite a draft, accept a proposed change |
+| Waiting              | `agent.wait` until another agent reaches `blocked` or `done`, or a `pane.agent_status_changed` subscription on the socket                                                       | `leaf wait` on the page's event log, returned into the session by its host                                       |
+| Reach                | Anything that runs in a terminal, with shipped detection manifests for Claude Code, Codex, Cursor, Gemini, OpenCode, Grok and the rest                                          | Claude Code and Codex                                                                                            |
+
+Nothing in that structure belongs to one side. An agent creates a tab and splits a pane
+through the socket, the user drags the same border with a mouse, and either can rename,
+zoom, move or close what the other made. `layout.export` and `layout.apply` hand a whole
+arrangement back and forth as data. The state behind the sidebar does not work that way.
+An agent's `idle`, `working` or `blocked` flows one direction, from the process into the
+display, and how herdr decides it depends on the agent: an installed integration's
+lifecycle hooks are authoritative while they report, and otherwise herdr matches the live
+bottom of the screen against per-agent TOML rules, and marks `blocked` only on a visible
+approval, question or permission prompt.
+
+A herdr arrangement has no past. A pane the agent moved is moved, and there is no earlier
+layout for the move to disagree with. leaf's page has versions, so the same joint control
+raises a question herdr never has to answer: what becomes of the card the reader dragged
+when the agent publishes a rewrite of that board. The log outranking the document is the
+answer to it — a surviving action replays onto the later version, and `version check`
+refuses a rewrite that silently cancels a decision unless the author marks it `restated`.
+Sharing control over a live arrangement is nearly free; over a document that keeps its
+past it costs a reconciliation design.
+
+The two route a person's attention at different scales. herdr answers which of your
+sessions needs you, and published plugins forward that signal to a phone when an agent
+goes `blocked`. leaf's banner counts the open asks inside one page and its keyboard walk
+steps through them, for a reader who already has the page open. A leaf session is an agent
+at a terminal, so it is the kind of thing that sits in a herdr pane, and the page it
+serves is content herdr has no opinion about.
+
 ## Declarative UI formats
 
 Read on 2026-08-22, from each project's own repository.
@@ -580,7 +628,7 @@ heard of it.
 
 ## Not covered here
 
-Seven projects is not the landscape. These are the ones a fuller note would have to reach,
+Eight projects is not the landscape. These are the ones a fuller note would have to reach,
 roughly in order of how badly the omission dates this one:
 
 - **crit** — a local single Go binary, bound to loopback, no config or login; the agent

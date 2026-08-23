@@ -232,7 +232,7 @@ Declarations describe general behavior:
 
 - `x-upgrade` says that a module enhances the element.
 - `x-awaits` says the element can hold a request for the reader. It feeds the
-  banner count, asks board, keyboard walk, help, and conditional actions. Its
+  banner count, asks tray, keyboard walk, help, and conditional actions. Its
   answer verbs are explicit; `rollup` derives a nested plan from ordinary
   interventions and child roll-ups without naming either family.
 - `x-parent` declares the members that make up a holder. Combined with
@@ -357,7 +357,7 @@ The browser corpus is read in both color schemes. It checks widget upgrades,
 usable boxes, independent document and panel scrolling, script-free textarea
 sizing, control stability under presses and arriving news, print, and page width
 on a phone. A second sweep reads each example as a returning reader with the
-panel, a board, or design mode restored. Every other corpus reading is a first
+panel, a tray, or design mode restored. Every other corpus reading is a first
 visit, so restoration cannot hide an arrival regression.
 
 The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own

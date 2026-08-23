@@ -292,7 +292,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
     /* Arriving is not a gesture, said here for the cascade as leaf.js's `motion`
        already says it for the runtime's own Web Animations. The chrome a reader left
        standing is put back while the page is still arriving, and every put-back is a
-       property changing: the panel opens, the board goes up, the toast steps aside
+       property changing: the panel opens, the tray goes up, the toast steps aside
        into the corner the open panel leaves it. Each of those is a move the reader
        made once and is not making now, so animating it plays a decision back at
        somebody who came here to read what follows from it. The hold above cannot
@@ -939,9 +939,24 @@ lf-new { background: var(--add-tint); }
  * forbid, silently inline for the first project-layer widget staged in a slot, whose
  * fold then dropped it in the frame of the press. Phrasing is the list that cannot
  * grow: a custom element is never in it, so a block widget from any layer is covered
- * unnamed. The lf-* names at the end are the other direction's residue — the tags the
- * registry declares x-inline, which a stylesheet cannot read, so the test pins this
- * list's widget names to that declaration and an inline widget joins by declaring.
+ * unnamed. The marker at the end is the other direction's residue, and the inversion's
+ * one wrong answer: an inline widget is a custom element too. Which widgets those are is
+ * the registry's to say (x-inline) and a stylesheet cannot read it, so the runtime paints
+ * the declaration where a selector can reach it (data-lf-inline, leaf.js markDeclared).
+ * Four widget names stood here instead, one of them a bundled chip's — a bundled tag in
+ * the integrated theme, and the layer that most needed the answer, a project's own, was
+ * the one layer it could never be given for. What the tag list bought that the marker
+ * does not is the page that never runs the runtime: unpainted, an inline widget in a
+ * slot reads as block there. No shipped script-free page stages one, and the price of
+ * keeping that case was the closed list itself.
+ *
+ * In :where(), because :not() and :has() both take the specificity of the most specific
+ * thing inside them, and a bare attribute selector is a whole class-column above the type
+ * names it stands among. The list is a question about the content, not a claim on the
+ * cascade, and the answer wearing a class column outranked the marks that answer over it:
+ * this rule's own block display beat [data-lf-retired]'s `display: none`, so a decided
+ * suggestion kept the slot it had just retired on the page. :where() zeroes that argument
+ * and leaves the list weighing what the tag names weighed.
  *
  * The platform half is that set quoted whole, `link` and `meta` included, which no
  * slot will ever hold and which render nothing if one does. Quoting it whole is what
@@ -975,8 +990,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
     button, canvas, cite, code, data, datalist, del, dfn, em, embed, i, iframe, img,
     input, ins, kbd, label, link, map, mark, math, meta, meter, noscript, object,
     output, picture, progress, q, ruby, s, samp, script, select, slot, small, span,
-    strong, sub, sup, svg, template, textarea, time, u, var, video, wbr, lf-old,
-    lf-new, lf-chip, lf-suggestion)) {
+    strong, sub, sup, svg, template, textarea, time, u, var, video, wbr,
+    :where([data-lf-inline]))) {
   display: block;
   & > :is(lf-old, lf-new) {
     display: block; padding: 2px 10px; margin-top: 10px; --lf-frame: 1; }

@@ -164,6 +164,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
+  inline: "data-lf-inline",
   wide: "data-lf-wide",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
@@ -1252,7 +1253,7 @@ function checked(rows, where) {
 // and the drift here was invisible: the key worked and the page under-promised it.
 //
 // A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
-// page, so the leaves board binds Enter alone and is right to — the shared fact is what a
+// page, so the leaves tray binds Enter alone and is right to — the shared fact is what a
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
 
@@ -1648,7 +1649,7 @@ async function upgradeWidgets() {
   revealLayer();
   rememberPassageParts();
   rememberAuthoredMarkup();
-  markWide(document.body);
+  markDeclared(document.body, MARKED_IN_PAGE);
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
   if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
@@ -1681,27 +1682,58 @@ function dress(root) {
   return highlightBlocks(root);
 }
 
-// Which widgets may stand wider than the column, from what they declare. Prose is set to
-// a measure and stays at it; a board's columns and a diagram's graph are as wide as what
-// they hold, and a page carrying one had to be either a cramped board or a page whose
-// every paragraph was widened to suit it. Neither is a choice a page should have to make,
-// so the widget kind says which it is (x-wide) and the theme spends the room the layout
+// The declarations a stylesheet has to read and cannot. Two of them today, and each
+// answers a question about the box a widget is given, which is the one thing a selector
+// can neither derive from the element nor look up.
+//
+// Which widgets may stand wider than the column is the first. Prose is set to a measure
+// and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
+// and a page carrying one had to be either a cramped board or a page whose every
+// paragraph was widened to suit it. Neither is a choice a page should have to make, so
+// the widget kind says which it is (x-wide) and the theme spends the room the layout
 // measured (--lf-room, syncLayout). The value is the kind the entry declares, and the
 // theme's `[data-lf-wide="box"]` and `[data-lf-wide="drawing"]` rules read it.
 //
+// Whether the widget is set among the words around it is the second (x-inline). What
+// reads it is the pair of selectors asking whether a suggestion slot or a variant holds
+// block content, which is HTML's phrasing content inverted: a custom element is in no
+// closed platform set, so any widget in one of those makes it a block — an inline widget
+// included, which is the one wrong answer the inversion gives. The exclusion that fixed
+// it was four widget names, and a bundled chip's tag therefore stood in the integrated
+// theme, saying nothing at all about the next layer's inline widget. It is one marker
+// now, data-lf-inline, and an inline widget from any layer joins by declaring.
+//
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said, and what carries the breakout into an exported copy,
-// which runs no script but keeps the markup. It is the runtime's paint on the page's own
+// already has with data-lf-said, and what carries both facts into an exported copy, which
+// runs no script but keeps the markup. It is the runtime's paint on the page's own
 // element, so it joins PAGE_PAINT_ATTRIBUTES: the version diff reads the live DOM against
 // a file nothing has painted, and an attribute missing from that exclusion list is a
-// change the author never made. Written before the modules import, because the width is
-// the box each of them renders into, and written over the page alone: the room this
-// hands out is the document's, and the one place a widget renders outside the document
-// is a thread's message, where the room is the panel's (see msgNode).
-function markWide(root) {
-  for (const tag of tagsDeclaring((entry) => entry["x-wide"]))
-    for (const el of root.querySelectorAll(tag))
-      el.setAttribute(PAGE_PAINT_ATTRIBUTE.wide, registry[tag]["x-wide"]);
+// change the author never made. Written before the modules import, because the box each
+// of them renders into is what these two decide. The root is marked alongside its
+// descendants: a rebuild is handed a clone of the widget itself, and the fact is that
+// widget's own.
+//
+// What separates the two tables is where each fact holds. x-inline is true of the element
+// wherever it renders, a thread's message included, or a chip-led comparison quoted into
+// a reply would stack there and nowhere else. The room x-wide hands out is the document's,
+// and a message is the one place a widget of the page's vocabulary renders outside the
+// document, where the room is the panel's (see msgNode).
+const MARKED_ANYWHERE = Object.freeze({ "x-inline": PAGE_PAINT_ATTRIBUTE.inline });
+const MARKED_IN_PAGE = Object.freeze({
+  ...MARKED_ANYWHERE,
+  "x-wide": PAGE_PAINT_ATTRIBUTE.wide,
+});
+
+function markDeclared(root, painted) {
+  for (const [key, attr] of Object.entries(painted))
+    for (const tag of tagsDeclaring((entry) => entry[key])) {
+      const declared = registry[tag][key];
+      for (const el of [
+        ...(root.matches?.(tag) ? [root] : []),
+        ...root.querySelectorAll(tag),
+      ])
+        el.setAttribute(attr, declared === true ? "" : declared);
+    }
 }
 
 // Words a widget says through an attribute — a metric's number, an event's time, an
@@ -1893,38 +1925,38 @@ const PANEL_MIN = 320;
 // strikes — the page keeps at least what the panel takes — without putting the posture
 // itself in play.
 const COVERING = `(width <= ${PANEL_W * 2}px)`;
-// The boards' edge, on the left, and everything said above said again for it: the width
+// The trays' edge, on the left, and everything said above said again for it: the width
 // it stands at until the reader moves it, how narrow they may draw it, and the window
-// under which a board covers the page rather than standing beside it. The same bargain at
+// under which a tray covers the page rather than standing beside it. The same bargain at
 // the same ratio, because a reader who has learned one edge has learned the other.
 //
-// 220 is where the board's own row stops being one. A leaf's row spends 45px before any
+// 220 is where the tray's own row stops being one. A leaf's row spends 45px before any
 // word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
-// and the board take for padding — and what is left holds a title that ellipsizes rather
-// than wrapping, so under this the board is furniture showing the first syllable of every
-// name on it. The asks board's rows clamp to three lines instead and would go on reading
-// further down, which is why the floor is the leaves board's to set.
-const BOARD_W = 300;
-const BOARD_MIN = 220;
-const BOARD_COVERING = `(width <= ${BOARD_W * 2}px)`;
+// and the tray take for padding — and what is left holds a title that ellipsizes rather
+// than wrapping, so under this the tray is furniture showing the first syllable of every
+// name on it. The asks tray's rows clamp to three lines instead and would go on reading
+// further down, which is why the floor is the leaves tray's to set.
+const TRAY_W = 300;
+const TRAY_MIN = 220;
+const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
 // Where each standing width is written, and where the cascade reads it. Named rather than
 // spelled, because the stylesheet below and the runtime's writer are two ends of one fact
 // and a property spelled twice is two facts the day one of them moves.
 const PANEL_PROP = "--lf-panel-w";
-const BOARD_PROP = "--lf-board-w";
-// Which boards take their room out of the page rather than lying over it, read by the rule
+const TRAY_PROP = "--lf-tray-w";
+// Which trays take their room out of the page rather than lying over it, read by the rule
 // that takes the strip and by the runtime for what the page has left — so the two cannot
 // disagree about whether the page is yielding one.
 //
-// The leaves board is not on the list, and that is not an inconsistency between two twins:
+// The leaves tray is not on the list, and that is not an inconsistency between two twins:
 // a leaf's row is a way out of this page and an ask's row is a way around it, so pressing
 // an ask's row scrolls the document to the ask and stands you on the control that answers
-// it — and a board lying over the document would be hiding the very thing it just sent you
-// to. A 300px board and a 720px column overlap on any window under about 1320px, which is
+// it — and a tray lying over the document would be hiding the very thing it just sent you
+// to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
 // most of them, so this is the common case rather than the narrow one.
-const STRIP_BOARDS = ["asks"];
-const STRIP_BOARD_RULE = `body:is(${STRIP_BOARDS.map(
-  (board) => `[data-lf-board="${board}"]`,
+const STRIP_TRAYS = ["asks"];
+const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
+  (tray) => `[data-lf-tray="${tray}"]`,
 ).join(",")})`;
 // The width the theme wants a page's box to have before it takes a strip of it for the
 // margin (theme.css's --strip-min, stated there because that is where the strips and
@@ -2079,17 +2111,17 @@ style.textContent = `
      moves still wants the slide, an arrow step on the edge included: a step is one
      discrete move the eye can follow, which is what the rule above is for. */
   body[data-lf-sizing] { transition: none; }
-  /* A board that takes its room out of the page takes it the same way, off the one
-     attribute showBoard writes to say which board is up and the one list that says which
-     of them the page yields to (STRIP_BOARDS, where the reasons are). Everything else
+  /* A tray that takes its room out of the page takes it the same way, off the one
+     attribute showTray writes to say which tray is up and the one list that says which
+     of them the page yields to (STRIP_TRAYS, where the reasons are). Everything else
      about the strip — that it comes out of the page rather than being held aside, that it
      is carried as motion, what it costs on a window narrow enough to rewrap — is the
      panel's story above, told once for both sides. */
-  @media screen and (not ${BOARD_COVERING}) {
-    ${STRIP_BOARD_RULE} { margin-left: var(${BOARD_PROP}); }
+  @media screen and (not ${TRAY_COVERING}) {
+    ${STRIP_TRAY_RULE} { margin-left: var(${TRAY_PROP}); }
   }
-  @media screen and ${BOARD_COVERING} {
-    ${STRIP_BOARD_RULE} { overflow-y: hidden; }
+  @media screen and ${TRAY_COVERING} {
+    ${STRIP_TRAY_RULE} { overflow-y: hidden; }
   }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -2316,7 +2348,7 @@ ${MARK_RULES}
      whichever of its controls holds the focus — they are standing in the whole thing,
      however they got there. Exactly one ask wears it at a time: every shipped widget
      draws one box for it to paint on, and one a page styles boxless hangs it on the
-     boxes its contents make (shownParts). While the asks board is open, its row mirrors
+     boxes its contents make (shownParts). While the asks tray is open, its row mirrors
      the same fact on the second surface. It is an outline like every other mark the
      runtime paints on the page's own elements: it moves nothing on arriving, and it
      keeps its place for nothing, being the element's own paint rather than a box in
@@ -2463,18 +2495,18 @@ ${MARK_RULES}
        the rows rather than the presses because the rows are the run that touch. */
     .lf-version-row.lf-compared::before { content: ""; position: absolute;
       left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-    /* The boards' edge: the comment panel's mirror on the left, holding one board at a
-       time (showBoard), each its own scroll region so one wheel gesture moves one region.
-       Every metric is the edge's rather than either board's — a reader who has both keys
+    /* The trays' edge: the comment panel's mirror on the left, holding one tray at a
+       time (showTray), each its own scroll region so one wheel gesture moves one region.
+       Every metric is the edge's rather than either tray's — a reader who has both keys
        should not find two different regions where they learned one — and it is stated once
        here for both. It used to be stated twice, in two rules with every declaration
        duplicated, and by the time anyone looked one copy was carrying a literal 300 where
-       the other read the constant; what the two boards differ in is the row, below. */
-    .lf-board-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
-      z-index: 8900; width: var(${BOARD_PROP}); background: var(--card);
+       the other read the constant; what the two trays differ in is the row, below. */
+    .lf-tray-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
+      z-index: 8900; width: var(${TRAY_PROP}); background: var(--card);
       border-right: 1px solid var(--rule); display: none; flex-direction: column; }
-    .lf-board-panel.open { display: flex; }
-    /* The rows scroll in a box of their own rather than in the board, which is the comment
+    .lf-tray-panel.open { display: flex; }
+    /* The rows scroll in a box of their own rather than in the tray, which is the comment
        panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
        all: a scroll container clips to its padding box, so an edge straddling the border
        was cut to the three pixels inside it, and an absolutely positioned child of a
@@ -2482,7 +2514,7 @@ ${MARK_RULES}
        list, an edge being a fact about the region rather than about how far down it the
        reader has read. contain, so reaching the end of the list does not start scrolling
        the page behind it: one wheel gesture moves one region. */
-    .lf-board-list { flex: 1; min-height: 0; padding: 6px 4px; overflow-y: auto;
+    .lf-tray-list { flex: 1; min-height: 0; padding: 6px 4px; overflow-y: auto;
       overscroll-behavior: contain; }
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
@@ -2524,7 +2556,7 @@ ${MARK_RULES}
       background: var(--card); border-left: 1px solid var(--rule); display: none; flex-direction: column; }
     .lf-panel.open { display: flex; }
     /* An edge, offered as a thing to take hold of — the comment panel's on the right of
-       the page, the boards' on the left, and nothing here knows which it is drawing except
+       the page, the trays' on the left, and nothing here knows which it is drawing except
        the two lines that place it. It draws nothing of its own: the region's inner border
        is the line the reader already sees, and this is the room around that line in which
        a pointer counts as being on it. It straddles the border rather than sitting inside
@@ -2540,7 +2572,10 @@ ${MARK_RULES}
 
        Named for what it is rather than for the gesture: a card's drag handle is a grip
        (lf-board.js), and one word for a thing you pick up and a boundary you draw would
-       have been two meanings a selector cannot tell apart. */
+       have been two meanings a selector cannot tell apart. The regions this edge draws
+       were boards until the same reading caught them: lf-board is a widget an author
+       writes into a page, so a grep for it hit the runtime's own furniture and a grep for
+       the furniture hit the widget. They are trays now, and the word is core's alone. */
     .lf-edge { position: absolute; top: 0; bottom: 0; width: 8px; z-index: 1;
       cursor: col-resize; touch-action: none; }
     .lf-edge::before { content: ""; position: absolute; top: 0; bottom: 0;
@@ -2841,7 +2876,7 @@ const el = (tag, cls, text) => {
 const EDGE_STEP = 24;
 /** A region held to one side of the window, and the boundary the reader draws it by.
  *
- * The page has two — the comment panel on the right, the board panel on the left — and
+ * The page has two — the comment panel on the right, the tray panel on the left — and
  * they are the same furniture reflected, so this is one function rather than two
  * near-copies. What differs is what it is handed: which side the region is held to, the
  * width it stands at until the reader says otherwise, how narrow they may draw it, the
@@ -2856,9 +2891,9 @@ const EDGE_STEP = 24;
  * kept and the standing width is derived from it. Everything reads `width`; nothing holds
  * the number.
  *
- * One width, and a handle for each region on that side: the left edge holds two boards one
+ * One width, and a handle for each region on that side: the left edge holds two trays one
  * at a time, and each wears the edge it is drawn by, because a handle outside them both
- * would not slide in with the board it belongs to. They are handles onto one fact rather
+ * would not slide in with the tray it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
 function drawnEdge({ side, noun, wide, min, prop, key, covering, when }) {
@@ -2914,7 +2949,7 @@ function drawnEdge({ side, noun, wide, min, prop, key, covering, when }) {
    * so in words of its own and would have promised an activation an edge has not got.
    *
    * It goes in the region rather than beside it, so it travels with whatever the region
-   * does: the board panel's edge slides in with the board standing on it, and a closed
+   * does: the tray panel's edge slides in with the tray standing on it, and a closed
    * region's edge is hidden by the same rule that hides the region.
    */
   function handle(region) {
@@ -2995,21 +3030,21 @@ function drawnEdge({ side, noun, wide, min, prop, key, covering, when }) {
   }
   return { width, state, restore, handle, key, over };
 }
-// The rows' own box, one per board. Collected as they are made, because what syncLayout
+// The rows' own box, one per tray. Collected as they are made, because what syncLayout
 // reserves at the foot of one it reserves at the foot of every one — and a second place
-// to remember that is exactly where the asks board was left out of it: its walk parked
-// the last row 47px under the key line, on the one board nothing had ever walked to the
+// to remember that is exactly where the asks tray was left out of it: its walk parked
+// the last row 47px under the key line, on the one tray nothing had ever walked to the
 // end of.
-const boardLists = [];
-function boardList(panel) {
-  const list = el("div", "lf-board-list");
+const trayLists = [];
+function trayList(panel) {
+  const list = el("div", "lf-tray-list");
   panel.append(list);
-  boardLists.push(list);
+  trayLists.push(list);
   return list;
 }
-// The comment panel's edge, on the right, and the board panel's, on the left. Each keeps
+// The comment panel's edge, on the right, and the tray panel's, on the left. Each keeps
 // the reader's choice in their own store rather than the tab's, because where a reader
-// keeps their conversations, and how much of the page they will give a board, is the
+// keeps their conversations, and how much of the page they will give a tray, is the
 // chrome they arrange and expect to find arranged wherever they are reading (see
 // `readerStore`). Live activation keeps the edges themselves; document travel and reload
 // restore the same choices, so no revision or visit asks the reader to draw them again.
@@ -3022,15 +3057,15 @@ const commentsEdge = drawnEdge({
   key: "lf-panel-width",
   covering: COVERING,
 });
-const boardsEdge = drawnEdge({
+const traysEdge = drawnEdge({
   side: "left",
-  noun: "board panel",
-  wide: BOARD_W,
-  min: BOARD_MIN,
-  prop: BOARD_PROP,
-  key: "lf-board-width",
-  covering: BOARD_COVERING,
-  // A page with no board to open has no edge to draw, so the reference does not name one.
+  noun: "tray panel",
+  wide: TRAY_W,
+  min: TRAY_MIN,
+  prop: TRAY_PROP,
+  key: "lf-tray-width",
+  covering: TRAY_COVERING,
+  // A page with no tray to open has no edge to draw, so the reference does not name one.
   when: () => leavesOffered() || asksOffered(),
 });
 
@@ -3071,58 +3106,58 @@ asksBtn.title = "Go to the next thing this page is waiting on you for";
 // live page, and every URL in the list carries only the key this reader already
 // holds, since there is one key for the machine (`host_key`). The current page heads
 // the list as a marked, unlinked row, so the panel reads as the whole machine. A
-// status board's point is being live, so rows reconcile on every poll, keyed by URL —
+// status tray's point is being live, so rows reconcile on every poll, keyed by URL —
 // the stable identity, since address, port and key all survive a restart — and a
 // status change repaints the row's own dot and words without moving it.
 const othersBtn = el("button", "lf-btn lf-others", "");
 othersBtn.title = "Leaves live on this machine, and what each is doing";
 // A nav, because navigation is what it is and a bare div may not carry the
 // aria-label the card needs (axe: aria-prohibited-attr, serious).
-const othersPanel = el("nav", "lf-ui lf-board-panel lf-others-panel");
+const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
-boardsEdge.handle(othersPanel);
-const leavesList = boardList(othersPanel);
+traysEdge.handle(othersPanel);
+const leavesList = trayList(othersPanel);
 let others = [];
-// A board of the page's own open asks, on the same edge: one row per thing the page is
+// A tray of the page's own open asks, on the same edge: one row per thing the page is
 // waiting on the reader for, in the order the page asks them. The list is openAsks() and
-// nothing else, so a widget joins the board by declaring x-awaits and no row here knows
+// nothing else, so a widget joins the tray by declaring x-awaits and no row here knows
 // what kind of thing it is standing for.
-const asksPanel = el("nav", "lf-ui lf-board-panel lf-asks-panel");
+const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
 asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
-boardsEdge.handle(asksPanel);
-const asksList = boardList(asksPanel);
+traysEdge.handle(asksPanel);
+const asksList = trayList(asksPanel);
 
-// The left edge holds one board at a time. Leaves and asks are the same furniture asking
+// The left edge holds one tray at a time. Leaves and asks are the same furniture asking
 // at two scopes — which page needs me, and what this page needs of me — and each has to
 // stand while the reader works, which is the whole reason either is a fixed edge rather
 // than a menu over the page. So which one is up is one fact held in one place. A boolean
-// per board would be one guarantee written twice, and the two would first disagree on the
+// per tray would be one guarantee written twice, and the two would first disagree on the
 // day a third surface opened one without closing the other; the reader would then have
-// two boards over one edge with the lower one unreachable.
+// two trays over one edge with the lower one unreachable.
 //
 // Registered rather than listed, for the same reason the widgets are: the toggle, the
-// press, the reload and the Escape rung all read this map, so a third board joins by
-// registering and none of them names a board to do its job.
-const boards = new Map();
-const BOARD_KEY = "lf-board-up";
-// The board survives a reload like the comment panel does (see PANEL_KEY): reloading is
-// not resetting, and a board someone stood up to watch stays stood. Null until the
-// restore at the foot of this module puts it back, which it does by opening the board
+// press, the reload and the Escape rung all read this map, so a third tray joins by
+// registering and none of them names a tray to do its job.
+const trays = new Map();
+const TRAY_KEY = "lf-tray-up";
+// The tray survives a reload like the comment panel does (see PANEL_KEY): reloading is
+// not resetting, and a tray someone stood up to watch stays stood. Null until the
+// restore at the foot of this module puts it back, which it does by opening the tray
 // the way a press does. Reading the store into this declaration instead is what made
 // registration a second opener, and a second opener here can reach almost nothing: it
 // runs while this module is still evaluating, so the page's own asks — declared
 // thousands of lines below — are not initialized yet, and the reader who had left the
-// board standing got a ReferenceError where their page should have been.
-let boardUp = null;
-const openBoard = (key) => boardUp === key;
-function showBoard(key) {
-  if (boardUp === key) return;
-  boardUp = key;
-  for (const [name, { panel, btn, paint }] of boards) {
+// tray standing got a ReferenceError where their page should have been.
+let trayUp = null;
+const openTray = (key) => trayUp === key;
+function showTray(key) {
+  if (trayUp === key) return;
+  trayUp = key;
+  for (const [name, { panel, btn, paint }] of trays) {
     const open = name === key;
     btn.setAttribute("aria-expanded", String(open));
     if (open) {
-      // Filled before it is shown, so the board is its own list from the first frame of
+      // Filled before it is shown, so the tray is its own list from the first frame of
       // the slide rather than a blank card that populates a moment later. The way down
       // is the mirror of it, below: emptied once it is hidden, never before, or the
       // reader watches the list they just closed blank out and an empty card slide away.
@@ -3142,7 +3177,7 @@ function showBoard(key) {
         160,
       );
       const hide = () => {
-        if (boardUp === name) return; // reopened mid-slide; it stays up, list and all
+        if (trayUp === name) return; // reopened mid-slide; it stays up, list and all
         panel.classList.remove("open");
         paint?.();
       };
@@ -3151,65 +3186,65 @@ function showBoard(key) {
       if (panel.contains(document.activeElement)) btn.focus();
     }
   }
-  // Both of the page's answers to the board are made here rather than left to the
+  // Both of the page's answers to the tray are made here rather than left to the
   // observation, for the reasons setPanel gives at the same two lines: the strip the
   // idioms hang in is body's own padding, which the observation's writer may not touch,
-  // and a board that covers the page moves body's box by nothing at all, so there is no
+  // and a tray that covers the page moves body's box by nothing at all, so there is no
   // observation to deliver.
   stateStrip();
   syncLayout();
-  readerStore.set(BOARD_KEY, key ?? "");
-  // Which board is up, on the document, so the stylesheet can say what each one costs the
+  readerStore.set(TRAY_KEY, key ?? "");
+  // Which tray is up, on the document, so the stylesheet can say what each one costs the
   // page's own box. One writer for it, here, beside the one variable that holds the fact.
-  if (key) document.body.dataset.lfBoard = key;
-  else delete document.body.dataset.lfBoard;
+  if (key) document.body.dataset.lfTray = key;
+  else delete document.body.dataset.lfTray;
   paintHere();
 }
-// Registration and nothing else: no board is up while this module is evaluating, and
+// Registration and nothing else: no tray is up while this module is evaluating, and
 // the one the reader left standing goes up in the restore section at the foot of the
-// file, through showBoard. So there is one opener, and every fact that carries "this
-// board is up" is written where it is decided.
-function boardIs(key, panel, btn, paint) {
-  boards.set(key, { panel, btn, paint });
-  btn.onclick = () => showBoard(openBoard(key) ? null : key);
+// file, through showTray. So there is one opener, and every fact that carries "this
+// tray is up" is written where it is decided.
+function trayIs(key, panel, btn, paint) {
+  trays.set(key, { panel, btn, paint });
+  btn.onclick = () => showTray(openTray(key) ? null : key);
   btn.setAttribute("aria-expanded", "false");
 }
-boardIs("leaves", othersPanel, othersBtn);
-boardIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
-// A persisted board is state-dependent chrome: Asks folds the log and Leaves comes from
-// the first state response. Keep the remembered intent in boardUp, but restore its pixels
-// only once that response has produced the page's presentation. Unlike showBoard, this
+trayIs("leaves", othersPanel, othersBtn);
+trayIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
+// A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
+// the first state response. Keep the remembered intent in trayUp, but restore its pixels
+// only once that response has produced the page's presentation. Unlike showTray, this
 // first paint does not animate — it is part of the page arriving, not a reader gesture.
-function restoreBoard() {
-  if (!boardUp) return;
-  const board = boards.get(boardUp);
-  if (!board) return;
-  board.btn.setAttribute("aria-expanded", "true");
-  board.paint?.();
-  board.panel.classList.add("open");
-  document.body.dataset.lfBoard = boardUp;
+function restoreTray() {
+  if (!trayUp) return;
+  const tray = trays.get(trayUp);
+  if (!tray) return;
+  tray.btn.setAttribute("aria-expanded", "true");
+  tray.paint?.();
+  tray.panel.classList.add("open");
+  document.body.dataset.lfTray = trayUp;
 }
-// Each board's one offer: something to show, or the board already standing — the key that
+// Each tray's one offer: something to show, or the tray already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
-// visibility and the key both ask the board's own predicate, so the two surfaces cannot
-// disagree about whether there is a board to open. A leaves board of one — the page the
-// reader is already on — is not worth a control; an asks board of none is the same.
+// visibility and the key both ask the tray's own predicate, so the two surfaces cannot
+// disagree about whether there is a tray to open. A leaves tray of one — the page the
+// reader is already on — is not worth a control; an asks tray of none is the same.
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const leavesOffered = () =>
-  pagePresented() && (others.length > 0 || openBoard("leaves"));
+  pagePresented() && (others.length > 0 || openTray("leaves"));
 const asksOffered = () =>
-  pagePresented() && (openAsks().length > 0 || openBoard("asks"));
-// The board's own scope. The walk is the board's rather than the page's, because ArrowUp
+  pagePresented() && (openAsks().length > 0 || openTray("asks"));
+// The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The reader
 // arrives here by key — `l` lands focus on the first neighbour — so the scope names what
 // activating does rather than leaving it to the platform's own contract.
 const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
 const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
-// The asks board's own walk, the leaves board's twin: ArrowUp and ArrowDown are the page's
-// scroll everywhere else and the board's here, and Enter is the platform's, a row being a
+// The asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
+// scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
 // button — so the scope names what walking does and leaves the press to the button.
-keys(asksPanel, "In the asks board", [
+keys(asksPanel, "In the asks tray", [
   {
     keys: ["ArrowUp", "ArrowDown"],
     does: "Walk the asks",
@@ -3224,7 +3259,7 @@ keys(asksPanel, "In the asks board", [
 ]);
 keys(
   othersPanel,
-  "In the leaves board",
+  "In the leaves tray",
   [
     {
       keys: ["ArrowUp", "ArrowDown"],
@@ -3239,7 +3274,7 @@ keys(
     // the line is for.
     { keys: ["Enter"], does: "Open that leaf in a tab", line: "open it in a tab" },
   ],
-  leavesOffered, // the scope's own liveness: a board with something to walk
+  leavesOffered, // the scope's own liveness: a tray with something to walk
 );
 // A row's whole account of a page: the dot's tone and one line of words, from the
 // same judgment the banner's sentences come from — the judgment is shared, the
@@ -3279,7 +3314,7 @@ function rowPresence(entry) {
                 : "Closed";
   return { tone: TONE[kind], line };
 }
-// The whole of what the board knows about one page, for its hover. Everything drawn
+// The whole of what the tray knows about one page, for its hover. Everything drawn
 // on a row is cut to the panel's fixed width — the title ellipsizes, the line
 // ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
 // session behind the leaf is working. A title is a sentence somebody wrote and two
@@ -3296,7 +3331,7 @@ const rowAccount = (entry, title, line) =>
     entry.session_cwd,
     line,
     // The reader's own words that page's agent hasn't taken in. The banner says this
-    // number for this page; the board says it for every page, which is the seat's
+    // number for this page; the tray says it for every page, which is the seat's
     // whole point — a leaf holding something of yours that nobody has read is a
     // reason to go there, and nothing else on the row says so.
     entry.pending && `${entry.pending} update${entry.pending === 1 ? "" : "s"} waiting`,
@@ -3306,7 +3341,7 @@ const rowAccount = (entry, title, line) =>
 const othersRows = new Map(); // keyed by URL; the self row under its own key
 function renderOthers(state) {
   // An older server ships no list, which is an empty one. A closed leaf is not
-  // one of the machine's live pages and drops out of the board on the poll that says
+  // one of the machine's live pages and drops out of the tray on the poll that says
   // so: its server stays up so the page stays readable — a standing one for good —
   // so nothing else would ever take the row off, and a count the reader glances at
   // to find who needs them would silently become a tally of everything that has run
@@ -3320,10 +3355,10 @@ function renderOthers(state) {
     { key: "self", title: document.title, entry: state },
     ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
   ];
-  // The button names the board it opens, so the count is these rows — the list the
+  // The button names the tray it opens, so the count is these rows — the list the
   // press will show, headed by this page's own row — and never arithmetic beside
   // them. "Other leaves" counted the neighbours alone, one off the list it
-  // promised: a machine with one neighbour said (1) over a board of two.
+  // promised: a machine with one neighbour said (1) over a tray of two.
   othersBtn.textContent = `All leaves (${wanted.length})`;
   let anchor = null; // the row before this one, so order holds without rebuilding
   for (const { key, title, entry } of wanted) {
@@ -3411,7 +3446,7 @@ function showVersionMenu(open) {
   versionMenu.classList.toggle("open", open);
   versionBtn.setAttribute("aria-expanded", String(open));
   // Opening lands on the version being read, so the menu's own keys are the next
-  // press rather than a Tab-hunt — the same move o makes into the leaves board.
+  // press rather than a Tab-hunt — the same move o makes into the leaves tray.
   //
   // Or on the standing base, where a comparison is up, because inside this menu the focused
   // row *is* the base (the walk below). Landing on the version being read instead left the
@@ -3497,7 +3532,7 @@ keys(
 // then Tabbed out of is still over the page, and an Escape that could not reach it left
 // the reader closing the panel underneath instead. So the rung is a mode rather than the
 // element scope's — which is what every other layer that can outlive its own focus does
-// (the composer holds a draft the reader clicked away from; the leaves board stands while
+// (the composer holds a draft the reader clicked away from; the leaves tray stands while
 // focus is on the button that opened it). The menu's walk stays the element scope's,
 // because a walk has nothing to walk unless focus is on a row.
 const VERSIONS = {
@@ -3508,7 +3543,7 @@ const VERSIONS = {
   at: () => versionMenuOpen,
   // A mode over the page suspends the page, which the two modes above this one always did
   // and this one did not — so a reader in the middle of choosing a version could press `l`
-  // and take focus out of the menu into the leaves board, `d` and scroll a page they were
+  // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
   // not looking at, or `c` and open the composer under the list. None of it fails loudly:
   // the press does exactly what it says on a page the reader has stopped reading. The
   // worst of them was a page-level key that set a comparison base, which the walk they
@@ -3636,8 +3671,8 @@ legendRoot.setAttribute("aria-hidden", "true");
 // The g chord's addresses: a numbered chip on every member of the list it has aimed at,
 // drawn here for the same reason the legend is (paintAddresses, its one writer). The eye's
 // copy of what the chord announces, so it says nothing to a screen reader.
-const addressBoard = el("div", "lf-ui lf-addresses");
-addressBoard.setAttribute("aria-hidden", "true");
+const addressLayer = el("div", "lf-ui lf-addresses");
+addressLayer.setAttribute("aria-hidden", "true");
 // The runtime's parts, named: a design comment can point at one, and an anchor names an
 // element by id, so each part that is a thing to point at carries a stable one under the
 // runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
@@ -3666,7 +3701,7 @@ chromeRoot.append(
   asksPanel,
   panel,
   legendRoot,
-  addressBoard,
+  addressLayer,
   aimBox,
   fab,
   composer,
@@ -4116,12 +4151,12 @@ const PANEL_KEY = "lf-panel-open";
 const panelCovers = () => panelOpen && commentsEdge.over.matches;
 // The strip each side of the page yields, which is that edge's width until the window is
 // too narrow to give one up — one expression each, because the margin the rule takes and
-// the room measured against it have to mean the same thing by it. The board panel yields
-// one only for the boards the page gives room to at all, which is the same list the rule
-// reads (STRIP_BOARDS).
+// the room measured against it have to mean the same thing by it. The tray panel yields
+// one only for the trays the page gives room to at all, which is the same list the rule
+// reads (STRIP_TRAYS).
 const panelStrip = () => (panelOpen && !panelCovers() ? commentsEdge.width() : 0);
-const boardStrip = () =>
-  STRIP_BOARDS.includes(boardUp) && !boardsEdge.over.matches ? boardsEdge.width() : 0;
+const trayStrip = () =>
+  STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;
 // Whether the page still has room for the margin the theme's idioms hang in. The strips
 // are granted by a media query, which asks the window; the page's box is the window less
 // whatever the panel holds of it, and this is the only thing that knows the difference. So
@@ -4146,7 +4181,7 @@ const boardStrip = () =>
 function stateStrip() {
   document.body.toggleAttribute(
     "data-lf-cramped",
-    document.documentElement.clientWidth - panelStrip() - boardStrip() < STRIP_MIN,
+    document.documentElement.clientWidth - panelStrip() - trayStrip() < STRIP_MIN,
   );
 }
 // A window that has changed is a cap that has changed, so the width each edge stands at
@@ -4154,7 +4189,7 @@ function stateStrip() {
 // event, and none of them a reading of the box syncLayout measures.
 addEventListener("resize", () => {
   commentsEdge.state();
-  boardsEdge.state();
+  traysEdge.state();
   stateStrip();
 });
 // Every writer here is a writer of the chrome, so nothing this function does resizes the
@@ -4183,16 +4218,16 @@ function syncLayout() {
   // in the flow, holds nothing but out-of-flow chrome, and is watched by nobody, so what
   // it takes is room the document has and no measurement's business.
   chromeRoot.style.paddingBottom = clear;
-  // A board's list is the page's other scroll region, in the corner the line is
+  // A tray's list is the page's other scroll region, in the corner the line is
   // written into, so it reserves the same room — and states it twice, because it reaches
   // the bottom two ways that take their room from different places. A wheel to the end
   // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
   // scroll-into-view stops short of, and without it the last row's clearance is however
   // far Chrome happens to overshoot, which is a fact about row height and not about the
   // line standing there. Stepping the line clear instead was the other answer, and it
-  // takes the board's width off the line's: a busy scope already fills a laptop's, so
+  // takes the tray's width off the line's: a busy scope already fills a laptop's, so
   // the room it gives up is chips clipped off the right-hand end.
-  for (const list of boardLists) {
+  for (const list of trayLists) {
     list.style.paddingBottom = clear;
     list.style.scrollPaddingBottom = clear;
   }
@@ -4221,9 +4256,9 @@ function syncLayout() {
 // length of the transition and the box in front of us is neither the width the page has
 // nor the one it is going to. Both readings are wrong, in opposite directions and at
 // different prices, so the room takes whichever of the two is smaller and the page never
-// owes room it hasn't got. Both sides, because both yield one: the board panel's margin
+// owes room it hasn't got. Both sides, because both yield one: the tray panel's margin
 // eases exactly as the comment panel's does, and reading it off the box alone left every
-// exhibit a board's width too wide for the fifth of a second the board took to arrive.
+// exhibit a tray's width too wide for the fifth of a second the tray took to arrive.
 //
 // The two readings are compared rather than added, which is the same arithmetic done in
 // whole pixels. Subtracting the margin the box has already taken from the strip it is
@@ -4252,7 +4287,7 @@ function stateRoom() {
   const room =
     Math.min(
       document.body.clientWidth,
-      document.documentElement.clientWidth - panelStrip() - boardStrip() - gutter,
+      document.documentElement.clientWidth - panelStrip() - trayStrip() - gutter,
     ) -
     parseFloat(body.paddingLeft) -
     parseFloat(body.paddingRight) -
@@ -4783,11 +4818,14 @@ function buildMsgBody(m) {
     // write a widget's declared words, spoken and silent, and a fenced block is a
     // <pre><code class="language-…"> like any the page holds.
     //
-    // markWide is the pass that deliberately stays behind, and the reason is what
-    // it hands out: the room the *document* has, which is not the room in here. A
-    // diagram in a reply is a widget the vocabulary calls wide, and marked as one
-    // it would lay itself out to the page's measure inside the panel. The room
-    // a message has is the message's, and it already has it.
+    // The declared marks come along by the half that holds here (MARKED_ANYWHERE):
+    // whether a widget is set among the words is true of it in a reply as much as on
+    // the page, and a chip-led comparison quoted into one stacks without it. The width
+    // model is the half that stays behind, and the reason is what it hands out: the room
+    // the *document* has, which is not the room in here. A diagram in a reply is a widget
+    // the vocabulary calls wide, and marked as one it would lay itself out to the page's
+    // measure inside the panel. The room a message has is the message's, and it already
+    // has it.
     if (m.markup) {
       const authored = document.createElement("template");
       authored.innerHTML = m.markup;
@@ -4795,6 +4833,7 @@ function buildMsgBody(m) {
       captureAuthoredFacets(authored.content);
       body.append(authored.content);
     }
+    markDeclared(body, MARKED_ANYWHERE);
     renderSaid(body);
     renderQuiet(body);
     // Not settle()d: that queue holds the page's geometry still for the first anchor
@@ -6506,7 +6545,7 @@ function itemWord(item) {
   if (!item) return "";
   const tag = item.tagName.toLowerCase();
   // A widget whose kind is not its tag says which it is. Three shapes of change are all
-  // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks board
+  // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks tray
   // under the words it proposed to remove, reading exactly like the insertion above it.
   // Asked only where an entry says there is something to ask, and answered only by an
   // element that has upgraded — before that, and for every widget that declares nothing,
@@ -7501,10 +7540,10 @@ document.addEventListener("keyup", (ev) => {
 // (see claimPress) and must not take this with it, or the keyboard reference stays up over
 // the composer that press just opened. Hence one function, called from both.
 // The two side panels are absent from it on purpose. A float answers the press in front
-// of it and stands down behind it; the comment panel and the leaves board are
-// workspaces the reader stood up, kept through a reload (PANEL_KEY, BOARD_KEY) and so
-// through a click all the more — a board any press removes cannot be watched while
-// working, which is the board's point. Each closes by its own button, its key, or Esc.
+// of it and stands down behind it; the comment panel and the leaves tray are
+// workspaces the reader stood up, kept through a reload (PANEL_KEY, TRAY_KEY) and so
+// through a click all the more — a tray any press removes cannot be watched while
+// working, which is the tray's point. Each closes by its own button, its key, or Esc.
 function standDown(target) {
   if (!target.closest?.(".lf-fab, .lf-composer")) {
     showFab(null);
@@ -8243,7 +8282,7 @@ approveBtn.onclick = async () => {
 // where the chip hangs when that is not the member itself — a comment's address belongs on
 // the box the digit lands in, not on the thread's far corner.
 // What the document holds, in reading order, as against what the chrome holds: the banner,
-// the versions and the leaves board have keys of their own, and a comment's message is the
+// the versions and the leaves tray have keys of their own, and a comment's message is the
 // panel's rather than the page's. The addresses and the scopes that name a platform key
 // read the page through here alike, so a part `g` sends the reader to is exactly a part the
 // reference says they can stand on.
@@ -8376,7 +8415,7 @@ let aimedList = null;
 // meaning, so nothing is ever swallowed by a window left open. What the clock did instead
 // was charge the reader for reading the menu the press had just painted — and a letter
 // arriving a moment late is not a no-op but the page's own key, so a slow reader pressing
-// `l` got the leaves board rather than the links.
+// `l` got the leaves tray rather than the links.
 function setChord(on, list = null) {
   // Armed over a control that has claimed Escape, one press would have two owners — the
   // control's rung and the chord's cancel — so the chord refuses to arm there at all.
@@ -8397,7 +8436,7 @@ function setChord(on, list = null) {
   paintHere();
 }
 
-// The chips: one per addressable member, drawn in the chrome's layer (addressBoard) and
+// The chips: one per addressable member, drawn in the chrome's layer (addressLayer) and
 // placed from the member's own visible box, so a chip cannot claim room the page has
 // already refused — a thread scrolled out of the panel's list, a card half out of a board.
 // Painted only once a letter has named a list: before that there is no digit to promise,
@@ -8409,7 +8448,7 @@ function setChord(on, list = null) {
 // span written into a paragraph to carry a number is a span the passage walk then has to
 // know about.
 //
-// Every chip is built detached and the board takes them in one write, which is the rule
+// Every chip is built detached and the layer takes them in one write, which is the rule
 // the legend states for this same layer: a chip in the tree is a DOM write, and the next
 // member's rect read after one is a layout forced per member — nine of them on every
 // scroll frame an armed window stands through.
@@ -8434,7 +8473,7 @@ function paintAddresses() {
       chips.push(chip);
     }
   }
-  addressBoard.replaceChildren(...chips);
+  addressLayer.replaceChildren(...chips);
 }
 // A page that moves under an armed window moves the boxes the chips were placed from, so
 // the chips follow it rather than standing where the page used to be. Capture, because the
@@ -8539,9 +8578,9 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // key to take them out again.
 //
 // Inside the chrome it is the layers first, in the order the reader is in them: the leaves
-// board goes before the comment panel — it was opened for a glance, where the panel is the
+// tray goes before the comment panel — it was opened for a glance, where the panel is the
 // work itself — unless focus stands inside the panel, since a reader backing out of its
-// general box is standing on its list, and their next Escape taking a board off the far
+// general box is standing on its list, and their next Escape taking a tray off the far
 // side of the screen took the key away from the work it was unwinding.
 //
 // Then the last rung leaves the chrome, because closing the panel does not put the reader
@@ -8554,13 +8593,13 @@ function rung() {
   const holding = Boolean(active) && active !== document.body;
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
-  // Whichever board holds the edge, named by the rung so the reader is told what the
-  // press will take rather than being told "close the board" over two of them.
-  if (boardUp && !panel.contains(active))
+  // Whichever tray holds the edge, named by the rung so the reader is told what the
+  // press will take rather than being told "close the tray" over two of them.
+  if (trayUp && !panel.contains(active))
     return {
-      says: `close ${boardUp}`,
-      does: `Close the ${boardUp} board`,
-      out: () => showBoard(null),
+      says: `close ${trayUp}`,
+      does: `Close the ${trayUp} tray`,
+      out: () => showTray(null),
     };
   if (panelOpen)
     return {
@@ -8804,9 +8843,9 @@ const THREAD = {
 // only in a selector and a word are two things to edit the day either the chrome rule or the
 // shape of a capability changes, and the third platform control would make it three. The
 // page's controls and not every one, which is the reading the addresses take as well: the
-// chrome's own links are the leaves board's and its resolved comments are the panel's, and
+// chrome's own links are the leaves tray's and its resolved comments are the panel's, and
 // both of those declare what they answer themselves. Asked of the document at large, "On a
-// link" was had by every page — a machine with one neighbour has a board full of links — so
+// link" was had by every page — a machine with one neighbour has a tray full of links — so
 // the reference named it wherever the reader went, on pages holding none to stand on.
 const NATIVE = [
   {
@@ -8971,21 +9010,21 @@ const PAGE = {
     },
     {
       // `a` for the asks — the letter the walk gave up when it moved to naming directions
-      // (n/p above), and the noun every surface names this board by. What it opens is the
+      // (n/p above), and the noun every surface names this tray by. What it opens is the
       // list those keys walk, which until now the reader could only reach by walking it:
       // there was no way to see what was waiting without visiting each one in turn.
       keys: ["a"],
       does: () =>
-        `${openBoard("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
-      line: () => `${openBoard("asks") ? "hide" : "show"} asks`,
-      also: asksBtn, // the banner count opens the same board, which then names this key
+        `${openTray("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
+      line: () => `${openTray("asks") ? "hide" : "show"} asks`,
+      also: asksBtn, // the banner count opens the same tray, which then names this key
       when: asksOffered,
       run: () => {
-        showBoard(openBoard("asks") ? null : "asks");
-        // Opening lands on the first row, so the board's own keys are the next press
+        showTray(openTray("asks") ? null : "asks");
+        // Opening lands on the first row, so the tray's own keys are the next press
         // rather than a Tab-hunt across the banner — the move `l` makes into the leaves.
-        // Closing hands focus back, which showBoard owns.
-        if (openBoard("asks")) askRows()[0]?.focus();
+        // Closing hands focus back, which showTray owns.
+        if (openTray("asks")) askRows()[0]?.focus();
       },
     },
     {
@@ -8996,22 +9035,22 @@ const PAGE = {
       run: (binding) => stepPage(binding === "d" ? 0.5 : -0.5),
     },
     {
-      // `l` for the leaves, the word every surface names this board by. It was `o`,
+      // `l` for the leaves, the word every surface names this tray by. It was `o`,
       // for the "Other leaves" the button said before the count was one off the list
       // it promised — so the key went on spelling a word nothing on screen said, and
       // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
       keys: ["l"],
-      does: () => `${openBoard("leaves") ? "Hide" : "Show"} the machine's leaves`,
-      line: () => `${openBoard("leaves") ? "hide" : "show"} leaves`,
+      does: () => `${openTray("leaves") ? "Hide" : "Show"} the machine's leaves`,
+      line: () => `${openTray("leaves") ? "hide" : "show"} leaves`,
       also: othersBtn,
       when: leavesOffered,
       run: () => {
-        showBoard(openBoard("leaves") ? null : "leaves");
-        // Opening lands on the first neighbour, so the board's own keys are the next press
+        showTray(openTray("leaves") ? null : "leaves");
+        // Opening lands on the first neighbour, so the tray's own keys are the next press
         // rather than a Tab-hunt across the banner — the move c makes into the comment
-        // panel's box. Closing hands focus back, which showBoard owns. The key is dead
+        // panel's box. Closing hands focus back, which showTray owns. The key is dead
         // with nothing to show, so an open always has a row to land on.
-        if (openBoard("leaves")) othersLinks()[0].focus();
+        if (openTray("leaves")) othersLinks()[0].focus();
       },
     },
     {
@@ -9023,7 +9062,7 @@ const PAGE = {
       // be. `a` names the asks it answers and stands for nothing on its own: an
       // unshifted letter that ends the matter for every one of them is a press too
       // cheap for what it does. The walk is spelled in directions (n/p), so the noun was
-      // free for the board above, which is what it now opens.
+      // free for the tray above, which is what it now opens.
       keys: ["Shift+a"],
       does: () =>
         standingAnswers()
@@ -9790,20 +9829,20 @@ function standingAnswers() {
 // send that failed has its optimism taken back.
 function syncAsks() {
   const asks = openAsks();
-  // While the board stands its button stands too, whatever the count just did — the
+  // While the tray stands its button stands too, whatever the count just did — the
   // press that opened it has to be able to close it.
   showNews(asksBtn, asksOffered());
   asksBtn.textContent = `Asks (${asks.length})`;
-  // Only while the board is up: the count above is what a closed board says, and these
-  // rows are what an open one says. A closed board reconciling a list on every poll is
+  // Only while the tray is up: the count above is what a closed tray says, and these
+  // rows are what an open one says. A closed tray reconciling a list on every poll is
   // work for a reader who cannot see it, and rows in a document nothing can press.
-  if (openBoard("asks")) renderAsks(asks);
+  if (openTray("asks")) renderAsks(asks);
   for (const { btn, label, n } of blanketAnswers(asks)) {
     showNews(btn, Boolean(n));
     btn.textContent = `✓ ${label} all (${n})`;
   }
   // The n/p and A rows stand on this list, so the surfaces reading them are repainted
-  // where it changes — the rule showFab and showBoard already keep for the words
+  // where it changes — the rule showFab and showTray already keep for the words
   // they write.
   paintHere();
 }
@@ -9817,7 +9856,7 @@ document.addEventListener("lf-answered", () => {
 });
 document.addEventListener("lf-actions", syncAsks);
 // One row per open ask, reconciled on every signal that moves the list, the way the
-// leaves board reconciles its own — rows kept in place rather than rebuilt, so a
+// leaves tray reconciles its own — rows kept in place rather than rebuilt, so a
 // repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
 //
 // Keyed by the ask's id and not by the element: a new version replaces every node on the
@@ -9833,7 +9872,7 @@ document.addEventListener("lf-actions", syncAsks);
 const askRowsById = new Map();
 function renderAsks(asks) {
   let anchor = null;
-  if (!openBoard("asks")) {
+  if (!openTray("asks")) {
     for (const [, row] of askRowsById) row.remove();
     askRowsById.clear();
     return;
@@ -9895,7 +9934,7 @@ const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).
 const ASK_ROW = "data-lf-for";
-// Chrome that stands *at* an ask without deciding it: the asks board's rows. Separate
+// Chrome that stands *at* an ask without deciding it: the asks tray's rows. Separate
 // from ASK_ROW above, because the two say different things about the same element and
 // one of them has a consumer that must not confuse them — stepAsk looks through ASK_ROW
 // for the control to put the reader on, and a row that merely points at the ask is not
@@ -9973,8 +10012,8 @@ function standingIn() {
 // ask itself, and the fallback answers the wrapper any page can still style boxless
 // in a line, the same way the thread's mark does (paintAnchors).
 //
-// The board's row for the ask is a second surface showing this one fact, so it is
-// painted from this one reading rather than from a mark the board keeps for itself —
+// The tray's row for the ask is a second surface showing this one fact, so it is
+// painted from this one reading rather than from a mark the tray keeps for itself —
 // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
 // stylesheet is written against the attribute, not against the page), so wearing the
 // attribute is the whole of what the row needs.
@@ -9984,10 +10023,10 @@ function markHere() {
   const wearing = new Set(
     here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
   );
-  // A walk that runs past the foot of an open board leaves its mark off screen, which is
-  // the board saying nothing exactly while the reader is using it. `nearest` so a row
+  // A walk that runs past the foot of an open tray leaves its mark off screen, which is
+  // the tray saying nothing exactly while the reader is using it. `nearest` so a row
   // already in view moves nothing.
-  if (row && openBoard("asks")) row.scrollIntoView({ block: "nearest" });
+  if (row && openTray("asks")) row.scrollIntoView({ block: "nearest" });
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   if (askLent !== here) lend(null);
@@ -10054,13 +10093,13 @@ function standOn(el) {
 }
 
 // Standing on one ask: what n and p do once they have decided which, what a press on a
-// board row does having been told outright, and where `g a` lands a digit. One function
+// tray row does having been told outright, and where `g a` lands a digit. One function
 // because it is one act — a second would be a second answer to "how do I put the reader on
 // an ask", and the two would drift the first time either the reveal or the focus rule
 // changed.
 //
 // The list comes with the ask, because the announcement names a place in it and the caller
-// is the one that knows which list it walked: the walk's own, the board's, or the whole of
+// is the one that knows which list it walked: the walk's own, the tray's, or the whole of
 // what the page is waiting on where an address reached past the nine it can spell.
 function goToAsk(next, asks) {
   // A thread's ask lives in the panel, which has no geometry while closed — the
@@ -10237,7 +10276,7 @@ function applyDiff(doc, baseVersion) {
     }
   }
   // Container widgets surface marks their panels hide (lf-tabs badges each tab).
-  document.dispatchEvent(new CustomEvent("lf-diff"));
+  document.dispatchEvent(new CustomEvent("lf-comparison"));
   return diffMarked.length;
 }
 // Whether a version can be compared with the one being read: anything published
@@ -10280,7 +10319,7 @@ function setDiff(on, base) {
     diffRequest++; // a stop outranks a comparison still on its way
     for (const b of diffMarked) b.classList.remove("lf-ins-block");
     diffMarked.length = 0;
-    document.dispatchEvent(new CustomEvent("lf-diff"));
+    document.dispatchEvent(new CustomEvent("lf-comparison"));
   }
   paintDiff();
 }
@@ -10700,7 +10739,7 @@ async function activateVersion(doc, version) {
   rememberAuthoredMarkup(source);
   rememberAuthoredMarkup(fresh);
   rememberPassageParts(fresh);
-  markWide(fresh);
+  markDeclared(fresh, MARKED_IN_PAGE);
   authoredHtmlAttributes = replaceAuthoredAttributes(
     document.documentElement,
     doc.documentElement,
@@ -11574,9 +11613,12 @@ function rebuild(el) {
   // left behind shows as two rows on one change.
   const fresh = authoredMarkup.get(id).cloneNode(true);
   // Before the insertion, as the load writes it before the modules import: a widget
-  // that declares a width model asks for it on its first render, and connectedCallback
-  // is that render.
-  markWide(fresh);
+  // that declares a width model or an inline run asks for it on its first render, and
+  // connectedCallback is that render. The table is the place's: a rebuild reaches a
+  // widget in a reply too — buildMsgBody remembers its markup the same way — and in
+  // there the width half stays off for the reason that function gives, the room being
+  // the panel's rather than the document's.
+  markDeclared(fresh, inChrome(el) ? MARKED_ANYWHERE : MARKED_IN_PAGE);
   el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
   // The rest of what the upgrade gives every subtree beyond its module's own work. Not
   // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
@@ -12127,24 +12169,24 @@ async function receiveState(state) {
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general") ?? "";
-// The widths first, so a panel or a board put back open is open at the width the reader
+// The widths first, so a panel or a tray put back open is open at the width the reader
 // left it at rather than sliding to it afterwards.
 commentsEdge.restore();
-boardsEdge.restore();
+traysEdge.restore();
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
-// Remembered board intent is staged here, after every declaration exists. Its strip is
+// Remembered tray intent is staged here, after every declaration exists. Its strip is
 // part of the arrival geometry, but its state-dependent rows stay hidden until the first
-// replay presents the page and restoreBoard paints them. An already-presented document
+// replay presents the page and restoreTray paints them. An already-presented document
 // (an exported or pre-presented DOM) can restore immediately through the same function.
-boardUp = readerStore.get(BOARD_KEY) || null;
-if (boardUp) document.body.dataset.lfBoard = boardUp;
-if (pagePresented()) restoreBoard();
+trayUp = readerStore.get(TRAY_KEY) || null;
+if (trayUp) document.body.dataset.lfTray = trayUp;
+if (pagePresented()) restoreTray();
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // Every way this page can come up that is not a first visit — the restores above, each
 // named by the fact its store holds. The browser gate arrives once in each, because
 // every other reading it takes is of a first visit: a fresh context holds nothing, so
-// the panel is shut, no board stands and the mode is off. That made the restores the one
-// road onto the page with no gate on it, and a board left standing came up as a
+// the panel is shut, no tray stands and the mode is off. That made the restores the one
+// road onto the page with no gate on it, and a tray left standing came up as a
 // ReferenceError rather than a page — on every load, for the only readers who had asked
 // for it. Declared here rather than listed in the gate, because a list over there stops
 // at the surfaces it was taught; this one is read on the day a surface starts
@@ -12159,14 +12201,14 @@ export const ARRANGEMENTS = [
     value: "560",
   },
   {
-    name: "the board panel at the width the reader drew it to",
-    ...readerStore.where(boardsEdge.key),
+    name: "the tray panel at the width the reader drew it to",
+    ...readerStore.where(traysEdge.key),
     value: "260",
   },
-  ...[...boards.keys()].map((board) => ({
-    name: `the ${board} board standing`,
-    ...readerStore.where(BOARD_KEY),
-    value: board,
+  ...[...trays.keys()].map((tray) => ({
+    name: `the ${tray} tray standing`,
+    ...readerStore.where(TRAY_KEY),
+    value: tray,
   })),
   { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
 ];
@@ -12186,8 +12228,8 @@ export const ARRANGEMENTS = [
 // can name itself to Chrome now.
 letGo();
 // Where an arrival lands — version switch, reload, back, a URL naming an element (the
-// panel and a remembered board's strip are restored just above, so the column is already
-// reflowed; the board's pixels wait for replay). The browser answers
+// panel and a remembered tray's strip are restored just above, so the column is already
+// reflowed; the tray's pixels wait for replay). The browser answers
 // this twice, and both answers are taken before the page is done becoming itself:
 // upgrades change its height afterwards (tabs collapse, diagrams render, diff files
 // fold), so a restored offset points into a document that no longer exists and a
@@ -12268,8 +12310,8 @@ async function presentPage() {
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
   // Repaint state-dependent chrome in this same task. The presentation attribute opens
   // the gate, replay is already complete, and no frame can expose the authored count or
-  // an empty persisted board between those facts.
-  restoreBoard();
+  // an empty persisted tray between those facts.
+  restoreTray();
   showNews(othersBtn, leavesOffered());
   syncAsks();
   paintApproval();

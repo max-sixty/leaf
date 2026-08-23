@@ -506,7 +506,7 @@ customElements.define(
     #listenForDiff() {
       if (!this.#diffable || this.#diffEvents) return;
       this.#diffEvents = new AbortController();
-      document.addEventListener("lf-diff", () => this.#delta(), {
+      document.addEventListener("lf-comparison", () => this.#delta(), {
         signal: this.#diffEvents.signal,
       });
     }

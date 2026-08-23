@@ -155,14 +155,21 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * widget from any layer is covered without being named — the enumeration this
  * replaces listed fifteen widgets and would have missed the sixteenth. A test
  * states HTML's phrasing content once and holds both copies of the list to it,
- * so neither can drift from the platform or from the other. */
+ * so neither can drift from the platform or from the other. The marker at the
+ * end is the inversion's one wrong answer, an inline widget being a custom
+ * element like any other: the registry says which widgets those are and the
+ * runtime paints it where a selector can reach it (data-lf-inline, leaf.js
+ * markDeclared), so a chip keeps the grid here by the same declaration that
+ * keeps a suggestion inline in a sentence. It is in :where() for the reason the
+ * suggestion slots' copy states: an attribute selector inside :not() would lift
+ * this whole rule a specificity column and let a layout question outrank the
+ * marks painted over it. */
 lf-options:has(> lf-option > strong),
 lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
     cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
     label, link, map, mark, math, meta, meter, noscript, object, output, picture,
     progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-    svg, template, textarea, time, u, var, video, wbr, lf-old, lf-new, lf-chip,
-    lf-suggestion)) {
+    svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   display: block;
   & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
   & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }

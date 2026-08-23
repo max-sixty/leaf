@@ -38,7 +38,7 @@ Each mutable fact has one writer:
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
-| board visibility | `boardUp` | `showBoard` |
+| tray visibility | `trayUp` | `showTray` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
@@ -58,7 +58,7 @@ do not broaden the exclusion to every `data-lf-*` attribute.
 Layout follows the same ownership rule. `syncLayout` may measure
 `document.body`, but it writes only chrome boxes. The banner's reservation is
 `body::before`, and the key line's reservation is padding on the chrome
-container. Panel and board strips come from attributes and media queries. A
+container. Panel and tray strips come from attributes and media queries. A
 `ResizeObserver` callback must not resize the box it observes, directly or
 through a class or attribute that changes that box.
 
@@ -529,10 +529,10 @@ behavior, the layer implements it once. Current examples are:
 
 - `renderSaid` turns `x-says` values into real selectable text.
 - `renderQuiet` gives `x-paints` facts a clipped spoken reading.
-- `markWide` exposes the declared width model to the theme.
+- `markDeclared` exposes the declared width model and inline run to the theme.
 - `markSettled` paints the holder's authoritative settlement.
 - `renderRetired` marks slots retired by the declared holder relation.
-- `rowPresence` and the ask board read `x-awaits` rather than a tag selector.
+- `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
 - `standingState` exposes replay winners to the render gate without naming a
   widget.
 
@@ -546,6 +546,14 @@ frame declares `--lf-frame: 1` in the rule that draws it. Style queries use that
 custom property to trim child margins and to bound wide content. A project box
 then receives the same behavior without joining a tag list. `main` hands wide
 room back to its contents explicitly because it is the outer page frame.
+
+Where the fact belongs to the registry rather than to the rule that draws the
+box, `markDeclared` paints it and the selector reads the paint. The lists that
+ask whether a suggestion slot or a variant holds block content invert HTML's
+phrasing content, which answers "block" for every custom element, so they
+exclude `[data-lf-inline]` rather than the tags that declare `x-inline`. A tag
+name in a shared list is a closed vocabulary wherever it appears, and one layer's
+tag written into another layer's stylesheet is that plus a leak.
 
 ### Module contract
 
@@ -770,7 +778,7 @@ listener when body observation already represents them.
 The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
 `document.scrollingElement` must be given `pageScroller` explicitly. The open
-comment panel and board panel each occupy their own strip when the viewport can
+comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
 strip the chrome holds; CSS owns the body's corresponding layout.
@@ -785,13 +793,13 @@ platform's own announcement. The width the reader chose and the width a region
 stands at are separate facts: a window too narrow to honour a choice does not
 overwrite it, and a region beside the page is capped at half that window. Ask the
 covering media query of the default width and never of the reader's, or a drag
-changes the page's posture under the hand making it. Both boards share one width,
-which belongs to the side rather than to either board.
+changes the page's posture under the hand making it. Both trays share one width,
+which belongs to the side rather than to either tray.
 
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
-away with the content. A board is a shell holding a `.lf-board-list`, and every
-board list reserves the key line's room. `stateRoom` compares whole-pixel
+away with the content. A tray is a shell holding a `.lf-tray-list`, and every
+tray list reserves the key line's room. `stateRoom` compares whole-pixel
 readings — the measured box against the window less every strip — rather than
 subtracting a transitioning margin from an integer box. Mixing the two flickers
 `--lf-room` by a pixel per frame, and each flip relayouts the page from inside
@@ -804,7 +812,7 @@ serves.
 
 ### Presentation and state motion
 
-Arrival is not a gesture. Restored panel, board, drawn-width, design-mode, widget,
+Arrival is not a gesture. Restored panel, tray, drawn-width, design-mode, widget,
 and reading-position state appears at rest. `motion` finishes Web Animations
 immediately before `data-lf-presented`; theme transitions use the same
 presentation stamp. `ARRANGEMENTS` declares each stored runtime arrangement the
@@ -849,7 +857,7 @@ A wide widget reads the room declared by `x-wide`:
 - `box` fills the available box and clamps its contents there;
 - `drawing` may size from its source up to the room available to it.
 
-`markWide` exposes this declaration and `stateRoom` computes room after chrome
+`markDeclared` exposes this declaration and `stateRoom` computes room after chrome
 strips and claimed margins. A drawing inside a framed box uses that box's room,
 not the outer page's. Size the widget's box with `contain: inline-size` where its
 contents would otherwise make the box itself wider.
@@ -1042,7 +1050,7 @@ longer runs. A newly live row may wait until the reference is reopened. Do not
 rebuild a focused help surface under the reader merely to keep it live to the
 latest poll.
 
-### Doors, boards, and version travel
+### Doors, trays, and version travel
 
 One surface owns each destination. The version control opens the complete
 version list with notes and comparison controls. There are no separate
@@ -1066,16 +1074,16 @@ new document. On live activation, runtime-chrome nodes and their focus survive;
 authored-main nodes are replaced, so the semantic landmark—not a DOM node—is the
 continuity guarantee.
 
-The left side holds one board at a time. `showBoard` owns `boardUp` and renders
-the complete outcome for leaves and asks. The leaves board overlays the
-document because its rows leave the page. The asks board takes a strip because
+The left side holds one tray at a time. `showTray` owns `trayUp` and renders
+the complete outcome for leaves and asks. The leaves tray overlays the
+document because its rows leave the page. The asks tray takes a strip because
 its rows travel within the page and the reader must keep the target visible.
-Both entry controls call the same board setter.
+Both entry controls call the same tray setter.
 
-`restoreBoard` runs after all declarations exist and after the first projection
-can populate state-dependent rows. It restores intent through `showBoard` without
+`restoreTray` runs after all declarations exist and after the first projection
+can populate state-dependent rows. It restores intent through `showTray` without
 replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
-each persisted board.
+each persisted tray.
 
 Ask rows come from `x-awaits`, not from a list of ask tags. `itemSays` supplies
 each row's own label. Selecting a row travels through the same ask-arrival
@@ -1148,7 +1156,7 @@ there.
 
 ## Chrome, conversations, and text input
 
-`.lf-chrome` is one fixed runtime root containing the banner, the board panel,
+`.lf-chrome` is one fixed runtime root containing the banner, the tray panel,
 comment panel, composer, floating comment control, toast, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates

@@ -1080,10 +1080,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the comment panel shut, no board standing, design mode off —
+    is of a first visit — the comment panel shut, no tray standing, design mode off —
     and each of those is something a reader turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a board someone had left standing came up as a ReferenceError
+    watching it, and a tray someone had left standing came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the reader, who reported
     it.
@@ -1167,7 +1167,7 @@ def test_an_example_comes_up_for_a_reader_who_left_something_standing(
 ):
     """The corpus read the way a reader reads it the second time. `test_example_renders`
     above is every example's first visit; this is the same examples with the panel
-    open, a board standing, or design mode on, which is what the reader who opened one
+    open, a tray standing, or design mode on, which is what the reader who opened one
     of those gets back on every load until they close it."""
     assert arrival_findings(browser, serve(example.read_text())) == []
 
@@ -1220,7 +1220,7 @@ def motions(events):
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
 
-    A target is a backend node id, and the same board over two loads is two of them,
+    A target is a backend node id, and the same tray over two loads is two of them,
     so an id cannot say whether the second load moved what the first one did. The kind
     of motion, the property or keyframes it plays and how long it runs are one string
     whichever load painted it, and that is the key. The id rides along beside it for
@@ -1265,15 +1265,15 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the reader left it is simply there, and does not assemble
     itself in front of them.
 
-    Standing a board up is a gesture and gestures move: the board slides in over a fifth
-    of a second and the document steps aside to make the room. Coming back to a board
+    Standing a tray up is a gesture and gestures move: the tray slides in over a fifth
+    of a second and the document steps aside to make the room. Coming back to a tray
     that was already standing is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the reader a fifth of a
     second of furniture instead of what they came back to read. The runtime says so in
     two places, and neither had anything holding it: `motion` refuses to animate behind
-    the presentation boundary, and `restoreBoard` paints the board without going through
+    the presentation boundary, and `restoreTray` paints the tray without going through
     the opener a press uses. Route the restore through that opener — the natural tidy,
-    since it is otherwise two writers of one fact — and the board slides on every load,
+    since it is otherwise two writers of one fact — and the tray slides on every load,
     with every gate here green.
 
     What is read is every motion the browser reports, which it does through the
@@ -1361,7 +1361,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
-    # board up by hand is the gesture whose motion the arrivals must not have. What it
+    # tray up by hand is the gesture whose motion the arrivals must not have. What it
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
@@ -2192,11 +2192,11 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 # it is held to, and the numbers the runtime holds it to. Two records rather than two
 # tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
 # reflected — a reading written for the panel alone would go on passing on the day the
-# board's edge stopped working, and the board's edge exists precisely because the panel's
+# tray's edge stopped working, and the tray's edge exists precisely because the panel's
 # did not have to be written a second time.
 #
-# `html` is a call rather than the markup, because the page the boards need is declared
-# with the other board readings a long way below here, and a parametrize list is read at
+# `html` is a call rather than the markup, because the page the trays need is declared
+# with the other tray readings a long way below here, and a parametrize list is read at
 # import. `squeeze` is the window that has no room for what the reader chose and the width
 # the region stands at there — per edge, because each is capped against its own half of a
 # window and covers the page at a different one.
@@ -2213,13 +2213,13 @@ EDGES = [
         squeeze=(1000, 500),
     ),
     SimpleNamespace(
-        name="boards",
+        name="trays",
         html=lambda: ASKS_PAGE,
         comments=0,
         stand=lambda page: page.keyboard.press("a"),
         region=".lf-asks-panel",
         side="left",
-        store="lf-board-width",
+        store="lf-tray-width",
         wide=300,
         squeeze=(800, 400),
     ),
@@ -2288,7 +2288,7 @@ def draw_edge(page, edge, by):
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A conversation about a table wants room a conversation about a sentence does not,
-    and a board of long names wants room a board of short ones does not; only the reader
+    and a tray of long names wants room a tray of short ones does not; only the reader
     looking at one knows which this is. So each region's edge is a thing they take hold
     of, and the page yields exactly the strip they leave it.
 
@@ -2393,21 +2393,21 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     assert errors == []
 
 
-def test_both_boards_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
+def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
     """Leaves and asks are the same furniture at two scopes, one at a time on one side of
-    the window, so the width is the side's rather than either board's. A reader who drew
-    the edge out to read long names has drawn the edge, and finding the other board back
-    at its default would be one fact kept in two places — which is what a width per board
+    the window, so the width is the side's rather than either tray's. A reader who drew
+    the edge out to read long names has drawn the edge, and finding the other tray back
+    at its default would be one fact kept in two places — which is what a width per tray
     would have been, and what the shared property is instead.
 
-    The `other_leaf` fixture is the whole reason there is a second board to swap to: a
-    board of one — the page the reader is already on — is not worth a control, so without
+    The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
+    tray of one — the page the reader is already on — is not worth a control, so without
     a neighbour `l` is dead."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    boards = EDGES[1]
-    boards.stand(page)
-    edge_settled(page, boards)
-    draw_edge(page, boards, 160)
+    trays = EDGES[1]
+    trays.stand(page)
+    edge_settled(page, trays)
+    draw_edge(page, trays, 160)
 
     page.keyboard.press("l")
     expect(page.locator(".lf-others-panel")).to_be_visible()
@@ -2419,19 +2419,17 @@ def test_both_boards_stand_on_the_one_edge_the_reader_drew(browser, serve, other
     )
     page.close()
 
-    assert round(leaves) == boards.wide + 160, (
-        f"the second board came up at a width the reader had already moved: {leaves}"
+    assert round(leaves) == trays.wide + 160, (
+        f"the second tray came up at a width the reader had already moved: {leaves}"
     )
     assert errors == []
 
 
-def test_a_board_that_takes_a_strip_is_counted_against_the_margins_floor(
-    browser, serve
-):
+def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser, serve):
     """The theme's margin idioms are granted by a media query, which asks the window; what
     they hang in is the page's own box, which is the window less whatever the chrome holds
-    of it. The panel's strip was counted there and the board's was not, so a 1200px window
-    with a board standing granted a sidenote its margin against a 900px page — 84px under
+    of it. The panel's strip was counted there and the tray's was not, so a 1200px window
+    with a tray standing granted a sidenote its margin against a 900px page — 84px under
     the floor the theme states, on the most ordinary window there is.
 
     Read as the veto rather than as a note's position, because the veto is the fact and a
@@ -2453,11 +2451,11 @@ def test_a_board_that_takes_a_strip_is_counted_against_the_margins_floor(
     given_back = page.evaluate(cramped)
     page.close()
 
-    assert not room, "a 1200px window with no board was already short of the floor"
+    assert not room, "a 1200px window with no tray was already short of the floor"
     assert standing, (
-        "the board took 300px out of a 1200px page and the margins were granted anyway"
+        "the tray took 300px out of a 1200px page and the margins were granted anyway"
     )
-    assert not given_back, "the page kept the veto after the board gave its strip back"
+    assert not given_back, "the page kept the veto after the tray gave its strip back"
     assert errors == []
 
 
@@ -2508,7 +2506,7 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
 
     steps = [room for i, room in enumerate(trace) if i == 0 or room != trace[i - 1]]
     assert len(steps) > 1, (
-        f"the board took no room out of the page, so nothing here was measured: {steps}"
+        f"the tray took no room out of the page, so nothing here was measured: {steps}"
     )
     assert len(steps) == len(set(steps)), (
         "the room went back to a width it had already left, which is a relayout of every "
@@ -4628,7 +4626,7 @@ def live_leaf(tmp_path, monkeypatch):
     a real handler, and written down under the state home the way `server run` writes
     it — which is the whole of how one page learns another exists. Each claims to be
     working, freshly, so its row has a judged state to show. A factory rather than one
-    fixture, because a board is a list and a walk down it needs somewhere to walk to."""
+    fixture, because a tray is a list and a walk down it needs somewhere to walk to."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     servers = []
     held = []
@@ -4651,7 +4649,7 @@ def live_leaf(tmp_path, monkeypatch):
                 "ts": interact.now_iso(),
             },
         )
-        # A live leaf has a session behind it, and what the board's hover says about a
+        # A live leaf has a session behind it, and what the tray's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
         record_claim(
@@ -4698,7 +4696,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     browser, serve, other_leaf, tmp_path
 ):
     """The leaves panel, end to end: the banner counts the machine's live pages,
-    this one included, a press slides out a left board headed by this page's own
+    this one included, a press slides out a left tray headed by this page's own
     marked, unlinked row, each neighbour is a link named by its title and saying what
     that page is doing — the same judgment its own banner would show, from the same facts — and a
     link opens that page in a tab of its own, leaving this one where it was, panel
@@ -4734,7 +4732,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # and the fact no row draws is the work behind the page, which is what tells two
     # rows apart when the titles somebody wrote for them are alike. Both rows carry it,
     # from the one gatherer that answers for this page and for its neighbours
-    # (`presence`): the board's account of a neighbour is the account that page gives
+    # (`presence`): the tray's account of a neighbour is the account that page gives
     # of itself.
     expect(self_row).to_have_attribute(
         "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
@@ -4750,7 +4748,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # carried, rather than being redirected onto one immutable version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     expect(opened.value).to_have_url(destination)
-    # The press left this tab alone, board still standing.
+    # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
@@ -4777,7 +4775,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
 def test_a_panel_row_follows_its_pages_status_live(
     browser, serve, other_leaf, dead_pid, tmp_path
 ):
-    """The panel is a status board, not a snapshot: a neighbour's state changing on
+    """The panel is a status surface, not a snapshot: a neighbour's state changing on
     disk repaints its row at the next poll, in place — and a neighbour whose claimant
     has exited reads as unheld, the computed fact its own banner would state, not the
     claim its status file still makes. The row's hover follows it too, being the same
@@ -4835,7 +4833,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         )
         # A leaf holding words of the reader's that nobody has read is a reason to go
         # to it, and no row draws that either: the banner says this number for the page
-        # it stands on, and the board says it for every page on the machine.
+        # it stands on, and the tray says it for every page on the machine.
         interact.append_event(
             other_dir,
             {"kind": "comment", "author": "user", "version": 1, "text": "Mine."},
@@ -4856,12 +4854,12 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.close()
 
 
-def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
-    """A closed leaf leaves the board on the poll that says so. Its server stays
+def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
+    """A closed leaf leaves the tray on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
     count a reader glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a reader
-    looking at a closed page is still looking at it — so a board with nothing live
+    looking at a closed page is still looking at it — so a tray with nothing live
     left on it still says where the reader is, and the count says (1) for it."""
     _, other_dir = other_leaf
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -4887,12 +4885,12 @@ def test_a_closed_leaf_clears_itself_off_the_board(browser, serve, other_leaf):
     page.close()
 
 
-def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
-    """The board is a list, and a reader walks it without reaching for the mouse: l
+def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
+    """The tray is a list, and a reader walks it without reaching for the mouse: l
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
     to the button that opened it. The key line names l before it is pressed and the
-    board's own keys while focus is inside it — the promise and the press being one
+    tray's own keys while focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
@@ -4901,11 +4899,11 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")
     # A shortcut no surface names is a shortcut nobody finds: the line carries l for
-    # exactly as long as there is a board to open.
+    # exactly as long as there is a tray to open.
     expect(keyline).to_contain_text("leaves")
     page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
-    # Titles order the board, so the walk has a stated first row to start from.
+    # Titles order the tray, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
     expect(rows.first).to_be_focused()
     expect(keyline).to_contain_text("walk the leaves")
@@ -4930,35 +4928,35 @@ def test_the_leaves_board_takes_the_keyboard(browser, serve, live_leaf):
     expect(btn).to_be_focused()
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
-    expect(help_el).to_contain_text("In the leaves board")
+    expect(help_el).to_contain_text("In the leaves tray")
     expect(help_el).to_contain_text("Walk the leaves")
     assert errors == []
     page.close()
 
 
-def test_esc_in_the_comment_panel_stays_the_panels_while_the_board_stands(
+def test_esc_in_the_comment_panel_stays_the_panels_while_the_tray_stands(
     browser, serve, other_leaf
 ):
-    """With both panels standing, Esc takes the leaves board first — but only
+    """With both panels standing, Esc takes the leaves tray first — but only
     while focus stands outside the comment panel. A reader backing out of the
     general box is standing on the panel's list, and their next Esc used to close
-    the board on the far side of the screen instead: the key left the work it was
+    the tray on the far side of the screen instead: the key left the work it was
     unwinding, and the reader watching the right edge saw nothing happen. The rung
     asks where focus is, not which things are open, and there is one definition of
     it for the thread, the list and the page scenes alike."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("l")  # the board first, then the panel over it
+    page.keyboard.press("l")  # the tray first, then the panel over it
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
     page.keyboard.press("Escape")  # back out of the box, onto the panel's list
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-keyline")).to_contain_text("close comments")
-    page.keyboard.press("Escape")  # the panel the reader stands in, not the board
+    page.keyboard.press("Escape")  # the panel the reader stands in, not the tray
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-others-panel")).to_be_visible()
     # Focus lands on the panel's reopening control, outside both panels, so the
-    # ladder's next rung is the board's — the glance closes last.
+    # ladder's next rung is the tray's — the glance closes last.
     expect(page.locator(".lf-comments")).to_be_focused()
     expect(page.locator(".lf-keyline")).to_contain_text("close leaves")
     page.keyboard.press("Escape")
@@ -5092,9 +5090,9 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.close()
 
 
-def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_leaf):
-    """The board is the page's other scroll region and the key line stands over its
-    bottom-left corner, so the board reserves the line's room — for the walk, which
+def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_leaf):
+    """The tray is the page's other scroll region and the key line stands over its
+    bottom-left corner, so the tray reserves the line's room — for the walk, which
     scrolls no further than it must, and for the wheel, which runs to the end. Both
     are asserted because they take their room from different places, and the walk's
     clearance without one is only however far the browser happens to overshoot: a
@@ -5104,7 +5102,7 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
         live_leaf(f"n{i}", title)
     page, errors = open_page(browser, serve(LONG_PAGE))
     expect(page.locator(".lf-others")).to_have_text(f"All leaves ({len(names) + 1})")
-    # Short enough that the rows overflow the board, which is the only shape in which
+    # Short enough that the rows overflow the tray, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
     page.keyboard.press("l")
@@ -5112,24 +5110,22 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
     for _ in names:
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    board = page.locator(".lf-others-panel .lf-board-list")
+    tray = page.locator(".lf-others-panel .lf-tray-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-others-panel .lf-board-list');"
+        "() => { const b = document.querySelector('.lf-others-panel .lf-tray-list');"
         "        return b.scrollHeight > b.clientHeight; }"
-    ), (
-        "the board never overflowed, so the walk had nothing to scroll and proves nothing"
-    )
+    ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
     last = rows.last.bounding_box()
     line = page.locator(".lf-keyline").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the key line at {line}"
     )
-    # And a reader who scrolls the board to its end by hand lands in the same place:
+    # And a reader who scrolls the tray to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
-    board.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
+    tray.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
     last = rows.last.bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
-        f"scrolled to its end the board put its last row at {last}, under the key "
+        f"scrolled to its end the tray put its last row at {last}, under the key "
         f"line at {line}"
     )
     assert errors == []
@@ -5137,12 +5133,12 @@ def test_a_walk_down_the_board_stops_clear_of_the_key_line(browser, serve, live_
 
 
 # Twelve things waiting, which is more than any shipped example asks and the point: the
-# room a list reserves at its foot is invisible until the list is longer than the board.
+# room a list reserves at its foot is invisible until the list is longer than the tray.
 MANY_ASKS_PAGE = leaf_page(
     "many asks",
     """
 <h1>Many asks</h1>
-<p>A board long enough to scroll.</p>
+<p>A tray long enough to scroll.</p>
 <lf-tasks id="plan">
 """
     + "\n".join(
@@ -5157,16 +5153,16 @@ MANY_ASKS_PAGE = leaf_page(
 )
 
 
-def test_a_walk_down_the_asks_board_stops_clear_of_the_key_line(browser, serve):
-    """The leaves board's reading above, made of the board beside it. The room is one
+def test_a_walk_down_the_asks_tray_stops_clear_of_the_key_line(browser, serve):
+    """The leaves tray's reading above, made of the tray beside it. The room is one
     fact — the key line stands in the corner both lists reach — and it was written to one
-    list, so the asks board's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough asks to fill a board and the walk that would have
+    list, so the asks tray's walk parked its last row 47px under the line. Nothing said
+    so, because no example ships enough asks to fill a tray and the walk that would have
     shown it had only ever been made down the other one.
 
-    So the two lists reserve it together (`boardLists`), and this is the half of that the
-    leaves reading could not cover: a fact stated per board is a fact the second board
-    goes without, and the second board is the one nobody looks at."""
+    So the two lists reserve it together (`trayLists`), and this is the half of that the
+    leaves reading could not cover: a fact stated per tray is a fact the second tray
+    goes without, and the second tray is the one nobody looks at."""
     page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
     page.keyboard.press("a")
@@ -5175,24 +5171,22 @@ def test_a_walk_down_the_asks_board_stops_clear_of_the_key_line(browser, serve):
     for _ in range(12):
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    board = page.locator(".lf-asks-panel .lf-board-list")
+    tray = page.locator(".lf-asks-panel .lf-tray-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-asks-panel .lf-board-list');"
+        "() => { const b = document.querySelector('.lf-asks-panel .lf-tray-list');"
         "        return b.scrollHeight > b.clientHeight; }"
-    ), (
-        "the board never overflowed, so the walk had nothing to scroll and proves nothing"
-    )
+    ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
     last = rows.last.bounding_box()
     line = page.locator(".lf-keyline").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the key line at {line}"
     )
-    # And a reader who scrolls the board to its end by hand lands in the same place:
+    # And a reader who scrolls the tray to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
-    board.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
+    tray.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
     last = rows.last.bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
-        f"scrolled to its end the board put its last row at {last}, under the key "
+        f"scrolled to its end the tray put its last row at {last}, under the key "
         f"line at {line}"
     )
     assert errors == []
@@ -9463,9 +9457,11 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
     """An exhibition is looked across where a decision is read down: terse variants
     share a row while block content stacks the group. Which children count as block
     is the phrasing-set inversion, and its one hazard is an inline widget — a
-    chip-led pair must not stack, which is why the stylesheet's list carries the
-    registry's x-inline tags and this reads the shipped page to prove the grid
-    actually held."""
+    chip-led pair must not stack, which is why the stylesheet's list excludes the
+    marker the runtime paints from x-inline and this reads the shipped page to prove
+    the grid actually held. It is the whole chain in one assertion: a declaration
+    unpainted, a marker unread, or a selector naming the wrong attribute all arrive
+    here as two variants that stacked."""
     page, errors = open_page(
         browser,
         serve(
@@ -9479,6 +9475,55 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
     assert page.locator("#var-payments-regime").evaluate(top) != page.locator(
         "#var-sessions-regime"
     ).evaluate(top), "block-content variants must stack"
+    assert errors == []
+    page.close()
+
+
+# A proposal inside an exhibition: the change is a phrase in one of the cases, so the
+# variant holding it is as terse as the one beside it. A suggestion is also the one
+# family a decision is taken back by rebuilding — no verb can state its authored value,
+# so undo hands the widget a pristine clone of the version's markup, and everything the
+# runtime had painted on it is on the node the clone replaced.
+REBUILT_INLINE_PAGE = leaf_page(
+    "stores",
+    """
+<h1 id="h">Session store</h1>
+<lf-compare id="cmp-stores">
+  <lf-variant id="v-service"
+    ><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
+    >, one hop from the app</lf-variant
+  >
+  <lf-variant id="v-cookie">A signed cookie, with nothing to run</lf-variant>
+</lf-compare>
+""",
+)
+
+
+def test_a_rebuilt_widget_is_still_set_among_the_words(browser, serve):
+    """Undo rebuilds a recordless decision from the version's own markup, and the
+    marks the runtime paints from the registry are painted again onto the clone —
+    the widget's own mark included, not only its descendants'. A suggestion is
+    inline, so the exhibition holding it is looked across; unmarked after the
+    rebuild it becomes block content, and taking back a decision about one case
+    would silently restack the comparison it was made in.
+
+    The reading straddles the rebuild rather than sampling after it, because the
+    grid is what the page arrives at and a rule that never applied would look the
+    same at the end."""
+    page, errors = open_page(browser, serve(REBUILT_INLINE_PAGE))
+    form = "() => getComputedStyle(document.getElementById('cmp-stores')).display"
+    assert page.evaluate(form) == "grid", (
+        "the exhibition stacked before anything was decided, so this proves nothing"
+    )
+
+    page.locator("[data-lf-for='sug-store'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#sug-store lf-old")).to_be_hidden()
+    undo(page)
+    expect(page.locator("#sug-store lf-old")).to_be_visible()
+    assert page.evaluate(form) == "grid", (
+        "the rebuilt suggestion lost its inline mark, so the exhibition stacked"
+    )
     assert errors == []
     page.close()
 
@@ -10296,7 +10341,7 @@ ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the asks board's row mirrors the same fact in the chrome.
+# main because the asks tray's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The document's scroll once it has stopped moving. A leaf's travel is a glide, so any
 # reading taken while it runs is of a place the gesture passes through rather than of
@@ -10358,7 +10403,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     """j/k step the open threads; n/p step the things the page is waiting on the reader
     for. Every walk here is a borrowed pair naming its direction rather than what it
     walks — vim's list, less's half page, next and previous — which is what left `a`
-    free for the board that shows the list they walk (⇧A is the answer that takes all of
+    free for the tray that shows the list they walk (⇧A is the answer that takes all of
     them at once).
     It wraps rather than clamping, because an ask leaves the list as soon as it is
     answered — forward is the direction with somewhere to go, and one key that stopped
@@ -10446,7 +10491,7 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     Three readings of where they are, and the page is left in each state in turn: what
     they are reading, when they have pointed at nothing; what they have selected; and
     where the walk itself last left off, once the walk is what last moved them. The
-    banner's button is no place — pressing it opens the board and leaves the focus on
+    banner's button is no place — pressing it opens the tray and leaves the focus on
     itself, so a walk measured from the focus after it would restart on every press, and
     the ring is gone from the page by then, the reader being in the banner."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
@@ -10462,7 +10507,7 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     page.keyboard.press("n")
     expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
 
-    # The banner's press opens the board and keeps the focus, so the walk after it
+    # The banner's press opens the tray and keeps the focus, so the walk after it
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     page.locator(".lf-asks").click()
@@ -10489,7 +10534,7 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     page.close()
 
 
-# Where the board's rows say their ask's own words, which is the half of a row a static
+# Where the tray's rows say their ask's own words, which is the half of a row a static
 # lint can never read: the words are whatever the page renders, after every upgrade.
 ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
@@ -10525,12 +10570,12 @@ CHANGE_SHAPES_PAGE = leaf_page(
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
     """A row names its ask by kind and then by the ask's own opening words, and for a
     change those opening words are whichever half comes first — the current text, where
-    there is one. So a deletion arrived on the board under the words it was proposing to
+    there is one. So a deletion arrived on the tray under the words it was proposing to
     remove, with nothing to tell it from the insertion above it, which was proposing to
     add its own. Three shapes, one tag, one word for all of them.
 
     The tag is the right word wherever one tag is one kind of thing, which is every
-    other widget here, so the fix is not to teach the board about suggestions: the entry
+    other widget here, so the fix is not to teach the tray about suggestions: the entry
     declares that this tag's word comes from its module (x-word), and the module reads
     it off the slots it holds. The group below is in this page to hold the other half of
     that — a widget declaring nothing still gets its tag, and would go on getting it if
@@ -10558,33 +10603,33 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     page.close()
 
 
-def test_a_opens_a_board_of_what_the_page_is_waiting_for(browser, serve):
+def test_a_opens_a_tray_of_what_the_page_is_waiting_for(browser, serve):
     """`a` shows the list n/p walk, which until now the reader could only see by
     walking it: there was no way to tell what a page wanted without visiting each ask
     in turn, and no way to take them in any order but the page's.
 
     The rows are openAsks() and nothing else — the same list the banner counts — so
-    they arrive in document order and a twelfth widget joins the board by declaring
+    they arrive in document order and a twelfth widget joins the tray by declaring
     x-awaits. Each says what kind of thing is asking and then the ask's own opening
     words, which is why the question here carries a `label`: without one, a group holds
     no part of the question it asks and its row reads as its first option instead. That
     is the whole reason the attribute exists, and this is the surface that shows it.
 
-    A closed board holds no rows at all. That is not tidiness: they are the open
-    board's rendering, the banner's count is the closed board's, and a hidden list of
+    A closed tray holds no rows at all. That is not tidiness: they are the open
+    tray's rendering, the banner's count is the closed tray's, and a hidden list of
     buttons is a set of controls no reader can press — which the press sweep sees as
     the page's control set changing under it."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
-    board = page.locator(".lf-asks-panel")
-    expect(board).to_be_hidden()
-    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed board holds no rows"
+    tray = page.locator(".lf-asks-panel")
+    expect(tray).to_be_hidden()
+    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray holds no rows"
 
     page.keyboard.press("a")
-    expect(board).to_be_visible()
+    expect(tray).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert [r["at"] for r in rows] == ASKS_IN_ORDER, (
-        "the board is openAsks() in document order, the list n/p walk"
+        "the tray is openAsks() in document order, the list n/p walk"
     )
     for row in rows:
         assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
@@ -10601,46 +10646,46 @@ def test_a_opens_a_board_of_what_the_page_is_waiting_for(browser, serve):
     # context — which is what says the row reads the element rather than the attribute.
     assert said["t-baffles"].startswith("Fit squirrel baffles"), said["t-baffles"]
 
-    # Answered, and the row goes with the ask. The board emptying is the progress, so
+    # Answered, and the row goes with the ask. The tray emptying is the progress, so
     # what is left on it is what is left to do — never a burn-down of everything done.
     page.locator("#lq-token").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     expect(page.locator("button.lf-asks-row")).to_have_count(3)
     assert "live-question" not in [r["at"] for r in page.evaluate(ASK_ROW_SAYS)], (
-        "an answered ask keeps a row on the board"
+        "an answered ask keeps a row on the tray"
     )
 
-    # And closing takes the rest with it, for the reason the docstring gives: a board
+    # And closing takes the rest with it, for the reason the docstring gives: a tray
     # that is down is not a list, so it holds nothing to reach and nothing to press.
     page.keyboard.press("a")
-    expect(board).to_be_hidden()
-    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed board keeps its rows"
+    expect(tray).to_be_hidden()
+    assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
     assert errors == []
     page.close()
 
 
-def test_a_board_the_reader_left_standing_comes_back_standing(browser, serve):
-    """Reloading is not resetting: a board someone stood up to watch stays stood, the
+def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
+    """Reloading is not resetting: a tray someone stood up to watch stays stood, the
     rule the comment panel already keeps. Which makes the reload the one moment a
-    board is put up by something other than a press, and that is where it broke — the
-    restore ran while the module was still evaluating and filled the board from a
+    tray is put up by something other than a press, and that is where it broke — the
+    restore ran while the module was still evaluating and filled the tray from a
     reading of the page's open asks declared further down the file, so the reader who
     had left it open got a ReferenceError instead of a page.
 
     Nothing static could have caught it and neither could the render gate, which
-    presses no keys and so never has a board to restore. It took a reader with the
-    board open pressing reload, which is what this now is."""
+    presses no keys and so never has a tray to restore. It took a reader with the
+    tray open pressing reload, which is what this now is."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     page.keyboard.press("a")
-    board = page.locator(".lf-asks-panel")
-    expect(board).to_be_visible()
+    tray = page.locator(".lf-asks-panel")
+    expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))
 
     page.reload(wait_until="networkidle")
     page.wait_for_function(BOTH_STAMPS)
-    expect(board).to_be_visible()
+    expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))
-    # And the room it takes comes back with it, or the board returns lying over the
+    # And the room it takes comes back with it, or the tray returns lying over the
     # column it is meant to stand beside.
     page.wait_for_function(
         """() => getComputedStyle(document.body).marginLeft !== '0px'"""
@@ -10650,13 +10695,13 @@ def test_a_board_the_reader_left_standing_comes_back_standing(browser, serve):
 
 
 def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
-    """Pressing a row does what `n` does — one function does both, so the board can
+    """Pressing a row does what `n` does — one function does both, so the tray can
     never drift into a second way of arriving at an ask. It scrolls there, rings the
     ask, and puts the focus on the control that answers it, which is what lets the
     reader answer in the page beside the words arguing for it rather than in the list.
 
     The ring lands in two places for one reason: the ask on the page and its row on the
-    board are two surfaces showing where the reader is standing, painted from the one
+    tray are two surfaces showing where the reader is standing, painted from the one
     reading of it (markHere), so neither can say something the other doesn't."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 620)
@@ -10692,20 +10737,20 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     page.close()
 
 
-def test_the_asks_board_takes_room_rather_than_covering_the_column(browser, serve):
+def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve):
     """A leaf's row is a way out of this page and an ask's row is a way around it, so
-    pressing one sends the reader into the document — and a board lying over the
+    pressing one sends the reader into the document — and a tray lying over the
     document would be hiding the thing it just sent them to. At a 720px column the two
     overlap on any window under about 1320px, which is most of them, so the strip comes
     out of the page the way the comment panel's does on the other side.
 
-    Below twice the board's own width there is no strip to take, and it covers instead —
+    Below twice the tray's own width there is no strip to take, and it covers instead —
     the same bargain at the same ratio the panel strikes, so a reader who has learned
     one edge has learned the other."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     geometry = """() => ({
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
-      board: Math.round(
+      tray: Math.round(
         document.querySelector('.lf-asks-panel').getBoundingClientRect().right),
       sideways: document.documentElement.scrollWidth
                 - document.documentElement.clientWidth,
@@ -10718,11 +10763,11 @@ def test_the_asks_board_takes_room_rather_than_covering_the_column(browser, serv
         """() => getComputedStyle(document.body).marginLeft !== '0px'"""
     )
     wide = page.evaluate(geometry)
-    assert wide["column"] >= wide["board"], (
-        f"the board covers the column: it ends at {wide['board']} and the column "
+    assert wide["column"] >= wide["tray"], (
+        f"the tray covers the column: it ends at {wide['tray']} and the column "
         f"begins at {wide['column']}"
     )
-    assert wide["sideways"] == 0, "the page scrolls sideways with the board up"
+    assert wide["sideways"] == 0, "the page scrolls sideways with the tray up"
 
     # Narrow enough and the strip is more than the page can give, so it covers.
     resized(page, 560, 800)
@@ -10734,18 +10779,18 @@ def test_the_asks_board_takes_room_rather_than_covering_the_column(browser, serv
     page.close()
 
 
-def test_one_board_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
-    """Both boards want the edge, so opening either closes the other. Which one is up
-    is one fact in one place: a boolean per board would be one guarantee written twice,
+def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
+    """Both trays want the edge, so opening either closes the other. Which one is up
+    is one fact in one place: a boolean per tray would be one guarantee written twice,
     and the two would first disagree the day a third surface opened one without closing
-    the other — leaving two boards over one edge with the lower unreachable.
+    the other — leaving two trays over one edge with the lower unreachable.
 
-    Escape names whichever is up rather than saying "close the board" over two of
+    Escape names whichever is up rather than saying "close the tray" over two of
     them, which is the rung the reader is actually holding.
 
-    The `other_leaf` fixture is the whole reason the leaves board has anything to show:
-    a board of one — the page the reader is already on — is not worth a control, so
-    without a neighbour `l` is dead and there is no second board to be exclusive with."""
+    The `other_leaf` fixture is the whole reason the leaves tray has anything to show:
+    a tray of one — the page the reader is already on — is not worth a control, so
+    without a neighbour `l` is dead and there is no second tray to be exclusive with."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     asks, leaves = page.locator(".lf-asks-panel"), page.locator(".lf-others-panel")
 
@@ -10756,7 +10801,7 @@ def test_one_board_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf)
     page.keyboard.press("l")
     expect(leaves).to_be_visible()
     expect(asks).to_be_hidden()
-    # The page has its room back the moment the asks board goes down.
+    # The page has its room back the moment the asks tray goes down.
     page.wait_for_function(
         """() => getComputedStyle(document.body).marginLeft === '0px'"""
     )
@@ -14828,7 +14873,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # And the digit arrives, however long the reader took over it: the mode stands until
     # something ends it, where a clock used to end it at a second and a half — and a letter
     # arriving after that clock was not a no-op but the page's own key, so a slow reader
-    # pressing `l` got the leaves board rather than the links.
+    # pressing `l` got the leaves tray rather than the links.
     page.wait_for_timeout(2000)
     expect(line).to_contain_text("1–3")
     page.keyboard.press("2")
@@ -15176,7 +15221,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     browser, serve, live_leaf
 ):
     """A held key repeats keydown where a real button fires once. A walk wants that — j
-    down a list of threads, arrows down the board — and a press that toggles or navigates
+    down a list of threads, arrows down the tray — and a press that toggles or navigates
     does not: a held `]` was a page navigation per repeat, and a held pick a `choose` per
     repeat, each of them one decision the reader made once. So a row says whether it
     repeats and the default is no, where before only `offer`'s own listener had thought
@@ -15196,13 +15241,13 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["j", True])  # a walk repeats
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
 
-    board = page.locator(".lf-others-panel")
+    tray = page.locator(".lf-others-panel")
     page.keyboard.press("l")
-    expect(board).to_be_visible()
+    expect(tray).to_be_visible()
     page.evaluate(press, ["l", True])  # a toggle does not
-    expect(board).to_be_visible()
+    expect(tray).to_be_visible()
     page.evaluate(press, ["l", False])  # the same event, answered
-    expect(board).to_be_hidden()
+    expect(tray).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -15417,7 +15462,7 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     page.keyboard.press("Escape")
 
     # l names the direction of its own toggle. Opened from the banner, because opening
-    # it by key lands focus inside the board, and the line is then the board's own scope
+    # it by key lands focus inside the tray, and the line is then the tray's own scope
     # rather than the page's — the l row is only on screen while the page's is.
     expect(line).to_contain_text("show leaves")
     page.get_by_role("button", name=re.compile("^All leaves")).click()
@@ -15453,7 +15498,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("Comment on the page")
     expect(help_el).not_to_contain_text("With g armed")
     expect(help_el).not_to_contain_text("open comment's reply box")
-    # And no link scope: this page holds none, while the machine's own board is full of
+    # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.
     expect(help_el).not_to_contain_text("On a link")
     expect(help_el).not_to_contain_text("Next / previous open thread")
@@ -18057,7 +18102,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     """A focused stream may hide the earlier context, never its collaboration state.
 
     The shipped example opens on the narrow work in hand. A comment and an ask in
-    inactive panels still stand in the page's one Comments list and one Asks board,
+    inactive panels still stand in the page's one Comments list and one Asks tray,
     and either global surface opens the panel it points into. Switching panels is
     reading the page, so it leaves the event log untouched."""
     example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
@@ -20129,7 +20174,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way l opens the leaves board, and lands
+    # v opens it from anywhere on the page, the way l opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.
@@ -20270,7 +20315,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     it: the runtime's control scope, a card grip in both its states, an option's pick mark,
     and this row. A link is what keeps that fact honest rather than growing into "controls
     answer two keys" — Enter follows an `<a>` and Space scrolls the page, so the leaves
-    board binds Enter alone and is right to."""
+    tray binds Enter alone and is right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
     page, errors = open_page(browser, url, pin=True)
@@ -23176,10 +23221,10 @@ main, main * {
 def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, serve):
     """Restored runtime chrome may not publish authored asks as current log state.
 
-    The board was open on the prior visit and the log has since accepted its one
+    The tray was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Once replay presents the page, the restored board paints the accepted state directly.
+    Once replay presents the page, the restored tray paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
     interact.append_event(
@@ -23197,7 +23242,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-board-up', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-tray-up', 'asks')")
     priming.close()
 
     held = []
@@ -26118,9 +26163,10 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     declared wide — so marked as one it would lay itself out to a 1080px page inside a
     420px panel, and the explanation would be the half of it the panel could show.
 
-    The pass that would do that is the one deliberately left out of the message render
-    (markWide, over document.body alone). Nothing about a message says so, which is why
-    this asks: the widget is in the panel, and the panel's width is what bounds it."""
+    The mark that would do that is the one deliberately left out of the message render
+    (x-wide, the half of markDeclared the page keeps to itself). Nothing about a message
+    says so, which is why this asks: the widget is in the panel, and the panel's width is
+    what bounds it."""
     url = serve(REPLY_HOST_PAGE)
     interact.append_event(
         serve.page_dir,
@@ -26165,6 +26211,84 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         f"{fit['past']:.0f}px — widget {fit['widget']:.0f}px in a "
         f"{fit['message']:.0f}px panel"
     )
+    assert errors == []
+    page.close()
+
+
+# One reply holding both answers to the question the block-content lists ask: chips are
+# set among the words, a paragraph is not. The pair is the point — the stacking rule
+# reaching neither group would read as a pass on the first half alone.
+INLINE_REPLY_MARKUP = (
+    '<lf-compare id="rp-terse">'
+    '<lf-variant id="rp-redis"><lf-chip>a service</lf-chip>Redis</lf-variant>'
+    '<lf-variant id="rp-cookie"><lf-chip>no service</lf-chip>Signed cookie</lf-variant>'
+    "</lf-compare>"
+    '<lf-compare id="rp-argued">'
+    '<lf-variant id="rp-keep"><p>Keep the store, and the operator that comes with it.</p></lf-variant>'
+    '<lf-variant id="rp-drop"><p>Drop it, and read sessions off the cookie alone.</p></lf-variant>'
+    "</lf-compare>"
+)
+
+
+def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
+    """Whether a widget stands in an inline run is true of it wherever it renders, which
+    is what separates that mark from the width model beside it: the room a wide widget
+    spends is the document's and stays behind, while a chip quoted into a reply is as much
+    a word there as on the page. The lists that ask whether a slot or a variant holds block
+    content invert HTML's phrasing content, and every custom element falls outside a
+    platform set — so with the mark withheld here, an exhibition the agent quotes to
+    compare two stores would stack into rows in the panel and nowhere else.
+
+    Asked of the group's own display rather than of its cells' geometry, because a
+    420px panel has no room for two columns either way: the stacking rule is what
+    replaces the grid, and it is visible whatever the reader has drawn the panel to."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-stores",
+            "author": "user",
+            "version": 1,
+            "text": "What did the two stores cost us?",
+        },
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "r-stores",
+            "author": "claude",
+            "parent": "c-stores",
+            "version": 1,
+            "text": "Side by side:",
+            "markup": INLINE_REPLY_MARKUP,
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    expect(page.locator("#rp-terse")).to_be_visible()
+
+    forms = page.evaluate("""() => Object.fromEntries(
+        ['rp-terse', 'rp-argued'].map(id => {
+            const group = document.getElementById(id);
+            return [id, { group: getComputedStyle(group).display,
+                          variant: getComputedStyle(group.firstElementChild).display,
+                          marked: [...group.querySelectorAll('lf-chip')]
+                              .every(chip => chip.hasAttribute('data-lf-inline')) }];
+        }))""")
+    assert forms["rp-terse"]["marked"], (
+        "a chip in a reply was left unmarked, so the panel reads it as block content"
+    )
+    assert (forms["rp-terse"]["group"], forms["rp-terse"]["variant"]) == (
+        "grid",
+        "block",
+    ), f"a chip-led exhibition stacked in the panel: {forms['rp-terse']}"
+    assert (forms["rp-argued"]["group"], forms["rp-argued"]["variant"]) == (
+        "block",
+        "flow-root",
+    ), f"the stacking rule never reached the panel at all: {forms['rp-argued']}"
     assert errors == []
     page.close()
 

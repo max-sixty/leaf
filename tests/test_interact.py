@@ -280,7 +280,7 @@ def test_leaf_skill_routes_its_complete_reference_set():
     )
     assert "Escape `&` first, then `<` and `>`" in authoring
     assert "status banner, comment sidebar, version picker" in authoring
-    assert "live-leaves board, and open-asks board" in authoring
+    assert "live-leaves tray, and open-asks tray" in authoring
     assert "informational page with no concrete ask" in " ".join(skill.split())
     assert "informational page with no concrete ask" in conversation
     for path in references:
@@ -2124,6 +2124,48 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert "not a language this page's layer speaks" in result.output
 
 
+def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
+    """The other way to color a block is read from the layer, not written into the
+    lint: the tags whose entries declare an attribute for a language (x-language) are
+    the ones the misplaced class is offered, under the attribute each declares. The
+    widget that colors a walkthrough is the layer's rather than core's, so a lint that
+    named it would be core knowing a content widget — and would keep offering it to a
+    layer that dropped it, spelt its attribute differently, or added a second."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2>\n<div class="note language-python">not a code block</div>',
+        )
+    )
+    registry_file = page_dir / "registry.json"
+    registry = json.loads(registry_file.read_text())
+    declaring = {
+        tag: entry["x-language"]
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and "x-language" in entry
+    }
+    assert declaring, "the shipped layer declares one; the offer below is its reading"
+    out = check(page_dir).output
+    for tag, attr in declaring.items():
+        assert f"<{tag} {attr}=…>" in out, out
+
+    # A second tag taking one joins the offer under the attribute it declares.
+    registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
+    registry["lf-tree"]["x-language"] = "dialect"
+    registry_file.write_text(json.dumps(registry))
+    out = check(page_dir).output
+    assert "<lf-tree dialect=…>" in out, out
+
+    # A layer whose tags declare none has nothing to offer, and the placement rule —
+    # which never rested on any widget — is stated on its own.
+    for tag in [*declaring, "lf-tree"]:
+        registry[tag].pop("x-language")
+    registry_file.write_text(json.dumps(registry))
+    out = check(page_dir).output
+    assert "only <pre><code> is colored" in out and "— move it" in out, out
+    assert "or use" not in out, out
+
+
 # HTML's phrasing content, quoted whole from the standard's own list. The theme
 # inverts it to decide what makes a slot a block, and this is the only place the set
 # is stated rather than derived: `link` and `meta` are in it because the standard has
@@ -2191,7 +2233,20 @@ PHRASING_CONTENT = frozenset(
 )
 
 
-def test_the_block_content_lists_are_the_platform_set_and_the_inline_widgets():
+def _balanced(css, start):
+    """What is inside a parenthesis already open at `start`, nesting included.
+
+    A selector list carrying a :where() no longer ends at the first `)`, and reading
+    it with one is how a marker arrives here missing its last bracket and passes for
+    a name the list never held."""
+    depth, at = 1, start
+    while depth:
+        depth += {"(": 1, ")": -1}.get(css[at], 0)
+        at += 1
+    return css[start : at - 1]
+
+
+def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     """Two selectors in the theme decide what counts as block content — the
     suggestion slots' blockization and lf-compare's stacked-variant trigger
     (lf-options stacks on the title alone, so it asks no block question) — by the
@@ -2204,33 +2259,60 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_widgets():
     half is HTML's phrasing content entire, stated above, which is the half the two
     copies could never check: agreeing with each other says nothing about a name
     dropped from both, and a missing one blockizes a slot holding the element it
-    names. The widget half is exactly the tags the registry declares x-inline, which
-    a stylesheet cannot read — so an inline widget joins the list by declaring, and a
-    block widget in it would mean the inversion has been quietly re-enumerated."""
+    names. The widget half is the inversion's one wrong answer — an inline widget is
+    a custom element like any other — and it is a marker rather than tag names,
+    because which widgets those are is the registry's to say (x-inline) and a
+    stylesheet cannot read it. Four names stood here, one of them a bundled chip's
+    inside the integrated theme, and no layer could join them; the runtime paints the
+    declaration instead and an inline widget joins by declaring it.
+
+    The marker is held to the runtime's own list of what it may paint, because a
+    selector naming an attribute nothing writes matches nothing and says so
+    nowhere — it reads as the ordinary case of a page with no inline widget in a
+    slot. And it is held to :where(), which is what keeps an answer about content
+    from becoming a claim on the cascade: :not() takes the specificity of the most
+    specific thing in it, so a bare attribute selector lifts the whole rule a column
+    above the type names beside it, over the marks the layer paints on top of the
+    result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
+    it had just retired."""
     theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
-    lists = re.findall(r":not\((a, abbr[^)]*)\)", theme)
+    lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
+    lists = [found for found in lists if found.startswith("a, abbr")]
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
-    inline = {
+    assert [
         tag
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-inline")
-    }
+    ], "no widget declares x-inline, so the marker in these lists stands for nothing"
+    painted = re.search(
+        r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);",
+        (interact.ASSETS / "leaf.js").read_text(),
+        re.DOTALL,
+    )
+    assert painted, "leaf.js lost the list of attributes the runtime may paint"
     for found in lists:
         tags = {t.strip() for t in found.split(",")}
-        assert {t for t in tags if not t.startswith("lf-")} == PHRASING_CONTENT, (
+        markers = {t for t in tags if not t.isalpha()}
+        assert tags - markers == PHRASING_CONTENT, (
             "the platform half of a block-content list is not HTML's phrasing "
             "content: a name dropped from it stacks a slot holding that element, "
-            "and one added to it leaves a block child laid out inline"
+            "one added to it leaves a block child laid out inline, and a widget "
+            "named in either half re-closes the inversion"
         )
-        assert {t for t in tags if t.startswith("lf-")} == inline, (
-            "the block-content lists' widget names must be exactly the tags the "
-            "registry declares x-inline — a block widget in the list re-closes the "
-            "inversion, and an inline widget missing from it stacks the form it "
-            "stands in"
+        assert markers == {":where([data-lf-inline])"}, (
+            "the widget half of a block-content list is the inline marker the "
+            "runtime paints from x-inline, in :where() so the question does not "
+            "outrank the marks painted over its answer"
         )
+        for marker in markers:
+            attribute = marker[len(":where([") : -len("])")]
+            assert f'"{attribute}"' in painted.group(1), (
+                f"{marker} is not an attribute the runtime paints, so the list's "
+                "widget half matches nothing on any page"
+            )
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():
@@ -8902,7 +8984,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_en
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
-    """What tells one leaf from another on the board is the work behind it, which
+    """What tells one leaf from another on the tray is the work behind it, which
     neither the title somebody wrote nor the state directory nobody chose says — so
     the claim records the directory the claiming command ran in, the same reading
     `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a

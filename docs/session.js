@@ -148,7 +148,7 @@ const state = () => ({
   pending: 0,
   viewed: null,
   // No session, so nowhere it is working: a page here is a file on a web host rather
-  // than a leaf somebody's session holds, and the board's hover names the work behind
+  // than a leaf somebody's session holds, and the tray's hover names the work behind
   // a page. There is none behind this one, which `unattended` above already says.
   session_cwd: null,
   others: [],

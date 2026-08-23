@@ -1954,7 +1954,7 @@ def presence(page_dir: Path, events: list) -> dict:
     One gatherer for every such seat — `full_state` spreads it into the page's own
     poll answer, and `other_leaves` attaches it to each entry — so the runtime's one
     claim-against-proof judgment reads the same fields whichever page it judges,
-    and the board's account of a neighbour is the account this page gives of
+    and the tray's account of a neighbour is the account this page gives of
     itself."""
     # A file that isn't there stands in as its whole record, so every read below
     # indexes rather than asking twice whether the field arrived.
@@ -1989,10 +1989,10 @@ def presence(page_dir: Path, events: list) -> dict:
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
         "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
-        # Where the claimant is working (claim_page), for the board's hover: what
+        # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
-        # wrote it, as every other fact in this record does — a page the board
+        # wrote it, as every other fact in this record does — a page the tray
         # calls unheld came out of somewhere, and that is still where it came from.
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
@@ -5292,7 +5292,7 @@ def parse_version(page_dir: Path, version: int) -> _StructParser:
     `version publish` writes a version and nothing writes it again, while the
     readings that cost most are the ones a reader waits through: the action door
     checks a press against the version it was made on, and every poll reads each
-    live neighbour's newest version for the one string the board shows of it. That
+    live neighbour's newest version for the one string the tray shows of it. That
     last one made a title cost a parse of the whole page, once a second, per
     neighbour — seven neighbours put more time between a press and its paint than
     everything else the server did for it put together."""
@@ -7186,7 +7186,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
     ]
 
 
-def language_class_errors(blocks: list, known: list) -> list:
+def language_class_errors(blocks: list, registry: dict) -> list:
     """A `class="language-…"` the runtime won't honor: the class somewhere other than
     <pre><code>, or a word the layer doesn't speak. Neither is visible to the user — a
     class in the wrong place and a misspelt language both render as an ordinary
@@ -7198,15 +7198,27 @@ def language_class_errors(blocks: list, known: list) -> list:
     The list is indexed rather than tested: a layer naming none colors none, so a word
     declared to it is still one it can't honor, and the placement rule never depended on
     the list at all. A check whose two failures are both invisible on the page is the
-    last one that should be able to pass by finding nothing to check against."""
+    last one that should be able to pass by finding nothing to check against.
+
+    The misplaced block is offered the other way to color one, read from the same
+    declaration the check itself reads: whichever tags say an attribute of theirs names
+    a language (x-language). Naming one here would be this lint knowing a widget, and
+    the offer would go stale the moment a layer dropped it or added a second — so a
+    layer whose tags declare none says only to move the block."""
+    known = registry["$languages"]["names"]
+    colored = " or ".join(
+        f"<{tag} {attr}=…>"
+        for tag, entry in sorted(registry.items())
+        if tag.startswith("lf-") and (attr := entry.get("x-language"))
+    )
+    instead = f", or use {colored} for a walkthrough" if colored else ""
     errors = []
     for block in blocks:
         where = f'class="language-{block["lang"]}" (line {block["line"]})'
         if (block["tag"], block["parent"]) != ("code", "pre"):
             errors.append(
                 f"{where}: only <pre><code> is colored, found <{block['tag']}> in "
-                f"<{block['parent'] or 'nothing'}> — move it, or use <lf-code language=…> "
-                f"for a walkthrough"
+                f"<{block['parent'] or 'nothing'}> — move it{instead}"
             )
         elif block["lang"] not in known:
             errors.append(
@@ -8380,7 +8392,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
-        + language_class_errors(parser.language_blocks, registry["$languages"]["names"])
+        + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )
@@ -8480,11 +8492,7 @@ def cmd_check(
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
-        errors.extend(
-            language_class_errors(
-                parser.language_blocks, registry["$languages"]["names"]
-            )
-        )
+        errors.extend(language_class_errors(parser.language_blocks, registry))
         errors.extend(declared_word_errors(parser.lf_elements, registry))
         errors.extend(line_ref_errors(parser.lf_elements, registry))
         # A family lint reads its own slots off the registry, so it stands with
@@ -10453,7 +10461,7 @@ BAKE = """() => {
     // reason rather than because anything in a copy reads it: both are stated on the
     // root by the same hand, and each is a fact about a region this file hasn't got and
     // about a reader who is not the one opening it.
-    for (const stale of ['--lf-room', '--lf-panel-w', '--lf-board-w'])
+    for (const stale of ['--lf-room', '--lf-panel-w', '--lf-tray-w'])
         document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has
     // no session behind it — a copy keeping the tone it was exported under would claim

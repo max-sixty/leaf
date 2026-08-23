@@ -39,7 +39,7 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 catalog is the only widget vocabulary.
 
 The runtime injects the status banner, comment sidebar, version picker, keyboard
-shortcuts, live-leaves board, and open-asks board. Author the asks as widgets,
+shortcuts, live-leaves tray, and open-asks tray. Author the asks as widgets,
 but do not duplicate that chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. Give raw `<pre>`, tables, SVG, and images

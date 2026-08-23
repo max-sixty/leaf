@@ -333,7 +333,7 @@ would survive after the queue drains. A test is vacuous when some unrelated mech
 makes its assertion true under both the good and bad implementation.
 
 The corpus has two important causal matrices. A first visit is the anchor for return
-state: `arrival_findings` reloads a page with the panel open, a board state standing,
+state: `arrival_findings` reloads a page with the panel open, a tray standing,
 or design mode on and reports motion or failure that the first visit did not have. A
 static authored state is the anchor for semantic replay: apply standing actions or
 reports, reapply them, and verify both the visible state and idempotence. Keep those

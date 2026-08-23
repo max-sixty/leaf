@@ -24238,6 +24238,67 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     page.close()
 
 
+def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
+    """One page holds one answer to how long is too long, at every seat that shows a
+    claim of work.
+
+    The banner cannot answer for this seat. Every `leaf status … --on` write refreshes
+    the page's own line as well as the thread's, so one delegate still checking in keeps
+    the banner green while another's note ages beside the reader's question — the
+    roster's dead-row failure one level down, reached by exactly the command that makes
+    two delegates possible.
+
+    The roster's answer is a word on the shared rope, and this says it the same way: a
+    tint alone is silence to whoever is listening rather than looking, and a number
+    alone leaves the reader doing the arithmetic against a threshold only the page
+    knows. `ago` stays rendered whole beside the word rather than reworded to absorb
+    it, so one elapsed line reads the same wherever it appears."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    d = tmp_path / "page"
+    held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+    note = page.locator(".lf-thread-note")
+
+    def claim(note_ts):
+        """A page claim made now, carrying a note last renewed whenever."""
+        interact.write_json(
+            d / "status.json",
+            {
+                "state": "working",
+                "detail": "rerunning the failing shard",
+                "ts": interact.now_iso(),
+                "on": {held: {"detail": "reading the reconnect traces", "ts": note_ts}},
+            },
+        )
+        told(page)
+
+    claim(interact.now_iso())
+    # A claim somebody is keeping says nothing about silence.
+    expect(note).to_have_count(1)
+    expect(note).not_to_contain_text("quiet")
+
+    quiet_ts = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
+        timespec="seconds"
+    )
+    claim(quiet_ts)
+    # The page's own line is as fresh as it was, which is the whole case: this is two
+    # delegates diverging, not a page that has gone quiet all over.
+    expect(page.locator(".lf-status-text")).to_have_text(
+        re.compile(r"^Claude is working — rerunning the failing shard")
+    )
+    expect(note).to_contain_text("quiet")
+    expect(note.locator("time")).to_have_text("40m ago")
+
+    # And it goes when the claim is kept again, so the word tracks the claim rather
+    # than latching on the first time it is late.
+    claim(interact.now_iso())
+    expect(note).not_to_contain_text("quiet")
+    expect(note).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 # What the tab is wearing, once the banner has judged `want` and the tab agrees with it.
 # The runtime builds the href, so reading it back is reading what the browser was handed;
 # null until both hold, which is what makes this a wait — a status arrives on a poll, and

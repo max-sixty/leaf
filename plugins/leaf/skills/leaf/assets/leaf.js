@@ -2637,6 +2637,12 @@ ${MARK_RULES}
        clock does not: broken over two lines it read as "just / now" down the right
        edge, which is the one part of the line the eye goes to first. No width is
        stated anywhere here, the panel's being the reader's to drag. */
+    /* Silence, said beside the clock rather than instead of it. The roster says this
+       same word on the same rope (lf-agent's heard, .lf-cold in the bundled theme);
+       the class is chrome's own because chrome must not rest on a rule an overlay
+       layer owns, while the tokens under it are core. */
+    .lf-thread-note .lf-note-cold { color: var(--warn-ink); background: var(--warn-tint);
+      border-radius: 3px; padding: 0 4px; white-space: nowrap; }
     .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
@@ -5289,11 +5295,24 @@ function paintNotes() {
       line.append(el("span"), el("time"));
       div.insertBefore(line, div.querySelector(":scope > .lf-compose"));
     }
-    const [what, when] = line.children;
+    const what = line.firstElementChild;
+    const when = line.lastElementChild;
     // Written only on change, like the message clocks beside it: an unchanged poll must
     // not hand the reader's screen reader the same sentence every two seconds.
     const said = `${agentName()} is on this — ${note.detail}`;
     if (what.textContent !== said) what.textContent = said;
+    // A claim of work nobody has renewed, said in a word. The banner cannot answer for
+    // this seat: every `leaf status … --on` write refreshes the page's own line, so one
+    // delegate still reporting keeps the banner green while another's note ages here —
+    // the fleet's dead-row failure one level down, and the reason the roster says this
+    // in words rather than leaving it to a tint. One page, one rope: `quietSince` is the
+    // banner's own predicate, and `ago` is still rendered whole beside the word rather
+    // than reworded to absorb it. The cell is added and removed rather than hidden,
+    // because a hidden one still reads out in the thread's text.
+    let cold = line.querySelector(":scope > .lf-note-cold");
+    if (quietSince(note.ts)) {
+      if (!cold) line.insertBefore(el("span", "lf-note-cold", "quiet"), when);
+    } else cold?.remove();
     const age = ago(note.ts);
     if (when.textContent !== age) when.textContent = age;
   }

@@ -25724,14 +25724,14 @@ ROOM_GEOMETRY = """() => {
     // decision made where the gutter is. Padding included, because a strip taken here
     // moves the column inside a box that has not changed size; `room` above is what is
     // left after the strips and cannot say whether any were taken.
-    const paper = () => {
+    const page = () => {
         const b = document.body, s = getComputedStyle(b);
         const left = b.getBoundingClientRect().left + parseFloat(s.borderLeftWidth);
         return { left, right: left + b.clientWidth, width: b.clientWidth,
                  centre: left + b.clientWidth / 2 };
     };
     return { column: span(document.querySelector('main')),
-             room: span(document.body), pageBox: paper(),
+             room: span(document.body), pageBox: page(),
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
              note: box('note'), later: box('later'),
              sideways: document.body.scrollWidth - document.body.clientWidth };

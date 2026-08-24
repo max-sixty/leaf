@@ -53,6 +53,9 @@ A page directory holds:
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
+                         "on" maps a comment thread id to the {"detail", "ts"} of
+                         the work in flight on it, which the panel shows under
+                         the reader's own words (`leaf status … --on`);
                          when `leaf wait` prints for a non-working page, it
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
@@ -96,6 +99,14 @@ handoff mark that survives means a dropped pickup rather than a long turn, and
 the banner gives it a much shorter rope. Wait output that lands while the agent
 is already working leaves the existing claim untouched; there is no pickup gap
 to date.
+
+So a claim of work has to be renewed, and the command that makes one renews it.
+`--on` names the comment thread the work is about, so one check-in moves both
+the page's line and the note the reader sees under their own words in the
+comment panel, where it stands until the agent's next word in that thread. That
+is how a claim crosses a turn boundary the session cannot write across: nothing
+in a session touches status.json while its turn is over, so work handed to a
+delegate is renewed from the delegate's own hands or not at all.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant pid that has exited settles the question outright;
@@ -281,12 +292,13 @@ vocabulary for rides in the custom keywords below:
                 declares and theme.css spends the room the layout measured, so a
                 page's shape follows what it holds and no page states a width.
     x-state     the widget's action verbs: each verb's detail schema, semantic
-                facet, fold unit, and the record form its state takes in markup. Every
-                applyAction is absolute, so the user's standing state is a
-                fold — the last surviving action per owner, unit, and facet — and one declaration
-                drives the POST and re-vendor contract gates, check's state gate,
-                the record-lag report, the runtime's pending mark, and the diff's
-                state half (see $state in the registry).
+                facet, fold unit, optional current-state prerequisite, and the record
+                form its state takes in markup. Every applyAction is absolute, so the
+                user's standing state is a fold — the last surviving action per owner,
+                unit, and facet — and one declaration drives the browser and POST
+                eligibility doors, the re-vendor contract gate, check's state gate,
+                the record-lag report, the runtime's pending mark, and the diff's state
+                half (see $state in the registry).
     x-report    the widget's agent channel: report verbs a worker folds onto the
                 page through `leaf report`, each with a detail schema, facet,
                 fold unit, and *required* record form — declared state only, never
@@ -315,19 +327,18 @@ vocabulary for rides in the custom keywords below:
                 author's to take back and which hold the page's own words.
     x-awaits    an instance of this tag is a standing request to the reader.
                 `when` says which instances ask (attribute values, a flag's
-                being true and false); `all` names the verb one press answers
-                every one
-                with. What counts as answered needs no new bookkeeping: a verb
-                that records as an attribute answers on the record the replayed
-                page carries, and every other verb answers through its own
-                surviving fold entry, whatever else it records — so the banner's
-                count, the key that steps through open asks, and the `?` overlay
-                all read one list (see $awaits).
+                being true and false); `answers` names the x-state verbs that
+                close it; `rollup` derives nested requests from ordinary
+                interventions and child roll-ups; `all` names the answer one
+                blanket press takes. The banner, navigation, help, and
+                conditional actions all read this projection (see $awaits).
     x-example   one authored example, printed by `page catalog`
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
-passages apart), reply (parent=id),
+passages apart; a browser selection on projected data carries datum,
+the stable key local to section, instead of treating neighbouring values as
+identity), reply (parent=id),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -385,9 +396,12 @@ under that name has been through the gate.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes
-the anchor from the selection; `leaf comment` writes the same anchor from a
-quote, reading the version the way the anchor pass reads the DOM (see
-"passages" below). Everything downstream already turns on `author`: `leaf wait`
+the anchor from the selection; `leaf comment` writes its file-confirmable form from
+a quote, reading the version the way the anchor pass reads the DOM (see
+"passages" below). Projected data has no file-side value to quote: its browser anchor
+adds the projection's section and datum key, and a CLI comment can still name the
+authored projection seat as an element. Everything downstream already turns on
+`author`: `leaf wait`
 prints user events and the banner counts them, so Claude's own comment neither
 wakes its own watcher nor reads as unanswered. Closing runs the other way round,
 because a note's purpose is discharged by being read, and only the reader knows
@@ -553,43 +567,9 @@ _RECORD_VALUE = {
 }
 
 
-def _verbs_schema(records: list, required: list) -> dict:
-    """The shape x-state and x-report share: verbs to
-    {detail, facet, unit, record}, differing only in which record forms a
-    channel admits and whether one is required at all."""
-    return {
-        "type": "object",
-        "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {
-            "type": "object",
-            "properties": {
-                "detail": {"type": "object"},
-                "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "unit": {"type": "string", "minLength": 1},
-                "record": {"oneOf": records},
-            },
-            "required": required,
-            "additionalProperties": False,
-        },
-    }
-
-
-STATE_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
-    ["detail", "facet", "unit"],
-)
-# A report moves declared state only, never body words — no body record, so the
-# passage reading never has to model one — and the record itself is required:
-# the gate compares record forms, and a recordless report would be a claim
-# nothing could check a version against.
-REPORT_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
-    ["detail", "facet", "unit", "record"],
-)
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves every registry consumer because
-# they ask the same question of the same attributes.
+# present or absent). One condition shape serves asks and conversations because they
+# ask the same question of the same authored attributes.
 ASK_CONDITION = {
     "type": "object",
     "minProperties": 1,
@@ -600,10 +580,71 @@ ASK_CONDITION = {
         "minItems": 1,
     },
 }
+
+# Current action eligibility reuses Leaf's standing-request projection. `self` is the
+# sending widget; `parent` is the holder relation its x-parent already declares.
+ACTION_REQUIREMENT = {
+    "type": "object",
+    "properties": {
+        "target": {"enum": ["self", "parent"]},
+        "awaiting": {"type": "boolean"},
+        "change": {"const": "increase"},
+    },
+    "required": ["target", "awaiting"],
+    "additionalProperties": False,
+}
+
+
+def _verbs_schema(records: list, required: list, *, conditional: bool = False) -> dict:
+    """The shape x-state and x-report share: verbs to
+    {detail, facet, unit, record}, differing only in which record forms a
+    channel admits, whether one is required at all, and whether the reader's
+    channel may declare current applicability."""
+    properties = {
+        "detail": {"type": "object"},
+        "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "unit": {"type": "string", "minLength": 1},
+        "record": {"oneOf": records},
+    }
+    if conditional:
+        properties["requires"] = ACTION_REQUIREMENT
+    return {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "additionalProperties": {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
+        },
+    }
+
+
+STATE_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
+    ["detail", "facet", "unit"],
+    conditional=True,
+)
+# A report moves declared state only, never body words — no body record, so the
+# passage reading never has to model one — and the record itself is required:
+# the gate compares record forms, and a recordless report would be a claim
+# nothing could check a version against.
+REPORT_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
+    ["detail", "facet", "unit", "record"],
+)
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": ASK_CONDITION,
+        "answers": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
+            "uniqueItems": True,
+        },
+        "rollup": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "until": {
             "type": "object",
@@ -1683,6 +1724,9 @@ class PageTransaction:
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
+            # When this session's last turn ended. None until one has, and reset
+            # by nothing: a claim taken again is a new record. See close_turn.
+            "turn_closed": None,
         }
         write_json(path, claim)
         return previous, claim
@@ -1711,14 +1755,52 @@ class PageTransaction:
         if claim and claim["released"] is None:
             write_json(claim_path(self.page_dir), {**claim, "released": now_iso()})
 
+    def close_turn(self, session_id: str) -> None:
+        """Record that the turn which could have renewed this page's claim has ended.
+
+        A `working` claim is written by a model's turn rather than by a process,
+        and a turn can end at any token without running anything — so there is no
+        close to write on the way out, and a claim nobody renewed used to be
+        found only by a clock fifteen minutes later. The Stop hook is the harness
+        observing that same moment exactly, which is what the hooks are for.
+
+        It lands here with the rest of the claim's provenance and not in
+        status.json, the line SessionEnd already draws: what the agent said it
+        was doing stays the agent's to write, and whether anything is still
+        behind those words stays the page's to judge from evidence.
+        """
+        claim = self.claim
+        if claim and claim["released"] is None and claim["id"] == session_id:
+            write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
+
     @property
     def status(self) -> dict:
         return read_json(self.page_dir / "status.json") or {"state": "idle"}
 
-    def set_status(self, state: str, detail: str, *, handoff: bool = False) -> None:
+    def set_status(
+        self, state: str, detail: str, *, handoff: bool = False, on: str | None = None
+    ) -> None:
+        """Write the claim, and the note under it where the work has a subject.
+
+        A note is the same sentence read at a second seat: the page's one line
+        says what the agent is doing, and the thread it is doing it about says
+        so where the reader asked. One command writes both, because they are
+        one claim — a delegate reporting its thread is also the agent checking
+        in, which is what keeps a `working` claim believed across a turn
+        boundary the session itself cannot write across.
+
+        Notes carry across every other write, so a handoff's "picking up 2
+        updates" does not silently drop what a helper is holding, and `idle`
+        clears them with the leaf.
+        """
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if handoff:
             status["handoff"] = True
+        notes = {} if state == "idle" else dict(self.status.get("on", {}))
+        if on:
+            notes[on] = {"detail": detail, "ts": status["ts"]}
+        if notes:
+            status["on"] = notes
         write_json(self.page_dir / "status.json", status)
 
     @property
@@ -1898,7 +1980,7 @@ def presence(page_dir: Path, events: list) -> dict:
     One gatherer for every such seat — `full_state` spreads it into the page's own
     poll answer, and `other_leaves` attaches it to each entry — so the runtime's one
     claim-against-proof judgment reads the same fields whichever page it judges,
-    and the board's account of a neighbour is the account this page gives of
+    and the tray's account of a neighbour is the account this page gives of
     itself."""
     # A file that isn't there stands in as its whole record, so every read below
     # indexes rather than asking twice whether the field arrived.
@@ -1929,14 +2011,21 @@ def presence(page_dir: Path, events: list) -> dict:
         "host": claim.get("host") if claim else None,
         # None when nothing claimed the page — interact.py run outside an agent host.
         "session_alive": active is not None if claim else None,
+        # When the claiming session's last turn ended, or None while none has.
+        # A `working` claim older than this is one that no turn and no delegate
+        # renewed across the boundary — the same judgment the runtime's grace
+        # makes, available at the moment it becomes true instead of a quarter of
+        # an hour after it. Read with .get like the rest of the claim's fields,
+        # since a record written before this existed is still a valid claim.
+        "turn_closed": claim.get("turn_closed") if claim else None,
         # When a browser last polled the page (the server bumps viewed.json,
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
         "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
-        # Where the claimant is working (claim_page), for the board's hover: what
+        # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
-        # wrote it, as every other fact in this record does — a page the board
+        # wrote it, as every other fact in this record does — a page the tray
         # calls unheld came out of somewhere, and that is still where it came from.
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
@@ -1948,6 +2037,12 @@ def full_state(
 ) -> dict:
     return {
         "layer": layer or layer_generation(page_dir),
+        # The clock every timestamp below was written by. A seat dating one reads
+        # `Date.now()`, which is the reader's own machine: a laptop an hour out
+        # calls a claim made this minute an hour stale, on every seat at once, and
+        # neither side can tell from the timestamp alone. Sent so the reading is
+        # against the writer's clock rather than the reader's.
+        "now": now_iso(),
         "versions": versions,
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
@@ -2039,7 +2134,7 @@ class Handler(BaseHTTPRequestHandler):
         # Every response ends here — answered, redirected, or refused — so the
         # cookie has one writer rather than one per path that sends a header.
         path = urlsplit(self.path).path
-        if path.startswith("/api/") or path == "/registry.json":
+        if path.startswith(("/api/", "/versions/")) or path in {"/registry.json", "/"}:
             self.send_header("Leaf-Layer", self.layer)
         if self.set_cookie:
             self.send_header(
@@ -2142,11 +2237,31 @@ class Handler(BaseHTTPRequestHandler):
             if not versions:
                 self._json({"error": "no published versions yet"}, 404)
                 return
-            self.send_response(302)
-            self.send_header("Location", f"/versions/{version_name(versions[-1])}")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
+            version = versions[-1]
+            source = (self.page_dir / "versions" / version_name(version)).read_text(
+                encoding="utf-8"
+            )
+            # The live address serves one immutable version but does not become that
+            # version's address. The marker tells the runtime exactly which file this
+            # response projected; deriving it from the next state poll would race a
+            # publish between the document response and that poll.
+            parsed = parse_structure(source)
+            scripts = [
+                script
+                for script in parsed.external_scripts
+                if script["attrs"] == {"src": "/leaf.js", "type": "module"}
+            ]
+            if len(scripts) != 1:
+                self._json({"error": "published version has no canonical script"}, 500)
+                return
+            line, column = scripts[0]["position"]
+            offset = sum(
+                len(part) for part in source.splitlines(keepends=True)[: line - 1]
+            )
+            offset += column
+            marker = f'<meta name="lf-version" data-lf-runtime content="{version}">'
+            projected = (source[:offset] + marker + source[offset:]).encode()
+            self._send(200, "text/html; charset=utf-8", projected)
             return
         if path == "/api/state":
             # A poll is the one proof a browser holds the page open, and before
@@ -2306,7 +2421,10 @@ class Handler(BaseHTTPRequestHandler):
                 if registry is None:
                     return self.event_rejection(event, "the page has no registry.json")
                 if error := action_contract_error(
-                    self.page_dir, event, events, registry
+                    self.page_dir,
+                    event,
+                    events,
+                    registry,
                 ):
                     return self.event_rejection(event, error)
             if "parent" in event and event["parent"] not in {
@@ -2318,10 +2436,7 @@ class Handler(BaseHTTPRequestHandler):
             if kind == "undo" and (error := undo_error(event, events)):
                 return self.event_rejection(event, error)
             event["author"] = "page" if kind == "error" else "user"
-            try:
-                append_event(page, event)
-            except AttemptConflict as error:
-                return self.event_rejection(event, str(error), 409)
+            append_event(page, event)
         return self.accepted_state()
 
     def _post(self):
@@ -2586,10 +2701,6 @@ def paths_same(left: Path, right: Path) -> bool:
     # Containment both ways is equality of the canonical form: neither path can
     # be a strict ancestor of the other and still contain it.
     return _path_location(left) == _path_location(right)
-
-
-def paths_overlap(left: Path, right: Path) -> bool:
-    return locations_overlap(_path_location(left), _path_location(right))
 
 
 def overlapping_layer_sources(layers: list):
@@ -3044,11 +3155,17 @@ def custom_widget_module(tag: str) -> str:
 //   what was decided (renderRetired paints the same state sooner on the sender's
 //   own gesture). `version check --render` reads the result, and reports a settled
 //   slot that shows words anyway, or a mark the log never decided.
+// - An x-state verb's `requires` is its one current-eligibility rule. Use
+//   actionAvailable(el, verb, detail) to paint and guard the exact gesture;
+//   sendAction and the server repeat that declaration at their own doors.
 // - Read your own slot with says(el), never textContent: the runtime's hidden
 //   comment line lands inside widgets legitimately.
 // - Anything you inject is chrome only if marked: offer() for a control,
 //   relabel() for a label that is the page speaking. Unmarked injected words
 //   read as the page's and break the file-side anchor reading.
+// - Records supplied at runtime go through projectData(): its stable string keys
+//   make the rendering readable but not authored, and keep comments on the same
+//   logical datum through refreshes. Never write its data-lf-* markers by hand.
 // - The registry entry declares x-verbatim because this stub leaves the body
 //   in place. Drop it the moment the module renders anything in the body's
 //   stead, or quotes anchor on words the screen no longer shows.
@@ -3339,9 +3456,25 @@ def cmd_serve(
         lease.close()
 
 
-def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -> None:
+def cmd_status(
+    page_dir: Path,
+    state: str,
+    detail: str,
+    handoff: bool = False,
+    on: str | None = None,
+) -> None:
     with PageTransaction(page_dir) as page:
-        page.set_status(state, detail, handoff=handoff)
+        if on is not None:
+            # A note says "I am on this now", so the two other states have
+            # nothing to put on a thread: `waiting` is the reader's move, and
+            # `idle` is the end of the agent's side.
+            if state != "working":
+                sys.exit("--on says what you are working on; use it with `working`")
+            if not detail:
+                sys.exit("--on needs a detail; a note with no words says nothing")
+            if on not in build_threads(page.events, {}):
+                sys.exit(f"{on} is not a comment thread on this page")
+        page.set_status(state, detail, handoff=handoff, on=on)
 
 
 def start_server(
@@ -3685,6 +3818,61 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
             write_json(page_dir / "cursor.json", {"seq": seq})
 
 
+def thread_roots(events: list) -> dict:
+    """Message id → the id of the comment that opened its thread.
+
+    Two readings of the panel's own document resolve a reply to its root, and they
+    must answer alike: a decision and an ask naming different conversations for one
+    message is a disagreement no reader could account for. (`build_threads` walks the
+    same relation to a different end — the thread object itself, with its resolution —
+    so it keeps its own.)
+
+    A reply whose root the log lost stands as its own thread rather than raising.
+    `read_events` skips a line nothing could be done with and keeps reading, and a
+    reader who can see the reply is owed the rest of the page around it."""
+    root = {}
+    for e in events:
+        if e["kind"] == "comment":
+            root[e["id"]] = e["id"]
+        elif e["kind"] == "reply":
+            root[e["id"]] = root.get(e["parent"], e["parent"])
+    return root
+
+
+def thread_universe(events: list, registry: dict):
+    """Every widget the log's frozen markup holds, read as one document.
+
+    id → record and id → spoken words, which is the panel's answer to a version's
+    `parser.by_id`/`spoken` pair, plus the thread each widget was sent in. A
+    version's element universe is one file; the panel's is every fragment the log
+    carries, and the two are separate documents that happen to share a page."""
+    structure = thread_structure(events)
+    root = thread_roots(events)
+    byid, spk, thread_of = {}, {}, {}
+    for e in events:
+        if markup := e.get("markup"):
+            fragment = structure.fragments[e["id"]]
+            byid.update(fragment.by_id)
+            spk.update(spoken(markup, registry))
+            thread_of.update(dict.fromkeys(fragment.by_id, root[e["id"]]))
+    return byid, spk, thread_of
+
+
+def thread_state(events: list, registry: dict):
+    """What the reader's gestures leave standing on the widgets an agent sent.
+
+    Thread markup is frozen in its event: no version window bounds it and no
+    retraction floor reaches it, so every action on it reads the whole
+    conversation window. Both doors that must answer for such a widget read it
+    here — the action gate, deciding whether a fresh press is allowed, and
+    `page state`, telling a session picking the page up what the reader has
+    already settled — so a decision made in the panel cannot stand at one door
+    and be missing at the other."""
+    byid, spk, thread_of = thread_universe(events, registry)
+    projection = state_projection(events, byid, spk, registry, None, floors={})
+    return projection, byid, thread_of
+
+
 def read_text_arg(text) -> str:
     body = text if text is not None else sys.stdin.read()
     if not body.strip():
@@ -3692,39 +3880,22 @@ def read_text_arg(text) -> str:
     return body.strip()
 
 
-def thread_widget_ids(events: list) -> set:
-    """Ids claimed by widget markup in the logged messages. Thread markup is frozen
-    in the log and rendered into the panel, so its ids share one universe with page ids —
-    the runtime resolves actions document-wide by id, and a collision would silently
-    redirect a thread widget's replay to the page.
+class ThreadStructure(NamedTuple):
+    ids: set
+    by_id: dict
+    fragments: dict
 
-    The `markup` field is the whole question: text renders with every tag escaped, so a
-    lf- tag there is words about a widget, and the field's one door is the CLI gate."""
-    ids = set()
+
+def thread_structure(events: list) -> ThreadStructure:
+    """Parse each logged markup fragment once into the panel's id universe."""
+    ids, by_id, fragments = set(), {}, {}
     for e in events:
         if markup := e.get("markup"):
-            ids |= parse_structure(markup).ids
-    return ids
-
-
-def action_widget_tags(byid: dict, events: list) -> dict:
-    """Widget id → tag in the document that sent an action.
-
-    Page widgets come from the action's own published version, not whichever
-    version is newest now. `byid` is that version's structural reading; the caller
-    takes it, having a second question for the same reading. Thread widgets are
-    the other live document the runtime renders, so each message's `markup` joins
-    this map — text never carries a widget, in the panel or here. Both readings
-    use _StructParser, the same structure reading `version check` and markup
-    validation already trust.
-    """
-    widgets = {wid: rec["tag"] for wid, rec in byid.items()}
-    for event in events:
-        if markup := event.get("markup"):
-            widgets.update(
-                (wid, rec["tag"]) for wid, rec in parse_structure(markup).by_id.items()
-            )
-    return widgets
+            fragment = parse_structure(markup)
+            fragments[e["id"]] = fragment
+            ids.update(fragment.ids)
+            by_id.update(fragment.by_id)
+    return ThreadStructure(ids, by_id, fragments)
 
 
 def detail_error(schema: dict, detail: dict):
@@ -3772,26 +3943,27 @@ def declared_event_error(
     return None
 
 
-def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
-    """Why a structurally complete action violates its sending widget's contract."""
-    # One structural reading of the version, for both questions this door asks of
-    # it: which tag the widget is, and whether it stands inside an exhibit.
-    byid = parse_version(page_dir, event["version"]).by_id
-    tag = action_widget_tags(byid, events).get(event["widget"])
-    if tag is None:
+def declared_action_error(
+    event: dict, page_by_id: dict, thread_by_id: dict, registry: dict
+):
+    """Why a stored action violates its sending widget's durable declaration."""
+    # Page widgets come from the action's own published version. Thread widgets
+    # inhabit the panel's other live document. Either record answers both which
+    # tag sent the action and whether it stands inside an exhibit.
+    rec = page_by_id.get(event["widget"]) or thread_by_id.get(event["widget"])
+    if rec is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
             "or agent-authored thread markup"
         )
+    tag = rec["tag"]
     if error := declared_event_error(event, tag, registry, "action", "x-state"):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
-    # made on quoted material. Any sender the key admits reaches this door. The
-    # page's own markup answers it, a thread's widgets standing in the document
-    # the panel renders rather than this one.
-    if (rec := byid.get(event["widget"])) and quoted_in(rec, registry):
+    # made on quoted material. Any sender the key admits reaches this door.
+    if quoted_in(rec, registry):
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
@@ -3799,13 +3971,86 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     return None
 
 
-def report_contract_error(page_dir: Path, event: dict, registry: dict):
+def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
+    """Why a fresh action violates its declaration or current applicability.
+
+    Eligibility is derived inside the append transaction from the action's
+    authored document and the standing log. A browser evaluates the same
+    declaration for honest controls, but its possibly stale reading never
+    authorizes this boundary.
+    """
+    version = event["version"]
+    page = parse_version(page_dir, version)
+    # One reading of the panel's document for the whole door: the id universe the
+    # declaration is looked up in and the projection the requirement is judged
+    # against are the same frozen fragments, and parsing them twice was two
+    # readings that could only ever agree.
+    thread_projection, thread_by_id, _threads = thread_state(events, registry)
+    if error := declared_action_error(event, page.by_id, thread_by_id, registry):
+        return error
+    page_rec = page.by_id.get(event["widget"])
+    rec = page_rec or thread_by_id[event["widget"]]
+    tag = rec["tag"]
+    spec = registry[tag]["x-state"][event["action"]]
+    requirement = spec.get("requires")
+    if not requirement:
+        return None
+
+    if page_rec:
+        html = version_path(page_dir, version).read_text(encoding="utf-8")
+        projection, parser, spk = page_projection(html, events, registry, version)
+        byid = parser.by_id
+        current = parser.by_id[event["widget"]]
+        passages = page_passages(
+            html, registry, decisions(projection.actions, registry)
+        )
+        _, awaiting_values = page_ask_projection(
+            parser,
+            projection,
+            byid,
+            spk,
+            registry,
+            set(passages.retired) | set(passages.gone),
+        )
+    else:
+        # Thread markup is frozen in the log: it has no version retraction floor
+        # and its actions read the whole conversation window.
+        projection, byid = thread_projection, thread_by_id
+        current = byid[event["widget"]]
+        page_html = version_path(page_dir, version).read_text(encoding="utf-8")
+        threads = build_threads(events, spoken(page_html, registry))
+        settled = {root for root, value in threads.items() if value["resolved"]}
+        _, awaiting_values = thread_ask_projection(events, registry, settled)
+
+    if requirement.get("change") == "increase":
+        current_value = replayed_attrs(current, projection)[spec["record"]["attr"]]
+        proposed = event["detail"][spec["record"]["value"]]
+        if int(proposed) <= int(current_value):
+            return None
+    holders = projected_action_holders(projection, byid, registry)
+    target = (
+        current
+        if requirement["target"] == "self"
+        else holders.get(current["attrs"]["id"], current["holder"])
+    )
+    target_id = target["attrs"]["id"]
+    awaiting = awaiting_values.get(target_id, False)
+    if awaiting != requirement["awaiting"]:
+        return (
+            f"<{tag}> {event['widget']!r} action {event['action']!r} is "
+            f"unavailable: {requirement['target']} {target_id!r} is "
+            f"{'still ' if awaiting else 'no longer '}awaiting the reader"
+        )
+    return None
+
+
+def report_contract_error(event: dict, page_by_id: dict, registry: dict):
     """Why a structurally complete report violates its widget's declaration —
     the CLI door's mirror of the POST door's action_contract_error. Page markup
     only, never a reply's: a report has to be answerable, and thread markup is
     frozen in the log, so no version could ever absorb or overrule one made
     there."""
-    rec = parse_version(page_dir, event["version"]).by_id.get(event["widget"])
+    rec = page_by_id.get(event["widget"])
     tag = rec["tag"] if rec else None
     if tag is None:
         return (
@@ -3887,7 +4132,13 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     escaped, so it cannot claim a widget. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
-    errs = thread_markup_contract_errors(frag, registry)
+    # Beside the vocabulary contract rather than inside it. That contract is what
+    # re-vendoring asks of every fragment already in the log — can this layer still
+    # speak it — and a presentation rule is no part of the answer. Put there, a page
+    # whose log held a <style> from before the rule existed could never be re-vendored
+    # again: the log is append-only, so it would have failed `page init` for good, with
+    # a message about replay that had nothing to do with what was wrong.
+    errs = thread_markup_contract_errors(frag, registry) + fragment_style_errors(frag)
     if errs:
         sys.exit(
             f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
@@ -3902,7 +4153,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
     if marker_errors := reserved_marker_errors(frag):
         sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
-    clash = sorted(frag.ids & (version_ids(page_dir) | thread_widget_ids(events)))
+    clash = sorted(frag.ids & (version_ids(page_dir) | thread_structure(events).ids))
     if clash:
         sys.exit(
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
@@ -4035,7 +4286,9 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             "detail": detail,
             "version": version,
         }
-        if error := report_contract_error(page_dir, event, registry):
+        if error := report_contract_error(
+            event, parse_version(page_dir, version).by_id, registry
+        ):
             sys.exit(error)
         accepted = append_event(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
@@ -4059,14 +4312,12 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
                 f"refusing to publish {name}: leaf version check failed (issues above)"
             )
         html = path.read_text(encoding="utf-8")
-        parser = parse_structure(html)
-        retracts = sorted(parser.restated)
         registry = load_registry(page_dir)
         events = page.events
+        projection, parser, spk = page_projection(html, events, registry, version)
+        retracts = sorted(parser.restated)
         byid = parser.by_id
-        spk = spoken(html, registry)
         answered = []
-        projection = state_projection(events, byid, spk, registry, None)
         for (_widget, unit, _facet), reports in projection.reports.items():
             last, spec = reports[-1]
             if unit in parser.overruled or markup_facet(
@@ -4113,10 +4364,11 @@ def shown(quote: str) -> str:
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
-    versions = list_versions(page_dir)
+    published = published_versions(page_dir, events)
+    registry = load_registry(page_dir) or {}
     title = ""
-    if versions:
-        title = parse_version(page_dir, versions[-1]).title.strip()
+    if published:
+        title = parse_version(page_dir, published[-1]).title.strip()
     print(f"## Leaf: {title or page_dir.name}")
 
     notes = [e for e in events if e["kind"] == "note"]
@@ -4164,13 +4416,18 @@ def cmd_transcript(page_dir: Path) -> None:
     # Against the newest published version — the page as it now stands, which is
     # what a transcript is an account of. A page with nothing published yet has no
     # reading to give, and no action can have been made against one either.
-    published = published_versions(page_dir, events)
     latest = (
         version_path(page_dir, published[-1]).read_text(encoding="utf-8")
         if published
         else ""
     )
-    threads = build_threads(events, spoken(latest, load_registry(page_dir) or {}))
+    projection = parser = None
+    spk = {}
+    if published:
+        projection, parser, spk = page_projection(
+            latest, events, registry, published[-1]
+        )
+    threads = build_threads(events, spk)
     if threads:
         print("\n### Threads\n")
     for t in threads.values():
@@ -4205,11 +4462,8 @@ def cmd_transcript(page_dir: Path) -> None:
 
     # To stderr — stdout is the artifact. A transcript is a page's closing act,
     # and the record debt it reports here is about to stop being fixable.
-    published = published_versions(page_dir, events)
-    registry = load_registry(page_dir)
-    if published and registry:
-        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        for line in record_lag(html, events, registry):
+    if projection and registry:
+        for line in record_lag(projection, parser.by_id, spk, registry):
             print(f"record behind the log — {line}", file=sys.stderr)
 
 
@@ -4227,11 +4481,11 @@ CATALOG_PREAMBLE = """\
 
 
 # The layer-wide facts printed after the widget entries, each with the sentence saying
-# what an author reads it for. A table because the catalog is the agent's own
-# documentation of a vocabulary that grows: a `$` key a layer adds is a row here, not a
-# block of its own beside six that already say the same thing differently. $events is
-# absent because it is the vocabulary stamp — what this page's runtime speaks, for
-# `page init` to hold a re-vendor against — and nothing an author writes markup from.
+# what an author reads it for. Curated facts keep their useful names and order; a
+# layer-defined fact follows them under its own key, so extending the vocabulary does
+# not require teaching the catalog another name. $events is absent because it is the
+# vocabulary stamp — what this page's runtime speaks, for `page init` to hold a
+# re-vendor against — and nothing an author writes markup from.
 CATALOG_FACTS = (
     ("$keys", "The x- keys an entry may declare, and what each one means."),
     (
@@ -4267,6 +4521,31 @@ def cmd_catalog(page_dir: Path) -> None:
         if fact := reg.get(key):
             print(f"\n# {heading}\n")
             print(json.dumps(fact, indent=2, ensure_ascii=False))
+    known = {key for key, _ in CATALOG_FACTS} | {"$events"}
+    for key, fact in reg.items():
+        if key.startswith("$") and key not in known and fact:
+            print(f"\n# {key}, declared by this layer.\n")
+            print(json.dumps(fact, indent=2, ensure_ascii=False))
+
+
+def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
+    """One standing action, in the shape `page state` reports every one of them.
+
+    `version` is the version the action was taken on, which for a widget an agent
+    sent is a fact about the gesture and none about the widget: thread markup is
+    frozen in the log, so no version bounds one of these and none can ever record
+    it, which is why `lag` says nothing about them."""
+    widget, unit, facet = coordinate
+    return {
+        "widget": widget,
+        "unit": unit,
+        "facet": facet,
+        "action": e["action"],
+        "detail": e["detail"],
+        "version": e["version"],
+        "seq": e["seq"],
+        "thread": thread,
+    }
 
 
 def cmd_page_state(page_dir: Path) -> None:
@@ -4297,7 +4576,7 @@ def cmd_page_state(page_dir: Path) -> None:
     parser, projection, spk = None, None, {}
     if published:
         html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        projection, parser, spk = page_projection(html, events, registry, None)
+        projection, parser, spk = page_projection(html, events, registry, published[-1])
     threads = build_threads(events, spk)
     state = {
         "page": str(page_dir),
@@ -4331,20 +4610,17 @@ def cmd_page_state(page_dir: Path) -> None:
         byid = parser.by_id
         state["title"] = parser.title.strip()
         state["elements"] = [
-            {"tag": r["tag"], "id": r["attrs"].get("id"), "line": r["line"]}
+            {
+                "tag": r["tag"],
+                "id": r["attrs"].get("id"),
+                "line": r["line"],
+                "thread": None,
+            }
             for r in parser.lf_elements
         ]
         state["state"] = [
-            {
-                "widget": widget,
-                "unit": unit,
-                "facet": facet,
-                "action": e["action"],
-                "detail": e["detail"],
-                "version": e["version"],
-                "seq": e["seq"],
-            }
-            for (widget, unit, facet), (e, _) in sorted(projection.actions.items())
+            standing_entry(coordinate, e)
+            for coordinate, (e, _) in projection.actions.items()
         ]
         state["reports"] = [
             {
@@ -4381,6 +4657,34 @@ def cmd_page_state(page_dir: Path) -> None:
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
     )
+    # The panel's own document, listed and projected the way the version's is, and
+    # for the same reason: a widget an agent sent is a widget, and the reader
+    # answering one is answering the page. The projection above is of the published
+    # version's elements alone, so a press on an AskUserQuestion resolved no
+    # declaration and stood nowhere — a session picking the page up read the reader's
+    # answer to its own question as an answer nobody had given, with `asks` reporting
+    # the same question answered.
+    #
+    # `thread` is the one key that separates them, present on every entry so a reader
+    # of this can take the two halves the same way, and the elements come along so
+    # nothing here names a widget the same object never lists. Both lists are then in
+    # one order rather than two sorted halves.
+    thread_actions, thread_byid, thread_of = thread_state(events, registry)
+    state["elements"] += [
+        {
+            "tag": rec["tag"],
+            "id": wid,
+            "line": rec["line"],
+            "thread": thread_of[wid],
+        }
+        for wid, rec in thread_byid.items()
+    ]
+    state["elements"].sort(key=lambda e: (e["thread"] or "", e["line"]))
+    state["state"] += [
+        standing_entry(coordinate, e, thread_of[coordinate[0]])
+        for coordinate, (e, _) in thread_actions.actions.items()
+    ]
+    state["state"].sort(key=lambda s: (s["widget"], s["unit"], s["facet"]))
     print(json.dumps(state, indent=2, ensure_ascii=False))
 
 
@@ -4557,6 +4861,16 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
+    if event == "Stop":
+        # Ahead of both early returns below. The stamp is not a nudge and does not
+        # depend on there being one: the turn that ends with nothing outstanding is
+        # exactly the turn that leaves a `working` claim behind with nobody on it.
+        for page_dir in owned_pages(sid):
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with
@@ -4782,8 +5096,8 @@ class _StructParser(HTMLParser):
         self.stack = []  # (tag, lineno, lf_record | None, id | None)
         self.errors = []
         self.all_ids = []
-        # {attrs, parent, early_head} per external asset. Applicability and placement
-        # belong to the asset record: parallel lists made one fact several
+        # {attrs, parent, position, early_head} per external asset. Applicability and
+        # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
         self.stylesheets = []
@@ -4899,6 +5213,7 @@ class _StructParser(HTMLParser):
                 {
                     "attrs": attrs_d,
                     "parent": self.stack[-1][0] if self.stack else None,
+                    "position": self.getpos(),
                     "early_head": bool(self.head_elements)
                     and self.head_elements[-1][1]
                     and not self.body_lines,
@@ -5138,7 +5453,7 @@ def parse_version(page_dir: Path, version: int) -> _StructParser:
     `version publish` writes a version and nothing writes it again, while the
     readings that cost most are the ones a reader waits through: the action door
     checks a press against the version it was made on, and every poll reads each
-    live neighbour's newest version for the one string the board shows of it. That
+    live neighbour's newest version for the one string the tray shows of it. That
     last one made a title cost a parse of the whole page, once a second, per
     neighbour — seven neighbours put more time between a press and its paint than
     everything else the server did for it put together."""
@@ -5630,15 +5945,13 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
-    # `enclosing` is the containment half, which a quote search has no use for: this
-    # asks where words are, not where elements sit.
-    text, owner, fences, retired, rewritten, gone, shown, _ = page_passages(
+    text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
         html, registry, decided, rewrites
     )
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
         # on a diagram or an image, and those hold no text to look for.
-        if section not in parse_structure(html).ids:
+        if section not in enclosing:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
             sid = retired[section]
@@ -5901,22 +6214,73 @@ def _number(text: str):
         return None
 
 
-def _px(declaration):
-    """The pixel length a declaration states, or None where it states something else: a
-    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
-    hard overflow, and only a lone length is fixed. A value keeps the whitespace around
-    it, which is a token like any other and not part of what the value says."""
-    value = [t for t in declaration.value if t.type != "whitespace"]
-    if len(value) == 1 and value[0].type == "dimension" and value[0].lower_unit == "px":
-        return value[0].value
+def _lone_px(value):
+    """The pixel length a value states outright, or None. A value keeps the whitespace
+    around it, which is a token like any other and not part of what the value says."""
+    tokens = [t for t in value if t.type != "whitespace"]
+    if (
+        len(tokens) == 1
+        and tokens[0].type == "dimension"
+        and tokens[0].lower_unit == "px"
+    ):
+        return tokens[0].value
     return None
 
 
-def _px_widths(declarations, props: tuple):
+def root_tokens(css: str) -> dict:
+    """The pixel lengths a stylesheet states outright as custom properties on the root.
+
+    A width naming one of these states a number as certainly as writing it out, so the
+    readings below resolve it. Only the root, and only unconditionally: a token set on
+    some element or inside a query is that element's or that condition's, and taking it
+    for the page's would be the same reading the column refuses a media query for.
+
+    One level. A token defined as another token is a stylesheet answering a different
+    question than these readings ask, and following it would be a resolver rather than
+    the two facts this needs."""
+    tokens = {}
+    for selector, block, conditional in css_rules(css):
+        if conditional or selector.strip() != ":root":
+            continue
+        for declaration in block:
+            if declaration.type == "declaration" and declaration.name.startswith("--"):
+                px = _lone_px(declaration.value)
+                if px is not None:
+                    tokens[declaration.name] = px
+    return tokens
+
+
+def _px(declaration, tokens: dict | None = None):
+    """The pixel length a declaration states, or None where it states something else: a
+    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
+    hard overflow, and only a lone length is fixed.
+
+    A lone `var()` naming a root token is one too. The stylesheet stated the number and
+    then named it, and a check that stopped at the name would read the fallback width
+    for a theme that had tidied its own constants into `:root` — which is a check that
+    quietly stops measuring the moment the file it measures gets tidier. The `var()`'s
+    own fallback answers where nothing declared the token, which is what the browser
+    would use."""
+    value = [t for t in declaration.value if t.type != "whitespace"]
+    px = _lone_px(value)
+    if px is not None:
+        return px
+    if len(value) == 1 and value[0].type == "function" and value[0].lower_name == "var":
+        args = [t for t in value[0].arguments if t.type != "whitespace"]
+        if args and args[0].type == "ident" and args[0].value.startswith("--"):
+            named = (tokens or {}).get(args[0].value)
+            if named is not None:
+                return named
+            if len(args) > 2 and args[1] == ",":
+                return _lone_px(args[2:])
+    return None
+
+
+def _px_widths(declarations, props: tuple, tokens: dict | None = None):
     """(property, pixels) per declaration in `props` pinned to a fixed pixel length."""
     for declaration in declarations:
         if declaration.type == "declaration" and declaration.lower_name in props:
-            px = _px(declaration)
+            px = _px(declaration, tokens)
             if px is not None:
                 yield declaration.lower_name, px
 
@@ -5931,32 +6295,41 @@ def _column_width(page_css: str, theme_css: str) -> int:
     disable this check with one line of print CSS — `@media print { main { max-width:
     2000px } }` measured every screen element against 2000px."""
     for css in (page_css, theme_css):
+        tokens = root_tokens(css)
         widths = [
             px
             for selector, block, conditional in css_rules(css)
             if not conditional and _names_column(selector)
-            for _, px in _px_widths(block, ("max-width",))
+            for _, px in _px_widths(block, ("max-width",), tokens)
         ]
         if widths:
             return int(max(widths))
     return COLUMN_FALLBACK
 
 
-def _overwide_elements(parser: _StructParser, column: int) -> list:
+def _overwide_elements(
+    parser: _StructParser, column: int, theme_tokens: dict | None = None
+) -> list:
     """Everything a version pins wider than the column: its own rules, its inline
     styles, and the width="" attributes that count as pixels.
 
     A conditional rule counts here, where it cannot define the column: a pin is a risk
-    rather than a baseline, and it overflows whenever its condition holds."""
+    rather than a baseline, and it overflows whenever its condition holds.
+
+    A width naming a token resolves against the page's own root first and the layer's
+    behind it, which is the order the cascade reads them in. A page pinning
+    `var(--wide)` is stating the layer's number, and a reading that knew only the page's
+    own tokens would let the vocabulary's own widths through unmeasured."""
     hits = []
+    tokens = {**(theme_tokens or {}), **root_tokens(parser.css)}
     for selector, block, _ in css_rules(parser.css):
-        for prop, px in _px_widths(block, OVERFLOW_PROPS):
+        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
             if px > column:
                 hits.append(
                     f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
                 )
     for style in parser.inline_styles:
-        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS):
+        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS, tokens):
             if px > column:
                 hits.append(f"inline style {prop}: {px:g}px (column is {column}px)")
     for tag, value in parser.attr_widths:
@@ -6035,6 +6408,13 @@ def declares_string(field_schema) -> bool:
     declared = field_schema.get("type") if isinstance(field_schema, dict) else None
     allowed = {declared} if isinstance(declared, str) else set(declared or [])
     return allowed == {"string"}
+
+
+def state_specs(entry: dict):
+    """The state and report verb declarations on one widget entry."""
+    for channel in ("x-state", "x-report"):
+        for verb, spec in entry.get(channel, {}).items():
+            yield channel, verb, spec
 
 
 def validate_registry(registry: dict, source) -> dict:
@@ -6193,31 +6573,30 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                try:
-                    Draft202012Validator.check_schema(spec["detail"])
-                except SchemaError as error:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
-                        f"detail schema: {error.message}"
-                    )
-                if spec["detail"].get("type") != "object":
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
-                        "must declare an object"
-                    )
-                # A verb carries only the detail keys its entry declares — the
-                # premise the layer's own field meanings rest on: both runtimes
-                # dispatch thread settlement on `resolves` being present, which
-                # is safe exactly because a closed schema makes carrying it a
-                # declaration.
-                if spec["detail"].get("additionalProperties") is not False:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
-                        "must state additionalProperties: false — a verb carries "
-                        "only the detail keys it declares"
-                    )
+        for channel, verb, spec in state_specs(entry):
+            try:
+                Draft202012Validator.check_schema(spec["detail"])
+            except SchemaError as error:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
+                    f"detail schema: {error.message}"
+                )
+            if spec["detail"].get("type") != "object":
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    "must declare an object"
+                )
+            # A verb carries only the detail keys its entry declares — the
+            # premise the layer's own field meanings rest on: both runtimes
+            # dispatch thread settlement on `resolves` being present, which
+            # is safe exactly because a closed schema makes carrying it a
+            # declaration.
+            if spec["detail"].get("additionalProperties") is not False:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    "must state additionalProperties: false — a verb carries "
+                    "only the detail keys it declares"
+                )
 
     slots = retirement_slots(registry)
     for tag, entry in widgets.items():
@@ -6303,10 +6682,25 @@ def validate_registry(registry: dict, source) -> dict:
                         )
         # A blanket answer is one of this widget's own verbs, so the log records it
         # the way every other decision is recorded.
+        answers = awaits.get("answers", [])
+        if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"
+            )
+        if awaits.get("rollup") and "id" not in entry.get("required", []):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits rollup through descendants does "
+                "not require an id"
+            )
         if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
             raise RegistryError(
                 f"{path}: <{tag}> x-awaits answers every one at once with "
                 f"`{blanket}`, which it does not declare as an x-state verb"
+            )
+        if blanket and blanket not in answers:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
+                "its answer verbs"
             )
         # The until verb closes a thread ask, so it too is one of the widget's own
         # verbs — same rule as `all`, same reason.
@@ -6369,55 +6763,106 @@ def validate_registry(registry: dict, source) -> dict:
         # record it. The name itself remains local to the tag: two widget families
         # may both call a facet `status` without sharing a contract.
         facet_specs: dict[str, tuple[str, str, dict | None]] = {}
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                facet = spec["facet"]
-                previous = facet_specs.get(facet)
-                if previous is None:
-                    facet_specs[facet] = (channel, verb, spec.get("record"))
-                    continue
-                previous_channel, previous_verb, previous_record = previous
-                previous_spec = entry[previous_channel][previous_verb]
-                if spec["unit"] != previous_spec["unit"]:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` and "
-                        f"{previous_channel} verb `{previous_verb}` share facet "
-                        f"`{facet}` but declare different fold units "
-                        f"(`{spec['unit']}` and `{previous_spec['unit']}`)"
-                    )
-                if spec.get("record") != previous_record:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` and "
-                        f"{previous_channel} verb `{previous_verb}` share facet "
-                        f"`{facet}` but do not declare identical record forms "
-                        "(or both remain recordless)"
-                    )
+        for channel, verb, spec in state_specs(entry):
+            facet = spec["facet"]
+            previous = facet_specs.get(facet)
+            if previous is None:
+                facet_specs[facet] = (channel, verb, spec.get("record"))
+                continue
+            previous_channel, previous_verb, previous_record = previous
+            previous_spec = entry[previous_channel][previous_verb]
+            if spec["unit"] != previous_spec["unit"]:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` and "
+                    f"{previous_channel} verb `{previous_verb}` share facet "
+                    f"`{facet}` but declare different fold units "
+                    f"(`{spec['unit']}` and `{previous_spec['unit']}`)"
+                )
+            if spec.get("record") != previous_record:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` and "
+                    f"{previous_channel} verb `{previous_verb}` share facet "
+                    f"`{facet}` but do not declare identical record forms "
+                    "(or both remain recordless)"
+                )
+
+        # Eligibility reuses the one standing-request projection. Close the target
+        # relation here: self must be an ask, and every holder a child permits must be
+        # one. Runtime evaluators then neither guess a widget family nor maintain a
+        # second representation of whether the request remains open.
+        for verb, spec in entry.get("x-state", {}).items():
+            requirement = spec.get("requires")
+            if not requirement:
+                continue
+            target_tags = (
+                [tag] if requirement["target"] == "self" else entry.get("x-parent", [])
+            )
+            if not target_tags:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires its parent, "
+                    f"but <{tag}> declares no x-parent"
+                )
+            if not all(
+                widgets[target].get("x-awaits") is not None for target in target_tags
+            ):
+                missing = sorted(
+                    target
+                    for target in target_tags
+                    if widgets[target].get("x-awaits") is None
+                )
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires "
+                    f"{requirement['target']} awaiting state, but {missing} do not "
+                    "declare x-awaits"
+                )
+            idless = sorted(
+                target
+                for target in target_tags
+                if requirement["target"] == "parent"
+                and "id" not in widgets[target].get("required", [])
+            )
+            if idless:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires "
+                    f"{requirement['target']} awaiting state, but {idless} do not "
+                    "require an id"
+                )
+            record = spec.get("record")
+            if requirement.get("change") and (
+                spec["unit"] != "widget"
+                or not record
+                or record["kind"] != "value"
+                or spec["detail"]["properties"][record["value"]]
+                != {"type": "string", "pattern": "^[0-9]+$"}
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` conditions an "
+                    "increase, which requires a widget-unit unsigned-integer "
+                    "value record"
+                )
 
         # A facet is semantic, but its record writes a physical slot. Body and
         # position have one per unit; value and attribute-set are keyed by attr.
         physical_slots: dict[tuple[str, str, str | None], tuple[str, str, str]] = {}
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                record = spec.get("record")
-                if record is None:
-                    continue
-                kind = record["kind"]
-                attr = record.get("attr")
-                key = spec["unit"], kind, attr
-                previous = physical_slots.setdefault(
-                    key, (channel, verb, spec["facet"])
-                )
-                previous_channel, previous_verb, previous_facet = previous
-                if previous_facet == spec["facet"]:
-                    continue
-                slot = kind + (f" `{attr}`" if attr else "")
-                raise RegistryError(
-                    f"{path}: <{tag}> {channel} verb `{verb}` (facet "
-                    f"`{spec['facet']}`) and {previous_channel} verb "
-                    f"`{previous_verb}` (facet `{previous_facet}`) claim the "
-                    f"same physical record slot (unit `{spec['unit']}`, "
-                    f"{slot}); distinct facets must record independently"
-                )
+        for channel, verb, spec in state_specs(entry):
+            record = spec.get("record")
+            if record is None:
+                continue
+            kind = record["kind"]
+            attr = record.get("attr")
+            key = spec["unit"], kind, attr
+            previous = physical_slots.setdefault(key, (channel, verb, spec["facet"]))
+            previous_channel, previous_verb, previous_facet = previous
+            if previous_facet == spec["facet"]:
+                continue
+            slot = kind + (f" `{attr}`" if attr else "")
+            raise RegistryError(
+                f"{path}: <{tag}> {channel} verb `{verb}` (facet "
+                f"`{spec['facet']}`) and {previous_channel} verb "
+                f"`{previous_verb}` (facet `{previous_facet}`) claim the "
+                f"same physical record slot (unit `{spec['unit']}`, "
+                f"{slot}); distinct facets must record independently"
+            )
 
         # A resolves-bearing widget has one answer fact. Thread history can outlive
         # the markup that declared its verbs, so both thread builders deliberately
@@ -6444,201 +6889,202 @@ def validate_registry(registry: dict, source) -> dict:
 
         # One rule set for both channels: x-state and x-report differ in
         # precedence, not in how a verb, its facet, unit, and record hang together.
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                detail_properties = spec["detail"].get("properties", {})
-                required = set(spec["detail"].get("required", []))
-                unit = spec["unit"]
-                fields = [] if unit == "widget" else [unit]
-                record = spec.get("record")
-                if record:
-                    fields.append(record["value"])
-                    if record["kind"] == "position":
-                        fields.append(record["order"])
-                        if record["within"] not in widgets:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records a "
-                                f"position within unknown widget <{record['within']}>"
-                            )
-                    if record["kind"] == "body":
-                        if entry.get("x-content") != "data":
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                "its body, so x-content must be data; projection "
-                                "states text rather than a prose subtree"
-                            )
-                        nested = sorted(
-                            child
-                            for child, child_entry in widgets.items()
-                            if tag in child_entry.get("x-parent", [])
-                        )
-                        if nested:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"its body but admits nested widgets {nested}; a "
-                                "text statement cannot reconstruct their state"
-                            )
-                    if record["kind"] == "value":
-                        attr = record["attr"]
-                        if attr not in properties:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"undeclared attribute `{attr}`"
-                            )
-                        # Projection rebuilds a refused gesture from authored state.
-                        # A required string value gives every baseline an absolute
-                        # action detail; absence is represented by an admitted value.
-                        if attr not in entry.get("required", []):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"optional attribute `{attr}`; recorded state must be "
-                                "required so its authored value can be replayed"
-                            )
-                        # An x-says value is words the reader sees, and the file's
-                        # reading takes them from the markup — replay writing one
-                        # would change what the page says while that reading held
-                        # still, the desync the fence rules exist to prevent.
-                        if attr in said:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"x-says attribute `{attr}`, whose value is words "
-                                "the reader sees — declared state may not move the "
-                                "page's words"
-                            )
-                # `resolves` is a reserved detail field: thread settlement reads it
-                # off every action as "the comment thread this action answers"
-                # (build_threads, in both runtimes), so a verb spelling the name
-                # means that or is refused here — a widget using it otherwise
-                # would settle a thread silently.
-                if "resolves" in detail_properties:
-                    # The reader's channel only. Both thread builders read `resolves`
-                    # off actions, so the name on a report verb declares an answer
-                    # nothing gives: the report would fold like any other and settle
-                    # no thread ever — the feature nobody wired up, which this door
-                    # exists to turn into an error. A thread is the reader's to close,
-                    # or an action of theirs; the agent's own way is `leaf resolve`.
-                    if channel != "x-state":
+        for channel, verb, spec in state_specs(entry):
+            detail_properties = spec["detail"].get("properties", {})
+            required = set(spec["detail"].get("required", []))
+            unit = spec["unit"]
+            fields = [] if unit == "widget" else [unit]
+            record = spec.get("record")
+            if record:
+                fields.append(record["value"])
+                if record["kind"] == "position":
+                    fields.append(record["order"])
+                    if record["within"] not in widgets:
                         raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                            "field `resolves`, a reserved name (the comment thread "
-                            "this action answers) — only an x-state verb settles a "
-                            "thread, so rename the field"
+                            f"{path}: <{tag}> {channel} verb `{verb}` records a "
+                            f"position within unknown widget <{record['within']}>"
                         )
-                    if detail_properties["resolves"] != {"type": "string"}:
+                    if spec["unit"] == "widget" and record["within"] not in entry.get(
+                        "x-parent", []
+                    ):
                         raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                            "field `resolves`, a reserved name (the comment thread "
-                            'this action answers) — declare it {"type": "string"} or '
-                            "rename the field"
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"its own position within <{record['within']}>, which "
+                            "its x-parent does not admit"
                         )
-                    # A thread is answered by the ask, and an ask is a widget
-                    # instance (x-awaits) — so the answer is absolute across the
-                    # widget, and both thread builders key the standing answer on
-                    # the widget id, the one key a log outlives its markup with.
-                    # A per-part verb answering a thread would fold per part and
-                    # settle per widget, and the disagreement is invisible: the
-                    # thread reads right until a second part is acted on. Whoever
-                    # writes that widget needs an ask per part first, and this is
-                    # where they find that out.
-                    if unit != "widget":
+                if record["kind"] == "body":
+                    if entry.get("x-content") != "data":
                         raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` answers a "
-                            f"comment thread (`resolves`) but folds per `{unit}` — "
-                            "a thread is answered by the ask, and an ask is the "
-                            "whole widget"
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            "its body, so x-content must be data; projection "
+                            "states text rather than a prose subtree"
                         )
-                undeclared = [
-                    field for field in fields if field not in detail_properties
-                ]
-                optional = [field for field in fields if field not in required]
-                if undeclared or optional:
-                    problem = (
-                        f"does not declare {undeclared}"
-                        if undeclared
-                        else f"does not require {optional}"
+                    nested = sorted(
+                        child
+                        for child, child_entry in widgets.items()
+                        if tag in child_entry.get("x-parent", [])
                     )
+                    if nested:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"its body but admits nested widgets {nested}; a "
+                            "text statement cannot reconstruct their state"
+                        )
+                if record["kind"] == "value":
+                    attr = record["attr"]
+                    if attr not in properties:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"undeclared attribute `{attr}`"
+                        )
+                    # Projection rebuilds a refused gesture from authored state.
+                    # A required string value gives every baseline an absolute
+                    # action detail; absence is represented by an admitted value.
+                    if attr not in entry.get("required", []):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"optional attribute `{attr}`; recorded state must be "
+                            "required so its authored value can be replayed"
+                        )
+                    # An x-says value is words the reader sees, and the file's
+                    # reading takes them from the markup — replay writing one
+                    # would change what the page says while that reading held
+                    # still, the desync the fence rules exist to prevent.
+                    if attr in said:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"x-says attribute `{attr}`, whose value is words "
+                            "the reader sees — declared state may not move the "
+                            "page's words"
+                        )
+            # `resolves` is a reserved detail field: thread settlement reads it
+            # off every action as "the comment thread this action answers"
+            # (build_threads, in both runtimes), so a verb spelling the name
+            # means that or is refused here — a widget using it otherwise
+            # would settle a thread silently.
+            if "resolves" in detail_properties:
+                # The reader's channel only. Both thread builders read `resolves`
+                # off actions, so the name on a report verb declares an answer
+                # nothing gives: the report would fold like any other and settle
+                # no thread ever — the feature nobody wired up, which this door
+                # exists to turn into an error. A thread is the reader's to close,
+                # or an action of theirs; the agent's own way is `leaf resolve`.
+                if channel != "x-state":
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
-                        f"its schema {problem}"
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        "this action answers) — only an x-state verb settles a "
+                        "thread, so rename the field"
                     )
-                # Undo restores a recorded action from authored markup. That markup
-                # can reconstruct exactly the fold unit and the record's value/order;
-                # any other required field would make a valid declaration impossible
-                # to restore without a widget-specific default hidden in core.
-                unrestorable = sorted(required.difference(fields))
-                if channel == "x-state" and record and unrestorable:
+                if detail_properties["resolves"] != {"type": "string"}:
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
-                        f"fields {unrestorable} that authored markup cannot restore"
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        'this action answers) — declare it {"type": "string"} or '
+                        "rename the field"
                     )
-                if unit != "widget" and record and record["kind"] != "position":
+                # A thread is answered by the ask, and an ask is a widget
+                # instance (x-awaits) — so the answer is absolute across the
+                # widget, and both thread builders key the standing answer on
+                # the widget id, the one key a log outlives its markup with.
+                # A per-part verb answering a thread would fold per part and
+                # settle per widget, and the disagreement is invisible: the
+                # thread reads right until a second part is acted on. Whoever
+                # writes that widget needs an ask per part first, and this is
+                # where they find that out.
+                if unit != "widget":
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
-                        "state; only position records support that"
+                        f"{path}: <{tag}> {channel} verb `{verb}` answers a "
+                        f"comment thread (`resolves`) but folds per `{unit}` — "
+                        "a thread is answered by the ask, and an ask is the "
+                        "whole widget"
                     )
+            undeclared = [field for field in fields if field not in detail_properties]
+            optional = [field for field in fields if field not in required]
+            if undeclared or optional:
+                problem = (
+                    f"does not declare {undeclared}"
+                    if undeclared
+                    else f"does not require {optional}"
+                )
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
+                    f"its schema {problem}"
+                )
+            # Undo restores a recorded action from authored markup. That markup
+            # can reconstruct exactly the fold unit and the record's value/order;
+            # any other required field would make a valid declaration impossible
+            # to restore without a widget-specific default hidden in core.
+            unrestorable = sorted(required.difference(fields))
+            if channel == "x-state" and record and unrestorable:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
+                    f"fields {unrestorable} that authored markup cannot restore"
+                )
+            if unit != "widget" and record and record["kind"] != "position":
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
+                    "state; only position records support that"
+                )
 
-                if unit != "widget" and not declares_string(detail_properties[unit]):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
-                        "must be a string"
-                    )
-                if record:
-                    value = record["value"]
-                    schema = detail_properties[value]
-                    # An attribute record names the set of elements wearing it, so its
-                    # detail field is a list of ids however many the group allows —
-                    # nothing downstream has to ask which kind of group it came from.
-                    if record["kind"] == "attribute":
-                        items = (
-                            schema.get("items") if isinstance(schema, dict) else None
-                        )
-                        if not (
-                            isinstance(schema, dict)
-                            and schema.get("type") == "array"
-                            and isinstance(items, dict)
-                            and items.get("type") == "string"
-                        ):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must be an array of strings"
-                            )
-                    elif record["kind"] == "value":
-                        # The record reads and writes the attribute, so its detail
-                        # field speaks the attribute's own schema — one vocabulary,
-                        # or the log's contract and the markup's drift apart.
-                        if schema != properties[record["attr"]]:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must carry attribute "
-                                f"`{record['attr']}`'s own schema"
-                            )
-                        string_enum = (
-                            isinstance(schema, dict)
-                            and isinstance(schema.get("enum"), list)
-                            and bool(schema["enum"])
-                            and all(isinstance(value, str) for value in schema["enum"])
-                        )
-                        if not (declares_string(schema) or string_enum):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must be a string or string enum; "
-                                "HTML attributes cannot restore another JSON type"
-                            )
-                    elif not declares_string(schema):
+            if unit != "widget" and not declares_string(detail_properties[unit]):
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
+                    "must be a string"
+                )
+            if record:
+                value = record["value"]
+                schema = detail_properties[value]
+                # An attribute record names the set of elements wearing it, so its
+                # detail field is a list of ids however many the group allows —
+                # nothing downstream has to ask which kind of group it came from.
+                if record["kind"] == "attribute":
+                    items = schema.get("items") if isinstance(schema, dict) else None
+                    if not (
+                        isinstance(schema, dict)
+                        and schema.get("type") == "array"
+                        and isinstance(items, dict)
+                        and items.get("type") == "string"
+                    ):
                         raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
-                            f"value `{value}` must be a string"
+                            f"value `{value}` must be an array of strings"
                         )
-                    if record["kind"] == "position":
-                        order = detail_properties[record["order"]]
-                        if not (
-                            isinstance(order, dict) and order.get("type") == "integer"
-                        ):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"order `{record['order']}` counts the unit's "
-                                "siblings, so its detail field must be an integer"
-                            )
+                elif record["kind"] == "value":
+                    # The record reads and writes the attribute, so its detail
+                    # field speaks the attribute's own schema — one vocabulary,
+                    # or the log's contract and the markup's drift apart.
+                    if schema != properties[record["attr"]]:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must carry attribute "
+                            f"`{record['attr']}`'s own schema"
+                        )
+                    string_enum = (
+                        isinstance(schema, dict)
+                        and isinstance(schema.get("enum"), list)
+                        and bool(schema["enum"])
+                        and all(isinstance(value, str) for value in schema["enum"])
+                    )
+                    if not (declares_string(schema) or string_enum):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must be a string or string enum; "
+                            "HTML attributes cannot restore another JSON type"
+                        )
+                elif not declares_string(schema):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` record "
+                        f"value `{value}` must be a string"
+                    )
+                if record["kind"] == "position":
+                    order = detail_properties[record["order"]]
+                    if not (isinstance(order, dict) and order.get("type") == "integer"):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"order `{record['order']}` counts the unit's "
+                            "siblings, so its detail field must be an integer"
+                        )
         # Withdrawal is the author taking an unanswered question back, and the
         # entry says which of its own outcomes that leaves the page in
         # (retirable_ids). A verb no slot of this widget retires under would
@@ -6681,6 +7127,24 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{holder}> x-retired-when outcomes span facets "
                 f"({mapping}); every retirement outcome for one holder must "
                 "share one facet"
+            )
+    # Asked only after the record and retirement gates above have reported their
+    # more fundamental structural errors. An answer closes the whole ask, so its
+    # fold coordinate must be the widget rather than one detail-named child.
+    for tag, entry in widgets.items():
+        answers = (entry.get("x-awaits") or {}).get("answers", [])
+        if non_widget := sorted(
+            verb for verb in answers if entry["x-state"][verb]["unit"] != "widget"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits answer verbs {non_widget} must fold on "
+                "the widget"
+            )
+        until = (entry.get("x-awaits") or {}).get("until")
+        if until and entry["x-state"][until["verb"]]["unit"] != "widget":
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
+                "on the widget"
             )
     return registry
 
@@ -6813,6 +7277,14 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     if not events:
         return []
     contracts = incoming["$events"]["kinds"]
+    thread = thread_structure(events)
+    versions = {}
+
+    def page_by_id(version):
+        if version not in versions:
+            versions[version] = parse_version(page_dir, version).by_id
+        return versions[version]
+
     missing = {}
     for e in events:
         kind = e["kind"]
@@ -6821,17 +7293,17 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
-            error := action_contract_error(page_dir, e, events, incoming)
+            error := declared_action_error(
+                e, page_by_id(e["version"]), thread.by_id, incoming
+            )
         ):
             key = f"action contract: {error}"
         elif kind == "report" and (
-            error := report_contract_error(page_dir, e, incoming)
+            error := report_contract_error(e, page_by_id(e["version"]), incoming)
         ):
             key = f"report contract: {error}"
         elif e.get("markup") and (
-            errors := thread_markup_contract_errors(
-                parse_structure(e["markup"]), incoming
-            )
+            errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
         ):
             key = "thread markup contract: " + "; ".join(errors)
         else:
@@ -6935,7 +7407,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
     ]
 
 
-def language_class_errors(blocks: list, known: list) -> list:
+def language_class_errors(blocks: list, registry: dict) -> list:
     """A `class="language-…"` the runtime won't honor: the class somewhere other than
     <pre><code>, or a word the layer doesn't speak. Neither is visible to the user — a
     class in the wrong place and a misspelt language both render as an ordinary
@@ -6947,15 +7419,27 @@ def language_class_errors(blocks: list, known: list) -> list:
     The list is indexed rather than tested: a layer naming none colors none, so a word
     declared to it is still one it can't honor, and the placement rule never depended on
     the list at all. A check whose two failures are both invisible on the page is the
-    last one that should be able to pass by finding nothing to check against."""
+    last one that should be able to pass by finding nothing to check against.
+
+    The misplaced block is offered the other way to color one, read from the same
+    declaration the check itself reads: whichever tags say an attribute of theirs names
+    a language (x-language). Naming one here would be this lint knowing a widget, and
+    the offer would go stale the moment a layer dropped it or added a second — so a
+    layer whose tags declare none says only to move the block."""
+    known = registry["$languages"]["names"]
+    colored = " or ".join(
+        f"<{tag} {attr}=…>"
+        for tag, entry in sorted(registry.items())
+        if tag.startswith("lf-") and (attr := entry.get("x-language"))
+    )
+    instead = f", or use {colored} for a walkthrough" if colored else ""
     errors = []
     for block in blocks:
         where = f'class="language-{block["lang"]}" (line {block["line"]})'
         if (block["tag"], block["parent"]) != ("code", "pre"):
             errors.append(
                 f"{where}: only <pre><code> is colored, found <{block['tag']}> in "
-                f"<{block['parent'] or 'nothing'}> — move it, or use <lf-code language=…> "
-                f"for a walkthrough"
+                f"<{block['parent'] or 'nothing'}> — move it{instead}"
             )
         elif block["lang"] not in known:
             errors.append(
@@ -7369,11 +7853,7 @@ def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
     for candidate in reversed(spk.get(unit, EMPTY).within):
         rec = byid.get(candidate)
         entry = registry.get(rec["tag"], {}) if rec else {}
-        if any(
-            spec.get("record")
-            for channel in ("x-state", "x-report")
-            for spec in entry.get(channel, {}).values()
-        ):
+        if any(spec.get("record") for _, _, spec in state_specs(entry)):
             return candidate
     return None
 
@@ -7508,13 +7988,12 @@ def record_lag_entries(projection: StateProjection, byid, spk, registry: dict) -
     return entries
 
 
-def record_lag(html: str, events: list, registry: dict) -> list:
+def record_lag(
+    projection: StateProjection, byid: dict, spk: dict, registry: dict
+) -> list:
     """`record_lag_entries` as advice lines, for check and the transcript."""
-    if not registry:
-        return []
-    projection, parser, spk = page_projection(html, events, registry, None)
     lag = []
-    for n in record_lag_entries(projection, parser.by_id, spk, registry):
+    for n in record_lag_entries(projection, byid, spk, registry):
         who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
             f"`{n['unit']}` ({n['facet']} facet): {who} {n['action']} → "
@@ -7565,14 +8044,16 @@ def answered_ask(
     spk: dict,
     registry: dict,
 ) -> bool:
-    """The runtime's `answeredAsk`: a verb that records as an attribute answers
-    on the record the replayed page carries — the fold's where an action
-    survives on the unit, the authored markup's otherwise, so a version that
-    honors a pick reads as answered with no log at all and a pick the reader
-    cleared reads as open again. Any other verb answers only through its own
-    fold entry."""
+    """Whether one of x-awaits' explicit answer verbs stands on this ask.
+
+    An attribute record reads through authored markup as well as the fold, so an
+    honoring version remains answered. Other records need their verb's standing
+    action. Actions absent from `answers` are orthogonal state — notably a deadline
+    snooze — and cannot close the request by accident.
+    """
     unit = rec["attrs"].get("id")
-    for verb, spec in (entry.get("x-state") or {}).items():
+    for verb in entry["x-awaits"].get("answers", []):
+        spec = entry["x-state"][verb]
         held = projection.actions.get(state_coordinate(unit, unit, spec))
         record = spec.get("record")
         if record and record["kind"] == "attribute":
@@ -7604,35 +8085,173 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     )
 
 
-def page_asks(parser, projection, byid, spk, registry: dict, dropped: set) -> list:
-    """The published page's standing asks — the list the banner counts and the
-    `n`/`p` walk steps, read from the file and the log instead of the DOM. An
-    instance asks when its replayed attributes match its entry's `when`;
-    quoted material asks nothing; an instance a decision dropped from the page
-    (`dropped`: ids under retired slots, and decided-empty ids, from the passage
-    reading) asks nothing either, the way the runtime's own list skips what
-    `settledAway` hides; answered is what x-state already declares
-    (`answered_ask`)."""
-    asks = []
-    for rec in parser.lf_elements:
-        entry = registry.get(rec["tag"]) or {}
-        awaits = entry.get("x-awaits")
-        if not awaits:
+def projected_action_holders(
+    projection: StateProjection, byid: dict, registry: dict
+) -> dict[str, dict]:
+    """Unit id → its enclosing vocabulary widget after standing position records."""
+    holders = {}
+    for (_owner, unit, _facet), (event, spec) in projection.desired.items():
+        record = spec.get("record") or {}
+        if record.get("kind") != "position":
             continue
+        target = byid.get(event["detail"][record["value"]])
+        unit_rec = byid.get(unit)
+        if target and unit_rec:
+            holder = target if target["tag"] in registry else target.get("holder")
+            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-parent", [])
+            if holder and holder["tag"] in permitted:
+                holders[unit] = holder
+    return holders
+
+
+def page_ask_projection(
+    source,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+    *,
+    thread: bool = False,
+) -> tuple[list, dict[str, bool]]:
+    """The page's visible asks and exact awaiting value for every declared target.
+
+    An ordinary x-awaits instance is its local condition minus an explicit answer.
+    A roll-up projects the same fact through a nested plan: a false local condition
+    stops; direct ordinary interventions take precedence;
+    otherwise child roll-ups recurse; a matching leaf waits. The browser implements
+    this reducer over the DOM and the same standing fold.
+    """
+    elements = source.lf_elements if hasattr(source, "lf_elements") else source
+    records = [
+        rec
+        for rec in elements
+        if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+    ]
+    positioned_holders = projected_action_holders(projection, byid, registry)
+
+    def entry(rec):
+        return registry[rec["tag"]]
+
+    def holder(rec):
         unit = rec["attrs"].get("id")
-        if unit and unit in dropped:
-            continue
-        if quoted_in(rec, registry):
-            continue
-        if not asking(replayed_attrs(rec, projection), awaits.get("when")):
-            continue
-        if answered_ask(rec, entry, projection, byid, spk, registry):
-            continue
-        asks.append({"id": unit, "tag": rec["tag"], "thread": None})
-    return asks
+        return positioned_holders.get(unit, rec.get("holder"))
+
+    def contains(ancestor, rec):
+        while rec:
+            if rec is ancestor:
+                return True
+            rec = holder(rec)
+        return False
+
+    def answered(rec):
+        rec_entry = entry(rec)
+        if thread:
+            if not rec_entry.get("x-state"):
+                return True
+            until = rec_entry["x-awaits"].get("until")
+            attrs = replayed_attrs(rec, projection)
+            if until and asking(attrs, until["when"]):
+                unit = rec["attrs"].get("id")
+                return any(
+                    action["widget"] == unit and action["action"] == until["verb"]
+                    for action, _spec in projection.actions.values()
+                )
+        return answered_ask(rec, rec_entry, projection, byid, spk, registry)
+
+    def rollup_owner(rec):
+        rec = holder(rec)
+        while rec:
+            if (registry.get(rec["tag"]) or {}).get("x-awaits", {}).get("rollup"):
+                return rec
+            rec = holder(rec)
+        return None
+
+    exists: dict[int, bool] = {}
+    local: dict[int, bool] = {}
+    for rec in records:
+        unit = rec["attrs"].get("id")
+        exists[id(rec)] = not ((unit and unit in dropped) or quoted_in(rec, registry))
+        local[id(rec)] = exists[id(rec)] and asking(
+            replayed_attrs(rec, projection), entry(rec)["x-awaits"].get("when")
+        )
+
+    direct: dict[int, list] = {}
+    for rec in records:
+        if owner := rollup_owner(rec):
+            direct.setdefault(id(owner), []).append(rec)
+
+    values: dict[int, bool] = {}
+
+    def awaits(rec):
+        key = id(rec)
+        if key in values:
+            return values[key]
+        if not exists[key]:
+            values[key] = False
+            return False
+        if not local[key]:
+            values[key] = False
+            return False
+        declaration = entry(rec)["x-awaits"]
+        if not declaration.get("rollup"):
+            values[key] = not answered(rec)
+            return values[key]
+        descendants = direct.get(key, [])
+        interventions = [
+            candidate
+            for candidate in descendants
+            if not entry(candidate)["x-awaits"].get("rollup") and local[id(candidate)]
+        ]
+        if interventions:
+            values[key] = any(awaits(candidate) for candidate in interventions)
+            return values[key]
+        children = [
+            candidate
+            for candidate in descendants
+            if entry(candidate)["x-awaits"].get("rollup")
+        ]
+        values[key] = (
+            any(awaits(candidate) for candidate in children)
+            if children
+            else not answered(rec)
+        )
+        return values[key]
+
+    open_records = [rec for rec in records if awaits(rec)]
+    visible = [
+        rec
+        for rec in open_records
+        if not entry(rec)["x-awaits"].get("rollup")
+        or not any(inner is not rec and contains(rec, inner) for inner in open_records)
+    ]
+    return (
+        [
+            {"id": rec["attrs"].get("id"), "tag": rec["tag"], "thread": None}
+            for rec in visible
+        ],
+        {
+            rec["attrs"]["id"]: values[id(rec)]
+            for rec in records
+            if rec["attrs"].get("id")
+        },
+    )
 
 
-def thread_asks(events: list, registry: dict, settled: set) -> list:
+def page_asks(
+    parser,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+) -> list:
+    return page_ask_projection(parser, projection, byid, spk, registry, dropped)[0]
+
+
+def thread_ask_projection(
+    events: list, registry: dict, settled: set
+) -> tuple[list, dict]:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
@@ -7645,46 +8264,36 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
-    asks = []
-    thread_of = {}
+    structure = thread_structure(events)
+    records, byid, spk = [], {}, {}
+    thread_of = thread_roots(events)
     for e in events:
-        if e["kind"] == "comment":
-            thread_of[e["id"]] = e["id"]
-        elif e["kind"] == "reply":
-            thread_of[e["id"]] = thread_of[e["parent"]]
-        else:
+        if e["kind"] not in ("comment", "reply"):
             continue
         markup = e.get("markup")
         if not markup or thread_of[e["id"]] in settled:
             continue
-        frag = parse_structure(markup)
-        byid = frag.by_id
-        spk = spoken(markup, registry)
-        projection = state_projection(events, byid, spk, registry, None, {})
-        for rec in frag.lf_elements:
-            entry = registry.get(rec["tag"]) or {}
-            awaits = entry.get("x-awaits")
-            if not awaits or not entry.get("x-state"):
-                continue
-            unit = rec["attrs"].get("id")
-            if quoted_in(rec, registry):
-                continue
-            attrs = replayed_attrs(rec, projection)
-            if not asking(attrs, awaits.get("when")):
-                continue
-            until = awaits.get("until")
-            if until and asking(attrs, until["when"]):
-                answered = any(
-                    action["widget"] == unit and action["action"] == until["verb"]
-                    for action, _spec in projection.actions.values()
-                )
-            else:
-                answered = answered_ask(rec, entry, projection, byid, spk, registry)
-            if not answered:
-                asks.append(
-                    {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
-                )
-    return asks
+        frag = structure.fragments[e["id"]]
+        byid.update(frag.by_id)
+        spk.update(spoken(markup, registry))
+        records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
+    projection = state_projection(events, byid, spk, registry, None, {})
+
+    asks, values = page_ask_projection(
+        [rec for _thread, rec in records],
+        projection,
+        byid,
+        spk,
+        registry,
+        set(),
+        thread=True,
+    )
+    thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}
+    return ([{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks], values)
+
+
+def thread_asks(events: list, registry: dict, settled: set) -> list:
+    return thread_ask_projection(events, registry, settled)[0]
 
 
 def unpointable_blocks(parser: _StructParser) -> list:
@@ -7725,7 +8334,14 @@ def unpointable_blocks(parser: _StructParser) -> list:
 
 
 def restatement_errors(
-    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+    cur,
+    prev,
+    was: dict,
+    now: dict,
+    prev_num: int,
+    registry: dict,
+    projection: StateProjection,
+    floors: dict,
 ) -> list:
     """The other half of the id-survival rule. That one keeps a republish from
     dropping the anchors a user hung on the page; this one keeps it from
@@ -7761,29 +8377,16 @@ def restatement_errors(
     # Retractions up to prev — never this version's own, which is what it is
     # here to declare, so re-checking a published version reaches the same
     # verdict as checking it did.
-    taken_back = retractions(events, prev_num)
     byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
-    for e in events:
-        if e["kind"] != "action":
-            continue
-        # One key space for liveness: an action is dead when any id it rests on
-        # was floored — replay skips it by this same containment, so a finer,
-        # subject-keyed floor here would keep alive a decision the browser has
-        # already dropped (a group-level retraction never names the option the
-        # pick rested on, and the pick must die with the group all the same).
-        if action_retracted(e, taken_back, now):
-            continue
+    for e, _spec in projection.actions.values():
         for subject in action_subjects(e, byid, now, registry):
-            # Only what the user had recorded by the time they were looking
-            # at prev.
-            if subject in was and e["version"] <= prev_num:
+            if subject in was:
                 decided.setdefault(subject, []).append(e)
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
     prev_byid = prev.by_id
-    projection = state_projection(events, byid, now, registry, prev_num, taken_back)
     facet_earned = set()
     for coordinate in sorted(projection.actions):
         _widget, unit, _facet = coordinate
@@ -7838,9 +8441,9 @@ def restatement_errors(
             # to be carried — so it gets its own answer rather than the
             # never-decided one, which would read as if the user had done
             # nothing.
-            if sid in taken_back:
+            if sid in floors:
                 errors.append(
-                    f"{where}: restated, but v{taken_back[sid]} already took that "
+                    f"{where}: restated, but v{floors[sid]} already took that "
                     f"back — a retraction is recorded when it is published and holds "
                     f"without being repeated. Drop the attribute."
                 )
@@ -7866,7 +8469,12 @@ def restatement_errors(
 
 
 def report_errors(
-    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+    cur,
+    prev,
+    was: dict,
+    now: dict,
+    registry: dict,
+    projection: StateProjection,
 ) -> list:
     """The report gate, beside the reviewer one — the same shape with the
     precedence reversed. A report is a worker's provisional news: the runtime
@@ -7890,7 +8498,6 @@ def report_errors(
     declared = cur.overruled
     byid = cur.by_id
     prev_byid = prev.by_id
-    projection = state_projection(events, byid, now, registry, prev_num)
     effective_standing = {
         coordinate: reports
         for coordinate, reports in projection.reports.items()
@@ -7992,6 +8599,38 @@ def page_boundary_errors(parser: _StructParser) -> list:
     return errors
 
 
+def fragment_style_errors(parser: _StructParser) -> list:
+    """A message may not dress the document it is put into.
+
+    A version's <style> is the page's own, and the gates a version answers to read
+    it as such — syntax, the column it may not overflow, the presentation
+    properties the theme keeps. A fragment has no page of its own: the runtime
+    parses an agent's reply markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like
+    any other. `<style>main h1 { color: red !important }</style>` in a reply was
+    accepted here and repainted the version's own heading, past every gate the
+    same rule in a version answers to; an inline `!important` on a protected
+    property outranked the theme's first cascade layer the same way.
+
+    Nothing is lost by refusing them. The layer already dresses a widget an agent
+    sends — that is what a registry entry and its theme rules are for — and a rule
+    of a message's own has nowhere honest to sit, because the message is not the
+    page and its markup is frozen in the log where no version can revise it."""
+    errors = []
+    if parser.css.strip():
+        errors.append(
+            "<style> in message markup becomes a stylesheet of the whole document it "
+            "is put into; a widget's look belongs in the layer's theme, beside its "
+            "registry entry"
+        )
+    if parser.stylesheets:
+        errors.append(
+            "<link rel=stylesheet> in message markup dresses the whole document it is "
+            "put into; the page serves the one vendored theme it was reviewed with"
+        )
+    return errors + inline_presentation_override_errors(parser)
+
+
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
     carrying widgets): the discussion-side analog of `version check`. The declared-word
@@ -8002,7 +8641,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
-        + language_class_errors(parser.language_blocks, registry["$languages"]["names"])
+        + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )
@@ -8102,11 +8741,7 @@ def cmd_check(
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
-        errors.extend(
-            language_class_errors(
-                parser.language_blocks, registry["$languages"]["names"]
-            )
-        )
+        errors.extend(language_class_errors(parser.language_blocks, registry))
         errors.extend(declared_word_errors(parser.lf_elements, registry))
         errors.extend(line_ref_errors(parser.lf_elements, registry))
         # A family lint reads its own slots off the registry, so it stands with
@@ -8161,8 +8796,8 @@ def cmd_check(
         # retired would read as dropped, stacked on the "vendor the layer" error the
         # page already has.
         if registry is not None:
-            projection, _, prev_spoken = page_projection(
-                prev_html, events, registry, None
+            previous_projection = state_projection(
+                events, prev.by_id, was, registry, prev_num
             )
             dropped = sorted(
                 gone
@@ -8170,8 +8805,8 @@ def cmd_check(
                     retirement_holders(prev, registry),
                     events,
                     gone,
-                    decisions(projection.actions, registry),
-                    prev_spoken,
+                    decisions(previous_projection.actions, registry),
+                    was,
                 )
             )
             if dropped:
@@ -8182,16 +8817,27 @@ def cmd_check(
     # And the decisions recorded on the ids that stayed — the reviewer channel's
     # gate, then its mirror for the agent channel's standing reports.
     now = spoken(html, registry or {})
-    errors.extend(
-        restatement_errors(parser, prev, was, now, events, prev_num, registry or {})
+    floors = retractions(events, prev_num)
+    projection = state_projection(
+        events, parser.by_id, now, registry or {}, prev_num, floors
     )
     errors.extend(
-        report_errors(parser, prev, was, now, events, prev_num, registry or {})
+        restatement_errors(
+            parser,
+            prev,
+            was,
+            now,
+            prev_num,
+            registry or {},
+            projection,
+            floors,
+        )
     )
+    errors.extend(report_errors(parser, prev, was, now, registry or {}, projection))
 
     # Thread markup is frozen in the log and rendered into the panel; a page id
-    # colliding with one would steal its action replays (see thread_widget_ids).
-    taken = sorted(parser.ids & thread_widget_ids(events))
+    # colliding with one would steal its action replays.
+    taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
 
@@ -8216,7 +8862,7 @@ def cmd_check(
     errors.extend(css_syntax_errors(theme_css, "theme.css"))
     errors.extend(inline_presentation_override_errors(parser))
     column = _column_width(parser.css, theme_css)
-    errors.extend(_overwide_elements(parser, column))
+    errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))
 
     if errors:
         print(f"✗ {name}: {len(errors)} issue(s)", file=sys.stderr)
@@ -8231,7 +8877,10 @@ def cmd_check(
     # log-less reader (a printout, a transcript's audience) sees only the markup,
     # so say where it lags the log. Loudest at the end of the exchange — the final
     # version is the page that must read right without the log.
-    for line in record_lag(html, events, registry or {}):
+    current_projection = state_projection(
+        events, parser.by_id, now, registry or {}, selected
+    )
+    for line in record_lag(current_projection, parser.by_id, now, registry or {}):
         print(f"  · record behind the log — {line}")
     # Same register, different debt: a block the id rule missed, named while the
     # author can still cheaply mint one.
@@ -8457,8 +9106,11 @@ UNREACHABLE_WORDS = """() => {
             if (value.length > 1 && shown.some(c => c.includes(value)))
                 found.push(`${at(el)} paints ${name}="${value}" rather than saying it`);
     }
-    // A widget's chrome is the .lf-ui inside a lf-* element; the runtime's own
-    // layer is appended to body and sits inside none of them.
+    // The lf-* element something stands in, if any. A .lf-ui is a widget's own
+    // chrome by standing in one of these, and the runtime's layer is appended to
+    // body and stands in none — but a widget riding a message stands in the
+    // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
+    // never of the words beneath it, which are inside a widget either way.
     const widget = el => { for (let a = el; a; a = a.parentElement)
                                if (a.tagName.startsWith('LF-')) return a; };
     // The anchor pass's own rule: the nearest element that answers wins.
@@ -8477,7 +9129,12 @@ UNREACHABLE_WORDS = """() => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || !el.closest('.lf-ui') || !widget(el)) continue;
+        if (!n.data.trim()) continue;
+        // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
+        // here wherever the widget stands, a message included; the panel around a
+        // widget riding one is not, which is what the note on the panel means.
+        const chrome = el.closest('.lf-ui');
+        if (!chrome || !widget(chrome)) continue;
         if (speaks(el) || el.closest(CONTROL)) continue;
         // .lf-quiet is words for a reader listening, clipped to nothing: not on
         // screen, so there is nothing here the eye can see and the pointer can't
@@ -8965,6 +9622,18 @@ PAPER_WORDS = """() => {
 # up in is the copy, where there is nothing left to press. Text against text, because
 # text over a background, a border, or a picture is how a page is built.
 #
+# What floats over the document on purpose is answered for, and that is one exemption
+# rather than two. It reads as the runtime's, because for a long time the runtime owned
+# every float there was; the sentence is about the float and not about the owner. A
+# suggestion's controls hang out of the flow, level with the change they decide, and a
+# sidenote hangs out of the flow level with the block it annotates — both in the right
+# margin now, both pinned by what they belong to, so where a page stands them level the
+# controls are drawn over the note and neither can move. Reporting that would refuse
+# every page that writes a note beside a change, which is a composition the vocabulary
+# is meant to have; so the float is exempt and the note is what it may cover. Where the
+# same row docks back into the flow it is a resident again, and covering a word there is
+# a fault this still reports.
+#
 # A pair where one element contains the other is skipped: a paragraph and the <em>
 # inside it are one run of words that the flow lays out together, and their boxes
 # overlap by construction. Two pixels of slack, since a line box carries its leading and
@@ -8972,16 +9641,18 @@ PAPER_WORDS = """() => {
 # too: it floats over the document on purpose, and where that costs the user a press
 # it is the hit test that says so.
 #
-# The layer is in two places, so the skip names both. The line counting a passage's
-# comments lives inside the page's own elements by design — it is what a screen reader
-# hears where a painted mark says nothing — and it is clipped to nothing on screen.
-# checkVisibility answers for display, visibility and opacity and knows nothing of
-# clip-path, so that line read as drawn, and its text lays out past the 1px box holding
-# it: an anchor on a container put "1 comment" across the paragraph below the widget and
-# failed the gate on a page with nothing wrong with it. Asking for `.lf-chrome` alone was
-# the class standing in for the question, the same substitution the anchor pass made with
-# `.lf-ui`. The question is whose words these are, and the runtime marks its own in both
-# of the places it writes them.
+# The layer is in two places and the float rule reaches both, which is why only one of
+# them is named. The line counting a passage's comments lives inside the page's own
+# elements by design — it is what a screen reader hears where a painted mark says
+# nothing — and it is clipped to nothing on screen. checkVisibility answers for display,
+# visibility and opacity and knows nothing of clip-path, so that line read as drawn, and
+# its text lays out past the 1px box holding it: an anchor on a container put "1 comment"
+# across the paragraph below the widget and failed the gate on a page with nothing wrong
+# with it. It wore a name in this selector for a while, next to the container's, and the
+# name went the day the rule below could answer for it — the line is a control the
+# runtime hangs absolutely, which is the whole of what `floating` asks. Two skips over
+# one element is a guarantee kept twice, and the weaker of them is the one that has to be
+# remembered when the next float is written.
 #
 # checkVisibility knows nothing of content-visibility either, which is what a collapse
 # wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
@@ -8997,11 +9668,37 @@ COVERED_WORDS = """() => {
     const at = el => { const named = el.closest('[id]');
                        return named ? `<${named.tagName.toLowerCase()} id=${named.id}>`
                                     : `<${el.tagName.toLowerCase()}>`; };
+    // Chrome a widget hangs out of the flow, which is the same exemption the runtime's
+    // own layer has above and for the same reason. Read off the marker `offer` writes
+    // and the position the browser computed, so it holds for a control any widget hangs
+    // and stops holding the moment that control docks back into the flow — which is what
+    // a suggestion's row does when it finds no room, and where covering a word would be
+    // a fault again.
+    //
+    // Every marked ancestor, not the nearest: `offer` builds a row of presses out of
+    // presses, so a suggestion's ✓ Accept is a marked button inside a marked row, and the
+    // one that hangs in the margin is the outer of the two. Asking `closest` gets the
+    // button, which is in its row's flow and static, and the exemption reads as absent on
+    // exactly the control it was written for.
+    //
+    // The two values that take a box out of the flow, named rather than everything that
+    // isn't static: a relative or sticky box keeps its place in the flow and is painted
+    // offset from it, so it is a resident that has moved rather than chrome hanging over
+    // the page, and exempting it would retire this check for any control that nudges
+    // itself a pixel. PAST_THE_COLUMN asks the same question next door and asks it this
+    // way.
+    const outOfFlow = (s) => s.position === 'absolute' || s.position === 'fixed';
+    const floating = (el) => {
+        for (let a = el.closest('[data-lf-offer]'); a; a = a.parentElement?.closest('[data-lf-offer]'))
+            if (outOfFlow(getComputedStyle(a))) return true;
+        return false;
+    };
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
+        if (!n.data.trim() || el.closest('.lf-chrome, .lf-quiet, [hidden]')) continue;
         if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+        if (floating(el)) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
         for (const box of range.getClientRects())
@@ -9149,8 +9846,14 @@ UNREAD_SYNTAX = (
 # *child* and never for the element it was handed. The quiet word is in no such reading,
 # wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
 # span clipped to a pixel still has one wherever it renders, and none at all where it
-# doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
-# out here the way COVERED_WORDS holds it out.
+# doesn't. Which is only a question worth putting where the element renders at all — a
+# collapsed card, a tab nobody opened and a shut comment panel all lay out nothing, and
+# their rects report the ancestor rather than the widget. That is the *second* failure
+# here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
+# fault wherever the element stands, since a tab the reader has not opened is a tab they
+# can open. Splitting them that way is what retired the [hidden] exemption this carried:
+# `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
+# asking whether it renders covers both and the panel besides.
 SILENT_WORDS = (
     """(widgets) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS
@@ -9175,7 +9878,14 @@ SILENT_WORDS = (
             for (const el of every(tag)) {
                 if (!el.hasAttribute(attr)) continue;
                 const quiet = el.querySelector(':scope > .lf-quiet');
-                if (quiet && (quiet.getClientRects().length || el.closest('[hidden]')))
+                // A missing word is the fault, and it is the fault wherever the
+                // element stands: a tab the reader has not opened is still a tab
+                // they can open. What the box is asked for is the second failure,
+                // a word the widget wrote and then hid, and that question can only
+                // be put to an element that is being laid out — a message in a shut
+                // panel lays out nothing, so its rects report the panel's state and
+                // would be read as the widget's.
+                if (quiet && (quiet.getClientRects().length || !el.checkVisibility()))
                     continue;
                 found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
                            + `and says nothing a reader listening can hear`);
@@ -9733,6 +10443,14 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             # widget legitimately shows other words). A module that renders
             # something in the body's stead while the entry still says
             # verbatim strands quotes on words the screen no longer shows.
+            # Both documents, because a widget an agent sent has words of its
+            # own — in the frozen fragment that carries it, which is the file
+            # side for it exactly as the version is for a page widget. Asked of
+            # the version alone the two sides both read empty and the comparison
+            # passed on the agreement of two blanks; asked of neither, an
+            # x-verbatim widget in a message could render something other than
+            # its own words with nothing saying so, which is the one thing the
+            # declaration promises and the reason a quote may rest on it.
             shown = page.evaluate(
                 """({widgets, touched}) => import('/leaf.js').then(leaf =>
                     Object.entries(widgets)
@@ -9743,7 +10461,8 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 {"widgets": widgets, "touched": touched},
             )
             if shown:
-                spk = spoken(markup, registry)
+                _byid, thread_spk, _threads = thread_universe(state["events"], registry)
+                spk = {**thread_spk, **spoken(markup, registry)}
                 dishonest_verbatim = [
                     f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
                     f"{s['says'][:80]!r} where the file reads "
@@ -9896,6 +10615,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
                 f"in theme.css reaches it"
             )
+
         found += [f"[{scheme}] {r}" for r in retired]
         found += [f"[{scheme}] {u}" for u in unsettled]
         found += [f"[{scheme}] {c}" for c in conflicts]
@@ -10023,7 +10743,8 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
     print(
         f"✓ {name}: renders clean in Chrome, light and dark — no console errors, "
         "every widget takes space, no words on top of other words, code that reads "
-        "against the block it is on, nothing past the column, no sideways scroll"
+        "against the block it is on, boxes showing the inset they draw, nothing past the "
+        "column, no sideways scroll"
     )
     return 0
 
@@ -10046,17 +10767,24 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
 BAKE = """() => {
     document.documentElement.classList.add('lf-copy');
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
-    // A measurement of this window is not a fact about the reader's. The room a wide
-    // widget may take is measured on the live page (syncLayout) and stated inline on the
-    // root, and an inline value outranks every rule a stylesheet could write — so a copy
-    // carrying it would hold whatever width the exporter's headless window happened to
-    // have, on a file whose whole point is being opened somewhere else. The theme states
-    // the copy's own room from its viewport, which is honest there: no panel takes a
-    // strip from a file, and no session grows one. Taken off the way the chrome above is,
-    // rather than guarded against in the theme, because the stale number is the thing
-    // that is wrong here and a rule written around it would leave it there to be read by
-    // the next thing that asks.
-    document.documentElement.style.removeProperty('--lf-room');
+    // A measurement of this window is not a fact about the reader's. The live page
+    // measures two of them and states each inline on the root — the room a wide widget
+    // may take (syncLayout) and the width of the page's own box, which is what the
+    // margin strips are sized against (stateStrip) — and an inline value outranks every
+    // rule a stylesheet could write, so a copy carrying either would hold whatever width
+    // the exporter's headless window happened to have, on a file whose whole point is
+    // being opened somewhere else. Each rule that reads one falls back to the viewport,
+    // which is honest in a copy: no panel takes a strip from a file, and no session grows
+    // one. Taken off the way the chrome above is, rather than guarded against in the
+    // theme, because the stale number is the thing that is wrong here and a rule written
+    // around it would leave it there to be read by the next thing that asks.
+    //
+    // The width each edge stands at is the same kind of number and goes for the same
+    // reason rather than because anything in a copy reads it: both are stated on the
+    // root by the same hand, and each is a fact about a region this file hasn't got and
+    // about a reader who is not the one opening it.
+    for (const stale of ['--lf-room', '--lf-avail', '--lf-panel-w', '--lf-tray-w'])
+        document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has
     // no session behind it — a copy keeping the tone it was exported under would claim
     // one, which is the same lie the chrome above is dropped for. So it drops back to
@@ -10568,13 +11296,28 @@ def stop(dir: str) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
 @click.argument("detail", required=False, default="")
-def status(dir: str, state: str, detail: str) -> None:
+@click.option(
+    "--on",
+    "on",
+    metavar="THREAD",
+    help="The comment thread this working detail is about.",
+)
+def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
 
     DETAIL is what the banner says after the state: what you are doing while
     `working`, and what you want back from the reader while `waiting` ("pick a
     storage engine"). A waiting page that declares none falls back to the
     standing "select text to comment".
+
+    --on names the comment thread that detail is about, and the reader sees it
+    under their own words as well as in the banner. It stands until you answer
+    that thread, so work in flight — a delegate, a long tool run — reads as
+    picked up rather than as silence. A `working` claim is believed while the
+    turn that wrote it is open; the page is told when that turn ends, so
+    something has to renew the claim within a couple of minutes of the ending,
+    and one nobody renews at all goes quiet after about a quarter of an hour —
+    on the banner and on each note alike.
     """
     page_dir = resolve_dir(dir)
     # Idling over an event nobody has answered ends the leaf on a user still
@@ -10584,7 +11327,7 @@ def status(dir: str, state: str, detail: str) -> None:
     # the log lock gives the check and the transition one order with an event
     # arriving or an acknowledgement advancing the cursor.
     if state != "idle":
-        cmd_status(page_dir, state, detail)
+        cmd_status(page_dir, state, detail, on=on)
         return
     with PageTransaction(page_dir) as page:
         events = page.events

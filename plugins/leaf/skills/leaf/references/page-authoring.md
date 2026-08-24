@@ -4,18 +4,6 @@ Read this before writing or revising a version and before the first handoff.
 `leaf page catalog <page>` is the authority for the page's vendored widgets,
 attributes, examples, and theme idioms; read it before authoring.
 
-## Contents
-
-- [Document scaffold](#document-scaffold)
-- [Theme and vocabulary](#theme-and-vocabulary)
-- [Stable anchors](#stable-anchors)
-- [Asks and sign-off](#asks-and-sign-off)
-- [Revisions and reader-owned words](#revisions-and-reader-owned-words)
-- [Honoring reader state](#honoring-reader-state)
-- [Keeping the current page current](#keeping-the-current-page-current)
-- [Interactivity and evidence](#interactivity-and-evidence)
-- [Pre-handover review](#pre-handover-review)
-
 ## Document scaffold
 
 Write a complete HTML document. The head contains exactly one `/theme.css` link
@@ -51,7 +39,7 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 catalog is the only widget vocabulary.
 
 The runtime injects the status banner, comment sidebar, version picker, keyboard
-shortcuts, live-leaves board, and open-asks board. Author the asks as widgets,
+shortcuts, live-leaves tray, and open-asks tray. Author the asks as widgets,
 but do not duplicate that chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. Give raw `<pre>`, tables, SVG, and images
@@ -87,6 +75,11 @@ An ask must name itself without surrounding context. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
 `<strong>` title.
 
+The question leads the group in every shape it takes, and opens at the same
+column its answers open at. Under `choose` it is the joined control's first cell;
+under `settled` it stands above the line naming what was chosen, and above the
+cards that line hides.
+
 A page whose approval unblocks work declares:
 
 ```html
@@ -103,6 +96,12 @@ an `lf-suggestion`: `lf-old` carries the current markup verbatim, `lf-new` carri
 the proposed replacement, and `resolves="<comment-id>"` connects a requested fix
 to its thread. Introduce the first suggestion in prose so the reader knows its
 new words can also receive comments.
+
+A correction is not a proposal. Where the page got something wrong — a number, a
+misread source, a unit — rejecting the fix would only restore the error, so the
+reader has nothing to weigh: write the true thing straight and name the correction
+in the version note. Suggest wording the reader could reasonably prefer as it
+stands.
 
 Use `lf-draft` for a passage whose wording belongs to the reader. Carry their
 submitted words verbatim into the next version. A draft never sits inside a
@@ -138,6 +137,31 @@ nor `restated`. Keep a decision live while it is being applied, and settle it
 only after the work no longer revisits it. Keep a section live while the reader
 is still commenting there.
 
+## Reading cost
+
+Open words are read; collapsed words are there when the reader wants them. So
+what stands open in the column is what the reader has to take from the page, and
+its backing goes under `<details>`: the full argument, a transcript, source and
+output, how a number was reached. Collapsed words stay quotable, and the runtime
+opens the disclosure when a comment or a walk lands inside one. An ask never
+collapses, and neither does the evidence it turns on.
+
+The title names the page, and the lede under it carries the finding. A section
+that reaches a finding says it in the heading, in a clause short enough to scan,
+and a `<summary>` and an option's `<strong>` do the same for what they cover.
+"Why the prefixes matter" and "What we learned" promise a finding and withhold
+it. A name that only says what it holds is right where there is no finding to
+state, over a list, a table, or a board that speaks for itself.
+
+Give a structure its own shape rather than describing it in sentences. A flow or
+a sequence is a diagram, a comparison is a table, a set of movable things is a
+board, and the prose beside one says only what the shape cannot. What is left
+for prose is the claim, the reason it holds, and the question the page is asking.
+
+Write for what the reader has seen, which is this conversation and the page so
+far. Introduce the names a decision depends on, put evidence on the page for a
+claim they could doubt, and drop the journey once the conclusion replaces it.
+
 ## Interactivity and evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
@@ -151,14 +175,9 @@ language names. Keep logs and transcripts plain when they are not source code.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with
-before and after captures from the same viewport. Put actual source, output, or a
-diff behind `<details>`; put invented examples inside `lf-specimen` and make them
-visibly fictional. Render tickets, source locations, and URLs as real links.
-
-Write for what the reader has seen: the conversation and the page so far.
-Introduce names the decision depends on, support questionable claims with
-evidence on the page, and remove journey narrative once the current conclusion
-replaces it.
+before and after captures from the same viewport. Put invented examples inside
+`lf-specimen` and make them visibly fictional. Render tickets, source locations,
+and URLs as real links.
 
 ## Pre-handover review
 
@@ -173,7 +192,8 @@ It loads the page in both color schemes and checks runtime errors, widget size,
 overflow, diagrams, selectable words, print output, replay-safe state, and
 action idempotence. Fix every failure; a screenshot is not a substitute.
 
-Then read the page as the user will. Confirm that referents are introduced,
-claims have evidence, decisions have controls, diagrams add information, links
-work, and no section merely repeats or preserves the history of reaching the
-current answer.
+Then read the page as the user will. Take the headings on their own first, and
+check that none of them promises a finding it does not give. Confirm that
+referents are introduced, claims have evidence, decisions have controls, diagrams
+add information, links work, and that everything standing open in the column is
+there because the reader needs it.

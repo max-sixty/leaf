@@ -32,10 +32,11 @@ import {
   announce,
   keys,
   labelOf,
+  measure,
   saying,
-  paintKeys,
+  dragging,
   motion,
-  pageScroller,
+  scrollerFor,
   PRESS,
   REDUCED,
   SCROLL,
@@ -47,9 +48,10 @@ customElements.define(
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
+    #namesObserver = null;
 
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) return this.#observeNames();
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the "?" overlay — it stays the static board the theme renders anyway.
@@ -61,12 +63,16 @@ customElements.define(
       // box rather than stated as a number (the pick column's answer): the theme
       // spends it (--lf-grip-room), and only a board that grew grips states it, so
       // paper, copies and quoted boards hold no dead column.
-      const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
-      if (grip)
-        this.style.setProperty(
-          "--lf-grip-room",
-          Math.ceil(grip.getBoundingClientRect().width) + "px",
-        );
+      // Off the grip's own box, so it waits for one (`measure`): a board quoted into
+      // a reply is built into the comment panel, which may not be open yet.
+      measure(this, () => {
+        const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
+        if (grip)
+          this.style.setProperty(
+            "--lf-grip-room",
+            Math.ceil(grip.getBoundingClientRect().width) + "px",
+          );
+      });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
       this.#names();
@@ -76,15 +82,7 @@ customElements.define(
       // cancel, replay) plus the pending pass, any of which would eventually
       // forget. Only the pending attribute is observed, so #names writing an
       // aria-label cannot feed the pass back into itself.
-      const names = new MutationObserver(() => this.#names());
-      for (const col of this.querySelectorAll(":scope > lf-column")) {
-        names.observe(col, { childList: true });
-        for (const card of this.#cards(col))
-          names.observe(card, {
-            attributes: true,
-            attributeFilter: ["data-lf-pending"],
-          });
-      }
+      this.#observeNames();
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -148,7 +146,26 @@ customElements.define(
     // drop a live grab here or it wedges the .lf-dragging gate open — freezing
     // action replay and version-follow.
     disconnectedCallback() {
+      this.#namesObserver?.disconnect();
+      this.#namesObserver = null;
       if (this.#grabbed) this.#cancel();
+    }
+
+    #observeNames() {
+      if (
+        this.#namesObserver ||
+        !this.querySelector(":scope > lf-column > lf-card > .lf-grip")
+      )
+        return;
+      this.#namesObserver = new MutationObserver(() => this.#names());
+      for (const col of this.querySelectorAll(":scope > lf-column")) {
+        this.#namesObserver.observe(col, { childList: true });
+        for (const card of this.#cards(col))
+          this.#namesObserver.observe(card, {
+            attributes: true,
+            attributeFilter: ["data-lf-pending"],
+          });
+      }
     }
 
     #title(card) {
@@ -237,9 +254,8 @@ customElements.define(
       const cards = this.#cards(from);
       const index = cards.indexOf(card);
       this.#grabbed = { card, grip, from, index };
-      this.classList.add("lf-dragging");
+      dragging(this, true);
       card.classList.add("lf-lift");
-      paintKeys(); // a grab is a press on an already-focused grip, so no focus event fires
       // Where the card starts, in the idiom every arrow step announces — a reader about to
       // move it needs the position the moves count from.
       announce(
@@ -296,8 +312,7 @@ customElements.define(
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;
-      this.classList.remove("lf-dragging");
-      paintKeys();
+      dragging(this, false);
     }
 
     // The one writer of "card X sits at index i among column C's cards": arrow steps,
@@ -349,8 +364,10 @@ customElements.define(
         handle: ".lf-grip",
         // Named, not left to Sortable's search: its walk stops at body and hands back
         // document.scrollingElement, which isn't what scrolls here. Left to guess, a
-        // drag toward a column below the fold would sit there and never scroll.
-        scroll: pageScroller,
+        // drag toward a column below the fold would sit there and never scroll. Asked
+        // of this board rather than stated, because a board an agent sent in a reply is
+        // scrolled by the panel's list and not by the document at all.
+        scroll: scrollerFor(this),
         forceFallback: true, // pointer-driven: stylable follower, touch, no native ghost
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
@@ -375,10 +392,13 @@ customElements.define(
               this.#release();
             } else this.#cancel();
           }
-          this.classList.add("lf-dragging");
+          dragging(this, true);
         },
         onEnd: (evt) => {
-          this.classList.remove("lf-dragging");
+          // Ahead of the branches below, because the one that returns early sends
+          // nothing: a card dropped where it was picked up puts the hand down with
+          // nothing following it to say so.
+          dragging(this, false);
           const sup = this.#superseded;
           this.#superseded = null;
           // The *draggable* indexes, which count cards; Sortable's plain

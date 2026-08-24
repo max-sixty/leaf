@@ -256,6 +256,7 @@ def record(
     page.wait_for_function(
         "() => document.querySelector('.lf-status-text').textContent.includes('awaits')"
     )
+    live_url = page.url
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
@@ -305,7 +306,13 @@ def record(
     )
     run_leaf("status", str(page_dir), "waiting")
     waiters.append(start_waiter(page_dir))
-    page.wait_for_url("**/v2.html", timeout=15_000)
+    page.wait_for_function(
+        "() => document.querySelector('meta[name=lf-version][data-lf-runtime]')"
+        ".content === '2'",
+        timeout=15_000,
+    )
+    if page.url != live_url:
+        raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     page.wait_for_function(
         "() => document.body.dataset.lfUpgraded === '1'"
         " && document.querySelectorAll('.lf-thread .lf-msg.claude').length > 0"

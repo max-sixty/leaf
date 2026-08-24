@@ -610,7 +610,8 @@ def _traffic(page):
 
 
 def _painted_line(page):
-    """The key line as the gesture just made left it.
+    """Every row the key line just painted, as `"<key> <words>"`, the two it shows and
+    the rest behind More alike.
 
     `paintHere` coalesces to an animation frame, so a read taken straight after the
     state moves reads the frame before the paint. Consuming the frame is what makes
@@ -618,11 +619,25 @@ def _painted_line(page):
     version poll, a focus move, news arriving — that an assertion re-asking through
     `expect` reports whichever later paint the page happened to make, and passes on a
     gesture that painted nothing at all.
-    """
+
+    Rows rather than the visible text, because `renderLine` paints two chips and hides
+    the rest whatever the page is offering: what a row's `when` decides is whether it is
+    in this list at all, while `hidden` says only that it ranked below the first and the
+    way out. Read through `inner_text` instead, a row that lost its liveness and a row
+    that lost a seat are one answer, and a question about the first is settled by the
+    second — on a board page, where the widget's own two rows take both seats, `z undo`
+    is invisible whether it is live or not.
+
+    A stale paint is still caught, because the whole line is rebuilt on each one: a
+    repaint that never came leaves the rows the previous state put there, which is the
+    reading each assertion here is against."""
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
-    return page.locator(".lf-keyline").inner_text()
+    return page.eval_on_selector_all(
+        ".lf-keyline .lf-key",
+        "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",
+    )
 
 
 def _until(page, fact, wanted):
@@ -18167,13 +18182,13 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a poll two seconds out repaints the line whatever this drag did, so an
     # assertion that re-asks passes on the poll and says nothing about the edge.
-    assert "undo" not in _painted_line(page), (
+    assert "z undo" not in _painted_line(page), (
         "the line offered a press the dispatcher refuses for the length of a drag"
     )
 
     page.mouse.up()
     assert page.locator("lf-board.lf-dragging").count() == 0
-    assert "undo" in _painted_line(page), (
+    assert "z undo" in _painted_line(page), (
         "the drop that sent nothing left the line refusing a press that is live"
     )
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"

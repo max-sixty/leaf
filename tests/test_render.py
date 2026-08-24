@@ -750,31 +750,9 @@ def refuse(route):
     route.abort("aborted")
 
 
-# A refusal is lifted by a switch the handler reads, never by taking the route away.
-# `page.unroute` drops the handler while a request is in its hands, and that request is
-# then neither continued nor refused: it never comes back, and nothing in the page times
-# it out. The poll lost is not the cost. A send ends in a poll of its own, so a lift
-# landing inside that poll leaves `post` awaiting forever — the widget the gesture was
-# made on stays in `sending`, reconciliation skips it for the rest of the tab's life
-# (reconcileState), and the page sits at `aria-busy` disagreeing with the log about a
-# decision the log has taken. Nothing times that out either, so what runs out is the
-# assertion: one CI run in ten on the cross-tab settlement below, and the same window
-# open in every test that stops a page's polls and starts them again.
-#
-# So the route stays on the page for its whole life and answers every request it is
-# handed. Lifting changes which answer, not whether there is one.
-#
-# The poll is what this is for, and the `**/api/event` unroutes below are the boundary
-# rather than sites left unconverted. A poll is the request nobody asked for: the timer
-# issues it whenever it comes round, so a lift is free to land in the middle of one. An
-# event is posted only by a gesture the test just made — or by `reportPageError`, which
-# nothing awaits — so a test that is not mid-gesture has nothing in the wire there to
-# strand, and one that is waits for the send before it lifts.
-#
-# `CutOff` is the switch wherever the handler only refuses. Where it answers as well —
-# a first poll held back for the test to fulfil later, a first poll fabricated
-# malformed — the handler reads a flag of the test's own at its top and continues on
-# it, which is the same switch written where the answers are.
+# Keep the handler installed while polls are in flight: `page.unroute` can remove it
+# before it answers, stranding the request. Restore by switching future polls from
+# refusal to continuation instead.
 class CutOff:
     """A page's polls, stopped from outside it until the test says it can hear again."""
 
@@ -797,27 +775,14 @@ class CutOff:
     def restore(self):
         self._live = True
 
-    # A test that reads one live poll and then wants the page deaf again. The count
-    # `lets_through` is measured against is not rewound: what a second cut restores is
-    # the refusal, not the page's whole first impression.
+    # Preserve the initial-poll count when cutting the page off again.
     def cut(self):
         self._live = False
 
 
-# A tab a test holds stale is stale for one poll interval and no longer: every poll
-# reconciles the draft store against shared storage before it settles anything
-# (settleAcceptedDrafts), so a stale view the assertions take their time reaching is a
-# race a loaded runner loses. Refusing the polls states it — but only from before the
-# page exists. `page.route` reaches no request already in the wire, and a poll
-# reconciles when its response lands rather than when its request went out, so a
-# refusal registered on a live page leaves whatever is outstanding free to arrive
-# later, against storage the test has moved in the meantime. Registered through
-# `primed`, the route is on the page before it navigates.
-#
-# The first is let through because `open_page` waits for the page's readiness facts,
-# including `lf-applied`, which rides on it — and that same wait is what leaves nothing
-# outstanding when the page is handed over. Where the tab has to hear the log again,
-# the test lifts the refusal itself, through the returned `restore`.
+# Register before navigation so no in-flight poll can refresh the stale tab. The first
+# poll still passes because `open_page` needs it for readiness; later polls wait for
+# `restore`.
 def held_stale(context):
     """A context whose next page is refused every poll after the one that stamps it."""
     cut = CutOff(lets_through=1)
@@ -1473,11 +1438,8 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         assert held, "the first poll went through, so no arrival was stood in"
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
-        # The one route here a lift may take away rather than switch off (CutOff).
-        # What that strands is a poll, and a stranded poll costs this page nothing:
-        # this arrival is over, nothing is waiting on a send, and the next `arrive`
-        # navigates away from it. `told` and `round_trip` read the counters from
-        # where they were called, so neither is held by a trip that never ends.
+        # This arrival is complete and the next call navigates away, so no later wait
+        # depends on a poll this unroute might strand.
         page.unroute("**/api/state*")
         return moved()
 
@@ -3698,7 +3660,8 @@ customElements.define("lf-quota", class extends HTMLElement {
         "</lf-tasks>",
     )
     url = serve(quota_v1)
-    stale, stale_errors = open_page(browser, url, context=held_stale(one_reader))
+    stale_held = held_stale(one_reader)
+    stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)
 
     interact.append_event(
@@ -3778,7 +3741,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     round_trip(stale)
 
     assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
-    stale.unroute("**/api/state*")
+    stale_held.restore()
     told(stale)
     expect(stale.locator("#quota")).to_have_attribute("slots", "1")
     expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
@@ -18285,7 +18248,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     replay and undo remain held until a later complete response accounts for it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     older = []
-    lifted = []
+    lifted = False
 
     def hold_older_state(route):
         if lifted:
@@ -18375,7 +18338,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     # A complete poll accounts for the older acceptance and the refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
     # includes both accepted gestures and makes the newest one safe to undo.
-    lifted.append(True)
+    lifted = True
     told(page)
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
@@ -18945,7 +18908,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         route.fulfill(status=response.status, json=answer)
 
     malformed_polls = []
-    lifted = []
+    lifted = False
     page.route("**/api/state*", malformed_poll_state)
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
@@ -19008,7 +18971,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     # Neither malformed read is a state the projector may consume. The accepted
     # baffle move remains held until a complete poll can place it in chronology.
     expect(page.locator("#col-done #card-baffle")).to_have_count(0)
-    lifted.append(True)
+    lifted = True
     with page.expect_response(
         lambda response: "/api/state" in response.url and response.ok
     ):

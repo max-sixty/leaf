@@ -15865,13 +15865,29 @@ def pending_text(page):
 
 def mark_point(page, name, index=0):
     """A point inside a painted range, for a real mouse press. A highlight is not an
-    element, so there is nothing for a locator to click."""
+    element, so there is nothing for a locator to click.
+
+    On screen, and asserted here, because a press the reader cannot make proves nothing
+    about what a press does. A range keeps its client rects while it is scrolled away —
+    they simply go negative — so the arithmetic above will hand back a point above the
+    window as readily as one in it, and `page.mouse` will press there. Nothing in the
+    page hears that press: `elementFromPoint` answers null outside the window, the
+    runtime's hit test declines a point that is over none of the page's words, and the
+    click arrives at `<html>`. A caller pressing 141px above the top edge therefore read
+    the silence that followed as the mark's thread refusing to open, 30 seconds later
+    and in another function."""
     box = page.evaluate(
         """([name, index]) => {
         const r = [...CSS.highlights.get(name)][index].getClientRects()[0];
-        return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+        return {x: r.left + r.width / 2, y: r.top + r.height / 2,
+                w: innerWidth, h: innerHeight};
     }""",
         [name, index],
+    )
+    assert 0 <= box["x"] <= box["w"] and 0 <= box["y"] <= box["h"], (
+        f"the {name} mark at index {index} is painted at ({box['x']:.0f}, "
+        f"{box['y']:.0f}), off a {box['w']:.0f}×{box['h']:.0f} window — scroll the "
+        f"passage into view before pressing it"
     )
     return box["x"], box["y"]
 
@@ -20378,6 +20394,14 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
 
+    # The commented passage back on screen, because reaching #q scrolled it off the top
+    # and a press above the window is one no reader makes: the runtime declines a point
+    # that is over none of the page's words, so the click lands on nothing. The composer
+    # stays up across the scroll — only a mousedown outside it takes it down — so it is
+    # still the open composer that the next press has to get past, which is the whole
+    # subject here. Both are then on screen at once, which is what the fixture puts #q
+    # that far down the page for.
+    page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)
 

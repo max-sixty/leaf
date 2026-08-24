@@ -16920,7 +16920,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # chip — there is nothing to back out of.
     expect(line).to_contain_text("comment")
     expect(line).to_contain_text("threads")
-    expect(line).to_contain_text("keys")
+    expect(line).to_contain_text("more")
     expect(line).not_to_contain_text("esc")
 
     # Armed with the panel closed: the pending chord and its way out are on screen, and
@@ -17120,37 +17120,68 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.close()
 
 
-def test_the_key_line_drops_what_the_window_cannot_hold(browser, serve):
-    """The line is one quiet row and the register is the whole keyboard, so on a narrow
-    window there is more to say than there is room to say it. What goes, goes from the
-    end — the outside of the scope stack — so a reader keeps the keys of the place they
-    are standing in and loses the page's. `?` is drawn whatever happens, being what the
-    line truncates *to*: the reference holds everything the room could not.
+def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve):
+    """The short line is a glance, not the keyboard reference. It keeps two bindings:
+    first the innermost live action, then the way out when the current scene has one. The
+    complete register remains one `? more` away and can be searched by key, action, or
+    scope.
 
-    The cut is measured rather than counted, for the reason `reserve` measures the words
-    a control may say — a stated number of chips is a fact about one font at one window
-    size and stops being true silently. What it replaced was `overflow: hidden` doing the
-    cutting on its own, which clips a chip mid-word; that rule is still under this one for
-    a window too narrow to hold even what is kept, and the assertion here is that it never
-    has to do the work."""
+    The panel's general box is the causal contrast for the cap. A full page row crosses
+    into the panel and paints over the box; two hints end before it. The overlap is tested
+    before opening the reference so a searchable popup cannot make the symptom disappear
+    merely by covering both surfaces."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
-    line = page.locator(".lf-keyline")
-    chips = line.locator(".lf-key")
-    expect(line).to_contain_text("half a page")
-    wide = chips.count()
+    page.set_viewport_size({"width": 1200, "height": 800})
+    page.get_by_role("button", name=re.compile("^Comments")).click()
 
-    page.set_viewport_size({"width": 480, "height": 900})
-    expect(line).to_contain_text("keys")  # the way to everything that did not fit
-    expect(chips).not_to_have_count(wide)
-    assert chips.count() < wide, "a narrower window kept every chip"
-    # Nothing is clipped: the row on screen is whole words, at either width.
-    for width in (480, 1200):
-        page.set_viewport_size({"width": width, "height": 900})
-        expect(line).to_contain_text("keys")
-        assert page.evaluate(
-            "() => { const l = document.querySelector('.lf-keyline');"
-            " return l.scrollWidth <= l.clientWidth; }"
-        ), f"the line overflowed its own box at {width}px"
+    line = page.locator(".lf-keyline")
+    visible_hints = line.locator(".lf-key:not([hidden])")
+    assert visible_hints.count() == 2, page.evaluate(
+        """() => { const line = document.querySelector('.lf-keyline'); return {
+          client: line.clientWidth, scroll: line.scrollWidth,
+          max: getComputedStyle(line).maxWidth,
+          hints: [...line.querySelectorAll('.lf-key')].map(el => ({
+            text: el.textContent, hidden: el.hidden
+          }))
+        }; }"""
+    )
+    assert not page.evaluate(
+        """() => {
+          const a = document.querySelector('.lf-keyline').getBoundingClientRect();
+          const b = document.querySelector('.lf-general').getBoundingClientRect();
+          return a.left < b.right && a.right > b.left &&
+                 a.top < b.bottom && a.bottom > b.top;
+        }"""
+    ), "the key line covers the general comment box"
+
+    # Moving into the box changes the two most useful hints without introducing a
+    # second shortlist: the same scope order the dispatcher uses supplies them.
+    page.keyboard.press("c")
+    expect(visible_hints.nth(0)).to_contain_text("send")
+    expect(visible_hints.nth(1)).to_contain_text("back to list")
+
+    more = page.get_by_role("button", name="? more", exact=True)
+    more.click()
+    help_el = page.locator(".lf-help")
+    search = page.get_by_role("searchbox", name="Search keyboard shortcuts")
+    expect(help_el).to_be_visible()
+    expect(search).to_be_focused()
+
+    search.fill("d / u")
+    expect(help_el.locator("tr:not([hidden])")).to_have_count(1)
+    expect(help_el.locator("tr:not([hidden])")).to_contain_text("Half a page down / up")
+
+    search.fill("comment panel")
+    expect(
+        help_el.get_by_role("heading", name="In the comment panel", exact=True)
+    ).to_be_visible()
+    expect(help_el.locator("tr:not([hidden])")).not_to_have_count(0)
+
+    search.fill("no such shortcut")
+    expect(help_el.locator(".lf-help-empty")).to_be_visible()
+    expect(help_el.locator("tr:not([hidden])")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -22207,7 +22238,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # row they left, since a scope is where focus is and the overlay takes the focus. Landing
     # on the body instead put the walk it had just described out of reach, which is a poor
     # thing for the one key a mode keeps to do.
-    expect(line).to_contain_text("keys")
+    expect(line).to_contain_text("more")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")

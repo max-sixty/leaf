@@ -120,12 +120,11 @@
  * press.
  *
  * What a key would do right now is state the user can read, not recall. The key line (one
- * quiet fixed line, bottom left) renders the stack outward and drops what the room cannot
- * hold, `?` last and always, so what a narrow window costs is the page's keys and what it
- * keeps is the scope the reader stands in. The "?" overlay names every scope the page has,
- * live rows only. The line is aria-hidden: it is the eye's copy of facts spoken elsewhere
- * — placeholders speak each box's address, announce() speaks each stage of the chord and a
- * grabbed card's keys, the overlay speaks the whole reference.
+ * quiet fixed line, bottom left) shows two hints: the first live row of the innermost
+ * scope, then an available Escape or the next row. `? more` always opens the complete
+ * reference, grouped by scope and searchable by key, action, or scope. The two hint chips
+ * are aria-hidden: they are the eye's copy of facts spoken through placeholders and live
+ * announcements; More is the accessible control leading to the full reference.
  *
  * A message arrives as logged and renders here, in the same vendored layer that owns
  * the panel's styles — the two version together, and no wire vocabulary exists beyond
@@ -3112,11 +3111,19 @@ ${MARK_RULES}
     .lf-toast.clickable { pointer-events: auto; cursor: pointer; }
     .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     .lf-help { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: min(420px, calc(100vw - 32px)); max-height: 80vh; overflow-y: auto; display: none;
+      width: min(520px, calc(100vw - 32px)); max-height: 80vh; overflow: hidden; display: none;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 18px; }
-    .lf-help.open { display: block; }
-    .lf-help-title { font-weight: 600; margin-bottom: 10px; }
+    .lf-help.open { display: flex; flex-direction: column; }
+    .lf-help-title { font-weight: 600; margin-bottom: 8px; }
+    .lf-help-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
+      border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
+      color: var(--ink); }
+    .lf-help-search:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
+    .lf-help-meta { min-height: 1.2em; margin: 6px 0 0; color: var(--muted);
+      font-size: var(--t-6); }
+    .lf-help-results { min-height: 0; overflow-y: auto; }
+    .lf-help-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
     .lf-help h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
       text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
     .lf-help table { width: 100%; border-collapse: collapse; }
@@ -3125,7 +3132,7 @@ ${MARK_RULES}
     /* The glyph states its own ink rather than taking the line's. A key chip is the
        one word on either surface the reader has to read to press anything, and on
        --chip the surrounding line's --muted came to 4.46:1 — under AA, and quietly,
-       since the line is aria-hidden and the corpus sweep walks pages with it empty.
+       since the hint is aria-hidden and the corpus sweep walks pages with it empty.
        --ink-2 clears it on both schemes. The words beside the chips keep --muted:
        they sit on --card, which it clears.
 
@@ -3135,22 +3142,27 @@ ${MARK_RULES}
     .lf-help kbd, .lf-keyline kbd { font-family: var(--mono); font-size: var(--t-6); background: var(--chip);
       color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
-    /* The key line: what a key does right now, rendered from the register the
-       dispatcher walks (see the module docstring). Floating chrome nothing presses
-       (pointer-events none) and the eye's copy of facts spoken elsewhere
-       (aria-hidden), so it owes the press sweep nothing; syncLayout lifts it over a
-       covering sheet the way it lifts the toast, and body reserves its height so
-       the document's last lines never end under it. The overflow is the backstop
-       under renderLine's own measured drop, for a window too narrow to hold even the
-       chips it keeps — it was the whole mechanism once, and a chip clipped mid-word
-       reads as a bug where a dropped one reads as a legend. */
+    /* The key line: two hints about what keys do right now, rendered from the register
+       the dispatcher walks (see the module docstring). Each hint is the eye's copy of
+       facts spoken elsewhere and stays aria-hidden; the final More is a real control.
+       syncLayout keeps the line out of a side-by-side comment panel and lifts it over a
+       covering one, while body reserves its height so the document's last lines never
+       end under it. Overflow remains a backstop for a window too narrow to hold even
+       the short line. */
     .lf-keyline { position: fixed; left: 18px; bottom: 14px; z-index: 8940; pointer-events: none;
-      display: flex; gap: 12px; align-items: baseline; max-width: calc(100vw - 36px);
+      display: flex; gap: 12px; align-items: baseline;
+      max-width: calc(100vw - var(--lf-keyline-right, 0px) - 36px);
       overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
       background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
       padding: 5px 10px; }
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
+    .lf-keyline .lf-key[hidden] { display: none; }
+    .lf-key-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
+      pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
+      border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
+    .lf-key-more:hover { color: var(--ink-2); }
+    .lf-key-more:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
     .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for
        as long as they are the page shows its bones. Every item — a widget, a section, a
@@ -4029,10 +4041,18 @@ const helpEl = el("div", "lf-ui lf-help");
 helpEl.setAttribute("role", "dialog");
 helpEl.setAttribute("aria-label", "Keyboard reference");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
-// The key line — the register's rendering; aria-hidden per the module docstring (the
-// eye's copy of facts spoken by placeholders, announce() and the "?" overlay).
+// The key line — the register's short rendering. Its two fact chips are aria-hidden (the
+// spoken copies are placeholders, announcements, and the reference); More is a real button
+// because a visible door to the complete list should be a door every reader can work.
 const keylineEl = el("div", "lf-ui lf-keyline");
-keylineEl.setAttribute("aria-hidden", "true");
+const keylineMore = el("button", "lf-key-more");
+keylineMore.type = "button";
+keylineMore.title = "More keyboard shortcuts";
+keylineMore.setAttribute("aria-label", "? more");
+const keylineMoreKey = document.createElement("kbd");
+keylineMoreKey.textContent = "?";
+keylineMore.append(keylineMoreKey, document.createTextNode("more"));
+keylineMore.onclick = () => showHelp(true);
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -4605,6 +4625,14 @@ function syncLayout() {
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
   keylineEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 14 : 14) + "px";
+  // Beside the page, the comment panel owns the right strip all the way to its foot. The
+  // line starts at the window's left, so cap its room at that strip rather than letting a
+  // long computed hint cross into the general comment box. A covering panel is handled by
+  // the lift above and leaves the line the window's full width.
+  keylineEl.style.setProperty(
+    "--lf-keyline-right",
+    (panelBeside ? commentsEdge.width() : 0) + "px",
+  );
   // One line stands over two scroll regions, so one measurement is what they both
   // reserve — off the rendered line rather than stated as a number, which is what
   // keeps it true when the line's face or its padding moves.
@@ -7772,8 +7800,8 @@ function paintAnchors(threads = buildThreads()) {
       : [...new Set(found.segments.map((seg) => blockAt(seg.node)))].filter(Boolean);
     // Not inside the chrome: the line is the runtime's word inside the page's own
     // blocks, and a design comment on a runtime part is on chrome the panel already
-    // reads out — a hidden button in the key line's aria-hidden box would be focusable
-    // content nobody is told about.
+    // reads out — an aria-hidden injected note button would be focusable content nobody
+    // is told about.
     for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
       if (holder && !inChrome(holder))
         noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
@@ -9789,7 +9817,6 @@ const HELP = {
   at: () => helpOpen,
   claims: EVERYTHING,
   rows: [
-    { keys: ["?"], does: "Close this reference", line: "close", run: toggleHelp },
     {
       keys: ["Escape"],
       does: "Close this reference",
@@ -10078,8 +10105,9 @@ const DESIGN = {
 };
 
 // The page itself. Table order is the line's priority order — a total order every row has
-// already, rather than a field one can forget — so a row's place here decides what falls
-// off the end when the window is narrow, and reordering for readability moves the line.
+// already, rather than a field one can forget — so the first live rows are the short hints.
+// Escape is the one promotion over this order, because the way out of a current scene must
+// survive beside its way in.
 // v names the chooser, the control wearing the version number, and the menu it opens
 // takes the letter again for the newest version — one motion whose second half is a key of
 // the scope the first half stood up, so it costs the table no row and holds whether or not
@@ -10095,13 +10123,14 @@ const CHOOSER = {
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
 // rather than spelling "?" beside it — a fact about a binding written where the binding
-// cannot correct it is the register's own oldest bug. Its place in the table is nominal, the
-// line drawing this chip last whatever the room (renderLine).
+// cannot correct it is the register's own oldest bug. Its place in the table is nominal:
+// renderLine gives it the permanent More control instead of spending a hint slot on it.
 const REFERENCE = {
   keys: ["?"],
   does: "This key reference",
-  line: "keys",
-  run: toggleHelp,
+  line: "more",
+  also: keylineMore,
+  run: () => showHelp(true),
 };
 // The way in to the chord, named for the reason the two rows above it are: the armed chip
 // and every address a member speaks are built from this row's own key (addressLabel), so
@@ -10475,11 +10504,11 @@ document.addEventListener("focusout", () => paintHere());
 document.addEventListener("toggle", () => paintHere(), true);
 
 // ---------- the key line ----------
-// What the next press does, walked outward from where the reader stands and cut where the
-// room runs out. The cut is measured rather than counted, for the reason `reserve` measures
-// the words a control may say: a stated number of chips is a fact about one font at one
-// window size, and it stops being true silently. What the room cannot hold is one press
-// away, because `?` is drawn whatever happens — it is what the line truncates *to*.
+// What the next press does, walked outward from where the reader stands. The full register
+// has grown past what a glance can read, so this surface keeps two hints and leaves the rest
+// one press or click away. Locality supplies the ranking: the same innermost-first scope
+// order the dispatcher uses. The one override is an available Escape after the first hint,
+// because a mode whose way in is visible and whose way out is not is a trap.
 //
 // The rows the line shows, innermost scope first: the ones carrying a word for it. A row
 // is skipped where any of its bindings has been named already, so an inner scope's own
@@ -10513,18 +10542,23 @@ function renderLine() {
   // ask every one of them again for the same frame.
   const scopes = stack();
   const rows = lineRows(scopes);
-  // `?` rides last whatever its place in the table, being what the line truncates *to*:
-  // whatever the room could not hold is one press away, and the press that reaches it has
-  // to survive the cut that hid them.
+  // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
+  // the register's hidden projection. Keeping every live row there preserves one inspectable
+  // reading of the current key scene while only the two selected rows paint.
   const ref = rows.findIndex((row) => bindings(row).includes("?"));
   const ordered =
     ref === -1 ? rows : [...rows.slice(0, ref), ...rows.slice(ref + 1), rows[ref]];
+  const candidates = ordered.filter((row) => !bindings(row).includes("?"));
+  const first = candidates[0];
+  const wayOut = candidates.slice(1).find((row) => bindings(row).includes("Escape"));
+  const short = new Set([first, wayOut ?? candidates[1]].filter(Boolean));
   // Read where it is painted, like every other cell: the chord's chip says which stage the
   // reader is at (`g`, then `g c`), and a string fixed at declaration could only say one.
   const chord = word(scopes.find((s) => s.chord)?.chord);
   keylineEl.textContent = "";
   const chip = (key, said, armed) => {
     const span = el("span", "lf-key");
+    span.setAttribute("aria-hidden", "true");
     const kbd = document.createElement("kbd");
     if (armed) kbd.className = "armed";
     kbd.textContent = key;
@@ -10534,31 +10568,22 @@ function renderLine() {
     return span;
   };
   const armed = chord ? chip(chord, "", true) : null;
-  const drawn = ordered.map((row) => chip(labelOf(row), word(row.line)));
-  // One layout, then positions: the line paints on every focus move, and a page whose board
-  // carries thirty grips would force thirty layouts if the fit were measured a chip at a
-  // time. Where each chip already sits answers the question, so nothing has to be summed —
-  // and summing is what broke it first. `offsetWidth` rounds to whole pixels while the
-  // layout is fractional, so adding eight chips up overshot a room they exactly filled and
-  // dropped the last of them; a rect is the same number the layout used. `?` is measured
-  // in as well, being kept whatever happens, so the cut leaves it room rather than putting
-  // it back afterwards to overflow on its own.
-  //
-  // What goes, goes from the end, which is the outside of the stack: a narrow window costs
-  // the reader the page's own keys and keeps the scope they are standing in. The line still
-  // carries overflow: hidden underneath this, the backstop for a window too narrow to hold
-  // even the chips that are kept — that clip was the whole mechanism before, and a clipped
-  // chip reads as a bug where a dropped one reads as a legend.
-  const style = getComputedStyle(keylineEl);
-  const gap = parseFloat(style.columnGap) || 0;
-  const edge = keylineEl.getBoundingClientRect().right - parseFloat(style.paddingRight);
-  const rects = drawn.map((span) => span.getBoundingClientRect());
-  const pinned = ref === -1 ? 0 : 1; // the ? chip, kept whatever the room
-  const held = pinned ? gap + rects.at(-1).width : 0;
-  for (let i = 0; i < drawn.length - pinned; i++) {
-    if (rects[i].right + held <= edge) continue;
-    for (const span of drawn.slice(i, drawn.length - pinned)) span.remove();
-    break;
+  const drawn = ordered.map((row) => {
+    const span = chip(labelOf(row), word(row.line));
+    span.hidden = !short.has(row);
+    return span;
+  });
+  // The door is not useful behind the room it opens. While the reference stands, its
+  // own Escape row is the short line and More leaves the focus order with the page.
+  if (!helpOpen) keylineEl.append(keylineMore);
+
+  // Two is a ceiling, not permission to clip them. On a window narrower than those two
+  // computed sentences, yield the lower-ranked hint and then the first; More is the one
+  // control that always survives. At most two layouts are spent, independent of the size
+  // of the register, while all hidden rows stay available to inspection and the reference.
+  for (const span of drawn.filter((item) => !item.hidden).toReversed()) {
+    if (keylineEl.scrollWidth <= keylineEl.clientWidth) break;
+    span.hidden = true;
   }
 }
 paintHere();
@@ -10701,14 +10726,38 @@ let helpOpen = false;
 // afterwards. A mode over the page keeps this one key (`allButTheReference`), and a kept key
 // that costs the reader their place is not much of an exemption.
 let helpFrom = null;
+const helpWords = (value) =>
+  String(value ?? "")
+    .toLocaleLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 function showHelp(open) {
+  // Focusing a text input replaces the document selection. Keep a passage the reader has
+  // in hand when `?` opens the reference, while an ordinary open lands directly in search.
+  // The dialog itself remains a focus stop, so either route keeps the page suspended.
+  const preserveSelection = open && Boolean(pageSelection());
   if (open && !helpOpen) helpFrom = focused();
   helpOpen = open;
   if (open) {
     helpEl.textContent = "";
     helpEl.append(el("div", "lf-help-title", "Keyboard reference"));
-    const table = (rows) => {
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "lf-help-search";
+    search.placeholder = "Find a key or action";
+    search.setAttribute("aria-label", "Search keyboard shortcuts");
+    search.autocomplete = "off";
+    search.spellcheck = false;
+    const meta = el("div", "lf-help-meta");
+    meta.setAttribute("aria-live", "polite");
+    const results = el("div", "lf-help-results");
+    const empty = el("div", "lf-help-empty", "No matching shortcuts");
+    empty.hidden = true;
+    const sections = [];
+    let total = 0;
+    const table = (rows, scopeTitle) => {
       const t = document.createElement("table");
+      const entries = [];
       for (const row of rows) {
         const tr = document.createElement("tr");
         const kbd = document.createElement("kbd");
@@ -10717,8 +10766,15 @@ function showHelp(open) {
         keyCell.append(kbd);
         tr.append(keyCell, el("td", "", word(row.does)));
         t.append(tr);
+        entries.push({
+          el: tr,
+          words: helpWords(
+            `${scopeTitle} ${labelOf(row)} ${word(row.does)} ${word(row.line)}`,
+          ),
+        });
       }
-      return t;
+      total += entries.length;
+      return { el: t, entries };
     };
     for (const scope of declaredStack()) {
       if (!pageHas(scope)) continue;
@@ -10738,21 +10794,58 @@ function showHelp(open) {
       const inIt = readerIn(scope) || scope.claims === EVERYTHING;
       const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
       if (!rows.length) continue;
-      if (scope.title) helpEl.append(el("h3", "", scope.title));
-      helpEl.append(table(rows));
+      const title = scope.title ?? "On this page";
+      const section = document.createElement("section");
+      section.className = "lf-help-section";
+      const heading = el("h3", "", title);
+      const body = table(rows, title);
+      section.append(heading, body.el);
+      results.append(section);
+      sections.push({
+        el: section,
+        heading,
+        table: body.el,
+        words: helpWords(title),
+        entries: body.entries,
+      });
     }
+    results.append(empty);
+    const filter = () => {
+      const query = helpWords(search.value);
+      let shown = 0;
+      for (const section of sections) {
+        const sectionMatch = query && section.words.includes(query);
+        let sectionShown = 0;
+        for (const entry of section.entries) {
+          const match = !query || sectionMatch || entry.words.includes(query);
+          entry.el.hidden = !match;
+          if (match) sectionShown++;
+        }
+        section.el.hidden = sectionShown === 0;
+        section.heading.hidden = sectionShown === 0;
+        section.table.hidden = sectionShown === 0;
+        shown += sectionShown;
+      }
+      empty.hidden = shown !== 0;
+      meta.textContent = query
+        ? `${shown} of ${total} shortcuts`
+        : `${total} shortcuts`;
+    };
+    search.addEventListener("input", filter);
+    filter();
+    helpEl.append(search, meta, results);
   }
   helpEl.classList.toggle("open", open);
-  if (open) helpEl.focus({ preventScroll: true });
+  if (open)
+    (preserveSelection ? helpEl : helpEl.querySelector(".lf-help-search")).focus({
+      preventScroll: true,
+    });
   // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
   // press's own focus is the browser's default action, still to come — a restore made from
   // out here would be putting focus back for the click to take again.
   else if (helpEl.contains(focused()) && helpFrom?.isConnected)
     helpFrom.focus({ preventScroll: true });
   paintHere();
-}
-function toggleHelp() {
-  showHelp(!helpOpen);
 }
 
 // ---------- the ask, collected ----------

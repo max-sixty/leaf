@@ -1220,13 +1220,17 @@ upgrade.
 
 ### The key line and reference
 
-The key line shows what keys do at the reader's current scope. It walks outward,
-drops duplicate bindings shadowed by an inner scope, and yields lower-priority
-page rows when width runs out. The `?` entry remains available. The line is
-`aria-hidden` because placeholders, live announcements, and the full reference
-carry the same facts for assistive technology.
+The key line is short help, not the keyboard reference. It walks outward from the
+reader's innermost scope, drops duplicate bindings shadowed there, and paints at
+most two hints: the first live row, then an available Escape or the next row.
+This makes locality the ordinary priority and promotes only the way out of the
+current scene. Its hint chips are `aria-hidden` because placeholders and live
+announcements carry the same facts for assistive technology. The accessible
+`? more` control always opens the complete reference.
 
-The reference lists every live capability the page has, grouped by scope.
+The reference lists every live capability the page has, grouped by scope, and
+filters those rows by normalized key, action, line word, and scope text. Search
+is a projection of the same gathered rows rather than another binding index.
 Computed ranges count current members. A declaration must survive `merge` with
 its `when`, `at`, `claims`, and rows intact so the reference does not advertise
 a scope the current page cannot enter.

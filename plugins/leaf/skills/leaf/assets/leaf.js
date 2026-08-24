@@ -12223,9 +12223,26 @@ function renderVersions(state) {
   showNews(latestChip, behind);
   if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
 }
+/** The reader's hand on a widget, in the layer's own word: a drag the log has not taken
+ * yet. The class is half of `unaccountedGesture` below, so taking it up or putting it
+ * down moves core's `z` row — a row no widget declares, and therefore the one no widget
+ * would think to repaint. Both edges of a pointer drag went unpainted for exactly that
+ * reason, and on a quiet board the line went on offering `undo` for as long as the
+ * reader held the card, over a press the dispatcher was already refusing. So the paint
+ * is owed here, where the class is written, rather than by whoever remembers.
+ *
+ * Coalesced to a frame like every paint, which is what lets it stand for everything else
+ * the same gesture moved: the widget's own rows where the grab is a press on an
+ * already-focused grip and no focus event fires, and a send the drop states after this
+ * returns — so a drop that sends still reads as a gesture the log has not taken.
+ */
+export const dragging = (el, on) => {
+  el.classList.toggle("lf-dragging", on);
+  paintKeys();
+};
 // A gesture of the reader's that the page has not accounted for in a log read, asked of
 // the layer's own signals rather than of any widget by name: a drag wears .lf-dragging
-// (the module sets it), every unresolved browser event is in the outbox, and an undo
+// (dragging, above), every unresolved browser event is in the outbox, and an undo
 // in flight is its own — it is tracked separately because the walk itself cannot be
 // offered again while its event is being answered.
 // Two questions want the answer,

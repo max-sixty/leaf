@@ -609,6 +609,22 @@ def _traffic(page):
     return page.lf_traffic
 
 
+def _painted_line(page):
+    """The key line as the gesture just made left it.
+
+    `paintHere` coalesces to an animation frame, so a read taken straight after the
+    state moves reads the frame before the paint. Consuming the frame is what makes
+    the read once rather than a poll: the line repaints on its own often enough — a
+    version poll, a focus move, news arriving — that an assertion re-asking through
+    `expect` reports whichever later paint the page happened to make, and passes on a
+    gesture that painted nothing at all.
+    """
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    return page.locator(".lf-keyline").inner_text()
+
+
 def _until(page, fact, wanted):
     """Block until `fact` holds of the page's traffic.
 
@@ -18080,6 +18096,62 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     # The newest move, which is the one the reader would have meant — and the older
     # one still stands, where taking back the wrong gesture would have reversed it.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
+    """`.lf-dragging` is half of the `z` liveness the runtime declares, and a pointer
+    drag is a whole gesture rather than a frame: the focus paint lands on the
+    mousedown, `fallbackTolerance` fires the drag's start after it, and on a quiet
+    board nothing repaints between the pick-up and the drop. So unpainted, the line
+    goes on offering `undo` for as long as the reader holds the card, over a press the
+    dispatcher is already refusing. The drop is the same gap read backwards: a card
+    put down where it was picked up takes the class off and returns before #send, so
+    there is no send downstream to paint in its place."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    grip = page.locator("#card-heater .lf-grip")
+    grip.focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    round_trip(page)
+    # The move carries a FLIP, and a box measured across it is a box the card has
+    # already left: the press lands on the grip at that instant and the pointer is
+    # somewhere else by the mousemove after it, so the drag never starts and the
+    # failure arrives as the assertion below timing out on a page nobody dragged.
+    page.wait_for_function(
+        "() => document.getElementById('card-heater').getAnimations().length === 0"
+    )
+    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    sent = _traffic(page).sends
+
+    # The card the keyboard move left the grip focused on, so the mousedown lands on
+    # an already-focused control and fires no focusin — the paint under test is the
+    # only one that could clear the offer. Held inside the column it now has to
+    # itself, so the drop reorders nothing and onEnd returns before #send.
+    box = grip.bounding_box()
+    start = (
+        math.floor(box["x"] + box["width"] / 2),
+        math.floor(box["y"] + box["height"] / 2),
+    )
+    page.mouse.move(*start)
+    page.mouse.down()
+    page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
+    page.wait_for_selector("lf-board.lf-dragging")  # the gesture is live in the page
+    # Read once, on the frame the paint coalesces to, rather than through `expect`:
+    # a poll two seconds out repaints the line whatever this drag did, so an
+    # assertion that re-asks passes on the poll and says nothing about the edge.
+    assert "undo" not in _painted_line(page), (
+        "the line offered a press the dispatcher refuses for the length of a drag"
+    )
+
+    page.mouse.up()
+    assert page.locator("lf-board.lf-dragging").count() == 0
+    assert "undo" in _painted_line(page), (
+        "the drop that sent nothing left the line refusing a press that is live"
+    )
+    assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []
     page.close()

@@ -610,19 +610,18 @@ def _traffic(page):
 
 
 def _painted_line(page):
-    """The key line as the gesture just made left it.
+    """Every row in the gesture's next key-line paint, including rows behind More.
 
-    `paintHere` coalesces to an animation frame, so a read taken straight after the
-    state moves reads the frame before the paint. Consuming the frame is what makes
-    the read once rather than a poll: the line repaints on its own often enough — a
-    version poll, a focus move, news arriving — that an assertion re-asking through
-    `expect` reports whichever later paint the page happened to make, and passes on a
-    gesture that painted nothing at all.
+    Consume the coalesced frame once: polling could pass on an unrelated later paint.
+    Read rows rather than visible text because hidden rows still state liveness.
     """
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
-    return page.locator(".lf-keyline").inner_text()
+    return page.eval_on_selector_all(
+        ".lf-keyline .lf-key",
+        "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",
+    )
 
 
 def _until(page, fact, wanted):
@@ -16380,6 +16379,8 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     # overlap the order exists for and because nothing registers the hover until a mouse
     # has been over a passage. A higher highlight supplies only the properties it states,
     # so this is what lets one mark say "clickable" and "you are here" at once.
+    # Opening the panel moves the document; settle it before reading pointer geometry.
+    panel_settled(page)
     page.mouse.move(*mark_point(page, "lf-mark-here"))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0) > 0")
     ranks = page.evaluate(
@@ -18165,13 +18166,13 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a poll two seconds out repaints the line whatever this drag did, so an
     # assertion that re-asks passes on the poll and says nothing about the edge.
-    assert "undo" not in _painted_line(page), (
+    assert "z undo" not in _painted_line(page), (
         "the line offered a press the dispatcher refuses for the length of a drag"
     )
 
     page.mouse.up()
     assert page.locator("lf-board.lf-dragging").count() == 0
-    assert "undo" in _painted_line(page), (
+    assert "z undo" in _painted_line(page), (
         "the drop that sent nothing left the line refusing a press that is live"
     )
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"

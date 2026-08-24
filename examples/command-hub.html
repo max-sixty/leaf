@@ -9,6 +9,7 @@
       content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main>
@@ -199,21 +200,22 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
       <section id="hub-fleet">
         <h2>The fleet</h2>
         <p id="hub-fleet-intro">
-          Where each session stands, reported by the session itself rather than written
-          down here — the state and the clause after it move between versions, and the
-          line at the right is how long since that session last moved its own row, or
-          since I published the row where one never has. It is the one thing on this
-          page I could not write down and have still be true by the time you read it.
+          Where each session stands. Its current activity appears only while that
+          session's report stands; the state can enter the next version, while the
+          activity leaves when the version answers it. The line at the right is how long
+          since that session last moved its own row, or since I published the row where
+          one never has. It is the one thing on this page I could not write down and
+          have still be true by the time you read it.
           <em>quiet</em> is a session that claimed work and then stopped saying
-          anything, which is the shape a dead worker makes. Select a row and comment on
-          it to address that session; I relay it to whoever holds the row, and the
-          answer comes back in the thread you opened.
+          anything, which is the shape a dead worker makes. Where I still hold the
+          session behind an assigned row, select the row and comment to address that
+          worker; I relay your words and the answer comes back in your thread. Idle and
+          done rows stay as handover history, so comments on them come to me.
         </p>
         <lf-roster id="hub-roster">
           <lf-agent
             id="hub-agent-wren"
             state="working"
-            doing="running the encoding-declaration cases against the 4 GB export"
             on="t-parser-decl"
             branch="atlas-parser"
           >
@@ -222,7 +224,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-finch"
             state="waiting"
-            doing="holding at the schema gate"
             on="t-schema"
             branch="atlas-schema"
           >
@@ -232,7 +233,6 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           <lf-agent
             id="hub-agent-junco"
             state="blocked"
-            doing="stopped for the partially-refunded fixture"
             on="t-ledger-export"
             branch="atlas-ledger"
           >
@@ -374,7 +374,11 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           deciding either way; any landed change there is a revert away for as long as
           you care to look.
         </p>
-        <lf-options id="hub-policy-grant" choose>
+        <lf-options
+          id="hub-policy-grant"
+          choose
+          label="How much may land without your word?"
+        >
           <lf-option id="hub-pg-tiers" chosen
             >Two-tier gates, as stated above</lf-option
           >
@@ -384,13 +388,18 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
       </section>
 
       <section id="hub-settled">
-        <h2>Settled</h2>
+        <h2>Settled: sessions take a branch each and merge in turn</h2>
         <p id="hub-settled-intro">
           Decisions this page has moved past, kept where the argument behind them can be
           reopened. Nothing here is live; reopen one and pick again if you have changed
           your mind.
         </p>
-        <lf-options id="hub-merge-model" choose settled>
+        <lf-options
+          id="hub-merge-model"
+          choose
+          settled
+          label="How do parallel sessions merge?"
+        >
           <lf-option id="hub-mm-serial" chosen>
             <lf-chip tone="ok">no shared branch</lf-chip
             ><lf-chip tone="warn">merges queue behind each other</lf-chip>
@@ -420,6 +429,5 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
         </lf-options>
       </section>
     </main>
-    <script type="module" src="/leaf.js"></script>
   </body>
 </html>

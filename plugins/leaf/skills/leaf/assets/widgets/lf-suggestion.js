@@ -45,6 +45,15 @@
  * both riding along. Hoisted, the row still meets the reader and the tab order
  * beside the change it decides, because it follows that change's own block.
  *
+ * The span was there first because the wrapper generated no box to anchor from, and
+ * it stays now that the wrapper has one. Which form the wrapper takes is a
+ * stylesheet's to say, and a project layer says it again; a span the widget builds
+ * for itself is the one thing it can anchor from whatever a layer decides. Anchoring
+ * off the wrapper reads correctly on the shipped theme and takes the controls off the
+ * page entirely under a layer that makes it `display: contents`, because
+ * `checkVisibility()` is false for an element with no box: every row goes to
+ * `lf-waiting`, and a change nobody can accept is worse than one with no ring.
+ *
  * That margin is the theme's rail, reserved by a page that carries a row at all;
  * measuring is what finds it, not what makes it. Three things are measured, all by
  * one observer serving every suggestion on the page: whether the change is on
@@ -56,6 +65,7 @@
  * a control line under the block it follows; and whether two rows land on top of
  * each other, which a translate nudges apart without touching layout. */
 import {
+  actionStands,
   agentName,
   FOLD_MS,
   motion,
@@ -65,6 +75,7 @@ import {
   quietWord,
   quoted,
   relabel,
+  renderRetired,
   reserve,
   says,
   sendAction,
@@ -84,7 +95,8 @@ const verb = (btn) => (btn.matches(".lf-sug-accept") ? "accept" : "reject");
 // all of them and the pass can ask each whether its change is on screen.
 const rows = new Map();
 let pending = 0;
-let observing = false;
+let observer = null;
+let observedColumn = null;
 let railStated = false; // --rail is measured off the first row and holds for the page
 
 const schedule = () => {
@@ -94,6 +106,18 @@ const schedule = () => {
 
 // What the row hangs off, and so also what it hangs in.
 const column = () => document.querySelector("main") || document.body;
+
+function observeLayout() {
+  const nextColumn = column();
+  if (!observer) {
+    observer = new ResizeObserver(schedule);
+    observer.observe(document.body);
+  }
+  if (observedColumn === nextColumn) return;
+  if (observedColumn) observer.unobserve(observedColumn);
+  observedColumn = nextColumn;
+  observer.observe(observedColumn);
+}
 
 // ---------- word-level emphasis ----------
 // A block replacement asked the reader to eyeball-diff two paragraphs for the words
@@ -157,9 +181,9 @@ function relayout() {
   const measured = [...rows].map(([row, anchor]) => ({
     row,
     rect: row.getBoundingClientRect(),
-    // Whether the change is on screen, asked of the anchor rather than measured:
-    // lf-suggestion has a box of no size (display: contents), and a collapsed
-    // container reports its content's last rendered geometry rather than nothing.
+    // Whether the change is rendered at all, asked rather than measured: the anchor
+    // is an empty span with nothing to measure, and a collapsed container reports its
+    // content's last rendered geometry rather than nothing, so a rect could not say.
     shown: anchor.checkVisibility(),
   }));
   const inMargin = [];
@@ -194,14 +218,18 @@ customElements.define(
       // must be harmless, and the row is no longer in the subtree that moves, so
       // hanging it again is what carries it along (the emphasis ranges ride the
       // text nodes and move with them).
-      if (!once(this)) return this.#hang();
+      if (!once(this)) {
+        this.#hang();
+        if (this.#row) observeLayout();
+        return;
+      }
       // Presentation, not input, so an exhibited pending change gets it too:
       // quoting gates the action channel, never what a change looks like.
       this.#emphasize();
       this.#voice();
-      // Quoted material is exhibited, not offered: a suggestion inside a
-      // <lf-specimen> shows what a pending change looks like, so it keeps the
-      // marks the theme draws and never grows controls to decide it with.
+      // Quoted material is exhibited, not offered: a suggestion inside an
+      // exhibit shows what a pending change looks like, so it keeps the marks
+      // the theme draws and never grows controls to decide it with.
       if (quoted(this)) return;
       // The line the change starts on, named for the row to hang from. Empty, so
       // it takes no space and says nothing; ids match [a-z0-9-] and `version check` keeps
@@ -235,20 +263,21 @@ customElements.define(
           parseFloat(getComputedStyle(this.#row).marginLeft);
         document.documentElement.style.setProperty("--rail", Math.ceil(width) + "px");
       }
-      if (!observing) {
-        observing = true;
-        // The body's box carries the horizontal question (viewport, comment
-        // panel); the column's carries the vertical one, since anything that
-        // moves content down the page changes its height.
-        const observer = new ResizeObserver(schedule);
-        observer.observe(document.body);
-        observer.observe(column());
-      }
+      // The body's box carries the horizontal question (viewport, comment panel);
+      // the current main's carries the vertical one, since anything that moves content
+      // down the page changes its height. A live version replaces that main, so the one
+      // shared observer follows it rather than retaining the detached version.
+      observeLayout();
     }
 
     disconnectedCallback() {
       rows.delete(this.#row);
       this.#row?.remove(); // it is no longer in the subtree that took it before
+      if (!rows.size) {
+        observer?.disconnect();
+        observer = null;
+        observedColumn = null;
+      }
       emphasized.delete(this);
       repaintEmphasis();
       schedule();
@@ -349,10 +378,13 @@ customElements.define(
       // disagreeing with no repair path.
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
-      const sent = sendAction(this, outcome, detail).then((ok) => {
+      const sent = sendAction(this, outcome, detail).then((accepted) => {
         this.#inFlight(null);
-        if (!ok) return false; // unsent means unrecorded, and nothing was painted
-        this.#settle(outcome);
+        if (!accepted) return false; // unsent means unrecorded, and nothing was painted
+        // Usually the accepted state has already replayed this decision. Paint is
+        // still owed if another part of that state failed to render, but not if the
+        // same event list also carried a later undo: authored state then stands.
+        if (actionStands(accepted)) this.#settle(outcome);
         toast(
           `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent to ${agentName()}`,
         );
@@ -385,6 +417,11 @@ customElements.define(
       const change = this.#label();
       const fold = this.#fold(outcome);
       this.dataset.lfState = outcome;
+      // The retired slot's marker is the layer's rendering of that state, and the
+      // theme's one hide rule reads it. The accepted response replays through this
+      // method on the gesture's own tab, so it hides the slot in the frame the
+      // decision lands; the layer then writes the same mark unconditionally.
+      renderRetired(this);
       if (this.#row) {
         // The row stays; what changes is which of the two controls is speaking. A
         // quoted one grew none.
@@ -453,7 +490,7 @@ customElements.define(
         // runs either way. A reader who asked for less motion gets no animation at
         // all (motion returns null), so the hand-back runs at once and the collapse
         // is the frame the decision lands in.
-        played ? played.finished.catch(() => {}).then(done) : done();
+        played ? played.finished.then(done, done) : done();
       };
     }
 
@@ -507,6 +544,19 @@ customElements.define(
         ins: toRanges(newSegs, moved.ins),
       });
       repaintEmphasis();
+    }
+
+    // Which of the three changes this is, for anything naming it away from the page:
+    // a row on the asks tray, the label on a comment anchored here. The slots are the
+    // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
+    // deletes — and it is the reading #voice already speaks on the slots themselves,
+    // said once for the element. A settled suggestion keeps the word it had: the
+    // retired half stays in the markup, and a decision changed the outcome rather than
+    // the kind of thing that was proposed.
+    lfWord() {
+      const cut = this.querySelector(":scope > lf-old");
+      const put = this.querySelector(":scope > lf-new");
+      return cut && put ? "rewrite" : put ? "insertion" : "deletion";
     }
 
     // accept | reject: the outcome is absolute, so replaying the sender's own

@@ -1,9 +1,9 @@
-/* lf-agent: upgraded because a roster row's payload is the half a version cannot
- * write down. `doing` and `state` are the worker's own to move between versions
- * (x-report), and the line saying how old what the row says is — the newer of that
- * worker's last report and the version that published the row — is computed rather
- * than written down, this being the one fact on a hub whose authored form is always a
- * lie, since "12 min ago" is true at publish and wrong every minute after.
+/* lf-agent: upgraded because a roster row has two facts a version cannot write.
+ * `doing` is the standing report's live clause, and the line saying how old what the
+ * row says is computed at runtime from the worker's last report, or from the version's
+ * publish time when no report exists. The version carries the durable
+ * state; answering its report therefore removes the clause rather than restoring an
+ * authored copy of something that was true only between versions.
  *
  * The upgrade only adds — a state pill before whatever the author wrote and a live
  * line after it — and never moves or rewrites an authored node, so an error here
@@ -24,11 +24,12 @@
  * makes, and the alternative — marking it chrome — would put a word on screen that
  * the reader can read and not point at.
  *
- * Rebuilding is idempotent: applyAction states the absolute attribute and the row is
- * built from attributes alone, so a reload, a second tab, and a re-applied report all
- * converge. watchReports re-renders on every poll whether or not the log grew, which
- * is what keeps the elapsed line true without a timer of this module's own. */
-import { ago, offer, once, publishedAt, quietSince, watchReports } from "/leaf.js";
+ * Rebuilding is idempotent: applyAction states the absolute attribute and hands the
+ * report's absolute activity clause to the renderer, so a reload, a second tab, and a
+ * re-applied report all converge. watchReports re-renders on every poll whether or not
+ * the log grew, which is what keeps the elapsed line true without a timer of this
+ * module's own. */
+import { ago, measure, offer, once, quietSince, saidAt, watchReports } from "/leaf.js";
 
 const LINE = "lf-agent-line";
 
@@ -59,22 +60,27 @@ function heard(el, reports) {
   const row = el.querySelector(`:scope > .${LINE}`);
   if (!row) return;
   // What this worker last said, or — where it has never said anything — when the row
-  // claiming it exists was published, which is the longest we can honestly say we have
-  // heard nothing. A fallback and pointedly not the later of the two: the question is
-  // how long the *worker* has been silent, and a republish is the orchestrator
-  // speaking, not them. Taking the newer would let a version published this minute
-  // certify a worker three hours dead, which is the failure this line exists to catch
-  // wearing the fix for its twin.
-  const ts = reports.at(-1)?.ts ?? publishedAt();
+  // claiming it exists was put in front of the reader, which is the longest we can
+  // honestly say we have heard nothing. `saidAt` for that: the version's publish for a
+  // row on the page, and the message's own clock for a roster an agent sent in a reply,
+  // where the page's publish would have the row certifying workers against a moment
+  // before its own message existed.
+  //
+  // A fallback and pointedly not the later of the two: the question is how long the
+  // *worker* has been silent, and a republish is the orchestrator speaking, not them.
+  // Taking the newer would let a version published this minute certify a worker three
+  // hours dead, which is the failure this line exists to catch wearing the fix for its
+  // twin.
+  const ts = reports.at(-1)?.ts ?? saidAt(el);
   const stale = ts && el.getAttribute("state") === "working" && quietSince(ts);
   // In place, and only where the words actually differ. This runs on every poll for
   // every row on the page, and the row is a thing the reader is invited to select and
   // point at: a span removed and rebuilt every two seconds takes the selection whose
   // endpoint was in it, drops focus off the reference beside it, and swallows a click
   // that straddles the swap — the failure "Paint; don't wrap" is about, arrived at by
-  // rebuilding rather than by wrapping. So structure is rebuilt only when an attribute
-  // moves (render, from applyAction), and the clock touches one text node when the
-  // minute turns.
+  // rebuilding rather than by wrapping. So structure is rebuilt only when a report
+  // moves the row (render, from applyAction), and the clock touches one text node when
+  // the minute turns.
   say(row, "lf-cold", stale ? "quiet" : null, "lf-heard");
   say(row, "lf-heard", ts ? `last heard ${ago(ts)}` : null);
 }
@@ -137,16 +143,15 @@ function gutter(el) {
   if (wide) roster.style.setProperty("--lf-state-room", `${Math.ceil(wide)}px`);
 }
 
-/* Everything the row says that comes out of its own attributes. Run at the upgrade and
- * again whenever one of them moves, which is the only time any of it can change — never
- * on a poll that brought nothing for this row. */
-function render(el) {
+/* The durable row fields, plus a standing report's transient activity. Run at the
+ * upgrade and again whenever a report moves this row — never on a poll that brought
+ * nothing for it. */
+function render(el, doing = null) {
   stateWord(el);
   el.querySelector(`:scope > .${LINE}[data-lf-gen]`)?.remove();
   const row = document.createElement("div");
   row.className = LINE;
   row.dataset.lfGen = "1"; // generated, not authored — the version diff skips it
-  const doing = el.getAttribute("doing");
   if (doing) row.append(word("lf-doing", doing));
   const branch = el.getAttribute("branch");
   if (branch) row.append(word("lf-branch", branch));
@@ -164,7 +169,9 @@ function render(el) {
   // it is the last one to know: every row measures after its own render, so the column
   // is right once the last row has rendered and right again whenever a report changes
   // one of the words in it.
-  gutter(el);
+  // Off the pills' own boxes, so it waits for one (`measure`): a roster quoted
+  // into a reply is built into the comment panel, which may not be open yet.
+  measure(el, () => gutter(el));
 }
 
 customElements.define(
@@ -181,7 +188,7 @@ customElements.define(
     }
 
     applyAction(action, detail) {
-      // Absolute: the two attributes are the whole of what a report moves, so
+      // Absolute: the recorded state and transient clause are the whole report, so
       // re-applying one is a no-op and a second tab converges on the same row. One verb
       // carries both because the fold holds one entry per unit — a second verb on this
       // widget would take the same key and drop the first from every view derived from
@@ -190,8 +197,7 @@ customElements.define(
       // after it applies.
       if (action !== "state") return;
       this.setAttribute("state", detail.state);
-      this.setAttribute("doing", detail.doing);
-      render(this);
+      render(this, detail.doing);
     }
   },
 );

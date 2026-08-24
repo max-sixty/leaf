@@ -19,9 +19,10 @@ customElements.define(
   "lf-tabs",
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
+    #diffEvents = null;
 
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) return this.#listenForDiff();
       // Own panels only (a nested lf-tabs wires its own).
       const panels = [...this.querySelectorAll(":scope > lf-tab")];
       if (!panels.length) return;
@@ -91,7 +92,20 @@ customElements.define(
       const saved = tabStore.get(TAB_KEY + this.id);
       this.#activate(panels.find((p) => p.id === saved) || panels[0], false);
       // Δ badges follow the version diff; the runtime announces each toggle.
-      document.addEventListener("lf-diff", () => this.#badges());
+      this.#listenForDiff();
+    }
+
+    disconnectedCallback() {
+      this.#diffEvents?.abort();
+      this.#diffEvents = null;
+    }
+
+    #listenForDiff() {
+      if (!this.#buttons.size || this.#diffEvents) return;
+      this.#diffEvents = new AbortController();
+      document.addEventListener("lf-comparison", () => this.#badges(), {
+        signal: this.#diffEvents.signal,
+      });
     }
 
     #activate(active, remember) {

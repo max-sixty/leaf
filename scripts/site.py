@@ -94,15 +94,15 @@ BUNDLED_THEME = re.compile(
 # it named and the link check below is what notices.
 PAYLOAD_SOURCE = ("../plugins/", f"{REPO}/blob/main/plugins/")
 # An example is a page directory here, so its link is the directory rather than a file:
-# examples/triage-board/ , where the index below sends a reader on to the version the
-# server would have redirected them to.
+# examples/triage-board/ , where the index below sends a reader on to the version file.
+# A live server can keep the root address because it injects the exact projected-version
+# marker into that response; this static host has no changing root response to mark.
 EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
 
-# What `server run` answers "/" with is a redirect to the latest version, and a static
-# host has no redirect to give — so the directory's index is one. It is what lets a
-# reader's URL be the page (examples/triage-board/) rather than a file inside it, which
-# is the address they will copy to somebody. Both routes, because a 0-second meta refresh
-# leaves a history entry on some engines and the back button then bounces forward off it.
+# The static showcase has one version and no server response that can stamp a live root
+# with the version it projected, so the directory's index forwards to the immutable file.
+# Both routes are present because a 0-second meta refresh leaves a history entry on some
+# engines and the back button then bounces forward off it.
 REDIRECT = """<!doctype html>
 <html lang="en">
   <head>

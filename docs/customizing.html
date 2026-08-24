@@ -111,8 +111,8 @@
   --serif: "Iowan Old Style", Georgia, serif;
 }
 
-lf-options {
-  gap: var(--sp-2);
+lf-chip {
+  border-radius: var(--r);
 }</code></pre>
         <p>
           A rule that draws an inset — padding, a border, a tinted field — says
@@ -131,6 +131,42 @@ lf-options {
   padding: var(--sp-3);
   background: var(--field);
   --lf-frame: 1;
+}</code></pre>
+        <p>
+          An answerable <code>lf-options</code> group is cells sharing hairlines rather
+          than boxes standing apart, so the line between two cells is the whole of what
+          separates them, and each cell holds its own words off the frame. A
+          <code>gap</code> or a margin added between them is a second way to say what
+          the line already says, and what it draws is a rule floating in a band of
+          nothing. Tune what a cell holds — its inset, its fill, its type — rather than
+          the room between cells.
+        </p>
+        <p>
+          Three facts a rule cannot read off the element in front of it are declared in
+          the registry instead, and the runtime paints each onto the page where a
+          selector reaches it. <code>data-lf-exhibit</code> marks quoted material — an
+          element whose entry declares <code>x-exhibit</code> — and
+          <code>data-lf-inline</code> marks a widget set among the words around it; both
+          travel wherever the widget renders, a reply included.
+          <code>data-lf-wide</code> holds the width kind an <code>x-wide</code> entry
+          declared, and only in the document, the room it hands out being the
+          document's. Which medium reads which differs: an exported copy still lays a
+          wide widget out and still asks whether a change's slots hold blocks, while the
+          rules answering <code>data-lf-exhibit</code> are the live page's alone — a
+          copy can take no pick, so it is handed no offer to withhold in the first
+          place.
+        </p>
+        <p>
+          The rules that draw a shipped question as something to answer read the first,
+          so a group quoted inside an exhibit is drawn as one that was never offered.
+          Anything your own layer draws as pressable stands down there by asking the
+          same thing — for a widget you have given a module to, since a hand over
+          something that answers nothing is the lie these rules exist to prevent. A
+          widget from any layer joins that answer by declaring, which is the part a tag
+          name in the selector could never do.
+        </p>
+        <pre><code>lf-callout:not(:where([data-lf-exhibit]) *) {
+  cursor: pointer;
 }</code></pre>
         <p>
           Type is three tokens. <code>--serif</code> sets what the page says,
@@ -201,16 +237,13 @@ lf-options {
                 the reader — a question with no pick, a change nobody has decided, a
                 piece of work the page says is waiting on them. One declaration is the
                 whole of it. The banner's count, the <code>n</code>/<code>p</code> walk
-                that steps them, and the <code>?</code> overlay's row are three readings
-                of one list, so nothing counts asks by naming a tag and the twelfth
-                widget joins by declaring rather than by being taught to three
-                consumers. Quoted material asks nothing — an exhibited decision is a
-                mention (x-exhibit). A widget inside a thread asks like one on the page
-                — a question is a request to the reader wherever it stands, and the walk
-                opens the panel to reach it — with one bound set by what a thread is:
-                its markup is frozen, so no version can answer there, and only a widget
-                with an action channel (x-state) asks in a thread at all. Its fields —
-                <code>when</code>, <code>until</code>, <code>all</code> — are $awaits'.
+                that steps them, the <code>?</code> overlay's row, and conditional
+                x-state actions are readings of one projection, so nothing names a tag
+                and the twelfth widget joins by declaring. Quoted material asks nothing.
+                A widget inside a thread asks like one on the page, with one bound set
+                by frozen thread markup: only an action can answer it there. Its fields
+                — <code>when</code>, <code>answers</code>, <code>rollup</code>,
+                <code>until</code>, <code>all</code> — are $awaits'.
               </td>
             </tr>
             <tr>
@@ -251,7 +284,8 @@ lf-options {
                 not a use: interactive widgets inside take no input (a choose group no
                 clicks, a board no drags, a suggestion no decision), and an ask inside
                 it counts for nothing. A module asks <code>quoted(el)</code> before
-                wiring any input.
+                wiring any input, and the theme's affordance rules — the hand, the lift,
+                the joined shape — stand down inside it on their own.
               </td>
             </tr>
             <tr>
@@ -314,15 +348,16 @@ lf-options {
                 What x-report declares, once per widget with an agent channel: report
                 verbs a worker folds onto the page through <code>leaf report</code>,
                 each with a detail schema (the payload half of the log's
-                forever-contract, exactly as x-state's), a fold unit, and a required
-                record form drawn from $state's vocabulary minus <code>body</code> — a
-                report moves declared state only, never the page's words, which is what
-                keeps the passage reading untouched by it. The runtime paints a standing
-                report live (data-lf-reported) with precedence opposite to a reviewer's
-                action: an action outranks every later version until
-                <code>restated</code> retracts it; a report is provisional news,
-                standing only until a version answers it. How a version answers a
-                standing report is $report's.
+                forever-contract, exactly as x-state's), a semantic facet, a fold unit,
+                and a required record form drawn from $state's vocabulary minus
+                <code>body</code>. The owning widget instance, unit, and facet together
+                name one independently standing fact; verbs on the same tag and facet
+                share their unit and record form, and an action outranks a report at
+                that coordinate. A report moves declared state only, never the page's
+                words, which is what keeps the passage reading untouched by it. The
+                runtime paints a standing report live (data-lf-reported); it is
+                provisional news, standing only until a version answers it. How a
+                version answers a standing report is $report's.
               </td>
             </tr>
             <tr>
@@ -330,21 +365,34 @@ lf-options {
               <td>
                 On a slot: the holder's action outcome that takes this element off the
                 page (a suggestion's <code>lf-old</code> under <code>accept</code>).
-                Requires x-parent. The holder's module writes
-                data-lf-state="&lt;outcome&gt;" on itself as it settles, which is how
-                the page knows the slot has gone; the file's reading takes the same fact
-                from the log, and <code>version check</code> licenses dropping the
-                slot's ids on it.
+                Requires x-parent. Every outcome named by one holder's slots belongs to
+                the same facet, so only one settlement can stand. The layer renders the
+                settlement whole, following the log's standing state both ways —
+                reconciliation paints data-lf-state="&lt;outcome&gt;" on the holder and
+                data-lf-retired on the slots that outcome retires, takes both off when a
+                later widget-unit verb on that facet displaces the decision in the fold,
+                and one theme rule hides the marked slots — so no module owes any of it,
+                though one may paint the same sooner as its own gesture (renderRetired).
+                The file's reading takes the fact from the log, and
+                <code>version check</code> licenses dropping the slot's ids on it;
+                <code>version check --render</code> reports a settled slot still showing
+                words, or a mark the log never decided.
               </td>
             </tr>
             <tr>
               <td><code>x-says</code></td>
               <td>
-                Attributes whose values the reader sees as words, and the edge each
-                renders at (<code>before</code> or <code>after</code> the element's own
-                content). The runtime writes them as selectable text the user can quote
-                and comment on, where <code>content: attr()</code> would paint glyphs
-                into no text node.
+                Attributes whose values the reader sees as words, and where each
+                renders. <code>after</code> goes inside the element's own content, ahead
+                of the apparatus that ends it, so a word does not land on the far side
+                of a control that closes the row. <code>before</code> goes at the
+                element's start, ahead of chrome as well: leading chrome is not
+                something the words stand beside, it is a module speaking for the whole
+                element, so an element's opening words go above it; where an entry
+                declares two at that edge they render in the order the entry lists them.
+                The runtime writes them as selectable text the user can quote and
+                comment on, where <code>content: attr()</code> would paint glyphs into
+                no text node.
               </td>
             </tr>
             <tr>
@@ -361,19 +409,35 @@ lf-options {
               <td>
                 What x-state declares, once per widget with an action channel: each
                 verb's detail schema (the payload half of the log's forever-contract),
-                its fold unit, and the record form its state takes in markup. Every
-                applyAction is absolute, so the user's standing state is a fold — the
-                last surviving action per unit — and one declaration drives the POST and
-                re-vendor contract gates, <code>version check</code>'s state gate (a
-                version whose markup actively contradicts the fold without
-                <code>restated</code> is refused; writing the folded state is honoring;
-                re-emitting the previous version's state is blessed silence), the
-                record-lag report, the runtime's decided-but-unhonored mark, and the
-                version diff's state half. One detail field name is reserved across
+                its semantic facet, fold unit, optional current-state
+                <code>requires</code>, and the record form its state takes in markup.
+                The owning widget instance, unit, and facet together name one
+                independently standing fact: verbs on the same tag and facet share their
+                unit and record form, competing verbs there supersede one another, and
+                distinct facets coexist. Every applyAction is absolute, so the user's
+                standing state is the last surviving action per coordinate, and one
+                declaration drives the POST and re-vendor contract gates,
+                <code>version check</code>'s state gate (a version whose markup actively
+                contradicts the fold without <code>restated</code> is refused; writing
+                the folded state is honoring; re-emitting the previous version's state
+                is blessed silence), the record-lag report, the runtime's
+                decided-but-unhonored mark, and the version diff's state half. The
+                browser uses <code>requires</code> for its controls and common send
+                door; POST interprets the same prerequisite against the authoritative
+                fold under the append lock. One detail field name is reserved across
                 every verb: <code>resolves</code> means the comment thread this action
-                answers (settling it settles the thread), thread settlement reads it on
-                any action, and the lint holds a verb declaring the name to a plain
-                string. The unit and record forms are $state's.
+                answers, thread settlement reads it on any action, and the lint holds a
+                verb declaring the name to a plain string on a widget-absolute unit — a
+                thread is answered by the ask, and an ask is a widget instance
+                ($awaits). Because thread history can outlive its markup, every action
+                verb on a resolves-bearing tag shares one answer facet. A report verb
+                spelling the name is refused outright: settlement reads actions, so the
+                field there would declare an answer nothing gives. What settles the
+                thread is the widget's standing answer rather than the fact an answer
+                was once given, so an answer that a later action at that coordinate
+                supersedes, or that a <code>restated</code> takes back, leaves the
+                thread open again. The facet, unit, requires, and record forms are
+                $state's.
               </td>
             </tr>
             <tr>
@@ -425,9 +489,11 @@ lf-options {
                 drawn, so a word the layer writes into it would stand beside the drawing
                 rather than over it, and the registry refuses the pair. Nothing is
                 authored for it and no page asks: the theme grows the element out of the
-                column into whichever margins are free, and a margin holding something
-                of the page's — a change's controls, a sidenote — gives nothing, so the
-                exhibit that grows is never drawn over the apparatus beside it.
+                column into whichever margins are free. A margin holding something of
+                the page's gives nothing where it holds it, and only there: an exhibit
+                level with a note in the left margin drops below it and then takes the
+                whole width, while one no note reaches keeps its place and grows both
+                ways.
               </td>
             </tr>
             <tr>
@@ -439,6 +505,22 @@ lf-options {
                 what lets that version drop the ids inside the slots the outcome
                 retires. Hedged, because there the author asserts a state the user never
                 gave: only whole, and never while a thread is anchored in it.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-word</code></td>
+              <td>
+                What x-word declares: this tag's own word for what it is comes from its
+                module, which answers <code>lfWord()</code> on the element, rather than
+                from the tag's name. Almost no widget declares it, and none needs to
+                while one tag is one kind of thing: a name away from the page is then
+                the tag with its prefix dropped. It is wrong where a tag holds several
+                kinds. Every shape of lf-suggestion came out as "suggestion", so a row
+                on the asks tray named a deletion by the words it proposed to remove and
+                read exactly like the insertion above it. The word is asked for wherever
+                the page names an element away from itself — a tray row, a comment's
+                anchor label — and an element that has not upgraded yet, or answers
+                nothing, falls back to the tag.
               </td>
             </tr>
             <!-- /$keys -->

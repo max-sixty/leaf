@@ -63,9 +63,9 @@
  * whether or not a digit is in it, which is the theme's half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise "toggle the nth" with
- * focus on a link inside one. An armed `g` leader keeps its own digits without this module
- * asking: the leader's scope suspends every scope inside it, where each widget used to
- * have to remember the question.
+ * focus on a link inside one. An armed `g` chord keeps its own digits without this module
+ * asking: its scopes suspend every scope inside them, where each widget used to have to
+ * remember the question.
  *
  * `settled` retires the decision once it has been made and acted on: the group collapses
  * to one line naming the chosen option, with every option — the chosen one included —
@@ -80,7 +80,7 @@
  * once opened — settling is a sweep, not a lock, and the summary line follows whatever is
  * chosen, including back to a bare "Settled" when the reader clears it.
  *
- * Inside a <lf-specimen> the group is quoted — exhibited, not offered — so it takes the
+ * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
  * same path as a group that never declared `choose`: the mark is a span, the click
  * handler is never wired, there is no box for words, and an example decision can't be
  * answered. `settled` still collapses there, because quoting gates the action channel and
@@ -89,10 +89,12 @@
  * Authored content is never replaced, so there is no failSoft. */
 import {
   HIDDEN,
+  actionStands,
   agentName,
   conversationBox,
   inChrome,
   keys,
+  measure,
   offer,
   once,
   PRESS,
@@ -132,8 +134,11 @@ const SECTION = "In a question's options";
 customElements.define(
   "lf-options",
   class extends HTMLElement {
+    #diffEvents = null;
+    #diffable = false;
+
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) return this.#listenForDiff();
       // An authored `chosen` (the honoring version carrying an earlier pick) wears the
       // same mark a live pick wears, so honoring doesn't change the look — but worded as
       // the document's state, not attributed to this reader.
@@ -149,7 +154,9 @@ customElements.define(
       // document's state, as a span.
       for (const option of this.#options())
         if (choosable || this.#authored.has(option.id)) this.#mark(option, choosable);
-      this.#holdWordRoom();
+      // Off the mark's own box, so it waits for one: this group may be a question
+      // an agent asked in a reply, and the panel that holds it opens later.
+      measure(this, () => this.#holdWordRoom());
       if (choosable) {
         this.#conversation = conversationBox(this, "Say something");
         if (this.#conversation) this.append(this.#conversation);
@@ -201,9 +208,6 @@ customElements.define(
         sendAction(this, "choose", { options: [...next].map((o) => o.id) }).then(
           (ok) => {
             if (ok) toast(`${said} — sent to ${agentName()}`);
-            // Unsent means unrecorded: rewind rather than show a pick Claude will never
-            // see. (post already toasted the failure.)
-            else this.#pick(was);
           },
         );
       });
@@ -212,6 +216,7 @@ customElements.define(
     #authored = new Set(); // ids the document arrived carrying, so a mark words itself honestly
     #conversation = null; // the inline thread, hidden with the settled options
     #done = null; // the thread multi-question's submit; null everywhere else
+    #answering = null; // the answer in flight, so a second press joins it
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
@@ -228,24 +233,51 @@ customElements.define(
     // The one statement a live channel can't derive: the set is whole. One press,
     // one `answer` action, and the ask this group stands as is discharged
     // (x-awaits.until). One-way — a later toggle still reaches the agent, so there
-    // is nothing to take back — and its state is paint on the press, so the
-    // pressed control's own line holds still.
+    // is nothing to take back — and the answer is paint rather than a fold, so
+    // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer("button", "lf-btn lf-done", "Done");
       this.#done.setAttribute("aria-label", "Done: my picks here are complete");
       this.#done.setAttribute("aria-pressed", "false");
-      this.#done.onclick = () =>
-        sendAction(this, "answer", {}).then((ok) => {
-          if (!ok) return;
-          this.#answered(true);
-          toast(`Marked answered — sent to ${agentName()}`);
-        });
+      this.#done.onclick = () => this.#answer();
       this.append(this.#done);
     }
 
+    // The press is answered at once and the answer waits for the log, which is the
+    // rule a decision follows (CLAUDE.md): nothing here has moved yet, so there is
+    // nothing to un-show, and what the reader is owed meanwhile is that the press
+    // landed. `aria-busy` says exactly that, and the promise beside it is what makes
+    // the sentence above true — one press, one `answer` action, however many times
+    // the button is hit while the first is still in the wire.
+    #answer() {
+      if (this.#answering) return this.#answering;
+      const sent = sendAction(this, "answer", {}).then((accepted) => {
+        this.#sending(null);
+        if (!accepted) return false; // unsent means unrecorded, and nothing was painted
+        // Usually replay has painted the accepted answer already. Repeat the absolute
+        // paint for a partial render, but never over a same-read undo of this action.
+        if (actionStands(accepted)) this.#answered(true);
+        toast(`Marked answered — sent to ${agentName()}`);
+        return true;
+      });
+      this.#sending(sent);
+      return sent;
+    }
+
+    // One fact said twice, and said here so the two cannot come apart: the field
+    // refuses the second press, and the attribute is what the layer paints and a
+    // screen reader holds its announcements through. On the button rather than the
+    // group, because the button's own state is the one in flight — the options are
+    // still the reader's to work.
+    #sending(answer) {
+      this.#answering = answer;
+      if (answer) this.#done.setAttribute("aria-busy", "true");
+      else this.#done.removeAttribute("aria-busy");
+    }
+
     // Absolute: answered is the whole statement, so replaying this tab's own press
-    // is the same call again. Said once, on the press: the log holds the answer and
-    // the pressed state is what the page shows for it (see the header).
+    // is the same call again. Replay paints it when the log takes the answer: the log
+    // holds it, and the pressed state is what the page shows for it (see the header).
     #answered(on) {
       this.#done?.setAttribute("aria-pressed", String(on));
       document.dispatchEvent(new CustomEvent("lf-answered"));
@@ -254,8 +286,8 @@ customElements.define(
     // The keyboard path past Tab-and-⏎: from a mark, ↑/↓ walk the options and a
     // digit picks outright. Declared on the mark, so a digit typed in the box for
     // words stays text and a nested group's marks stay its own, and an armed g
-    // leader keeps its own digits without this module asking — the chord's scope
-    // suspends every scope inside it. Each option shows its digit only while a mark
+    // chord keeps its own digits without this module asking — its scopes suspend
+    // every scope inside them. Each option shows its digit only while a mark
     // holds keyboard focus (the theme's :focus-visible rule), so the address
     // appears exactly when a key could use it.
     #keys() {
@@ -290,8 +322,8 @@ customElements.define(
           {
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
-            // are the markup's and do not change under the reader — where the leader's
-            // digits count open threads, which resolve as they are answered.
+            // are the markup's and do not change under the reader — where the chord's
+            // comment digits count open threads, which resolve as they are answered.
             keys: addresses,
             label: addresses.length > 1 ? `1–${addresses.length}` : "1",
             does: "Toggle the nth option",
@@ -454,7 +486,18 @@ customElements.define(
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
       this.#row.onclick = () => this.#open(!this.#isOpen, true);
-      this.prepend(this.#row);
+      // At the start of the group's own content, which is not the same as the start of
+      // the group: the question is the page speaking and leads the disclosure that
+      // summarises its answer. Which of the two is written first depends on where the
+      // group stands — on the page this upgrade runs before the x-says pass and there is
+      // no question here yet, while in a message the panel renders the words into a
+      // detached body before any element connects — so each puts itself after the
+      // other's and the order comes out the same either way. Prepending outright made a
+      // settled group in a thread state what it settled above what it asked.
+      const first = [...this.childNodes].find(
+        (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
+      );
+      this.insertBefore(this.#row, first ?? null);
       for (const option of options) {
         // The browser found something inside (find-in-page, an anchor jump), or the
         // runtime is about to scroll a comment anchor into view: open up.
@@ -465,7 +508,21 @@ customElements.define(
       this.#retitle();
       this.#open(tabStore.get(SETTLED_KEY + this.id) === "1", false);
       // Δ badges follow the version diff; the runtime announces each toggle.
-      document.addEventListener("lf-diff", () => this.#delta());
+      this.#diffable = true;
+      this.#listenForDiff();
+    }
+
+    disconnectedCallback() {
+      this.#diffEvents?.abort();
+      this.#diffEvents = null;
+    }
+
+    #listenForDiff() {
+      if (!this.#diffable || this.#diffEvents) return;
+      this.#diffEvents = new AbortController();
+      document.addEventListener("lf-comparison", () => this.#delta(), {
+        signal: this.#diffEvents.signal,
+      });
     }
 
     #open(open, remember) {

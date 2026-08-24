@@ -140,7 +140,7 @@ diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042
       </section>
 
       <section id="walkthrough">
-        <h2>Why the prefixes matter</h2>
+        <h2>Prefixes keep token and address buckets disjoint</h2>
         <lf-code id="key-walk" language="python" hi="3-4">
           <pre>
 def bucket_key(self, request):

@@ -1,6 +1,6 @@
 {
   "lf-suggestion": {
-    "description": "One proposed change to content the user has already seen, decided in place. lf-old holds the current markup verbatim, lf-new the proposal: both slots replace, lf-new alone inserts, lf-old alone deletes. A widget-state change has no separate patch shape: put the complete old and new widget markup in those slots when one is genuinely needed. Pending, the old reads struck and the new tinted, with accept/reject controls in the page margin; deciding folds the retired half away and reaches the agent as an `accept` or `reject` action for the next version to carry. The control the reader pressed stays where it stood and says what it did (“✓ Accepted”), so the margin holds a record of what they took. Settlement is final on that version — that record is not an undo mark; a mistaken decision is corrected by a comment or the next version. `resolves` names the comment whose thread this change answers — accepting resolves that thread too. Suggestions don't nest, and a reply can't carry one (reply markup is frozen in the log, so no version could settle it). Fresh content — a new section, the first version — is written straight instead, and a block the user is to write in their own words is a lf-draft: theirs to rewrite, not the agent's to propose. The user can also just comment on a pending suggestion rather than decide it. An undecided one can also be taken back: a later version drops the wrapper and everything inside lf-new with it, since withdrawing it leaves the page where a reject would (x-withdrawn-as). It can't keep the proposal as settled prose, and it can't drop what lf-old wraps — losing that is the user's own accept to give. An undecided one is a standing ask (see $awaits) — counted in the banner, stepped to by `n`/`p`, and the one kind a single press answers wholesale, which is the banner's ✓ Accept all.",
+    "description": "One proposed change to content the user has already seen, decided in place. lf-old holds the current markup verbatim, lf-new the proposal: both slots replace, lf-new alone inserts, lf-old alone deletes. A widget-state change has no separate patch shape: put the complete old and new widget markup in those slots when one is genuinely needed. Pending, the old reads struck and the new tinted, with accept/reject controls in the page margin; deciding folds the retired half away and reaches the agent as an `accept` or `reject` action for the next version to carry. The control the reader pressed stays where it stood and says what it did (“✓ Accepted”), so the margin holds a record of what they took. A decision they did not mean is taken back with `z` like any other gesture: the log holds the accept and a word withdrawing it, and the change comes back pending — the runtime rebuilds it from the markup this version wrote, there being no value “undecided” for any verb to state. `resolves` names the comment whose thread this change answers — accepting resolves that thread too. Suggestions don't nest, and a reply can't carry one (reply markup is frozen in the log, so no version could settle it). Fresh content — a new section, the first version — is written straight instead, and a block the user is to write in their own words is a lf-draft: theirs to rewrite, not the agent's to propose. The user can also just comment on a pending suggestion rather than decide it. An undecided one can also be taken back: a later version drops the wrapper and everything inside lf-new with it, since withdrawing it leaves the page where a reject would (x-withdrawn-as). It can't keep the proposal as settled prose, and it can't drop what lf-old wraps — losing that is the user's own accept to give. An undecided one is a standing ask (see $awaits) — counted in the banner, stepped to by `n`/`p`, and the one kind a single press answers wholesale, which is the banner's ✓ Accept all.",
     "type": "object",
     "properties": {
       "id":       {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -10,16 +10,20 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "items",
+    "x-inline": true,
     "x-upgrade": true,
-    "x-awaits": {"all": "accept"},
+    "x-awaits": {"answers": ["accept", "reject"], "all": "accept"},
     "x-withdrawn-as": "reject",
+    "x-word": "module",
     "x-state": {
       "accept": {
         "detail": {"type": "object", "properties": {"resolves": {"type": "string"}}, "additionalProperties": false},
+        "facet": "settlement",
         "unit": "widget"
       },
       "reject": {
         "detail": {"type": "object", "additionalProperties": false},
+        "facet": "settlement",
         "unit": "widget"
       }
     },
@@ -64,47 +68,258 @@
     }
   },
   "$events": {
-    "description": "The vocabulary stamp: the event kinds this layer's runtime and CLI read, and the fields each carries beyond id/ts/author/kind/seq. Vendored with the page, it is the one statement of what that page's runtime speaks. `page init` refuses to re-vendor over a log recorded in kinds or verbs (x-state, per widget) the incoming layer no longer speaks, because those events would never replay again.",
+    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement.",
     "kinds": {
-      "comment": ["version", "text", "anchor", "suggestion", "about", "agent", "session", "markup", "attempt"],
-      "reply": ["parent", "version", "text", "agent", "session", "markup", "attempt"],
-      "resolve": ["parent", "agent", "session"],
-      "unresolve": ["parent"],
-      "done": ["version", "text"],
-      "action": ["widget", "action", "detail", "version", "attempt"],
-      "report": ["widget", "action", "detail", "version", "agent", "session"],
-      "note": ["version", "text", "restated", "reports", "agent", "session"],
-      "error": ["version", "text"]
+      "comment": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "comment"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "anchor": {
+              "type": "object",
+              "properties": {
+                "section": {"type": ["string", "null"]},
+                "quote": {"type": "string"},
+                "datum": {"type": "string", "minLength": 1},
+                "prefix": {"type": "string"},
+                "suffix": {"type": "string"},
+                "part": {"type": "string"}
+              },
+              "anyOf": [
+                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
+                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
+                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
+              ],
+              "dependentRequired": {"datum": ["section"]},
+              "additionalProperties": false
+            },
+            "suggestion": {"type": "boolean"},
+            "about": {"const": "layer"},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1},
+            "markup": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "additionalProperties": false
+        },
+        "browser": {
+          "required": ["kind", "version", "text"],
+          "not": {"required": ["markup"]}
+        }
+      },
+      "reply": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "reply"},
+            "seq": {"type": "integer", "minimum": 1},
+            "parent": {"type": "string", "minLength": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1},
+            "markup": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "parent", "text"],
+          "additionalProperties": false
+        },
+        "browser": {
+          "required": ["kind", "parent", "version", "text"],
+          "not": {"required": ["markup"]}
+        }
+      },
+      "resolve": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "resolve"},
+            "seq": {"type": "integer", "minimum": 1},
+            "parent": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "parent"]}
+      },
+      "unresolve": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "unresolve"},
+            "seq": {"type": "integer", "minimum": 1},
+            "parent": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "parent"]}
+      },
+      "done": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "done"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "version", "text"]}
+      },
+      "action": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "action"},
+            "seq": {"type": "integer", "minimum": 1},
+            "widget": {"type": "string", "minLength": 1},
+            "action": {"type": "string", "minLength": 1},
+            "detail": {"type": "object"},
+            "version": {"type": "integer", "minimum": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "version"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "widget", "action", "detail", "version"]}
+      },
+      "undo": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "undo"},
+            "seq": {"type": "integer", "minimum": 1},
+            "undoes": {"type": "string", "minLength": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "undoes"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "undoes"]}
+      },
+      "report": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "report"},
+            "seq": {"type": "integer", "minimum": 1},
+            "widget": {"type": "string", "minLength": 1},
+            "action": {"type": "string", "minLength": 1},
+            "detail": {"type": "object"},
+            "version": {"type": "integer", "minimum": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "version"],
+          "additionalProperties": false
+        }
+      },
+      "note": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "note"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1},
+            "restated": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "reports": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "additionalProperties": false
+        }
+      },
+      "error": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"type": "string", "minLength": 1},
+            "kind": {"const": "error"},
+            "seq": {"type": "integer", "minimum": 1},
+            "version": {"type": "integer", "minimum": 1},
+            "text": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "text"],
+          "additionalProperties": false
+        },
+        "browser": {"required": ["kind", "text"]}
+      }
     }
   },
   "$keys": {
     "description": "What each x- key an entry may declare means, one member per key. The keys are the layer's and the lint closes the set, so a layer overriding a member here documents its own reading of that key and declares no new one; a member for a key the lint doesn't admit, or a key with no member, refuses the registry. `page catalog` prints this beside the entries, and the site's table of keys is generated from it, so an author, the lint and the documentation read one thing.",
-    "x-awaits": "What x-awaits declares: an instance of this tag is a standing request to the reader — a question with no pick, a change nobody has decided, a piece of work the page says is waiting on them. One declaration is the whole of it. The banner's count, the `n`/`p` walk that steps them, and the `?` overlay's row are three readings of one list, so nothing counts asks by naming a tag and the twelfth widget joins by declaring rather than by being taught to three consumers. Quoted material asks nothing — an exhibited decision is a mention (x-exhibit). A widget inside a thread asks like one on the page — a question is a request to the reader wherever it stands, and the walk opens the panel to reach it — with one bound set by what a thread is: its markup is frozen, so no version can answer there, and only a widget with an action channel (x-state) asks in a thread at all. Its fields — `when`, `until`, `all` — are $awaits'.",
+    "x-awaits": "What x-awaits declares: an instance of this tag is a standing request to the reader — a question with no pick, a change nobody has decided, a piece of work the page says is waiting on them. One declaration is the whole of it. The banner's count, the `n`/`p` walk that steps them, the `?` overlay's row, and conditional x-state actions are readings of one projection, so nothing names a tag and the twelfth widget joins by declaring. Quoted material asks nothing. A widget inside a thread asks like one on the page, with one bound set by frozen thread markup: only an action can answer it there. Its fields — `when`, `answers`, `rollup`, `until`, `all` — are $awaits'.",
     "x-conversation": "The module places a conversationBox in each page instance matching `when`. It projects exact-section threads textually from the whole log; Comments keeps the complete view and is the only place interactive reply markup renders. Both views share the reply draft. Thread markup and quoted material take no second view. Dropping the widget drops only the inline view.",
     "x-content": "The content model: `prose` (children are the author's markup), `items` (children are this widget's own item elements and nothing else), `data` (one <pre> holding text in the notation the description names, < > escaped — <pre> because it is the only thing in HTML that says whitespace is load-bearing without a stylesheet to read), or `none`. Required.",
     "x-example": "Authored markup exhibiting the widget, valid against the merged registry: `page catalog` shows it, it is what an agent writes from, and the lint refuses one that does not validate.",
-    "x-exhibit": "The element quotes what it holds rather than speaking it — a mention, not a use: interactive widgets inside take no input (a choose group no clicks, a board no drags, a suggestion no decision), and an ask inside it counts for nothing. A module asks `quoted(el)` before wiring any input.",
+    "x-exhibit": "The element quotes what it holds rather than speaking it — a mention, not a use: interactive widgets inside take no input (a choose group no clicks, a board no drags, a suggestion no decision), and an ask inside it counts for nothing. A module asks `quoted(el)` before wiring any input, and the theme's affordance rules — the hand, the lift, the joined shape — stand down inside it on their own.",
     "x-inline": "The element is set among the words around it, so the render gate holds its box to no width of its own and the rule that a block widget stands in a block slot passes over it.",
     "x-language": "The attribute that names a code language, held to `$languages.names` — the one list this page colors from — so a second tag taking a language costs a declaration and no new reader.",
     "x-lines": "Attributes holding 1-based line references into the nearest data body — the element's own <pre>, or its holder's (a note's `at` names a line of its code block) — which `version check` refuses outside the body.",
     "x-paints": "Attributes the theme renders as paint alone — a status marker's tint, an event's kind, the ring on the recommended option. The runtime speaks each to a reader listening (the value, or a flag attribute's own name), silently on screen and out of every selection, so a fact stated in ink is not silent to whoever cannot see it.",
     "x-parent": "The widgets an instance may be a direct child of — an item's holder — and, read the other way, what a container is made of: a gesture a container takes on its whole box stops at what it holds, and this is where it reads which children are its own rather than things it merely contains.",
     "x-refers": "Attributes whose values name another element on the page (an option's `for`), which `version check` holds to an id the version carries and the runtime renders as a reference the reader can follow.",
-    "x-report": "What x-report declares, once per widget with an agent channel: report verbs a worker folds onto the page through `leaf report`, each with a detail schema (the payload half of the log's forever-contract, exactly as x-state's), a fold unit, and a required record form drawn from $state's vocabulary minus `body` — a report moves declared state only, never the page's words, which is what keeps the passage reading untouched by it. The runtime paints a standing report live (data-lf-reported) with precedence opposite to a reviewer's action: an action outranks every later version until `restated` retracts it; a report is provisional news, standing only until a version answers it. How a version answers a standing report is $report's.",
-    "x-retired-when": "On a slot: the holder's action outcome that takes this element off the page (a suggestion's `lf-old` under `accept`). Requires x-parent. The holder's module writes data-lf-state=\"<outcome>\" on itself as it settles, which is how the page knows the slot has gone; the file's reading takes the same fact from the log, and `version check` licenses dropping the slot's ids on it.",
-    "x-says": "Attributes whose values the reader sees as words, and the edge each renders at (`before` or `after` the element's own content). The runtime writes them as selectable text the user can quote and comment on, where `content: attr()` would paint glyphs into no text node.",
+    "x-report": "What x-report declares, once per widget with an agent channel: report verbs a worker folds onto the page through `leaf report`, each with a detail schema (the payload half of the log's forever-contract, exactly as x-state's), a semantic facet, a fold unit, and a required record form drawn from $state's vocabulary minus `body`. The owning widget instance, unit, and facet together name one independently standing fact; verbs on the same tag and facet share their unit and record form, and an action outranks a report at that coordinate. A report moves declared state only, never the page's words, which is what keeps the passage reading untouched by it. The runtime paints a standing report live (data-lf-reported); it is provisional news, standing only until a version answers it. How a version answers a standing report is $report's.",
+    "x-retired-when": "On a slot: the holder's action outcome that takes this element off the page (a suggestion's `lf-old` under `accept`). Requires x-parent. Every outcome named by one holder's slots belongs to the same facet, so only one settlement can stand. The layer renders the settlement whole, following the log's standing state both ways — reconciliation paints data-lf-state=\"<outcome>\" on the holder and data-lf-retired on the slots that outcome retires, takes both off when a later widget-unit verb on that facet displaces the decision in the fold, and one theme rule hides the marked slots — so no module owes any of it, though one may paint the same sooner as its own gesture (renderRetired). The file's reading takes the fact from the log, and `version check` licenses dropping the slot's ids on it; `version check --render` reports a settled slot still showing words, or a mark the log never decided.",
+    "x-says": "Attributes whose values the reader sees as words, and where each renders. `after` goes inside the element's own content, ahead of the apparatus that ends it, so a word does not land on the far side of a control that closes the row. `before` goes at the element's start, ahead of chrome as well: leading chrome is not something the words stand beside, it is a module speaking for the whole element, so an element's opening words go above it; where an entry declares two at that edge they render in the order the entry lists them. The runtime writes them as selectable text the user can quote and comment on, where `content: attr()` would paint glyphs into no text node.",
     "x-shadow": "The module renders the page's words into an open shadow tree, which the passage walk, the selection capture and every question asked by id cross; a shadow root on a host whose entry lacks it is a render-gate finding.",
-    "x-state": "What x-state declares, once per widget with an action channel: each verb's detail schema (the payload half of the log's forever-contract), its fold unit, and the record form its state takes in markup. Every applyAction is absolute, so the user's standing state is a fold — the last surviving action per unit — and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), the record-lag report, the runtime's decided-but-unhonored mark, and the version diff's state half. One detail field name is reserved across every verb: `resolves` means the comment thread this action answers (settling it settles the thread), thread settlement reads it on any action, and the lint holds a verb declaring the name to a plain string. The unit and record forms are $state's.",
+    "x-state": "What x-state declares, once per widget with an action channel: each verb's detail schema (the payload half of the log's forever-contract), its semantic facet, fold unit, optional current-state `requires`, and the record form its state takes in markup. The owning widget instance, unit, and facet together name one independently standing fact: verbs on the same tag and facet share their unit and record form, competing verbs there supersede one another, and distinct facets coexist. Every applyAction is absolute, so the user's standing state is the last surviving action per coordinate, and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), the record-lag report, the runtime's decided-but-unhonored mark, and the version diff's state half. The browser uses `requires` for its controls and common send door; POST interprets the same prerequisite against the authoritative fold under the append lock. One detail field name is reserved across every verb: `resolves` means the comment thread this action answers, thread settlement reads it on any action, and the lint holds a verb declaring the name to a plain string on a widget-absolute unit — a thread is answered by the ask, and an ask is a widget instance ($awaits). Because thread history can outlive its markup, every action verb on a resolves-bearing tag shares one answer facet. A report verb spelling the name is refused outright: settlement reads actions, so the field there would declare an answer nothing gives. What settles the thread is the widget's standing answer rather than the fact an answer was once given, so an answer that a later action at that coordinate supersedes, or that a `restated` takes back, leaves the thread open again. The facet, unit, requires, and record forms are $state's.",
     "x-tone": "The attribute that names one of the layer's semantic tints, held to `$tones.names`, which the theme has a rule for.",
     "x-upgrade": "A module at widgets/<tag>.js enhances the element in the browser. `page init` refuses a layer declaring it with no module beside it, and the render gate a module that defines no element. Required.",
     "x-verbatim": "An upgraded element whose body reaches the reader as its own words — the module leaves it in place — which is what makes it quotable; a body without it is source the widget renders (a diagram's notation). The render gate refuses an x-verbatim whose rendered words differ from the file's.",
     "x-visual": "The rendered element takes a whole-widget comment by click, there being no text in it to select, and the click's anchor is the widget rather than a generated part inside it.",
-    "x-wide": "The width model, for evidence set to its content rather than to the measure prose is read at: `box` (the widget lays its content out into whatever width it is given, a board's columns, so it stands at the one width the whole vocabulary shares) or `drawing` (the widget renders one thing drawn at a size of its own, a diagram's graph, so its box is the clip around it — the room the page has, with the drawing as near the column's axis as the claimed margins allow, and scrolling where even the room is short). A drawing declares no `x-says`: that box is laid out as a row holding what was drawn, so a word the layer writes into it would stand beside the drawing rather than over it, and the registry refuses the pair. Nothing is authored for it and no page asks: the theme grows the element out of the column into whichever margins are free, and a margin holding something of the page's — a change's controls, a sidenote — gives nothing, so the exhibit that grows is never drawn over the apparatus beside it.",
-    "x-withdrawn-as": "On a holder with retirable slots: the outcome an undecided instance stands as when a later version takes it back unanswered — a withdrawn suggestion leaves the page where a `reject` would — which is what lets that version drop the ids inside the slots the outcome retires. Hedged, because there the author asserts a state the user never gave: only whole, and never while a thread is anchored in it."
+    "x-wide": "The width model, for evidence set to its content rather than to the measure prose is read at: `box` (the widget lays its content out into whatever width it is given, a board's columns, so it stands at the one width the whole vocabulary shares) or `drawing` (the widget renders one thing drawn at a size of its own, a diagram's graph, so its box is the clip around it — the room the page has, with the drawing as near the column's axis as the claimed margins allow, and scrolling where even the room is short). A drawing declares no `x-says`: that box is laid out as a row holding what was drawn, so a word the layer writes into it would stand beside the drawing rather than over it, and the registry refuses the pair. Nothing is authored for it and no page asks: the theme grows the element out of the column into whichever margins are free. A margin holding something of the page's gives nothing where it holds it, and only there: an exhibit level with a note in the left margin drops below it and then takes the whole width, while one no note reaches keeps its place and grows both ways.",
+    "x-withdrawn-as": "On a holder with retirable slots: the outcome an undecided instance stands as when a later version takes it back unanswered — a withdrawn suggestion leaves the page where a `reject` would — which is what lets that version drop the ids inside the slots the outcome retires. Hedged, because there the author asserts a state the user never gave: only whole, and never while a thread is anchored in it.",
+    "x-word": "What x-word declares: this tag's own word for what it is comes from its module, which answers `lfWord()` on the element, rather than from the tag's name. Almost no widget declares it, and none needs to while one tag is one kind of thing: a name away from the page is then the tag with its prefix dropped. It is wrong where a tag holds several kinds. Every shape of lf-suggestion came out as \"suggestion\", so a row on the asks tray named a deletion by the words it proposed to remove and read exactly like the insertion above it. The word is asked for wherever the page names an element away from itself — a tray row, a comment's anchor label — and an element that has not upgraded yet, or answers nothing, falls back to the tag."
   },
   "$state": {
+    "facet": "A stable HTML-name identifying one independently standing fact within this tag. Together with the owning widget instance and unit it is the fold coordinate. Verbs on the same facet share one unit and an identical record form (or are all recordless); facet names are semantic and local to the tag, not a closed vocabulary.",
     "unit": "\"widget\" for a verb absolute across the group (choose toggles every sibling), or the detail field naming the element the verb is absolute per (move's \"card\").",
-    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value} — the enclosing `within` element, compared at that granularity (indexes compose across cards, so column is the whole comparison); {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. A verb with no record (accept/reject) folds for the runtime's pending mark, and retirement stays retirable_ids' business."
+    "requires": "An optional prerequisite over the standing-request projection x-awaits already defines. `target` is `self` or the widget's declared `parent`; `awaiting` says whether that request must still be open. `change: \"increase\"` applies the prerequisite only when this absolute unsigned value record would rise, so the same action may still lower it. A module calls `actionAvailable(widget, verb, detail)` to paint and guard the exact gesture; `sendAction` and POST repeat the declaration, with POST reading the authoritative log under the append lock. Omit it for an action available in every state.",
+    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value, order} — the enclosing `within` element, compared at that granularity (indexes compose across cards, so column is the whole comparison) while `order` names the integer detail field counting the unit's siblings, which is what a reader stating a placement rather than comparing one needs; {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. Within one tag and unit, body and position are each one physical slot; value slots are keyed by their host attr, and attribute-set slots by their descendant attr. Distinct facets cannot claim the same slot. A record is also how a gesture is taken back cheaply: the runtime reads the version's authored state through it before replay touches the page, so `z` can state what stood before the first action at a coordinate and the page moves rather than being rebuilt. A verb with no record (accept/reject) folds for the runtime's pending mark and is taken back the other way — the widget rebuilt from the version's own markup, since “undecided” is a value no verb carries — and retirement stays retirable_ids' business."
   },
   "$report": {
     "answering": "Explicit, by id. `version publish` names on the note (`reports`) every standing report the version answered: one whose recorded state the markup writes is absorbed, and one on an element marked `overruled` is overruled — the why belongs in the note's text. Replay stops a named report at that version. Silence — markup unchanged — is blessed and names nothing, so the report keeps painting. `version check` refuses the third thing, markup that contradicts a standing report it never names, and refuses an `overruled` with nothing to overrule, exactly as the reviewer gate polices `restated`.",
@@ -113,13 +328,14 @@
   },
   "$awaits": {
     "when": "The attribute condition that makes an instance an ask: each attribute mapped to the values of it that ask, a flag attribute's values being true and false. A group takes picks only with `choose` and stops asking once it is `settled`; a task waits only at `review` or `blocked`. An entry with no `when` asks on every instance, which is what a pending suggestion is.",
-    "answered": "Never bookkeeping of its own — it is the state the widget already declares. Where a verb records its state as an attribute (x-state, record kind \"attribute\"), the page carries the answer itself, which is what lets a version that honors a pick read as answered with no log at all and a pick the reader cleared read as open again. Every other verb answers through its own surviving fold entry, the log being the only record there is — whether it records nothing, accept and reject retiring the wrapper so no markup could hold them, or records where no attribute read could reach it, as a draft's edit writes the body. A widget with no action channel can therefore only be answered by the next version, which is exactly what a task in `review` is waiting for.",
+    "answers": "The x-state verbs that answer this request. Naming them is what keeps orthogonal actions — for example postponing a deadline — from accidentally closing the ask. An attribute record reads through authored markup as well as the fold, so a version that honors a pick remains answered and a cleared pick asks again; every other named verb answers through its own standing action. With no answer verbs, the request ends when its condition changes or its roll-up resolves.",
+    "rollup": "True when this request is a nested plan projection. A false `when` stops; matching direct ordinary x-awaits interventions take precedence and wait if any remains unanswered; without interventions, direct roll-up children recurse; a matching leaf waits. The visible ask is the deepest open member, while action eligibility may query any ancestor's exact projected value. This is structural and open-vocabulary: descendants join by x-awaits, never by tag.",
     "until": "The verb that closes a thread ask a record can't: an instance matching `until.when` stays asking, whatever its record state, until the reader has posted `until.verb` on it. It exists for the set-valued question — a `multiple` group's toggles each reach the agent live, so only the reader can say the set is whole, and the widget renders the press that says it (lf-options' Done). Consulted only in the comment layer: on the page the record answers as ever, versions can honor and retire, and no submit stands between a pick and the agent.",
     "all": "The verb a blanket yes takes, where one press can answer every ask of this kind at once: the banner carries one control per declared verb (`✓ Accept all (3)`) and the `A` key presses every one of them, and the widget exposes a method of that name answering one instance, so the log records each decision separately rather than one blanket consent. Leave it off and the ask is answered where the reader is, one at a time."
   },
   "$restated": {
     "description": "A boolean attribute saying this version has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
-    "why": "A move, pick, edit or accept is recorded in the log against the version it was made on, and the page replays every recorded action onto every later version. A decision therefore survives a republish on its own — you never carry one into the next version's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
+    "why": "A move, pick, edit or accept is recorded in the log against the version it was made on, and the page reconciles every standing action onto every later version. A decision therefore survives a republish on its own — you never carry one into the next version's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
     "when": "Only where a later version has to change what the user decided about: an error you found in a draft they rewrote, a picked option whose prose was wrong. Write the new words, mark that element, and say why in the note — to the user this reads as a decision undone, and the note is where a version explains itself. `version check` refuses a version that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
     "once": "It belongs to the one version that does the rewriting. Publishing records the retraction in the log, so it holds for good — later versions leave the attribute off, and `version check` refuses one that repeats it.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
@@ -147,7 +363,7 @@
       "example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
     },
     "aside.sidenote": {
-      "description": "A note in the page's left margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the reader is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `version check --render` refuses the version rather than letting it ship. Where the page's box has no room for the strip — a narrow window, or the comment panel taking its side of a middling one — and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. These are the page's own words, so the reader can select, quote and comment on one. A stable id lets Alt-click point at the whole note. The margin holds about thirty characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
+      "description": "A note in the page's right margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the reader is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `version check --render` refuses the version rather than letting it ship. Where the page's box has no room for the strip — a narrow window, or the comment panel taking its side of a middling one — and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. A suggestion's accept and reject controls hang in the same margin, level with the change they decide, and are drawn over a note that stands level with them: write the note a paragraph clear of a change if its first line has to be read. These are the page's own words, so the reader can select, quote and comment on one. A stable id lets Alt-click point at the whole note. The margin holds about fifty-six characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
       "example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
     },
     ".facts": {

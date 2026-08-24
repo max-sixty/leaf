@@ -15,6 +15,7 @@ besides. The docs pages are read as files, which is how a checkout reads them.
 """
 
 import importlib.util
+import json
 import re
 import shutil
 import threading
@@ -128,9 +129,14 @@ def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     a static host reports none of it."""
     for name in ("theme.css", "registry.json", "icon.svg", "runtime.js", "leaf.js"):
         assert (site / name).is_file(), f"the site root has no {name}"
-    assert (site / "runtime.js").read_text() == (ASSETS / "leaf.js").read_text(), (
-        "the runtime the site serves is not the shipped file"
-    )
+    generation = json.loads((site / "registry.json").read_text())["$layer"][
+        "generation"
+    ]
+    source = (ASSETS / "leaf.js").read_text()
+    assert source.count('"__LEAF_LAYER_GENERATION__"') == 1
+    assert (site / "runtime.js").read_text() == source.replace(
+        '"__LEAF_LAYER_GENERATION__"', json.dumps(generation)
+    ), "the runtime the site serves is not the shipped file"
     for sub in ("widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in pages_under(EXAMPLES):
@@ -324,6 +330,16 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
         )
         # Painted, not merely resolved: the mark is what puts the reader at the passage.
         assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
+        # And the question Claude asks in that thread is a widget, which reaches
+        # this page the one way a static host can carry one: docs/session.js puts
+        # the log in the reader's own tab, so nothing here upgraded it from a
+        # served log. A reader can answer it where they are standing.
+        ask = page.locator("#off-slip")
+        expect(ask).to_be_visible()
+        assert ask.locator("[data-lf-offer]").count() > 0, (
+            "the group renders on the site with nothing to press, so the ask "
+            "is a picture of one"
+        )
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -336,6 +352,10 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
     reader's words in a box that ate them."""
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
+        # What the page opens with, since an example that ships a log opens with
+        # threads already counted. The claim here is that the reader's own comment
+        # adds one, which is a claim about the gesture rather than about the corpus.
+        opened_with = page.locator(".lf-panel .lf-thread").count()
         box = page.locator("#decision-lede").bounding_box()
         select(
             page,
@@ -347,10 +367,18 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         page.locator(".lf-composer textarea").fill("Does this cover key rotation?")
         page.locator(".lf-composer .lf-btn.primary").click()
 
-        thread = page.locator(".lf-panel .lf-thread").first
+        # The thread holding the words just written, rather than whichever is first:
+        # an example that ships a log opens with threads already in the panel, and
+        # theirs would be first. design-decision ships none today, so `.first` was
+        # right by accident and would stop being on the day it does.
+        thread = page.locator(
+            ".lf-panel .lf-thread", has_text="Does this cover key rotation?"
+        )
         expect(thread).to_contain_text("Does this cover key rotation?")
         expect(thread.locator("blockquote")).to_contain_text("session state homeless")
-        expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+        expect(page.locator(".lf-comments")).to_have_text(
+            f"Comments ({opened_with + 1})"
+        )
         # The demo answers once, in its own name, and says what the page can't do.
         expect(thread).to_contain_text("This is the demo answering, not an agent")
         assert not errors, errors[:3]

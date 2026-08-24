@@ -30,7 +30,6 @@ import {
   langForPath,
   movedWords,
   once,
-  paintKeys,
   settle,
   shadowStage,
   synNodes,
@@ -399,7 +398,6 @@ function fileNode(file, colored) {
       line: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
-  details.addEventListener("toggle", paintKeys);
 
   const pre = document.createElement("pre");
   // A line longer than the measure scrolls inside this box, and a region only a

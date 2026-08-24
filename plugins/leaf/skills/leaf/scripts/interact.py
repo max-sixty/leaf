@@ -9233,7 +9233,43 @@ UNREACHABLE_WORDS = """() => {
 # width of. A spill is reported once, at the outermost element that has it,
 # because everything inside one inherits its box and would name the same fault a
 # dozen times over.
-MISPLACED_BOXES = """async () => {
+# What stands in the page's margin by its own declaration — placed absolutely, or
+# floated clear of the column — as one reading shared by the two passes that ask:
+# MISPLACED_BOXES, deciding whether a wide widget was drawn over one, and
+# WITHHELD_ROOM, deciding whether an exhibit's sideways scroll answers to a margin's
+# occupant or to room the layer withheld. A resident is whatever answered for itself
+# out there, so a project hanging its own furniture in the margin is covered without
+# declaring anything to either pass. Spliced after `main`, `left` and `right` are in
+# scope, the way OPEN_ROOTS is spliced where `roots` is wanted.
+MARGIN_RESIDENTS = """
+    // `float` computes to whichever of the four values was written, so the two
+    // logical ones are resolved against the element's own direction rather than
+    // compared as strings: `inline-start` is the left edge in a LTR page and the
+    // right edge in a RTL one, and a side read wrong reports a note that is exactly
+    // where it belongs.
+    const floatSide = (s) =>
+        s.float === 'left' || s.float === 'right' ? s.float
+        : (s.float === 'inline-start') === (s.direction !== 'rtl') ? 'left' : 'right';
+    const inTheMargin = (el, s) => {
+        if (s.float === 'none') return false;
+        const b = el.getBoundingClientRect();
+        return floatSide(s) === 'left' ? b.right <= left + 1 : b.left >= right - 1;
+    };
+    const residents = [];
+    for (const el of main.querySelectorAll('*')) {
+        if (!el.checkVisibility() || el.hasAttribute('data-lf-wide')) continue;
+        const s = getComputedStyle(el), b = el.getBoundingClientRect();
+        // Clipped to nothing is not standing in the margin: the words a page paints for
+        // whoever is listening are a pixel wide and under a reader's notice, so a widget
+        // drawn across one has taken nothing from anybody.
+        if (b.width < 2) continue;
+        const clear = b.right <= left + 1 || b.left >= right - 1;
+        if (clear && (s.position === 'absolute' || inTheMargin(el, s))) residents.push(el);
+    }
+"""
+
+MISPLACED_BOXES = (
+    """async () => {
     // shownBand is the runtime's own: what a container lets the reader see of what it
     // holds, or nothing where it shows all of it. Imported rather than restated, so the
     // band a handover is refused against and the band the page paints to cannot come
@@ -9259,19 +9295,9 @@ MISPLACED_BOXES = """async () => {
     const roomLeft = bodyBox.left + parseFloat(bodyStyle.paddingLeft);
     const roomRight = bodyBox.right - parseFloat(bodyStyle.paddingRight);
     const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
-    // `float` computes to whichever of the four values was written, so the two
-    // logical ones are resolved against the element's own direction rather than
-    // compared as strings: `inline-start` is the left edge in a LTR page and the
-    // right edge in a RTL one, and a side read wrong reports a note that is exactly
-    // where it belongs.
-    const floatSide = (s) =>
-        s.float === 'left' || s.float === 'right' ? s.float
-        : (s.float === 'inline-start') === (s.direction !== 'rtl') ? 'left' : 'right';
-    const inTheMargin = (el, s) => {
-        if (s.float === 'none') return false;
-        const b = el.getBoundingClientRect();
-        return floatSide(s) === 'left' ? b.right <= left + 1 : b.left >= right - 1;
-    };
+"""
+    + MARGIN_RESIDENTS
+    + """
     // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
     // container that clips without saying so in `overflow` is named for a spill it is
     // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
@@ -9370,19 +9396,9 @@ MISPLACED_BOXES = """async () => {
     // The theme is where a margin's claimant gives up that side (--lf-grow-l, --lf-grow-r),
     // and this is what says so when one of them doesn't — the same bargain the framing
     // rule above has, and the reason neither has to be a list anybody maintains. A
-    // resident is whatever answered for itself in the margin above, so a project hanging
-    // its own furniture out there is covered without declaring anything to this pass.
-    const residents = [];
-    for (const el of main.querySelectorAll('*')) {
-        if (!el.checkVisibility() || el.hasAttribute('data-lf-wide')) continue;
-        const s = getComputedStyle(el), b = el.getBoundingClientRect();
-        // Clipped to nothing is not standing in the margin: the words a page paints for
-        // whoever is listening are a pixel wide and under a reader's notice, so a widget
-        // drawn across one has taken nothing from anybody.
-        if (b.width < 2) continue;
-        const clear = b.right <= left + 1 || b.left >= right - 1;
-        if (clear && (s.position === 'absolute' || inTheMargin(el, s))) residents.push(el);
-    }
+    // resident is whatever answered for itself in the margin above (MARGIN_RESIDENTS),
+    // so a project hanging its own furniture out there is covered without declaring
+    // anything to this pass.
     for (const el of main.querySelectorAll('[data-lf-wide]')) {
         if (!el.checkVisibility()) continue;
         const b = el.getBoundingClientRect();
@@ -9481,6 +9497,55 @@ MISPLACED_BOXES = """async () => {
     }
     return [...new Set(found)];
 }"""
+)
+
+
+# A drawing scrolling beside room that would have shown it whole. Scrolling is the
+# theme's honest degrade when even the room runs short, so every reading above calls
+# such a page well — nothing is clipped without a scrollbar, nothing stands outside any
+# box — and that is exactly how both margin claims went wrong before: a claim spent
+# page-wide held a diagram to the column with the margin beside it empty, a diagram in
+# the room's terms merely "scrolling". So the question is the visible result, asked
+# without trusting the mechanisms that decide it (`clear` for a note, data-lf-yield for
+# a suggestion's rail): a drawing that scrolls, inside room that would have held it,
+# with nothing standing in the margin at its own band, is room withheld from the one
+# widget whose width is its own fact. Drawings alone, because "would the room have held
+# it" needs the exhibit's own width, which a box (a board laying columns into whatever
+# it is given) does not state. A drawing inside a frame reads the frame's withheld room
+# (--lf-room: 0) and is excused the way it is granted — by the declaration it inherits.
+WITHHELD_ROOM = (
+    """() => {
+    const main = document.querySelector('main');
+    if (!main) return [];
+    const style = getComputedStyle(main), box = main.getBoundingClientRect();
+    const left = box.left + parseFloat(style.paddingLeft);
+    const right = box.right - parseFloat(style.paddingRight);
+    const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
+"""
+    + MARGIN_RESIDENTS
+    + """
+    const found = [];
+    for (const el of main.querySelectorAll('[data-lf-wide="drawing"]')) {
+        if (!el.checkVisibility()) continue;
+        const short = el.scrollWidth - el.clientWidth;
+        if (short <= 1) continue;
+        const room = parseFloat(getComputedStyle(el).getPropertyValue('--lf-room'));
+        if (!(room > 0) || el.scrollWidth > room + 1) continue;
+        const b = el.getBoundingClientRect();
+        // A resident at the drawing's own band is the margin spoken for, whichever
+        // side it stands on: the exhibit owes it the side it holds, and what is left
+        // can genuinely run short.
+        if (residents.some(r => {
+            const c = r.getBoundingClientRect();
+            return c.top < b.bottom - 1 && c.bottom > b.top + 1;
+        })) continue;
+        found.push(`${at(el)} scrolls ${short}px of a drawing sideways inside `
+            + `${Math.round(room)}px of room that would have held its ${el.scrollWidth}px `
+            + `whole, with nothing standing in the margin beside it`);
+    }
+    return found;
+}"""
+)
 
 
 # A version whose markup asserts a state the log replays over — `chosen` moved
@@ -10252,6 +10317,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the ask walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
+    a drawing scrolling beside an empty margin the page had room in,
     words the user can read and can't select, words drawn on top of other words, code
     coloured in an ink the reader cannot tell from the code around it — each
     in both color schemes, because the dark theme is real CSS nobody otherwise
@@ -10429,6 +10495,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             "document.body.scrollWidth - document.body.clientWidth"
         )
         misplaced = page.evaluate(MISPLACED_BOXES)
+        withheld = page.evaluate(WITHHELD_ROOM)
         clipped = page.evaluate(CLIPPED_CONTROLS)
         unreachable = page.evaluate(UNREACHABLE_WORDS)
         covered = page.evaluate(COVERED_WORDS)
@@ -10610,6 +10677,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
         if overflow > 0:
             found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
         found += [f"[{scheme}] {s}" for s in misplaced]
+        found += [f"[{scheme}] {w}" for w in withheld]
         found += [
             f"[{scheme}] the control .{c['ctrl'].split()[0]}"
             + (f" (#{c['id']})" if c["id"] else "")

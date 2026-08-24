@@ -171,6 +171,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   inline: "data-lf-inline",
   wide: "data-lf-wide",
   exhibit: "data-lf-exhibit",
+  yield: "data-lf-yield",
 });
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 

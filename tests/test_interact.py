@@ -345,6 +345,47 @@ def test_a_correction_is_written_straight_rather_than_offered_as_a_choice():
     assert "wording the reader could reasonably prefer as it stands" in revisions
 
 
+def test_the_page_is_named_by_its_findings_and_collapsed_around_them():
+    """What a page costs to review is stated where it is composed and checked
+    where it is handed over.
+
+    A version can pass every gate and still be unreadable: the finding three
+    paragraphs down, the section called "What we learned", the transcript that
+    supports it standing open in the column. Neither the markup check nor the
+    render gate can see any of that — both answer whether a page renders, not
+    whether it is worth the reading — so this is prose or it is nothing.
+
+    Two places, because they answer at different moments. "Reading cost" is what
+    an author reads while deciding what goes on the page. The pre-handover review
+    is the last point it can still change, and a heading that withholds its own
+    finding is invisible to whoever just wrote it and plain to anyone who reads
+    the headings alone. Pinned in one place only, the rule would be stated and
+    never asked after."""
+    root = PLUGIN_ROOT / "skills" / "leaf"
+    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
+    start = authoring.index("## Reading cost")
+    cost = authoring[start : authoring.index("## Interactivity", start)]
+
+    assert "what the reader has to take from the page" in cost
+    assert "its backing goes under `<details>`" in cost
+    assert "A section that reaches a finding says it in the heading" in cost
+    # The other half of the same rule. Without it the sentence above reads as a
+    # demand that every section name be a claim, which turns an honest label over
+    # a list or a control into a sentence; with it alone, every label is excused.
+    assert "where there is no finding to state" in cost
+    # The one thing a reading-cost rule must never license. A collapsed ask still
+    # counts in the banner and the asks tray, and `checkVisibility()` is false
+    # inside a closed disclosure, so no gate refuses the page whose decision is
+    # behind a click.
+    assert "An ask never collapses" in cost
+
+    review = authoring[authoring.index("## Pre-handover review") :]
+    assert "Take the headings on their own first" in review
+
+    contract = " ".join((root / "SKILL.md").read_text().split())
+    assert "its backing sits under `<details>`" in contract
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(interact.cli, ["hook"], input="{}")
 

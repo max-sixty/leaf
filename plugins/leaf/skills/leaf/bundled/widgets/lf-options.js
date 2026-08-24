@@ -80,7 +80,7 @@
  * once opened — settling is a sweep, not a lock, and the summary line follows whatever is
  * chosen, including back to a bare "Settled" when the reader clears it.
  *
- * Inside a <lf-specimen> the group is quoted — exhibited, not offered — so it takes the
+ * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
  * same path as a group that never declared `choose`: the mark is a span, the click
  * handler is never wired, there is no box for words, and an example decision can't be
  * answered. `settled` still collapses there, because quoting gates the action channel and
@@ -94,6 +94,7 @@ import {
   conversationBox,
   inChrome,
   keys,
+  measure,
   offer,
   once,
   PRESS,
@@ -153,7 +154,9 @@ customElements.define(
       // document's state, as a span.
       for (const option of this.#options())
         if (choosable || this.#authored.has(option.id)) this.#mark(option, choosable);
-      this.#holdWordRoom();
+      // Off the mark's own box, so it waits for one: this group may be a question
+      // an agent asked in a reply, and the panel that holds it opens later.
+      measure(this, () => this.#holdWordRoom());
       if (choosable) {
         this.#conversation = conversationBox(this, "Say something");
         if (this.#conversation) this.append(this.#conversation);
@@ -483,7 +486,18 @@ customElements.define(
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
       this.#row.onclick = () => this.#open(!this.#isOpen, true);
-      this.prepend(this.#row);
+      // At the start of the group's own content, which is not the same as the start of
+      // the group: the question is the page speaking and leads the disclosure that
+      // summarises its answer. Which of the two is written first depends on where the
+      // group stands — on the page this upgrade runs before the x-says pass and there is
+      // no question here yet, while in a message the panel renders the words into a
+      // detached body before any element connects — so each puts itself after the
+      // other's and the order comes out the same either way. Prepending outright made a
+      // settled group in a thread state what it settled above what it asked.
+      const first = [...this.childNodes].find(
+        (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
+      );
+      this.insertBefore(this.#row, first ?? null);
       for (const option of options) {
         // The browser found something inside (find-in-page, an anchor jump), or the
         // runtime is about to scroll a comment anchor into view: open up.
@@ -506,7 +520,7 @@ customElements.define(
     #listenForDiff() {
       if (!this.#diffable || this.#diffEvents) return;
       this.#diffEvents = new AbortController();
-      document.addEventListener("lf-diff", () => this.#delta(), {
+      document.addEventListener("lf-comparison", () => this.#delta(), {
         signal: this.#diffEvents.signal,
       });
     }

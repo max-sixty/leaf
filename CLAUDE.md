@@ -129,7 +129,13 @@ and JavaScript derive those answers from the same registry declarations.
 
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
-log markup and take the whole conversation window. Version notes provide durable
+log markup and take the whole conversation window. That markup is a second
+document beside the version, with an element universe of its own: every reading
+that must answer for a widget an agent sent — the action gate at the door, and
+`page state` for a session picking the page up — builds it through
+`thread_state`, so a decision made in the panel cannot stand at one and be
+missing at the other. A fragment gets no stylesheet of its own; it has no page
+to dress. Version notes provide durable
 retraction and report-absorption floors: the version after the note does not need
 to repeat them. A pinned page may therefore show its historical widget state
 while the comment panel shows a later retraction; each reading is answering its
@@ -232,7 +238,9 @@ Declarations describe general behavior:
 
 - `x-upgrade` says that a module enhances the element.
 - `x-awaits` says the element can hold a request for the reader. It feeds the
-  banner count, asks board, keyboard walk, and help.
+  banner count, asks tray, keyboard walk, help, and conditional actions. Its
+  answer verbs are explicit; `rollup` derives a nested plan from ordinary
+  interventions and child roll-ups without naming either family.
 - `x-parent` declares the members that make up a holder. Combined with
   `x-retired-when`, it defines which slots a settlement retires.
 - `x-withdrawn-as` states what an unanswered member becomes when the author
@@ -279,11 +287,15 @@ by member. A tag entry replaces whole because it is one indivisible schema
 contract. `merge_layer_entries` supplies the same merged result to the stamp and
 all gates.
 
-An action's detail schema, semantic facet, fold unit, and record form come from
-`x-state`; reports use the parallel `x-report` channel. `applyAction` states an
-absolute result and is idempotent because polling may apply a standing winner
-again. `version check --render` exercises represented verbs in log order through
-`RELATIVE_REPLAYS`.
+An action's detail schema, semantic facet, fold unit, current-state eligibility,
+and record form come from `x-state`; reports use the parallel `x-report` channel.
+The browser presents and guards a conditional action from that declaration, while
+POST interprets it again against the authoritative fold under the append lock.
+Eligibility reuses the standing-request projection declared by `x-awaits`; it has
+no separate cache or widget-state vocabulary.
+`applyAction` states an absolute result and is idempotent because polling may apply
+a standing winner again. `version check --render` exercises represented verbs in
+log order through `RELATIVE_REPLAYS`.
 
 `shallowSigs` reads authored state without text, while a record form extracts the
 declared words and placement fields. The render gate reapplies every standing
@@ -330,6 +342,14 @@ handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
   run `page init` again after changing the layer. A served page uses the quiescent
   stop, init, start sequence so the old contract releases its socket and lease
   before the new epoch appears at the same recorded URL.
+- Look at a composed page after changing the runtime, the theme, or the registry:
+  `/ui-sweep`. Green is not the same as looked at. The suite and the render gate
+  hold the invariants somebody has already stated, and a widget's spacing against
+  its own frame was not one of them — a `choose` group's question shipped set into
+  the frame an address column left of its own answers, on a corpus page, read in
+  both palettes on every nightly run and toured by `gallery.html`, and stayed for
+  three days. Nothing was missing from the corpus and no reading was wrong. The
+  skill exists for exactly that class and this is the only thing that points at it.
 - Land with `wt merge`, a direct local squash merge to main, never a PR. This
   chooses the landing form, not whether landing was requested. Finished work
   waits for the user's authorization unless the task already granted it.
@@ -347,12 +367,14 @@ examples. `test_product_page.py` covers `docs/`. `test_site.py` builds and reads
 the published site. The journey test selects a passage, comments, moves a card,
 follows a version, and checks the surviving anchor and log.
 
-The browser corpus is read in both color schemes. It checks widget upgrades,
-usable boxes, independent document and panel scrolling, script-free textarea
-sizing, control stability under presses and arriving news, print, and page width
-on a phone. A second sweep reads each example as a returning reader with the
-panel, a board, or design mode restored. Every other corpus reading is a first
-visit, so restoration cannot hide an arrival regression.
+The browser corpus is read in both color schemes, and each example is read under
+the log it ships, so a thread and any widget a message carries are part of what
+the sweeps see. It checks widget upgrades, usable boxes, independent document and
+panel scrolling, script-free textarea sizing, control stability under presses and
+arriving news, print, and page width on a phone. A second sweep reads each
+example as a returning reader with the panel, a tray, or design mode restored.
+Every other corpus reading is a first visit, so restoration cannot hide an
+arrival regression.
 
 The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own
 runtime dependencies remain in `interact.py`'s PEP 723 header. Tests load that

@@ -73,9 +73,18 @@ A CSS-only widget is an entry and a theme rule. One with behavior takes a module
 scaffold's header comment lists what a module owes — every item is a section of the
 skill's own `CLAUDE.md`, one directory up from this file, learned by getting it wrong: an absolute
 `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
-injected, `keys()` at upgrade, `quoted()` before wiring input, durable state in
-attributes because export drops the scripts. The helper surface `/leaf.js` exports is
-the whole of what a module gets.
+injected, `keys()` at upgrade, `quoted()` before wiring input, `actionAvailable()` for
+an x-state verb with `requires`, and durable state in attributes because export drops
+the scripts. The helper surface `/leaf.js` exports is the whole of what a module gets.
+
+A widget that renders records supplied at runtime uses `projectData(root, records,
+keyOf, render)`. The root is the id-bearing authored seat and owns the projection's
+children. `keyOf` returns a stable non-empty string for the logical datum; `render`
+receives `(record, priorNode, index)` and returns its element, reusing `priorNode` where
+that preserves a focused control or selection. Leaf marks those words as readable data
+rather than authored prose, reconciles their order, and keeps comments attached by the
+projection/key pair even when a refresh replaces the text nodes. Export keeps the last
+rendering as a labelled snapshot and drops the code that could refresh it.
 
 ## Seeing it
 

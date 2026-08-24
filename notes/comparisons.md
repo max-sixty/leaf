@@ -414,23 +414,74 @@ it doesn't is the session already at your terminal, a page directory on your dis
 comment anchored to a passage. Nothing in leaf runs the other way — it serves one page
 to one session, and has no notion of an application at all.
 
+## herdr
+
+Read on 2026-08-23, from the repository and its own docs.
+[herdr](https://github.com/herdrdev/herdr) is a terminal multiplexer that knows which of
+its panes are running coding agents. It keeps tmux's model, where a background server owns
+the workspaces, tabs and panes and clients detach from it and reattach. On top of that
+each pane's agent has a state, `idle`, `working`, `blocked` or `done`, which rolls up from
+the pane to its tab and workspace, so the sidebar says which agent is waiting on you.
+Apache-2.0, started March 2026, 31.7k stars. It has no document and no browser surface, so
+this note's first question has no answer here. It is in the note because the user and the
+agents rearrange one live structure between them, which is the relationship leaf builds
+around a document.
+
+|                      | herdr                                                                                                                                                                           | leaf                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Shared structure     | Workspaces, tabs, panes and the splits between them, owned by a server that outlives any client                                                                                 | The page: authored HTML published as numbered versions, each with a changelog note to step back to               |
+| Home                 | A background server on your machine, drawn by a TUI you detach from and reattach to                                                                                             | A page directory on your machine, served where your session reached it, behind a key                             |
+| The agent's controls | The socket API and the CLI that wraps it: `pane.split`, `pane.move`, `pane.zoom`, `tab.create`, `layout.export` and `layout.apply`, `agent.start`, `agent.prompt`, `agent.wait` | Publishing a version, and answering a thread in the margin beside the passage it belongs to                      |
+| The user's controls  | Mouse and keys on the same objects: click a pane, tab or workspace, drag a split border, right-click for a menu, run a prefix-mode command                                      | The affordances the page offers: comment, drag a card, pick an option, rewrite a draft, accept a proposed change |
+| Waiting              | `agent.wait` until another agent reaches `blocked` or `done`, or a `pane.agent_status_changed` subscription on the socket                                                       | `leaf wait` on the page's event log, returned into the session by its host                                       |
+| Reach                | Anything that runs in a terminal, with shipped detection manifests for Claude Code, Codex, Cursor, Gemini, OpenCode, Grok and the rest                                          | Claude Code and Codex                                                                                            |
+
+Nothing in that structure belongs to one side. An agent creates a tab and splits a pane
+through the socket, the user drags the same border with a mouse, and either can rename,
+zoom, move or close what the other made. `layout.export` and `layout.apply` hand a whole
+arrangement back and forth as data. The state behind the sidebar does not work that way.
+An agent's `idle`, `working` or `blocked` flows one direction, from the process into the
+display, and how herdr decides it depends on the agent: an installed integration's
+lifecycle hooks are authoritative while they report, and otherwise herdr matches the live
+bottom of the screen against per-agent TOML rules, and marks `blocked` only on a visible
+approval, question or permission prompt.
+
+A herdr arrangement has no past. A pane the agent moved is moved, and there is no earlier
+layout for the move to disagree with. leaf's page has versions, so the same joint control
+raises a question herdr never has to answer: what becomes of the card the reader dragged
+when the agent publishes a rewrite of that board. The log outranking the document is the
+answer to it — a surviving action replays onto the later version, and `version check`
+refuses a rewrite that silently cancels a decision unless the author marks it `restated`.
+Sharing control over a live arrangement is nearly free; over a document that keeps its
+past it costs a reconciliation design.
+
+The two route a person's attention at different scales. herdr answers which of your
+sessions needs you, and published plugins forward that signal to a phone when an agent
+goes `blocked`. leaf's banner counts the open asks inside one page and its keyboard walk
+steps through them, for a reader who already has the page open. A leaf session is an agent
+at a terminal, so it is the kind of thing that sits in a herdr pane, and the page it
+serves is content herdr has no opinion about.
+
 ## Declarative UI formats
 
-Read on 2026-08-22, from each project's own repository.
+Read on 2026-08-22 from each project's own repository, and A2UI on 2026-08-23 from
+its specification (v0.9.1 current, v1.0 a candidate).
 [json-render](https://github.com/vercel-labs/json-render) (Vercel Labs, Apache-2.0, 16k
 stars since January 2026), [OpenUI](https://github.com/thesysdev/openui) (Thesys, MIT,
-8.4k) and [Hashbrown](https://github.com/liveloveapp/hashbrown) (LiveLoveApp, MIT, 719)
-are the crowded corner of this ground — the family A2UI belongs to. Each answers one
+8.4k), [Hashbrown](https://github.com/liveloveapp/hashbrown) (LiveLoveApp, MIT, 719) and
+[A2UI](https://github.com/a2ui-project/a2ui) (started at Google, Apache-2.0, 16.2k, spec
+at [a2ui.org](https://a2ui.org/)) are the crowded corner of this ground. Each answers one
 question: how a model can emit a user interface without emitting arbitrary code. The
-answer they share is a catalog. The application's developer declares the components a
-model may use, in Zod, before the model runs; the model composes within them; the
-renderer refuses anything else.
+answer they share is a catalog. A developer declares the components a model may use
+before the model runs; the model composes within them; the renderer refuses anything
+else.
 
 |             | What the agent emits                                                                                                         | Who writes the vocabulary                                 | Where the reader's press goes                                                       | Reach                                                                                                    |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | json-render | A flat spec: a `root` id and an `elements` map of `{type, props, children}`, with `$state`, `$cond`, `$template` expressions | The app's developer, in Zod, before the model runs        | A named action to the app's handler, or `setState` into the spec's own state model  | A dozen renderers, from React and Vue to PDF, email, video, 3D and the terminal                          |
 | OpenUI      | OpenUI Lang: `submitBtn = Button("Submit", "submit:signup", "primary")`, positional args in the component's Zod key order    | The app's developer, in Zod, before the model runs        | An action string the app resolves                                                   | React first, with Vue and Svelte bindings, a CDN bundle, and a LangGraph adapter that streams over AG-UI |
 | Hashbrown   | Nothing over the wire: the model names exposed components and their props, and the framework mounts them as they stream      | The app's developer, in TypeScript, via `exposeComponent` | The component's own handler, in the app                                             | Angular and React                                                                                        |
+| A2UI        | A stream of JSON messages — `createSurface`, then `updateComponents` and `updateDataModel` — building a component tree bound to a per-surface data model | The platform's developers, in JSON Schema catalogs named by `catalogId`, before the model runs | An `action` message named by its component, with context read out of the data model | Renderers mapping one tree onto web components, Flutter, React or SwiftUI; CopilotKit ships `a2ui-renderer` |
 | leaf        | HTML against the widget registry, published as a numbered version                                                            | The agent, in session; `leaf customize widget` extends it | An action appended to the event log, replayed onto every version published after it | Claude Code and Codex                                                                                    |
 
 The column that separates them from leaf is the second one. A catalog is part of an
@@ -440,7 +491,7 @@ from inside the session when the shipped one falls short. That difference is dow
 of the loop: a catalog exists to make a model's output safe for someone else's users,
 where a leaf page is written for the one person the session is already working with.
 
-json-render is the volume leader and the most complete of them. Its catalog declares three
+json-render is the most complete of them. Its catalog declares three
 kinds where A2UI's declares one — `components`, `actions` and `functions` — and
 `catalog.prompt()` generates the model's instructions from that same catalog, so the
 guardrail and the prompt cannot drift apart. The spec is a flat map keyed by element id
@@ -485,7 +536,24 @@ lets a dashboard tick over between them, and nothing in leaf paints a sentence a
 arrives. It is also the axis leaf's design makes expensive, since a version is published
 whole and a comment anchors into it.
 
-Open-JSON-UI is the fourth name this corner is usually described with, and it is a name
+A2UI is the corner's named standard: started at Google, now in a neutral
+`a2ui-project` org with a versioned specification, where the other three are each one
+vendor's product. Four message kinds — `createSurface`, `updateComponents`,
+`updateDataModel`, `deleteSurface` — stream a component tree bound to a per-surface
+data model, and the v1.0 candidate adds typed function calls in both directions. Input
+components bind two ways, and the reader's press returns as an `action` message whose
+name the component chose, with context read out of the data model. The component set is
+deliberately outside the protocol: catalogs are JSON Schema documents named by
+`catalogId`, a renderer names the ones it supports at the handshake, and one tree is
+meant to land as web components, Flutter widgets, React components or SwiftUI views.
+The openness is between platforms rather than in session — a catalog is still fixed
+before the model runs, and nothing extends one from inside. On state the spec is
+explicit that the surface's local data model is "the single source of truth", which is
+json-render's `$state` as doctrine, and the specification has no versions, no replay,
+no undo, and nothing that anchors a remark to a component or a passage. As an interface
+it standardizes the live tree, which leaf doesn't keep, and says nothing about the log.
+
+Open-JSON-UI is the remaining name this corner is described with, and it is a name
 with documentation and no specification. The documentation is real and easy to find: a
 page in CopilotKit's docs, a row in AG-UI's spec comparison, a paragraph in
 `CopilotKit/generative-ui`, and the personal blogs, glossaries and cheat-sheets that
@@ -505,22 +573,24 @@ redirect names one exact path, `/generative-ui/open-json-ui`, where these docs s
 every page under each integration's prefix as well — so the bare URL 307s to the index
 while `/pydantic-ai/generative-ui/open-json-ui` and a dozen siblings answer 200 with the
 placeholder. A page its own publisher has disowned is what a search for this name finds,
-which is how a spec that was never written keeps arriving as a peer of the other three.
-The description itself is worth taking apart, because two thirds of it check out. What
+which is how a spec that was never written keeps arriving as a peer of the others.
+
+The description itself is worth taking apart, because half of it checks out. What
 OpenAI publishes in this space is a sample: `openai/openai-structured-outputs-samples`
 carries a `generative-ui` demo whose `components-definition.ts` names `card`, `header`,
 `container`, `carousel` and `item` by hand, compiles them into a `generate_ui` tool's
 JSON Schema with `$ref` recursion and `additionalProperties: false`, and maps each to a
 React component in `components.tsx`. That is a declarative generative UI, it is
-OpenAI's, and it is the same catalog shape as the three projects above. It is also a
+OpenAI's, and it is the same catalog shape as the projects above. It is also a
 demo app in a samples repository, which never uses this name and asks nobody to adopt
 its schema. So "OpenAI's" has a referent and "declarative Generative UI" describes it;
 "open standardization" names an act that no one performed, and "internal" claims
 knowledge of something private and unfalsifiable. The distance between a sample and a
 standard is the whole of the claim.
 
-Whether leaf should integrate with any of this has two directions, and reading them
-answered both, in opposite ways.
+Whether leaf should integrate with any of this has three directions — render their
+specs, publish leaf's vocabulary as one of their catalogs, or adopt one of their
+interfaces in leaf's place — and reading them answered all three.
 
 Rendering one of these specs inside a leaf widget is mechanically the easiest thing in this
 note: it is the shape `lf-diagram` already has, a vendored bundle and a module beside a
@@ -542,7 +612,25 @@ styled HTML, which is a stylesheet. So the question settles: leaf is mostly the 
 the vocabulary is what the loop is written in terms of rather than something that stands
 on its own.
 
-The door worth watching is neither of those, and it is not a format. `@json-render/mcp`
+Adoption outright — one of their interfaces in leaf's place — splits along this note's
+three questions. The document runs backwards: what an agent emits in any of them is
+legible only through the catalog and a renderer, and a leaf page is written in what
+their web renderers themselves emit — HTML and custom elements, checked by JSON Schema —
+so at that layer leaf already speaks the older, wider standard. Where the UI lives,
+they have no answer
+to give: a surface or a spec is a message inside an application's session, not a
+directory with an address on your disk. And the return path in every one of them
+describes a live run — an action into a running agent, a mutable store, nothing that
+outlives the session — where what the log holds is exactly what survives one. W3C Web
+Annotation is the one published standard that does cover leaf's ground: a comment
+anchor's `{quote, prefix, suffix}` is its TextQuoteSelector, whose first field it
+spells `exact`. Taking that spelling is the cheapest adoption on this page, and still
+not worth it: the standard names the fields and stops there. It specifies no way of
+finding the passage again, so leaf writes its own — unique-context confirmation, and
+detachment rather than a fallback to ordinals — and a shared field name would
+advertise a matcher that isn't shared.
+
+The door worth watching is none of those, and it is not a format. `@json-render/mcp`
 serves a spec as an MCP App — the server returns a UI resource, the host renders it in a
 sandboxed iframe, and `callServerTool` carries the press back — so one catalog reaches
 Claude, ChatGPT, Cursor, VS Code, Goose and Postman without a hook written for any of them.
@@ -552,7 +640,12 @@ window, so there are no versions, no directory, and no reader who closed the con
 and came back to it the next day. MCP Apps is already on this note's list of what a fuller
 one would reach, and this is the angle a fuller entry would have to take: not another way
 to describe a UI, but the one route by which a page could reach a host that has never
-heard of it.
+heard of it. What would change the answer is named in the extension's own deferrals: app
+registrations must not outlive a session, a closed app's tool calls must error, and state
+persistence and external URLs are put off to future extensions — so an app there today is
+as mortal as the chat message holding it. External URLs or persistence landing, or a
+terminal host shipping an Apps surface, is the signal to stop watching and prototype; even
+then the route adds new hosts rather than retiring the two hooked ones.
 
 ## When leaf is the wrong choice
 
@@ -580,8 +673,8 @@ heard of it.
 
 ## Not covered here
 
-Seven projects is not the landscape. These are the ones a fuller note would have to reach,
-roughly in order of how badly the omission dates this one:
+The entries above are not the landscape. These are the ones a fuller note would have to
+reach, roughly in order of how badly the omission dates this one:
 
 - **crit** — a local single Go binary, bound to loopback, no config or login; the agent
   launches it and blocks on the review rather than serving a page and watching it.

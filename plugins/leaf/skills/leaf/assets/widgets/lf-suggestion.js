@@ -227,9 +227,9 @@ customElements.define(
       // quoting gates the action channel, never what a change looks like.
       this.#emphasize();
       this.#voice();
-      // Quoted material is exhibited, not offered: a suggestion inside a
-      // <lf-specimen> shows what a pending change looks like, so it keeps the
-      // marks the theme draws and never grows controls to decide it with.
+      // Quoted material is exhibited, not offered: a suggestion inside an
+      // exhibit shows what a pending change looks like, so it keeps the marks
+      // the theme draws and never grows controls to decide it with.
       if (quoted(this)) return;
       // The line the change starts on, named for the row to hang from. Empty, so
       // it takes no space and says nothing; ids match [a-z0-9-] and `version check` keeps
@@ -547,7 +547,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the asks board, the label on a comment anchored here. The slots are the
+    // a row on the asks tray, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

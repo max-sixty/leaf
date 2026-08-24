@@ -779,6 +779,44 @@ the page cannot disagree about which of two threads comes first, and one walk of
 the document's text answers both. `renderPanel` therefore paints before it
 renders the list. Do not resolve a thread's anchor a second time to sort it.
 
+`paintStanding` is the second reading of that record: the thread holding the
+panel's focus paints its own passage apart from every other mark, as
+`lf-mark-here` over its ranges and as a class of the same name over its element
+parts. It reads the focus, through `closest`, rather than being written where a
+travel left the reader — the argument `markHere` makes for the ask ring, and for
+the same reason. Every route that puts the reader in a thread therefore paints
+it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
+reply box. A press on a page mark does not, because `showThread` reveals the
+thread without focusing it, and nothing has put the reader in the comment.
+`paintHere` repaints it beside the ask ring, and `paintAnchors` repaints it after
+rebuilding the ranges it holds.
+
+The panel paints the same fact on the card, through `.lf-thread:focus-within` —
+the same predicate, so the two halves cannot disagree about which comment the
+reader is in. Not `:focus-visible`, which is a claim about the last input device
+and left a mouse reader with the page marked and the card plain.
+
+The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and
+a higher one supplies only the properties it states, so a standing mark under the
+pointer takes the hover's wash and keeps its own ink.
+
+`scrollToThread` is the one travel every "show me that comment's passage" ends
+in, so the arrival is announced there and a route added later inherits it. It
+calls `paintStanding` with the arrival, which lifts `--lf-mark-lift` from 1 to 0
+over the 1.2s the panel's own arrival takes; `MARK_RULES` carries the argument
+for why the landing needs a lift rather than a stronger resting colour. An
+element anchor's ring does not lift — it already differs from an ordinary mark's
+hairline in weight as well as hue. The theme's reduced-motion guard collapses the
+animation onto its resting end, which is the standing state.
+
+The property is registered and inherits, so it is invalidated down the subtree of
+whatever animates it. The class therefore goes on the standing mark's own boxes —
+an element anchor's parts, and the block each painted range sits in — and never
+on `body`, where the pulse cost every element on the page a style recalculation
+per frame: 663ms of recalculation and 156 layouts on the gallery against 69ms and
+56 with it confined. `paintStanding` owns that class because it is the only
+reading that knows which boxes carry the mark.
+
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer
 up, and creates a second DOM representation for the passage. `markAt` performs

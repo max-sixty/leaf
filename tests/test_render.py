@@ -7575,22 +7575,27 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # names it under a negation to withhold the live page's scroller from a file that has
     # no panel to scroll beside; a rule that dresses no element can leak onto none, and
     # what the pin is for is the day one of these stops being either kind.
-    assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        "lf-copy",
-        "lf-ui",
-        "lf-btn",
-        "lf-pill",
-        "lf-address",
-        "lf-over-mark",
-        "lf-mark-el",
-        "lf-pending",
-        "lf-ins-block",
-        "lf-mark-note",
-        "lf-aiming",
-        "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
-        "lf-over-item",
-        "lf-quiet",
-    }, (
+    assert (
+        {c for c in surface["global"] if c.startswith("lf-")}
+        == {
+            "lf-copy",
+            "lf-ui",
+            "lf-btn",
+            "lf-pill",
+            "lf-address",
+            "lf-over-mark",
+            "lf-mark-el",
+            "lf-mark-here",  # the same element mark, for the comment the reader is in
+            "lf-pending",
+            "lf-ins-block",
+            "lf-mark-note",
+            "lf-aiming",
+            "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
+            "lf-arrived",  # the arrival's clock, on body, because every mark descends from it
+            "lf-over-item",
+            "lf-quiet",
+        }
+    ), (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
     page.close()
@@ -16095,6 +16100,195 @@ aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</figcaption></figure>
 """,
 )
+
+
+def standing_mark(page):
+    """Which passage the page is painting as the comment the reader is standing in, and
+    which elements wear the same fact as an outline. One reading, because the two are one
+    paint over two kinds of anchor and a test that asked for only the text half would go
+    green on a page whose element marks had stopped answering."""
+    return {
+        "text": painted(page, "lf-mark-here"),
+        "elements": page.evaluate(
+            "() => [...document.querySelectorAll('.lf-mark-here')].map(e => e.id)"
+        ),
+    }
+
+
+STANDING = """([text, ids]) => {
+    const h = CSS.highlights.get('lf-mark-here');
+    const said = (h ? [...h].map(r => r.toString()).join('') : '').split(/\\s+/)
+        .filter(Boolean).join(' ');
+    const on = [...document.querySelectorAll('.lf-mark-here')].map(e => e.id);
+    return said === text && String(on) === String(ids);
+}"""
+
+
+def wait_standing(page, text, ids=()):
+    """Wait for the page to be marking exactly this comment's passage.
+
+    The paint follows the focus through the runtime's one coalesced repaint (paintHere),
+    so it lands a frame after the press that moved the reader. Reading straight after the
+    key reads the press before its answer, and passes or fails on how loaded the machine
+    is. The failure carries what was painted instead, since a timeout on a predicate says
+    only that it never came true."""
+    try:
+        page.wait_for_function(STANDING, arg=[text, list(ids)], timeout=4000)
+    except PlaywrightTimeout:
+        raise AssertionError(
+            f"the page should be marking {text or list(ids)!r} as the comment the reader"
+            f" is standing in; it is marking {standing_mark(page)}"
+        ) from None
+
+
+def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
+    """A reader sent from a comment to its passage lands among every other mark on the
+    page, all of them painted alike, and the panel is the only surface saying which one
+    they asked for. The page says it too: the thread holding the focus paints its own
+    passage apart from the rest, and the arrival lifts that paint once so the landing is
+    visible before the reader has to compare washes.
+
+    Read off the focus rather than off the travel, so it answers where the reader *is*.
+    The walk moves it, a reply box keeps it — standing in a comment is standing in it
+    while writing back — and leaving the panel takes it down, rather than leaving a page
+    wearing "you are here" about a comment nobody is in."""
+    url = serve(INLINE_PAGE)
+    page, errors = open_page(browser, url)
+    api = url.rsplit("/versions/", 1)[0] + "/api/event"
+    for anchor, text in (
+        ({"section": "p", "quote": "bold text"}, "on the first"),
+        ({"section": "p2", "quote": "neighbouring block"}, "on the second"),
+        ({"section": "fig"}, "on the figure"),
+    ):
+        post_event(
+            page,
+            api,
+            data={"kind": "comment", "version": 1, "text": text, "anchor": anchor},
+        )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
+    page.locator("#fig.lf-mark-el").wait_for()
+
+    # The wash has to resolve to a colour, and to a different one at each end of the
+    # lift. Nothing else in this test would notice if it stopped: a mark whose wash
+    # computes to nothing wears the posted mark's own paint, which leaves the right ranges
+    # in the registry, nothing to see, and every assertion below still green. Asking the
+    # rule for its text does not answer it either — the CSSOM keeps a declaration full of
+    # var() exactly as written, so a wash naming a function no browser has still reads
+    # back non-empty. So the expression is taken from the sheet and handed to the browser
+    # to compute, rather than restated here where it could drift from the rule it stands
+    # for.
+    wash = page.evaluate("""() => {
+        const rule = [...document.styleSheets].flatMap(s => {
+            try { return [...s.cssRules] } catch { return [] }
+        }).find(r => (r.selectorText ?? '').includes('lf-mark-here')
+                  && r.style?.backgroundColor);
+        if (!rule) return null;
+        const probe = document.createElement('div');
+        document.body.append(probe);
+        const at = (lift) => {
+            probe.style.setProperty('--lf-mark-lift', String(lift));
+            probe.style.backgroundColor = rule.style.backgroundColor;
+            return getComputedStyle(probe).backgroundColor;
+        };
+        const out = {rest: at(0), peak: at(1)};
+        probe.remove();
+        return out;
+    }""")
+    assert wash, "no rule paints the standing mark at all"
+    assert "rgba(0, 0, 0, 0)" not in (wash["rest"], wash["peak"]), (
+        f"the standing mark's wash does not resolve, so it paints as an ordinary mark: {wash}"
+    )
+    assert wash["rest"] != wash["peak"], (
+        f"the arrival's lift changes nothing about the wash it drives: {wash}"
+    )
+
+    assert standing_mark(page) == {"text": "", "elements": []}, (
+        "a page nobody has opened a comment on is already saying the reader is in one"
+    )
+
+    page.keyboard.press("j")
+    wait_standing(page, "bold text")
+    # The lift hangs on the block the standing passage sits in, not on the document: an
+    # inherited custom property invalidates the subtree of whatever animates it, so on
+    # body it recomputes every element's style on every frame of the pulse. Asserted
+    # here because nothing else would notice it moving back.
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-arrived')].map(e => e.id)"
+    ) == ["p"], "the arrival's lift is not hanging on the standing passage's own block"
+
+    # The lift has to pass through the values between its ends, which is the whole
+    # difference between an arrival and a blink: an unregistered custom property animates
+    # discretely, swapping at the midpoint, and would never be found part way. Held at its
+    # own midpoint rather than sampled, because a decay is a state the page passes through
+    # — poll for it on a loaded machine and it is over before the first look.
+    lift = page.evaluate("""() => {
+        const carrier = document.querySelector('.lf-arrived');
+        const a = carrier?.getAnimations()[0];
+        if (!a) return null;
+        a.pause();
+        a.currentTime = a.effect.getTiming().duration / 2;
+        return getComputedStyle(carrier).getPropertyValue('--lf-mark-lift');
+    }""")
+    assert lift is not None, "arriving at a comment's passage lifted nothing"
+    assert 0 < float(lift) < 1, (
+        f"the arrival's lift jumped rather than decayed: {lift!r} at its midpoint"
+    )
+    # And it ends where the standing state is, or the page keeps a mark shouting for as
+    # long as it is open.
+    page.evaluate("""() => {
+        const carrier = document.querySelector('.lf-arrived');
+        carrier.getAnimations().forEach(a => a.finish());
+    }""")
+    assert (
+        page.evaluate(
+            "() => getComputedStyle(document.querySelector('.lf-arrived'))"
+            ".getPropertyValue('--lf-mark-lift')"
+        ).strip()
+        == "0"
+    ), "the arrival's lift does not settle back to the standing state"
+
+    # The four readings of a marked passage have to stay in this order, or one of them
+    # stops being visible where they overlap: the posted mark, the hover over it, the
+    # standing comment's own ink, and above all three the draft the reader is writing.
+    # Asked with the pointer actually resting on the standing mark, because that is the
+    # overlap the order exists for and because nothing registers the hover until a mouse
+    # has been over a passage. A higher highlight supplies only the properties it states,
+    # so this is what lets one mark say "clickable" and "you are here" at once.
+    page.mouse.move(*mark_point(page, "lf-mark-here"))
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0) > 0")
+    ranks = page.evaluate(
+        """() => ['lf-mark', 'lf-mark-hover', 'lf-mark-here', 'lf-pending']
+            .map(n => CSS.highlights.get(n)?.priority ?? null)"""
+    )
+    assert all(r is not None for r in ranks) and ranks == sorted(set(ranks)), (
+        f"the marks' paint order is not strictly increasing: {ranks}"
+    )
+    assert standing_mark(page)["text"] == "bold text", (
+        "the pointer resting on the standing mark took its own ink away"
+    )
+
+    page.keyboard.press("j")
+    wait_standing(page, "neighbouring block")
+
+    # A passage with no words to paint says the same thing with the outline it already
+    # wears, so the two kinds of anchor answer one question and not two.
+    page.keyboard.press("j")
+    wait_standing(page, "", ["fig"])
+
+    # Standing in a comment while writing back to it is still standing in it: the reply
+    # box is inside the thread, and knowing which passage it is on is worth most there.
+    page.locator(".lf-threads > .lf-thread").first.locator("textarea").focus()
+    wait_standing(page, "bold text")
+
+    # And leaving the panel takes it down. A mark that outlived the reader's attention
+    # would be a page insisting on a comment nobody is in.
+    page.evaluate("() => document.activeElement.blur()")
+    wait_standing(page, "")
+    assert painted(page, "lf-mark") != "", (
+        "the posted marks went down with the standing one"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):

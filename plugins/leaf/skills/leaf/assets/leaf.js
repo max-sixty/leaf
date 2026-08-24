@@ -1553,10 +1553,11 @@ const spoken = (row) =>
 /** Repaint the surfaces after a state change no focus event reports. */
 export const paintKeys = () => paintHere();
 
-// Where the reader is standing, painted: the ring on the ask they are in, and the line
-// saying what the next press does from there. One repaint, because it is one question —
-// both readings are of the focus and the open-ask list, and every signal that moves either
-// (a focus move, an answer taken, a poll, a widget's own state) moves both.
+// Where the reader is standing, painted: the ring on the ask they are in, the mark on the
+// passage of the comment they are in, and the line saying what the next press does from
+// there. One repaint, because it is one question — every reading is of the focus and the
+// open-ask list, and every signal that moves either (a focus move, an answer taken, a
+// poll, a widget's own state) moves them all.
 //
 // Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
 // them would flash the scope of nowhere and drop the ring for a frame. Here rather than
@@ -1570,6 +1571,7 @@ function paintHere() {
   requestAnimationFrame(() => {
     herePending = false;
     markHere();
+    paintStanding();
     // The chips are where the reader can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because it is one question, and
     // because a chip repainted by its own door alone went stale on the door it did not
@@ -2179,15 +2181,63 @@ const STRIP_MIN = parseFloat(
    composer's draft wears the accent, and outranks it where they overlap. Not dashed —
    dashed means detached.
 
+   The wash and the ink answer two questions, so they are moved by two things. The wash
+   strengthens under the pointer, which is momentary and local and says only that a press
+   here would open something. The ink turns accent for the comment the reader is standing
+   in (paintStanding), which stands as long as they are in it and says which of a page's
+   marks the panel is talking about — "you are here", in the one band this page spends on
+   that fact everywhere else (--here-ring). Where they meet, the ink is what is left to
+   tell them apart: at rest the standing wash is --mark-strong, which is the hover's wash
+   exactly, so the pointer resting on a standing mark changes nothing about it and a
+   hovered ordinary mark matches its wash. That is the ink's to answer, and the promise
+   the wash would have made is already the cursor's (lf-over-mark). The draft's accent
+   wash cannot be confused with the standing mark's accent ink, because one focus decides
+   both and an open composer holds it.
+
+   The standing mark's own wash is a mix the arrival drives (--lf-mark-lift, 1 on landing
+   and 0 at rest), because the two moments want different volumes out of one paint. On
+   landing, the reader has just been carried down a page holding a dozen marks that all
+   look alike, and the question is *which one* — which nothing at this palette's resting
+   strengths answers loudly enough: the marks' two inks are a violet and a navy of nearly
+   the same darkness, and the wash cannot be taken past --mark-strong without spending
+   what code read through a mark still has to clear. Nothing in the suite gates that —
+   theme.css says so where it states the numbers, which is why they are a measurement
+   kept by hand and not a floor something will catch. Measured for this: a resting wash
+   far enough past --mark-strong to tell it from the hover takes the worst syntax role
+   from 4.06 to 3.49, and one close enough to be cheap is not one the eye can find. A
+   moment of motion answers it where a stronger colour cannot, and costs nothing at rest.
+   Afterwards the question is only *is it still that one*, which the settled wash and the
+   accent ink answer to a second glance. The pulse decays into that state rather than
+   uncovering it, so this is one paint at two volumes. The reduced-motion guard in
+   theme.css collapses the animation onto its resting end, which is that state: a reader
+   who asked for no motion lands on the settled mark and does without the louder moment,
+   which is the trade the preference asks for and not a free one — the landing is the
+   case the lift was for. What answers for them is the same thing that answers on a
+   second glance: a wash a step above every other mark's, and the accent ink.
+
    Stated once and installed twice, because the registry is the document's and the
    ::highlight() rule is not: a rule in the document styles no glyph inside a shadow
    tree, so a widget that renders the page's words into one (x-shadow) adopts this same
    text (`markSheet`). Two copies of these declarations would be two chances for a mark
    to mean one thing in the document and another inside a diff. */
 const MARK_RULES = `
+  /* The arrival's lift, on whichever boxes carry the standing mark (paintStanding). Here
+     rather than in the chrome's own block so a mark staged in a widget's shadow tree
+     lifts too: its carrier is inside that tree, and a rule in the document reaches no
+     element there. The 1.2s is the panel's own arrival (.lf-thread.flash), because it is
+     the same arrival — one press moves the page to the passage and the list to the
+     thread, and two surfaces settling apart would read as two events. The shorthand
+     replaces any animation the page had put on that box, which is the cost of hanging a
+     runtime class on an authored element; the alternative was hanging it on body, which
+     costs every element on the page a style recalculation per frame. */
+  @keyframes lf-runtime-4f3c2a8d-arrive { from { --lf-mark-lift: 1; } to { --lf-mark-lift: 0; } }
+  .lf-arrived { animation: lf-runtime-4f3c2a8d-arrive 1.2s ease-out; }
   ::highlight(lf-mark) { background-color: var(--mark);
     text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
   ::highlight(lf-mark-hover) { background-color: var(--mark-strong); }
+  ::highlight(lf-mark-here) {
+    background-color: color-mix(in srgb, var(--accent) calc(var(--lf-mark-lift) * 45%), var(--mark-strong));
+    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
 const style = document.createElement("style");
@@ -2543,6 +2593,20 @@ ${MARK_RULES}
      marks keeps the posted colour rather than taking this (paintAnchors), so the pair
      never contend on one element. */
   .lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto; }
+  /* The standing comment's element anchor (paintStanding). It keeps the hairline's own
+     inset rather than taking the ask ring's gap, so focusing the thread changes the ring
+     where it already is instead of moving it outward by four pixels — the mark is the
+     same mark. -2px and not the hairline's -1px because the width doubles: the offset is
+     to the outer edge, so the ring drawn at -1px would poke a pixel outside a box the
+     hairline stayed inside, and the reason that inset exists is that the band outside is
+     where a scrolling ancestor takes it. Grown inward, the outer edge does not move.
+
+     No lift here, unlike the text mark's wash. What defeats colour between two marked
+     passages is that both are washes and the two inks are close in darkness; between two
+     marked boxes there is a 1px violet hairline and a 2px accent ring, which differ in
+     weight as well as hue and are told apart on sight — checked on a composed page, not
+     assumed. A pulse would be motion answering a question already answered. */
+  .lf-mark-el.lf-mark-here { outline: var(--here-ring); outline-offset: -2px; }
   /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
      hand here is the aim's answer rather than the thread's: it stands where the aim has
      an item and comes off where it hasn't, which is the same promise the body is making
@@ -2589,6 +2653,18 @@ ${MARK_RULES}
      makes this runtime-private in the one CSS namespace scoping cannot protect. */
   @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
   @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
+  /* How lately the reader arrived at the standing mark, which is what its wash reads
+     (MARK_RULES). Registered, because an unregistered custom property is a string and
+     interpolates by swapping at the halfway point — a flash rather than a fade. It has
+     to inherit, because the wash is read where the glyphs are and the class can only be
+     put on a box above them; and an inherited property is invalidated down the whole
+     subtree of whatever animates it, which is why the class goes on the standing mark's
+     own boxes and not on body. Hung on body it recomputed every element's style on every
+     tick for the length of the pulse: on the gallery, 663ms of style recalculation and
+     156 layouts against 74ms and 2 with the invalidation confined, and a held j walks
+     that cost the length of the walk. Declared here rather than in MARK_RULES because a
+     registration is the document's however many trees read it. */
+  @property --lf-mark-lift { syntax: "<number>"; inherits: true; initial-value: 0; }
   @keyframes lf-runtime-4f3c2a8d-flash {
     0% { background: var(--hi-tint); } 100% { background: var(--card); }
   }
@@ -2877,7 +2953,15 @@ ${MARK_RULES}
     /* An arrival the reconcile added while the user was watching. Motion, not a
        jump: nothing above it moves, and the newcomer settles rather than appears. */
     .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
-    .lf-thread:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
+    /* The card of the comment the reader is standing in, which is the panel's half of
+       the pair the page paints as lf-mark-here. :focus-within and not :focus-visible,
+       because the two halves have to answer the same question: focus-visible is a claim
+       about the last input device, so a reader who reached the comment with the mouse
+       had the page marked and the card left plain, and the pair only read for the
+       keyboard. Within, because a reply box is inside the card and writing back is
+       still standing there — the same reason paintStanding reads the focus through
+       closest. */
+    .lf-thread:focus-within { outline: var(--here-ring); outline-offset: 2px; }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
@@ -7734,14 +7818,18 @@ function paintAnchors(threads = buildThreads()) {
     !label || (Boolean(draft) && !pendingAbout),
   );
 
-  // A draft outranks a posted mark where they overlap; the hover outranks both, so the
+  // Ranked so each reading survives the ones under it: a posted mark, the hover over it,
+  // the standing comment's own mark, and the draft above all three. A higher highlight
+  // supplies only the properties it states, so the standing mark under the pointer takes
+  // the hover's wash and keeps its own ink. The
   // passage under the pointer answers the pointer.
   CSS.highlights.set(MARK, new Highlight(...posted));
   CSS.highlights.set(
     PENDING,
-    Object.assign(new Highlight(...pending), { priority: 2 }),
+    Object.assign(new Highlight(...pending), { priority: 3 }),
   );
   noteMarks(noted); // and the same fact for a reader who can't see any of it
+  paintStanding(); // the ranges are new objects and the element classes were just cleared
   pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
 
   paintThreadQuotes();
@@ -7841,9 +7929,18 @@ function scrollToElement(el, behavior = SCROLL) {
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
 // panel and the page can't disagree about whether the passage survived. A painted range has
 // no element to scroll into view, so its own box does the work.
+//
+// This is the one function every "show me that comment's passage" ends in — the quote's
+// press, the hidden count button, `g c 2`, the j/k walk — so the arrival is announced here
+// rather than at each of them, and a way in added later inherits it without being told.
+// After the guard, so a thread whose passage this version no longer holds pulses nothing:
+// there is no mark to look at, and a page flashing about a passage it hasn't got is
+// pointing at nothing. Which mark lifts is not this function's to say — the paint follows
+// the focus (paintStanding), and every caller has already put the reader in the thread.
 function scrollToThread(id) {
   const where = marksOf(id)[0];
   if (!where) return;
+  paintStanding(true);
   if (!(where instanceof Range)) {
     scrollToElement(where);
     return;
@@ -7869,6 +7966,94 @@ function paintHover(id) {
   document.body.classList.toggle("lf-over-mark", Boolean(id));
   const ranges = marksOf(id).filter((where) => where instanceof Range);
   CSS.highlights.set(HOVER, Object.assign(new Highlight(...ranges), { priority: 1 }));
+}
+// Which comment the reader is standing in, said out on the page. The panel has always
+// answered it on its own surface — the thread holds the focus, and a press on a mark
+// flashes the thread it opens — while the page answered nothing back: every posted mark
+// wears one wash, so a reader sent from a comment to its passage arrived among a dozen
+// identical marks with no way to tell which one they had asked to see. The j/k walk's
+// comment already called the panel and the page "two views of the same thread"; this is
+// the view that was missing.
+//
+// Derived from the focus rather than written where the travel put the reader, for the
+// reason markHere gives about the ask ring: a mark written at the arrival says where the
+// reader was *sent*, and goes on saying it after they have clicked away, read on down the
+// page and come back tomorrow. Every way into a thread then paints it — the quote's press,
+// j/k, `g c 2`, a plain click on the card — because they all end in the same focus, and no
+// way in has to be taught to paint.
+//
+// Read through `closest` rather than off the thread itself, so a reader typing a reply is
+// still standing in the comment they are replying to; that is exactly when knowing which
+// passage it is on is worth most.
+//
+// Above the hover and below the draft. The hover's own wash is the same strength, so what
+// the standing mark adds is the ink, and a pointer resting on it must not take that back:
+// the cursor is what promises the press, and the ink is what answers "which one".
+//
+// `arrived` says the reader was just carried here, and lifts the wash on the way in. It
+// is this function's rather than the travel's because the lift hangs on the boxes the
+// mark is painted over, and this is the only place that knows them — the travel knows an
+// id. Called straight from scrollToThread rather than left to the next repaint: the focus
+// that moved the reader has already been and gone, so paintHere's frame has run.
+const HERE = "lf-mark-here";
+const ARRIVED = "lf-arrived";
+let hereParts = [];
+let lifted = [];
+let lifting;
+function paintStanding(arrived = false) {
+  const where = marksOf(focusedThreadOf()?.dataset.id);
+  const parts = where.filter((mark) => mark instanceof Element);
+  // Only what changed, because the anchor pass calls this and the anchor pass runs on
+  // every poll: an element that keeps the class would otherwise have it taken off and put
+  // straight back, writing the page's own attribute twice a poll for as long as the
+  // reader stands there, and a mutation on an authored element is something this page's
+  // observers hear. Both sides are guarded, because Chrome records a mutation for a
+  // classList.add of a token already in the list — the same reason noteMarks writes its
+  // line only when the words differ.
+  for (const part of hereParts) if (!parts.includes(part)) part.classList.remove(HERE);
+  for (const part of parts)
+    if (!part.classList.contains(HERE)) part.classList.add(HERE);
+  hereParts = parts;
+  CSS.highlights.set(
+    HERE,
+    Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
+      priority: 2,
+    }),
+  );
+  if (!arrived) return;
+
+  // The boxes the lift hangs on: an element anchor's own parts, and the block each
+  // painted range sits in. A block and not the range, because a range is not an element
+  // and a class needs one; the property inherits from there down to the glyphs, and the
+  // marks of other threads inside the same block are painted by rules that do not read
+  // it, so lifting their block lifts nothing of theirs.
+  //
+  // Restarted from the top on every arrival — two steps of the j/k walk in quick
+  // succession are two arrivals, and an animation left running would have the second
+  // land in the middle of the first's decay. Taking the class off and reading a layout
+  // box before putting it back is what makes the browser start it again rather than see
+  // no change; one read for the whole set, since they all restart together.
+  const carriers = [
+    ...new Set([
+      ...parts,
+      ...where
+        .filter((mark) => mark instanceof Range)
+        .map((range) => blockAt(range.startContainer))
+        .filter(Boolean),
+    ]),
+  ];
+  for (const el of lifted) el.classList.remove(ARRIVED);
+  void document.body.offsetWidth;
+  for (const el of carriers) el.classList.add(ARRIVED);
+  lifted = carriers;
+  // The class's way back off, so a box the reader has long since left is not still
+  // carrying an animation declaration that outranks whatever the page put there. Keyed,
+  // so a second arrival inside the window cannot cut its own pulse short.
+  clearTimeout(lifting);
+  lifting = setTimeout(() => {
+    for (const el of lifted) el.classList.remove(ARRIVED);
+    lifted = [];
+  }, 1300);
 }
 // Coalesced to a frame: scroll outruns layout, the hit-test reads layout, and a repaint
 // asks from inside a pass that must stay cheap enough to run from a mousedown.

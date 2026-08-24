@@ -6666,6 +6666,12 @@ def test_server_round_trip(server, page_dir):
             "kind": "comment",
             "version": 1,
             "text": "x",
+            "anchor": {"datum": "row-1", "quote": "x"},
+        },
+        {
+            "kind": "comment",
+            "version": 1,
+            "text": "x",
             "anchor": {"quote": "x", "extra": "y"},
         },
         {"kind": "comment", "version": 1, "text": "x", "suggestion": "yes"},

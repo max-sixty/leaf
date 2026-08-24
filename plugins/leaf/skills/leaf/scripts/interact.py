@@ -336,7 +336,9 @@ vocabulary for rides in the custom keywords below:
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
-passages apart), reply (parent=id),
+passages apart; a browser selection on projected data carries datum,
+the stable key local to section, instead of treating neighbouring values as
+identity), reply (parent=id),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -394,9 +396,12 @@ under that name has been through the gate.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes
-the anchor from the selection; `leaf comment` writes the same anchor from a
-quote, reading the version the way the anchor pass reads the DOM (see
-"passages" below). Everything downstream already turns on `author`: `leaf wait`
+the anchor from the selection; `leaf comment` writes its file-confirmable form from
+a quote, reading the version the way the anchor pass reads the DOM (see
+"passages" below). Projected data has no file-side value to quote: its browser anchor
+adds the projection's section and datum key, and a CLI comment can still name the
+authored projection seat as an element. Everything downstream already turns on
+`author`: `leaf wait`
 prints user events and the banner counts them, so Claude's own comment neither
 wakes its own watcher nor reads as unanswered. Closing runs the other way round,
 because a note's purpose is discharged by being read, and only the reader knows
@@ -3124,6 +3129,9 @@ def custom_widget_module(tag: str) -> str:
 // - Anything you inject is chrome only if marked: offer() for a control,
 //   relabel() for a label that is the page speaking. Unmarked injected words
 //   read as the page's and break the file-side anchor reading.
+// - Records supplied at runtime go through projectData(): its stable string keys
+//   make the rendering readable but not authored, and keep comments on the same
+//   logical datum through refreshes. Never write its data-lf-* markers by hand.
 // - The registry entry declares x-verbatim because this stub leaves the body
 //   in place. Drop it the moment the module renders anything in the body's
 //   stead, or quotes anchor on words the screen no longer shows.

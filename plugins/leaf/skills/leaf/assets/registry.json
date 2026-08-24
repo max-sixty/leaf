@@ -86,14 +86,17 @@
               "properties": {
                 "section": {"type": ["string", "null"]},
                 "quote": {"type": "string"},
+                "datum": {"type": "string", "minLength": 1},
                 "prefix": {"type": "string"},
                 "suffix": {"type": "string"},
                 "part": {"type": "string"}
               },
               "anyOf": [
                 {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
-                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}}
+                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
+                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
               ],
+              "dependentRequired": {"datum": ["section"]},
               "additionalProperties": false
             },
             "suggestion": {"type": "boolean"},

@@ -30,6 +30,7 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
+| projected data | the records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
@@ -583,6 +584,9 @@ inside a module. The scaffold names the minimum obligations:
 - Register keys with `keys(el, title, rows)` during upgrade, not at module load.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
+- Render externally supplied or derived records through `projectData`. Its root is an
+  authored, id-bearing seat; record keys are stable within that seat, and its renderer
+  receives the prior node so unchanged controls and selections can remain in place.
 - Keep durable standalone state in serializable HTML attributes. Export removes
   scripts and handlers.
 - Remove hoisted chrome in `disconnectedCallback` when a reconstruction replaces
@@ -626,6 +630,39 @@ chrome-looking structure is still one of the page's words. This lets a tab label
 or draft heading remain quotable while runtime controls stay outside the
 passage. `relabel` writes the said marker; `offer` writes the control marker.
 They are independent facts and neither clears the other.
+
+### Data projections
+
+The page has three kinds of visible words:
+
+- authored prose is in both `says` and `wrote`;
+- runtime apparatus is in neither reading;
+- projected external or derived data is in `says` and not in `wrote`.
+
+The last kind is a projection, not another source of truth. An id-bearing element in
+the version is its seat. `projectData(seat, records, keyOf, render)` owns that seat's
+children, labels each rendered element with the seat id (`data-lf-projection`) and its
+record's stable key (`data-lf-datum`), and marks it generated. Records remain the
+caller's input; Leaf stores no current-data map beside the DOM or in the event log.
+
+Keys identify facts, not renderings or display strings. They are non-empty strings,
+unique within one projection, and must remain with the same logical datum across
+refreshes. `render` receives the prior element for the key and may update it in place;
+returning a replacement is also valid. Reconciliation retains nodes already in their
+place and schedules the shared anchor pass after synchronous projection work.
+
+A selection wholly inside one datum captures `{section, datum, quote}`. Resolution
+looks only for that key under that section. If the original words still stand, Leaf
+marks them. If their display changes, Leaf outlines the same datum and keeps the old
+quote in the thread; it never follows the old string to an equal value elsewhere. A
+missing or duplicate key detaches rather than guessing. Selections crossing datum
+boundaries remain ordinary quote anchors because they name a passage, not one fact.
+
+`data-lf-projection`, `data-lf-datum`, and `data-lf-gen` are written by `projectData`,
+never authored in a version. A custom widget joins through the helper alone; no
+consumer names its tag. Export preserves the rendered elements and their labels as a
+snapshot, while dropping the scripts that could refresh them. Print preserves the same
+readable words. Neither medium claims that the snapshot remains live.
 
 The three visual voices are prose, apparatus, and evidence. Page prose uses the
 serif, labels and controls use the sans, and literal evidence uses the mono
@@ -1401,6 +1438,11 @@ Widget affordances fall into three groups:
   page words.
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
+
+Projected data is a fourth question with a different answer: a copy keeps the current
+`projectData` rendering, including its projection and datum labels, but loses the
+module that could refresh it. It is therefore a labelled snapshot, not a live
+projection.
 
 Put a layout grant in a selector strong enough to override the withheld base
 rule. Put a standalone-only affordance guard in

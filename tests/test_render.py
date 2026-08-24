@@ -25712,6 +25712,160 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     page.close()
 
 
+# A project widget whose body is entirely supplied at runtime. Two rows deliberately say
+# the same word: text and document order cannot identify either one, while each record's
+# key can.
+DATA_PROJECTION_PAGE = leaf_page(
+    "data projection",
+    """
+<h1 id="title">Deployments</h1>
+<p id="lede">Live status follows.</p>
+<lf-feed id="deployments"></lf-feed>
+""",
+)
+
+DATA_PROJECTION_MODULE = """
+import {offer, projectData} from '/leaf.js';
+customElements.define('lf-feed', class extends HTMLElement {
+  connectedCallback() {
+    this.show([
+      {key: 'api', value: 'Ready'},
+      {key: 'worker', value: 'Ready'},
+    ]);
+  }
+  show(rows) {
+    projectData(this, rows, row => row.key, ({value}) => {
+      const row = document.createElement('p');
+      row.append(value, offer('button', 'inspect', 'Inspect'));
+      return row;
+    });
+  }
+});
+"""
+
+
+def data_projection_page(serve):
+    url = serve(DATA_PROJECTION_PAGE)
+    d = serve.page_dir
+    registry_path = d / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-feed"] = {
+        "description": "A project-supplied live feed.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-example": '<lf-feed id="feed-example"></lf-feed>',
+    }
+    registry_path.write_text(json.dumps(registry))
+    (d / "widgets" / "lf-feed.js").write_text(DATA_PROJECTION_MODULE)
+    return url
+
+
+def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, serve):
+    """Runtime-supplied words are readable but are not authored prose, and their stable
+    key—not a text node, equal display text, or current order—owns an anchored comment.
+
+    Reconciliation replaces every row to exercise the destructive path. The first
+    refresh reorders two equal values; a quote-only anchor either follows document order
+    or detaches. The second changes the intended value while leaving its old text on the
+    other row; silently following that text would move the comment to another fact. The
+    honest result is an outline on the same datum, with the original quote retained in
+    the thread as what the reader commented on.
+    """
+    url = data_projection_page(serve)
+    page, errors = open_page(browser, url)
+
+    readings = page.evaluate("""() => import('/leaf.js').then(leaf => {
+      const lede = document.querySelector('#lede');
+      const datum = document.querySelector('[data-lf-datum="api"]');
+      return {
+        prose: [leaf.says(lede), leaf.wrote(lede)],
+        datum: [leaf.says(datum), leaf.wrote(datum), datum.textContent],
+      };
+    })""")
+    assert readings == {
+        "prose": ["Live status follows.", "Live status follows."],
+        "datum": ["Ready", "", "ReadyInspect"],
+    }, "authored prose, projected data, and runtime apparatus became conflated"
+
+    api = page.locator('[data-lf-datum="api"]')
+    api.click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"] == {
+        "section": "deployments",
+        "datum": "api",
+        "quote": "Ready",
+    }
+
+    page.evaluate("""() => document.querySelector('#deployments').show([
+      {key: 'worker', value: 'Ready'},
+      {key: 'api', value: 'Ready'},
+    ])""")
+    page.wait_for_function("""() => {
+      const mark = [...(CSS.highlights.get('lf-mark') ?? [])][0];
+      return mark?.startContainer?.isConnected
+        && mark.startContainer.parentElement.dataset.lfDatum === 'api';
+    }""")
+
+    page.evaluate("""() => document.querySelector('#deployments').show([
+      {key: 'worker', value: 'Ready'},
+      {key: 'api', value: 'Running'},
+    ])""")
+    expect(page.locator('[data-lf-datum="api"]')).to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0, (
+        "the comment followed its old display text onto the other datum"
+    )
+    expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
+    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+
+    screen = page.evaluate(interact.PAPER_WORDS)
+    page.emulate_media(media="print")
+    paper = page.evaluate(interact.PAPER_WORDS)
+    assert paper == screen, "paper dropped or rewrote projected data"
+    assert errors == []
+    page.close()
+
+
+def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
+    browser, serve, tmp_path
+):
+    """Export cannot refresh data after its scripts leave, so it preserves the rendered
+    snapshot and the projection/key labels that say what kind of words these are. Dropping
+    the generated rows would make the file incomplete; keeping the widget module would
+    make it pretend the dead snapshot was still live.
+    """
+    url = data_projection_page(serve)
+    out = tmp_path / "data-copy.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    page = browser.new_page()
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+    rows = page.locator('#deployments > [data-lf-projection="deployments"]')
+    expect(rows).to_have_count(2)
+    assert rows.evaluate_all(
+        "els => els.map(el => [el.dataset.lfDatum, el.textContent])"
+    ) == [["api", "Ready"], ["worker", "Ready"]]
+    assert page.locator("script").count() == 0, (
+        "the snapshot still claims it can refresh"
+    )
+    assert errors == []
+    page.close()
+
+
 # ---------- anchors written without a browser ----------
 # `leaf comment` writes an anchor by reading the version file; the runtime
 # resolves it against the DOM that file becomes. Nothing static can check that those

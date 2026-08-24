@@ -46,7 +46,7 @@ def pytest_collection_modifyitems(config, items):
 # A host session states its identity in the environment, under names of its own.
 # The suite is a Claude Code session, and `host_identity` reads that set first, so
 # a test about a Codex session, or about no session at all, takes it away.
-CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID")
+CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
 CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
 
 
@@ -76,12 +76,15 @@ def isolated_session(tmp_path_factory, monkeypatch):
     its claimant is gone — the one reaper that reaches a server spawned into a
     session of its own, and so the only thing that ends one when a run is killed
     outright (tests/CLAUDE.md, "A process the suite starts ends with the run"). A
-    test about a command run from outside a host session strips the identity:
+    run started from a background job leaves that job's directory behind too, as
+    it would any other fact about the developer's session. A test about a
+    command run from outside a host session strips the identity:
     `sessionless`."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
 

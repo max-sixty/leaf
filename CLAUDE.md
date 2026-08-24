@@ -61,11 +61,12 @@ server.
 `CLAUDE_PLUGIN_ROOT` as a compatibility alias. The launcher maps Codex thread
 identity into the session record Claude Code supplies directly.
 
-The session record has two independent facts: host identity and process lifetime.
-The launcher may translate the first, but it must derive the second from the host
-process itself. A pipeline or shell wrapper is command lifetime, not session
-lifetime; tying the server to it retires the page as soon as the launching command
-returns.
+The session record has two independent facts: host identity and session lifetime.
+The launcher may translate the first, but the second comes from the host itself:
+the session's own process, or for a daemon-hosted background job the record the
+daemon keeps for it. A pipeline or shell wrapper is command lifetime, and a
+background job's worker is sitting lifetime; tying the server to either retires
+the page while the session still stands.
 
 `page init` vendors the complete merged layer into a page directory. A reviewed
 page therefore keeps the assets it was reviewed with. `interact.py`'s module

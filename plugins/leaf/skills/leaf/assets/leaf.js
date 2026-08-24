@@ -11878,8 +11878,8 @@ const pressComparison = (base) =>
 // banner had no way to say that, so the page said the nearest thing it could and claimed
 // to be listening: green dot, "awaits", over a page waiting for nobody. Whoever answers
 // the poll declares it instead (`unattended`), and it is judged ahead of the rest because
-// it is not a state the evidence below could reach — there is no claim to weigh, no pid
-// to look for, and nothing coming that would change the answer.
+// it is not a state the evidence below could reach — there is no claim to weigh, no
+// lifetime to look for, and nothing coming that would change the answer.
 const HANDOFF_GRACE_MS = 2 * 60 * 1000;
 const WORKING_GRACE_MS = 15 * 60 * 1000;
 // How long a claim of work may go unrefreshed before the page stops taking its word for
@@ -11954,10 +11954,10 @@ function presented(state) {
   // on the case it was hiding.
   const dropped = droppedAt(status.ts, turn_closed);
   const quiet = aged || dropped;
-  // Nothing is behind the claim. The claimant pid settles it where there is one: gone
-  // is gone, whatever the claim says and whether a stray `leaf wait` still holds
-  // a lease for a session that can no longer read it. Where nothing claimed the
-  // page — a server started outside an agent host — there is no pid to look for, so a
+  // Nothing is behind the claim. The claimant's lifetime settles it where there is
+  // one: over is over, whatever the claim says and whether a stray `leaf wait` still
+  // holds a lease for a session that can no longer read it. Where nothing claimed the
+  // page — a server started outside an agent host — there is no lifetime to read, so a
   // live watcher or a claim still inside its grace is the whole of the evidence, and
   // once both are spent the page is unheld too.
   const unheld =

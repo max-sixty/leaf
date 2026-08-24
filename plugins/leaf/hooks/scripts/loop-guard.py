@@ -46,9 +46,16 @@ CLAIMS = (
 
 
 def session_has_active_claim(session_id: str) -> bool:
+    # Must match interact.py's claim_is_active: a background job's claim names
+    # its job directory, alive while the daemon's record is in it; every other
+    # claim names the process it belongs to.
     for path in CLAIMS.glob("*.json"):
         claim = json.loads(path.read_text(encoding="utf-8"))
         if claim["id"] != session_id or claim["released"] is not None:
+            continue
+        if "job" in claim:
+            if (Path(claim["job"]) / "state.json").is_file():
+                return True
             continue
         try:
             os.kill(claim["pid"], 0)

@@ -59,7 +59,10 @@ An optional Codex watcher requires the user's explicit authorization because it
 creates a visible task. Its separate route is in the main skill.
 
 `leaf wait` revives a dead server under its recorded lifetime and reports that on
-stderr. Exit 2 means revival failed, or every watched page is idle.
+stderr. Exit 2 means revival failed, every watched page is idle, or an earlier wait
+of this session's still holds the watch — leave that one running. A wait that
+ends on its own prints its batch or says why on stderr; one that stopped with
+nothing printed was stopped by the host, so start another.
 
 ## Batch delivery and acknowledgement
 

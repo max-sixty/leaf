@@ -85,15 +85,17 @@ A page directory holds:
                          for this lease, so no listening or accepted socket
                          remains when the command returns
     claims/              outside the page, one atomic record per resolved page:
-                         its last claimant, release time, and process evidence.
+                         its last claimant, release time, and the lifetime it
+                         rests on.
                          Keeping provenance outside the disposable page lets
                          ownership discovery survive a page moving between sessions
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
 say, so a comment can sit unread with the page still reading "Claude is
 working". The directory therefore also carries what it can prove — a lease only
-a live `leaf wait` can hold, the acknowledgement cursor, and the owning session's
-pid — and `/api/state` ships those beside the claim, so the banner can say when
+a live `leaf wait` can hold, the acknowledgement cursor, and whether the owning
+session's lifetime stands — and `/api/state` ships those beside the claim, so the
+banner can say when
 the claim has outlived its evidence. When a wait prints for a
 non-working page, it marks the status it writes "handoff", which dates that
 claim: after acknowledgement the agent writes its own `leaf status`, so a
@@ -111,9 +113,9 @@ in a session touches status.json while its turn is over, so work handed to a
 delegate is renewed from the delegate's own hands or not at all.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
-than repeating it. A claimant pid that has exited settles the question outright;
-a page nothing ever claimed has only the claim's own age to go on, so it falls
-to the same grace period. Either way the page is unheld, and the banner says
+than repeating it. A claimant whose lifetime has ended settles the question
+outright; a page nothing ever claimed has only the claim's own age to go on, so
+it falls to the same grace period. Either way the page is unheld, and the banner says
 that instead — "no session holds this page" is a fact the banner computed, where
 "Claude is working" would be a fortnight-old sentence someone else wrote. Unheld
 is also not a fault: a page that stands for weeks (below) spends most of its
@@ -128,10 +130,11 @@ were, while a session server retires once no live successor has claimed it. It
 finds the session's pages through the claim records under
 ~/.local/state/leaf/claims/. A record is keyed by its resolved page path and
 retains the last claimant as provenance after release; `released: null` and a
-live pid are what make it active. Absent the host identity the environment
+live lifetime — the process its pid names, or the job directory a background
+job records — are what make it active. Absent the host identity the environment
 carries, nothing is claimed and the hooks stand down. What the environment
-cannot carry is the session's own lifetime, and `session_pid` says where each
-host's lifetime comes from. Unacknowledged events are the one thing `leaf status
+cannot carry is the session's own lifetime, and `session_lifetime` says where
+each host's lifetime comes from. Unacknowledged events are the one thing `leaf status
 <page> idle` can't close over: idling is how a leaf ends, and one can't end on
 comments nobody read.
 
@@ -1269,7 +1272,7 @@ def process_info(pid: int) -> tuple[int, str] | None:
     The name is the executable's own, not the words the command was written
     with: a process launched through a symlink or a `#!` script reports what the
     kernel loaded. That is the point — it answers which program a process *is*,
-    which is what `session_pid` asks of an ancestor.
+    which is what `session_lifetime` asks of an ancestor.
 
     Two platform doors because there is no portable one. `ps` reads this on
     both, and macOS ships it setuid root, which the seatbelt sandbox Codex runs
@@ -1599,7 +1602,7 @@ def host_identity() -> dict | None:
     choose. The LEAF_* door is the launcher's mapping of Codex today; a
     third host earns its own value when one arrives — the id and the name, which
     are the whole of what a launcher can state. What outlives the command is
-    `session_pid`'s to find."""
+    `session_lifetime`'s to find."""
     if sid := os.environ.get("CLAUDE_CODE_SESSION_ID"):
         agent = os.environ.get("LEAF_AGENT") or "Claude"
         return {"id": sid, "host": "claude-code", "agent": agent}
@@ -1622,14 +1625,15 @@ def message_identity() -> dict:
     return {"agent": identity["agent"], "session": identity["id"]}
 
 
-def session_pid(identity: dict) -> int:
-    """The process whose lifetime is the agent session's, which is what the
-    claim records and its readers act on: a dead pid makes ownership inactive,
-    and a session-managed server retires ORPHAN_GRACE_SECS after it
-    (`stop_when_service_ends`).
+def session_lifetime(identity: dict) -> dict:
+    """The claim fields naming what the agent session's lifetime is, which is
+    what the claim records and its readers act on: a lifetime that has ended
+    makes ownership inactive, and a session-managed server retires
+    ORPHAN_GRACE_SECS after it (`stop_when_service_ends`).
 
-    Claude Code states it outright and Codex states nothing, so the Codex half
-    is discovered: the nearest ancestor running the `codex` program. The
+    A session the user sits at is a process, `pid`. Claude Code states it
+    outright as CLAUDE_PID, and Codex states nothing, so the Codex half is
+    discovered: the nearest ancestor running the `codex` program. The
     launcher cannot hand it over, because a shell tool's $PPID is a fact about
     the *shape* of the command rather than about the session. Measured through
     `codex exec` at 0.147.0: a bare command, an `&&` chain and a `bash -lc` all
@@ -1638,13 +1642,38 @@ def session_pid(identity: dict) -> int:
     itself, which exits with the pipeline. Recording that one would have taken
     the page's server down a second after the command that started it, and the
     page would have told its reader no session holds it while the session sat
-    there working."""
+    there working.
+
+    A Claude Code background job (`claude --bg`, the agents view) has no such
+    process. Its turns run on daemon workers, and CLAUDE_PID names the worker
+    hosting the current sitting. The daemon retires that worker about an hour
+    after the job goes idle and claims a fresh one at the next wake — measured
+    at Claude Code 2.1.241 from its daemon log, `bg settled … (done)` then `bg
+    claimed-spare …` — while the job, the session every wake resumes, stands
+    until it is deleted. So a job's lifetime is `job`, the directory
+    CLAUDE_JOB_DIR names, and a page held by one stays served until the job is
+    deleted or `leaf server stop` ends it. The fact read there is the job
+    record, `state.json`, which the daemon writes as it creates the job and
+    takes with it; the directory alone can stand empty, for a spare never
+    assigned or a job an older daemon cleaned. The record's `sessionId` has to
+    be this session's, because the variable is inherited: a session started
+    under the job's own shell tool carries the job's directory and is a process
+    of its own."""
     if identity["host"] == "claude-code":
-        return int(os.environ["CLAUDE_PID"])
+        if job := os.environ.get("CLAUDE_JOB_DIR"):
+            record = read_json(Path(job) / "state.json")
+            if record is None:
+                sys.exit(
+                    f"CLAUDE_JOB_DIR names no job record ({job}/state.json); "
+                    "leaf takes a background job's lifetime from it"
+                )
+            if record["sessionId"] == identity["id"]:
+                return {"job": str(Path(job).resolve())}
+        return {"pid": int(os.environ["CLAUDE_PID"])}
     walked = ancestry()
     for pid, program in walked:
         if program == "codex":
-            return pid
+            return {"pid": pid}
     # Nothing to fall back to: any pid guessed here is a claim that expires on
     # its own, and the states that follow from one are silent. LEAF_SESSION_ID
     # with no codex above it is a hand-built environment, so say what was walked.
@@ -1671,13 +1700,19 @@ def init_lock_path(page_dir: Path) -> Path:
 
 
 def page_claim(page_dir: Path) -> dict | None:
-    """The page's last claim, including one that is released or whose pid died."""
+    """The page's last claim, including one released or whose lifetime ended."""
     return read_json(claim_path(page_dir))
 
 
 def claim_is_active(claim: dict | None) -> bool:
-    """Whether a claim still names a live owner."""
-    return bool(claim and claim["released"] is None and pid_alive(claim["pid"]))
+    """Whether a claim still names a live owner: the job record a background
+    job's claim points at, or the process every other claim's pid names
+    (`session_lifetime`). loop-guard.py reads the same rule in plain Python."""
+    if not claim or claim["released"] is not None:
+        return False
+    if "job" in claim:
+        return (Path(claim["job"]) / "state.json").is_file()
+    return pid_alive(claim["pid"])
 
 
 def claim_records() -> list:
@@ -1713,7 +1748,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def take_claim(self, identity: dict, pid: int) -> tuple[dict | None, dict]:
+    def take_claim(self, identity: dict, lifetime: dict) -> tuple[dict | None, dict]:
         previous = self.claim
         path = claim_path(self.page_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1721,7 +1756,7 @@ class PageTransaction:
             "page": str(self.page_dir),
             "id": identity["id"],
             "host": identity["host"],
-            "pid": pid,
+            **lifetime,
             "agent": identity["agent"],
             "cwd": os.getcwd(),
             "ts": now_iso(),
@@ -1836,9 +1871,9 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     identity = host_identity()
     if not identity:
         return None
-    pid = session_pid(identity)
+    lifetime = session_lifetime(identity)
     with PageTransaction(page_dir) as page:
-        return page.take_claim(identity, pid)
+        return page.take_claim(identity, lifetime)
 
 
 def claim_page(page_dir: Path) -> bool:

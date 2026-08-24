@@ -33,6 +33,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -9110,7 +9111,7 @@ def claimed(page_dir, monkeypatch):
 @pytest.fixture(scope="session")
 def codex_program(tmp_path_factory):
     """A program named `codex` to run a session under, which is the whole of what
-    `session_pid` looks for above a leaf: a copy of this interpreter wearing that
+    `session_lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
@@ -9607,16 +9608,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 @pytest.mark.parametrize(
     "identity_names",
     [
-        pytest.param(
-            (
-                "CLAUDE_CODE_SESSION_ID",
-                "CLAUDE_PID",
-                "CODEX_THREAD_ID",
-                "LEAF_SESSION_ID",
-                "LEAF_AGENT",
-            ),
-            id="bare-shell",
-        ),
+        pytest.param(CLAUDE_IDENTITY + CODEX_IDENTITY, id="bare-shell"),
         pytest.param((), id="host-session"),
     ],
 )
@@ -10063,6 +10055,30 @@ def test_loop_guard_agrees_on_claim_home_and_active_ownership(
     record_claim(page, id="guarded", pid=dead_pid)
     assert not guard.session_has_active_claim("guarded")
 
+    # A background job's claim names the job's record and no process at all, so
+    # the pid the environment states — dead here — is nothing to either reader.
+    # Claimed through the real door, which asks for an initialized page.
+    (page / "comments.jsonl").write_bytes(b"")
+    job = tmp_path / "job"
+    job.mkdir()
+    interact.write_json(job / "state.json", {"sessionId": "guarded"})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "guarded")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    assert interact.claim_page(page)
+    assert "pid" not in interact.page_claim(page)
+    assert guard.session_has_active_claim("guarded")
+    assert interact.claim_is_active(interact.page_claim(page))
+    # Deleting the job takes its record; the directory can stay behind empty.
+    (job / "state.json").unlink()
+    assert not guard.session_has_active_claim("guarded")
+    assert not interact.claim_is_active(interact.page_claim(page))
+    # A dead job claim passes the walk on to the session's other records.
+    other = tmp_path / "other"
+    other.mkdir()
+    record_claim(other, id="guarded")
+    assert guard.session_has_active_claim("guarded")
+
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     """`leaf status PAGE idle` is the way out of the guard's other case, so it
@@ -10221,6 +10237,61 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert claim is not None
     assert claim["released"] is not None
     assert interact.owned_pages("s1") == []
+
+
+def test_a_background_jobs_server_lives_as_long_as_the_job(
+    page_dir, tmp_path, monkeypatch, dead_pid
+):
+    """A background job runs each sitting on a worker its daemon retires between
+    them, so a claim naming that worker's pid takes the page down an hour after
+    every turn. The job's record is the lifetime instead: the page stays held
+    and served whatever became of the process that claimed it, and retires when
+    the job is deleted — which takes the record and may leave the directory."""
+    job = tmp_path / "job"
+    job.mkdir()
+    interact.write_json(job / "state.json", {"sessionId": "bg-job"})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    assert interact.claim_page(page_dir)
+    assert interact.start_server(page_dir)
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == "session"
+    # Longer than the reaper's grace, so a server that was going to retire on the
+    # dead pid has had the chance.
+    time.sleep(interact.ORPHAN_GRACE_SECS + 0.5)
+    assert interact.running_server(page_dir)
+    assert interact.owned_pages("bg-job") == [page_dir.resolve()]
+    assert interact.presence(page_dir, [])["session_alive"] is True
+
+    (job / "state.json").unlink()
+    deadline = time.time() + 5
+    while interact.running_server(page_dir):
+        assert time.time() < deadline, "the deleted job's server stayed up"
+        time.sleep(0.05)
+    assert interact.owned_pages("bg-job") == []
+    assert interact.presence(page_dir, [])["session_alive"] is False
+
+
+def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
+    page_dir, tmp_path, monkeypatch
+):
+    """CLAUDE_JOB_DIR is inherited, so a session started under a background job's
+    shell tool carries the job's directory while being a process of its own: its
+    claim names its pid. A job record that is not there is refused, since a claim
+    written on it would be over before the server it licensed came up."""
+    job = tmp_path / "job"
+    job.mkdir()
+    interact.write_json(job / "state.json", {"sessionId": "the-job"})
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert interact.claim_page(page_dir)
+    assert interact.page_claim(page_dir)["pid"] == os.getpid()
+    assert "job" not in interact.page_claim(page_dir)
+
+    (job / "state.json").unlink()
+    with pytest.raises(SystemExit, match="names no job record"):
+        interact.claim_page(page_dir)
 
 
 @pytest.fixture

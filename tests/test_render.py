@@ -355,17 +355,53 @@ def record_claim(page, **fields):
 @pytest.fixture
 def serve(tmp_path, monkeypatch):
     """Publish HTML as v1 of a fresh page directory and serve it, as the real
-    server does — vendoring included, so the assets under test are this repo's."""
+    server does — vendoring included, so the assets under test are this repo's.
 
-    def go(html, comments=0, anchored=()):
+    Handed an example's path rather than its markup, it also lays in the two
+    things that example ships beside itself: the media it names, and the event
+    log, where it has one. The log for the same reason `test_examples_pass_check`
+    reads one — a page is what its markup and its standing log make together, and
+    a corpus that reads only the markup is reading half of it. A thread and any
+    widget a message carries exist nowhere else, so without this every sweep is
+    green over a page the reader never gets.
+
+    Each call gets its own directory, reached through `serve.page_dir`. Sharing one
+    meant a test that serves two examples in a single body re-initialised over the
+    first and appended the second's events to a log already holding the first's,
+    which reads as a page rather than failing."""
+
+    def go(source, comments=0, anchored=()):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-        d = tmp_path / "page"
+        example = source if isinstance(source, Path) else None
+        d = tmp_path / f"page{len(servers)}"
         assert CliRunner().invoke(interact.cli, ["page", "init", str(d)]).exit_code == 0
-        (d / "versions" / "v1.html").write_text(html)
+        (d / "versions" / "v1.html").write_text(
+            example.read_text() if example else source
+        )
         shutil.copytree(EXAMPLE_MEDIA, d / "media", dirs_exist_ok=True)
         interact.append_event(
             d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
+        # After the note, so v1's announcement stays the log's first line and the
+        # exchange reads in the order it happened, which is preview.py's ordering.
+        # (The site build writes the seed alone and announces its versions
+        # elsewhere, so it has no note to come after.) Split on the writer's own
+        # separator, never splitlines(), whose wider class reads a U+2028 inside a
+        # comment's text as a break.
+        if example and (seed := example.with_suffix(".jsonl")).exists():
+            for line in seed.read_text(encoding="utf-8").split("\n"):
+                if line.strip():
+                    interact.append_event(d, json.loads(line))
+            # A seed is history rather than news, so the page opens acknowledged
+            # through it — the state every other publisher of a seeded example
+            # serves. Left at nought the banner tells the reader their own comment
+            # is queued for somebody, which is an arrival regression this corpus
+            # would have manufactured for itself. Read back for the seq rather than
+            # counted, because a seq is what the log's reader assigns and an append
+            # hands back no such number.
+            interact.write_json(
+                d / "cursor.json", {"seq": interact.read_events(d)[-1]["seq"]}
+            )
         for i in range(comments):
             interact.append_event(
                 d,
@@ -1186,7 +1222,7 @@ def test_an_example_comes_up_for_a_reader_who_left_something_standing(
     above is every example's first visit; this is the same examples with the panel
     open, a tray standing, or design mode on, which is what the reader who opened one
     of those gets back on every load until they close it."""
-    assert arrival_findings(browser, serve(example.read_text())) == []
+    assert arrival_findings(browser, serve(example)) == []
 
 
 def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
@@ -1739,7 +1775,7 @@ def test_example_renders(browser, serve, example):
     is the shape of failure a static lint cannot see. The invariants live in
     interact.render_version — the pass `version check --render` runs on agent-authored
     pages — so this sweep also proves the gate a user's page goes through."""
-    assert interact.render_version(browser, serve(example.read_text())) == []
+    assert interact.render_version(browser, serve(example)) == []
 
 
 def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
@@ -2266,7 +2302,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     third that says no, the room being there on a wide window and the notes staying
     where the reader had them."""
     example = next(p for p in EXAMPLES if p.stem == "design-decision")
-    url = serve(example.read_text())
+    url = serve(example)
     page, errors = open_page(browser, url)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');
@@ -2996,7 +3032,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
     comes first in the banner, and with the panel open the row is crowded enough that
     the status text takes up the slack instead of the buttons — a real regression,
     silently masked by the sweep's own previous gesture."""
-    url = serve(example.read_text())
+    url = serve(example)
     page, errors = open_page(browser, url)
     page_at_rest(page)
     total = page.locator(PRESS).count()
@@ -3182,7 +3218,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     outlined, and the page is exactly as it was, in its markup and in where its focus sits
     — over the corpus rather than over a case, because every widget that takes a press had
     this and none of them was ever told."""
-    url = serve(example.read_text())
+    url = serve(example)
     page, errors = open_page(browser, url)
     targets = aim_targets(serve.page_dir)
     total = page.locator(targets).count()
@@ -5543,7 +5579,7 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    page, errors = open_page(browser, serve(example.read_text()))
+    page, errors = open_page(browser, serve(example))
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
     violations, report = serious_axe_violations(page)
@@ -6034,6 +6070,145 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
             '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where no '
             "selection can reach it"
         ),
+    ], found
+
+
+# A painted fact whose spoken copy is on the page and drawn nowhere, written into the
+# markup for the same reason the two above are: the gate reads the rendered page and
+# cannot tell who suppressed the word. `recommended` is x-paints, so the runtime writes
+# a .lf-quiet span beside each of these; the style takes the box off both. One stands in
+# the open and one behind a disclosure the reader has not opened.
+PAINTED_IN_SILENCE_PAGE = leaf_page(
+    "silence",
+    """
+<h1 id="h">Transport</h1>
+<lf-options id="open-group">
+  <lf-option id="p-seen" recommended><strong>Lax cookie</strong> Host-only.</lf-option>
+  <lf-option id="p-other"><strong>Bearer header</strong> Every script reads it.</lf-option>
+</lf-options>
+<details id="folded">
+  <summary>Weighed in March</summary>
+  <lf-options id="folded-group">
+    <lf-option id="p-folded" recommended><strong>Signed URL</strong> Expires.</lf-option>
+    <lf-option id="p-spare"><strong>Nothing</strong> Leave it.</lf-option>
+  </lf-options>
+</details>
+""",
+    head="<style>.lf-quiet { display: none }</style>",
+)
+
+
+def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, serve):
+    """The x-paints half of the same gate, and the line it draws between two silences.
+
+    A widget may paint a fact — `recommended` is a corner mark and no text node —
+    and it owes a reader who is listening the same fact in words. The runtime
+    writes that word, so what is left to check is whether anything drew it. Asking
+    is asking for a box, and only an element that is being laid out has one to give:
+    a disclosure nobody opened, a tab nobody switched to and a shut comment panel
+    all lay out nothing, and their emptiness is the ancestor's answer rather than
+    the widget's.
+
+    So the two silences part here, and this holds one of them: a word drawn nowhere
+    on a page that is on screen is reported, and the same widget behind a fold is
+    not, there being nothing to measure and the fold being the reader's to open.
+    That exemption is what lets a widget riding a message out, in
+    `test_render_leaves_a_widget_riding_a_reply_out_of_that_reading`.
+
+    The other silence — a word the runtime never wrote, which is a fault wherever
+    the element stands — no fixture can stage: `quietFacts` returns the attribute's
+    own value or its name, so a declared paint always gets its word, and the branch
+    is reachable only by a regression in `renderQuiet` itself. What holds it is the
+    corpus with that regression put back: silence `renderQuiet` and every painted
+    option in the examples is reported, a `parallel-workstreams` option in a tab
+    nobody opened among them. Skipping the unrendered element before asking whether
+    a word exists is what drops that one, so the order of the two questions here is
+    the contract, and this test does not pin it."""
+    found = [
+        f.split("] ", 1)[1]
+        for f in interact.render_version(browser, serve(PAINTED_IN_SILENCE_PAGE))
+    ]
+    assert sorted(set(found)) == [
+        (
+            '<lf-option id=p-seen> paints recommended="" and says nothing a reader '
+            "listening can hear"
+        )
+    ], found
+
+
+# A module making the mistake the scaffold's own header warns about: words injected
+# into the widget wearing the chrome face, with nothing said about whose they are.
+# It has to be a module, because a page may not author `.lf-ui` — `reserved_marker_errors`
+# refuses it at the door — and no shipped widget makes the mistake, the gate being green.
+BADGE_CHROME = """      const row = document.createElement("div");
+      row.className = "lf-ui";
+      row.textContent = "Sent by the reviewer";
+      this.append(row);"""
+
+
+def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The same reading, asked where the nesting turns over.
+
+    A widget's chrome is a `.lf-ui` the widget put inside itself. A widget in a
+    message is the other way up: the runtime's own layer is above it and the
+    widget has none of its own, so every word it holds sits under a `.lf-ui`
+    with nothing wrong. Asking whether the *words* stand in a widget cannot tell
+    those apart and accuses the second. Asking whose the `.lf-ui` is can.
+
+    Both halves, because either alone is half a claim. One reply carries three
+    widgets: a question, an exhibit beside it, and a badge whose module injects
+    unmarked words under the chrome face. The panel around all three says
+    nothing; the badge's own chrome is read exactly as it would be on a page.
+
+    Nothing here had ever been rendered. No example shipped a widget in its log
+    until one did, and every fixture that put one in a reply asked about the
+    panel rather than about the gate — while the gate walks text nodes rather
+    than boxes, so it had been reading the panel all along with the panel shut.
+    It would have refused the first page that carried a question in a reply,
+    which is a shape the vocabulary describes and `leaf reply --markup` posts."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        interact.cli, ["customize", "widget", "lf-badge", "--upgrade"]
+    )
+    assert result.exit_code == 0, result.output
+    module = tmp_path / ".leaf" / "widgets" / "lf-badge.js"
+    module.write_text(
+        module.read_text().replace(
+            "      if (!once(this)) return;",
+            "      if (!once(this)) return;\n" + BADGE_CHROME,
+        )
+    )
+
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-ask",
+            "author": "user",
+            "version": 1,
+            "text": "What would the alternative look like?",
+        },
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-ask",
+            "version": 1,
+            "text": SPECIMEN_TEXT,
+            "markup": SPECIMEN_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+        },
+    )
+    found = sorted({f.split("] ", 1)[1] for f in interact.render_version(browser, url)})
+    assert found == [
+        (
+            '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
+            "comment can reach it"
+        )
     ], found
 
 
@@ -11355,6 +11530,45 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
 
 # Where the tray's rows say their ask's own words, which is the half of a row a static
 # lint can never read: the words are whatever the page renders, after every upgrade.
+# Every widget that measures a number off a live box, authored into the page and sent in
+# a reply, so the two readings of each can be compared instead of pinned to a number. The
+# words are the same in both, which is what makes the room they need the same.
+ROOM_WIDGETS = """<lf-options id="{id}-q" choose label="Which extras go in?">
+  <lf-option id="{id}-tray">A seed tray under the feeder</lf-option>
+  <lf-option id="{id}-pole">A second pole for the north pair</lf-option>
+</lf-options>
+<lf-board id="{id}-b">
+  <lf-column id="{id}-todo" label="To do">
+    <lf-card id="{id}-brackets"><strong>Steel brackets</strong> For the north pair.</lf-card>
+  </lf-column>
+  <lf-column id="{id}-done" label="Done">
+    <lf-card id="{id}-mounts"><strong>South mounts</strong></lf-card>
+  </lf-column>
+</lf-board>
+<lf-roster id="{id}-r">
+  <lf-agent id="{id}-wren" state="working" branch="north-pair">
+    <strong>wren</strong> Fitting the brackets.
+  </lf-agent>
+</lf-roster>"""
+
+# Which element holds each room, and the custom property the theme spends it through.
+ROOMS = [("-q", "--lf-word-room"), ("-b", "--lf-grip-room"), ("-r", "--lf-state-room")]
+
+# What the theme is given, asked of the element that states it.
+ROOM_HELD = """([id, prop]) => {
+  const el = document.getElementById(id);
+  return el && getComputedStyle(el).getPropertyValue(prop).trim();
+}"""
+
+MESSAGE_ROOM_PAGE = leaf_page(
+    "message-room",
+    """
+<h1 id="mr-h">Bracket order</h1>
+"""
+    + ROOM_WIDGETS.format(id="mr-page"),
+)
+
+
 ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
   kind: r.querySelector('.lf-asks-kind').textContent,
@@ -11362,6 +11576,63 @@ ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map
   w: Math.round(r.getBoundingClientRect().width),
   h: Math.round(r.getBoundingClientRect().height),
 }))"""
+
+
+def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
+    """An ask carried by a reply is an ask, and the tray has to name it in its words.
+
+    The page holds none of its own, so the one row here is the question Claude put in
+    the conversation — the AskUserQuestion shape, which reaches a reader through the
+    panel and through this tray and nowhere else. It is read here exactly as a group
+    on the page is read: the ask's own words, its label first, run together and cut at
+    the row's cap. `startswith` for that reason — the cut is the tray's business and
+    this is about which words reach it, which is the whole of what the row asserts for
+    a page-borne ask two tests below.
+
+    It read `rp-ask` before, and then read the label alone: a veto on chrome threw the
+    reading away, and lifting it left the panel over the widget standing in for the
+    widget's own chrome, so only a declared label got out. The reading is rooted at the
+    ask now, so the layer above it is nobody's apparatus and the words underneath are
+    the widget's own."""
+    url = serve(REPLY_HOST_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-which",
+            "author": "user",
+            "version": 1,
+            "text": "Either would do. Which are you leaning towards?",
+        },
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-which",
+            "version": 1,
+            "text": "The second, but the cost lands on you either way:",
+            "markup": (
+                '<lf-options id="rp-ask" choose '
+                'label="Which should I write up first?">'
+                '<lf-option id="rp-now">The migration</lf-option>'
+                '<lf-option id="rp-later">The rollback</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    rows = page.evaluate(ASK_ROW_SAYS)
+    assert len(rows) == 1, rows
+    assert rows[0]["at"] == "rp-ask", rows
+    assert rows[0]["says"].startswith("Which should I write up first?"), rows
+    assert errors == []
+    page.close()
 
 
 CHANGE_SHAPES_PAGE = leaf_page(
@@ -11384,6 +11655,325 @@ CHANGE_SHAPES_PAGE = leaf_page(
 </lf-options>
 """,
 )
+
+
+def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, serve):
+    """A measurement is a measurement wherever the widget was built, or it is a zero.
+
+    Three shipped widgets take a number off a live box at upgrade — the room a pick
+    mark's word will need, the room a card keeps clear of its grip, the width of a
+    roster's state column — because a constant goes stale in the next face. A widget
+    upgrades wherever the runtime connects it, and one of those places is a message body
+    inside a comment panel nobody has opened: `display: none`, so every box under it is
+    zero. `once` then refuses the second upgrade that would put it right and the body is
+    cached for the life of the tab, so the zero is permanent.
+
+    Nothing said so. The pick column collapsed to nothing, and the room arrived under
+    the reader's pointer at the moment they pressed — the mark 17px wide, then 67, the
+    row jumping 50px sideways as it gained the word "your pick".
+
+    The reply is in the log before the page loads and the panel is shut, which is the
+    only arrangement that reproduces it: a reply arriving into an open panel upgrades
+    into boxes and was always right. Rooms are compared rather than named, because the
+    number is the face's and this is about whether it was ever read.
+
+    All three of them, because `measure` is the primitive and each module's wiring to it
+    is its own line. Two of the three have no other reading anywhere that would notice
+    one coming out."""
+    url = serve(MESSAGE_ROOM_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-room",
+            "author": "user",
+            "version": 1,
+            "text": "Anything else worth adding?",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-room",
+            "version": 1,
+            "text": "These, and who is on them:",
+            "markup": ROOM_WIDGETS.format(id="mr-msg"),
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+
+    held = {}
+    for suffix, prop in ROOMS:
+        held[suffix] = page.evaluate(ROOM_HELD, [f"mr-page{suffix}", prop])
+        # Against a page that stopped reserving anything, where this would pass on both
+        # sides reading the same nothing.
+        assert held[suffix] not in ("0px", "", None), (suffix, prop, held)
+
+    page.locator(".lf-comments").click()
+    expect(page.locator("#mr-msg-q")).to_be_visible()
+    # The re-measure is delivered with the layout that gave these their boxes, so the
+    # reading waits for a frame that has been through one.
+    page.evaluate(
+        "() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    for suffix, prop in ROOMS:
+        assert page.evaluate(ROOM_HELD, [f"mr-msg{suffix}", prop]) == held[suffix], (
+            suffix,
+            prop,
+        )
+    assert errors == []
+    page.close()
+
+
+def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
+    browser, serve
+):
+    """A selection made in the panel is not the page's words, whatever it looks like.
+
+    `leaf comment --section` refuses to anchor on a widget an agent sent, and it is the
+    reading that is supposed to promise less than the browser's. The browser offered
+    the 💬 over a question in a reply and wrote an anchor onto that widget's own id into
+    an append-only log — naming a section no version holds, so it could never paint and
+    never be found again.
+
+    A declared label is the hole it came through: it is the page speaking inside the
+    control it labels, so it answers the "are these the runtime's words" question for
+    itself and the panel above it never got asked. That question was standing in for a
+    second one nobody was putting — which document is this — and the drag needs both.
+
+    The same drag on the page's own prose comes first and must raise the button. It is
+    the control: this asserts an absence, and an absence proves nothing on a page where
+    nothing was ever going to appear. The drags are real ones, so the mouseup guard is
+    under test with the button.
+
+    Then two turns of the macrotask queue, because the handler raises the button from a
+    bare `setTimeout` — asserting straight after the drag reads the frame before the
+    decision and passes whatever the decision would have been."""
+    url = serve(REPLY_HOST_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-store",
+            "author": "user",
+            "version": 1,
+            "text": "Which store?",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-store",
+            "version": 1,
+            "text": "Depends what you want to keep:",
+            "markup": (
+                '<lf-options id="ps-ask" choose label="Which store should I write up?">'
+                '<lf-option id="ps-redis">Redis</lf-option>'
+                '<lf-option id="ps-cookie">A signed cookie</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+
+    def drag(locator):
+        expect(locator).to_be_visible()
+        box = locator.bounding_box()
+        y = box["y"] + box["height"] / 2
+        select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+        return page.evaluate("() => getSelection().toString()")
+
+    # The control, taken with the panel still shut: the same gesture on the page's own
+    # words raises the button here. Opening the panel slides the document over, and a
+    # drag run across that reads a box from the frame before and selects nothing — the
+    # panel's own contents are fixed and stay where they are read.
+    assert "signed-cookie" in drag(page.locator("#intro"))
+    expect(page.locator(".lf-fab")).to_be_visible()
+    # Put it down again, so what follows is a rise and not a leftover.
+    page.locator("#h").click()
+    expect(page.locator(".lf-fab")).to_be_hidden()
+
+    page.locator(".lf-comments").click()
+    assert "Which store" in drag(page.locator("#ps-ask [data-lf-said]").first)
+    # Both turns the handler could have used: it defers with a bare setTimeout, and the
+    # step it queues queues nothing further.
+    for _ in range(2):
+        page.evaluate("() => new Promise((r) => setTimeout(r))")
+    expect(page.locator(".lf-fab")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+# A group that takes a pick, so the layer seats a conversation in it (x-conversation),
+# and a paragraph beside it so the diff below has one real change to find.
+CONVERSATION_DIFF_PAGE = leaf_page(
+    "conversation-diff",
+    """
+<h1 id="cd-h">Bracket order</h1>
+<p id="cd-lede">The south pair is up and drawing traffic.</p>
+<lf-options id="cd-q" choose label="Which extras go in?">
+  <lf-option id="cd-tray">A seed tray under the feeder</lf-option>
+  <lf-option id="cd-pole">A second pole for the north pair</lf-option>
+</lf-options>
+""",
+)
+
+
+def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
+    browser, serve
+):
+    """What a reader and an agent said to each other is not something the page changed.
+
+    A widget declaring x-conversation grows a seat on the page, and the layer fills it
+    from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
+    standing inside the widget out in `<main>`. The version diff walks every block the
+    page holds and keys each by `wrote`, which is exactly the reading that leaves
+    generated words out, so those blocks key to nothing and are skipped.
+
+    They stopped being skipped when `wrote` was bounded at the element handed in: a
+    reading can start *inside* generated chrome, and rooted at one of those `<p>`s the
+    box above it was no longer over the reading. The base version is parsed unupgraded
+    and holds no conversation at all, so every message became an insertion — the
+    reader's own comment and the agent's reply painted as changes to the document, and
+    the count in the version note inflated by both.
+
+    The bound is the widget the reading belongs to now, and a conversation seat is
+    inside its widget, so the box is between the words and their frame either way."""
+    url = serve(CONVERSATION_DIFF_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "cd-thread",
+            "author": "user",
+            "version": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "cd-thread",
+            "version": 1,
+            "text": "It does, with the wider plate.",
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    # The seat is filled before the diff runs, or this asserts over a page that never
+    # had the blocks in question.
+    expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
+
+    (d / "versions" / "v2.html").write_text(
+        CONVERSATION_DIFF_PAGE.replace(
+            '<p id="cd-lede">The south pair is up and drawing traffic.</p>',
+            '<p id="cd-lede">The south pair is up and drawing traffic.</p>\n'
+            '<p id="cd-new">The north pair waits on brackets.</p>',
+        )
+    )
+    interact.append_event(
+        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
+    )
+    page.wait_for_url("**/v2.html")
+    expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
+
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
+    )
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-ins-block')].map((e) => e.id)"
+    ) == ["cd-new"], "the diff read the conversation as words the base version lacked"
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
+    """A question the agent asked is not one of the runtime's own buttons.
+
+    Design mode lets a reader comment on anything the layer draws, so a thread can be
+    anchored on a widget that arrived in a reply. Two things were then said about it and
+    both were wrong. The panel filed it under "The page's own layer", which groups the
+    agent's question with the composer and the version chooser — the layer's parts wear
+    the runtime's id namespace, which authored markup may not take, and that is what
+    tells one from the other. And the thread's label read `§ ps-ask`, the bare id.
+
+    The label is the part with the mechanism worth naming. An element anchor is labelled
+    with its item's opening words, read when the node is built — and on the reconcile
+    that first builds this node, the message body carrying the widget has not been
+    connected yet, so the item did not exist and the reading came back empty. A node the
+    reconcile keeps is never built again, so nothing asked a second time. It is repainted
+    with the quote now, which is the pass that already exists for records whose subject
+    the reconcile has just written."""
+    url = serve(REPLY_HOST_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-sent",
+            "author": "user",
+            "version": 1,
+            "text": "Which store?",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-sent",
+            "version": 1,
+            "text": "Depends what you want to keep:",
+            "markup": (
+                '<lf-options id="ps-ask" choose label="Which store should I write up?">'
+                '<lf-option id="ps-redis">Redis</lf-option>'
+                '<lf-option id="ps-cookie">A signed cookie</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    # The shape design mode writes: an element anchor naming a widget no version holds.
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-on-sent",
+            "author": "user",
+            "version": 1,
+            "text": "Redis, and say why in the patch.",
+            "anchor": {"section": "ps-ask"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-comments").click()
+
+    thread = page.locator('.lf-thread[data-id="c-on-sent"]')
+    expect(thread).to_be_visible()
+    label = thread.locator(".lf-quote").inner_text()
+    assert "Which store should I write up?" in label, label
+    assert "ps-ask" not in label, label
+    # The heading over it, and the layer's own name kept for the layer's own parts.
+    groups = page.evaluate(
+        "() => [...document.querySelectorAll('.lf-group')].map((g) => g.textContent)"
+    )
+    assert "Sent in the conversation" in groups, groups
+    assert "The page's own layer" not in groups, groups
+    assert errors == []
+    page.close()
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
@@ -18861,7 +19451,7 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     the class, the sweep that proves every passage is quotable structurally could not see
     the passages that weren't. It reaches six tab names, two column headings and a settled
     group's summary line in the gallery alone."""
-    page, errors = open_page(browser, serve(example.read_text()))
+    page, errors = open_page(browser, serve(example))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
@@ -19123,7 +19713,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     reading the page, so it leaves the event log untouched."""
     example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
     quote = "The feed has been stable since the battery swap; one open follow-up on storage."
-    url = serve(example.read_text(), anchored=[("camera-note", quote)])
+    url = serve(example, anchored=[("camera-note", quote)])
     page, errors = open_page(browser, url)
 
     implementation = page.get_by_role("tab", name="Bracket installation")
@@ -19139,7 +19729,13 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     assert interact.read_events(serve.page_dir) == before
 
     page.locator(".lf-comments").click()
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    # This test's own comment, plus whatever the example ships a log for. Counted
+    # rather than fixed at one, because the number is a fact about the corpus and
+    # not about tabs: the day this example seeds a thread, a `1` here reds a test
+    # that has nothing to say about seeds.
+    expect(page.locator(".lf-thread")).to_have_count(
+        len([e for e in before if e["kind"] == "comment"])
+    )
     comment = page.locator(".lf-thread .lf-quote", has_text="The feed has been stable")
     expect(comment).to_contain_text(quote)
     comment.click()
@@ -25432,7 +26028,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     a fault: a standing page spends the night that way, so the words are the plain
     computed fact and the dot is not the amber it wears for a session falling behind."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=1))
-    d = tmp_path / "page"
+    d = serve.page_dir
     # The banner's own dot: the leaves panel mirrors this page as a row, so a
     # bare .lf-dot resolves to that row's copy too.
     text, dot = page.locator(".lf-status-text"), page.locator(".lf-banner .lf-dot")
@@ -25564,7 +26160,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     word in the thread settles it, and a second act saying so would be a second writer
     for one fact."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
-    d = tmp_path / "page"
+    d = serve.page_dir
     comments = [e for e in interact.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
@@ -25673,7 +26269,7 @@ def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
     knows. `ago` stays rendered whole beside the word rather than reworded to absorb
     it, so one elapsed line reads the same wherever it appears."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
-    d = tmp_path / "page"
+    d = serve.page_dir
     held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -25764,7 +26360,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     What a copy does with all of it is the export section's
     (test_a_copy_wears_the_mark_and_claims_no_session)."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    d = tmp_path / "page"
+    d = serve.page_dir
 
     def tone(want, why):
         try:
@@ -26024,13 +26620,20 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     anywhere. The corpus's own anchor sweep does not cover it, because that sweep
     writes its own anchors. This is what reads the shipped one.
 
+    A log can also carry a widget, and that is the second thing read here. Markup
+    in a message renders in the panel and nowhere else, so no authored page can
+    stand in for it — which is exactly how it stayed unrendered: every example's
+    widgets are authored into <main>, and a module that never reached a message
+    would have left all eight corpus sweeps green.
+
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
     seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
+    drawn = []
 
     for example in seeded:
-        url = serve(example.read_text())
+        url = serve(example)
         # The log's grammar is events joined by "\n" — never splitlines(), whose
         # wider class reads a U+2028 inside a comment's text as a break.
         events = [
@@ -26041,8 +26644,6 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             if line.strip()
         ]
         assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
-        for event in events:
-            interact.append_event(serve.page_dir, event)
 
         page, errors = open_page(browser, url)
         anchored = [e for e in events if e.get("anchor")]
@@ -26065,7 +26666,15 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             "The passage it quotes has been rewritten; recapture it with "
             "`leaf comment --quote` against the current file."
         )
-        page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+        # Only where the log named a passage. The thread count above already allows a
+        # seed of general comments, which a page may hold; waiting unconditionally for
+        # a mark spends the whole timeout on such a seed and then reports it as
+        # "wait_for_function timed out", which is the failure the count's own note
+        # says this gate must not produce.
+        if anchored:
+            page.wait_for_function(
+                "() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0"
+            )
         # The exchange is both voices, and the mark is on the words the log named.
         for event in anchored:
             quote = event["anchor"]["quote"]
@@ -26082,8 +26691,36 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 f"nowhere on the page; the mark reads {painted[:120]!r}"
             )
         expect(page.locator(".lf-thread .lf-msg.claude")).not_to_have_count(0)
+
+        # The other thing a log carries. A widget can arrive as a message's markup
+        # rather than as authored page content, and it draws in the body the panel
+        # builds — so its module has to reach a tree the runtime made, in a column
+        # narrower than the document's. Every example's own widgets stand in
+        # <main>, which is why the eight sweeps could all be green while nothing
+        # had rendered one here. It needs the panel open: shut, the fragment is in
+        # the DOM with no box at all, so a reading that walks text nodes sees it
+        # and every reading that measures one does not.
+        page.locator(".lf-comments").click()
+        registry = interact.load_registry(serve.page_dir)
+        for carried in [e for e in events if e.get("markup")]:
+            for wid, rec in interact.parse_structure(carried["markup"]).by_id.items():
+                drawn.append(wid)
+                shown = page.locator(f"#{wid}")
+                expect(shown).to_be_visible()
+                # Where the registry says the element holds a request for the
+                # reader, whatever answers it has to have been built here too:
+                # data-lf-offer is the runtime's own mark for a thing to work, so
+                # this asks the declaration and never the tag.
+                if registry[rec["tag"]].get("x-awaits"):
+                    expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
         assert errors == []
         page.close()
+
+    assert drawn, (
+        "no shipped log carries a widget in a message. That is the other place "
+        "markup renders, no authored page can stand in for it, and with none in "
+        "the corpus this is the whole of what reads one."
+    )
 
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
@@ -26093,6 +26730,12 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
     reading and nothing in the other."""
+    # The markup rather than the example, so a shipped log stays out. This sweep
+    # writes its own anchors and then compares the whole painted mark against
+    # exactly those quotes; a seeded thread paints into the same highlight and
+    # every example that ever ships one would read as painting text it does not
+    # name. The seeded anchor has its own reader in
+    # test_a_shipped_log_opens_its_example_on_a_live_thread.
     html = example.read_text()
     url = serve(html)
     d = serve.page_dir
@@ -27998,7 +28641,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     holding a tab stop or a role, a control standing there with nothing left behind it,
     and a hand or a grab under the pointer — and every question is put to the markers
     rather than to any widget."""
-    url = serve(example.read_text())
+    url = serve(example)
     out = tmp_path / "standalone.html"
     out.write_text(interact.export_page(browser, url, serve.page_dir))
 

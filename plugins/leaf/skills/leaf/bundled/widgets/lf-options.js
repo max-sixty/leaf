@@ -94,6 +94,7 @@ import {
   conversationBox,
   inChrome,
   keys,
+  measure,
   offer,
   once,
   PRESS,
@@ -153,7 +154,9 @@ customElements.define(
       // document's state, as a span.
       for (const option of this.#options())
         if (choosable || this.#authored.has(option.id)) this.#mark(option, choosable);
-      this.#holdWordRoom();
+      // Off the mark's own box, so it waits for one: this group may be a question
+      // an agent asked in a reply, and the panel that holds it opens later.
+      measure(this, () => this.#holdWordRoom());
       if (choosable) {
         this.#conversation = conversationBox(this, "Say something");
         if (this.#conversation) this.append(this.#conversation);

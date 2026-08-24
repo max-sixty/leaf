@@ -82,7 +82,14 @@ is the one thing no markup describes, so an example that wants to show one ships
 its events as `<stem>.jsonl` beside the page, the way an example that wants a
 screenshot ships the image bytes beside it. Every place that builds a page
 directory out of an example lays the log in: `scripts/preview.py`,
-`publish_pages` in `scripts/site.py`, and `test_examples_pass_check`.
+`publish_pages` in `scripts/site.py`, `test_examples_pass_check`, and `serve` in
+`test_render.py`. That last one is the browser corpus, and it laid an example's
+media in while leaving its log out — so the eight sweeps read every example as a
+page with nothing standing on it, which is not a page anybody is served. `serve`
+seeds when it is handed an example rather than markup, and sets the cursor past
+the seed as `preview.py` does. One sweep opts out and says why: the anchor sweep
+writes its own anchors and compares the whole painted mark against exactly
+those, so a seeded thread's mark would read there as text the page never named.
 `ship-review.jsonl` is the one such log today, and a reader meets it on
 <https://leaf.page/examples/ship-review/> as much as under
 `scripts/preview.py ship-review` — the published pages are served rather than
@@ -129,6 +136,27 @@ rendering says is pinned in fixtures that mint their own timestamps
 (`test_a_rosters_row_says_when_the_log_last_heard_from_that_worker`,
 `test_a_worker_that_has_never_reported_dates_from_its_version`). The next widget
 with a live half owes both halves: the seed and the fixture.
+
+A seed is also the only way a widget reaches the corpus in a message. Markup can
+be two things — a version's content, and an event's `markup` field — and the
+second renders in the panel and nowhere else, so no authored page substitutes
+for it however many widgets it holds. `ship-review.jsonl` carries the shape:
+Claude answers with a question of its own, a `multiple` group whose Done press is
+the reader saying the set is whole. What reads it is
+`test_a_shipped_log_opens_its_example_on_a_live_thread`, which opens the panel
+and asks that each widget the log carries is drawn and, where the registry
+declares the element awaits an answer, that the runtime built something inside
+it to answer with.
+
+Rendering that shape for the first time reported two faults in the render gate,
+both of them the same mistake: a reading assumed a widget stands in the document.
+`UNREACHABLE_WORDS` took any `.lf-ui` above a widget's words for the widget's own
+chrome, which is true on a page and inside out in a message, so it refused every
+question ever asked in a reply. `SILENT_WORDS` asked whether a painted
+attribute's quiet word had a box, and a message in a shut panel has no boxes at
+all, so it called the panel's state the widget's. Neither could be found by
+reading: the gate walks text nodes rather than boxes and had been reading the
+panel all along, with the panel shut, on a corpus that never put anything there.
 
 ## A page's connective prose is its own
 

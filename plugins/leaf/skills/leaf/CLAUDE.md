@@ -538,7 +538,9 @@ behavior, the layer implements it once. Current examples are:
 - `renderRetired` marks slots retired by the declared holder relation.
 - `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
 - `standingState` exposes replay winners to the render gate without naming a
-  widget.
+  widget, the panel's own folds included: a widget an agent sent folds the way a
+  page widget does and the poll replays it the same way, so the premise that
+  every `applyAction` is absolute binds it too.
 
 A module owns only its choreography and semantics that no declaration can
 express. For example, a suggestion module may animate its slots and write the
@@ -620,6 +622,14 @@ Two readings are intentionally different:
   module-generated words declared as part of the page.
 - `wrote` is what the author placed in the version. It excludes generated
   runtime and widget words and is appropriate for version comparison.
+
+Both are bounded by the root they are handed. `.lf-ui` says the runtime built a
+node rather than the author, and a reading rooted at the document takes that
+straight. Rooted at an element it is a different sentence, and the difference is
+the whole of what a widget in a message needs: such a widget stands inside the
+comment panel, so the panel is `.lf-ui` over every word it says, and an unbounded
+reading has it saying nothing at all. Chrome above the root is not the root's
+apparatus; chrome inside it still is. A page-rooted walk does not move.
 
 Keep them as named readings. A boolean passed to one ambiguous reader makes
 callers choose semantics at each call site.
@@ -794,6 +804,16 @@ box. A `display: contents` element reports an origin-like zero rectangle that
 does not represent where its contents are. `UNMARKABLE_ITEMS` detects declared
 items with no visible part on which a mark can land.
 
+A module that needs a number off a live box states the measurement through
+`measure(el, take)` rather than taking it at upgrade. A widget upgrades wherever
+the runtime connects it, and a message body is connected whether or not the
+reader has opened the panel — where every box is zero, `once` refuses the second
+upgrade that would correct it, and the body is cached and never rebuilt, so the
+zero is permanent and reads exactly like a measurement. `measure` takes the
+reading now where there is a box and once more the first time there is one. Its
+observation ends at that reading, which is what keeps a written custom property
+out of the round that triggered it.
+
 `inUi` keeps runtime chrome out of shown parts. An area greater than zero is not
 enough: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
@@ -836,7 +856,9 @@ listener when body observation already represents them.
 
 The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
-`document.scrollingElement` must be given `pageScroller` explicitly. The open
+`document.scrollingElement` must be given `pageScroller` explicitly — through
+`scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
+message is scrolled by the panel's own list and by nothing else. The open
 comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
@@ -1011,6 +1033,14 @@ Use `inChrome` when the question is whether an element belongs to the runtime's
 document layer. Use `.lf-ui` when the question is whether words or styling are
 runtime apparatus. Use `data-lf-offer` when the question is whether something is
 an injected control. These markers are not interchangeable.
+
+Anything acting on where the pointer or the caret is needs both of the first two,
+and `pageWords` is that conjunction. Either half alone leaves a hole a widget in a
+message falls through: a declared label is nearer than the panel and answers the
+apparatus question for itself, so `.lf-ui` alone let a drag across a question an
+agent asked read as a passage of the page and write an anchor onto a widget id no
+version holds. File capture already refuses that, and file capture is the reading
+that promises less.
 
 ## Keyboard, focus, and navigation
 

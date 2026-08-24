@@ -749,31 +749,45 @@ def refuse(route):
     route.abort("aborted")
 
 
-# A tab a test holds stale is stale for one poll interval and no longer: every poll
-# reconciles the draft store against shared storage before it settles anything
-# (settleAcceptedDrafts), so a stale view the assertions take their time reaching is a
-# race a loaded runner loses. Refusing the polls states it — but only from before the
-# page exists. `page.route` reaches no request already in the wire, and a poll
-# reconciles when its response lands rather than when its request went out, so a
-# refusal registered on a live page leaves whatever is outstanding free to arrive
-# later, against storage the test has moved in the meantime. Registered through
-# `primed`, the route is on the page before it navigates and no poll is ever unrouted.
-#
-# The first is let through because `open_page` waits for the page's readiness facts,
-# including `lf-applied`, which rides on it — and that same wait is what leaves nothing
-# outstanding when the page is handed over. Where the tab has to hear the log again,
-# the test lifts the refusal itself.
-def held_stale(context):
-    """A context whose next page is refused every poll after the one that stamps it."""
+# Keep the handler installed while polls are in flight: `page.unroute` can remove it
+# before it answers, stranding the request. Restore by switching future polls from
+# refusal to continuation instead.
+class CutOff:
+    """A page's polls, stopped from outside it until the test says it can hear again."""
 
-    def hold(page):
-        polls = itertools.count()
+    def __init__(self, lets_through=0):
+        self._lets_through = lets_through
+        self._live = False
+
+    def hold(self, page):
+        seen = itertools.count()
         page.route(
             "**/api/state*",
-            lambda route: route.continue_() if next(polls) == 0 else refuse(route),
+            lambda route: (
+                route.continue_()
+                if self._live or next(seen) < self._lets_through
+                else refuse(route)
+            ),
         )
+        return self
 
-    return primed(context, hold)
+    def restore(self):
+        self._live = True
+
+    # Preserve the initial-poll count when cutting the page off again.
+    def cut(self):
+        self._live = False
+
+
+# Register before navigation so no in-flight poll can refresh the stale tab. The first
+# poll still passes because `open_page` needs it for readiness; later polls wait for
+# `restore`.
+def held_stale(context):
+    """A context whose next page is refused every poll after the one that stamps it."""
+    cut = CutOff(lets_through=1)
+    stale = primed(context, cut.hold)
+    stale.restore = cut.restore
+    return stale
 
 
 # The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
@@ -1423,6 +1437,8 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         assert held, "the first poll went through, so no arrival was stood in"
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
+        # This arrival is complete and the next call navigates away, so no later wait
+        # depends on a poll this unroute might strand.
         page.unroute("**/api/state*")
         return moved()
 
@@ -3439,7 +3455,7 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     url = serve(REPLAYED_PAGE)
     page, errors = open_page(browser, url)
     old_layer = page_registry(page)["$layer"]["generation"]
-    page.route("**/api/state*", refuse)
+    cut = CutOff().hold(page)
     page.wait_for_event(
         "request", predicate=lambda request: "/api/state" in request.url
     )
@@ -3473,7 +3489,7 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
         if event["kind"] == "action"
     ] == []
 
-    page.unroute("**/api/state*")
+    cut.restore()
     told(page)
     page.wait_for_function(BOTH_STAMPS)
     page.locator("#opt-stage").click()
@@ -3643,7 +3659,8 @@ customElements.define("lf-quota", class extends HTMLElement {
         "</lf-tasks>",
     )
     url = serve(quota_v1)
-    stale, stale_errors = open_page(browser, url, context=held_stale(one_reader))
+    stale_held = held_stale(one_reader)
+    stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)
 
     interact.append_event(
@@ -3723,7 +3740,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     round_trip(stale)
 
     assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
-    stale.unroute("**/api/state*")
+    stale_held.restore()
     told(stale)
     expect(stale.locator("#quota")).to_have_attribute("slots", "1")
     expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
@@ -11388,14 +11405,14 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # decisions on one change, and the log's order — not either tab's belief —
     # settles it for both once the cut-off one catches up.
     third, third_errors = open_page(browser, url)
-    third.route("**/api/state", refuse)
+    cut = CutOff().hold(third)
     first.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
     expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
     third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
-    third.unroute("**/api/state")
+    cut.restore()
     # The reject went out over a live channel, so every tab has to read it back —
     # the cut-off one included, which is where it stops being its own local click.
     for tab in (first, second, third):
@@ -18262,12 +18279,15 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     replay and undo remain held until a later complete response accounts for it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     older = []
+    lifted = False
 
     def hold_older_state(route):
-        if older:
+        if lifted:
+            route.continue_()
+        elif older:
             refuse(route)
-            return
-        older.append(route)
+        else:
+            older.append(route)
 
     page.route("**/api/state*", hold_older_state)
     with page.expect_request("**/api/state"):
@@ -18349,7 +18369,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     # A complete poll accounts for the older acceptance and the refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
     # includes both accepted gestures and makes the newest one safe to undo.
-    page.unroute("**/api/state*")
+    lifted = True
     told(page)
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
@@ -18900,6 +18920,9 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     page, errors = open_page(browser, serve(BOARD_PAGE))
 
     def malformed_poll_state(route):
+        if lifted:
+            route.continue_()
+            return
         if malformed_polls:
             refuse(route)
             return
@@ -18916,6 +18939,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         route.fulfill(status=response.status, json=answer)
 
     malformed_polls = []
+    lifted = False
     page.route("**/api/state*", malformed_poll_state)
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
@@ -18978,7 +19002,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     # Neither malformed read is a state the projector may consume. The accepted
     # baffle move remains held until a complete poll can place it in chronology.
     expect(page.locator("#col-done #card-baffle")).to_have_count(0)
-    page.unroute("**/api/state*")
+    lifted = True
     with page.expect_response(
         lambda response: "/api/state" in response.url and response.ok
     ):
@@ -19098,7 +19122,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     errors = watched(page)
-    page.route("**/api/state*", refuse)
+    cut = CutOff().hold(page)
     page.goto(serve(BOARD_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
@@ -19126,9 +19150,9 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
 
-    page.unroute("**/api/state*")
+    cut.restore()
     told(page)
-    page.route("**/api/state*", refuse)
+    cut.cut()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
@@ -19148,7 +19172,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     errors = watched(page)
-    page.route("**/api/state*", refuse)
+    cut = CutOff().hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
@@ -19172,9 +19196,9 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
 
-    page.unroute("**/api/state*")
+    cut.restore()
     told(page)
-    page.route("**/api/state*", refuse)
+    cut.cut()
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
@@ -19659,7 +19683,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
 
     # Hold the first tab's reading of the log where it is, so its `z` names the move
     # it knows about while the second tab moves the same card on past it.
-    stale.route("**/api/state", refuse)
+    cut = CutOff().hold(stale)
     # Back to the list it came from and up past its neighbour, which is neither where
     # the first move put it nor where the version wrote it: a second move that landed
     # on the authored placement would make the wrong restore a no-op by luck, and the
@@ -19684,7 +19708,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     stale.keyboard.press("z")
     # The server answering the post is the fact this wait consumes.
     _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
-    stale.unroute("**/api/state")
+    cut.restore()
     told(heard)
     told(heard)
 
@@ -23868,7 +23892,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     expect(second_say.locator("textarea")).to_have_value(raw)
     # The init-script capture listener beats the runtime's listener for settlement,
     # leaving the old value on screen after the other tab stores its tombstone.
-    second.route("**/api/state*", refuse)
+    cut = CutOff().hold(second)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -23885,7 +23909,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     expect(second_send).to_have_attribute("aria-disabled", "false")
     second_send.click()
     expect(second_say.locator("textarea")).to_have_value("")
-    second.unroute("**/api/state*")
+    cut.restore()
 
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
@@ -24081,7 +24105,8 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     which reaches no poll already in the wire."""
     url = serve(ASK_PAGE)
     first, _ = open_page(browser, url, context=held_stale(one_reader))
-    second, second_errors = open_page(browser, url, context=held_stale(one_reader))
+    second_held = held_stale(one_reader)
+    second, second_errors = open_page(browser, url, context=second_held)
     raw = "One answer survives its sender closing."
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
     second_say = second.locator("#jobs > .lf-conversation > .lf-say")
@@ -24107,7 +24132,7 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     _until(second, lambda t: t.acked == 1, "received the accepted attempt")
 
     first.close()
-    second.unroute("**/api/state*")
+    second_held.restore()
     told(second)
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
@@ -24334,10 +24359,11 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # rather than an interruption: an earlier poll reconciling this tab onto the newer
     # generation leaves settlement nothing older to be tempted by, so the assertions
     # below would pass while asking nothing rather than fail.
+    stale_held = held_stale(one_reader)
     stale, stale_errors = open_page(
         browser,
         url,
-        context=held_stale(one_reader),
+        context=stale_held,
         init_script="""addEventListener('storage', event => {
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",
@@ -24370,7 +24396,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
-    stale.unroute("**/api/state*")
+    stale_held.restore()
     told(stale)
     assert current.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     expect(stale_say.locator("textarea")).to_have_value(newer)

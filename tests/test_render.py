@@ -7219,6 +7219,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
+    # The round trip starts the fold; the disclosure holding the thread finishes it.
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{comment}"]')).to_have_count(
+        1
+    )
     page.locator(".lf-details summary").click()
     page.locator(f'.lf-details .lf-thread[data-id="{comment}"] .lf-reopen').click()
     round_trip(page)
@@ -17761,6 +17765,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             "button", name="Resolve"
         ).click()
         expect(page.locator(".lf-details summary")).to_have_text(f"Resolved ({n})")
+    # The summary counts the log before the disclosure finishes folding its list.
+    expect(page.locator(".lf-details .lf-thread")).to_have_count(2)
     page.locator(".lf-details summary").click()
     resolved = page.locator(".lf-details .lf-thread").first
     resolved.click()
@@ -17823,6 +17829,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     expect(line).to_contain_text("resolve")
 
     # A focused resolved thread promises nothing, and the press acts on nothing.
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     page.locator(".lf-details summary").click()
     resolved = page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')
     resolved.click()

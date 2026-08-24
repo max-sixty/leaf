@@ -6327,24 +6327,8 @@ def test_server_round_trip(server, page_dir):
 def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
     server, page_dir
 ):
-    """The marker is spliced at the position `_StructParser` reported for the runtime
-    script, and that parser counts lines by "\\n" alone. splitlines() breaks on U+2028,
-    U+2029, U+0085 and the form feeds as well, so one of those ahead of the script
-    counts a line the position never did and moves the splice a whole line earlier —
-    into whatever the document says up there. The log's reader was taught the same rule
-    by a U+2028 in a pasted comment (see `read_events`); prose reaches a title the same
-    way, and `version check` passes the page, so nothing between author and reader
-    refuses it.
-
-    Two facts have to meet for the damage to show, so the fixture states both. The
-    break puts the splice on the previous line, and the script's own column decides
-    where in that line it lands: at column 0 the marker displaces to a line start and
-    the document stays valid, saying nothing. An indented head — which the check also
-    accepts — carries the marker into the middle of the tag above, and the one it
-    reaches here is the theme link. The page still renders, in none of its own styles.
-    """
-    # Escaped, not literal: the break is invisible in an editor, and a stray
-    # normalization of it would leave this test green over the fixed offset alone.
+    """A Unicode separator before an indented script must not shift its marker."""
+    # Keep the separator escaped so normalization cannot silently weaken the fixture.
     script = '<script type="module" src="/leaf.js"></script>'
     source = PAGE.replace(
         "<title>t</title>", "<title>Backfill plan\u2028Q3</title>"
@@ -6357,8 +6341,7 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
 
     marker = '<meta name="lf-version" data-lf-runtime content="1">'
     assert body == source.replace(script, marker + script)
-    # Said as the reader's loss as well as a byte comparison: the splice used to open
-    # inside the tag on the line above, and that tag is what dresses the page.
+    # The old splice corrupted this tag while leaving the page renderable.
     assert '<link rel="stylesheet" href="/theme.css">' in body
 
 

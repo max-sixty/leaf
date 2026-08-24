@@ -5130,7 +5130,10 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_tray_stands(
 
 # The page's scroll after it has stopped moving. A native Space is a smooth scroll, so
 # reading straight after the press reads a frame of the glide and calls it the answer —
-# which is the whole of what CLAUDE.md's wait norm is about.
+# which is the whole of what CLAUDE.md's wait norm is about. The other half of that norm
+# is the caller's: a page that has not started moving is as still as one that finished,
+# so this is only ever asked after the movement itself has been observed. Both callers
+# take SCROLLED first.
 SCROLL_SETTLE_MS = 50
 SCROLL_STILL = """(hold) => {
   const at = document.body.scrollTop;
@@ -5141,6 +5144,8 @@ SCROLL_STILL = """(hold) => {
   }
   return performance.now() - window.__lfScrollSince > hold;
 }"""
+# The movement itself, which is the fact a press that scrolls the page states.
+SCROLLED = "() => document.body.scrollTop > 0"
 
 
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
@@ -5159,7 +5164,6 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
     that pins is the page itself as the place to stand, rather than a box built to hold
     the reader, which would have a ring to draw and a Tab stop to spend."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    top = "() => document.body.scrollTop"
     assert page.evaluate("() => document.activeElement === document.body")
     assert (
         page.evaluate("() => getComputedStyle(document.body).outlineStyle") == "none"
@@ -5170,10 +5174,17 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
         # to get back to the top would be the very thing this test says is not needed.
         page.evaluate("() => { document.body.scrollTop = 0; }")
         page.keyboard.press(key)
+        try:
+            page.wait_for_function(SCROLLED)
+        except PlaywrightTimeout:
+            # The console with it: the press can move nothing because the runtime
+            # threw, and the `errors == []` below never runs once this fires.
+            pytest.fail(
+                f"{key} moved nothing on a page nobody had clicked in: {errors}"
+            )
+        # And then the rest of the glide, so the next key's reset lands on a scroll
+        # that is over rather than on one still on its way somewhere.
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
-        assert page.evaluate(top) > 0, (
-            f"{key} moved nothing on a page nobody had clicked in"
-        )
     assert errors == []
     page.close()
 
@@ -5206,7 +5217,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # A reader reading: Space is the page's own scroll, which is the browser's rather
     # than the runtime's (`d`/`u` are the rows; this key has none).
     page.keyboard.press("Space")
-    page.wait_for_function("() => document.body.scrollTop > 0")
+    page.wait_for_function(SCROLLED)
     page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
     was = page.evaluate(top)
 

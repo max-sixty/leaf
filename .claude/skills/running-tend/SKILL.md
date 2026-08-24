@@ -19,6 +19,16 @@ Standing exception granted: file directly in agent-equipped targets (per
 asking permission here first. The default rule (open an issue here asking
 permission first) still applies when the target shows no agent signals.
 
+## Leave outage trackers for the drain
+
+Leave the **"Bot temporarily unavailable"** tracker open until
+`tend-review-runs` drains its rows; the outage ending is not enough because each
+row names a stranded trigger. The tracker's own body invites the opposite —
+"Close it once the outage is resolved" — but that boilerplate does not account
+for the rows. Ignore it. A comment can record recovery, but the drain owns the
+close. This applies by title, not by the `tend-outage` label: `ci-fix` diagnosis
+trackers have no rows and are closed by `ci-fix` itself.
+
 ## A red `ci` on main is the first signal, not the second
 
 Nothing lands here through a pull request, so no CI run ever gates a change

@@ -51,9 +51,16 @@
      measures the first row it builds and states it on the root element. The rule that
      spends it is beside .lf-sug-actions below. */
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
-     off anything the way --rail is. The 192px it leaves the note sets about thirty
-     characters of --t-5 serif. The rule that spends it is beside aside.sidenote below. */
-  --note: 216px;
+     off anything the way --rail is. The 360px it leaves the note sets about fifty-six
+     characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
+     Half of it is also how far off the window's centre the column comes to sit, the
+     column centring in what the strip leaves — so this number is the page's axis as
+     much as the note's measure, and the two are set together on purpose. It held 216px
+     while the strip was on the left, which put a note at thirty characters: a measure
+     short enough that one sentence took four lines, and an axis close enough to centre
+     that the arrangement read as a centred page with something in the margin rather
+     than as a page with a margin. */
+  --note: 384px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
      main's width: the element itself, the strip arithmetic beside aside.sidenote, and
      the room a copy states for itself. A second copy of 720 would be a release behind
@@ -69,8 +76,13 @@
      written out again in the query, and test_the_strip_floor_is_one_number holds them
      together.
      Read blind, so it is the page's floor for margin strips rather than the sidenote's:
-     an idiom that hangs something out there wants the same answer. */
-  --strip-min: 984px;
+     an idiom that hangs something out there wants the same answer.
+     It follows --note, so widening the strip narrows the band of windows that get one:
+     with the panel beside the page a laptop's 1440px no longer clears it, where the
+     216px strip did. That is the price of the axis above and it is paid where the page
+     can see it — the note goes back into the flow, which is the form it has always
+     taken when the room runs out. */
+  --strip-min: 1152px;
   /* How wide a widget that lays its content out into the width it is given (x-wide:
      box) may stand — one number for the whole vocabulary, because a set of widths is
      what makes mixed measures read as a design rather than as an accident, and a width
@@ -244,19 +256,30 @@
  * widgets that scroll instead (lf-board, lf-diff, pre) are untouched; a metric's headline
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
-/* The two strips the page reserves out of its own width — the rail on the right, a
- * sidenote's margin on the left — are named here rather than written straight into the
- * padding by whoever claims one, because a copy has to subtract exactly what the padding
- * added. A live page measures the box it ended up with and needs no such agreement; a
- * copy runs no script and states the room from the viewport, so every strip it does not
- * know about is room it hands a wide widget twice. Written as one rule per strip, that is
- * a term the room rule has to remember per claimant and a combination per pair. Here each
- * claimant sets its own token, the padding and the room both read the pair, and a third
- * strip is one declaration rather than a fourth room rule. */
+/* The strips the page reserves out of its own width are named here rather than written
+ * straight into the padding by whoever claims one, because a copy has to subtract exactly
+ * what the padding added. A live page measures the box it ended up with and needs no such
+ * agreement; a copy runs no script and states the room from the viewport, so every strip
+ * it does not know about is room it hands a wide widget twice. Written as one rule per
+ * strip, that is a term the room rule has to remember per claimant and a combination per
+ * pair. Here the side is one token, and the padding and the room both read it.
+ *
+ * A side takes more than one claimant, which it did not have to while the rail was on the
+ * right and a sidenote's margin on the left. Both are the right's now, and they are not
+ * summed: they stand in the same strip and may cover each other (the norm is beside
+ * aside.sidenote), so what the page owes is room for the wider of them and nothing more.
+ * A claim of its own per claimant is what lets that side be a max rather than a race —
+ * two rules writing one token settle it by cascade order, which is a silent answer to a
+ * question neither rule is asking. So the shape follows the count: a side with one
+ * claimant is written by that claimant, and a side with two folds their claims here. The
+ * left has none today and keeps the one-claimant shape, which is what an idiom hanging
+ * something out there writes to; a second claimant on either side turns that side into a
+ * max, and is the point at which the fold is worth its terms. */
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
-       padding-left: var(--strip-l, 0px); padding-right: var(--strip-r, 0px); }
-/* The document arrives with authored initial state while the log may already hold
+       --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px));
+       padding-left: var(--strip-l, 0px); padding-right: var(--strip-r); }
+ /* The document arrives with authored initial state while the log may already hold
  * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
  * after the first poll has either replayed the log or said the server is offline, so a
  * version navigation never presents the old decision for one fetch-width and then
@@ -357,12 +380,12 @@ body { margin: 0; background: var(--paper); color: var(--ink);
     text-align: center;
   }
 }
-@keyframes lf-presentation-wait {
+ @keyframes lf-presentation-wait {
   from,
   to {
-    opacity: 1;
-  }
-}
+     opacity: 1;
+   }
+ }
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.
@@ -745,19 +768,36 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-frame: 1; }
-/* What the margin is for is in the catalog beside the class; this is why it is the left
-   margin and what the strip costs.
+/* What the margin is for is in the catalog beside the class; this is why it is the right
+   margin, what shares it, and what the strip costs.
 
-   The right one is the loop's: a suggestion's controls hang there, the composer's first
-   choice of a place is there, and the panel takes that side of the window whole. A note
-   out there would have to give way to all three, and giving way to the panel is the
-   marginalia moving under a reader who pressed Comments — on every window, where the
-   left gives way only on one with no room for both. Nothing the page lays out
-   claims the left. Fixed chrome still crosses it — the key line stands at that corner —
-   and covers a note at the foot of the window as it already covers the column's own
-   last visible line.
+   The right is where a reader's eye leaves the line, which is where marginalia has been
+   set for as long as there has been marginalia, and the left is where the eye returns to
+   start the next one — so a note there sits in the return path of every line of the
+   column beside it. The page reads as one axis rather than two because of it: the column
+   hangs off the strip, the strip is half the distance the column sits off the window's
+   centre, and both are the one number above.
 
-   The strip comes out of body's padding, as --rail does on the other side, so the column
+   What else stands out there is the loop's, and it is not asked to move. A suggestion's
+   accept and reject controls hang level with the change they decide, a note hangs level
+   with the block it annotates, and both are pinned by the flow, so neither can step
+   aside for the other: where a page puts them level, the controls are drawn over the
+   note's first line. That is a decision rather than a defect. The alternatives were each
+   worse — a rail stacked past the note puts the press the whole width of a note away
+   from the change it settles, and a note that dodged would be marginalia that moves when
+   a change lands near it — and the overlap costs one line of a note that is read where
+   it stands, against a control that is read where it is reached for. `version check --render` is told, in
+   the one place it can be told: chrome a widget hangs out of the flow may cover the
+   page's words (COVERED_WORDS, in interact.py), which is the exemption the runtime's own
+   floating layer already had, said for whoever owns the float.
+
+   The composer opens out there too and covers a note whole while it stands, which is a
+   box the reader summoned and dismisses. The panel takes that side of the window
+   entirely, and the note does not give way to it: both the strip and the column come out
+   of the box the panel leaves, so a note moves exactly as far as the paragraph it
+   annotates and no further.
+
+   The strip comes out of body's padding, as --rail does beside it, so the column
    centres in what is left rather than hanging the note in whatever the centring happened
    to leave over. It is held for as long as the page can afford it and no longer, and the
    panel is what takes the room without the window saying so: its own width off the page's
@@ -777,43 +817,15 @@ dd { margin: 0 0 8px 0; }
    the render gate holds it to by reading both media. */
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
-@media screen and (min-width: 984px) {
+@media screen and (min-width: 1152px) {
   body:not([data-lf-cramped]):has(aside.sidenote) {
-    /* What the page still owes the note, and nothing beyond it. The strip comes out of
-       body's padding and the column centres in what is left, so every pixel reserved here
-       is half a pixel of the whole page moved right. Reserving the note's full width
-       whenever a note exists spends that on pages that had the room anyway: at a 1600px
-       window the centred column already leaves 440px on each side, so the flat claim moved
-       the page 108px off the window's centre to buy a 216px note room it was standing in.
-       The shortfall buys nothing where nothing is owed and the page stays centred, and it
-       grows only as the window closes in — 64px at 1024, where the centring alone would
-       have painted the note 76px off the left edge.
+    --claim-note: var(--note);
+    /* The whole strip is the claim, even where a centred column already leaves enough
+       room to paint the note. The strip is the page's axis as well as the note's measure:
+       reserving it is what makes the arrangement read as a column with a right margin
+       rather than a centred column with something left over beside it.
 
-       `--lf-avail` is the page's box: the window less whatever the comment panel holds of
-       it, which is the one fact no query can ask (stateStrip). A copy runs no script and
-       falls back to the viewport, which is honest there — it has no panel — and is the same
-       estimate the room below already makes. Below --strip-min the veto above takes over
-       and the note is an indented block in the flow, so this arithmetic never has to reach
-       zero on its own.
-
-       Twice the shortfall, because the column recentres in what the strip leaves and so
-       moves by half of what is taken: a strip sized to the gap it was closing closes half
-       of it, and the note still hung 13px off the edge of a 1100px window. What the note
-       needs is room to main's left edge for its own painted width and a gutter to match
-       the one main gives its prose, and doubling is what buys it. Below 1200px the two
-       move together and the note's gutter stays at --col-pad while the column walks
-       right.
-
-       The other strip is a term because the column centres between both of them, so a rail
-       on the right pulls the column left and takes the note's room with it: measured, a
-       page carrying both had its note painted 70px off the left edge of a 1200px window.
-       What the note is owed is room to main's left edge, and both claims decide where that
-       edge lands. */
-    --strip-l: max(0px, calc(2 * (var(--note) - var(--sp-4) + var(--col-pad))
-                             + var(--col) + 2 * var(--col-pad)
-                             + var(--strip-r, 0px)
-                             - var(--lf-avail, 100vw)));
-    /* An exhibit and a note both want the left margin, and only one of them can have it
+       An exhibit and a note both want the right margin, and only one of them can have it
        at a given height. The note hangs a gutter off the column while the strip comes out
        of the far edge of the page, so a board grown to the strip is drawn over the note it
        stands level with.
@@ -834,7 +846,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        condition — a cramped page has handed the strip back and its notes are indented
        blocks in the flow, so there is no float out there to clear and no margin to take.
 
-       Only the left. The rail claims the other side for a suggestion's controls, which
+       Only the note. The rail claims this side too for a suggestion's controls, which
        are positioned rather than floated, so `clear` cannot see them; the module that
        hangs them measures the same collision instead, and the rule beside
        .lf-sug-actions spends its answer.
@@ -845,7 +857,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        disclosure level with a note. Asking which elements have room needs the element's
        own value and a style query answers for its container, so the alternative is a
        second reading of the room rather than a tighter rule. */
-    & [data-lf-wide] { clear: left; }
+    & [data-lf-wide] { clear: right; }
   }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a
@@ -873,8 +885,8 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
      whole of what standing down means, which is why the veto qualifies the grant rather
      than restating it: a reset here would be the same layout written twice. */
   body:not([data-lf-cramped]) aside.sidenote {
-    float: left; clear: left; width: calc(var(--note) - var(--sp-4));
-    margin: 0 0 12px calc(-1 * var(--note)); }
+    float: right; clear: right; width: calc(var(--note) - var(--sp-4));
+    margin: 0 calc(-1 * var(--note)) 12px 0; }
 }
 .facts { display: grid; grid-template-columns: max-content 1fr;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
@@ -1192,10 +1204,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * whether it will use the rail, and the question feeds back on itself: a row
  * docks because it found no room, and the room is what the answer would reserve,
  * so a rail granted only to rows that aren't docked is a rail no row is ever
- * granted. */
+ * granted.
+ *
+ * A claim rather than the strip itself, because a sidenote claims this side too and the
+ * page owes room for the wider of them rather than for both (the rule is beside body's
+ * padding). A page carrying notes therefore reserves nothing on the rail's account, the
+ * note's strip being the larger by a long way, and the row hangs inside it — over the
+ * note, which is the arrangement aside.sidenote's own note argues for. */
 @media screen and (min-width: 900px) {
   body:has(.lf-sug-actions) {
-    --strip-r: var(--rail, 0px);
+    --claim-rail: var(--rail, 0px);
   }
   /* And the right margin is spoken for where a row hangs in it, so a wide widget level
      with one grows to the left alone. The row hangs 22px off the column and the strip is

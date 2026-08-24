@@ -56,7 +56,12 @@ For a routed user comment, reply under the worker's identity, then report any
 resulting state change:
 
 ```bash
-LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" --text "<answer>"
+LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" <<'EOF'
+The reconnect drops the queue, so the retry sends against a closed socket.
+
+- the handler clears `pending` before it awaits the write
+- nothing re-reads the queue after the socket reopens
+EOF
 ```
 
 The worker never runs `leaf wait` or `leaf ack`, changes page status, publishes a

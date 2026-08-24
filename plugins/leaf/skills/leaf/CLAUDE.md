@@ -30,6 +30,7 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
+| projected data | the records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
@@ -537,7 +538,9 @@ behavior, the layer implements it once. Current examples are:
 - `renderRetired` marks slots retired by the declared holder relation.
 - `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
 - `standingState` exposes replay winners to the render gate without naming a
-  widget.
+  widget, the panel's own folds included: a widget an agent sent folds the way a
+  page widget does and the poll replays it the same way, so the premise that
+  every `applyAction` is absolute binds it too.
 
 A module owns only its choreography and semantics that no declaration can
 express. For example, a suggestion module may animate its slots and write the
@@ -583,6 +586,9 @@ inside a module. The scaffold names the minimum obligations:
 - Register keys with `keys(el, title, rows)` during upgrade, not at module load.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
+- Render externally supplied or derived records through `projectData`. Its root is an
+  authored, id-bearing seat; record keys are stable within that seat, and its renderer
+  receives the prior node so unchanged controls and selections can remain in place.
 - Keep durable standalone state in serializable HTML attributes. Export removes
   scripts and handlers.
 - Remove hoisted chrome in `disconnectedCallback` when a reconstruction replaces
@@ -617,6 +623,14 @@ Two readings are intentionally different:
 - `wrote` is what the author placed in the version. It excludes generated
   runtime and widget words and is appropriate for version comparison.
 
+Both are bounded by the root they are handed. `.lf-ui` says the runtime built a
+node rather than the author, and a reading rooted at the document takes that
+straight. Rooted at an element it is a different sentence, and the difference is
+the whole of what a widget in a message needs: such a widget stands inside the
+comment panel, so the panel is `.lf-ui` over every word it says, and an unbounded
+reading has it saying nothing at all. Chrome above the root is not the root's
+apparatus; chrome inside it still is. A page-rooted walk does not move.
+
 Keep them as named readings. A boolean passed to one ambiguous reader makes
 callers choose semantics at each call site.
 
@@ -626,6 +640,39 @@ chrome-looking structure is still one of the page's words. This lets a tab label
 or draft heading remain quotable while runtime controls stay outside the
 passage. `relabel` writes the said marker; `offer` writes the control marker.
 They are independent facts and neither clears the other.
+
+### Data projections
+
+The page has three kinds of visible words:
+
+- authored prose is in both `says` and `wrote`;
+- runtime apparatus is in neither reading;
+- projected external or derived data is in `says` and not in `wrote`.
+
+The last kind is a projection, not another source of truth. An id-bearing element in
+the version is its seat. `projectData(seat, records, keyOf, render)` owns that seat's
+children, labels each rendered element with the seat id (`data-lf-projection`) and its
+record's stable key (`data-lf-datum`), and marks it generated. Records remain the
+caller's input; Leaf stores no current-data map beside the DOM or in the event log.
+
+Keys identify facts, not renderings or display strings. They are non-empty strings,
+unique within one projection, and must remain with the same logical datum across
+refreshes. `render` receives the prior element for the key and may update it in place;
+returning a replacement is also valid. Reconciliation retains nodes already in their
+place and schedules the shared anchor pass after synchronous projection work.
+
+A selection wholly inside one datum captures `{section, datum, quote}`. Resolution
+looks only for that key under that section. If the original words still stand, Leaf
+marks them. If their display changes, Leaf outlines the same datum and keeps the old
+quote in the thread; it never follows the old string to an equal value elsewhere. A
+missing or duplicate key detaches rather than guessing. Selections crossing datum
+boundaries remain ordinary quote anchors because they name a passage, not one fact.
+
+`data-lf-projection`, `data-lf-datum`, and `data-lf-gen` are written by `projectData`,
+never authored in a version. A custom widget joins through the helper alone; no
+consumer names its tag. Export preserves the rendered elements and their labels as a
+snapshot, while dropping the scripts that could refresh them. Print preserves the same
+readable words. Neither medium claims that the snapshot remains live.
 
 The three visual voices are prose, apparatus, and evidence. Page prose uses the
 serif, labels and controls use the sans, and literal evidence uses the mono
@@ -637,6 +684,13 @@ apparatus and still be a page word the reader can quote.
 point at it. Module-generated words that cannot be declared by attribute are
 inserted at the correct edge and marked `data-lf-gen`. Do not place a generated
 suffix after a control that semantically ends the row.
+
+The two edges are not mirror images. `after` goes inside the element's own words,
+because trailing chrome stands beside the last of them and a span past it lands
+on the far side of the apparatus. `before` goes at the element's start, because
+leading chrome is not something the words stand beside: a module puts one there
+to speak for the whole element, and stepping past it renders the element's own
+opening words underneath a summary of them.
 
 `renderQuiet` handles facts conveyed only by paint, such as an attribute-driven
 status. These words are clipped, unselectable, excluded from clipboard and
@@ -750,6 +804,16 @@ box. A `display: contents` element reports an origin-like zero rectangle that
 does not represent where its contents are. `UNMARKABLE_ITEMS` detects declared
 items with no visible part on which a mark can land.
 
+A module that needs a number off a live box states the measurement through
+`measure(el, take)` rather than taking it at upgrade. A widget upgrades wherever
+the runtime connects it, and a message body is connected whether or not the
+reader has opened the panel — where every box is zero, `once` refuses the second
+upgrade that would correct it, and the body is cached and never rebuilt, so the
+zero is permanent and reads exactly like a measurement. `measure` takes the
+reading now where there is a box and once more the first time there is one. Its
+observation ends at that reading, which is what keeps a written custom property
+out of the round that triggered it.
+
 `inUi` keeps runtime chrome out of shown parts. An area greater than zero is not
 enough: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
@@ -792,7 +856,9 @@ listener when body observation already represents them.
 
 The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
-`document.scrollingElement` must be given `pageScroller` explicitly. The open
+`document.scrollingElement` must be given `pageScroller` explicitly — through
+`scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
+message is scrolled by the panel's own list and by nothing else. The open
 comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
@@ -928,6 +994,23 @@ Whether a group is answerable is independent of its form. The presence of
 `choose` gives the whole group a visible control boundary in cards and rows.
 Each form chooses its presentation, not whether the page admits a response.
 
+A group joined into one control has cells, and its children arrive from every
+layer: the options are the author's, the box for words is the module's, the
+question and the Done press are the runtime's. Each brings the spacing it wears
+standing alone, and the grid stretches all of them to the same column whatever
+they were written as.
+
+So what every cell owes is said over every child, and only what one kind alone
+answers is said by naming it. Block margins are zeroed for all of them, because
+the hairline is the whole of what separates a cell from the next; the inset each
+holds its words off the frame by is a floor at zero specificity, which any cell
+with an answer of its own outranks. Naming kinds is how three children got their
+margins reset and the fourth kept an 8px band under a line already separating,
+and how the question got no inset at all. Reserved columns the cells share, such
+as the room a keyboard address stands in, are named once and read by everything
+that opens at them — including the forms the frame never reaches, since a
+settled group reserves the same column on the cards behind its disclosure.
+
 ### Typography and scoped chrome
 
 `--serif` is the page's prose, `--sans` is apparatus and runtime chrome, and
@@ -950,6 +1033,14 @@ Use `inChrome` when the question is whether an element belongs to the runtime's
 document layer. Use `.lf-ui` when the question is whether words or styling are
 runtime apparatus. Use `data-lf-offer` when the question is whether something is
 an injected control. These markers are not interchangeable.
+
+Anything acting on where the pointer or the caret is needs both of the first two,
+and `pageWords` is that conjunction. Either half alone leaves a hole a widget in a
+message falls through: a declared label is nearer than the panel and answers the
+apparatus question for itself, so `.lf-ui` alone let a drag across a question an
+agent asked read as a passage of the page and write an anchor onto a widget id no
+version holds. File capture already refuses that, and file capture is the reading
+that promises less.
 
 ## Keyboard, focus, and navigation
 
@@ -1377,6 +1468,11 @@ Widget affordances fall into three groups:
   page words.
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
+
+Projected data is a fourth question with a different answer: a copy keeps the current
+`projectData` rendering, including its projection and datum labels, but loses the
+module that could refresh it. It is therefore a labelled snapshot, not a live
+projection.
 
 Put a layout grant in a selector strong enough to override the withheld base
 rule. Put a standalone-only affordance guard in

@@ -378,6 +378,63 @@ export function settle(promise) {
   settling.push(promise);
 }
 
+// A number a widget can only read off a box the browser has laid out. Three ship: the
+// room a pick mark's word will need, the room a card keeps clear of its grip, the width
+// of a roster's state column. Every one is measured rather than stated for the same
+// reason — the face this page is actually set in, which no constant names across two
+// platforms — and every one reads 0 where there is no box to read.
+//
+// A widget upgrades wherever the runtime connects it, and not every one of those places
+// is drawn. A message body is built for every comment the log carries and connected
+// whether or not the reader has opened the panel, and a shut panel is `display: none`:
+// every box beneath it is zero. `once` then refuses the second upgrade that would put
+// it right, and the body is cached for the life of the tab and never rebuilt — so a
+// zero taken there is indistinguishable from a measurement and stands for good. A pick
+// column collapsed to nothing, a grip drawn over the card's own title.
+//
+// So the module states the measurement and the runtime takes it: now, where there is
+// something to read, and otherwise the first time there is. ResizeObserver is the
+// browser's own answer to "this has a box now", and the one that answers it wherever
+// the element sits — a message scrolled past the panel's own fold has been laid out
+// just the same, which is the question an IntersectionObserver would get wrong.
+//
+// The observation ends at the reading it was waiting for, so what a measurement writes
+// cannot return through what triggered it. The loop the page's other geometry writer
+// guards against (syncLayout, and the rule stated with it) needs a second delivery to
+// the element that was just written, and after the unobserve there is none.
+const measurements = new WeakMap();
+const drawn = (el) => {
+  const box = shownBox(el);
+  return Boolean(box.width || box.height);
+};
+const unmeasured = new ResizeObserver((entries) => {
+  const taking = [];
+  for (const { target } of entries) {
+    if (!drawn(target)) continue;
+    unmeasured.unobserve(target);
+    taking.push(measurements.get(target));
+    measurements.delete(target);
+  }
+  // Every one released before any of them is taken: a measurement writes room its own
+  // widget spends, which resizes it, and a widget still observed when that happens is a
+  // second delivery inside the round that wrote it.
+  for (const take of taking) take();
+});
+export function measure(el, take) {
+  // `shownBox`, not this element's own rect: a `display: contents` wrapper draws no box
+  // of its own and never will, and its contents are what the measurement is about. Asked
+  // the narrow way it would wait forever, holding the take and the observation with it.
+  if (drawn(el)) {
+    // A wait already standing for this element is over: it was waiting for the box
+    // this reading just found. Left standing it would deliver a second reading of
+    // the same number, which is harmless and still a claim that nothing was read.
+    if (measurements.delete(el)) unmeasured.unobserve(el);
+    return take();
+  }
+  measurements.set(el, take);
+  unmeasured.observe(el);
+}
+
 // ---------- where a page's versions are ----------
 // A page directory's versions are served as siblings under its own root:
 // versions/v1.html, v2.html… Three things read that path — which version this document
@@ -857,6 +914,90 @@ export function relabel(node, label, { says } = {}) {
   node.textContent = label;
   node.dataset.lfGen = "1";
   node.toggleAttribute("data-lf-said", says);
+}
+
+// Runtime-supplied data is a third kind of page word: it is neither prose the author
+// put in the version nor apparatus the runtime asks the reader to operate. It belongs
+// in `says` because the reader can point at it, and not in `wrote` because no version
+// contains it. `projectData` states both facts on each rendered datum: data-lf-gen keeps
+// it out of the authored reading, while data-lf-projection + data-lf-datum give it a
+// logical identity that survives a renderer replacing its nodes.
+//
+// The source is the authored seat's id and the key is local to that seat. Keeping the
+// pair in the DOM, rather than in a map beside it, preserves the document + log as the
+// whole state model: records remain the caller's input, and this function owns only their
+// current rendering. A module supplies fresh records on every call. `render` receives the
+// prior node for the same key so an ordinary update can preserve focus and selection, but
+// returning a replacement is valid—the anchor follows the key, not node identity.
+//
+// One projection owns all children of its root. Keys are required strings rather than
+// coerced values: `1` and `"1"` becoming the same DOM attribute would silently merge two
+// facts. The helper reconciles order without reinserting nodes already in place, then
+// schedules the one shared anchor pass after the caller's synchronous projection work.
+let dataPaintQueued = false;
+function projectionChanged() {
+  if (dataPaintQueued) return;
+  dataPaintQueued = true;
+  queueMicrotask(() => {
+    dataPaintQueued = false;
+    paintAnchors();
+  });
+}
+
+export function projectData(root, records, keyOf, render) {
+  if (!(root instanceof Element))
+    throw new TypeError("projectData root must be an element");
+  if (!root.id)
+    throw new TypeError("projectData root needs an id to name its projection");
+  if (!records?.[Symbol.iterator])
+    throw new TypeError("projectData records must be iterable");
+  if (typeof keyOf !== "function" || typeof render !== "function")
+    throw new TypeError("projectData needs key and render functions");
+
+  const prior = new Map();
+  for (const child of root.children) {
+    if (child.dataset.lfProjection !== root.id || !child.hasAttribute("data-lf-datum"))
+      continue;
+    const key = child.dataset.lfDatum;
+    if (prior.has(key))
+      throw new Error(`projectData(${root.id}) already renders duplicate key ${key}`);
+    prior.set(key, child);
+  }
+
+  const keys = new Set();
+  const nodes = new Set();
+  const wanted = [];
+  let index = 0;
+  for (const record of records) {
+    const key = keyOf(record, index);
+    if (typeof key !== "string" || !key)
+      throw new TypeError(
+        `projectData(${root.id}) key ${index} must be a non-empty string`,
+      );
+    if (keys.has(key))
+      throw new Error(`projectData(${root.id}) received duplicate key ${key}`);
+    keys.add(key);
+    const node = render(record, prior.get(key) ?? null, index);
+    if (!(node instanceof Element))
+      throw new TypeError(`projectData(${root.id}) render(${key}) returned no element`);
+    if (node === root || nodes.has(node))
+      throw new Error(`projectData(${root.id}) render reused the node for key ${key}`);
+    nodes.add(node);
+    node.dataset.lfGen = "1";
+    node.dataset.lfProjection = root.id;
+    node.dataset.lfDatum = key;
+    wanted.push(node);
+    index++;
+  }
+
+  // A projection's children are its rendering. Remove source whitespace or an old
+  // non-element rendering first, then use the runtime's stable-child reconciler so a
+  // node already in the right place is not detached and reinserted.
+  for (const child of [...root.childNodes])
+    if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
+  setChildren(root, wanted);
+  projectionChanged();
+  return wanted;
 }
 
 // A word for a reader listening, silent on screen: real text — the one thing every
@@ -1817,18 +1958,39 @@ function renderSaid(root) {
         span.dataset.lfSaid = attr;
         span.dataset.lfGen = "1";
         span.textContent = text;
-        // At the edge of the element's own words rather than of the element, which are the
-        // same place on a page carrying no script and not once a module has injected
-        // chrome of its own. These are the page speaking, so they belong beside the page's
-        // other words: an option's risk chip landed past the pick mark that ends a compact
-        // row — outside the apparatus the row runs to its line's end, and on the far side
-        // of it from where the file's reading of that same version has it.
-        const own = [...el.childNodes].filter(
+        // The two edges are not mirror images, because the chrome at them is not the same
+        // kind of thing.
+        //
+        // After: inside the element's own words rather than past them. Trailing chrome
+        // stands *beside* the last of them and runs to the line's end, so a span placed
+        // at the element's true end lands on the far side of it — an option's risk chip
+        // came out past the pick mark that ends a compact row, and on the far side of it
+        // from where the file's reading of that same version has it.
+        //
+        // Before: the element's own start. Leading chrome is not something the words
+        // stand beside; a module puts one there to speak *for* the whole element — the
+        // disclosure a settled option group collapses to is the only one any x-says host
+        // has — so the same skip that keeps a chip beside its row put the group's own
+        // question underneath a summary of its answer. The file has the label first, the
+        // theme says the question leads, and a reader who opens the group finds it asked
+        // after it was settled.
+        //
+        // Each edge skips what the other keeps, which is the whole of the difference:
+        // trailing chrome is passed over by looking for the last authored node, leading
+        // chrome by looking for the first node this pass has not already written. The
+        // second reading also settles the order of two attributes declared at this edge,
+        // though no shipped entry declares two.
+        const pastTrailingChrome = [...el.childNodes].filter(
           (n) => !(n.nodeType === 1 && n.dataset.lfGen),
+        );
+        const beforeLeadingChrome = [...el.childNodes].find(
+          (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
         );
         el.insertBefore(
           span,
-          (edge === "before" ? own[0] : own.at(-1)?.nextSibling) ?? null,
+          (edge === "before"
+            ? beforeLeadingChrome
+            : pastTrailingChrome.at(-1)?.nextSibling) ?? null,
         );
       }
   }
@@ -3955,6 +4117,16 @@ export const publishedAt = () => {
   return ts;
 };
 
+// When the words around an element were said. A page's own content was said when its
+// version was published; a widget an agent put in a message was said when the message
+// was, which is a later moment and often a much later one. Anything measuring "how long
+// since we heard anything" has to take the second where it stands in one, or a roster
+// carried in a reply certifies its workers against a publish from before the reply
+// existed — the freshness line answering for a page nobody was asking about.
+export const saidAt = (el) =>
+  closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
+    ?.dateTime || publishedAt();
+
 // Subscribe after replay has had the last word for a poll. The sequences expose only
 // what replay has settled, so a widget that deferred under live input never narrates
 // a state its body does not hold. The callback also runs immediately, so a module owns
@@ -4984,10 +5156,12 @@ function msgNode(m) {
   const div = el("div", `lf-msg ${m.author}`);
   div.dataset.mid = m.id; // the reconcile's key, and revealThread's address for it
   const head = el("div", "lf-msg-head");
-  head.append(
-    el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"),
-    el("time", "", ago(m.ts)),
-  );
+  // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
+  // the element has for it — which is also what `saidAt` reads back when a widget the
+  // message carries needs to know when it was said.
+  const when = el("time", "", ago(m.ts));
+  when.dateTime = m.ts;
+  head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
   let body = msgBodies.get(m.id);
   if (!body) {
     body = buildMsgBody(m);
@@ -5127,7 +5301,7 @@ function headingFor(place, outline) {
 
 // The run of threads a heading stands over, named. The key is what the panel reconciles
 // the heading node by, so it is positional (the outline's own index) rather than an id the
-// author may not have written. The three keys below it name the places a page has no seat
+// author may not have written. The named keys below it are the places a page has no seat
 // for; none of them ever carries a target, so a group's node keeps its kind — a button
 // where there is somewhere to go, a plain line where there is not — across every
 // reconcile.
@@ -5137,7 +5311,10 @@ function groupFor(t, outline) {
     return t.root.anchor
       ? { key: "gone", label: "No longer in this version" }
       : { key: "page", label: "About the page as a whole" };
-  if (inChrome(place)) return { key: "layer", label: "The page's own layer" };
+  if (inChrome(place))
+    return layerPart(place)
+      ? { key: "layer", label: "The page's own layer" }
+      : { key: "sent", label: "Sent in the conversation" };
   const heading = headingFor(place, outline);
   // A page its author wrote no headings into has no runs to name, and a run with no name
   // gets no line: "Above the first heading" over the whole list would be a landmark
@@ -5858,9 +6035,21 @@ function widen() {
 // and a dead-looking link is worse than one that says so. Called by the pass that writes
 // the record, and again by a narrowing that rebuilt the nodes the record was painted on.
 function paintThreadQuotes() {
+  const threads = new Map(threadList.map((t) => [t.root.id, t]));
   for (const div of openThreads()) {
     const quote = div.querySelector(".lf-quote");
     if (!quote) continue;
+    // The words too, for the same reason the class below is repainted here rather than
+    // written where the node was built. An element anchor is labelled with its item's
+    // own opening words, and the item may be a widget an agent sent — built by this
+    // same reconcile and not yet in the document when the node wearing the label was
+    // made, so the reading came back empty and the label fell to the bare id. The
+    // reconcile keeps a node it has already built, so nothing else ever asked again:
+    // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
+    // for the life of the tab.
+    const thread = threads.get(div.dataset.id);
+    const said = thread && anchorLabel(thread.root.anchor, thread.root.about);
+    if (said && quote.textContent !== said) quote.textContent = said;
     const found = marked.has(div.dataset.id);
     quote.classList.toggle("detached", !found);
     quote.title = found
@@ -6068,6 +6257,7 @@ const GENERATED = ".lf-ui, [data-lf-gen]";
 // A label a widget declared as the page speaking (relabel), which the anchor pass reads
 // over the chrome it sits in.
 const SAID = "[data-lf-said]";
+const DATUM = "[data-lf-projection][data-lf-datum]";
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.
 // The nearest element that answers wins: a declared label is the page's words inside the
@@ -6090,6 +6280,23 @@ export const inUi = (node) => {
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+// The two together, which is what an affordance acting on where the pointer or the caret
+// is actually needs: the page's own words, as against the layer over them and as against
+// the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
+// was this one — a declared label is nearer than the panel and answers for itself, so a
+// drag across a question an agent asked in a reply read as a passage of the page. It
+// raised the page's 💬 and wrote an anchor onto a thread's own id, into an append-only
+// log, naming a section no version holds. `leaf comment --section` refuses exactly that
+// from the file side, and file capture is the reading that is supposed to promise less.
+const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
+// The runtime's own parts, as against everything else standing in its layer. Its parts
+// wear its id namespace — `lf-composer-quote`, which authored markup may not take — and
+// a widget an agent sent stands in the layer wearing an id of its own, no part of it.
+// `inChrome` answers which document an element is in, and it was standing in for this
+// question too: a design comment on a question asked in a reply was filed under the
+// runtime's own buttons and named "ps ask", where the same widget on the page reads
+// "lf-options · ps-ask".
+const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 // The two readings, each one predicate over a text node and named for the question it
@@ -6129,11 +6336,55 @@ const elementOver = (n) => {
       `words an element to sit in.`,
   );
 };
-const quotable = () => {
-  const gone = silenced();
-  return (n) => !inUi(n) && !elementOver(n).closest(gone);
+// Is `node` inside `root`? `Element.contains` stops at a shadow boundary and these
+// readings walk through one, so the climb is the same one `closestAcross` makes.
+const under = (node, root) => {
+  for (let a = node; a; a = a.parentNode ?? a.host ?? null) if (a === root) return true;
+  return false;
 };
-const authored = () => (n) => !elementOver(n).closest(GENERATED);
+// The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
+// author, and a reading rooted at the document takes that straight: everything the layer
+// holds is the layer's, which is the whole of what the anchor pass and the version diff
+// need. Inside a widget it is a different sentence, and the widget is where it changes.
+//
+// A widget riding a message stands inside the comment panel, so the panel is `.lf-ui`
+// over every word it says — and read straight, a question an agent asked in a reply says
+// nothing whatever. That silence did not read as one: it read as an empty slot, so the
+// group named its options by their ids in the accessibility tree, the asks tray named the
+// question by its id, and every widget reading its own words in a message got "" and fell
+// back to something else.
+//
+// So chrome between the words and their widget is that widget's own apparatus, and chrome
+// above the widget is somebody else's. Rooting the search at the element handed in says
+// almost the same thing and is wrong in one case that matters: a reading can start
+// *inside* generated chrome. A conversation box's messages are `<p>`s the runtime built,
+// on the page, inside the group they belong to — and `diffBlocks` reads every block on the
+// page, so bounded at the block each of them stopped being generated and the version diff
+// painted the reader's own comments as changes to the document.
+const frameOf = (node) => {
+  for (let a = node?.nodeType === 1 ? node : upFrom(node); a; a = upFrom(a))
+    if (a.localName?.startsWith("lf-")) return a;
+  return null;
+};
+// The chrome over a node, read within one frame: above the frame it is nobody's, and with
+// no frame at all it is the document's own reading, unchanged.
+const overIn = (el, selector, frame) => {
+  const near = el.closest(selector);
+  return near && (!frame || under(near, frame)) ? near : null;
+};
+const quotable = (root) => {
+  const gone = silenced();
+  const frame = frameOf(root);
+  return (n) => {
+    const el = elementOver(n);
+    const chrome = overIn(el, `.lf-ui, ${SAID}`, frame);
+    return !(chrome && !chrome.matches(SAID)) && !el.closest(gone);
+  };
+};
+const authored = (root) => {
+  const frame = frameOf(root);
+  return (n) => !overIn(elementOver(n), GENERATED, frame);
+};
 // The composed tree, not the light one: a widget that renders the page's words into an
 // open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
 // own children stop rendering the moment it has one. A TreeWalker sees none of that — it
@@ -6147,7 +6398,7 @@ const authored = () => (n) => !elementOver(n).closest(GENERATED);
 // and indexes every position into it, so shadow text has to arrive at the host's own
 // place in that string — not appended from a second walk, which would put a diff's lines
 // after the page's last paragraph and every neighbour of theirs a lie.
-export function textNodesUnder(rootEl, accepts = quotable()) {
+export function textNodesUnder(rootEl, accepts = quotable(rootEl)) {
   const segments = [];
   const visit = (node) => {
     for (const child of node.childNodes) {
@@ -6515,7 +6766,7 @@ export const says = (el) => quoteFrom(textNodesUnder(el));
 // one of its own parts, where `says` would hand back the widget's own declared labels
 // along with the words — a picked row's mark is the page speaking, so it is in the
 // reading a user points at and out of the row's name.
-export const wrote = (el) => quoteFrom(textNodesUnder(el, authored()));
+export const wrote = (el) => quoteFrom(textNodesUnder(el, authored(el)));
 
 // A passage as one Range: what paints it, and what measures it for a scroll.
 function rangeOf(segments) {
@@ -7006,8 +7257,14 @@ function itemWord(item) {
 // "2 comments" line) is not. Cut back to a word boundary and marked as cut, because a label
 // ending mid-word reads as a quote that lost its tail rather than as a name for the thing.
 const ITEM_SAYS_CAP = 52;
+// The reading is the whole answer, and it is the answer wherever the item stands. An
+// ask carried by a message is still an ask, and it is read here exactly as an ask on
+// the page is: rooted at the item, so the panel around it is nobody's chrome (see the
+// note on `overIn`) while the item's own marks and offers still are. A veto on
+// `inChrome` stood in front of this, from the days only an anchor's section reached it:
+// it threw the reading away and left the asks tray naming the question by its raw id.
 function itemSays(item) {
-  if (!item || inChrome(item)) return "";
+  if (!item) return "";
   const whole = quoteFrom(textNodesUnder(item));
   if ([...whole].length <= ITEM_SAYS_CAP) return whole;
   const short = cut(whole, 0, ITEM_SAYS_CAP);
@@ -7020,6 +7277,25 @@ function resolveAnchor(anchor, text) {
   // either: a decided element whose markup settles to nothing is present in the
   // document and absent from the screen, and an anchor held to it read as attached
   // while outlining nothing.
+  if (anchor.datum) {
+    const source = sectionOf(anchor);
+    const datum = source
+      ? [...source.children].filter(
+          (el) =>
+            el.matches(DATUM) &&
+            el.dataset.lfProjection === anchor.section &&
+            el.dataset.lfDatum === anchor.datum,
+        )
+      : [];
+    // A projection/key pair identifies exactly one current fact. Disappearance detaches;
+    // duplicates refuse to guess. Where its old display text still stands, mark those
+    // exact words. Where the value changed, outline the same datum whole instead of
+    // silently following the old string to some other fact.
+    if (datum.length !== 1) return null;
+    if (!anchor.quote) return { element: datum[0] };
+    const segments = findQuote(text, anchor.quote, anchor, datum[0]);
+    return segments.length ? { segments } : { element: datum[0] };
+  }
   if (!anchor.quote) {
     const section = sectionOf(anchor);
     return section && !settledAway(section) ? { element: section } : null;
@@ -7499,7 +7775,7 @@ panel.addEventListener("click", (ev) => {
 // the caret position instead would claim the empty space past the end of a short line.
 function markAt(x, y) {
   const over = document.elementFromPoint(x, y);
-  if (inUi(over)) return null;
+  if (!pageWords(over)) return null;
   // The retargeted element answers the chrome question, whose subject is which layer the
   // pointer is in; an element mark needs the tree's own answer, because a host contains
   // every mark staged inside it and so tells none of them apart.
@@ -7627,13 +7903,20 @@ function place(node, left, top) {
     pageScroller.scrollTop +
     "px";
 }
-// The composer's first choice of a place is the column's margin, beside the passage:
-// the document is one centred column, so the margin holds no words by construction,
-// and the mark and the box then stand side by side — where the box opened instead at
-// the gesture (the fab, the ⌥-click's pointer), it stood on the page's own text next
-// to the passage, which is the one thing a 320px card over a 720px column can't avoid
-// doing there. placeClear steps it down past any control the page hangs out in that
-// same margin (a suggestion's Accept/Reject row).
+// The composer's first choice of a place is the column's margin, beside the passage, so
+// the mark and the box stand side by side — where the box opened instead at the gesture
+// (the fab, the ⌥-click's pointer), it stood on the page's own text next to the
+// passage, which is the one thing a 320px card over a 720px column can't avoid doing
+// there. placeClear steps it down past any control the page hangs out in that same
+// margin (a suggestion's Accept/Reject row).
+//
+// A sidenote is out there too and the box covers one whole while it stands, which is
+// where this stops short of stepping clear. What the walk steps past is controls,
+// because a control the box hides is a press the reader was reaching for; a note is
+// prose they are not mid-gesture on, and the box goes when they are done with it. The
+// walk could be taught the note as easily — the cost is where it would then put the box
+// on a page carrying a run of them, which is far enough down the margin to be about a
+// different paragraph.
 //
 // Where the margin is too narrow for the box — a laptop window, the panel open — it
 // has one thing left to stay clear of: its own mark. That mark is the only thing
@@ -7717,13 +8000,34 @@ function selectionAnchor(sel) {
   const range = pageRange(sel);
   const node = range.commonAncestorContainer;
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-  const section = closestAcross(holder, "[id]:not(.lf-ui)")?.id || null;
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
   // context across their seam.
   const segments = segmentsIn(range);
   const quote = quoteFrom(segments);
+  const dataNodes = new Set(
+    segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),
+  );
+  const [onlyDatum] = dataNodes;
+  const datum =
+    dataNodes.size === 1 &&
+    segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
+      ? onlyDatum
+      : null;
+  const section =
+    datum?.dataset.lfProjection ??
+    closestAcross(holder, "[id]:not(.lf-ui)")?.id ??
+    null;
+  // Identity is the context for projected data. Neighbouring display values may reorder
+  // or repeat, so storing their words as prefix/suffix would make incidental layout a
+  // second, conflicting answer to which datum the reader selected.
+  if (datum)
+    return {
+      section,
+      datum: datum.dataset.lfDatum,
+      quote,
+    };
   const reading = pageText();
   const [start, stop] = spanIn(reading, segments);
   const prefix = cut(
@@ -7814,7 +8118,7 @@ const MIN_QUOTE = 3;
 // one working the chrome, and it is the question every caller here is really asking.
 const pageSelection = () => {
   const sel = getSelection();
-  return sel && !sel.isCollapsed && !inUi(sel.anchorNode) ? sel : null;
+  return sel && !sel.isCollapsed && pageWords(sel.anchorNode) ? sel : null;
 };
 // Where a send ends is where typing continues, and the reader has the last word on it.
 // A send is a round trip, so this step lands whenever the server answers — long after
@@ -7962,7 +8266,7 @@ function updateFab(visual) {
 // button, because a right button's release precedes its context menu, and growing the
 // selection there rewrites what Copy was aimed at.
 document.addEventListener("mouseup", (ev) => {
-  if (inUi(ev.target) && !pageSelection()) return;
+  if (!pageWords(ev.target) && !pageSelection()) return;
   setTimeout(() => {
     if (ev.button === 0) snapSelection();
     updateFab();
@@ -7972,7 +8276,7 @@ document.addEventListener("mouseup", (ev) => {
 // a box never does, whatever is selected elsewhere.
 document.addEventListener("keyup", (ev) => {
   if (takesLetters(ev.target)) return;
-  if (inUi(ev.target) && !pageSelection()) return;
+  if (!pageWords(ev.target) && !pageSelection()) return;
   setTimeout(updateFab);
 });
 // Floating chrome getting out of the way of a press somewhere else, which is a fact about
@@ -8329,7 +8633,15 @@ const CONTROLS =
 function designTarget(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || closestAcross(at, DESIGN_OWN)) return null;
-  const el = inChrome(at) ? closestAcross(at, "[id]") : itemAt(at);
+  // In the layer, the nearest id — but the author's before the runtime's. The runtime's
+  // own parts wear its namespace and are the target themselves; a widget an agent sent
+  // wears an authored id and its module's generated parts wear the runtime's, so passing
+  // over those lands on the widget, which is where `itemAt` lands out on the page. Taking
+  // the nearest of any kind anchored a design comment on `lf-mermaid-3` — a number that
+  // changes with draw order — and `layerPart` then read it back as a part of the layer.
+  const el = inChrome(at)
+    ? (closestAcross(at, '[id]:not([id^="lf-"])') ?? closestAcross(at, "[id]"))
+    : itemAt(at);
   if (!el) return null;
   const control = closestAcross(at, CONTROLS);
   const part =
@@ -8355,7 +8667,7 @@ function controlWord(control) {
 // page element takes the reader's word for its kind; a runtime part is its name, the id
 // minus the runtime's prefix.
 function designName(el) {
-  if (inChrome(el)) return el.id.replace(/^lf-/, "").replace(/-/g, " ");
+  if (layerPart(el)) return el.id.replace(/^lf-/, "").replace(/-/g, " ");
   const tag = el.tagName.toLowerCase();
   return `${tag.startsWith("lf-") ? tag : itemWord(el)} · ${el.id}`;
 }
@@ -8378,7 +8690,7 @@ function openOnDesign({ el, part }, from) {
 }
 
 document.addEventListener("click", (ev) => {
-  if (inUi(ev.target)) return;
+  if (!pageWords(ev.target)) return;
   // A press design mode did not take at the press is a press on prose: a drag that
   // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
   // block; a plain click comments on the block it landed in.
@@ -10099,6 +10411,12 @@ const holding = (box) =>
 // thread list where the panel covers the page — a key is no different from a wheel
 // there, and a page scrolling behind the sheet shows the reader nothing.
 const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
+// Which box scrolls a given element, for anything that has to name its scroller rather
+// than search for one. The document's for everything the document holds — and the
+// panel's own list for a widget an agent put in a reply, which is scrolled by that and
+// by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
+// that never comes.
+export const scrollerFor = (el) => (inChrome(el) ? threadsBox : pageScroller);
 function stepPage(fraction) {
   const box = seenScroller();
   const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
@@ -12085,10 +12403,20 @@ function stateProjection(upto, without = null) {
 // an application earlier in the batch is free to have replaced the element a
 // later one names. A unit the current version dropped has no facet at all —
 // its widget survived it.
+//
+// Every action this page holds, the panel's included. A widget an agent sent folds the
+// way a widget on the page does, and the poll replays its standing action over the state
+// that action already produced, exactly as it does for the page's — so the premise binds
+// it and the gate that tests the premise has to see it. A filter on `inChrome` stood here
+// and meant the one verb only a message can carry (`answer`, the Done press on a question
+// asked in a reply) was the one verb whose absoluteness nothing ever checked.
+//
+// Actions and not reports, though both channels come through here: a report has to be
+// answerable by a version and thread markup is frozen, so every door refuses one on a
+// widget an agent sent and the projection above marks any that reached the log terminal.
 export const standingState = () => {
   const projection = stateProjection(currentVersion);
   return [...projection.desired]
-    .filter(([, entry]) => !inChrome(elementById(entry.e.widget)))
     .sort(([, a], [, b]) => compareProjected(a, b))
     .map(([_coordinate, { unit, e, spec }]) => ({
       get widget() {

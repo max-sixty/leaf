@@ -336,7 +336,9 @@ vocabulary for rides in the custom keywords below:
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
-passages apart), reply (parent=id),
+passages apart; a browser selection on projected data carries datum,
+the stable key local to section, instead of treating neighbouring values as
+identity), reply (parent=id),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -394,9 +396,12 @@ under that name has been through the gate.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes
-the anchor from the selection; `leaf comment` writes the same anchor from a
-quote, reading the version the way the anchor pass reads the DOM (see
-"passages" below). Everything downstream already turns on `author`: `leaf wait`
+the anchor from the selection; `leaf comment` writes its file-confirmable form from
+a quote, reading the version the way the anchor pass reads the DOM (see
+"passages" below). Projected data has no file-side value to quote: its browser anchor
+adds the projection's section and datum key, and a CLI comment can still name the
+authored projection seat as an element. Everything downstream already turns on
+`author`: `leaf wait`
 prints user events and the banner counts them, so Claude's own comment neither
 wakes its own watcher nor reads as unanswered. Closing runs the other way round,
 because a note's purpose is discharged by being read, and only the reader knows
@@ -3124,6 +3129,9 @@ def custom_widget_module(tag: str) -> str:
 // - Anything you inject is chrome only if marked: offer() for a control,
 //   relabel() for a label that is the page speaking. Unmarked injected words
 //   read as the page's and break the file-side anchor reading.
+// - Records supplied at runtime go through projectData(): its stable string keys
+//   make the rendering readable but not authored, and keep comments on the same
+//   logical datum through refreshes. Never write its data-lf-* markers by hand.
 // - The registry entry declares x-verbatim because this stub leaves the body
 //   in place. Drop it the moment the module renders anything in the body's
 //   stead, or quotes anchor on words the screen no longer shows.
@@ -3776,6 +3784,61 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
             write_json(page_dir / "cursor.json", {"seq": seq})
 
 
+def thread_roots(events: list) -> dict:
+    """Message id → the id of the comment that opened its thread.
+
+    Two readings of the panel's own document resolve a reply to its root, and they
+    must answer alike: a decision and an ask naming different conversations for one
+    message is a disagreement no reader could account for. (`build_threads` walks the
+    same relation to a different end — the thread object itself, with its resolution —
+    so it keeps its own.)
+
+    A reply whose root the log lost stands as its own thread rather than raising.
+    `read_events` skips a line nothing could be done with and keeps reading, and a
+    reader who can see the reply is owed the rest of the page around it."""
+    root = {}
+    for e in events:
+        if e["kind"] == "comment":
+            root[e["id"]] = e["id"]
+        elif e["kind"] == "reply":
+            root[e["id"]] = root.get(e["parent"], e["parent"])
+    return root
+
+
+def thread_universe(events: list, registry: dict):
+    """Every widget the log's frozen markup holds, read as one document.
+
+    id → record and id → spoken words, which is the panel's answer to a version's
+    `parser.by_id`/`spoken` pair, plus the thread each widget was sent in. A
+    version's element universe is one file; the panel's is every fragment the log
+    carries, and the two are separate documents that happen to share a page."""
+    structure = thread_structure(events)
+    root = thread_roots(events)
+    byid, spk, thread_of = {}, {}, {}
+    for e in events:
+        if markup := e.get("markup"):
+            fragment = structure.fragments[e["id"]]
+            byid.update(fragment.by_id)
+            spk.update(spoken(markup, registry))
+            thread_of.update(dict.fromkeys(fragment.by_id, root[e["id"]]))
+    return byid, spk, thread_of
+
+
+def thread_state(events: list, registry: dict):
+    """What the reader's gestures leave standing on the widgets an agent sent.
+
+    Thread markup is frozen in its event: no version window bounds it and no
+    retraction floor reaches it, so every action on it reads the whole
+    conversation window. Both doors that must answer for such a widget read it
+    here — the action gate, deciding whether a fresh press is allowed, and
+    `page state`, telling a session picking the page up what the reader has
+    already settled — so a decision made in the panel cannot stand at one door
+    and be missing at the other."""
+    byid, spk, thread_of = thread_universe(events, registry)
+    projection = state_projection(events, byid, spk, registry, None, floors={})
+    return projection, byid, thread_of
+
+
 def read_text_arg(text) -> str:
     body = text if text is not None else sys.stdin.read()
     if not body.strip():
@@ -3847,13 +3910,13 @@ def declared_event_error(
 
 
 def declared_action_error(
-    event: dict, page_by_id: dict, thread: ThreadStructure, registry: dict
+    event: dict, page_by_id: dict, thread_by_id: dict, registry: dict
 ):
     """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own published version. Thread widgets
     # inhabit the panel's other live document. Either record answers both which
     # tag sent the action and whether it stands inside an exhibit.
-    rec = page_by_id.get(event["widget"]) or thread.by_id.get(event["widget"])
+    rec = page_by_id.get(event["widget"]) or thread_by_id.get(event["widget"])
     if rec is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
@@ -3884,11 +3947,15 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     """
     version = event["version"]
     page = parse_version(page_dir, version)
-    thread = thread_structure(events)
-    if error := declared_action_error(event, page.by_id, thread, registry):
+    # One reading of the panel's document for the whole door: the id universe the
+    # declaration is looked up in and the projection the requirement is judged
+    # against are the same frozen fragments, and parsing them twice was two
+    # readings that could only ever agree.
+    thread_projection, thread_by_id, _threads = thread_state(events, registry)
+    if error := declared_action_error(event, page.by_id, thread_by_id, registry):
         return error
     page_rec = page.by_id.get(event["widget"])
-    rec = page_rec or thread.by_id[event["widget"]]
+    rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
     requirement = spec.get("requires")
@@ -3914,13 +3981,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.
-        byid, spk = {}, {}
-        for logged in events:
-            if markup := logged.get("markup"):
-                fragment = thread.fragments[logged["id"]]
-                byid.update(fragment.by_id)
-                spk.update(spoken(markup, registry))
-        projection = state_projection(events, byid, spk, registry, None, floors={})
+        projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
         page_html = version_path(page_dir, version).read_text(encoding="utf-8")
         threads = build_threads(events, spoken(page_html, registry))
@@ -4037,7 +4098,13 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     escaped, so it cannot claim a widget. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
-    errs = thread_markup_contract_errors(frag, registry)
+    # Beside the vocabulary contract rather than inside it. That contract is what
+    # re-vendoring asks of every fragment already in the log — can this layer still
+    # speak it — and a presentation rule is no part of the answer. Put there, a page
+    # whose log held a <style> from before the rule existed could never be re-vendored
+    # again: the log is append-only, so it would have failed `page init` for good, with
+    # a message about replay that had nothing to do with what was wrong.
+    errs = thread_markup_contract_errors(frag, registry) + fragment_style_errors(frag)
     if errs:
         sys.exit(
             f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
@@ -4380,11 +4447,11 @@ CATALOG_PREAMBLE = """\
 
 
 # The layer-wide facts printed after the widget entries, each with the sentence saying
-# what an author reads it for. A table because the catalog is the agent's own
-# documentation of a vocabulary that grows: a `$` key a layer adds is a row here, not a
-# block of its own beside six that already say the same thing differently. $events is
-# absent because it is the vocabulary stamp — what this page's runtime speaks, for
-# `page init` to hold a re-vendor against — and nothing an author writes markup from.
+# what an author reads it for. Curated facts keep their useful names and order; a
+# layer-defined fact follows them under its own key, so extending the vocabulary does
+# not require teaching the catalog another name. $events is absent because it is the
+# vocabulary stamp — what this page's runtime speaks, for `page init` to hold a
+# re-vendor against — and nothing an author writes markup from.
 CATALOG_FACTS = (
     ("$keys", "The x- keys an entry may declare, and what each one means."),
     (
@@ -4420,6 +4487,31 @@ def cmd_catalog(page_dir: Path) -> None:
         if fact := reg.get(key):
             print(f"\n# {heading}\n")
             print(json.dumps(fact, indent=2, ensure_ascii=False))
+    known = {key for key, _ in CATALOG_FACTS} | {"$events"}
+    for key, fact in reg.items():
+        if key.startswith("$") and key not in known and fact:
+            print(f"\n# {key}, declared by this layer.\n")
+            print(json.dumps(fact, indent=2, ensure_ascii=False))
+
+
+def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
+    """One standing action, in the shape `page state` reports every one of them.
+
+    `version` is the version the action was taken on, which for a widget an agent
+    sent is a fact about the gesture and none about the widget: thread markup is
+    frozen in the log, so no version bounds one of these and none can ever record
+    it, which is why `lag` says nothing about them."""
+    widget, unit, facet = coordinate
+    return {
+        "widget": widget,
+        "unit": unit,
+        "facet": facet,
+        "action": e["action"],
+        "detail": e["detail"],
+        "version": e["version"],
+        "seq": e["seq"],
+        "thread": thread,
+    }
 
 
 def cmd_page_state(page_dir: Path) -> None:
@@ -4484,20 +4576,17 @@ def cmd_page_state(page_dir: Path) -> None:
         byid = parser.by_id
         state["title"] = parser.title.strip()
         state["elements"] = [
-            {"tag": r["tag"], "id": r["attrs"].get("id"), "line": r["line"]}
+            {
+                "tag": r["tag"],
+                "id": r["attrs"].get("id"),
+                "line": r["line"],
+                "thread": None,
+            }
             for r in parser.lf_elements
         ]
         state["state"] = [
-            {
-                "widget": widget,
-                "unit": unit,
-                "facet": facet,
-                "action": e["action"],
-                "detail": e["detail"],
-                "version": e["version"],
-                "seq": e["seq"],
-            }
-            for (widget, unit, facet), (e, _) in sorted(projection.actions.items())
+            standing_entry(coordinate, e)
+            for coordinate, (e, _) in projection.actions.items()
         ]
         state["reports"] = [
             {
@@ -4534,6 +4623,34 @@ def cmd_page_state(page_dir: Path) -> None:
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
     )
+    # The panel's own document, listed and projected the way the version's is, and
+    # for the same reason: a widget an agent sent is a widget, and the reader
+    # answering one is answering the page. The projection above is of the published
+    # version's elements alone, so a press on an AskUserQuestion resolved no
+    # declaration and stood nowhere — a session picking the page up read the reader's
+    # answer to its own question as an answer nobody had given, with `asks` reporting
+    # the same question answered.
+    #
+    # `thread` is the one key that separates them, present on every entry so a reader
+    # of this can take the two halves the same way, and the elements come along so
+    # nothing here names a widget the same object never lists. Both lists are then in
+    # one order rather than two sorted halves.
+    thread_actions, thread_byid, thread_of = thread_state(events, registry)
+    state["elements"] += [
+        {
+            "tag": rec["tag"],
+            "id": wid,
+            "line": rec["line"],
+            "thread": thread_of[wid],
+        }
+        for wid, rec in thread_byid.items()
+    ]
+    state["elements"].sort(key=lambda e: (e["thread"] or "", e["line"]))
+    state["state"] += [
+        standing_entry(coordinate, e, thread_of[coordinate[0]])
+        for coordinate, (e, _) in thread_actions.actions.items()
+    ]
+    state["state"].sort(key=lambda s: (s["widget"], s["unit"], s["facet"]))
     print(json.dumps(state, indent=2, ensure_ascii=False))
 
 
@@ -7133,7 +7250,7 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
             error := declared_action_error(
-                e, page_by_id(e["version"]), thread, incoming
+                e, page_by_id(e["version"]), thread.by_id, incoming
             )
         ):
             key = f"action contract: {error}"
@@ -8105,13 +8222,9 @@ def thread_ask_projection(
     disclosure."""
     structure = thread_structure(events)
     records, byid, spk = [], {}, {}
-    thread_of = {}
+    thread_of = thread_roots(events)
     for e in events:
-        if e["kind"] == "comment":
-            thread_of[e["id"]] = e["id"]
-        elif e["kind"] == "reply":
-            thread_of[e["id"]] = thread_of[e["parent"]]
-        else:
+        if e["kind"] not in ("comment", "reply"):
             continue
         markup = e.get("markup")
         if not markup or thread_of[e["id"]] in settled:
@@ -8440,6 +8553,38 @@ def page_boundary_errors(parser: _StructParser) -> list:
             "under <body>; found " + str(parser.outside_main)
         )
     return errors
+
+
+def fragment_style_errors(parser: _StructParser) -> list:
+    """A message may not dress the document it is put into.
+
+    A version's <style> is the page's own, and the gates a version answers to read
+    it as such — syntax, the column it may not overflow, the presentation
+    properties the theme keeps. A fragment has no page of its own: the runtime
+    parses an agent's reply markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like
+    any other. `<style>main h1 { color: red !important }</style>` in a reply was
+    accepted here and repainted the version's own heading, past every gate the
+    same rule in a version answers to; an inline `!important` on a protected
+    property outranked the theme's first cascade layer the same way.
+
+    Nothing is lost by refusing them. The layer already dresses a widget an agent
+    sends — that is what a registry entry and its theme rules are for — and a rule
+    of a message's own has nowhere honest to sit, because the message is not the
+    page and its markup is frozen in the log where no version can revise it."""
+    errors = []
+    if parser.css.strip():
+        errors.append(
+            "<style> in message markup becomes a stylesheet of the whole document it "
+            "is put into; a widget's look belongs in the layer's theme, beside its "
+            "registry entry"
+        )
+    if parser.stylesheets:
+        errors.append(
+            "<link rel=stylesheet> in message markup dresses the whole document it is "
+            "put into; the page serves the one vendored theme it was reviewed with"
+        )
+    return errors + inline_presentation_override_errors(parser)
 
 
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
@@ -8917,8 +9062,11 @@ UNREACHABLE_WORDS = """() => {
             if (value.length > 1 && shown.some(c => c.includes(value)))
                 found.push(`${at(el)} paints ${name}="${value}" rather than saying it`);
     }
-    // A widget's chrome is the .lf-ui inside a lf-* element; the runtime's own
-    // layer is appended to body and sits inside none of them.
+    // The lf-* element something stands in, if any. A .lf-ui is a widget's own
+    // chrome by standing in one of these, and the runtime's layer is appended to
+    // body and stands in none — but a widget riding a message stands in the
+    // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
+    // never of the words beneath it, which are inside a widget either way.
     const widget = el => { for (let a = el; a; a = a.parentElement)
                                if (a.tagName.startsWith('LF-')) return a; };
     // The anchor pass's own rule: the nearest element that answers wins.
@@ -8937,7 +9085,12 @@ UNREACHABLE_WORDS = """() => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || !el.closest('.lf-ui') || !widget(el)) continue;
+        if (!n.data.trim()) continue;
+        // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
+        // here wherever the widget stands, a message included; the panel around a
+        // widget riding one is not, which is what the note on the panel means.
+        const chrome = el.closest('.lf-ui');
+        if (!chrome || !widget(chrome)) continue;
         if (speaks(el) || el.closest(CONTROL)) continue;
         // .lf-quiet is words for a reader listening, clipped to nothing: not on
         // screen, so there is nothing here the eye can see and the pointer can't
@@ -9490,6 +9643,18 @@ PAPER_WORDS = """() => {
 # up in is the copy, where there is nothing left to press. Text against text, because
 # text over a background, a border, or a picture is how a page is built.
 #
+# What floats over the document on purpose is answered for, and that is one exemption
+# rather than two. It reads as the runtime's, because for a long time the runtime owned
+# every float there was; the sentence is about the float and not about the owner. A
+# suggestion's controls hang out of the flow, level with the change they decide, and a
+# sidenote hangs out of the flow level with the block it annotates — both in the right
+# margin now, both pinned by what they belong to, so where a page stands them level the
+# controls are drawn over the note and neither can move. Reporting that would refuse
+# every page that writes a note beside a change, which is a composition the vocabulary
+# is meant to have; so the float is exempt and the note is what it may cover. Where the
+# same row docks back into the flow it is a resident again, and covering a word there is
+# a fault this still reports.
+#
 # A pair where one element contains the other is skipped: a paragraph and the <em>
 # inside it are one run of words that the flow lays out together, and their boxes
 # overlap by construction. Two pixels of slack, since a line box carries its leading and
@@ -9497,16 +9662,18 @@ PAPER_WORDS = """() => {
 # too: it floats over the document on purpose, and where that costs the user a press
 # it is the hit test that says so.
 #
-# The layer is in two places, so the skip names both. The line counting a passage's
-# comments lives inside the page's own elements by design — it is what a screen reader
-# hears where a painted mark says nothing — and it is clipped to nothing on screen.
-# checkVisibility answers for display, visibility and opacity and knows nothing of
-# clip-path, so that line read as drawn, and its text lays out past the 1px box holding
-# it: an anchor on a container put "1 comment" across the paragraph below the widget and
-# failed the gate on a page with nothing wrong with it. Asking for `.lf-chrome` alone was
-# the class standing in for the question, the same substitution the anchor pass made with
-# `.lf-ui`. The question is whose words these are, and the runtime marks its own in both
-# of the places it writes them.
+# The layer is in two places and the float rule reaches both, which is why only one of
+# them is named. The line counting a passage's comments lives inside the page's own
+# elements by design — it is what a screen reader hears where a painted mark says
+# nothing — and it is clipped to nothing on screen. checkVisibility answers for display,
+# visibility and opacity and knows nothing of clip-path, so that line read as drawn, and
+# its text lays out past the 1px box holding it: an anchor on a container put "1 comment"
+# across the paragraph below the widget and failed the gate on a page with nothing wrong
+# with it. It wore a name in this selector for a while, next to the container's, and the
+# name went the day the rule below could answer for it — the line is a control the
+# runtime hangs absolutely, which is the whole of what `floating` asks. Two skips over
+# one element is a guarantee kept twice, and the weaker of them is the one that has to be
+# remembered when the next float is written.
 #
 # checkVisibility knows nothing of content-visibility either, which is what a collapse
 # wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
@@ -9522,11 +9689,37 @@ COVERED_WORDS = """() => {
     const at = el => { const named = el.closest('[id]');
                        return named ? `<${named.tagName.toLowerCase()} id=${named.id}>`
                                     : `<${el.tagName.toLowerCase()}>`; };
+    // Chrome a widget hangs out of the flow, which is the same exemption the runtime's
+    // own layer has above and for the same reason. Read off the marker `offer` writes
+    // and the position the browser computed, so it holds for a control any widget hangs
+    // and stops holding the moment that control docks back into the flow — which is what
+    // a suggestion's row does when it finds no room, and where covering a word would be
+    // a fault again.
+    //
+    // Every marked ancestor, not the nearest: `offer` builds a row of presses out of
+    // presses, so a suggestion's ✓ Accept is a marked button inside a marked row, and the
+    // one that hangs in the margin is the outer of the two. Asking `closest` gets the
+    // button, which is in its row's flow and static, and the exemption reads as absent on
+    // exactly the control it was written for.
+    //
+    // The two values that take a box out of the flow, named rather than everything that
+    // isn't static: a relative or sticky box keeps its place in the flow and is painted
+    // offset from it, so it is a resident that has moved rather than chrome hanging over
+    // the page, and exempting it would retire this check for any control that nudges
+    // itself a pixel. PAST_THE_COLUMN asks the same question next door and asks it this
+    // way.
+    const outOfFlow = (s) => s.position === 'absolute' || s.position === 'fixed';
+    const floating = (el) => {
+        for (let a = el.closest('[data-lf-offer]'); a; a = a.parentElement?.closest('[data-lf-offer]'))
+            if (outOfFlow(getComputedStyle(a))) return true;
+        return false;
+    };
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
+        if (!n.data.trim() || el.closest('.lf-chrome, .lf-quiet, [hidden]')) continue;
         if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+        if (floating(el)) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
         for (const box of range.getClientRects())
@@ -9674,8 +9867,14 @@ UNREAD_SYNTAX = (
 # *child* and never for the element it was handed. The quiet word is in no such reading,
 # wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
 # span clipped to a pixel still has one wherever it renders, and none at all where it
-# doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
-# out here the way COVERED_WORDS holds it out.
+# doesn't. Which is only a question worth putting where the element renders at all — a
+# collapsed card, a tab nobody opened and a shut comment panel all lay out nothing, and
+# their rects report the ancestor rather than the widget. That is the *second* failure
+# here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
+# fault wherever the element stands, since a tab the reader has not opened is a tab they
+# can open. Splitting them that way is what retired the [hidden] exemption this carried:
+# `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
+# asking whether it renders covers both and the panel besides.
 SILENT_WORDS = (
     """(widgets) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS
@@ -9700,7 +9899,14 @@ SILENT_WORDS = (
             for (const el of every(tag)) {
                 if (!el.hasAttribute(attr)) continue;
                 const quiet = el.querySelector(':scope > .lf-quiet');
-                if (quiet && (quiet.getClientRects().length || el.closest('[hidden]')))
+                // A missing word is the fault, and it is the fault wherever the
+                // element stands: a tab the reader has not opened is still a tab
+                // they can open. What the box is asked for is the second failure,
+                // a word the widget wrote and then hid, and that question can only
+                // be put to an element that is being laid out — a message in a shut
+                // panel lays out nothing, so its rects report the panel's state and
+                // would be read as the widget's.
+                if (quiet && (quiet.getClientRects().length || !el.checkVisibility()))
                     continue;
                 found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
                            + `and says nothing a reader listening can hear`);
@@ -10260,6 +10466,14 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             # widget legitimately shows other words). A module that renders
             # something in the body's stead while the entry still says
             # verbatim strands quotes on words the screen no longer shows.
+            # Both documents, because a widget an agent sent has words of its
+            # own — in the frozen fragment that carries it, which is the file
+            # side for it exactly as the version is for a page widget. Asked of
+            # the version alone the two sides both read empty and the comparison
+            # passed on the agreement of two blanks; asked of neither, an
+            # x-verbatim widget in a message could render something other than
+            # its own words with nothing saying so, which is the one thing the
+            # declaration promises and the reason a quote may rest on it.
             shown = page.evaluate(
                 """({widgets, touched}) => import('/leaf.js').then(leaf =>
                     Object.entries(widgets)
@@ -10270,7 +10484,8 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 {"widgets": widgets, "touched": touched},
             )
             if shown:
-                spk = spoken(markup, registry)
+                _byid, thread_spk, _threads = thread_universe(state["events"], registry)
+                spk = {**thread_spk, **spoken(markup, registry)}
                 dishonest_verbatim = [
                     f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
                     f"{s['says'][:80]!r} where the file reads "
@@ -10424,6 +10639,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
                 f"in theme.css reaches it"
             )
+
         found += [f"[{scheme}] {r}" for r in retired]
         found += [f"[{scheme}] {u}" for u in unsettled]
         found += [f"[{scheme}] {c}" for c in conflicts]
@@ -10551,7 +10767,8 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
     print(
         f"✓ {name}: renders clean in Chrome, light and dark — no console errors, "
         "every widget takes space, no words on top of other words, code that reads "
-        "against the block it is on, nothing past the column, no sideways scroll"
+        "against the block it is on, boxes showing the inset they draw, nothing past the "
+        "column, no sideways scroll"
     )
     return 0
 

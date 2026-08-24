@@ -121,10 +121,21 @@ Use `--markup` for an inline widget such as a small `lf-options` question. Threa
 markup is frozen in the log; versions neither carry nor revise it. Use a page
 widget instead when the question and its answer belong in the final record.
 
-Reply with brief Markdown:
+Answer in as few words as the question takes; one sentence is a complete reply.
+The panel is a narrow column, so an answer past a few sentences goes in as
+separate Markdown paragraphs or a list with one point each. `--text` takes a
+one-line answer; longer text comes in on stdin:
 
 ```bash
-leaf reply <page> --to <thread-id> --text "<answer>"
+leaf reply <page> --to <thread-id> --text "Yes, and v3 already has it."
+
+leaf reply <page> --to <thread-id> <<'EOF'
+Three things put the retry on the client:
+
+- only the client can tell a dropped connection from a slow one
+- the client already holds the request body
+- retrying on the server would double the write
+EOF
 ```
 
 Fragment links such as `[the decision](#decision)` take the reader to page

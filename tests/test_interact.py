@@ -256,6 +256,35 @@ def test_skill_assigns_acknowledgement_to_the_wait_owner():
     assert "After the host accepts the follow-up" in watcher
 
 
+def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
+    """A reply is written into a shell argument and never read where it lands.
+
+    The panel renders a reply through `marked` and the theme dresses its lists,
+    code, quotes and tables for a column that is narrow by default, so the shape
+    is available and nothing in the loop shows the author what they chose. The
+    guidance said "brief Markdown" over a single-line `--text "<answer>"`, and
+    brevity read as one paragraph: an answer carrying three independent reasons
+    arrived as four sentences of prose with the reasons buried in clauses.
+
+    So the rule states the short case as complete and the example carries the
+    long one, because a documented call is copied where a description is not.
+    The two assertions hold each half: brevity first, and a worked long answer
+    to copy from when brevity does not fit.
+    """
+    root = PLUGIN_ROOT / "skills" / "leaf" / "references"
+    conversation = (root / "conversation-loop.md").read_text()
+
+    assert "one sentence is a complete reply" in " ".join(conversation.split())
+    reply_block = conversation.split("leaf reply <page> --to <thread-id>")
+    assert any(part.startswith(" <<'EOF'") for part in reply_block[1:])
+    assert any(part.startswith(' --text "') for part in reply_block[1:])
+
+    # A worker reads its own file and nothing routes it here, so its reply
+    # example is the only shape that reaches it.
+    worker = (root / "worker-orchestration.md").read_text()
+    assert 'reply "$PAGE" --to "$THREAD" <<' in worker
+
+
 def test_leaf_skill_routes_its_complete_reference_set():
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()
@@ -3829,6 +3858,10 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "detail": {"options": ["o-shim"]},
             "version": 1,
             "seq": 2,
+            # On every entry, and null for a page widget: the key names which of the
+            # page's two documents the decision was made in, and `asks` above has
+            # carried it exactly this way all along.
+            "thread": None,
         }
     ]
     assert state["lag"] == [
@@ -6662,6 +6695,12 @@ def test_server_round_trip(server, page_dir):
         {"kind": "comment", "version": 1, "text": "x", "anchor": "intro"},
         {"kind": "comment", "version": 1, "text": "x", "anchor": {"quote": 7}},
         {"kind": "comment", "version": 1, "text": "x", "anchor": {}},
+        {
+            "kind": "comment",
+            "version": 1,
+            "text": "x",
+            "anchor": {"datum": "row-1", "quote": "x"},
+        },
         {
             "kind": "comment",
             "version": 1,
@@ -10775,6 +10814,29 @@ def test_catalog_prints_widgets_and_idioms(page_dir):
         assert f'"{key}": "' in result.output, key
 
 
+def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
+    """The catalog is what the agent authors from, and a layer declaring a $ fact of
+    its own is the documented way to share one — so a catalog working from a list of $
+    names it had been taught dropped exactly what a project had gone to the trouble of
+    declaring, silently, in the one output that would have shown it. Same never-closed
+    rule as the widget list, one side of the registry over."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$hazards"] = {"freeze": {"description": "Deploys freeze on Fridays."}}
+    registry_path.write_text(json.dumps(registry))
+
+    result = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert "Deploys freeze on Fridays." in result.output
+    assert "# $hazards, declared by this layer." in result.output
+    # Every author-facing shipped section still stands under its curated heading,
+    # while the internal compatibility stamp remains out of the authoring catalog.
+    assert "x-state's fields — the facet, fold unit, and record forms" in result.output
+    assert "The tones this page's layer paints" in result.output
+    assert '"$events"' not in result.output
+
+
 def test_reply_validates_widget_markup(page_dir):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -11943,6 +12005,103 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]}
     ]
+
+
+def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
+    """A fragment has no page of its own, so it gets no stylesheet of its own.
+
+    The runtime parses an agent's markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like any
+    other. `main h1 { color: red !important }` in a reply repainted the version's own
+    heading, and the same declaration in a version answers to the syntax, column and
+    cascade gates this door was never running. The inline half rides the same route: an
+    !important on a protected presentation property outranks the theme's first
+    important layer, which is exactly what a version is refused for.
+
+    The widget beside them is what makes each refusal specific — a fragment carrying
+    nothing but a widget still posts."""
+    published(page_dir)
+    widget = (
+        '<lf-options id="d1" choose><lf-option id="d1-a">A</lf-option></lf-options>'
+    )
+
+    sheet = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        "<style>main h1 { color: red }</style>" + widget,
+    )
+    assert sheet.exit_code != 0 and "<style>" in sheet.output
+
+    linked = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        '<link rel="stylesheet" href="/theme.css">' + widget,
+    )
+    assert linked.exit_code != 0 and "stylesheet" in linked.output
+
+    inline = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        '<p style="display: none !important">gone</p>' + widget,
+    )
+    assert inline.exit_code != 0 and "display" in inline.output
+
+    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
+
+
+def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
+    """The reader answering the agent's own question is answering the page.
+
+    `page state` projects the published version's elements, and a widget carried by a
+    message is in none of them — so a press on an AskUserQuestion resolved no
+    declaration and stood nowhere. A session picking the page up read `asks` reporting
+    the question answered and `state` reporting that nobody had answered anything,
+    while the browser had been folding that same action all along.
+
+    It is named by its thread rather than by a version, because thread markup is frozen
+    in the log: no version bounds one of these and none can ever record it, which is
+    also why `lag` has nothing to say about it."""
+    published(page_dir)
+    assert (
+        comment(
+            page_dir,
+            "--text",
+            "Pick one:",
+            "--markup",
+            '<lf-options id="ps-q" choose label="Which store?">'
+            '<lf-option id="ps-redis">Redis</lf-option>'
+            '<lf-option id="ps-cookie">A signed cookie</lf-option>'
+            "</lf-options>",
+        ).exit_code
+        == 0
+    )
+    thread = interact.read_events(page_dir)[-1]["id"]
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "ps-q",
+            "action": "choose",
+            "detail": {"options": ["ps-cookie"]},
+        },
+    )
+    out = CliRunner().invoke(interact.cli, ["page", "state", str(page_dir)])
+    assert out.exit_code == 0, out.output
+    state = json.loads(out.stdout)
+    assert [
+        (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
+    ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+    # The page's own widgets are unrecorded either way, so the debt reading stays quiet
+    # about one nothing could ever record.
+    assert state["lag"] == []
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

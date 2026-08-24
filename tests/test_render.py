@@ -610,27 +610,11 @@ def _traffic(page):
 
 
 def _painted_line(page):
-    """Every row the key line just painted, as `"<key> <words>"`, the two it shows and
-    the rest behind More alike.
+    """Every row in the gesture's next key-line paint, including rows behind More.
 
-    `paintHere` coalesces to an animation frame, so a read taken straight after the
-    state moves reads the frame before the paint. Consuming the frame is what makes
-    the read once rather than a poll: the line repaints on its own often enough — a
-    version poll, a focus move, news arriving — that an assertion re-asking through
-    `expect` reports whichever later paint the page happened to make, and passes on a
-    gesture that painted nothing at all.
-
-    Rows rather than the visible text, because `renderLine` paints two chips and hides
-    the rest whatever the page is offering: what a row's `when` decides is whether it is
-    in this list at all, while `hidden` says only that it ranked below the first and the
-    way out. Read through `inner_text` instead, a row that lost its liveness and a row
-    that lost a seat are one answer, and a question about the first is settled by the
-    second — on a board page, where the widget's own two rows take both seats, `z undo`
-    is invisible whether it is live or not.
-
-    A stale paint is still caught, because the whole line is rebuilt on each one: a
-    repaint that never came leaves the rows the previous state put there, which is the
-    reading each assertion here is against."""
+    Consume the coalesced frame once: polling could pass on an unrelated later paint.
+    Read rows rather than visible text because hidden rows still state liveness.
+    """
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )

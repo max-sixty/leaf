@@ -12906,7 +12906,13 @@ async function receiveState(state) {
           document.documentElement.classList.add("lf-versioning");
           try {
             const transition = document.startViewTransition(apply);
-            await transition.finished;
+            // A skipped transition — a hidden document, or the platform
+            // dropping the animation — rejects `finished` even though the
+            // update ran. The application's own failure travels through
+            // `updateCallbackDone`; a skip is the no-animation path, not an
+            // error, and must not send an applied state to the restore path.
+            await transition.updateCallbackDone;
+            await transition.finished.catch(() => {});
           } finally {
             document.documentElement.classList.remove("lf-versioning");
           }

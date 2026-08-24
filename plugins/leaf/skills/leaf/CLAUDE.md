@@ -538,7 +538,9 @@ behavior, the layer implements it once. Current examples are:
 - `renderRetired` marks slots retired by the declared holder relation.
 - `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
 - `standingState` exposes replay winners to the render gate without naming a
-  widget.
+  widget, the panel's own folds included: a widget an agent sent folds the way a
+  page widget does and the poll replays it the same way, so the premise that
+  every `applyAction` is absolute binds it too.
 
 A module owns only its choreography and semantics that no declaration can
 express. For example, a suggestion module may animate its slots and write the
@@ -620,6 +622,14 @@ Two readings are intentionally different:
   module-generated words declared as part of the page.
 - `wrote` is what the author placed in the version. It excludes generated
   runtime and widget words and is appropriate for version comparison.
+
+Both are bounded by the root they are handed. `.lf-ui` says the runtime built a
+node rather than the author, and a reading rooted at the document takes that
+straight. Rooted at an element it is a different sentence, and the difference is
+the whole of what a widget in a message needs: such a widget stands inside the
+comment panel, so the panel is `.lf-ui` over every word it says, and an unbounded
+reading has it saying nothing at all. Chrome above the root is not the root's
+apparatus; chrome inside it still is. A page-rooted walk does not move.
 
 Keep them as named readings. A boolean passed to one ambiguous reader makes
 callers choose semantics at each call site.
@@ -769,6 +779,82 @@ the page cannot disagree about which of two threads comes first, and one walk of
 the document's text answers both. `renderPanel` therefore paints before it
 renders the list. Do not resolve a thread's anchor a second time to sort it.
 
+`paintStanding` is the second reading of that record: the thread holding the
+panel's focus paints its own passage apart from every other mark, as
+`lf-mark-here` over its ranges and as a class of the same name over its element
+parts. It reads the focus, through `closest`, rather than being written where a
+travel left the reader — the argument `markHere` makes for the ask ring, and for
+the same reason. Every route that puts the reader in a thread therefore paints
+it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
+reply box. A press on a page mark does not, because `showThread` reveals the
+thread without focusing it, and nothing has put the reader in the comment.
+`paintHere` repaints it beside the ask ring, and `paintAnchors` repaints it after
+rebuilding the ranges it holds.
+
+The panel paints the same fact on the card, through `.lf-thread:focus-within` —
+the same predicate, so the two halves cannot disagree about which comment the
+reader is in. Not `:focus-visible`, which is a claim about the last input device
+and left a mouse reader with the page marked and the card plain.
+
+`lf-mark-hover` answers a different question — which thread the pointer is
+indicating — and reads both surfaces in one frame. A card is the thread's view in
+the list the way a mark is its view in the prose, so resting on the card lights
+the passage exactly as resting on the passage lights it, and a reader sweeping a
+full panel is told what each comment is about without pressing anything. There is
+one answer rather than two because the pointer is in one place: `markAt` refuses a
+point that lands in the chrome, so `hoveredThreadOf` and the page's hit test
+cannot both name a thread. Both are read inside `refreshHover`'s frame, which is
+also what settles `:hover` — asking for it from inside the pointer event that
+moves it asks mid-move — and a second writer to this highlight would be
+overwritten by whichever frame ran last.
+
+The whole card answers, not the quote alone, because the card is where the eye is
+while it reads the comment. `body.lf-over-mark` stays with the page's own reading:
+it is the promise that a press here opens something, and over a card the press on
+offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
+question again on the way out as well as in, because the panel is one of the two
+surfaces this reads: closing it from the keyboard, with a hand resting on a card,
+takes that card out from under a pointer that never moved.
+
+`paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
+paints glyphs, so a box takes no wash; the element mark says the same rank in the
+property it has, one weight up from the posted hairline
+(`.lf-mark-el.lf-mark-hover`). Without that, an element-anchored comment answered
+the pointer with nothing at all — which from the panel, where there is no page
+cursor to change, reads as a broken hover rather than as a passage with no words.
+
+Three steps of one wash, because three things a mark can be are three distances
+from the reader's attention: `--mark` posted, `--mark-hover` indicated,
+`--mark-strong` stood in. The middle step exists because this gesture puts the
+pointer over the panel by construction — a hover sharing the standing wash left
+the two lit identically whenever a hand rested where it had just clicked. It was
+the hover that moved down rather than the standing wash up, because the
+measurement in `theme.css` binds in one direction only, so the step costs no
+contrast and gains some.
+
+The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and
+a higher one supplies only the properties it states, so a standing mark under the
+pointer keeps its own wash and its own ink and takes nothing from the hover.
+Pointing at one comment while standing in another therefore says both, in two
+washes a reader can tell apart.
+
+`scrollToThread` is the one travel every "show me that comment's passage" ends
+in, so the arrival is announced there and a route added later inherits it. It
+calls `paintStanding` with the arrival, which lifts `--lf-mark-lift` from 1 to 0
+over the 1.2s the panel's own arrival takes; `MARK_RULES` carries the argument
+for why the landing needs a lift rather than a stronger resting colour. An
+element anchor's ring does not lift — it already differs from an ordinary mark's
+hairline in weight as well as hue. The theme's reduced-motion guard collapses the
+animation onto its resting end, which is the standing state.
+
+The property is registered and inherits, so it is invalidated down the subtree of
+whatever animates it. The class therefore goes on the standing mark's own boxes —
+an element anchor's parts, and the block each painted range sits in — and never
+on `body`, where the pulse cost every element on the page a style recalculation
+per frame: 663ms of recalculation and 156 layouts on the gallery against 69ms and
+56 with it confined. `paintStanding` owns that class because it is the only
+reading that knows which boxes carry the mark.
+
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer
 up, and creates a second DOM representation for the passage. `markAt` performs
@@ -793,6 +879,16 @@ Do not read `getBoundingClientRect()` directly when the target may generate no
 box. A `display: contents` element reports an origin-like zero rectangle that
 does not represent where its contents are. `UNMARKABLE_ITEMS` detects declared
 items with no visible part on which a mark can land.
+
+A module that needs a number off a live box states the measurement through
+`measure(el, take)` rather than taking it at upgrade. A widget upgrades wherever
+the runtime connects it, and a message body is connected whether or not the
+reader has opened the panel — where every box is zero, `once` refuses the second
+upgrade that would correct it, and the body is cached and never rebuilt, so the
+zero is permanent and reads exactly like a measurement. `measure` takes the
+reading now where there is a box and once more the first time there is one. Its
+observation ends at that reading, which is what keeps a written custom property
+out of the round that triggered it.
 
 `inUi` keeps runtime chrome out of shown parts. An area greater than zero is not
 enough: clipped note text and hoisted controls can have measurable boxes while
@@ -836,7 +932,9 @@ listener when body observation already represents them.
 
 The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
-`document.scrollingElement` must be given `pageScroller` explicitly. The open
+`document.scrollingElement` must be given `pageScroller` explicitly — through
+`scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
+message is scrolled by the panel's own list and by nothing else. The open
 comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
@@ -1012,6 +1110,14 @@ document layer. Use `.lf-ui` when the question is whether words or styling are
 runtime apparatus. Use `data-lf-offer` when the question is whether something is
 an injected control. These markers are not interchangeable.
 
+Anything acting on where the pointer or the caret is needs both of the first two,
+and `pageWords` is that conjunction. Either half alone leaves a hole a widget in a
+message falls through: a declared label is nearer than the panel and answers the
+apparatus question for itself, so `.lf-ui` alone let a drag across a question an
+agent asked read as a passage of the page and write an anchor onto a widget id no
+version holds. File capture already refuses that, and file capture is the reading
+that promises less.
+
 ## Keyboard, focus, and navigation
 
 One register defines every runtime and widget key. A row binds keys, states what
@@ -1152,13 +1258,17 @@ upgrade.
 
 ### The key line and reference
 
-The key line shows what keys do at the reader's current scope. It walks outward,
-drops duplicate bindings shadowed by an inner scope, and yields lower-priority
-page rows when width runs out. The `?` entry remains available. The line is
-`aria-hidden` because placeholders, live announcements, and the full reference
-carry the same facts for assistive technology.
+The key line is short help, not the keyboard reference. It walks outward from the
+reader's innermost scope, drops duplicate bindings shadowed there, and paints at
+most two hints: the first live row, then an available Escape or the next row.
+This makes locality the ordinary priority and promotes only the way out of the
+current scene. Its hint chips are `aria-hidden` because placeholders and live
+announcements carry the same facts for assistive technology. The accessible
+`? more` control always opens the complete reference.
 
-The reference lists every live capability the page has, grouped by scope.
+The reference lists every live capability the page has, grouped by scope, and
+filters those rows by normalized key, action, line word, and scope text. Search
+is a projection of the same gathered rows rather than another binding index.
 Computed ranges count current members. A declaration must survive `merge` with
 its `when`, `at`, `claims`, and rows intact so the reference does not advertise
 a scope the current page cannot enter.

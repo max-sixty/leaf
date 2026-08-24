@@ -14,9 +14,10 @@ $ARGUMENTS
 ## Page contract
 
 The subject decides the shape. Use options for decisions, boards for movable
-work, milestones for stages, metrics for measurements, and prose only where
-prose adds something. `leaf page catalog <page>` is the authority for the
-vendored vocabulary and theme.
+work, milestones for stages, metrics for measurements, and prose where no other
+shape fits. What stands open in the column is what the reader has to take from
+the page, and its backing sits under `<details>`. `leaf page catalog
+<page>` is the authority for the vendored vocabulary and theme.
 
 The stakes decide the ceremony. A quick page — an idea, a sketch, options put
 up for the user to react to — goes out on the markup check publishing already

@@ -139,14 +139,25 @@
      block below states; the first draft of this colour took that as licence and
      sank four of the six roles under a hovered mark, against the amber's two. What
      is here instead ties the colour it replaces on every number a reader could
-     notice — 4.76:1 through the resting wash and 4.06:1 through the hovered one,
+     notice — 4.76:1 through the resting wash and 4.06:1 through the strongest,
      both exactly the amber's, at the same 1.13:1 lift off the paper. The dark pair
      does better than the amber rather than tying it (4.56 and 3.56 against 3.62 and
      2.38), and pays for it in lift: 1.34:1 where the amber had 1.68. That trade is
      deliberate — the amber's brighter band was bought with a hovered comment at
      2.38:1, which is the "the highlighting is gone" report the syntax block below
-     was written for. */
-  --mark: #dfd1ed66; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+     was written for.
+     One hue at three alphas, because three things a mark can be are three distances
+     from the reader's attention: posted, indicated by the pointer, stood in. The
+     middle is the midpoint, which is what makes the ramp read as one ramp rather
+     than a pair and a stray — CIE76 6.4 to the resting wash and 6.5 to the
+     strongest in light, 7.4 and 7.2 in dark, every step well clear of a just
+     noticeable difference. It was the hover that moved down to make room, not the
+     standing wash that moved up, because the measurement above binds in one
+     direction only: there is no room above --mark-strong and there is room below
+     it. So the step costs nothing and pays — a hovered passage's worst syntax role
+     reads at 4.36:1 in light and 4.03:1 in dark, where it used to read at the
+     strongest wash's 4.06 and 3.56. */
+  --mark: #dfd1ed66; --mark-hover: #dfd1edb3; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
   /* The "you are here" ring: where the reader is standing, wherever they are
      standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
      focused as one thing draws its own in the same band (a joined choose group,
@@ -189,7 +200,7 @@
     --code-bg: #29251e; --pre-bg: #1e1c18;
     --chip: #2d2922;
     --ink-2: #c9c3b6; --muted-2: #756e62; --border-2: #453f36;
-    --mark: #6152a059; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
+    --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;
     --danger-tint: #35211b; --danger-ink: #e0a091;
@@ -957,6 +968,17 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
+/* The note the agent leaves on a thread, at the seat inside the widget. The panel's
+   copy is styled in the runtime's own sheet, which is scoped to .lf-chrome and cannot
+   reach a box in the page — so the class is one and the rule is the page's, the way
+   every other .lf-conversation- rule here is. */
+.lf-conversation .lf-thread-note { display: flex; gap: 6px; align-items: baseline;
+  margin-top: var(--sp-2); padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
+  border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
+.lf-conversation .lf-thread-note span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lf-conversation .lf-thread-note .lf-note-cold { flex: none; color: var(--warn-ink);
+  background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+.lf-conversation .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
 @media screen {
   html:not(.lf-copy) {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled

@@ -32,10 +32,11 @@ import {
   announce,
   keys,
   labelOf,
+  measure,
   saying,
   paintKeys,
   motion,
-  pageScroller,
+  scrollerFor,
   PRESS,
   REDUCED,
   SCROLL,
@@ -62,12 +63,16 @@ customElements.define(
       // box rather than stated as a number (the pick column's answer): the theme
       // spends it (--lf-grip-room), and only a board that grew grips states it, so
       // paper, copies and quoted boards hold no dead column.
-      const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
-      if (grip)
-        this.style.setProperty(
-          "--lf-grip-room",
-          Math.ceil(grip.getBoundingClientRect().width) + "px",
-        );
+      // Off the grip's own box, so it waits for one (`measure`): a board quoted into
+      // a reply is built into the comment panel, which may not be open yet.
+      measure(this, () => {
+        const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
+        if (grip)
+          this.style.setProperty(
+            "--lf-grip-room",
+            Math.ceil(grip.getBoundingClientRect().width) + "px",
+          );
+      });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
       this.#names();
@@ -361,8 +366,10 @@ customElements.define(
         handle: ".lf-grip",
         // Named, not left to Sortable's search: its walk stops at body and hands back
         // document.scrollingElement, which isn't what scrolls here. Left to guess, a
-        // drag toward a column below the fold would sit there and never scroll.
-        scroll: pageScroller,
+        // drag toward a column below the fold would sit there and never scroll. Asked
+        // of this board rather than stated, because a board an agent sent in a reply is
+        // scrolled by the panel's list and not by the document at all.
+        scroll: scrollerFor(this),
         forceFallback: true, // pointer-driven: stylable follower, touch, no native ghost
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,

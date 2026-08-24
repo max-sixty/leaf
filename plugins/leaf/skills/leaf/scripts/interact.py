@@ -1731,6 +1731,9 @@ class PageTransaction:
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
+            # When this session's last turn ended. None until one has, and reset
+            # by nothing: a claim taken again is a new record. See close_turn.
+            "turn_closed": None,
         }
         write_json(path, claim)
         return previous, claim
@@ -1758,6 +1761,24 @@ class PageTransaction:
         claim = self.claim
         if claim and claim["released"] is None:
             write_json(claim_path(self.page_dir), {**claim, "released": now_iso()})
+
+    def close_turn(self, session_id: str) -> None:
+        """Record that the turn which could have renewed this page's claim has ended.
+
+        A `working` claim is written by a model's turn rather than by a process,
+        and a turn can end at any token without running anything — so there is no
+        close to write on the way out, and a claim nobody renewed used to be
+        found only by a clock fifteen minutes later. The Stop hook is the harness
+        observing that same moment exactly, which is what the hooks are for.
+
+        It lands here with the rest of the claim's provenance and not in
+        status.json, the line SessionEnd already draws: what the agent said it
+        was doing stays the agent's to write, and whether anything is still
+        behind those words stays the page's to judge from evidence.
+        """
+        claim = self.claim
+        if claim and claim["released"] is None and claim["id"] == session_id:
+            write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
 
     @property
     def status(self) -> dict:
@@ -1997,6 +2018,13 @@ def presence(page_dir: Path, events: list) -> dict:
         "host": claim.get("host") if claim else None,
         # None when nothing claimed the page — interact.py run outside an agent host.
         "session_alive": active is not None if claim else None,
+        # When the claiming session's last turn ended, or None while none has.
+        # A `working` claim older than this is one that no turn and no delegate
+        # renewed across the boundary — the same judgment the runtime's grace
+        # makes, available at the moment it becomes true instead of a quarter of
+        # an hour after it. Read with .get like the rest of the claim's fields,
+        # since a record written before this existed is still a valid claim.
+        "turn_closed": claim.get("turn_closed") if claim else None,
         # When a browser last polled the page (the server bumps viewed.json,
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
@@ -2016,6 +2044,12 @@ def full_state(
 ) -> dict:
     return {
         "layer": layer or layer_generation(page_dir),
+        # The clock every timestamp below was written by. A seat dating one reads
+        # `Date.now()`, which is the reader's own machine: a laptop an hour out
+        # calls a claim made this minute an hour stale, on every seat at once, and
+        # neither side can tell from the timestamp alone. Sent so the reading is
+        # against the writer's clock rather than the reader's.
+        "now": now_iso(),
         "versions": versions,
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
@@ -3791,6 +3825,61 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
             write_json(page_dir / "cursor.json", {"seq": seq})
 
 
+def thread_roots(events: list) -> dict:
+    """Message id → the id of the comment that opened its thread.
+
+    Two readings of the panel's own document resolve a reply to its root, and they
+    must answer alike: a decision and an ask naming different conversations for one
+    message is a disagreement no reader could account for. (`build_threads` walks the
+    same relation to a different end — the thread object itself, with its resolution —
+    so it keeps its own.)
+
+    A reply whose root the log lost stands as its own thread rather than raising.
+    `read_events` skips a line nothing could be done with and keeps reading, and a
+    reader who can see the reply is owed the rest of the page around it."""
+    root = {}
+    for e in events:
+        if e["kind"] == "comment":
+            root[e["id"]] = e["id"]
+        elif e["kind"] == "reply":
+            root[e["id"]] = root.get(e["parent"], e["parent"])
+    return root
+
+
+def thread_universe(events: list, registry: dict):
+    """Every widget the log's frozen markup holds, read as one document.
+
+    id → record and id → spoken words, which is the panel's answer to a version's
+    `parser.by_id`/`spoken` pair, plus the thread each widget was sent in. A
+    version's element universe is one file; the panel's is every fragment the log
+    carries, and the two are separate documents that happen to share a page."""
+    structure = thread_structure(events)
+    root = thread_roots(events)
+    byid, spk, thread_of = {}, {}, {}
+    for e in events:
+        if markup := e.get("markup"):
+            fragment = structure.fragments[e["id"]]
+            byid.update(fragment.by_id)
+            spk.update(spoken(markup, registry))
+            thread_of.update(dict.fromkeys(fragment.by_id, root[e["id"]]))
+    return byid, spk, thread_of
+
+
+def thread_state(events: list, registry: dict):
+    """What the reader's gestures leave standing on the widgets an agent sent.
+
+    Thread markup is frozen in its event: no version window bounds it and no
+    retraction floor reaches it, so every action on it reads the whole
+    conversation window. Both doors that must answer for such a widget read it
+    here — the action gate, deciding whether a fresh press is allowed, and
+    `page state`, telling a session picking the page up what the reader has
+    already settled — so a decision made in the panel cannot stand at one door
+    and be missing at the other."""
+    byid, spk, thread_of = thread_universe(events, registry)
+    projection = state_projection(events, byid, spk, registry, None, floors={})
+    return projection, byid, thread_of
+
+
 def read_text_arg(text) -> str:
     body = text if text is not None else sys.stdin.read()
     if not body.strip():
@@ -3862,13 +3951,13 @@ def declared_event_error(
 
 
 def declared_action_error(
-    event: dict, page_by_id: dict, thread: ThreadStructure, registry: dict
+    event: dict, page_by_id: dict, thread_by_id: dict, registry: dict
 ):
     """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own published version. Thread widgets
     # inhabit the panel's other live document. Either record answers both which
     # tag sent the action and whether it stands inside an exhibit.
-    rec = page_by_id.get(event["widget"]) or thread.by_id.get(event["widget"])
+    rec = page_by_id.get(event["widget"]) or thread_by_id.get(event["widget"])
     if rec is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
@@ -3899,11 +3988,15 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     """
     version = event["version"]
     page = parse_version(page_dir, version)
-    thread = thread_structure(events)
-    if error := declared_action_error(event, page.by_id, thread, registry):
+    # One reading of the panel's document for the whole door: the id universe the
+    # declaration is looked up in and the projection the requirement is judged
+    # against are the same frozen fragments, and parsing them twice was two
+    # readings that could only ever agree.
+    thread_projection, thread_by_id, _threads = thread_state(events, registry)
+    if error := declared_action_error(event, page.by_id, thread_by_id, registry):
         return error
     page_rec = page.by_id.get(event["widget"])
-    rec = page_rec or thread.by_id[event["widget"]]
+    rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
     requirement = spec.get("requires")
@@ -3929,13 +4022,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.
-        byid, spk = {}, {}
-        for logged in events:
-            if markup := logged.get("markup"):
-                fragment = thread.fragments[logged["id"]]
-                byid.update(fragment.by_id)
-                spk.update(spoken(markup, registry))
-        projection = state_projection(events, byid, spk, registry, None, floors={})
+        projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
         page_html = version_path(page_dir, version).read_text(encoding="utf-8")
         threads = build_threads(events, spoken(page_html, registry))
@@ -4052,7 +4139,13 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     escaped, so it cannot claim a widget. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
-    errs = thread_markup_contract_errors(frag, registry)
+    # Beside the vocabulary contract rather than inside it. That contract is what
+    # re-vendoring asks of every fragment already in the log — can this layer still
+    # speak it — and a presentation rule is no part of the answer. Put there, a page
+    # whose log held a <style> from before the rule existed could never be re-vendored
+    # again: the log is append-only, so it would have failed `page init` for good, with
+    # a message about replay that had nothing to do with what was wrong.
+    errs = thread_markup_contract_errors(frag, registry) + fragment_style_errors(frag)
     if errs:
         sys.exit(
             f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
@@ -4442,6 +4535,26 @@ def cmd_catalog(page_dir: Path) -> None:
             print(json.dumps(fact, indent=2, ensure_ascii=False))
 
 
+def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
+    """One standing action, in the shape `page state` reports every one of them.
+
+    `version` is the version the action was taken on, which for a widget an agent
+    sent is a fact about the gesture and none about the widget: thread markup is
+    frozen in the log, so no version bounds one of these and none can ever record
+    it, which is why `lag` says nothing about them."""
+    widget, unit, facet = coordinate
+    return {
+        "widget": widget,
+        "unit": unit,
+        "facet": facet,
+        "action": e["action"],
+        "detail": e["detail"],
+        "version": e["version"],
+        "seq": e["seq"],
+        "thread": thread,
+    }
+
+
 def cmd_page_state(page_dir: Path) -> None:
     """Where the page stands, as one JSON object — the agent-side twin of the
     browser's /api/state, folded rather than raw. /api/state ships the log and
@@ -4504,20 +4617,17 @@ def cmd_page_state(page_dir: Path) -> None:
         byid = parser.by_id
         state["title"] = parser.title.strip()
         state["elements"] = [
-            {"tag": r["tag"], "id": r["attrs"].get("id"), "line": r["line"]}
+            {
+                "tag": r["tag"],
+                "id": r["attrs"].get("id"),
+                "line": r["line"],
+                "thread": None,
+            }
             for r in parser.lf_elements
         ]
         state["state"] = [
-            {
-                "widget": widget,
-                "unit": unit,
-                "facet": facet,
-                "action": e["action"],
-                "detail": e["detail"],
-                "version": e["version"],
-                "seq": e["seq"],
-            }
-            for (widget, unit, facet), (e, _) in sorted(projection.actions.items())
+            standing_entry(coordinate, e)
+            for coordinate, (e, _) in projection.actions.items()
         ]
         state["reports"] = [
             {
@@ -4554,6 +4664,34 @@ def cmd_page_state(page_dir: Path) -> None:
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
     )
+    # The panel's own document, listed and projected the way the version's is, and
+    # for the same reason: a widget an agent sent is a widget, and the reader
+    # answering one is answering the page. The projection above is of the published
+    # version's elements alone, so a press on an AskUserQuestion resolved no
+    # declaration and stood nowhere — a session picking the page up read the reader's
+    # answer to its own question as an answer nobody had given, with `asks` reporting
+    # the same question answered.
+    #
+    # `thread` is the one key that separates them, present on every entry so a reader
+    # of this can take the two halves the same way, and the elements come along so
+    # nothing here names a widget the same object never lists. Both lists are then in
+    # one order rather than two sorted halves.
+    thread_actions, thread_byid, thread_of = thread_state(events, registry)
+    state["elements"] += [
+        {
+            "tag": rec["tag"],
+            "id": wid,
+            "line": rec["line"],
+            "thread": thread_of[wid],
+        }
+        for wid, rec in thread_byid.items()
+    ]
+    state["elements"].sort(key=lambda e: (e["thread"] or "", e["line"]))
+    state["state"] += [
+        standing_entry(coordinate, e, thread_of[coordinate[0]])
+        for coordinate, (e, _) in thread_actions.actions.items()
+    ]
+    state["state"].sort(key=lambda s: (s["widget"], s["unit"], s["facet"]))
     print(json.dumps(state, indent=2, ensure_ascii=False))
 
 
@@ -4730,6 +4868,16 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
+    if event == "Stop":
+        # Ahead of both early returns below. The stamp is not a nudge and does not
+        # depend on there being one: the turn that ends with nothing outstanding is
+        # exactly the turn that leaves a `working` claim behind with nobody on it.
+        for page_dir in owned_pages(sid):
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with
@@ -7153,7 +7301,7 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
             error := declared_action_error(
-                e, page_by_id(e["version"]), thread, incoming
+                e, page_by_id(e["version"]), thread.by_id, incoming
             )
         ):
             key = f"action contract: {error}"
@@ -8125,13 +8273,9 @@ def thread_ask_projection(
     disclosure."""
     structure = thread_structure(events)
     records, byid, spk = [], {}, {}
-    thread_of = {}
+    thread_of = thread_roots(events)
     for e in events:
-        if e["kind"] == "comment":
-            thread_of[e["id"]] = e["id"]
-        elif e["kind"] == "reply":
-            thread_of[e["id"]] = thread_of[e["parent"]]
-        else:
+        if e["kind"] not in ("comment", "reply"):
             continue
         markup = e.get("markup")
         if not markup or thread_of[e["id"]] in settled:
@@ -8460,6 +8604,38 @@ def page_boundary_errors(parser: _StructParser) -> list:
             "under <body>; found " + str(parser.outside_main)
         )
     return errors
+
+
+def fragment_style_errors(parser: _StructParser) -> list:
+    """A message may not dress the document it is put into.
+
+    A version's <style> is the page's own, and the gates a version answers to read
+    it as such — syntax, the column it may not overflow, the presentation
+    properties the theme keeps. A fragment has no page of its own: the runtime
+    parses an agent's reply markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like
+    any other. `<style>main h1 { color: red !important }</style>` in a reply was
+    accepted here and repainted the version's own heading, past every gate the
+    same rule in a version answers to; an inline `!important` on a protected
+    property outranked the theme's first cascade layer the same way.
+
+    Nothing is lost by refusing them. The layer already dresses a widget an agent
+    sends — that is what a registry entry and its theme rules are for — and a rule
+    of a message's own has nowhere honest to sit, because the message is not the
+    page and its markup is frozen in the log where no version can revise it."""
+    errors = []
+    if parser.css.strip():
+        errors.append(
+            "<style> in message markup becomes a stylesheet of the whole document it "
+            "is put into; a widget's look belongs in the layer's theme, beside its "
+            "registry entry"
+        )
+    if parser.stylesheets:
+        errors.append(
+            "<link rel=stylesheet> in message markup dresses the whole document it is "
+            "put into; the page serves the one vendored theme it was reviewed with"
+        )
+    return errors + inline_presentation_override_errors(parser)
 
 
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
@@ -8937,8 +9113,11 @@ UNREACHABLE_WORDS = """() => {
             if (value.length > 1 && shown.some(c => c.includes(value)))
                 found.push(`${at(el)} paints ${name}="${value}" rather than saying it`);
     }
-    // A widget's chrome is the .lf-ui inside a lf-* element; the runtime's own
-    // layer is appended to body and sits inside none of them.
+    // The lf-* element something stands in, if any. A .lf-ui is a widget's own
+    // chrome by standing in one of these, and the runtime's layer is appended to
+    // body and stands in none — but a widget riding a message stands in the
+    // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
+    // never of the words beneath it, which are inside a widget either way.
     const widget = el => { for (let a = el; a; a = a.parentElement)
                                if (a.tagName.startsWith('LF-')) return a; };
     // The anchor pass's own rule: the nearest element that answers wins.
@@ -8957,7 +9136,12 @@ UNREACHABLE_WORDS = """() => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || !el.closest('.lf-ui') || !widget(el)) continue;
+        if (!n.data.trim()) continue;
+        // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
+        // here wherever the widget stands, a message included; the panel around a
+        // widget riding one is not, which is what the note on the panel means.
+        const chrome = el.closest('.lf-ui');
+        if (!chrome || !widget(chrome)) continue;
         if (speaks(el) || el.closest(CONTROL)) continue;
         // .lf-quiet is words for a reader listening, clipped to nothing: not on
         // screen, so there is nothing here the eye can see and the pointer can't
@@ -9669,8 +9853,14 @@ UNREAD_SYNTAX = (
 # *child* and never for the element it was handed. The quiet word is in no such reading,
 # wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
 # span clipped to a pixel still has one wherever it renders, and none at all where it
-# doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
-# out here the way COVERED_WORDS holds it out.
+# doesn't. Which is only a question worth putting where the element renders at all — a
+# collapsed card, a tab nobody opened and a shut comment panel all lay out nothing, and
+# their rects report the ancestor rather than the widget. That is the *second* failure
+# here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
+# fault wherever the element stands, since a tab the reader has not opened is a tab they
+# can open. Splitting them that way is what retired the [hidden] exemption this carried:
+# `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
+# asking whether it renders covers both and the panel besides.
 SILENT_WORDS = (
     """(widgets) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS
@@ -9695,7 +9885,14 @@ SILENT_WORDS = (
             for (const el of every(tag)) {
                 if (!el.hasAttribute(attr)) continue;
                 const quiet = el.querySelector(':scope > .lf-quiet');
-                if (quiet && (quiet.getClientRects().length || el.closest('[hidden]')))
+                // A missing word is the fault, and it is the fault wherever the
+                // element stands: a tab the reader has not opened is still a tab
+                // they can open. What the box is asked for is the second failure,
+                // a word the widget wrote and then hid, and that question can only
+                // be put to an element that is being laid out — a message in a shut
+                // panel lays out nothing, so its rects report the panel's state and
+                // would be read as the widget's.
+                if (quiet && (quiet.getClientRects().length || !el.checkVisibility()))
                     continue;
                 found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
                            + `and says nothing a reader listening can hear`);
@@ -10253,6 +10450,14 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             # widget legitimately shows other words). A module that renders
             # something in the body's stead while the entry still says
             # verbatim strands quotes on words the screen no longer shows.
+            # Both documents, because a widget an agent sent has words of its
+            # own — in the frozen fragment that carries it, which is the file
+            # side for it exactly as the version is for a page widget. Asked of
+            # the version alone the two sides both read empty and the comparison
+            # passed on the agreement of two blanks; asked of neither, an
+            # x-verbatim widget in a message could render something other than
+            # its own words with nothing saying so, which is the one thing the
+            # declaration promises and the reason a quote may rest on it.
             shown = page.evaluate(
                 """({widgets, touched}) => import('/leaf.js').then(leaf =>
                     Object.entries(widgets)
@@ -10263,7 +10468,8 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 {"widgets": widgets, "touched": touched},
             )
             if shown:
-                spk = spoken(markup, registry)
+                _byid, thread_spk, _threads = thread_universe(state["events"], registry)
+                spk = {**thread_spk, **spoken(markup, registry)}
                 dishonest_verbatim = [
                     f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
                     f"{s['says'][:80]!r} where the file reads "
@@ -11114,9 +11320,11 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     --on names the comment thread that detail is about, and the reader sees it
     under their own words as well as in the banner. It stands until you answer
     that thread, so work in flight — a delegate, a long tool run — reads as
-    picked up rather than as silence. A `working` claim nothing renews goes
-    quiet on the banner in about a quarter of an hour, so refresh it inside
-    that for as long as the work runs.
+    picked up rather than as silence. A `working` claim is believed while the
+    turn that wrote it is open; the page is told when that turn ends, so
+    something has to renew the claim within a couple of minutes of the ending,
+    and one nobody renews at all goes quiet after about a quarter of an hour —
+    on the banner and on each note alike.
     """
     page_dir = resolve_dir(dir)
     # Idling over an event nobody has answered ends the leaf on a user still

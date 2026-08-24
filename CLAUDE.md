@@ -129,7 +129,13 @@ and JavaScript derive those answers from the same registry declarations.
 
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
-log markup and take the whole conversation window. Version notes provide durable
+log markup and take the whole conversation window. That markup is a second
+document beside the version, with an element universe of its own: every reading
+that must answer for a widget an agent sent — the action gate at the door, and
+`page state` for a session picking the page up — builds it through
+`thread_state`, so a decision made in the panel cannot stand at one and be
+missing at the other. A fragment gets no stylesheet of its own; it has no page
+to dress. Version notes provide durable
 retraction and report-absorption floors: the version after the note does not need
 to repeat them. A pinned page may therefore show its historical widget state
 while the comment panel shows a later retraction; each reading is answering its
@@ -361,12 +367,14 @@ examples. `test_product_page.py` covers `docs/`. `test_site.py` builds and reads
 the published site. The journey test selects a passage, comments, moves a card,
 follows a version, and checks the surviving anchor and log.
 
-The browser corpus is read in both color schemes. It checks widget upgrades,
-usable boxes, independent document and panel scrolling, script-free textarea
-sizing, control stability under presses and arriving news, print, and page width
-on a phone. A second sweep reads each example as a returning reader with the
-panel, a tray, or design mode restored. Every other corpus reading is a first
-visit, so restoration cannot hide an arrival regression.
+The browser corpus is read in both color schemes, and each example is read under
+the log it ships, so a thread and any widget a message carries are part of what
+the sweeps see. It checks widget upgrades, usable boxes, independent document and
+panel scrolling, script-free textarea sizing, control stability under presses and
+arriving news, print, and page width on a phone. A second sweep reads each
+example as a returning reader with the panel, a tray, or design mode restored.
+Every other corpus reading is a first visit, so restoration cannot hide an
+arrival regression.
 
 The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own
 runtime dependencies remain in `interact.py`'s PEP 723 header. Tests load that

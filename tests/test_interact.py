@@ -27,6 +27,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -256,6 +257,35 @@ def test_skill_assigns_acknowledgement_to_the_wait_owner():
     assert "After the host accepts the follow-up" in watcher
 
 
+def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
+    """A reply is written into a shell argument and never read where it lands.
+
+    The panel renders a reply through `marked` and the theme dresses its lists,
+    code, quotes and tables for a column that is narrow by default, so the shape
+    is available and nothing in the loop shows the author what they chose. The
+    guidance said "brief Markdown" over a single-line `--text "<answer>"`, and
+    brevity read as one paragraph: an answer carrying three independent reasons
+    arrived as four sentences of prose with the reasons buried in clauses.
+
+    So the rule states the short case as complete and the example carries the
+    long one, because a documented call is copied where a description is not.
+    The two assertions hold each half: brevity first, and a worked long answer
+    to copy from when brevity does not fit.
+    """
+    root = PLUGIN_ROOT / "skills" / "leaf" / "references"
+    conversation = (root / "conversation-loop.md").read_text()
+
+    assert "one sentence is a complete reply" in " ".join(conversation.split())
+    reply_block = conversation.split("leaf reply <page> --to <thread-id>")
+    assert any(part.startswith(" <<'EOF'") for part in reply_block[1:])
+    assert any(part.startswith(' --text "') for part in reply_block[1:])
+
+    # A worker reads its own file and nothing routes it here, so its reply
+    # example is the only shape that reaches it.
+    worker = (root / "worker-orchestration.md").read_text()
+    assert 'reply "$PAGE" --to "$THREAD" <<' in worker
+
+
 def test_leaf_skill_routes_its_complete_reference_set():
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()
@@ -313,6 +343,47 @@ def test_a_correction_is_written_straight_rather_than_offered_as_a_choice():
     assert "A correction is not a proposal" in revisions
     assert "write the true thing straight" in revisions
     assert "wording the reader could reasonably prefer as it stands" in revisions
+
+
+def test_the_page_is_named_by_its_findings_and_collapsed_around_them():
+    """What a page costs to review is stated where it is composed and checked
+    where it is handed over.
+
+    A version can pass every gate and still be unreadable: the finding three
+    paragraphs down, the section called "What we learned", the transcript that
+    supports it standing open in the column. Neither the markup check nor the
+    render gate can see any of that — both answer whether a page renders, not
+    whether it is worth the reading — so this is prose or it is nothing.
+
+    Two places, because they answer at different moments. "Reading cost" is what
+    an author reads while deciding what goes on the page. The pre-handover review
+    is the last point it can still change, and a heading that withholds its own
+    finding is invisible to whoever just wrote it and plain to anyone who reads
+    the headings alone. Pinned in one place only, the rule would be stated and
+    never asked after."""
+    root = PLUGIN_ROOT / "skills" / "leaf"
+    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
+    start = authoring.index("## Reading cost")
+    cost = authoring[start : authoring.index("## Interactivity", start)]
+
+    assert "what the reader has to take from the page" in cost
+    assert "its backing goes under `<details>`" in cost
+    assert "A section that reaches a finding says it in the heading" in cost
+    # The other half of the same rule. Without it the sentence above reads as a
+    # demand that every section name be a claim, which turns an honest label over
+    # a list or a control into a sentence; with it alone, every label is excused.
+    assert "where there is no finding to state" in cost
+    # The one thing a reading-cost rule must never license. A collapsed ask still
+    # counts in the banner and the asks tray, and `checkVisibility()` is false
+    # inside a closed disclosure, so no gate refuses the page whose decision is
+    # behind a click.
+    assert "An ask never collapses" in cost
+
+    review = authoring[authoring.index("## Pre-handover review") :]
+    assert "Take the headings on their own first" in review
+
+    contract = " ".join((root / "SKILL.md").read_text().split())
+    assert "its backing sits under `<details>`" in contract
 
 
 def test_hidden_hook_remains_callable():
@@ -409,6 +480,7 @@ def record_claim(page, **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
+        "turn_closed": None,
         **fields,
     }
     path = interact.claim_path(page)
@@ -3829,6 +3901,10 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "detail": {"options": ["o-shim"]},
             "version": 1,
             "seq": 2,
+            # On every entry, and null for a page widget: the key names which of the
+            # page's two documents the decision was made in, and `asks` above has
+            # carried it exactly this way all along.
+            "thread": None,
         }
     ]
     assert state["lag"] == [
@@ -8151,6 +8227,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "agent": "Claude",
         "host": None,
         "session_alive": None,
+        "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
     }
@@ -9047,6 +9124,7 @@ def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
         "pid",
         "cwd",
         "ts",
+        "turn_closed",
         "released",
     }
     assert page_state(codex_claimed_page)["agent"] == "Codex"
@@ -9565,6 +9643,62 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
         assert page_state(page_dir)["listening"]
     finally:
         bare.close()
+
+
+def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
+    """A `working` claim is written by a model's turn, and a turn can end at any token
+    without running anything — so nothing writes its close, and the page was left to
+    find an abandoned claim by outwaiting a clock. The Stop hook is the harness
+    watching that same moment, which is what these hooks are for.
+
+    It stamps whether or not it has a nudge to make, and ahead of both of the guard's
+    early returns: a turn that ends with nothing outstanding is exactly the turn that
+    walks away from a `working` claim. The stamp is provenance and lands on the claim
+    record rather than in status.json — what the agent said it was doing stays the
+    agent's to write, which is the line SessionEnd already draws."""
+    interact.cmd_status(claimed, "working", "reading the reconnect traces")
+    assert interact.page_claim(claimed)["turn_closed"] is None
+    events = interact.read_events(claimed)
+    assert interact.presence(claimed, events)["turn_closed"] is None
+
+    # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+    closed = interact.page_claim(claimed)["turn_closed"]
+    assert closed
+    assert interact.presence(claimed, events)["turn_closed"] == closed
+    # And what the agent said it was doing is untouched by the observation of it.
+    assert (
+        interact.read_json(claimed / "status.json")["detail"]
+        == "reading the reconnect traces"
+    )
+
+    # Re-entry after a block stands the guard down before it would speak; the stamp is
+    # the turn's own and is taken on that ending too.
+    interact.cmd_hook(
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+    )
+    assert capsys.readouterr().out == ""
+    assert interact.page_claim(claimed)["turn_closed"] >= closed
+
+    # Another session's turn ending says nothing about a page that is not one of its
+    # own — the stamp names when this claim's turn ended or it means nothing.
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s2"})
+    assert interact.page_claim(claimed)["turn_closed"] == closed
+    lease.close()
+
+
+def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
+    """Every ts a seat dates is written here, while the reader's `Date.now()` is
+    another machine's opinion. The payload states the writer's clock so the reading is
+    made against that one; without it a skewed laptop misreads every age on the page,
+    in one direction and with nothing to give it away."""
+    state = interact.full_state(page_dir, [], [])
+    written = datetime.fromisoformat(state["now"])
+    assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
 
 def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
@@ -11972,6 +12106,103 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]}
     ]
+
+
+def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
+    """A fragment has no page of its own, so it gets no stylesheet of its own.
+
+    The runtime parses an agent's markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like any
+    other. `main h1 { color: red !important }` in a reply repainted the version's own
+    heading, and the same declaration in a version answers to the syntax, column and
+    cascade gates this door was never running. The inline half rides the same route: an
+    !important on a protected presentation property outranks the theme's first
+    important layer, which is exactly what a version is refused for.
+
+    The widget beside them is what makes each refusal specific — a fragment carrying
+    nothing but a widget still posts."""
+    published(page_dir)
+    widget = (
+        '<lf-options id="d1" choose><lf-option id="d1-a">A</lf-option></lf-options>'
+    )
+
+    sheet = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        "<style>main h1 { color: red }</style>" + widget,
+    )
+    assert sheet.exit_code != 0 and "<style>" in sheet.output
+
+    linked = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        '<link rel="stylesheet" href="/theme.css">' + widget,
+    )
+    assert linked.exit_code != 0 and "stylesheet" in linked.output
+
+    inline = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        '<p style="display: none !important">gone</p>' + widget,
+    )
+    assert inline.exit_code != 0 and "display" in inline.output
+
+    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
+
+
+def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
+    """The reader answering the agent's own question is answering the page.
+
+    `page state` projects the published version's elements, and a widget carried by a
+    message is in none of them — so a press on an AskUserQuestion resolved no
+    declaration and stood nowhere. A session picking the page up read `asks` reporting
+    the question answered and `state` reporting that nobody had answered anything,
+    while the browser had been folding that same action all along.
+
+    It is named by its thread rather than by a version, because thread markup is frozen
+    in the log: no version bounds one of these and none can ever record it, which is
+    also why `lag` has nothing to say about it."""
+    published(page_dir)
+    assert (
+        comment(
+            page_dir,
+            "--text",
+            "Pick one:",
+            "--markup",
+            '<lf-options id="ps-q" choose label="Which store?">'
+            '<lf-option id="ps-redis">Redis</lf-option>'
+            '<lf-option id="ps-cookie">A signed cookie</lf-option>'
+            "</lf-options>",
+        ).exit_code
+        == 0
+    )
+    thread = interact.read_events(page_dir)[-1]["id"]
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "ps-q",
+            "action": "choose",
+            "detail": {"options": ["ps-cookie"]},
+        },
+    )
+    out = CliRunner().invoke(interact.cli, ["page", "state", str(page_dir)])
+    assert out.exit_code == 0, out.output
+    state = json.loads(out.stdout)
+    assert [
+        (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
+    ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+    # The page's own widgets are unrecorded either way, so the debt reading stays quiet
+    # about one nothing could ever record.
+    assert state["lag"] == []
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

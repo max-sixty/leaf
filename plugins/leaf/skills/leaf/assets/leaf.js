@@ -5924,44 +5924,66 @@ function standingNote(t) {
 // One writer for the line, called from the reconcile that builds the thread nodes and
 // from every poll after it — the first because a new node has none, the second because
 // a note arrives and ages without the log changing at all.
+// One note written at one seat. Which element the line goes above is the seat's — the
+// panel's reply box, or the inline conversation's — and everything else about it is the
+// thread's, so both callers hand this the same note and get the same sentence, the same
+// word for silence and the same clock.
+function paintNote(host, note, tail) {
+  if (!host) return;
+  let line = host.querySelector(":scope > .lf-thread-note");
+  if (!note) {
+    line?.remove();
+    return;
+  }
+  if (!line) {
+    line = el("div", "lf-thread-note");
+    line.append(el("span"), el("time"));
+    host.insertBefore(line, host.querySelector(tail));
+  }
+  const what = line.firstElementChild;
+  const when = line.lastElementChild;
+  // Written only on change, like the message clocks beside it: an unchanged poll must
+  // not hand the reader's screen reader the same sentence every two seconds.
+  const said = `${agentName()} is on this — ${note.detail}`;
+  if (what.textContent !== said) what.textContent = said;
+  // A claim of work nobody has renewed, said in a word. The banner cannot answer for
+  // this seat: every `leaf status … --on` write refreshes the page's own line, so one
+  // delegate still reporting keeps the banner green while another's note ages here —
+  // the fleet's dead-row failure one level down, and the reason the roster says this
+  // in words rather than leaving it to a tint. Both of the banner's own questions,
+  // asked here by the same two predicates: gone unrenewed too long, or left behind by
+  // a turn that ended. A note is written by the command that writes the claim, so a
+  // seat answering either question differently would have the page arguing with
+  // itself about one silence. `ago` is still rendered whole beside the word rather
+  // than reworded to absorb it. The cell is added and removed rather than hidden,
+  // because a hidden one still reads out in the thread's text.
+  let cold = line.querySelector(":scope > .lf-note-cold");
+  if (quietSince(note.ts) || droppedAt(note.ts, agentTurnClosed)) {
+    if (!cold) line.insertBefore(el("span", "lf-note-cold", "quiet"), when);
+  } else cold?.remove();
+  const age = ago(note.ts);
+  if (when.textContent !== age) when.textContent = age;
+}
+
+// Every seat the same thread is readable at. A widget carrying its own conversation
+// (x-conversation) is a second rendering of one thread, not a lesser one: the reader
+// who asked from inside the widget is the one least likely to open the panel, and a
+// question being worked has to read differently there too. The inline node is rebuilt
+// whenever the log grows, which is why this runs after renderPanel rather than inside
+// the node's own builder — and why it runs on every poll, since a note ages without
+// the log changing at all.
 function paintNotes() {
   for (const t of threadList) {
-    const div = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
-    if (!div) continue;
     const note = standingNote(t);
-    let line = div.querySelector(":scope > .lf-thread-note");
-    if (!note) {
-      line?.remove();
-      continue;
-    }
-    if (!line) {
-      line = el("div", "lf-thread-note");
-      line.append(el("span"), el("time"));
-      div.insertBefore(line, div.querySelector(":scope > .lf-compose"));
-    }
-    const what = line.firstElementChild;
-    const when = line.lastElementChild;
-    // Written only on change, like the message clocks beside it: an unchanged poll must
-    // not hand the reader's screen reader the same sentence every two seconds.
-    const said = `${agentName()} is on this — ${note.detail}`;
-    if (what.textContent !== said) what.textContent = said;
-    // A claim of work nobody has renewed, said in a word. The banner cannot answer for
-    // this seat: every `leaf status … --on` write refreshes the page's own line, so one
-    // delegate still reporting keeps the banner green while another's note ages here —
-    // the fleet's dead-row failure one level down, and the reason the roster says this
-    // in words rather than leaving it to a tint. Both of the banner's own questions,
-    // asked here by the same two predicates: gone unrenewed too long, or left behind by
-    // a turn that ended. A note is written by the command that writes the claim, so a
-    // seat answering either question differently would have the page arguing with
-    // itself about one silence. `ago` is still rendered whole beside the word rather
-    // than reworded to absorb it. The cell is added and removed rather than hidden,
-    // because a hidden one still reads out in the thread's text.
-    let cold = line.querySelector(":scope > .lf-note-cold");
-    if (quietSince(note.ts) || droppedAt(note.ts, agentTurnClosed)) {
-      if (!cold) line.insertBefore(el("span", "lf-note-cold", "quiet"), when);
-    } else cold?.remove();
-    const age = ago(note.ts);
-    if (when.textContent !== age) when.textContent = age;
+    paintNote(
+      threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`),
+      note,
+      ":scope > .lf-compose",
+    );
+    for (const inline of document.querySelectorAll(
+      `.lf-conversation-thread[data-thread="${t.root.id}"]`,
+    ))
+      paintNote(inline, note, ":scope > .lf-say");
   }
 }
 

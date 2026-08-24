@@ -9649,6 +9649,76 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     page.close()
 
 
+def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
+    """A note answers "is anyone on this", and the reader who asked from inside the
+    widget's own box is the one least likely to open the panel to find out. One thread
+    has one note, so it is said at both of the thread's seats — the question's inline
+    view and the panel's list are two renderings of one conversation, not a complete one
+    and a lesser one.
+
+    The word for a claim nobody is renewing comes with it. That reading is the banner's
+    own, so a seat that showed the sentence and swallowed the silence would be telling
+    the reader work is in hand on the strength of a claim the page has already stopped
+    believing."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    d = serve.page_dir
+    conversation = page.locator("#jobs > .lf-conversation")
+    conversation.locator(".lf-say textarea").fill("Which of these is cheapest?")
+    conversation.locator(".lf-say [role='button']").click()
+    round_trip(page)
+    held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
+    note = conversation.locator(".lf-thread-note")
+    expect(note).to_have_count(0)
+
+    def claim(note_ts):
+        interact.write_json(
+            d / "status.json",
+            {
+                "state": "working",
+                "detail": "pricing the camera",
+                "ts": interact.now_iso(),
+                "on": {held: {"detail": "pricing the camera", "ts": note_ts}},
+            },
+        )
+        told(page)
+
+    claim(interact.now_iso())
+    expect(note).to_have_text(
+        re.compile(r"^Claude is on this — pricing the camera\s*just now$")
+    )
+    # Drawn, not merely present: the runtime's own sheet is scoped to .lf-chrome and
+    # cannot reach a box in the page, so this seat's rule is the page theme's own and
+    # a text assertion alone would pass over a line nobody can see.
+    expect(note).to_be_visible()
+    expect(note).not_to_contain_text("quiet")
+
+    # The same silence the banner reads, at this seat: forty minutes with nothing
+    # renewing the note, while the page's own claim above it is as fresh as ever.
+    claim(
+        (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
+            timespec="seconds"
+        )
+    )
+    expect(note).to_contain_text("quiet")
+    expect(note.locator("time")).to_have_text("40m ago")
+
+    # Answering is what ends it, here as in the panel: nothing writes a note off.
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "parent": held,
+            "text": "The camera is £40 less installed.",
+        },
+    )
+    told(page)
+    expect(note).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     """An exact-section root arriving from elsewhere cannot take unsent words' box.
 

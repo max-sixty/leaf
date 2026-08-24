@@ -15942,13 +15942,29 @@ def pending_text(page):
 
 def mark_point(page, name, index=0):
     """A point inside a painted range, for a real mouse press. A highlight is not an
-    element, so there is nothing for a locator to click."""
+    element, so there is nothing for a locator to click.
+
+    On screen, and asserted here, because a press the reader cannot make proves nothing
+    about what a press does. A range keeps its client rects while it is scrolled away —
+    they simply go negative — so the arithmetic above will hand back a point above the
+    window as readily as one in it, and `page.mouse` will press there. Nothing in the
+    page hears that press: `elementFromPoint` answers null outside the window, the
+    runtime's hit test declines a point that is over none of the page's words, and the
+    click arrives at `<html>`. A caller pressing 141px above the top edge therefore read
+    the silence that followed as the mark's thread refusing to open, 30 seconds later
+    and in another function."""
     box = page.evaluate(
         """([name, index]) => {
         const r = [...CSS.highlights.get(name)][index].getClientRects()[0];
-        return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+        return {x: r.left + r.width / 2, y: r.top + r.height / 2,
+                w: innerWidth, h: innerHeight};
     }""",
         [name, index],
+    )
+    assert 0 <= box["x"] < box["w"] and 0 <= box["y"] < box["h"], (
+        f"the {name} mark at index {index} is painted at ({box['x']:.0f}, "
+        f"{box['y']:.0f}), off a {box['w']:.0f}×{box['h']:.0f} window — scroll the "
+        f"passage into view before pressing it"
     )
     return box["x"], box["y"]
 
@@ -27999,9 +28015,9 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 """,
 )
 
-# main's content box, body's, and where three elements stand in them. Read together in
-# one pass because the whole subject is their relation: a width means nothing here except
-# against the column it is or isn't wider than.
+# main's content box, body's, the page's own box, and where each named element stands in
+# them. Read together in one pass because the whole subject is their relation: a width
+# means nothing here except against the column it is or isn't wider than.
 ROOM_GEOMETRY = """() => {
     const span = (el) => {
         const s = getComputedStyle(el), b = el.getBoundingClientRect();
@@ -28017,8 +28033,22 @@ ROOM_GEOMETRY = """() => {
                  top: b.top, bottom: b.bottom,
                  centre: (b.left + b.right) / 2 };
     };
+    // The page's box: what body's padding is spent out of and the column centres in.
+    // It is not the window. Body owns the document's scroll and reserves a stable
+    // gutter for it (leaf.js), so wherever a scrollbar takes room the page is that
+    // much narrower than the window and stands half of it to the window's left — a
+    // settled decision made where the gutter is, and one no strip has a part in.
+    // Padding included, because a strip taken here moves the column inside a box that
+    // has not changed size; `room` above is what the strips left and so cannot say
+    // where the edge they came out of is.
+    const page = () => {
+        const b = document.body, s = getComputedStyle(b);
+        const left = b.getBoundingClientRect().left + parseFloat(s.borderLeftWidth);
+        return { left, right: left + b.clientWidth, width: b.clientWidth,
+                 centre: left + b.clientWidth / 2 };
+    };
     return { column: span(document.querySelector('main')),
-             room: span(document.body),
+             room: span(document.body), pageBox: page(),
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
              note: box('note'), later: box('later'),
              sideways: document.body.scrollWidth - document.body.clientWidth };
@@ -29210,29 +29240,42 @@ def test_a_note_sets_the_page_axis_with_its_whole_strip(browser, serve):
 
     Both widths matter. The wide one proves the claim is the axis rather than only the
     shortfall, and the tighter one proves that keeping the whole claim still leaves the
-    note on the page without horizontal scrolling."""
+    note on the page without horizontal scrolling.
+
+    Every reading is against the page's box rather than the window, the two being the
+    same width only where a scrollbar takes no room. Body owns the document's scroll and
+    reserves a stable gutter for it, so on most platforms the page is 15px narrower than
+    the window and sits 7.5px to its left — a settled fact about the scroll region
+    (leaf.js) that the strip has no part in. Measured from the window this says that
+    instead of what it is about: green wherever scrollbars overlay, red on the runner,
+    and in both a note painted out in the gutter counted as a note still on the page."""
     url = serve(NOTE_AND_WIDE_PAGE)
     page, errors = open_page(browser, url)
 
     resized(page, 1600, 900)
     roomy = page.evaluate(ROOM_GEOMETRY)
-    assert abs(roomy["column"]["centre"] - (1600 - 384) / 2) <= 1, (
+    axis = roomy["pageBox"]["left"] + (roomy["pageBox"]["width"] - 384) / 2
+    assert abs(roomy["column"]["centre"] - axis) <= 1, (
         f"the right strip did not set the page's axis: column centred at "
-        f"{roomy['column']['centre']:.0f}px of 1600px"
+        f"{roomy['column']['centre']:.0f}px of a "
+        f"{roomy['pageBox']['width']:.0f}px page"
     )
-    assert roomy["note"]["right"] <= 1600, (
-        f"the note is off the right edge at 1600px: {roomy['note']['right']:.0f}px"
+    assert roomy["note"]["right"] <= roomy["pageBox"]["right"], (
+        f"the note is off the right edge of a "
+        f"{roomy['pageBox']['width']:.0f}px page: {roomy['note']['right']:.0f}px"
     )
 
     resized(page, NOTE_BAND, 900)
     tight = page.evaluate(ROOM_GEOMETRY)
-    assert abs(tight["column"]["centre"] - (NOTE_BAND - 384) / 2) <= 1, (
+    axis = tight["pageBox"]["left"] + (tight["pageBox"]["width"] - 384) / 2
+    assert abs(tight["column"]["centre"] - axis) <= 1, (
         f"the tighter page lost the note-set axis: column centred at "
-        f"{tight['column']['centre']:.0f}px of {NOTE_BAND}px"
+        f"{tight['column']['centre']:.0f}px of a "
+        f"{tight['pageBox']['width']:.0f}px page"
     )
-    assert tight["note"]["right"] <= NOTE_BAND, (
-        f"the note is off the right edge at {NOTE_BAND}px: "
-        f"{tight['note']['right']:.0f}px"
+    assert tight["note"]["right"] <= tight["pageBox"]["right"], (
+        f"the note is off the right edge of a "
+        f"{tight['pageBox']['width']:.0f}px page: {tight['note']['right']:.0f}px"
     )
     assert tight["sideways"] == 0
 

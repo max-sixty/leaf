@@ -15882,15 +15882,22 @@ def mark_point(page, name, index=0):
     banner holds the top of every page and a composer floats over the words it quotes,
     both `.lf-ui`, and a press either takes never reaches the mark. That case is the
     worse of the two, because a press proving that nothing opens gets its green from a
-    press that opened nothing for the opposite reason."""
+    press that opened nothing for the opposite reason.
+
+    The layer half is `inUi`'s question rather than a look-alike of it, because the two
+    answers part on a label: the nearest element wins, so a label a widget declared as
+    the page's own words is nearer than the control it sits in, and a mark painted there
+    is pressable. `.lf-ui` alone would refuse a press the runtime accepts, and name a
+    control as the reason."""
     box = page.evaluate(
         """([name, index]) => {
         const r = [...CSS.highlights.get(name)][index].getClientRects()[0];
         const x = r.left + r.width / 2, y = r.top + r.height / 2;
         const over = document.elementFromPoint(x, y);
-        const ui = over && over.closest('.lf-ui');
+        const near = over && over.closest('.lf-ui, [data-lf-said]');
+        const ui = near && !near.matches('[data-lf-said]') ? near : null;
         return {x, y, blocked: !over ? 'outside the window'
-            : ui ? `under the layer's ${ui.className.split(' ').pop()}` : null};
+            : ui ? `under the layer's ${[...ui.classList].find(c => c !== 'lf-ui') ?? 'lf-ui'}` : null};
     }""",
         [name, index],
     )

@@ -32,15 +32,43 @@ at all is also what keeps each key a working selector —
 nothing asked.
 
 The floor only guarantees the widget appears; which of its shapes appear is a
-judgement. An `lf-options` group takes its form from what its options hold and
-its arity from `multiple`, and the two vary independently, so a rule written
-against one combination governs the other three without saying so. No example
-held a titled `multiple` group (a card form, in the days the forms were three).
-So when the empty box that says a slot is untaken was suppressed — as though
-drawing it were the list form's business alone — every example stayed green, and
-a titled group asking "which of these" gave the reader nothing to count. Where an
-attribute or a content shape changes what a reader sees, a page here shows that
-shape.
+judgement. An `lf-options` group takes its form from what its options hold, its
+arity from `multiple`, whether it is joined into one control from `choose` and
+`settled`, and whether it asks its question on itself from `label` — axes that
+vary independently, so a rule written against one combination governs the rest
+without saying so. No example held a titled `multiple` group (a card form, in the
+days the forms were three). So when the empty box that says a slot is untaken was
+suppressed — as though drawing it were the list form's business alone — every
+example stayed green, and a titled group asking "which of these" gave the reader
+nothing to count. Where an attribute or a content shape changes what a reader
+sees, a page here shows that shape.
+
+## Standing here is not the same as having been looked at
+
+The floor guarantees a shape is *rendered*. It never guarantees anyone *judged*
+what was rendered, and the two are easy to confuse because a corpus that holds
+the shape reads like a corpus that has checked it.
+
+`label` is the case that separates them. It arrived with its corpus shape in the
+same commit: a `choose` group carrying a question, on `design-decision.html`,
+joined into one control and drawn on every nightly run in both palettes and in
+print. The joined control gave that question none of the inset it gives every
+other cell, so it sat on the frame a full address column left of the words it was
+a question about, with dead ground under the hairline below it. The page was
+green for three days. Nothing in the loop looked at a composed page and judged
+spacing, and `gallery.html` — the first page a UI sweep tours — showed the same
+group.
+
+So a coverage gap and a judging gap want different answers, and only one of them
+is this file's. The settled form's question ordering was genuinely absent from
+the corpus and a page fixed it. The spacing was not absent; it was unexamined,
+and what closed it was a test that reads every cell of a joined control plus
+using the page. Note where that test is not: a reading in the render gate had to
+find the control by fingerprint, and a board column and a framed `<details>` wear
+the same one, so the gate would have failed correct pages to catch leaf's own
+theme. When a sweep finds something here, ask which of the two let it through
+before adding a page: a page that only re-renders a shape nobody judges buys
+nothing.
 
 ## An example is one version, and the log it ships beside it
 
@@ -54,7 +82,14 @@ is the one thing no markup describes, so an example that wants to show one ships
 its events as `<stem>.jsonl` beside the page, the way an example that wants a
 screenshot ships the image bytes beside it. Every place that builds a page
 directory out of an example lays the log in: `scripts/preview.py`,
-`publish_pages` in `scripts/site.py`, and `test_examples_pass_check`.
+`publish_pages` in `scripts/site.py`, `test_examples_pass_check`, and `serve` in
+`test_render.py`. That last one is the browser corpus, and it laid an example's
+media in while leaving its log out — so the eight sweeps read every example as a
+page with nothing standing on it, which is not a page anybody is served. `serve`
+seeds when it is handed an example rather than markup, and sets the cursor past
+the seed as `preview.py` does. One sweep opts out and says why: the anchor sweep
+writes its own anchors and compares the whole painted mark against exactly
+those, so a seeded thread's mark would read there as text the page never named.
 `ship-review.jsonl` is the one such log today, and a reader meets it on
 <https://leaf.page/examples/ship-review/> as much as under
 `scripts/preview.py ship-review` — the published pages are served rather than
@@ -101,6 +136,27 @@ rendering says is pinned in fixtures that mint their own timestamps
 (`test_a_rosters_row_says_when_the_log_last_heard_from_that_worker`,
 `test_a_worker_that_has_never_reported_dates_from_its_version`). The next widget
 with a live half owes both halves: the seed and the fixture.
+
+A seed is also the only way a widget reaches the corpus in a message. Markup can
+be two things — a version's content, and an event's `markup` field — and the
+second renders in the panel and nowhere else, so no authored page substitutes
+for it however many widgets it holds. `ship-review.jsonl` carries the shape:
+Claude answers with a question of its own, a `multiple` group whose Done press is
+the reader saying the set is whole. What reads it is
+`test_a_shipped_log_opens_its_example_on_a_live_thread`, which opens the panel
+and asks that each widget the log carries is drawn and, where the registry
+declares the element awaits an answer, that the runtime built something inside
+it to answer with.
+
+Rendering that shape for the first time reported two faults in the render gate,
+both of them the same mistake: a reading assumed a widget stands in the document.
+`UNREACHABLE_WORDS` took any `.lf-ui` above a widget's words for the widget's own
+chrome, which is true on a page and inside out in a message, so it refused every
+question ever asked in a reply. `SILENT_WORDS` asked whether a painted
+attribute's quiet word had a box, and a message in a shut panel has no boxes at
+all, so it called the panel's state the widget's. Neither could be found by
+reading: the gate walks text nodes rather than boxes and had been reading the
+panel all along, with the panel shut, on a corpus that never put anything there.
 
 ## A page's connective prose is its own
 

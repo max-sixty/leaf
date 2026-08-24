@@ -27,6 +27,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -256,6 +257,35 @@ def test_skill_assigns_acknowledgement_to_the_wait_owner():
     assert "After the host accepts the follow-up" in watcher
 
 
+def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
+    """A reply is written into a shell argument and never read where it lands.
+
+    The panel renders a reply through `marked` and the theme dresses its lists,
+    code, quotes and tables for a column that is narrow by default, so the shape
+    is available and nothing in the loop shows the author what they chose. The
+    guidance said "brief Markdown" over a single-line `--text "<answer>"`, and
+    brevity read as one paragraph: an answer carrying three independent reasons
+    arrived as four sentences of prose with the reasons buried in clauses.
+
+    So the rule states the short case as complete and the example carries the
+    long one, because a documented call is copied where a description is not.
+    The two assertions hold each half: brevity first, and a worked long answer
+    to copy from when brevity does not fit.
+    """
+    root = PLUGIN_ROOT / "skills" / "leaf" / "references"
+    conversation = (root / "conversation-loop.md").read_text()
+
+    assert "one sentence is a complete reply" in " ".join(conversation.split())
+    reply_block = conversation.split("leaf reply <page> --to <thread-id>")
+    assert any(part.startswith(" <<'EOF'") for part in reply_block[1:])
+    assert any(part.startswith(' --text "') for part in reply_block[1:])
+
+    # A worker reads its own file and nothing routes it here, so its reply
+    # example is the only shape that reaches it.
+    worker = (root / "worker-orchestration.md").read_text()
+    assert 'reply "$PAGE" --to "$THREAD" <<' in worker
+
+
 def test_leaf_skill_routes_its_complete_reference_set():
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()
@@ -280,7 +310,7 @@ def test_leaf_skill_routes_its_complete_reference_set():
     )
     assert "Escape `&` first, then `<` and `>`" in authoring
     assert "status banner, comment sidebar, version picker" in authoring
-    assert "live-leaves board, and open-asks board" in authoring
+    assert "live-leaves tray, and open-asks tray" in authoring
     assert "informational page with no concrete ask" in " ".join(skill.split())
     assert "informational page with no concrete ask" in conversation
     for path in references:
@@ -313,6 +343,47 @@ def test_a_correction_is_written_straight_rather_than_offered_as_a_choice():
     assert "A correction is not a proposal" in revisions
     assert "write the true thing straight" in revisions
     assert "wording the reader could reasonably prefer as it stands" in revisions
+
+
+def test_the_page_is_named_by_its_findings_and_collapsed_around_them():
+    """What a page costs to review is stated where it is composed and checked
+    where it is handed over.
+
+    A version can pass every gate and still be unreadable: the finding three
+    paragraphs down, the section called "What we learned", the transcript that
+    supports it standing open in the column. Neither the markup check nor the
+    render gate can see any of that — both answer whether a page renders, not
+    whether it is worth the reading — so this is prose or it is nothing.
+
+    Two places, because they answer at different moments. "Reading cost" is what
+    an author reads while deciding what goes on the page. The pre-handover review
+    is the last point it can still change, and a heading that withholds its own
+    finding is invisible to whoever just wrote it and plain to anyone who reads
+    the headings alone. Pinned in one place only, the rule would be stated and
+    never asked after."""
+    root = PLUGIN_ROOT / "skills" / "leaf"
+    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
+    start = authoring.index("## Reading cost")
+    cost = authoring[start : authoring.index("## Interactivity", start)]
+
+    assert "what the reader has to take from the page" in cost
+    assert "its backing goes under `<details>`" in cost
+    assert "A section that reaches a finding says it in the heading" in cost
+    # The other half of the same rule. Without it the sentence above reads as a
+    # demand that every section name be a claim, which turns an honest label over
+    # a list or a control into a sentence; with it alone, every label is excused.
+    assert "where there is no finding to state" in cost
+    # The one thing a reading-cost rule must never license. A collapsed ask still
+    # counts in the banner and the asks tray, and `checkVisibility()` is false
+    # inside a closed disclosure, so no gate refuses the page whose decision is
+    # behind a click.
+    assert "An ask never collapses" in cost
+
+    review = authoring[authoring.index("## Pre-handover review") :]
+    assert "Take the headings on their own first" in review
+
+    contract = " ".join((root / "SKILL.md").read_text().split())
+    assert "its backing sits under `<details>`" in contract
 
 
 def test_hidden_hook_remains_callable():
@@ -409,6 +480,7 @@ def record_claim(page, **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
+        "turn_closed": None,
         **fields,
     }
     path = interact.claim_path(page)
@@ -2124,6 +2196,48 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert "not a language this page's layer speaks" in result.output
 
 
+def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
+    """The other way to color a block is read from the layer, not written into the
+    lint: the tags whose entries declare an attribute for a language (x-language) are
+    the ones the misplaced class is offered, under the attribute each declares. The
+    widget that colors a walkthrough is the layer's rather than core's, so a lint that
+    named it would be core knowing a content widget — and would keep offering it to a
+    layer that dropped it, spelt its attribute differently, or added a second."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2>\n<div class="note language-python">not a code block</div>',
+        )
+    )
+    registry_file = page_dir / "registry.json"
+    registry = json.loads(registry_file.read_text())
+    declaring = {
+        tag: entry["x-language"]
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and "x-language" in entry
+    }
+    assert declaring, "the shipped layer declares one; the offer below is its reading"
+    out = check(page_dir).output
+    for tag, attr in declaring.items():
+        assert f"<{tag} {attr}=…>" in out, out
+
+    # A second tag taking one joins the offer under the attribute it declares.
+    registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
+    registry["lf-tree"]["x-language"] = "dialect"
+    registry_file.write_text(json.dumps(registry))
+    out = check(page_dir).output
+    assert "<lf-tree dialect=…>" in out, out
+
+    # A layer whose tags declare none has nothing to offer, and the placement rule —
+    # which never rested on any widget — is stated on its own.
+    for tag in [*declaring, "lf-tree"]:
+        registry[tag].pop("x-language")
+    registry_file.write_text(json.dumps(registry))
+    out = check(page_dir).output
+    assert "only <pre><code> is colored" in out and "— move it" in out, out
+    assert "or use" not in out, out
+
+
 # HTML's phrasing content, quoted whole from the standard's own list. The theme
 # inverts it to decide what makes a slot a block, and this is the only place the set
 # is stated rather than derived: `link` and `meta` are in it because the standard has
@@ -2191,7 +2305,57 @@ PHRASING_CONTENT = frozenset(
 )
 
 
-def test_the_block_content_lists_are_the_platform_set_and_the_inline_widgets():
+def _balanced(css, start):
+    """What is inside a parenthesis already open at `start`, nesting included.
+
+    A selector list carrying a :where() no longer ends at the first `)`, and reading
+    it with one is how a marker arrives here missing its last bracket and passes for
+    a name the list never held."""
+    depth, at = 1, start
+    while depth:
+        depth += {"(": 1, ")": -1}.get(css[at], 0)
+        at += 1
+    return css[start : at - 1]
+
+
+def _marker_for(declaration):
+    """The attribute leaf.js paints for an `x-` declaration, or None if it paints
+    none.
+
+    Two facts, and the second is the one a stylesheet's exclusion rests on.
+    PAGE_PAINT_ATTRIBUTE is the spelling every writer in the runtime shares and the
+    set of names no version file may assert; a name in it says only that the runtime
+    is allowed to paint it. What actually puts a mark on a page is a declaration's
+    entry in one of markDeclared's tables, and a selector naming an attribute with no
+    such entry excludes nothing anywhere. Both tables are read, because which of the
+    two a declaration sits in is a question about where the fact holds, and the
+    browser is what answers that."""
+    js = (interact.ASSETS / "leaf.js").read_text()
+    table = re.search(
+        r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);", js, re.DOTALL
+    )
+    assert table, "leaf.js lost the list of attributes the runtime may paint"
+    names = dict(re.findall(r'(\w+): "(data-lf-[a-z-]+)",', table.group(1)))
+    assert names, "that list holds no data-lf-* name"
+    tables = re.findall(
+        r"const MARKED_(?:ANYWHERE|IN_PAGE) = Object\.freeze\(\{(.*?)\}\);",
+        js,
+        re.DOTALL,
+    )
+    assert len(tables) == 2, "leaf.js lost one of markDeclared's tables"
+    for key in re.findall(
+        rf'"{re.escape(declaration)}": PAGE_PAINT_ATTRIBUTE\.(\w+)', "".join(tables)
+    ):
+        assert key in names, (
+            f"markDeclared paints {declaration} as PAGE_PAINT_ATTRIBUTE.{key}, which "
+            "that table has no member for — the runtime writes an attribute with no "
+            "name and every selector reading it matches nothing"
+        )
+        return names[key]
+    return None
+
+
+def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     """Two selectors in the theme decide what counts as block content — the
     suggestion slots' blockization and lf-compare's stacked-variant trigger
     (lf-options stacks on the title alone, so it asks no block question) — by the
@@ -2204,33 +2368,56 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_widgets():
     half is HTML's phrasing content entire, stated above, which is the half the two
     copies could never check: agreeing with each other says nothing about a name
     dropped from both, and a missing one blockizes a slot holding the element it
-    names. The widget half is exactly the tags the registry declares x-inline, which
-    a stylesheet cannot read — so an inline widget joins the list by declaring, and a
-    block widget in it would mean the inversion has been quietly re-enumerated."""
+    names. The widget half is the inversion's one wrong answer — an inline widget is
+    a custom element like any other — and it is a marker rather than tag names,
+    because which widgets those are is the registry's to say (x-inline) and a
+    stylesheet cannot read it. Four names stood here, one of them a bundled chip's
+    inside the integrated theme, and no layer could join them; the runtime paints the
+    declaration instead and an inline widget joins by declaring it.
+
+    The marker is held to what markDeclared paints for x-inline, because a selector
+    naming an attribute nothing writes matches nothing and says so nowhere — it reads
+    as the ordinary case of a page with no inline widget in a slot. Being a name the
+    runtime is allowed to paint is not that: the wiring is a declaration's entry in
+    one of markDeclared's tables, and _marker_for is what follows it. And it is held
+    to :where(), which is what keeps an answer about content
+    from becoming a claim on the cascade: :not() takes the specificity of the most
+    specific thing in it, so a bare attribute selector lifts the whole rule a column
+    above the type names beside it, over the marks the layer paints on top of the
+    result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
+    it had just retired."""
     theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
-    lists = re.findall(r":not\((a, abbr[^)]*)\)", theme)
+    lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
+    lists = [found for found in lists if found.startswith("a, abbr")]
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
-    inline = {
+    assert [
         tag
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-inline")
-    }
+    ], "no widget declares x-inline, so the marker in these lists stands for nothing"
     for found in lists:
         tags = {t.strip() for t in found.split(",")}
-        assert {t for t in tags if not t.startswith("lf-")} == PHRASING_CONTENT, (
+        markers = {t for t in tags if not t.isalpha()}
+        assert tags - markers == PHRASING_CONTENT, (
             "the platform half of a block-content list is not HTML's phrasing "
             "content: a name dropped from it stacks a slot holding that element, "
-            "and one added to it leaves a block child laid out inline"
+            "one added to it leaves a block child laid out inline, and a widget "
+            "named in either half re-closes the inversion"
         )
-        assert {t for t in tags if t.startswith("lf-")} == inline, (
-            "the block-content lists' widget names must be exactly the tags the "
-            "registry declares x-inline — a block widget in the list re-closes the "
-            "inversion, and an inline widget missing from it stacks the form it "
-            "stands in"
+        assert markers == {":where([data-lf-inline])"}, (
+            "the widget half of a block-content list is the inline marker the "
+            "runtime paints from x-inline, in :where() so the question does not "
+            "outrank the marks painted over its answer"
         )
+        for marker in markers:
+            attribute = marker[len(":where([") : -len("])")]
+            assert _marker_for("x-inline") == attribute, (
+                f"{marker} is not what the runtime paints for x-inline, so the "
+                "list's widget half matches nothing on any page"
+            )
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():
@@ -2247,23 +2434,60 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     assert js_set == interact.COLLAPSE_CHARS
 
 
-def test_exhibit_exclusions_name_exactly_the_declared_exhibits():
-    """A choose group's affordance rules exclude exhibits in their own selectors
-    (`:not(<tag> *)`), because a stylesheet cannot read the registry the runtime's
-    quoted() dispatches on. So the spelled tags are held to the declaration: the
-    set excluded is exactly the set declaring x-exhibit. A second exhibit widget
-    fails here by being declared — naming the rules to grow — instead of keeping
-    the hand and the joined shape on a group quoted precisely so as not to offer
-    them."""
-    theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
-    spelled = set(re.findall(r":not\((lf-[a-z-]+) \*\)", theme))
+def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
+    """A choose group's affordance rules stand down inside an exhibit in their own
+    selectors, because a stylesheet cannot read the registry the runtime's quoted()
+    dispatches on. What they exclude is the paint that declaration leaves on the
+    page (data-lf-exhibit, markDeclared) rather than the widgets declaring it, so
+    the layer that ships an exhibit and the layer whose rules withhold the hand need
+    not be the same one — the shape a tag list cannot have.
+
+    Every ancestor exclusion in the rules of the composed theme is read, not the
+    exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
+    and the failure it causes is a project's own widget silently outside the answer.
+    Comments come off first, because two of them quote this very selector — left in,
+    the set could be satisfied with every rule that carries the exclusion deleted.
+
+    The marker is then held to what `markDeclared` actually paints for x-exhibit and
+    to a widget declaring it: either missing leaves every one of those rules excluding
+    nothing on any page, which renders as a quoted group offering the pick it exists
+    to withhold. Not the pick itself, which quoted() refuses at the layer's own door:
+    what is lost is that a mention stops looking like a mention. Which of
+    markDeclared's two tables the declaration sits in is a different question — where
+    the fact holds — and the browser answers it, in a reply as well as in the
+    document.
+
+    What this cannot see is one rule of ten dropping its exclusion while the others
+    keep theirs: a set does not count. That reading is the browser's."""
+    theme = re.sub(
+        r"/\*.*?\*/",
+        "",
+        interact.layered_theme([interact.ASSETS, interact.BUNDLED]),
+        flags=re.DOTALL,
+    )
+    excluded = {
+        inside.removesuffix(" *")
+        for found in re.finditer(r":not\(", theme)
+        if (inside := _balanced(theme, found.end())).endswith(" *")
+    }
+    assert excluded == {":where([data-lf-exhibit])"}, (
+        f"the theme's ancestor exclusions are {excluded}, and the one thing a rule "
+        "may ask to stand down inside is the painted exhibit marker. A tag spelled "
+        "here answers for the layer that ships it and for no other; a second marker "
+        "is a second question, and belongs to whichever test owns that one; an empty "
+        "set is rules that stopped standing down inside an exhibit at all"
+    )
+    assert _marker_for("x-exhibit") == "data-lf-exhibit", (
+        "the theme excludes data-lf-exhibit and markDeclared paints "
+        f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
+        "page and an exhibit keeps every affordance these rules meant to withhold"
+    )
     registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
-    declared = {
+    assert [
         tag
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-exhibit")
-    }
-    assert spelled == declared, (spelled, declared)
+    ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -3677,6 +3901,10 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "detail": {"options": ["o-shim"]},
             "version": 1,
             "seq": 2,
+            # On every entry, and null for a page widget: the key names which of the
+            # page's two documents the decision was made in, and `asks` above has
+            # carried it exactly this way all along.
+            "thread": None,
         }
     ]
     assert state["lag"] == [
@@ -4377,6 +4605,52 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
     assert "no longer speaks" in result.output
     assert "lf-board" in result.output and "move" in result.output
     assert "detail" in result.output
+
+
+def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_dir):
+    """Eligibility governs fresh transitions, not the log's forever-contract.
+
+    A recorded action remains structurally meaningful even if a replacement layer
+    would no longer offer that gesture in the same state. Re-vendoring must preserve
+    and replay it rather than applying today's admission policy retroactively.
+    """
+    registry = json.loads((page_dir / "registry.json").read_text())
+    options = registry["lf-options"]["x-example"]
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", options + "\n</section>")
+    )
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "run-status",
+            "action": "choose",
+            "detail": {"options": ["rs-column"]},
+        },
+    )
+
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "self",
+        "awaiting": True,
+    }
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps({"lf-options": registry["lf-options"]})
+    )
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert [
+        event["action"]
+        for event in interact.read_events(page_dir)
+        if event["kind"] == "action"
+    ] == ["choose"]
 
 
 def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_dir):
@@ -5547,6 +5821,18 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
             {"until": {"verb": "answer", "when": {"batch": [True]}}},
             "names undeclared attribute `batch`",
         ),
+        (
+            "lf-options",
+            "x-awaits",
+            {"answers": ["submit"]},
+            "names undeclared answer verbs",
+        ),
+        (
+            "lf-chip",
+            "x-awaits",
+            {"rollup": True},
+            "does not require an id",
+        ),
     ],
 )
 def test_check_refuses_a_predicate_no_page_could_carry(
@@ -5566,6 +5852,137 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     result = check(page_dir)
     assert result.exit_code != 0
     assert f"<{tag}> {key}" in result.output and message in result.output
+
+
+def test_rollup_false_is_omitted_instead_of_becoming_a_second_form(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-awaits"] = {"rollup": False}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "<lf-options> registry extensions are invalid" in result.output
+    assert "True was expected" in result.output
+
+
+def test_an_unconditional_request_declaration_is_valid(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-awaits"] = {}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    assert check(page_dir).exit_code == 0
+
+
+def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-chip"]["x-awaits"] = {}
+    registry["lf-options"]["x-parent"] = ["lf-chip"]
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "parent",
+        "awaiting": True,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "['lf-chip'] do not require an id" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "verb", "requires", "message"),
+    [
+        (
+            "lf-board",
+            "move",
+            {"target": "self", "awaiting": True},
+            "do not declare x-awaits",
+        ),
+        (
+            "lf-options",
+            "choose",
+            {"target": "parent", "awaiting": True},
+            "declares no x-parent",
+        ),
+    ],
+)
+def test_check_refuses_action_prerequisites_without_a_declared_request_target(
+    page_dir, tag, verb, requires, message
+):
+    """Both runtime interpreters may assume a prerequisite passed this one door."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry[tag]["x-state"][verb]["requires"] = requires
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert f"<{tag}> x-state verb `{verb}`" in result.output
+    assert message in result.output
+
+
+def test_only_reader_actions_admit_current_eligibility(page_dir):
+    """Reports state agent news; they are not gestures the reader can disable."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-report"]["status"]["requires"] = {
+        "target": "self",
+        "awaiting": False,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "<lf-task> registry extensions are invalid" in result.output
+    assert "requires" in result.output
+
+
+def test_check_refuses_increase_condition_without_an_unsigned_scalar_record(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "self",
+        "awaiting": True,
+        "change": "increase",
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "conditions an increase" in result.output
+    assert "unsigned-integer value record" in result.output
+
+
+def test_a_self_position_record_stays_within_the_declared_parent_relation(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-parent"] = ["lf-task"]
+    registry["lf-options"]["x-state"]["move"] = {
+        "detail": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "index": {"type": "integer", "minimum": 0},
+            },
+            "required": ["to", "index"],
+            "additionalProperties": False,
+        },
+        "facet": "placement",
+        "unit": "widget",
+        "record": {
+            "kind": "position",
+            "within": "lf-column",
+            "value": "to",
+            "order": "index",
+        },
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "records its own position within <lf-column>" in result.output
+    assert "x-parent does not admit" in result.output
 
 
 @pytest.mark.parametrize(
@@ -5760,7 +6177,7 @@ def test_a_record_contract_does_not_open_a_browser_event_kind(server, page_dir):
         data=json.dumps({"kind": "signal", "text": "hello"}).encode(),
     )
 
-    assert status == 400
+    assert status == 400, body
     assert "kind must be one of" in json.loads(body)["error"]
 
 
@@ -5820,6 +6237,50 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "exceeds column (720px)" in result.output
+
+
+def test_check_reads_a_column_the_theme_states_as_a_token():
+    """A width naming a root token is a width the stylesheet stated, so the column reads
+    it. The theme keeps its own constants in `:root` and more than one rule now wants the
+    measure; a reading that stopped at the name would fall back to a default column and
+    go on printing a number, which is a check that stops measuring exactly when the file
+    it measures gets tidier.
+
+    Only the root, and only what is stated outright. A token declared inside a query is
+    that condition's, the same reason the column will not read a media query's width, and
+    a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
+    stated = ":root { --col: 640px }\nmain { max-width: var(--col) }"
+    assert interact._column_width("", stated) == 640
+
+    conditional = (
+        "@media screen { :root { --col: 640px } }\nmain { max-width: var(--col) }"
+    )
+    assert interact._column_width("", conditional) == interact.COLUMN_FALLBACK
+
+    fallback = "main { max-width: var(--col, 512px) }"
+    assert interact._column_width("", fallback) == 512
+
+    # The shipped theme is the case that motivated this: it must still read as itself.
+    assert (
+        interact._column_width("", (interact.ASSETS / "theme.css").read_text()) == 720
+    )
+
+
+def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
+    """A page pinning `var(--wide)` is stating the vocabulary's own breakout width, which
+    is wider than the column by design. The page's `<style>` declares no such token, so
+    the reading resolves it against the layer the page vendored — the order the cascade
+    reads the two roots in. Without the layer behind it, a page could take any width the
+    theme names and never be measured for it."""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><p id="w" style="width: var(--wide)">Wide by name.</p>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "inline style width: 1080px (column is 720px)" in result.output
 
 
 def test_the_strip_floor_is_one_number():
@@ -6277,6 +6738,12 @@ def test_server_round_trip(server, page_dir):
         {"kind": "comment", "version": 1, "text": "x", "anchor": "intro"},
         {"kind": "comment", "version": 1, "text": "x", "anchor": {"quote": 7}},
         {"kind": "comment", "version": 1, "text": "x", "anchor": {}},
+        {
+            "kind": "comment",
+            "version": 1,
+            "text": "x",
+            "anchor": {"datum": "row-1", "quote": "x"},
+        },
         {
             "kind": "comment",
             "version": 1,
@@ -6792,6 +7259,244 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
     )
     assert status == 400
     assert "unknown action widget" in json.loads(body)["error"]
+
+
+@pytest.mark.parametrize("in_thread", [False, True])
+def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
+    server, page_dir, in_thread
+):
+    """A child attribute record closes the sender's standing request."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["defer"] = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "facet": "deferral",
+        "unit": "widget",
+        "requires": {"target": "self", "awaiting": True},
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="eligibility-options" choose>'
+            '<lf-option id="eligibility-a">A</lf-option>'
+            '<lf-option id="eligibility-b">B</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+
+    publish(page_dir)
+    widget = "eligibility-options"
+    option = "eligibility-a"
+    if in_thread:
+        interact.append_event(
+            page_dir,
+            {
+                "kind": "comment",
+                "id": "c-eligibility",
+                "author": "user",
+                "version": 1,
+                "text": "change this task",
+            },
+        )
+        reply = CliRunner().invoke(
+            interact.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c-eligibility",
+                "--text",
+                "Here it is:",
+                "--markup",
+                (
+                    '<lf-options id="thread-options" choose>'
+                    '<lf-option id="thread-a">A</lf-option>'
+                    '<lf-option id="thread-b">B</lf-option>'
+                    "</lf-options>"
+                ),
+            ],
+        )
+        assert reply.exit_code == 0, reply.output
+        widget = "thread-options"
+        option = "thread-a"
+
+    choose = {
+        "kind": "action",
+        "version": 1,
+        "widget": widget,
+        "action": "choose",
+        "detail": {"options": [option]},
+    }
+    nonanswer = {**choose, "action": "defer", "detail": {}}
+    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
+    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
+    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
+    before = len(interact.read_events(page_dir))
+
+    status_code, body = fetch(
+        f"{server}/api/event", data=json.dumps(nonanswer).encode()
+    )
+
+    assert status_code == 400
+    assert "action 'defer' is unavailable" in json.loads(body)["error"]
+    assert "no longer awaiting the reader" in json.loads(body)["error"]
+    assert len(interact.read_events(page_dir)) == before
+
+
+def test_server_checks_recursive_parent_prerequisite_under_append_lock(
+    server, page_dir
+):
+    """A custom scalar reads the declared roll-up, not ask containment."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-awaits"]["rollup"] = True
+    scalar = {"type": "string", "pattern": "^[0-9]+$"}
+    detail = {
+        "type": "object",
+        "properties": {"slots": scalar},
+        "required": ["slots"],
+        "additionalProperties": False,
+    }
+    record = {"kind": "value", "attr": "slots", "value": "slots"}
+    registry["lf-quota"] = {
+        "description": "A project-defined absolute scalar control.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "slots": scalar,
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id", "slots"],
+        "additionalProperties": False,
+        "x-parent": ["lf-task"],
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-state": {
+            "move": {
+                "detail": {
+                    "type": "object",
+                    "properties": {
+                        "to": {"type": "string"},
+                        "index": {"type": "integer", "minimum": 0},
+                    },
+                    "required": ["to", "index"],
+                    "additionalProperties": False,
+                },
+                "facet": "placement",
+                "unit": "widget",
+                "record": {
+                    "kind": "position",
+                    "within": "lf-task",
+                    "value": "to",
+                    "order": "index",
+                },
+            },
+            "set": {
+                "detail": detail,
+                "facet": "capacity",
+                "unit": "widget",
+                "record": record,
+                "requires": {
+                    "target": "parent",
+                    "awaiting": False,
+                    "change": "increase",
+                },
+            },
+        },
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="active">'
+            "<strong>Task</strong>"
+            '<lf-quota id="quota" slots="1"></lf-quota>'
+            '<lf-options id="quota-intervention" choose label="Proceed?">'
+            '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+            '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
+            "</lf-task>"
+            '<lf-task id="quota-destination" status="active">'
+            "<strong>Destination</strong></lf-task>"
+            "</lf-tasks></section>",
+        )
+    )
+    publish(page_dir)
+
+    event = {
+        "kind": "action",
+        "version": 1,
+        "widget": "quota",
+        "action": "set",
+        "detail": {"slots": "2"},
+    }
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "agent",
+            "version": 1,
+            "widget": "quota-task",
+            "action": "status",
+            "detail": {"status": "blocked"},
+        },
+    )
+    # The answered direct intervention takes precedence over the nested task, so the
+    # stopped parent is available while that answer stands.
+    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "agent",
+            "version": 1,
+            "widget": "quota-child",
+            "action": "status",
+            "detail": {"status": "blocked"},
+        },
+    )
+    increase = {**event, "detail": {"slots": "3"}}
+    assert fetch(f"{server}/api/event", data=json.dumps(increase).encode())[0] == 200
+
+    # Clearing the direct answer reopens that intervention. It now overrides the
+    # blocked child in the other direction and closes capacity under the same lock.
+    choose = {
+        "kind": "action",
+        "version": 1,
+        "widget": "quota-intervention",
+        "action": "choose",
+        "detail": {"options": []},
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
+    increase = {**event, "detail": {"slots": "4"}}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(increase).encode())
+    assert status == 400
+    assert "still awaiting the reader" in json.loads(body)["error"]
+
+    decrease = {**event, "detail": {"slots": "0"}}
+    assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
+
+    # Placement is projected too. After the absolute move, admission reads the
+    # active destination rather than the blocked parent in authored markup.
+    move = {
+        "kind": "action",
+        "version": 1,
+        "widget": "quota",
+        "action": "move",
+        "detail": {"to": "quota-destination", "index": 0},
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(move).encode())[0] == 200
+    increase_after_move = {**event, "detail": {"slots": "1"}}
+    assert (
+        fetch(f"{server}/api/event", data=json.dumps(increase_after_move).encode())[0]
+        == 200
+    )
+    assert [
+        logged["action"]
+        for logged in interact.read_events(page_dir)
+        if logged["kind"] == "action"
+    ] == ["set", "set", "choose", "set", "move", "set"]
 
 
 def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
@@ -7522,6 +8227,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "agent": "Claude",
         "host": None,
         "session_alive": None,
+        "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
     }
@@ -8418,6 +9124,7 @@ def test_codex_launcher_claims_the_page_for_its_thread(codex_claimed_page):
         "pid",
         "cwd",
         "ts",
+        "turn_closed",
         "released",
     }
     assert page_state(codex_claimed_page)["agent"] == "Codex"
@@ -8475,7 +9182,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_en
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
-    """What tells one leaf from another on the board is the work behind it, which
+    """What tells one leaf from another on the tray is the work behind it, which
     neither the title somebody wrote nor the state directory nobody chose says — so
     the claim records the directory the claiming command ran in, the same reading
     `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a
@@ -8936,6 +9643,62 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
         assert page_state(page_dir)["listening"]
     finally:
         bare.close()
+
+
+def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
+    """A `working` claim is written by a model's turn, and a turn can end at any token
+    without running anything — so nothing writes its close, and the page was left to
+    find an abandoned claim by outwaiting a clock. The Stop hook is the harness
+    watching that same moment, which is what these hooks are for.
+
+    It stamps whether or not it has a nudge to make, and ahead of both of the guard's
+    early returns: a turn that ends with nothing outstanding is exactly the turn that
+    walks away from a `working` claim. The stamp is provenance and lands on the claim
+    record rather than in status.json — what the agent said it was doing stays the
+    agent's to write, which is the line SessionEnd already draws."""
+    interact.cmd_status(claimed, "working", "reading the reconnect traces")
+    assert interact.page_claim(claimed)["turn_closed"] is None
+    events = interact.read_events(claimed)
+    assert interact.presence(claimed, events)["turn_closed"] is None
+
+    # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+    closed = interact.page_claim(claimed)["turn_closed"]
+    assert closed
+    assert interact.presence(claimed, events)["turn_closed"] == closed
+    # And what the agent said it was doing is untouched by the observation of it.
+    assert (
+        interact.read_json(claimed / "status.json")["detail"]
+        == "reading the reconnect traces"
+    )
+
+    # Re-entry after a block stands the guard down before it would speak; the stamp is
+    # the turn's own and is taken on that ending too.
+    interact.cmd_hook(
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+    )
+    assert capsys.readouterr().out == ""
+    assert interact.page_claim(claimed)["turn_closed"] >= closed
+
+    # Another session's turn ending says nothing about a page that is not one of its
+    # own — the stamp names when this claim's turn ended or it means nothing.
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s2"})
+    assert interact.page_claim(claimed)["turn_closed"] == closed
+    lease.close()
+
+
+def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
+    """Every ts a seat dates is written here, while the reader's `Date.now()` is
+    another machine's opinion. The payload states the writer's clock so the reading is
+    made against that one; without it a skewed laptop misreads every age on the page,
+    in one direction and with nothing to give it away."""
+    state = interact.full_state(page_dir, [], [])
+    written = datetime.fromisoformat(state["now"])
+    assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
 
 def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
@@ -10152,6 +10915,29 @@ def test_catalog_prints_widgets_and_idioms(page_dir):
         assert f'"{key}": "' in result.output, key
 
 
+def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
+    """The catalog is what the agent authors from, and a layer declaring a $ fact of
+    its own is the documented way to share one — so a catalog working from a list of $
+    names it had been taught dropped exactly what a project had gone to the trouble of
+    declaring, silently, in the one output that would have shown it. Same never-closed
+    rule as the widget list, one side of the registry over."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$hazards"] = {"freeze": {"description": "Deploys freeze on Fridays."}}
+    registry_path.write_text(json.dumps(registry))
+
+    result = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert "Deploys freeze on Fridays." in result.output
+    assert "# $hazards, declared by this layer." in result.output
+    # Every author-facing shipped section still stands under its curated heading,
+    # while the internal compatibility stamp remains out of the authoring catalog.
+    assert "x-state's fields — the facet, fold unit, and record forms" in result.output
+    assert "The tones this page's layer paints" in result.output
+    assert '"$events"' not in result.output
+
+
 def test_reply_validates_widget_markup(page_dir):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -11320,6 +12106,103 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]}
     ]
+
+
+def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
+    """A fragment has no page of its own, so it gets no stylesheet of its own.
+
+    The runtime parses an agent's markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like any
+    other. `main h1 { color: red !important }` in a reply repainted the version's own
+    heading, and the same declaration in a version answers to the syntax, column and
+    cascade gates this door was never running. The inline half rides the same route: an
+    !important on a protected presentation property outranks the theme's first
+    important layer, which is exactly what a version is refused for.
+
+    The widget beside them is what makes each refusal specific — a fragment carrying
+    nothing but a widget still posts."""
+    published(page_dir)
+    widget = (
+        '<lf-options id="d1" choose><lf-option id="d1-a">A</lf-option></lf-options>'
+    )
+
+    sheet = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        "<style>main h1 { color: red }</style>" + widget,
+    )
+    assert sheet.exit_code != 0 and "<style>" in sheet.output
+
+    linked = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        '<link rel="stylesheet" href="/theme.css">' + widget,
+    )
+    assert linked.exit_code != 0 and "stylesheet" in linked.output
+
+    inline = comment(
+        page_dir,
+        "--text",
+        "look:",
+        "--markup",
+        '<p style="display: none !important">gone</p>' + widget,
+    )
+    assert inline.exit_code != 0 and "display" in inline.output
+
+    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
+
+
+def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
+    """The reader answering the agent's own question is answering the page.
+
+    `page state` projects the published version's elements, and a widget carried by a
+    message is in none of them — so a press on an AskUserQuestion resolved no
+    declaration and stood nowhere. A session picking the page up read `asks` reporting
+    the question answered and `state` reporting that nobody had answered anything,
+    while the browser had been folding that same action all along.
+
+    It is named by its thread rather than by a version, because thread markup is frozen
+    in the log: no version bounds one of these and none can ever record it, which is
+    also why `lag` has nothing to say about it."""
+    published(page_dir)
+    assert (
+        comment(
+            page_dir,
+            "--text",
+            "Pick one:",
+            "--markup",
+            '<lf-options id="ps-q" choose label="Which store?">'
+            '<lf-option id="ps-redis">Redis</lf-option>'
+            '<lf-option id="ps-cookie">A signed cookie</lf-option>'
+            "</lf-options>",
+        ).exit_code
+        == 0
+    )
+    thread = interact.read_events(page_dir)[-1]["id"]
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "ps-q",
+            "action": "choose",
+            "detail": {"options": ["ps-cookie"]},
+        },
+    )
+    out = CliRunner().invoke(interact.cli, ["page", "state", str(page_dir)])
+    assert out.exit_code == 0, out.output
+    state = json.loads(out.stdout)
+    assert [
+        (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
+    ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+    # The page's own widgets are unrecorded either way, so the debt reading stays quiet
+    # about one nothing could ever record.
+    assert state["lag"] == []
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

@@ -374,7 +374,11 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           deciding either way; any landed change there is a revert away for as long as
           you care to look.
         </p>
-        <lf-options id="hub-policy-grant" choose>
+        <lf-options
+          id="hub-policy-grant"
+          choose
+          label="How much may land without your word?"
+        >
           <lf-option id="hub-pg-tiers" chosen
             >Two-tier gates, as stated above</lf-option
           >
@@ -384,13 +388,18 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
       </section>
 
       <section id="hub-settled">
-        <h2>Settled</h2>
+        <h2>Settled: sessions take a branch each and merge in turn</h2>
         <p id="hub-settled-intro">
           Decisions this page has moved past, kept where the argument behind them can be
           reopened. Nothing here is live; reopen one and pick again if you have changed
           your mind.
         </p>
-        <lf-options id="hub-merge-model" choose settled>
+        <lf-options
+          id="hub-merge-model"
+          choose
+          settled
+          label="How do parallel sessions merge?"
+        >
           <lf-option id="hub-mm-serial" chosen>
             <lf-chip tone="ok">no shared branch</lf-chip
             ><lf-chip tone="warn">merges queue behind each other</lf-chip>

@@ -99,7 +99,11 @@ the malformed case a test is meant to present.
 The browser fixture `serve` is the normal owner of a specimen. It runs `page init`
 to vendor the current layer, writes the document as v1, copies example media, adds
 the publishing note and any requested comments, then serves the directory with the
-real HTTP handler and page key. Reach its page directory through `serve.page_dir`
+real HTTP handler and page key. Handed an example's path rather than its markup it
+also lays in the log that example ships, and sets the cursor past it: a page is
+what its markup and its standing log make together, and a thread — or a widget a
+message carries — exists nowhere else. Pass the markup where the log would be
+noise for the subject, and say which in a comment. Reach its page directory through `serve.page_dir`
 when a test needs to publish v2 or inspect the log; do not construct a parallel
 directory whose relationship to the served URL is implicit. `page_dir` in
 `test_interact.py` owns command-level files without starting a browser. Keeping
@@ -311,6 +315,20 @@ gate touched by a refactor, repeat the bug-back if the direction or representati
 the failure changed. Bounds and geometry tests are especially prone to staying green
 after the fault moves to another edge.
 
+### An absence needs a control and a settled frame
+
+A web-first assertion succeeds on its first satisfying poll, so `to_be_hidden` on
+something the runtime has not yet decided to show passes on the frame before the
+decision. The runtime raises chrome from deferred steps — `updateFab` runs inside the
+mouseup handler's `setTimeout` — so the assertion has to come after the turn the
+handler used, either by draining that queue or by waiting on a fact the decision
+writes.
+
+The wait is not enough on its own. An absence is also what a page that never had the
+behaviour produces, so a test asserting one names a control that must first produce
+the presence: the same gesture where it is supposed to work. The fab test for a
+selection inside a message passed with its whole fix reverted until it had both.
+
 ### A sweep that walks controls by index must prove it pressed them
 
 Sweeps must prove they exercised their specimens. If controls are discovered by index,
@@ -333,7 +351,7 @@ would survive after the queue drains. A test is vacuous when some unrelated mech
 makes its assertion true under both the good and bad implementation.
 
 The corpus has two important causal matrices. A first visit is the anchor for return
-state: `arrival_findings` reloads a page with the panel open, a board state standing,
+state: `arrival_findings` reloads a page with the panel open, a tray standing,
 or design mode on and reports motion or failure that the first visit did not have. A
 static authored state is the anchor for semantic replay: apply standing actions or
 reports, reapply them, and verify both the visible state and idempotence. Keep those

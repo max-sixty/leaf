@@ -27,15 +27,26 @@ if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && [ -n "${CODEX_THREAD_ID:-}" ]; then
   export LEAF_AGENT=${LEAF_AGENT:-Codex}
 fi
 
+# The script lock records absolute pypi.org URLs, so configured mirrors cannot
+# serve it. Probe the locked install first; on failure, `--upgrade` resolves the
+# header through the host's index and rewrites the lock. Any sync failure takes
+# this fallback and may move pins, so report uv's error before retrying.
+resolve=
+if ! sync_report=$(uv sync --script "$script" 2>&1 >/dev/null); then
+  resolve=--upgrade
+  echo "leaf: the locked install failed here; resolving the header against this host's index and rewriting the lock. It failed with:" >&2
+  printf '%s\n' "$sync_report" >&2
+fi
+
 if [ "${1-}" = "version" ] && [ "${2-}" = "export" ]; then
-  exec uv run --with playwright "$script" "$@"
+  exec uv run $resolve --with playwright "$script" "$@"
 fi
 
 if [ "${1-}" = "version" ] && [ "${2-}" = "check" ]; then
   for cli_arg in "$@"; do
     if [ "$cli_arg" = "--render" ]; then
-      exec uv run --with playwright "$script" "$@"
+      exec uv run $resolve --with playwright "$script" "$@"
     fi
   done
 fi
-exec uv run "$script" "$@"
+exec uv run $resolve "$script" "$@"

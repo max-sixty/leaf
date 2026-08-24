@@ -54,6 +54,14 @@ session record, pages, and event history out of the test. Do not replace it by
 moving `HOME`; uv's cache and unrelated developer state are not part of leaf's
 isolation boundary.
 
+The one subject that must take uv's cache into its world is the launcher's
+unlocked path. Where the lock's own URLs cannot be served, `bin/leaf` resolves the
+header against the host's index instead, so a test of that fallback asks the index
+for all three dependencies and needs the network the nightly run holds. It also
+needs a cache directory of its own (`UV_CACHE_DIR`): a wheel already in the
+developer's cache is served whatever URL the lock names, so the run would take the
+fast path and prove nothing.
+
 Use `sessionless` when the subject is a command launched outside any host session.
 Use `codex_env` when constructing a real Codex process ancestry; it removes the
 Claude identity that would otherwise win host detection. A test should declare

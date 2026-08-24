@@ -13,8 +13,8 @@ leaf status <page> waiting "<what you want back>"
 
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
-banner then invites the reader to select text to comment. Include the page URL
-in every handoff message.
+banner then invites the reader to select text to comment. Follow the main
+skill's "Return to the user" rule for every chat message.
 
 While the next move is yours the page is `working`, and a comment you are
 answering takes a note naming its thread:

@@ -7036,7 +7036,14 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     # Searching a list is a press on that list, so the key is the panel's: out on the
     # prose it does nothing, and `c` then Escape is the route in. Read against the same
     # press landing two lines below, which is what makes the silence a rule.
-    page.locator("body").click()
+    #
+    # A plain paragraph rather than the body's own middle, which is a widget on this
+    # page: `c` goes to the box belonging to whatever the reader is standing in, so a
+    # press made from the diff opens the composer on the diff and never reaches the panel
+    # at all. Standing on prose is what "out on the prose" was always describing — and an
+    # uncommented one, a click on a mark opening the thread it carries, which would be the
+    # panel arriving ahead of the press that is meant to open it.
+    page.locator("#how-store").click()
     page.keyboard.press("/")
     expect(page.locator(".lf-panel")).not_to_be_visible()
     page.keyboard.press("c")
@@ -7098,7 +7105,12 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     # is not a thing to narrow. Out on the prose the line never offers it and the press
     # does nothing — read against the same press landing a few lines below, which is what
     # makes the silence a rule rather than a page that happened not to react.
-    page.locator("body").click()
+    #
+    # A plain paragraph rather than the body's own middle, which is a widget here: `c`
+    # below goes to the box belonging to whatever the reader is standing in, and a press
+    # made from the diff would open the composer on the diff rather than reach the panel
+    # at all. Uncommented, too: a click on a mark opens the thread it carries.
+    page.locator("#how-store").click()
     expect(page.locator(".lf-keyline")).not_to_contain_text("waiting on you")
     page.keyboard.press("w")
     expect(page.locator(".lf-panel")).not_to_be_visible()
@@ -17548,8 +17560,14 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(line).to_contain_text("half a page")
     page.keyboard.press("Space")
     expect(page.locator("#flip")).to_be_checked()
+    # The letter reaches the page, which is the whole claim; where it then goes is the
+    # standing's business — a reader on the radio is standing on it, so the box that
+    # opens is about it rather than about the page. Named in full, because "comment on
+    # the" matches every destination this key has and would assert nothing about which.
+    expect(line).to_contain_text("comment on the control")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_contain_text("flip")
     page.keyboard.press("Escape")
 
     # The box beside it, where every one of those letters is the reader's. The line
@@ -17566,8 +17584,10 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.close()
 
 
-# c's three destinations on one page: prose to select, a visual to click (no words to
-# quote, so it anchors on the element), and the page itself with neither in hand.
+# Three of c's destinations on one page: prose to select, a visual to click (no words to
+# quote, so it anchors on the element), and the page itself with neither in hand. The
+# fourth is where the reader is standing, which needs somewhere to stand and so has a
+# page of its own (test_c_comments_on_what_the_reader_is_standing_in).
 TARGETS_PAGE = leaf_page(
     "targets",
     """
@@ -17583,12 +17603,15 @@ stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
 
 def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
     """A key's word is the meaning it has now, not one wide enough to cover every
-    meaning it could have. c opens a box on the selection, on the item a click raised
-    the 💬 on, or on the page, and all three read "comment" — true of the key and
-    silent about the press, so a reader with a paragraph selected and one with nothing
-    selected were told the same thing about two different boxes. Both surfaces read the
-    row where they paint it, so both say which box this press opens; o is the same
-    defect and says show or hide rather than both."""
+    meaning it could have. c opens a box on the selection, on the item a click raised the
+    💬 on, on whatever the reader is standing in, or on the page, and every one of them
+    read "comment" — true of the key and silent about the press, so a reader with a
+    paragraph selected and one with nothing selected were told the same thing about two
+    different boxes. Both surfaces read the row where they paint it, so both say which box
+    this press opens; o is the same defect and says show or hide rather than both.
+
+    Three of the four here, this page holding nothing to stand on;
+    test_c_comments_on_what_the_reader_is_standing_in owns the fourth."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     line = page.locator(".lf-keyline")
     help_el = page.locator(".lf-help")
@@ -29636,3 +29659,312 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
         f"has — {icon['toned']} stylesheets on a mark authored with one"
     )
     assert icon["rest"] is None, "the handover attribute rode along into the copy"
+
+
+WHERE_I_STAND_PAGE = leaf_page(
+    "where i stand",
+    """
+<h1 id="t">Standing</h1>
+<p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
+spec</a> so the walk has somewhere to stand that is not an ask.</p>
+<lf-options id="shape" choose>
+  <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
+  <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
+  <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
+</lf-options>
+<lf-options id="settled" choose settled>
+  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week, with the
+  <a href="https://example.invalid/keep">note behind it</a>.</lf-option>
+  <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
+</lf-options>
+<p id="p2">A passage carrying
+<lf-suggestion id="sug-window">
+  <lf-old>Refill every feeder each morning.</lf-old>
+  <lf-new>Refill when the camera shows it half-empty.</lf-new>
+</lf-suggestion></p>
+""",
+)
+
+
+def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
+    """The keyboard reaches an element anchor. `c` read the 💬 alone, which only a
+    selection or a click on a visual ever raises, so a reader working from the keys
+    had two destinations where the pointer had three: a quote, or the whole page. An
+    address put them on an option and the box that opened still said "Comment on the
+    page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
+
+    Where they are standing is the open ask first, because that is what the page has
+    already told them: markHere rings the whole ask, and `g a 1` addressed the
+    question rather than the first of its options. Below an ask it is the innermost
+    item, which is the aim's own reading — so the link the walk stands on speaks for
+    the paragraph holding it, no id of its own being what an anchor needs.
+
+    One box either way: `openOnItem` writes `{section: item.id}`, which is the anchor a
+    widget's own conversation seat collects, so a remark made here lands in that seat's
+    conversation rather than beside it. Reaching for the seat directly instead was five
+    questions — escaping an author's id, whether the box can take focus, which box when
+    the seat holds several, what design mode files, where the reader already stood — for
+    a focus landing.
+
+    The control is the same press from the same page with the reader standing nowhere
+    in it: `c` still means the page. Without it a green here would follow just as well
+    from a composer that opened on everything.
+
+    Focus is dropped between the phases rather than backed out of, because each press
+    lands the reader in a box: the typing scope owns the letter there, and the `g`
+    opening the next address would be a character in the last one's draft."""
+    page, errors = open_page(browser, serve(WHERE_I_STAND_PAGE))
+    line = page.locator(".lf-keyline")
+    drop = lambda: page.evaluate("() => document.activeElement?.blur()")
+
+    # Standing nowhere in the page: the press means the page, as it always did.
+    expect(line).to_contain_text("comment on the page")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    drop()
+
+    # An ask, addressed: the composer opens on the question rather than on the option the
+    # walk happens to stand the reader on, and rather than on the page.
+    for key in "ga1":
+        page.keyboard.press(key)
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the options")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_contain_text("options")
+    drop()
+
+    # A settled group: not an ask at all, and the conversation seat it still holds is
+    # inside `hidden="until-found"`, so a press that reached into the seat focused a box
+    # that cannot take focus and did nothing at all. Named by its own words rather than by
+    # "options", which the composer standing open from the phase above already says — an
+    # assertion true before the press is no assertion about the press.
+    page.locator("#settled .lf-settled").focus()
+    expect(line).to_contain_text("comment on the options")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_contain_text("Decided last week")
+    drop()
+
+    # An ask with no seat: the composer, anchored on the ask rather than on the page.
+    for key in "ga2":
+        page.keyboard.press(key)
+    expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the rewrite")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_contain_text("rewrite")
+    drop()
+
+    # A link inside a question, open and settled: the same markup, and the same answer.
+    # Standing in an ask is not working one — a reader who addressed a link has named
+    # something more particular than the question around it, and answering the question
+    # there both overrode what they named and made the reply turn on whether that question
+    # happened to be open. The settled one is the contrast that shows it was the openness
+    # doing it: it always said "option", and the open one used to say "options".
+    for expected_id, keys in (("sh-steel", "gl2"), ("st-keep", "gl3")):
+        drop()
+        for key in keys:
+            page.keyboard.press(key)
+        expect(line).to_contain_text("comment on the option")
+        page.keyboard.press("c")
+        expect(page.locator(".lf-composer")).to_be_visible()
+        assert page.evaluate(
+            "() => document.querySelector('.lf-composer blockquote')?.textContent ?? ''"
+        ).startswith("§ option · "), "the box named the question, not the option"
+        drop()
+
+    # Below any ask, the innermost item: the paragraph the addressed link sits in.
+    for key in "gl1":
+        page.keyboard.press(key)
+    expect(page.locator("#p1 a")).to_be_focused()
+    expect(line).to_contain_text("comment on the paragraph")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_contain_text("paragraph")
+
+    assert errors == []
+    page.close()
+
+
+def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
+    """The panel's open list is the one part of the chrome that holds a conversation of
+    its own, so a press meaning "say something about this" belongs to that box rather
+    than to the page the panel stands over. `conversationBox` states the same rule from
+    the other side when it declines to seat a widget standing inside a thread, and the
+    asks a `g a` digit walks include the ones an agent sent — without this the same
+    address answered one way on the page and another in the panel.
+
+    A resolved thread is the case that has to be asked separately, and the reason this
+    test exists at all: it is built by the same `threadNode` and wears the same class,
+    under the Resolved disclosure, where it keeps a tab stop and a Reopen button. Reading
+    the class alone put the reader in a thread whose reply box is not there, and the press
+    died on the null with the page's own `c` never reached. Whether there is a box is what
+    tells them apart — `standingConversation` asks for one rather than for the class — so
+    the resolved thread falls through to the page, which is the honest answer for a thread
+    with no box to offer."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    live = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+    gone = panel_comment(d, "Settled already.", {"section": "how-cap"})
+    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": gone})
+
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+
+    # The control: standing nowhere, the press still means the page.
+    expect(line).to_contain_text("comment on the page")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+
+    # Standing in the open thread, it means that thread's reply box.
+    page.keyboard.press("Escape")
+    page.keyboard.press("j")
+    expect(page.locator(f'.lf-thread[data-id="{live}"]')).to_be_focused()
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(
+        page.locator(f'.lf-thread[data-id="{live}"] > .lf-compose textarea')
+    ).to_be_focused()
+    page.evaluate("() => document.activeElement?.blur()")
+
+    # A resolved thread has no box, so the press falls through to the page rather than
+    # reaching for one that is not there.
+    page.locator(".lf-details > summary").click()
+    page.locator(f'.lf-details .lf-thread[data-id="{gone}"]').focus()
+    expect(line).to_contain_text("comment on the page")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
+def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
+    """The page side of the same question. A widget that seats its own conversation
+    (`x-conversation`) holds one thread per exchange, each with its own box, and the
+    reader can stand in any of them — so "say something about this" means the box of the
+    thread they are in, exactly as it does in the panel. One reading answers both, because
+    a rule for the panel and a different one for the page is two answers to one question:
+    read off the panel's class alone, the page side sent every thread on a seat to the
+    oldest one's box.
+
+    Two threads, and the reader in the second: with one there is no wrong answer to give,
+    so the pair is what makes the assertion mean anything. The first phase is the control
+    — standing on the widget rather than in a thread still opens the composer on the
+    widget, so a green here is the standing being read and not every press landing in a
+    conversation."""
+    url = serve(
+        leaf_page(
+            "seated",
+            """
+<h1 id="t">Seated</h1>
+<lf-options id="shape" choose>
+  <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
+  <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
+</lf-options>
+""",
+        )
+    )
+    d = serve.page_dir
+    said = []
+    for text in ("First remark.", "Second remark."):
+        interact.append_event(
+            d,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": text,
+                "anchor": {"section": "shape"},
+            },
+        )
+        said.append(interact.read_events(d)[-1]["id"])
+
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+    threads = page.locator(".lf-conversation-thread")
+    expect(threads).to_have_count(2)
+
+    # The control: standing on the widget, not in either thread.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(line).to_contain_text("comment on the options")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+
+    # Standing in the second thread, the press means that thread's box.
+    second = page.locator(f'.lf-conversation-thread[data-thread="{said[1]}"]')
+    second.focus()
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(second.locator("> .lf-say textarea")).to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
+def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
+    """What the press asks is whether the item is in front of the reader, and only the
+    page shows that. An item's own box is the box it would have — unclipped — so a card
+    carried out of a board's sideways scroller still reports one inside the window, and a
+    gate reading that called it visible and opened the box on something entirely off
+    screen. `shownRect` is the reading the ⌥ aim's own paint takes, and this press is its
+    keyboard twin: the two decide "in front of the reader" alike or they are not twins.
+
+    The control is the same board with the scroller left alone, where the card is really
+    in front of the reader and nothing moves — the pointer's answer on the same card. A
+    test with only the scrolled case would pass just as well on a press that always
+    travelled, which is the behaviour this replaced."""
+    url = serve(
+        leaf_page(
+            "carried",
+            """
+<h1 id="t">Carried</h1>
+<lf-board id="b">
+"""
+            + "\n".join(
+                f'<lf-column id="col{i}" label="Column {i}">'
+                f'<lf-card id="card{i}">Card {i} with a '
+                f'<a href="https://example.invalid/{i}">link {i}</a> inside it.</lf-card>'
+                "</lf-column>"
+                for i in range(8)
+            )
+            + """
+</lf-board>
+""",
+        )
+    )
+    seen = """() => {
+      const r = document.querySelector('#card0').getBoundingClientRect();
+      return {left: Math.round(r.left), onScreen: r.right > 0 && r.left < innerWidth};
+    }"""
+
+    # The control: nothing scrolled, so the card is in front of the reader and stays put.
+    page, errors = open_page(browser, url)
+    page.locator("#card0 a").focus()
+    was = page.evaluate(seen)
+    assert was["onScreen"], "the control needs the card visible to begin with"
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(seen)["left"] == was["left"], (
+        "the page moved under a reader who could already see the card"
+    )
+    page.close()
+
+    # Carried out of its own scroller after the reader stood on it — focus first, because
+    # focusing a card is itself a scroll and would undo the carrying it is meant to survive.
+    page, errors = open_page(browser, url)
+    page.locator("#card0 a").focus()
+    page.evaluate(
+        "() => { const b = document.querySelector('#b'); b.scrollLeft = b.scrollWidth; }"
+    )
+    assert not page.evaluate(seen)["onScreen"], (
+        "the board did not carry the card off screen, so this proves nothing"
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(seen)["onScreen"], (
+        "the box opened on a card the board had carried out of sight"
+    )
+    assert errors == []
+    page.close()

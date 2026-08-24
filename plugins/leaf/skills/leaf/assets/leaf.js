@@ -7396,6 +7396,14 @@ function itemAt(node) {
 // else. So HTML's tags get the nouns a reader would use, and an unlisted one falls back
 // to its tag, which is worse than a word and better than nothing.
 const HTML_WORDS = {
+  // Every one of these is a control the platform gives keys to and no letters — a radio,
+  // a checkbox, a slider, a colour or file button. The ones that take letters never reach
+  // this reading, the typing scope having claimed the key before the page is asked, so
+  // there is no field here for "control" to misname. Worth a word at all because `c` names
+  // what it is about, and a reader standing on a toggle was told "the input".
+  input: "control",
+  select: "control",
+  button: "control",
   p: "paragraph",
   li: "item",
   tr: "row",
@@ -8229,13 +8237,17 @@ document.addEventListener("scroll", pageShifted, { capture: true, passive: true 
 const rightEdge = () =>
   (panelCovers() ? innerWidth - panel.offsetWidth : pageScroller.clientWidth) - 8;
 // The floats live in the document — they scroll with the passage they stand beside —
-// while every caller reasons in viewport terms: rects, the pointer, the banner's 48px.
+// while every caller reasons in viewport terms: rects, the pointer, the banner's own
+// band. Named, because four sites had the number written out and it is neither of the
+// two it stands near — the banner is 42px and the scroller's scroll-padding-top 54px,
+// this being the slack over the first that says what the reader can actually see.
+const BANNER_CLEAR = 48;
 // So the one writer of their position is where the coordinates change space: clamp in
 // the viewport, store in the document.
 function place(node, left, top) {
   node.style.left = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth)) + "px";
   node.style.top =
-    Math.max(48, Math.min(top, innerHeight - node.offsetHeight - 8)) +
+    Math.max(BANNER_CLEAR, Math.min(top, innerHeight - node.offsetHeight - 8)) +
     pageScroller.scrollTop +
     "px";
 }
@@ -8278,7 +8290,7 @@ function placeComposer(left, top) {
   // Vertically only: the document never scrolls sideways and body's margin keeps it clear
   // of the panel, so off-screen means scrolled past, and a mark scrolled past is not one
   // this box is standing on.
-  const onScreen = (r) => r.bottom > 48 && r.top < innerHeight;
+  const onScreen = (r) => r.bottom > BANNER_CLEAR && r.top < innerHeight;
   const behindBox = (r) =>
     r.left >= box.left &&
     r.right <= box.right &&
@@ -8303,7 +8315,7 @@ function placeComposer(left, top) {
   const below = Math.max(...rects.map((r) => r.bottom)) + 8;
   const above = Math.min(...rects.map((r) => r.top)) - box.height - 8;
   if (below + box.height <= innerHeight - 8) return place(composer, left, below);
-  if (above >= 48) return place(composer, left, above);
+  if (above >= BANNER_CLEAR) return place(composer, left, above);
   // Neither end has room, which a tall thing reaches easily: a board column is most of the
   // viewport before the box's own height is counted, and place()'s clamp would haul the box
   // back over it — the very thing this is here to stop. So go beside instead, even where
@@ -9421,13 +9433,7 @@ const COMMENTS = {
   // stepThread-to-nth and its Enter in one press. The box by its place in the thread and
   // not the first textarea inside it, a message being free to carry a widget with one of
   // its own — a draft's open editor stands before the reply box in the DOM.
-  go: (thread) => {
-    thread
-      .querySelector(":scope > .lf-compose textarea")
-      .focus({ preventScroll: true });
-    thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
-    scrollToThread(thread.dataset.id);
-  },
+  go: (thread) => landIn({ held: thread, box: thread.querySelector(SAY_BOX) }),
 };
 const ADDRESSES = [
   COMMENTS,
@@ -9647,15 +9653,120 @@ const focusedThread = () => {
   const active = document.activeElement;
   return active?.classList?.contains("lf-thread") ? active : null;
 };
-// What c would comment on, read off the anchor the 💬 carries — the same one commentKey
-// acts on, so the word and the button on screen cannot name different things. An element
-// anchor answers in its own word (a figure, a card), the way the panel names one.
-const commentTarget = () =>
-  !fabAnchor
-    ? "page"
-    : fabAnchor.quote
-      ? "selection"
-      : itemWord(elementById(fabAnchor.section)) || "item";
+// The item the reader is standing in, which is what a press means when they have pointed
+// at nothing. The ⌥ aim reaches an item through the pointer and the keyboard reached none
+// at all: an address put the reader on an option and `c` still offered them the page.
+//
+// The open ask where the reader is standing on a control that works it, and the innermost
+// item everywhere else. `g a 1` names the question rather than the first of its options,
+// and the control the walk stands them on is one part of it (standOn) — so a press made
+// from a pick, a ✓ or a mark means the question those answer. Standing *in* an ask is not
+// the same fact: a reader who addressed a link (`g l 3`) or tabbed to one has said
+// something more particular than the question containing it, and answering the question
+// there both overrides what they named and made the same markup answer differently
+// according to whether its question was still open — a link in a settled group gave the
+// option, the identical link in an open one gave the whole group.
+//
+// So the ring `markHere` paints and this are two questions, and the earlier version had
+// them confused. The ring says which ask the reader is in, for the walk and the answering
+// keys; this says what a remark made here is about. They agree wherever the reader is
+// working the ask, which is every arrival the ask walk makes.
+//
+// Below that, the innermost item — the aim's own reading — through `askPlace`, so a
+// control a widget hoisted into the margin speaks for the ask it points back at rather
+// than for the block it hangs beside.
+//
+// Focus in the chrome is not a place in the page. The banner, the panel and the trays are
+// where a reader works on the page rather than where they stand in it, so a press made
+// from one means the page whole. A box that takes letters never arrives here at all: the
+// typing scope claims the letter before the page is asked.
+//
+// `document.activeElement` rather than `focused()`, for the reason askPosition gives: a
+// control staged in a shadow tree retargets to its host, and the host is the place in the
+// document both the chrome guard and the item walk want. standingConversation below wants
+// the other reading, and says so.
+const standingItem = () => {
+  const held = document.activeElement;
+  if (!held || held === document.body || inChrome(held)) return null;
+  const working = held.matches?.(ASK_CONTROL) ? standingIn() : null;
+  return working ?? itemAt(askPlace(held));
+};
+// The conversation the reader is standing in, and the box it is written in. Three
+// containers hold one and the reader can stand in any of them: the panel's thread, a
+// conversation seated on the page (x-conversation), and each thread inside that seat. They
+// are one question — a press meaning "say something about this" belongs to the box of the
+// conversation the reader is already in — so they get one reading rather than a rule for
+// the panel and a different one for the page. `conversationBox` states the same rule from
+// the other side when it declines to seat a widget standing inside a thread.
+//
+// One of the three is in the chrome, which is not the exception it looks like: page scope
+// already crosses there and the register says so twice. `g c N` is a page address that
+// lands the reader in a panel textarea, and `openAsks` counts a widget an agent sent as an
+// ask like any other, so `g a N` can put them inside a thread. A page key that takes them
+// somewhere owes them an answer once they are standing there.
+//
+// The box decides membership, rather than the container's class deciding it. A resolved
+// thread is built by the same function, wears the same class, and keeps a tab stop and a
+// Reopen button — reading the class alone put the reader in a thread whose box is not
+// there and the press died on the null. Asking for the box answers both shapes at once,
+// and answers a container that is merely collapsed the same honest way: no box, so this is
+// not where the press goes.
+//
+// `focused()` here where standingItem takes the host: this asks whether the reader is
+// inside a conversation, and a widget an agent sent stages its controls in a shadow tree
+// of its own, so the innermost focus is where they actually are. The climb out is
+// closestAcross's.
+const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
+const SAY_BOX = ":scope > .lf-compose textarea, :scope > .lf-say textarea";
+const standingConversation = () => {
+  // `closestAcross` climbs through `upFrom`, which asks a null node for its parent. The
+  // body case standingItem also guards needs nothing here: the climb from `body` reaches
+  // `html`, whose root has no host, and ends on its own.
+  const held = focused() && closestAcross(focused(), SAYS_IN);
+  const box = held?.querySelector(SAY_BOX);
+  return box && shownBox(box).height ? { held, box } : null;
+};
+// Putting the reader in a conversation, in one place, so the three presses that do it —
+// the `g c` address, `Enter` on a focused thread, and `c` from inside one — cannot come to
+// mean three slightly different landings. The page follows a thread in the panel to the
+// passage it is about; a conversation seated on the page is already standing at it.
+function landIn({ held, box }) {
+  box.focus({ preventScroll: true });
+  held.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+  if (held.dataset.id) scrollToThread(held.dataset.id);
+}
+// What `c` acts on, decided once and read twice: the row's words are `word` and the press
+// is `go`, so the line, the reference and the box that opens cannot come to name different
+// things. Spelled out at each of them the ladder was two hand-written copies in the same
+// order kept in step by hand, which is the mistake `focusedThread` already names — the row
+// the line paints and the press the dispatcher takes have to ask one question.
+//
+// One aim and then one climb, rather than four cases. The pointer's aim outranks position,
+// being the more recent thing the reader said; below it the answer walks outward from where
+// they are standing — the nearest conversation's box, then the nearest item, then the page,
+// which is what is left when they are standing nowhere in it. An element anchor answers in
+// its own word (a figure, a card), the way the panel names one.
+const commentDestination = () => {
+  if (fabAnchor)
+    return {
+      word: fabAnchor.quote
+        ? "selection"
+        : itemWord(elementById(fabAnchor.section)) || "item",
+      go: () => fab.onclick(),
+    };
+  const said = standingConversation();
+  if (said) return { word: "thread", go: () => landIn(said) };
+  const here = standingItem();
+  if (here) return { word: itemWord(here), go: () => commentOnItem(here) };
+  return {
+    word: "page",
+    go: () => {
+      setPanel(true);
+      generalInput.focus();
+    },
+  };
+};
+const commentTarget = () => commentDestination().word;
 
 // Pages are authored documents where typing can start at any moment, so a scope whose keys
 // are bare letters stands down wherever a letter is a keystroke. That is the whole of the
@@ -10067,7 +10178,14 @@ const THREAD = {
       does: "Write a reply",
       line: "reply",
       when: () => Boolean(focusedThread()?.querySelector(":scope > .lf-compose")),
-      run: () => focusedThread().querySelector("textarea")?.focus(),
+      // The address's own arrival, so the two presses that reach a thread's reply box
+      // reach the same one. This took the first textarea in the thread, which is not the
+      // reply box when a message carries a widget holding one of its own — a draft's open
+      // editor stands before it in the DOM, which is why `g c` was written to ask for the
+      // box by its place (COMMENTS.go) and not by being first. Two readings of "the reply
+      // box" is two answers the day a message carries an editor, and `c` standing in a
+      // thread now reaches it too, so there would have been three.
+      run: () => COMMENTS.go(focusedThread()),
     },
     {
       keys: ["r"],
@@ -10229,9 +10347,10 @@ const PAGE = {
   rows: [
     {
       keys: ["c"],
-      // One key, three destinations, and the surfaces name the one in front of the reader:
-      // a live selection, the item a click raised the 💬 on, or the page itself when
-      // nothing is pending. "Comment" covered all three and so promised none of them.
+      // One key, four destinations, and the surfaces name the one in front of the reader:
+      // a live selection, the item a click raised the 💬 on, the box belonging to whatever
+      // the reader is standing in, or the page itself when none of those is in hand.
+      // "Comment" covered them all and so promised none of them.
       does: () => `Comment on the ${commentTarget()}`,
       line: () => `comment on the ${commentTarget()}`,
       // A selection made before the anchor pass has run can't be quoted yet, and
@@ -10670,17 +10789,70 @@ paintHere();
 // selection until they next moved focus, and the CSS clip did the cutting instead.
 addEventListener("resize", paintHere);
 
+// Where a comment about this item is written: the composer, on the item, which is what a
+// click through the ⌥ aim already opens. It reached for the widget's own conversation seat
+// first for a while, on the reasoning that a widget holding a box for its conversation
+// should not be given a second one. That was the wrong shape. `openOnItem` writes
+// `{section: item.id}`, which is exactly the anchor `renderConversations` collects into
+// that seat — so the words land in the same conversation by either route, and the seat was
+// buying a focus landing at the price of five separate questions: escaping an
+// author-written id into a selector, whether the box can take focus at all (a settled
+// group's seat is inside `hidden="until-found"` and silently swallowed the press), which
+// box when the seat holds several threads, what design mode files, and where the reader
+// was already standing. One route answers all five by not asking them.
+//
+// The scroll is for the standing that has gone stale — an address or a Tab leaves the item
+// on screen, but focus outlives the scroll that put it there, and a box about something
+// off screen is a box about nothing the reader can see.
+function commentOnItem(item) {
+  // Only where the item is not already in front of the reader. Travelling every time moved
+  // the page under someone who could see the thing perfectly well: Tab leaves an item at an
+  // edge (`block: nearest`), so centring took the page a third of a viewport with nothing on
+  // screen to explain it — on the route this press exists for, and where the ⌥ aim it is the
+  // twin of moves nothing at all. The travel is for the standing that has gone stale, focus
+  // outliving the scroll that put it there: a box about something off screen is a box about
+  // nothing the reader can see.
+  //
+  // What the page shows of it, which is the reading the aim's own paint takes
+  // (`refreshAim`) — this being its keyboard twin, the two decide "is this in front of the
+  // reader" the same way or they are not twins. `shownBox` alone is the box the item would
+  // have, unclipped: an item scrolled out of a board's sideways scroller still reports one
+  // inside the window, so a gate reading that called it showing and opened the box on
+  // something off screen, which the unconditional travel it replaced never did. Any part
+  // showing is enough, which is also what keeps a box taller than the window from jumping
+  // to its top under a reader halfway down it.
+  //
+  // A collapsed ancestor zeroes its descendants' boxes, so a thing inside a shut
+  // disclosure is never showing and takes the travel, `reveal` with it. Standing on the
+  // summary itself is the one motion this drops: the disclosure stays shut and the box
+  // opens on it where it is, rather than springing it open and reflowing the page under
+  // the reader who was looking at it.
+  //
+  // Instant, and before the box is measured. Placing reads the item's box, so that has to
+  // be the box the item keeps; and opening focuses the textarea, whose scroll-into-view
+  // cancels a glide already under way — which is what left the item flush against an edge
+  // rather than framed, and is not `openComposer`'s to give up, three other presses opening
+  // that box against a passage they have not moved.
+  const seen = shownRect(item, new Map());
+  if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
+  const [left, top] = beside(shownBox(item));
+  openOnItem(item, { left, top });
+}
 // c goes where commenting happens: a live selection gets the composer (what the floating
-// button does), an element click's pending 💬 gets that, and otherwise the general box,
-// the panel opening to hold it. Never the panel's collapse: c doubled as the toggle once,
+// button does), an element click's pending 💬 gets that, an open thread the reader is
+// standing in gets its own reply box, the item they are standing in gets the box belonging
+// to it, and otherwise the general box, the panel opening to hold it. Never the panel's
+// collapse: c doubled as the toggle once,
 // so with the panel standing open the one key that promised "comment" answered "close",
 // and no shortcut reached the box. Backing out is Escape's, which already closes the panel
 // rung by rung.
+//
+// Standing outranks the page and not the pointer: a reader who has just selected words or
+// raised the 💬 on something has said what they mean more recently than the focus they left
+// behind, which is the order askPosition reads its own answers in.
 function commentKey() {
   updateFab(); // the selection may be newer than the mouseup that last placed the button
-  if (fabAnchor) return fab.onclick();
-  setPanel(true);
-  generalInput.focus();
+  commentDestination().go();
 }
 
 // j/k walk the open threads: panel focus and the page highlight move as a pair — they are

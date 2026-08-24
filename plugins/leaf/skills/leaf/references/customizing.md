@@ -73,21 +73,26 @@ A CSS-only widget is an entry and a theme rule. One with behavior takes a module
 scaffold's header comment lists what a module owes — every item is a section of the
 skill's own `CLAUDE.md`, one directory up from this file, learned by getting it wrong: an absolute
 `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
-injected, `keys()` at upgrade, `quoted()` before wiring input, durable state in
-attributes because export drops the scripts. The helper surface `/leaf.js` exports is
-the whole of what a module gets.
+injected, `keys()` at upgrade, `quoted()` before wiring input, `actionAvailable()` for
+an x-state verb with `requires`, and durable state in attributes because export drops
+the scripts. The helper surface `/leaf.js` exports is the whole of what a module gets.
+
+A widget that renders records supplied at runtime uses `projectData(root, records,
+keyOf, render)`. The root is the id-bearing authored seat and owns the projection's
+children. `keyOf` returns a stable non-empty string for the logical datum; `render`
+receives `(record, priorNode, index)` and returns its element, reusing `priorNode` where
+that preserves a focused control or selection. Leaf marks those words as readable data
+rather than authored prose, reconciles their order, and keeps comments attached by the
+projection/key pair even when a refresh replaces the text nodes. Export keeps the last
+rendering as a labelled snapshot and drops the code that could refresh it.
 
 ## Seeing it
 
-```bash
-leaf page init <page>                       # re-vendor: the page takes the layer as it is now
-leaf version check <page> --render          # the browser gate, on the version that uses it
-```
+After the main skill's re-vendoring route restores the recorded URL, run
+`leaf version check <page> --render` on the version that uses the replacement
+layer. Note the re-vendor in the next version's changelog.
 
-Re-running `page init` on a live page is the explicit re-vendor; note it in the next
-version's changelog. It refuses when the incoming layer no longer accepts a logged
-event kind or action contract, since that event would stop replaying. The render gate
-is where a module's mistakes surface — an upgrade that defines no element, a widget of no
+The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
 declare, a word the registry promised that never reached the page, an attribute left on
 the element that its entry doesn't declare, an `applyAction` that moves under

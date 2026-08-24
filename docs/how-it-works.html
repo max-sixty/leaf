@@ -396,11 +396,10 @@ $ leaf ack ./review 3</code></pre>
                 while reads fall back, table by table.</lf-option
               >
             </lf-options>
-            <p id="spec-jobs-ask">
-              Whichever way that goes, which of the three jobs behind it are worth
-              starting now?
-            </p>
-            <lf-options id="spec-jobs">
+            <lf-options
+              id="spec-jobs"
+              label="Whichever way that goes, which of the three jobs behind it are worth starting now?"
+            >
               <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
               <lf-option id="sj-contract"
                 >Contract tests against the old schema</lf-option

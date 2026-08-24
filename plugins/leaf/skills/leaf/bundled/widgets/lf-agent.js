@@ -29,7 +29,7 @@
  * re-applied report all converge. watchReports re-renders on every poll whether or not
  * the log grew, which is what keeps the elapsed line true without a timer of this
  * module's own. */
-import { ago, offer, once, publishedAt, quietSince, watchReports } from "/leaf.js";
+import { ago, measure, offer, once, quietSince, saidAt, watchReports } from "/leaf.js";
 
 const LINE = "lf-agent-line";
 
@@ -60,13 +60,18 @@ function heard(el, reports) {
   const row = el.querySelector(`:scope > .${LINE}`);
   if (!row) return;
   // What this worker last said, or — where it has never said anything — when the row
-  // claiming it exists was published, which is the longest we can honestly say we have
-  // heard nothing. A fallback and pointedly not the later of the two: the question is
-  // how long the *worker* has been silent, and a republish is the orchestrator
-  // speaking, not them. Taking the newer would let a version published this minute
-  // certify a worker three hours dead, which is the failure this line exists to catch
-  // wearing the fix for its twin.
-  const ts = reports.at(-1)?.ts ?? publishedAt();
+  // claiming it exists was put in front of the reader, which is the longest we can
+  // honestly say we have heard nothing. `saidAt` for that: the version's publish for a
+  // row on the page, and the message's own clock for a roster an agent sent in a reply,
+  // where the page's publish would have the row certifying workers against a moment
+  // before its own message existed.
+  //
+  // A fallback and pointedly not the later of the two: the question is how long the
+  // *worker* has been silent, and a republish is the orchestrator speaking, not them.
+  // Taking the newer would let a version published this minute certify a worker three
+  // hours dead, which is the failure this line exists to catch wearing the fix for its
+  // twin.
+  const ts = reports.at(-1)?.ts ?? saidAt(el);
   const stale = ts && el.getAttribute("state") === "working" && quietSince(ts);
   // In place, and only where the words actually differ. This runs on every poll for
   // every row on the page, and the row is a thing the reader is invited to select and
@@ -164,7 +169,9 @@ function render(el, doing = null) {
   // it is the last one to know: every row measures after its own render, so the column
   // is right once the last row has rendered and right again whenever a report changes
   // one of the words in it.
-  gutter(el);
+  // Off the pills' own boxes, so it waits for one (`measure`): a roster quoted
+  // into a reply is built into the comment panel, which may not be open yet.
+  measure(el, () => gutter(el));
 }
 
 customElements.define(

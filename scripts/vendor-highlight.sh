@@ -16,7 +16,7 @@
 # this.
 set -euo pipefail
 
-HLJS_VERSION=11.11.1
+HLJS_VERSION=11.12.0
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ASSETS="$ROOT/plugins/leaf/skills/leaf/assets"
 OUT="$ASSETS/vendor/highlight.esm.js"

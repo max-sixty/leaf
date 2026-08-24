@@ -358,7 +358,6 @@ customElements.define(
         return;
       }
       if (text === this.#body.textContent) return;
-      const previous = this.#body.textContent;
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
       this.#body.textContent = text;
@@ -366,7 +365,6 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       if (ok) toast(`Restored ${label.toLowerCase()} — sent to ${agentName()}`);
-      else this.#body.textContent = previous;
     }
 
     #open(seed, at) {
@@ -436,7 +434,6 @@ customElements.define(
         this.#close(true);
         return;
       }
-      const previous = this.#body.textContent;
       this.#body.textContent = text;
       this.#close(false);
       this.#sending = true;
@@ -456,11 +453,10 @@ customElements.define(
         // this one waited to send. Its action will replay this body, so do
         // not resurrect the editor as if a network failure had occurred. A standing
         // generation is either the failed send itself or newer shared text; both stay
-        // editable, and the latter is the value this tab must reveal.
-        if (standing !== null) {
-          this.#body.textContent = previous;
-          this.#open(standing);
-        }
+        // editable. The outbox has already projected the authoritative body before
+        // resolving this call, so opening the saved generation must not overwrite it
+        // with the stale pre-send snapshot.
+        if (standing !== null) this.#open(standing);
       }
     }
 

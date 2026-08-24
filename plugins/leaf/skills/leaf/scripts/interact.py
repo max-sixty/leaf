@@ -53,13 +53,16 @@ A page directory holds:
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
+                         "on" maps a comment thread id to the {"detail", "ts"} of
+                         the work in flight on it, which the panel shows under
+                         the reader's own words (`leaf status … --on`);
                          when `leaf wait` prints for a non-working page, it
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
-                         the command's life. A host session holds the same lease
-                         once at sessions/<id>.wait instead, because one wait
-                         watches all of that session's pages
+                         the command's life. A host session holds one lease at
+                         sessions/<id>.wait instead, because one wait watches all
+                         of that session's pages
     viewed.json          when a browser last polled the page, bumped (throttled)
                          by the server on /api/state; absent for a page nobody
                          has ever opened, which would otherwise be
@@ -79,13 +82,10 @@ A page directory holds:
                          asks the server to exit through service.json and waits
                          for this lease, so no listening or accepted socket
                          remains when the command returns
-    session.json         {"id", "host", "pid", "agent", "cwd"} of the agent
-                         session last working on the page — the watcher the
-                         banner names, not necessarily the author of any given
-                         message — and the directory that session was working
-                         in, which is how the leaves board tells one page from
-                         another
-
+    claims/              outside the page, one atomic record per resolved page:
+                         its last claimant, release time, and process evidence.
+                         Keeping provenance outside the disposable page lets
+                         ownership discovery survive a page moving between sessions
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
 say, so a comment can sit unread with the page still reading "Claude is
@@ -99,6 +99,14 @@ handoff mark that survives means a dropped pickup rather than a long turn, and
 the banner gives it a much shorter rope. Wait output that lands while the agent
 is already working leaves the existing claim untouched; there is no pickup gap
 to date.
+
+So a claim of work has to be renewed, and the command that makes one renews it.
+`--on` names the comment thread the work is about, so one check-in moves both
+the page's line and the note the reader sees under their own words in the
+comment panel, where it stands until the agent's next word in that thread. That
+is how a claim crosses a turn boundary the session cannot write across: nothing
+in a session touches status.json while its turn is over, so work handed to a
+delegate is renewed from the delegate's own hands or not at all.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant pid that has exited settles the question outright;
@@ -115,14 +123,15 @@ this session's pages unwatched, surfaces unacknowledged user events at the next
 prompt, and releases the session's page claims when it exits. Session death is
 not completion or an explicit stop: work status and desired service stay as they
 were, while a session server retires once no live successor has claimed it. It
-finds the session's pages through ~/.local/state/leaf/sessions/<session id>.json,
-where the serve and `leaf wait` write the host session identity the environment
-carries; absent that identity (interact.py run outside an agent host), nothing
-is claimed and the hooks stand down. What the environment cannot carry is the
-session's own lifetime, and `session_pid` says where each host's lifetime comes
-from. Unacknowledged events are the one thing `leaf status <page> idle` can't
-close over: idling is how a leaf ends, and one can't end on comments nobody
-read.
+finds the session's pages through the claim records under
+~/.local/state/leaf/claims/. A record is keyed by its resolved page path and
+retains the last claimant as provenance after release; `released: null` and a
+live pid are what make it active. Absent the host identity the environment
+carries, nothing is claimed and the hooks stand down. What the environment
+cannot carry is the session's own lifetime, and `session_pid` says where each
+host's lifetime comes from. Unacknowledged events are the one thing `leaf status
+<page> idle` can't close over: idling is how a leaf ends, and one can't end on
+comments nobody read.
 
 A session's leaves cost it one long-running command between them, and that
 command is the watcher. The two jobs end in opposite ways: `leaf wait` has to
@@ -137,8 +146,9 @@ recorded — so a killed background task costs only the watcher and leaves every
 page up, and recovery is one `leaf wait`.
 
 Whether a session's end reaches a server is decided at launch and written in
-service.json as its lifetime. A serve from an agent host claims the page in
-session.json. Claim replacement and release cross their own narrow lock: a
+service.json as its lifetime. A serve from an agent host records the page's
+claim under the state home's claims directory. Claim replacement and release
+cross the page transaction: a
 successor arriving before the session server's final recheck keeps that process;
 one arriving afterward finds the old process and lease already gone and revives
 the still-enabled service. Neither path changes the page's authored work status.
@@ -281,16 +291,17 @@ vocabulary for rides in the custom keywords below:
                 where even the room is short. The runtime marks what this key
                 declares and theme.css spends the room the layout measured, so a
                 page's shape follows what it holds and no page states a width.
-    x-state     the widget's action verbs: each verb's detail schema, its fold
-                unit, and the record form its state takes in markup. Every
-                applyAction is absolute, so the user's standing state is a
-                fold — the last surviving action per unit — and one declaration
-                drives the POST and re-vendor contract gates, check's state gate,
-                the record-lag report, the runtime's pending mark, and the diff's
-                state half (see $state in the registry).
+    x-state     the widget's action verbs: each verb's detail schema, semantic
+                facet, fold unit, optional current-state prerequisite, and the record
+                form its state takes in markup. Every applyAction is absolute, so the
+                user's standing state is a fold — the last surviving action per owner,
+                unit, and facet — and one declaration drives the browser and POST
+                eligibility doors, the re-vendor contract gate, check's state gate,
+                the record-lag report, the runtime's pending mark, and the diff's state
+                half (see $state in the registry).
     x-report    the widget's agent channel: report verbs a worker folds onto the
-                page through `leaf report`, each with a detail schema, fold
-                unit, and *required* record form — declared state only, never
+                page through `leaf report`, each with a detail schema, facet,
+                fold unit, and *required* record form — declared state only, never
                 body words, so a report never touches the passage reading. The
                 precedence is opposite to x-state's: an action outranks every
                 later version until `restated` retracts it, while a report is
@@ -316,23 +327,18 @@ vocabulary for rides in the custom keywords below:
                 author's to take back and which hold the page's own words.
     x-awaits    an instance of this tag is a standing request to the reader.
                 `when` says which instances ask (attribute values, a flag's
-                being true and false); `all` names the verb one press answers
-                every one
-                with. What counts as answered needs no new bookkeeping: a verb
-                that records as an attribute answers on the record the replayed
-                page carries, and every other verb answers through its own
-                surviving fold entry, whatever else it records — so the banner's
-                count, the key that steps through open asks, and the `?` overlay
-                all read one list (see $awaits).
+                being true and false); `answers` names the x-state verbs that
+                close it; `rollup` derives nested requests from ordinary
+                interventions and child roll-ups; `all` names the answer one
+                blanket press takes. The banner, navigation, help, and
+                conditional actions all read this projection (see $awaits).
     x-example   one authored example, printed by `page catalog`
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
-passages apart), reply (parent=id; `more` marks a streamed reply's chain open),
-append (agent; a streamed message's continuation — `continues` names the head,
-its text concatenates raw, and the message every reader meets is the fold of
-its chain: fold_messages here, foldMessages in the runtime, written by the
-channel server's reply tool, see cmd_mcp),
+passages apart; a browser selection on projected data carries datum,
+the stable key local to section, instead of treating neighbouring values as
+identity), reply (parent=id),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -369,9 +375,9 @@ browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf
 and `version publish` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
 and `session`, its host session id. Several agent sessions can write to one page,
-so the voice is read from the poster's environment rather than from session.json,
-which names only the watcher — and identity is the session id, because a display
-name is anyone's to choose and two workers may share one.
+so the voice is read from the poster's environment rather than from the current
+watcher's claim record — and identity is the session id, because a display name
+is anyone's to choose and two workers may share one.
 A message body is Markdown, stored as typed and rendered by the page's own
 vendored runtime — the browser is where the page's other rendering already
 lives, and vendoring the renderer beside the panel's styles keeps the two
@@ -390,9 +396,12 @@ under that name has been through the gate.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes
-the anchor from the selection; `leaf comment` writes the same anchor from a
-quote, reading the version the way the anchor pass reads the DOM (see
-"passages" below). Everything downstream already turns on `author`: `leaf wait`
+the anchor from the selection; `leaf comment` writes its file-confirmable form from
+a quote, reading the version the way the anchor pass reads the DOM (see
+"passages" below). Projected data has no file-side value to quote: its browser anchor
+adds the projection's section and datum key, and a CLI comment can still name the
+authored projection seat as an element. Everything downstream already turns on
+`author`: `leaf wait`
 prints user events and the banner counts them, so Claude's own comment neither
 wakes its own watcher nor reads as unanswered. Closing runs the other way round,
 because a note's purpose is discharged by being read, and only the reader knows
@@ -468,13 +477,11 @@ import json
 import os
 import re
 import secrets
-import signal
 import socket
 import subprocess
 import sys
 import threading
 import time
-import traceback
 import zlib
 from datetime import datetime
 from html.parser import HTMLParser
@@ -490,84 +497,9 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 # A session-managed server gives a replacement session one short poll window to
-# claim the page before it closes. session.json is the ownership record; a
-# standing lifetime ignores it and remains enabled until `server stop`.
+# claim the page before it closes. The external claim record is the ownership
+# source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# The browser's event kinds, and per kind the fields something downstream reads.
-# POST /api/event is the one door they come through, so this is where the shape is
-# checked; every reader indexes the fields rather than asking whether they arrived.
-BROWSER_EVENT_FIELDS = {
-    "comment": {"version": int, "text": str},
-    "reply": {"parent": str, "version": int, "text": str},
-    "resolve": {"parent": str},
-    "unresolve": {"parent": str},
-    "done": {"version": int, "text": str},
-    "action": {"widget": str, "action": str, "detail": dict, "version": int},
-    "undo": {"undoes": str},
-    # The page's own runtime reporting a failure in front of the user — an
-    # uncaught throw, a module that wouldn't load, a contained applyAction
-    # fault. Stamped author "page", because it is the machine speaking: the
-    # watcher hears it (a broken page is the agent's to fix, and the reader's
-    # paste-the-console round trip was the only path before), and the reader's
-    # pending count never claims it as their message.
-    "error": {"text": str},
-}
-# Every field the current browser and CLI may write, beyond append_event's
-# id/ts/author/kind and read_events' seq. A registry may grow this vocabulary,
-# but it cannot omit a word the producers beside it already speak.
-EVENT_VOCABULARY = {
-    "comment": {
-        "version",
-        "text",
-        "anchor",
-        "suggestion",
-        # "layer": the comment is about the layer — a widget's look or behaviour,
-        # a control, the runtime's chrome — rather than the page's words. The
-        # browser writes it from design mode; the agent reads it to answer with
-        # the layer instead of the next version's prose.
-        "about",
-        "agent",
-        "session",
-        "markup",
-        # Opaque browser-minted identity for one draft generation. Kept in the
-        # log so a replacement tab can retry after the first sender died without
-        # appending the same gesture twice.
-        "attempt",
-    },
-    "reply": {
-        "parent",
-        "version",
-        "text",
-        "agent",
-        "session",
-        "markup",
-        "attempt",
-        # Set while a streamed reply's chain is still open, so every reader knows
-        # more of this message is still coming; the closing chunk omits it.
-        "more",
-    },
-    "resolve": {"parent", "agent", "session"},
-    "unresolve": {"parent"},
-    "done": {"version", "text"},
-    "action": {"widget", "action", "detail", "version", "attempt"},
-    "report": {"widget", "action", "detail", "version", "agent", "session"},
-    "note": {"version", "text", "restated", "reports", "agent", "session"},
-    "error": {"version", "text"},
-    # A streamed message's continuation: `continues` names the head — a claude
-    # comment or reply whose chain is still open (`more` on its last event) — and
-    # the chunk's text concatenates onto it raw, delta-style. Every event stays
-    # immutable and append-only; the *message* is a fold of its chain
-    # (fold_messages), exactly as a widget's standing state is a fold of its
-    # actions. `markup` may ride only a closing event, so a message carries at
-    # most one and the panel never re-renders an upgraded widget mid-stream.
-    "append": {"continues", "text", "more", "agent", "session", "markup"},
-    # The reader taking a gesture back (`z`), naming it and nothing else. Every
-    # other field is the target's to state, and stating it twice is two things to
-    # keep in step. What it takes back it takes back for every reader of the log:
-    # the folds drop the event, so the page is what the version says plus what
-    # still stands, which is the same sentence a reload has always read.
-    "undo": {"undoes"},
-}
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
 # they say, rather than unsay. Nor is an undo itself, which would be a redo.
@@ -582,14 +514,6 @@ ACK_BATCH_INSTRUCTION = (
     "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
     "batch's first line names."
 )
-# Fields whose one door is the agent side. The browser door refuses them rather
-# than silently dropping: `markup` enters only through the gate `leaf comment`
-# and `leaf reply` run, which is what lets every reader trust what the log holds
-# under that name; `more` marks a streamed chain open, and only the channel's
-# reply tool streams (kind `append` is refused at the POST door outright, not
-# being a browser kind at all).
-AGENT_ONLY_FIELDS = {"markup", "more"}
-EVENT_BASE_FIELDS = {"id", "ts", "author", "kind", "seq"}
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
 # The record forms one vocabulary of declared state draws on ($state in the
@@ -643,40 +567,9 @@ _RECORD_VALUE = {
 }
 
 
-def _verbs_schema(records: list, required: list) -> dict:
-    """The shape x-state and x-report share: verbs to {detail, unit, record},
-    differing only in which record forms a channel admits and whether one is
-    required at all."""
-    return {
-        "type": "object",
-        "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {
-            "type": "object",
-            "properties": {
-                "detail": {"type": "object"},
-                "unit": {"type": "string", "minLength": 1},
-                "record": {"oneOf": records},
-            },
-            "required": required,
-            "additionalProperties": False,
-        },
-    }
-
-
-STATE_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE], ["detail"]
-)
-# A report moves declared state only, never body words — no body record, so the
-# passage reading never has to model one — and the record itself is required:
-# the gate compares record forms, and a recordless report would be a claim
-# nothing could check a version against.
-REPORT_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE], ["detail", "record"]
-)
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves every registry consumer because
-# they ask the same question of the same attributes.
+# present or absent). One condition shape serves asks and conversations because they
+# ask the same question of the same authored attributes.
 ASK_CONDITION = {
     "type": "object",
     "minProperties": 1,
@@ -687,10 +580,71 @@ ASK_CONDITION = {
         "minItems": 1,
     },
 }
+
+# Current action eligibility reuses Leaf's standing-request projection. `self` is the
+# sending widget; `parent` is the holder relation its x-parent already declares.
+ACTION_REQUIREMENT = {
+    "type": "object",
+    "properties": {
+        "target": {"enum": ["self", "parent"]},
+        "awaiting": {"type": "boolean"},
+        "change": {"const": "increase"},
+    },
+    "required": ["target", "awaiting"],
+    "additionalProperties": False,
+}
+
+
+def _verbs_schema(records: list, required: list, *, conditional: bool = False) -> dict:
+    """The shape x-state and x-report share: verbs to
+    {detail, facet, unit, record}, differing only in which record forms a
+    channel admits, whether one is required at all, and whether the reader's
+    channel may declare current applicability."""
+    properties = {
+        "detail": {"type": "object"},
+        "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "unit": {"type": "string", "minLength": 1},
+        "record": {"oneOf": records},
+    }
+    if conditional:
+        properties["requires"] = ACTION_REQUIREMENT
+    return {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "additionalProperties": {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
+        },
+    }
+
+
+STATE_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
+    ["detail", "facet", "unit"],
+    conditional=True,
+)
+# A report moves declared state only, never body words — no body record, so the
+# passage reading never has to model one — and the record itself is required:
+# the gate compares record forms, and a recordless report would be a claim
+# nothing could check a version against.
+REPORT_SCHEMA = _verbs_schema(
+    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
+    ["detail", "facet", "unit", "record"],
+)
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": ASK_CONDITION,
+        "answers": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
+            "uniqueItems": True,
+        },
+        "rollup": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "until": {
             "type": "object",
@@ -804,7 +758,6 @@ PAGE_STATE_FILES = (
     "cursor.json",
     "service.json",
     "server.lock",
-    "session.json",
 )
 PAGE_OWNED_FILES = (*VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("versions", *VENDORED_DIRS, MEDIA_DIR)
@@ -856,12 +809,17 @@ def require_cross_process_locking() -> None:
 def flocked(path: Path):
     """An exclusive lock held while the block runs — the one serialization
     primitive here. The log serializes appends, cursor and status updates, and
-    delivery. Stable purpose locks serialize claims and contract or service
+    claim and delivery transitions. Stable purpose locks serialize contract or service
     transitions; a `.lock` beside a registry of JSON files serializes updates
     to them, since the files themselves are replaced by rename and a lock on a
     replaced inode holds nothing."""
     require_cross_process_locking()
-    with open(path, "a+b") as f:
+    # comments.jsonl is the successful-init marker as well as a lease. A
+    # transaction racing page deletion must not recreate it and turn a deleted
+    # directory back into an initialized page. Purpose locks are disposable and
+    # may be minted on first use.
+    mode = "r+b" if path.name == "comments.jsonl" else "a+b"
+    with open(path, mode) as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         yield f
 
@@ -902,10 +860,11 @@ def replace_files(files: list) -> None:
         path.resolve() if follow_symlink and path.is_symlink() else path
         for path, _, follow_symlink in files
     ]
+    located_targets = [_path_location(target) for target in targets]
     if any(
-        paths_same(left, right)
-        for index, left in enumerate(targets)
-        for right in targets[index + 1 :]
+        left == right
+        for index, left in enumerate(located_targets)
+        for right in located_targets[index + 1 :]
     ):
         sys.exit("two customization files resolve to the same target")
     try:
@@ -971,6 +930,20 @@ class AttemptConflict(ValueError):
     """One browser attempt was reused for a different event payload."""
 
 
+class AttemptExecution:
+    """One execution shared by concurrent HTTP requests for the same attempt.
+
+    Success is durable in the event log. The record coordinates requests while a
+    handler is executing and is released once that handler finishes, so a concurrent
+    retry receives the same outcome and a later one is free to be evaluated again.
+    """
+
+    def __init__(self, payload: dict):
+        self.payload = payload
+        self.done = threading.Event()
+        self.result = None
+
+
 def _attempt_payload(event: dict) -> dict:
     # Kind is part of the gesture. Only fields the append boundary itself assigns
     # disappear from the equality check.
@@ -1001,38 +974,47 @@ def _matching_attempt(f, event: dict) -> dict | None:
     return None
 
 
-def accepted_attempt(page_dir: Path, event: dict) -> dict | None:
-    with flocked(page_dir / "comments.jsonl") as f:
-        return _matching_attempt(f, event)
-
-
-def append_event(page_dir: Path, event: dict) -> dict:
+def _append_event_unlocked(f, event: dict) -> dict:
+    """Append while the caller holds this log file's exclusive lease."""
     event.setdefault("id", secrets.token_hex(4))
     event.setdefault("ts", now_iso())
-    with flocked(page_dir / "comments.jsonl") as f:
-        # Attempt identity is checked under the log's append lock. Checking in the
-        # handler before this point would leave two server threads free to observe
-        # absence together and append together. Content and time deliberately play no
-        # part: an intentional later identical message has a fresh attempt and is a
-        # second event.
-        if event.get("attempt") and (existing := _matching_attempt(f, event)):
-            return existing
-        # A crash can tear the previous append mid-line: SIGKILL under a buffered
-        # flush, a full disk. The line discipline is the writer's, so the writer
-        # restores it — without this, the next event glues onto the torn fragment
-        # and one lost event becomes an unreadable line mid-file.
-        f.seek(0, os.SEEK_END)
-        if f.tell():
-            f.seek(-1, os.SEEK_END)
-            if f.read(1) != b"\n":
-                f.write(b"\n")
-        f.write((jsonl_line(event) + "\n").encode())
-        # To the platter before the caller is told it landed: an event is a
-        # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
-        # and events are rare enough that a flush per append costs nothing.
-        f.flush()
-        os.fsync(f.fileno())
+    # Attempt identity is checked under the log's append lock. Checking before
+    # this point would leave two server threads free to observe absence together
+    # and append together. Content and time deliberately play no part: an
+    # intentional later identical message has a fresh attempt and is a second
+    # event.
+    if event.get("attempt") and (existing := _matching_attempt(f, event)):
+        return existing
+    # A crash can tear the previous append mid-line: SIGKILL under a buffered
+    # flush, a full disk. The line discipline is the writer's, so the writer
+    # restores it — without this, the next event glues onto the torn fragment
+    # and one lost event becomes an unreadable line mid-file.
+    f.seek(0, os.SEEK_END)
+    if f.tell():
+        f.seek(-1, os.SEEK_END)
+        if f.read(1) != b"\n":
+            f.write(b"\n")
+    f.write((jsonl_line(event) + "\n").encode())
+    # To the platter before the caller is told it landed: an event is a
+    # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
+    # and events are rare enough that a flush per append costs nothing.
+    f.flush()
+    os.fsync(f.fileno())
     return event
+
+
+def append_event(page_dir: "Path | PageTransaction", event: dict) -> dict:
+    if isinstance(page_dir, PageTransaction):
+        return page_dir.append_event(event)
+    # The path form is the low-level fixture/instrumentation seam and retains
+    # its historic ability to start a log in an already-created directory.
+    # Product writers pass PageTransaction, whose entry never mints the page's
+    # successful-init marker.
+    log = page_dir / "comments.jsonl"
+    with open(log, "a", encoding="utf-8"):
+        pass
+    with flocked(log) as f:
+        return _append_event_unlocked(f, event)
 
 
 def read_events(page_dir: Path) -> list:
@@ -1068,55 +1050,13 @@ def read_events(page_dir: Path) -> list:
     return events
 
 
-def fold_messages(events: list) -> list:
-    """The log with each streamed message folded whole, in log order.
-
-    A streamed message is a chain: a head — a claude message carrying `more`
-    while unfinished; the fold reads the message class, comment and reply,
-    though today only the reply door opens a chain — and `append` events naming
-    it in `continues`, each chunk's text concatenating raw onto the head's:
-    delta semantics, so the chunking is the sender's and a boundary can fall
-    mid-sentence. The chain's
-    one `markup` rides its closing event (the door holds it to that), and the
-    fold leaves `more` on the folded head exactly while the chain is open, which
-    is what the panel's streaming mark and nothing else reads.
-
-    This is the message reading — build_threads, the transcript, thread_asks and
-    the runtime's own buildThreads all fold before reading, so a chunk is never
-    met as a message anywhere. Heads are copied, never mutated: the caller's
-    events are the log's, and appends leave the list. An append whose head a
-    torn log lost attaches to nothing and is dropped, the same silence
-    read_events keeps for the tear itself."""
-    folded = []
-    heads = {}
-    for e in events:
-        if e["kind"] == "append":
-            head = heads.get(e["continues"])
-            if head is None:
-                continue
-            head["text"] += e["text"]
-            if e.get("markup"):
-                head["markup"] = e["markup"]
-            if e.get("more"):
-                head["more"] = True
-            else:
-                head.pop("more", None)
-            continue
-        if e["kind"] in ("comment", "reply") and e.get("more"):
-            e = dict(e)
-            heads[e["id"]] = e
-        folded.append(e)
-    return folded
-
-
 def taken_back(events: list) -> set:
     """Event ids some later gesture took back (`undoes`).
 
-    The counter-event states the state that stood before, so the folds need none
-    of this — the later absolute value wins on its own. What does need it is
-    every reading of what the earlier event *meant*: the thread an action
-    answered is open again once the answer is withdrawn, and the undo walk steps
-    back past what it has already taken."""
+    An undo names the gesture it withdraws and carries no counter-state, so every
+    projection drops those ids. The thread an action answered is open again once
+    the answer is withdrawn, and the undo walk steps back past what it has
+    already taken."""
     return {e["undoes"] for e in events if e.get("undoes")}
 
 
@@ -1212,7 +1152,7 @@ def build_threads(events: list, spk: dict) -> dict:
             answers[e["widget"]] = e
     threads = {}
     thread_for = {}
-    for e in fold_messages(events):
+    for e in events:
         # A gesture the reader took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
         if e["id"] in withdrawn:
@@ -1434,11 +1374,6 @@ def transition_lock(page_dir: Path) -> Path:
     return page_lock(page_dir, "transition")
 
 
-def claim_lock(page_dir: Path) -> Path:
-    """Serialize replacement and release of the page's current session."""
-    return page_lock(page_dir, "claim")
-
-
 def running_server(page_dir: Path):
     """The desired service, while a process holds its live-server lease."""
     if not lock_is_held(page_dir / "server.lock"):
@@ -1490,23 +1425,27 @@ def stop_when_service_ends(page_dir: Path) -> None:
         if service["lifetime"] == "standing":
             time.sleep(0.1)
             continue
-        session = read_json(page_dir / "session.json")
-        if session and pid_alive(session["pid"]):
+        claim = page_claim(page_dir)
+        if claim_is_active(claim):
             orphaned_at = None
         elif orphaned_at is None:
             orphaned_at = time.monotonic()
         elif time.monotonic() - orphaned_at >= ORPHAN_GRACE_SECS:
-            # A claim and this final recheck cross one narrow lock. A successor
-            # either arrives first and keeps this process, or waits until this
-            # process exits and releases both the claim lock and server lease.
-            # Work status and desired service remain untouched: a crashed
-            # session did not finish the work or explicitly stop the page.
-            with flocked(claim_lock(page_dir)):
-                session = read_json(page_dir / "session.json")
-                if session and pid_alive(session["pid"]):
-                    orphaned_at = None
-                    continue
-                (page_dir / "session.json").unlink(missing_ok=True)
+            # A transfer may land after the unlocked observation above. Recheck
+            # beside process exit under the page transaction so a new live owner
+            # cannot inherit a server already committed to retiring.
+            try:
+                with PageTransaction(page_dir) as page:
+                    service = read_json(page_dir / "service.json")
+                    if not service or not service["enabled"]:
+                        os._exit(0)
+                    if service["lifetime"] == "standing" or page.active_claim:
+                        orphaned_at = None
+                        continue
+                    os._exit(0)
+            except FileNotFoundError:
+                # Deleting the page removes its successful-init identity. The
+                # service has nothing left to preserve and must not recreate it.
                 os._exit(0)
         time.sleep(0.1)
 
@@ -1625,10 +1564,13 @@ def config_home() -> Path:
 
 def state_home() -> Path:
     """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
-    directories by convention, sessions/ the live-session registry, access.json
-    the one key every page here is served with (`host_key`). State, not config:
-    page directories carry pids, ports, and absolute paths, so they are bound to
-    this machine, and so is the key that reaches them.
+    directories by convention, claims/ the last claimant of every known page,
+    sessions/ the live watcher leases, init/ the stable per-path creation
+    leases, and access.json the one key every page here is served with
+    (`host_key`). State, not config:
+    claim records carry pids and absolute paths, while page service records
+    carry ports, so this state is bound to this machine, as is the key that
+    reaches it.
 
     Created here, owner-only: the key is what stands between another local user
     and a log that outranks the document, and a 0644 file under a traversable
@@ -1660,16 +1602,15 @@ def host_identity() -> dict | None:
         agent = os.environ.get("LEAF_AGENT") or "Claude"
         return {"id": sid, "host": "claude-code", "agent": agent}
     if sid := os.environ.get("LEAF_SESSION_ID"):
-        # The launcher sets LEAF_AGENT beside the id; an environment built
-        # by hand that didn't is missing half the identity, so fail on it here.
-        return {"id": sid, "host": "codex", "agent": os.environ["LEAF_AGENT"]}
+        agent = os.environ.get("LEAF_AGENT") or "Codex"
+        return {"id": sid, "host": "codex", "agent": agent}
     return None
 
 
 def message_identity() -> dict:
     """The voice an agent-authored event carries: the posting session's display
     name and session id, read from its own environment rather than the page's
-    session.json — the claimant is whoever watches the page, and on a page
+    claim record — the claimant is whoever watches the page, and on a page
     several sessions report to, that is usually not the poster. Empty outside a
     host session: the readers' generic label covers an event with no voice, and
     a stored placeholder would only impersonate a name."""
@@ -1681,9 +1622,9 @@ def message_identity() -> dict:
 
 def session_pid(identity: dict) -> int:
     """The process whose lifetime is the agent session's, which is what the
-    claim records and its readers act on: the registry sweep below drops a
-    session whose pid has gone, and a session-managed server retires
-    ORPHAN_GRACE_SECS after it (`stop_when_service_ends`).
+    claim records and its readers act on: a dead pid makes ownership inactive,
+    and a session-managed server retires ORPHAN_GRACE_SECS after it
+    (`stop_when_service_ends`).
 
     Claude Code states it outright and Codex states nothing, so the Codex half
     is discovered: the nearest ancestor running the `codex` program. The
@@ -1704,8 +1645,7 @@ def session_pid(identity: dict) -> int:
             return pid
     # Nothing to fall back to: any pid guessed here is a claim that expires on
     # its own, and the states that follow from one are silent. LEAF_SESSION_ID
-    # with no codex above it is a hand-built environment, the same missing half
-    # host_identity fails on, so say what was walked.
+    # with no codex above it is a hand-built environment, so say what was walked.
     chain = " → ".join(program for _, program in walked)
     sys.exit(
         "LEAF_SESSION_ID names a Codex session but no codex process runs above "
@@ -1713,96 +1653,217 @@ def session_pid(identity: dict) -> int:
     )
 
 
-def claim_page(page_dir: Path) -> bool:
-    """Record that this agent session is the one working on the page, in
-    both directions: the page names its session (so the server can see when that
-    session is gone), the session lists its pages (so the hooks can find them
-    wherever they live). The host identity reaches this process through the
-    environment, so this needs no cooperation from the agent.
+def claim_path(page_dir: Path) -> Path:
+    """The one ownership record for a resolved page path."""
+    return state_home() / "claims" / f"{page_key(page_dir)}.json"
 
-    `server start` and `leaf wait` claim; nothing else does. The claim tracks the
-    watch obligation the hooks enforce: a server start puts the page in front of a
-    user and incurs it, while `leaf wait` takes it up. Authoring commands neither
-    incur the obligation nor discharge it, so a directory a session only wrote
-    to, like a throwaway page for testing the widget layer, owes nobody a
-    watcher. Return whether this invocation made a claim, so a bare-shell server
-    never inherits a stale claim's lifetime."""
+
+def page_key(page_dir: Path) -> str:
+    """A filesystem-safe identity for state held outside one page directory."""
+    return hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()
+
+
+def init_lock_path(page_dir: Path) -> Path:
+    """The lease serializing creation before a page has its own transaction."""
+    return state_home() / "init" / f"{page_key(page_dir)}.lock"
+
+
+def page_claim(page_dir: Path) -> dict | None:
+    """The page's last claim, including one that is released or whose pid died."""
+    return read_json(claim_path(page_dir))
+
+
+def claim_is_active(claim: dict | None) -> bool:
+    """Whether a claim still names a live owner."""
+    return bool(claim and claim["released"] is None and pid_alive(claim["pid"]))
+
+
+def claim_records() -> list:
+    """Every atomic page claim record currently on this machine."""
+    directory = state_home() / "claims"
+    if not directory.is_dir():
+        return []
+    return [claim for path in directory.glob("*.json") if (claim := read_json(path))]
+
+
+class PageTransaction:
+    """One page transition serialized by its append-only log."""
+
+    def __init__(self, page_dir: Path):
+        self.page_dir = page_dir.resolve()
+        self._lock = None
+        self._log = None
+
+    def __enter__(self):
+        self._lock = flocked(self.page_dir / "comments.jsonl")
+        self._log = self._lock.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return self._lock.__exit__(exc_type, exc, traceback)
+
+    @property
+    def claim(self) -> dict | None:
+        return page_claim(self.page_dir)
+
+    @property
+    def active_claim(self) -> dict | None:
+        claim = self.claim
+        return claim if claim_is_active(claim) else None
+
+    def take_claim(self, identity: dict, pid: int) -> tuple[dict | None, dict]:
+        previous = self.claim
+        path = claim_path(self.page_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        claim = {
+            "page": str(self.page_dir),
+            "id": identity["id"],
+            "host": identity["host"],
+            "pid": pid,
+            "agent": identity["agent"],
+            "cwd": os.getcwd(),
+            "ts": now_iso(),
+            "released": None,
+            # When this session's last turn ended. None until one has, and reset
+            # by nothing: a claim taken again is a new record. See close_turn.
+            "turn_closed": None,
+        }
+        write_json(path, claim)
+        return previous, claim
+
+    def restore_claim(self, expected: dict, previous: dict | None) -> None:
+        """Roll back one failed claim without erasing a successor's."""
+        if self.claim != expected:
+            return
+        path = claim_path(self.page_dir)
+        if previous is None:
+            path.unlink(missing_ok=True)
+        else:
+            write_json(path, previous)
+
+    def owned_by(self, identity: dict | None) -> bool:
+        """Whether this transaction may act for the given waiter."""
+        if identity is None:
+            return self.active_claim is None
+        claim = self.active_claim
+        return bool(
+            claim and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
+        )
+
+    def release_claim(self) -> None:
+        claim = self.claim
+        if claim and claim["released"] is None:
+            write_json(claim_path(self.page_dir), {**claim, "released": now_iso()})
+
+    def close_turn(self, session_id: str) -> None:
+        """Record that the turn which could have renewed this page's claim has ended.
+
+        A `working` claim is written by a model's turn rather than by a process,
+        and a turn can end at any token without running anything — so there is no
+        close to write on the way out, and a claim nobody renewed used to be
+        found only by a clock fifteen minutes later. The Stop hook is the harness
+        observing that same moment exactly, which is what the hooks are for.
+
+        It lands here with the rest of the claim's provenance and not in
+        status.json, the line SessionEnd already draws: what the agent said it
+        was doing stays the agent's to write, and whether anything is still
+        behind those words stays the page's to judge from evidence.
+        """
+        claim = self.claim
+        if claim and claim["released"] is None and claim["id"] == session_id:
+            write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
+
+    @property
+    def status(self) -> dict:
+        return read_json(self.page_dir / "status.json") or {"state": "idle"}
+
+    def set_status(
+        self, state: str, detail: str, *, handoff: bool = False, on: str | None = None
+    ) -> None:
+        """Write the claim, and the note under it where the work has a subject.
+
+        A note is the same sentence read at a second seat: the page's one line
+        says what the agent is doing, and the thread it is doing it about says
+        so where the reader asked. One command writes both, because they are
+        one claim — a delegate reporting its thread is also the agent checking
+        in, which is what keeps a `working` claim believed across a turn
+        boundary the session itself cannot write across.
+
+        Notes carry across every other write, so a handoff's "picking up 2
+        updates" does not silently drop what a helper is holding, and `idle`
+        clears them with the leaf.
+        """
+        status = {"state": state, "detail": detail, "ts": now_iso()}
+        if handoff:
+            status["handoff"] = True
+        notes = {} if state == "idle" else dict(self.status.get("on", {}))
+        if on:
+            notes[on] = {"detail": detail, "ts": status["ts"]}
+        if notes:
+            status["on"] = notes
+        write_json(self.page_dir / "status.json", status)
+
+    @property
+    def events(self) -> list:
+        return read_events(self.page_dir)
+
+    def matching_attempt(self, event: dict) -> dict | None:
+        """An accepted retry, read under this transaction's log lease."""
+        return _matching_attempt(self._log, event)
+
+    def append_event(self, event: dict) -> dict:
+        """Append under this transaction without re-entering its log lease."""
+        return _append_event_unlocked(self._log, event)
+
+    @property
+    def cursor(self) -> int:
+        return read_cursor(self.page_dir)
+
+    def watch_state(self, identity: dict | None) -> str:
+        if not self.owned_by(identity):
+            return "lost"
+        return "ended" if self.status["state"] == "idle" else "watching"
+
+
+def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
+    """Make the host session the page's watcher, if a host supplied one.
+
+    `server start` and named `leaf wait` claim; authoring commands do not. A
+    bare-shell serve makes no claim and therefore starts as standing.
+    """
     identity = host_identity()
     if not identity:
-        return False
+        return None
     pid = session_pid(identity)
-    sid = identity["id"]
-    with flocked(claim_lock(page_dir)):
-        write_json(
-            page_dir / "session.json",
-            # Where the session is working, which is what a page is *about* to the person
-            # reading the board: a leaf is named by a title somebody wrote and lives in a
-            # state directory nobody chose, and neither says which project it came out of.
-            # The claiming command runs from the session's own directory, the same reading
-            # `layer_dirs` already takes cwd to be, so this needs nothing of the agent.
-            {**identity, "pid": pid, "cwd": os.getcwd(), "ts": now_iso()},
-        )
-    sessions = state_home() / "sessions"
-    sessions.mkdir(parents=True, exist_ok=True)
-    # Sessions that died without a SessionEnd hook leave their file behind; drop
-    # them here when the next live session makes a claim rather than on a timer.
-    for stale in sessions.glob("*.json"):
-        entry = read_json(stale)
-        if entry and not pid_alive(entry["pid"]):
-            stale.unlink(missing_ok=True)
-    # Under the registry's lock: `server run` for one page and `leaf wait` for
-    # another interleave this read-modify-write, and the loser's write would
-    # silently drop the winner's page from the watch obligation.
-    with flocked(sessions / ".lock"):
-        entry = read_json(sessions / f"{sid}.json") or {"pages": []}
-        pages = sorted({*entry["pages"], str(page_dir)})
-        write_json(
-            sessions / f"{sid}.json", {"pid": pid, "pages": pages, "ts": now_iso()}
-        )
-    return True
+    with PageTransaction(page_dir) as page:
+        return page.take_claim(identity, pid)
 
 
-def release_page(page_dir: Path, session_id: str) -> bool:
-    """Remove one session's claim without erasing a successor's."""
-    with flocked(claim_lock(page_dir)):
-        session = read_json(page_dir / "session.json")
-        if not session or session["id"] != session_id:
-            return False
-        (page_dir / "session.json").unlink()
-        return True
+def claim_page(page_dir: Path) -> bool:
+    return take_page_claim(page_dir) is not None
 
 
-def session_pages(session_id: str) -> list:
-    """The page directories a session has worked on, those still on disk."""
-    entry = read_json(state_home() / "sessions" / f"{session_id}.json") or {"pages": []}
-    return [d for d in (Path(p) for p in entry["pages"]) if d.is_dir()]
+def restore_page_claim(
+    page_dir: Path, transition: tuple[dict | None, dict] | None
+) -> None:
+    """Undo a failed startup's claim, provided no successor replaced it."""
+    if transition is None:
+        return
+    previous, expected = transition
+    with PageTransaction(page_dir) as page:
+        page.restore_claim(expected, previous)
 
 
-def owned_pages(session_id: str) -> list:
-    """The pages a session is answerable for: those it worked on most recently.
-    A page another session has since picked up belongs to that one — its watcher,
-    its server, its turn to be held to the loop."""
-    return [
-        d
-        for d in session_pages(session_id)
-        if (read_json(d / "session.json") or {"id": None})["id"] == session_id
-    ]
-
-
-def page_owned_by(page_dir: Path, identity: dict | None) -> bool:
-    """Whether the waiter's host session currently owns this page.
-
-    A bare-shell wait has no host claim and keeps its explicitly named page.
-    Callers that act on this answer hold the claim lock through the act, so the
-    answer cannot age between the ownership read and its use.
-    """
-    if identity is None:
-        return True
-    current = read_json(page_dir / "session.json")
-    return bool(
-        current
-        and (current["host"], current["id"]) == (identity["host"], identity["id"])
-    )
+def owned_pages(session_id: str | None) -> list:
+    """Active pages owned by one session, or by every session when id is None."""
+    pages = {
+        Path(claim["page"])
+        for claim in claim_records()
+        if claim_is_active(claim)
+        and (session_id is None or claim["id"] == session_id)
+        and (Path(claim["page"]) / "comments.jsonl").is_file()
+    }
+    return sorted(pages, key=str)
 
 
 def other_leaves(page_dir: Path) -> list:
@@ -1811,11 +1872,11 @@ def other_leaves(page_dir: Path) -> list:
     facts the page ships about itself — so a row there and the banner above it
     are the one judgment reading the one shape.
 
-    Candidates are the two places page directories are already written down:
-    the conventional pages/ home and the live-session registry, which is what
-    finds a page served from a session's scratch directory. Liveness is
-    the held server.lock lease, the same answer `running_server` gives everything
-    else, and the URL is the one in durable service state, key included. The title is the
+    Candidates are the conventional pages/ home and every claim record, which
+    is what finds a page served from a session's scratch directory. Released
+    and dead claims stay useful here as provenance. Liveness is the held
+    server.lock lease, the same answer `running_server` gives everything else,
+    and the URL is the one in durable service state, key included. The title is the
     newest published version's — the version that page's own root URL answers
     with — read the way `transcript` reads it.
 
@@ -1826,13 +1887,7 @@ def other_leaves(page_dir: Path) -> list:
     pages = state_home() / "pages"
     if pages.is_dir():
         candidates += (d for d in pages.iterdir() if d.is_dir())
-    sessions = state_home() / "sessions"
-    if sessions.is_dir():
-        for record in sessions.glob("*.json"):
-            # claim_page prunes dead sessions' records; one can vanish mid-scan.
-            entry = read_json(record)
-            if entry:
-                candidates += (Path(p) for p in entry["pages"])
+    candidates += (Path(claim["page"]) for claim in claim_records())
     others = []
     seen = {page_dir.resolve()}
     for candidate in candidates:
@@ -1888,14 +1943,6 @@ def unacknowledged(events: list, cursor: int) -> list:
     ]
 
 
-def current_watch_state(page_dir: Path, identity: dict | None) -> str:
-    """Why a wait may act, read while its claim and log locks are held."""
-    if not page_owned_by(page_dir, identity):
-        return "lost"
-    status = read_json(page_dir / "status.json") or {"state": "idle"}
-    return "ended" if status["state"] == "idle" else "watching"
-
-
 def waiter_lease_path(page_dir: Path | None, session: dict | None) -> Path | None:
     """The one lease a wait holds for its watch set.
 
@@ -1922,12 +1969,9 @@ def take_waiter_lease(path: Path):
 
 
 def wait_is_live(page_dir: Path, session: dict | None) -> bool:
-    """Whether a host-session or bare-shell wait lease is held now."""
-    session_path = waiter_lease_path(page_dir, session) if session else None
-    return bool(
-        (session_path and lock_is_held(session_path))
-        or lock_is_held(page_dir / "waiter.lock")
-    )
+    """Whether this ownership scope's exact wait lease is held now."""
+    lease_path = waiter_lease_path(page_dir, session)
+    return bool(lease_path and lock_is_held(lease_path))
 
 
 def presence(page_dir: Path, events: list) -> dict:
@@ -1936,7 +1980,7 @@ def presence(page_dir: Path, events: list) -> dict:
     One gatherer for every such seat — `full_state` spreads it into the page's own
     poll answer, and `other_leaves` attaches it to each entry — so the runtime's one
     claim-against-proof judgment reads the same fields whichever page it judges,
-    and the board's account of a neighbour is the account this page gives of
+    and the tray's account of a neighbour is the account this page gives of
     itself."""
     # A file that isn't there stands in as its whole record, so every read below
     # indexes rather than asking twice whether the field arrived.
@@ -1945,14 +1989,15 @@ def presence(page_dir: Path, events: list) -> dict:
         "detail": "",
         "ts": None,
     }
-    session = read_json(page_dir / "session.json")
+    claim = page_claim(page_dir)
+    active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
     # next durable consumer. An action past this seq has not reached that point,
     # which lets the runtime carry it forward onto versions written without it.
     cursor = read_cursor(page_dir)
     return {
         "status": status,
-        "listening": wait_is_live(page_dir, session),
+        "listening": wait_is_live(page_dir, active),
         "cursor": cursor,
         # The reader's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
@@ -1960,23 +2005,30 @@ def presence(page_dir: Path, events: list) -> dict:
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
-        "agent": session.get("agent", "Claude") if session else "Claude",
+        "agent": claim.get("agent", "Claude") if claim else "Claude",
         # The claimant's host program, for behavior that keys on it — the display
         # name above is anyone's to choose, so nothing may dispatch on it.
-        "host": session.get("host") if session else None,
+        "host": claim.get("host") if claim else None,
         # None when nothing claimed the page — interact.py run outside an agent host.
-        "session_alive": pid_alive(session["pid"]) if session else None,
+        "session_alive": active is not None if claim else None,
+        # When the claiming session's last turn ended, or None while none has.
+        # A `working` claim older than this is one that no turn and no delegate
+        # renewed across the boundary — the same judgment the runtime's grace
+        # makes, available at the moment it becomes true instead of a quarter of
+        # an hour after it. Read with .get like the rest of the claim's fields,
+        # since a record written before this existed is still a valid claim.
+        "turn_closed": claim.get("turn_closed") if claim else None,
         # When a browser last polled the page (the server bumps viewed.json,
         # throttled), or None for a page nobody has ever opened — which used to
         # be indistinguishable from one the user studied and left.
         "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
-        # Where the claimant is working (claim_page), for the board's hover: what
+        # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
-        # wrote it, as every other fact in this record does — a page the board
+        # wrote it, as every other fact in this record does — a page the tray
         # calls unheld came out of somewhere, and that is still where it came from.
         # None for a page nothing ever claimed, which is the honest nothing.
-        "session_cwd": session.get("cwd") if session else None,
+        "session_cwd": claim.get("cwd") if claim else None,
     }
 
 
@@ -1985,6 +2037,12 @@ def full_state(
 ) -> dict:
     return {
         "layer": layer or layer_generation(page_dir),
+        # The clock every timestamp below was written by. A seat dating one reads
+        # `Date.now()`, which is the reader's own machine: a laptop an hour out
+        # calls a claim made this minute an hour stale, on every seat at once, and
+        # neither side can tell from the timestamp alone. Sent so the reading is
+        # against the writer's clock rather than the reader's.
+        "now": now_iso(),
         "versions": versions,
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
@@ -1998,6 +2056,8 @@ def full_state(
 class Handler(BaseHTTPRequestHandler):
     page_dir = None
     token = None
+    event_attempts = None
+    event_attempts_lock = None
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
@@ -2017,6 +2077,20 @@ class Handler(BaseHTTPRequestHandler):
             for version in list_versions(self.page_dir)
             if version <= self.preview_upto
         ]
+
+    def page_state(self) -> dict:
+        """The current log reading used by GET and accepted POST responses."""
+        events = read_events(self.page_dir)
+        state = full_state(
+            self.page_dir,
+            events,
+            self.versions_live(events),
+            layer=self.layer,
+        )
+        # Every URL in `others` carries the machine key (`host_key`), so the list
+        # reaches neighbouring pages without creating another authorization path.
+        state["others"] = other_leaves(self.page_dir)
+        return state
 
     def log_message(self, *args):
         pass
@@ -2060,7 +2134,7 @@ class Handler(BaseHTTPRequestHandler):
         # Every response ends here — answered, redirected, or refused — so the
         # cookie has one writer rather than one per path that sends a header.
         path = urlsplit(self.path).path
-        if path.startswith("/api/") or path == "/registry.json":
+        if path.startswith(("/api/", "/versions/")) or path in {"/registry.json", "/"}:
             self.send_header("Leaf-Layer", self.layer)
         if self.set_cookie:
             self.send_header(
@@ -2075,6 +2149,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2087,22 +2163,68 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._get)
 
     def do_POST(self):
-        self._answer(self._post)
+        # The body is route preparation: inside the answer boundary, but after the one
+        # shared key gate. An unauthenticated peer therefore cannot choose an allocation
+        # or park a handler in a body read. Its refusal names no attempt because no body
+        # was trusted enough to read one from; the browser accepts that attempt-less
+        # final answer because the refusal happened before any append could have begun.
+        self._answer(self._post, prepare=self._read_posted)
 
-    def _answer(self, route) -> None:
-        """One boundary for the key and for what a route raises. Unanswered, a fault
+    def _read_posted(self) -> tuple:
+        """The POSTed body as a dict, or the refusal it has already earned.
+
+        Reading and parsing can fail in different ways, all before an append is
+        possible. Naming those failures as final lets the outbox put the gesture back;
+        an unexpected exception remains inside `_answer` and is therefore retryable.
+        """
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        except (TypeError, ValueError, MemoryError):
+            return {}, "invalid Content-Length"
+        try:
+            posted = json.loads(body)
+        except (ValueError, RecursionError):
+            return {}, "invalid JSON"
+        if not isinstance(posted, dict):
+            return {}, "event must be a JSON object"
+        return posted, None
+
+    def _refuse(self, error: str, status: int = 400) -> None:
+        """Answer a refusal in the shape spoken by the route that produced it."""
+        if self.command == "POST" and urlsplit(self.path).path == "/api/event":
+            status, body = self.event_rejection(self.posted, error, status)
+            self._json(body, status)
+        else:
+            self._json({"error": error}, status)
+
+    def _answer(self, route, prepare=None) -> None:
+        """One boundary for authorization, route preparation, and route faults.
+
+        Unanswered, a fault
         drops the socket, socketserver buries the traceback in stderr nothing reads, and
         the banner says "Server offline" about a server that is up — so every
         fault becomes a 500 naming itself, which the banner can show to the one
         person still looking. The key is checked here for `end_headers`'s reason: every
         request passes through, so there is one gate rather than one per method, and a
-        route added later cannot be the one that forgot to ask."""
+        route added later cannot be the one that forgot to ask. POST preparation is
+        deliberately after that gate, so an unknown peer cannot choose a body-read cost.
+        """
         try:
+            if prepare:
+                self.posted, self.posted_error = {}, None
             if not self.authorized():
-                self._json({"error": NO_KEY}, 403)
+                # HTTP/1.1 cannot reuse a connection whose declared request body was
+                # never consumed: those bytes would be parsed as the next request.
+                if prepare:
+                    self.close_connection = True
+                self._refuse(NO_KEY, 403)
                 return
+            if prepare:
+                self.posted, self.posted_error = prepare()
             route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+            # Not a refusal: a fault may have landed either side of the append, so the
+            # browser must retry the same attempt instead of putting its gesture back.
             try:
                 self._json({"error": f"{type(error).__name__}: {error}"}, 500)
             except OSError:
@@ -2115,11 +2237,31 @@ class Handler(BaseHTTPRequestHandler):
             if not versions:
                 self._json({"error": "no published versions yet"}, 404)
                 return
-            self.send_response(302)
-            self.send_header("Location", f"/versions/{version_name(versions[-1])}")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
+            version = versions[-1]
+            source = (self.page_dir / "versions" / version_name(version)).read_text(
+                encoding="utf-8"
+            )
+            # The live address serves one immutable version but does not become that
+            # version's address. The marker tells the runtime exactly which file this
+            # response projected; deriving it from the next state poll would race a
+            # publish between the document response and that poll.
+            parsed = parse_structure(source)
+            scripts = [
+                script
+                for script in parsed.external_scripts
+                if script["attrs"] == {"src": "/leaf.js", "type": "module"}
+            ]
+            if len(scripts) != 1:
+                self._json({"error": "published version has no canonical script"}, 500)
+                return
+            line, column = scripts[0]["position"]
+            offset = sum(
+                len(part) for part in source.splitlines(keepends=True)[: line - 1]
+            )
+            offset += column
+            marker = f'<meta name="lf-version" data-lf-runtime content="{version}">'
+            projected = (source[:offset] + marker + source[offset:]).encode()
+            self._send(200, "text/html; charset=utf-8", projected)
             return
         if path == "/api/state":
             # A poll is the one proof a browser holds the page open, and before
@@ -2135,20 +2277,9 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 cls.viewed_at = time.time()
                 write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
-            # versions through the handler's own view, so a preview server's
-            # state agrees with what it serves (identical when not previewing).
-            events = read_events(self.page_dir)
-            state = full_state(
-                self.page_dir,
-                events,
-                self.versions_live(events),
-                layer=self.layer,
-            )
-            # Every URL in `others` carries the key this reader arrived on, since
-            # there is one key for the machine (`host_key`) — so the list is a
-            # way to the neighbours rather than a way past anything.
-            state["others"] = other_leaves(self.page_dir)
-            self._json(state)
+            # Versions pass through the handler's own view, so a preview state
+            # agrees with the version it serves.
+            self._json(self.page_state())
             return
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
@@ -2182,188 +2313,176 @@ class Handler(BaseHTTPRequestHandler):
                 return
         self._json({"error": "not found"}, 404)
 
+    @staticmethod
+    def event_rejection(event: dict, error: str, status: int = 400) -> tuple:
+        """A final answer proving that this execution appended no event."""
+        body = {"ok": False, "error": error, "final": True}
+        if event.get("attempt"):
+            body["attempt"] = event["attempt"]
+        return status, body
+
+    def accepted_state(self) -> tuple:
+        return 200, {"ok": True, "state": self.page_state()}
+
+    def coordinate_event(self, event: dict) -> tuple:
+        """Run one copy of an attempt and share its outcome with concurrent copies."""
+        attempt = event.get("attempt")
+        if not attempt:
+            return self.execute_event(event)
+        payload = _attempt_payload(event)
+        with self.event_attempts_lock:
+            execution = self.event_attempts.get(attempt)
+            if execution is None:
+                execution = AttemptExecution(payload)
+                self.event_attempts[attempt] = execution
+                owner = True
+            else:
+                owner = False
+                if execution.payload != payload:
+                    return self.event_rejection(
+                        event,
+                        f"attempt {attempt!r} already belongs to another event",
+                        409,
+                    )
+        if not owner:
+            execution.done.wait()
+            return execution.result
+        try:
+            result = self.execute_event(event)
+        except Exception as error:  # noqa: BLE001 - every waiter needs an outcome
+            # A fault may occur after append. Withholding `final` makes the next
+            # identical request find the accepted event or execute the attempt again.
+            result = (
+                500,
+                {
+                    "ok": False,
+                    "attempt": attempt,
+                    "error": f"{type(error).__name__}: {error}",
+                },
+            )
+        finally:
+            execution.result = result
+            execution.done.set()
+            # Waiters retain the execution object. Acceptance is durable in the log;
+            # every other outcome must be evaluated again if it is posted later.
+            with self.event_attempts_lock:
+                if self.event_attempts.get(attempt) is execution:
+                    del self.event_attempts[attempt]
+        return result
+
+    def execute_event(self, event: dict) -> tuple:
+        """Validate mutable page state and append as one log transaction.
+
+        `_post` checks the payload's declared shape before attempt coordination. A
+        re-vendor can replace that declaration before this transaction is acquired,
+        so an action's contract is deliberately read again inside the lease: this
+        reading, not the admission reading, is the one allowed to append beside the
+        page's current vocabulary.
+        """
+        kind = event["kind"]
+        # Every decision whose validity depends on the log stays under the append
+        # lock through the write. In particular, two tabs cannot both validate an
+        # undo against the same standing target and append after either lock is gone.
+        with PageTransaction(self.page_dir) as page:
+            # Acceptance outranks mutable state validation. A retry for an accepted
+            # attempt asks for its state; it does not repeat the gesture.
+            if "attempt" in event:
+                event["author"] = "user"
+                try:
+                    existing = page.matching_attempt(event)
+                except AttemptConflict as error:
+                    return self.event_rejection(event, str(error), 409)
+                if existing:
+                    return self.accepted_state()
+            events = page.events
+            if "version" in event:
+                live_versions = self.versions_live(events)
+                if event["version"] not in live_versions:
+                    return self.event_rejection(
+                        event, f"{kind} version must be one of {live_versions}"
+                    )
+            if kind == "done":
+                mode = version_review_mode(self.page_dir, event["version"])
+                if mode != "sign-off":
+                    return self.event_rejection(
+                        event,
+                        f"version {event['version']} does not declare "
+                        '<meta name="lf-review" content="sign-off">, so it has no '
+                        "approval to record",
+                    )
+            if kind == "action":
+                # This is not the static admission read in `_post`: re-vendoring and
+                # this transaction have now chosen an order, so only this registry
+                # can authorize an action that will be appended under the same lease.
+                try:
+                    registry = load_registry(self.page_dir)
+                except RegistryError as error:
+                    return self.event_rejection(event, str(error))
+                if registry is None:
+                    return self.event_rejection(event, "the page has no registry.json")
+                if error := action_contract_error(
+                    self.page_dir,
+                    event,
+                    events,
+                    registry,
+                ):
+                    return self.event_rejection(event, error)
+            if "parent" in event and event["parent"] not in {
+                e["id"] for e in events if e["kind"] in {"comment", "reply"}
+            }:
+                return self.event_rejection(
+                    event, f"unknown parent {event['parent']!r}"
+                )
+            if kind == "undo" and (error := undo_error(event, events)):
+                return self.event_rejection(event, error)
+            event["author"] = "page" if kind == "error" else "user"
+            append_event(page, event)
+        return self.accepted_state()
+
     def _post(self):
-        # The preview window is the gate's own browser over a maybe-unpublished
-        # version, not the reader: an error event it minted would stand in the
-        # real log as the agent's debt, diagnostics the lint generated about
-        # itself. Nothing it does is the page's to keep.
-        if self.preview_upto is not None:
-            self._json({"error": "the preview server is read-only"}, 403)
-            return
         if urlsplit(self.path).path != "/api/event":
             self._json({"error": "not found"}, 404)
             return
+        # Preview requests have passed authentication and body preparation, so
+        # their refusal can name the attempt without writing to the real log.
+        if self.preview_upto is not None:
+            self._refuse("the preview server is read-only", 403)
+            return
         current_layer = self.layer
         if self.headers.get("Leaf-Layer") != current_layer:
-            # Consume the request so this HTTP/1.1 connection remains a valid
-            # stream. The body is deliberately not parsed: a runtime from an old
-            # layer has no event vocabulary this server may interpret.
-            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            # Preparation already consumed the body. A stale runtime needs the
+            # current generation, not a verdict in a vocabulary it no longer speaks.
             self._json({"layer": current_layer})
             return
+        if self.posted_error:
+            self._refuse(self.posted_error)
+            return
+        event = self.posted
         try:
-            event = json.loads(
-                self.rfile.read(int(self.headers.get("Content-Length", 0)))
-            )
-        except json.JSONDecodeError:
-            self._json({"error": "invalid JSON"}, 400)
+            registry = load_registry(self.page_dir)
+        except RegistryError as error:
+            self._refuse(str(error))
             return
-        if not isinstance(event, dict):
-            self._json({"error": "event must be a JSON object"}, 400)
+        if registry is None:
+            self._refuse("the page has no registry.json")
             return
-        kind = event.get("kind")
-        if not isinstance(kind, str) or kind not in BROWSER_EVENT_FIELDS:
-            self._json(
-                {"error": f"kind must be one of {sorted(BROWSER_EVENT_FIELDS)}"}, 400
-            )
-            return
-        # Identity, authorship, and time belong to the server. Drop client copies
-        # before checking the kind's declared payload, so none can be forged into
-        # the append-only record.
-        for field in ("id", "author", "agent", "session", "ts"):
-            event.pop(field, None)
-        unexpected = (
-            set(event) - {"kind"} - (EVENT_VOCABULARY[kind] - AGENT_ONLY_FIELDS)
+        contracts = registry["$events"]["kinds"]
+        browser_kinds = sorted(
+            name for name, contract in contracts.items() if "browser" in contract
         )
-        if unexpected:
-            self._json(
-                {
-                    "error": f"{event['kind']} events have unexpected fields {sorted(unexpected)}"
-                },
-                400,
-            )
+        kind = event.get("kind")
+        if not isinstance(kind, str) or kind not in browser_kinds:
+            self._refuse(f"kind must be one of {browser_kinds}")
             return
-        wrong = [
-            f"`{name}` ({typ.__name__})"
-            for name, typ in BROWSER_EVENT_FIELDS[kind].items()
-            if type(event.get(name)) is not typ or event[name] == ""
-        ]
-        if wrong:
-            self._json({"error": f"{kind} events need {', '.join(wrong)}"}, 400)
+        # The server owns the record envelope and agent identity. Removing client
+        # copies before validation prevents them from entering attempt identity too.
+        for field in ("id", "author", "agent", "session", "ts", "seq"):
+            event.pop(field, None)
+        if error := event_record_error(contracts[kind], event, browser=True):
+            self._refuse(f"{kind} event is invalid: {error}")
             return
-        if kind == "comment" and "anchor" in event:
-            anchor = event["anchor"]
-            # `part` is design mode's: the control a press landed on, inside the
-            # element `section` names — words for the agent and the panel, not a
-            # second anchor, so nothing resolves it.
-            fields = {"section", "quote", "prefix", "suffix", "part"}
-            invalid = (
-                not isinstance(anchor, dict)
-                or set(anchor) - fields
-                or any(
-                    name in anchor
-                    and not (
-                        isinstance(anchor[name], str)
-                        or (name == "section" and anchor[name] is None)
-                    )
-                    for name in fields
-                )
-                or not (anchor.get("section") or anchor.get("quote"))
-            )
-            if invalid:
-                self._json(
-                    {
-                        "error": "comment anchor must contain a string section or quote, "
-                        "with optional string prefix/suffix/part"
-                    },
-                    400,
-                )
-                return
-        if (
-            kind == "comment"
-            and "suggestion" in event
-            and type(event["suggestion"]) is not bool
-        ):
-            self._json({"error": "comment suggestion must be boolean"}, 400)
-            return
-        if kind == "comment" and "about" in event and event["about"] != "layer":
-            self._json({"error": 'comment about must be "layer"'}, 400)
-            return
-        if "attempt" in event and (
-            not isinstance(event["attempt"], str)
-            or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", event["attempt"]) is None
-        ):
-            self._json(
-                {
-                    "error": "comment/reply/action attempt must be 16–128 ASCII letters, "
-                    "digits, underscores, or hyphens"
-                },
-                400,
-            )
-            return
-        # An accepted attempt outranks mutable validation state. A replacement tab may
-        # retry after a newer version retired the sender's version; this request is not
-        # a new event for that retired version, but a request for the event the log
-        # already durably accepted. Static shape and exact-payload reuse were checked
-        # above; absence continues through every state-dependent gate below, and the
-        # append lock repeats this lookup to close the race between two absent readers.
-        if "attempt" in event:
-            event["author"] = "user"
-            try:
-                existing = accepted_attempt(self.page_dir, event)
-            except AttemptConflict as error:
-                self._json({"error": str(error)}, 409)
-                return
-            if existing:
-                self._json({"ok": True, "event": existing})
-                return
-        events = read_events(self.page_dir)
-        if "version" in event:
-            live_versions = self.versions_live(events)
-            if event["version"] not in live_versions:
-                self._json(
-                    {"error": f"{kind} version must be one of {live_versions}"},
-                    400,
-                )
-                return
-        # Approval is the page's ask, so a version that never asked cannot record one:
-        # the banner offers the button only where the meta declares sign-off, and the
-        # door says the same thing to anything posting past it.
-        if kind == "done":
-            mode = version_review_mode(self.page_dir, event["version"])
-            if mode != "sign-off":
-                self._json(
-                    {
-                        "error": f"version {event['version']} does not declare "
-                        '<meta name="lf-review" content="sign-off">, so it has no '
-                        "approval to record"
-                    },
-                    400,
-                )
-                return
-        if kind == "action":
-            # A page's vendored registry is frozen at `page init` and the layer around it
-            # is not, so a stamp that no longer parses — or no longer declares what this
-            # layer writes — is state the reader can reach by clicking. It is theirs to
-            # hear about, in the same shape as every rejection above.
-            try:
-                registry = load_registry(self.page_dir)
-            except RegistryError as error:
-                self._json({"error": str(error)}, 400)
-                return
-            if registry is None:
-                self._json({"error": "the page has no registry.json"}, 400)
-                return
-            if error := action_contract_error(self.page_dir, event, events, registry):
-                self._json({"error": error}, 400)
-                return
-        # A parent names a message in a thread, the same rule `leaf reply`
-        # holds Claude to. Enforced so a walk up the log terminates at a comment.
-        if "parent" in event and event["parent"] not in {
-            e["id"] for e in events if e["kind"] in {"comment", "reply"}
-        }:
-            self._json({"error": f"unknown parent {event['parent']!r}"}, 400)
-            return
-        if kind == "undo" and (error := undo_error(event, events)):
-            self._json({"error": error}, 400)
-            return
-        event["author"] = "page" if kind == "error" else "user"
-        try:
-            accepted = append_event(self.page_dir, event)
-        except AttemptConflict as error:
-            self._json({"error": str(error)}, 409)
-            return
-        self._json({"ok": True, "event": accepted})
+        status, answer = self.coordinate_event(event)
+        self._json(answer, status)
 
 
 def handler_for(
@@ -2380,6 +2499,8 @@ def handler_for(
             "token": token,
             "preview_upto": preview_upto,
             "protocol_version": protocol_version,
+            "event_attempts": {},
+            "event_attempts_lock": threading.Lock(),
             "layer": layer_generation(page_dir),
         },
     )
@@ -2447,18 +2568,51 @@ def layer_source_paths(layers: list) -> list:
     return paths
 
 
-def _path_location(path: Path) -> tuple:
-    """Deepest existing ancestor and the unresolved path components below it."""
+class _Location(NamedTuple):
+    """A path in the one form containment can be read off without touching disk.
+
+    `lineage` is the filesystem identity — `samefile`'s own pair — of the deepest
+    existing ancestor and of every ancestor above it, deepest first; `tail` is
+    the components below that ancestor which don't exist yet, case-folded where
+    the volume ignores case. Two of these answer every question below by
+    comparison alone.
+
+    That is the whole point of the form. The callers are set intersections: every
+    layer source against every other, every source against every vendored
+    destination — 786 containment tests over the shipped layer's thirty-six
+    distinct paths. Asked path-by-path, each test re-resolved both paths and
+    stat'd its way up both ancestor chains, so `page init` spent two thirds of
+    itself on some 37,000 `stat` calls. Canonicalising each path once leaves the
+    syscalls proportional to the paths rather than to the tests, which halves
+    `page init` and takes two thirds off its system time."""
+
+    lineage: tuple
+    tail: tuple
+
+
+def _path_location(path: Path) -> _Location:
+    """Read a path into the form above."""
     ancestor = path.resolve()
     tail = []
     while True:
         try:
-            ancestor.stat()
+            identity = ancestor.stat()
         except (FileNotFoundError, NotADirectoryError):
             tail.append(ancestor.name)
             ancestor = ancestor.parent
             continue
-        return ancestor, tuple(reversed(tail))
+        break
+    lineage = [(identity.st_dev, identity.st_ino)]
+    # The ancestors of a path that resolved all exist, so a failure here is the
+    # filesystem moving under the command and belongs to whoever called it.
+    for parent in ancestor.parents:
+        above = parent.stat()
+        lineage.append((above.st_dev, above.st_ino))
+    # Only a tail can be case-folded, so a path that exists never pays for the
+    # volume probe — which is every path the set intersections compare.
+    if tail and not _filesystem_case_sensitive(ancestor):
+        tail = [part.casefold() for part in tail]
+    return _Location(tuple(lineage), tuple(reversed(tail)))
 
 
 def _filesystem_case_sensitive(path: Path) -> bool:
@@ -2513,49 +2667,53 @@ def _filesystem_case_sensitive(path: Path) -> bool:
     return bool(result.capabilities[0] & case_sensitive)
 
 
-def _same_existing_path(left: Path, right: Path) -> bool:
-    try:
-        return left.samefile(right)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
+def location_is_within(here: _Location, there: _Location) -> bool:
+    """The one implementation of containment; everything below reads it.
+
+    An existing `there` is reached by finding its identity among `here`'s
+    ancestors. One that doesn't exist yet is reached only from the same deepest
+    existing ancestor, with its tail as a prefix — which is also why folding each
+    tail by its own volume above is safe: tails are compared only when the two
+    ancestors are one inode, and so one volume."""
+    if not there.tail:
+        return there.lineage[0] in here.lineage
+    return (
+        here.lineage[0] == there.lineage[0]
+        and here.tail[: len(there.tail)] == there.tail
+    )
+
+
+def locations_overlap(left: _Location, right: _Location) -> bool:
+    return location_is_within(left, right) or location_is_within(right, left)
+
+
+def located(paths) -> list:
+    """Each path beside its location, for a caller about to compare it many times."""
+    return [(path, _path_location(path)) for path in paths]
 
 
 def path_is_within(path: Path, root: Path) -> bool:
     """Filesystem-aware containment, including not-yet-created descendants."""
-    path_ancestor, path_tail = _path_location(path)
-    root_ancestor, root_tail = _path_location(root)
-    if not root_tail:
-        return any(
-            _same_existing_path(candidate, root_ancestor)
-            for candidate in (path_ancestor, *path_ancestor.parents)
-        )
-    if not _same_existing_path(path_ancestor, root_ancestor):
-        return False
-    if not _filesystem_case_sensitive(root_ancestor):
-        path_tail = tuple(part.casefold() for part in path_tail)
-        root_tail = tuple(part.casefold() for part in root_tail)
-    return path_tail[: len(root_tail)] == root_tail
+    return location_is_within(_path_location(path), _path_location(root))
 
 
 def paths_same(left: Path, right: Path) -> bool:
-    return path_is_within(left, right) and path_is_within(right, left)
-
-
-def paths_overlap(left: Path, right: Path) -> bool:
-    return path_is_within(left, right) or path_is_within(right, left)
+    # Containment both ways is equality of the canonical form: neither path can
+    # be a strict ancestor of the other and still contain it.
+    return _path_location(left) == _path_location(right)
 
 
 def overlapping_layer_sources(layers: list):
     """The first resolved path shared by two precedence scopes."""
-    sources = [(layer, layer_source_paths([layer])) for layer in layers]
+    sources = [(layer, located(layer_source_paths([layer]))) for layer in layers]
     return next(
         (
             (left_layer, left, right_layer, right)
             for index, (left_layer, left_paths) in enumerate(sources)
             for right_layer, right_paths in sources[index + 1 :]
-            for left in left_paths
-            for right in right_paths
-            if paths_overlap(left, right)
+            for left, left_at in left_paths
+            for right, right_at in right_paths
+            if locations_overlap(left_at, right_at)
         ),
         None,
     )
@@ -2593,7 +2751,18 @@ def layered_theme(layers: list) -> str:
     return "".join(parts)
 
 
-def _cmd_init_locked(page_dir: Path) -> None:
+def cmd_init(page_dir: Path) -> None:
+    # Before the directory exists there is no comments log for PageTransaction
+    # to lock. This one external lease covers that missing first instant through
+    # the complete vendoring, so two public inits cannot both observe freshness
+    # and the earlier one cannot later erase the page the other created.
+    path = init_lock_path(page_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(path), flocked(transition_lock(page_dir)):
+        _init_page(page_dir)
+
+
+def _init_page(page_dir: Path) -> None:
     service = read_json(page_dir / "service.json")
     server_live = lock_is_held(page_dir / "server.lock")
     if server_live or (service and service["enabled"]):
@@ -2601,13 +2770,16 @@ def _cmd_init_locked(page_dir: Path) -> None:
             f"cannot re-vendor {page_dir} while its service is enabled. "
             f"Run `leaf server stop {page_dir}` first."
         )
-    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
-    # where drift has to be caught: a tag or verb the new layer omits, or a
-    # detail schema that no longer accepts an old payload, makes a recorded
-    # action foreign on the first reload — the lost-decision bug reintroduced
-    # through vocabulary drift instead of version-scoping.
+    # Successful init creates the append-only log's stable inode. A directory
+    # the caller prepared is still a fresh page until that marker exists: it
+    # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
+    # validation leaves it untouched.
+    fresh = not (page_dir / "comments.jsonl").is_file()
     sources = layer_dirs()
     page_target = page_dir.resolve()
+    # Refuse a customization source before PageTransaction opens the page log:
+    # this directory is not a page, and a rejected init must not put page state
+    # inside the layer it was trying to protect.
     if source := next(
         (layer for layer in sources if path_is_within(page_target, layer)),
         None,
@@ -2616,6 +2788,25 @@ def _cmd_init_locked(page_dir: Path) -> None:
             f"{page_dir} is inside the widget-layer customization source "
             f"{source}, not a page directory"
         )
+    if fresh:
+        _vendor_page(page_dir, fresh=True, sources=sources, page_target=page_target)
+        return
+    # The init lease serializes this operation with other inits; an existing
+    # page also has its ordinary transaction, which gives the vocabulary check
+    # and contract commit one order against every browser append. No path takes
+    # the page transaction and then the init lease, so this order cannot invert.
+    with PageTransaction(page_dir):
+        _vendor_page(page_dir, fresh=False, sources=sources, page_target=page_target)
+
+
+def _vendor_page(
+    page_dir: Path, *, fresh: bool, sources: list, page_target: Path
+) -> None:
+    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
+    # where drift has to be caught: a tag or verb the new layer omits, or a
+    # detail schema that no longer accepts an old payload, makes a recorded
+    # action foreign on the first reload — the lost-decision bug reintroduced
+    # through vocabulary drift instead of version-scoping.
     layers = checked_layers(sources)
     if overlap := overlapping_layer_sources(layers):
         left_layer, left, right_layer, right = overlap
@@ -2627,12 +2818,13 @@ def _cmd_init_locked(page_dir: Path) -> None:
         *(page_target / name for name in VENDORED_FILES),
         *(page_target / sub for sub in ("versions", *VENDORED_DIRS)),
     ]
+    located_destinations = located(destinations)
     if overlap := next(
         (
             (source, destination)
-            for source in layer_source_paths(layers)
-            for destination in destinations
-            if paths_overlap(source, destination)
+            for source, source_at in located(layer_source_paths(layers))
+            for destination, destination_at in located_destinations
+            if locations_overlap(source_at, destination_at)
         ),
         None,
     ):
@@ -2730,11 +2922,15 @@ def _cmd_init_locked(page_dir: Path) -> None:
     # Owner-only when this call creates it: the directory holds the discussion
     # and service state whose URL carries the machine key. A directory the
     # caller already made keeps the mode they chose.
+    if fresh:
+        # A page's claim lives outside its directory. Recreating a deleted path
+        # creates a new page, so it must not inherit the deleted page's owner.
+        # Re-vendoring an existing page preserves that page and its claim.
+        claim_path(page_dir).unlink(missing_ok=True)
     page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     (page_dir / "versions").mkdir(exist_ok=True)
     for sub in VENDORED_DIRS:
         (page_dir / sub).mkdir(exist_ok=True)
-
     # Stage the whole layer together. The registry is the declaration that
     # makes every other file live, so it is the final replacement.
     writes = [
@@ -2758,14 +2954,19 @@ def _cmd_init_locked(page_dir: Path) -> None:
             ):
                 stale.unlink()
     if not (page_dir / "status.json").exists():
-        cmd_status(page_dir, "working", "Writing the page")
+        # Fresh creation holds the init lease; re-vendoring holds both it and
+        # the page transaction. Calling cmd_status would try to re-enter the
+        # latter's comments-log flock for an existing directory missing status.
+        write_json(
+            page_dir / "status.json",
+            {"state": "working", "detail": "Writing the page", "ts": now_iso()},
+        )
+    # The append-only log's stable inode is also the successful-init marker and
+    # the page transaction lease. Publish it only after the layer and initial
+    # status commit, so a failed first write still takes the fresh-init path.
+    with open(page_dir / "comments.jsonl", "a", encoding="utf-8"):
+        pass
     print(f"initialized {page_dir}")
-
-
-def cmd_init(page_dir: Path) -> None:
-    """Replace a disabled page's vendored contract as one lifecycle transition."""
-    with flocked(transition_lock(page_dir)):
-        _cmd_init_locked(page_dir)
 
 
 CUSTOM_THEME = """\
@@ -2811,12 +3012,13 @@ def refuse_customization_overlap(targets: list, protected: list) -> None:
     Three callers ask, each about a different set of targets — the layer directory
     itself, the theme file, every file a widget scaffold stages — and the refusal is one,
     so it is stated here with the question rather than three times beside it."""
+    located_protected = located(protected)
     overlap = next(
         (
             (target.resolve(), source)
-            for target in targets
-            for source in protected
-            if paths_overlap(target.resolve(), source)
+            for target, target_at in located(targets)
+            for source, source_at in located_protected
+            if locations_overlap(target_at, source_at)
         ),
         None,
     )
@@ -2831,6 +3033,7 @@ def refuse_customization_overlap(targets: list, protected: list) -> None:
 def initialized_page_owning(path: Path):
     """The initialized page that owns path, if there is one."""
     resolved = path.resolve()
+    at = _path_location(resolved)
     for root in (resolved, *resolved.parents):
         # Runtime state is disposable and regenerated; it cannot identify the
         # page whose owned paths this gate protects.
@@ -2841,9 +3044,12 @@ def initialized_page_owning(path: Path):
         ):
             continue
         if (
-            paths_same(resolved, root)
-            or any(paths_same(resolved, root / name) for name in PAGE_OWNED_FILES)
-            or any(path_is_within(resolved, root / name) for name in PAGE_OWNED_DIRS)
+            at == _path_location(root)
+            or any(at == _path_location(root / name) for name in PAGE_OWNED_FILES)
+            or any(
+                location_is_within(at, _path_location(root / name))
+                for name in PAGE_OWNED_DIRS
+            )
         ):
             return root
     return None
@@ -2949,11 +3155,17 @@ def custom_widget_module(tag: str) -> str:
 //   what was decided (renderRetired paints the same state sooner on the sender's
 //   own gesture). `version check --render` reads the result, and reports a settled
 //   slot that shows words anyway, or a mark the log never decided.
+// - An x-state verb's `requires` is its one current-eligibility rule. Use
+//   actionAvailable(el, verb, detail) to paint and guard the exact gesture;
+//   sendAction and the server repeat that declaration at their own doors.
 // - Read your own slot with says(el), never textContent: the runtime's hidden
 //   comment line lands inside widgets legitimately.
 // - Anything you inject is chrome only if marked: offer() for a control,
 //   relabel() for a label that is the page speaking. Unmarked injected words
 //   read as the page's and break the file-side anchor reading.
+// - Records supplied at runtime go through projectData(): its stable string keys
+//   make the rendering readable but not authored, and keep comments on the same
+//   logical datum through refreshes. Never write its data-lf-* markers by hand.
 // - The registry entry declares x-verbatim because this stub leaves the body
 //   in place. Drop it the moment the module renders anything in the body's
 //   stead, or quotes anchor on words the screen no longer shows.
@@ -3128,60 +3340,72 @@ def cmd_serve(
     standing: bool = False,
     revive: bool = False,
 ) -> None:
+    """Serve one initialized page under its durable service contract.
+
+    Claiming is deliberately outside this process: server start claims before
+    spawning it, server run claims at the CLI boundary, and a wait already owns
+    the page it revives. This child only verifies that the matching claim still
+    stands, then owns service.json and the server.lock process lease.
+    """
     require_cross_process_locking()
-    page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     lease = None
     httpd = None
-    with flocked(transition_lock(page_dir)):
+    with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
         service = read_json(page_dir / "service.json")
         if revive and (not service or not service["enabled"]):
             sys.exit("service was stopped; not reviving")
-        if revive and service["lifetime"] == "session":
-            identity = host_identity()
-            with flocked(claim_lock(page_dir)):
-                claim = read_json(page_dir / "session.json")
-                owns = bool(
-                    identity
-                    and claim
-                    and (claim["host"], claim["id"])
-                    == (identity["host"], identity["id"])
-                )
-            if not owns:
-                sys.exit("this session no longer owns the service; not reviving")
-        claimed = False
+
+        identity = host_identity()
+        claim = page.claim
+        claimed = bool(
+            not standing
+            and identity is not None
+            and claim is not None
+            and claim["released"] is None
+            and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
+        )
+        if not standing and identity is not None and not claimed:
+            sys.exit(
+                f"this host session no longer owns {page_dir}; "
+                "the server was not started"
+            )
+        if revive and service and service["lifetime"] == "session" and not claimed:
+            sys.exit("this session no longer owns the service; not reviving")
+
         existing = running_server(page_dir)
         if existing:
             if host and urlsplit(existing["url"]).hostname != host.lower():
                 sys.exit(
-                    f"already serving at {existing['url']}; `leaf server stop` "
-                    "first, then re-run with --host"
+                    f"already serving at {existing['url']}; "
+                    "leaf server stop first, then re-run with --host"
                 )
             if standing and existing["lifetime"] != "standing":
                 sys.exit(
                     f"already serving as a session server at {existing['url']}; "
-                    "`leaf server stop` first, then re-run with --standing"
+                    "leaf server stop first, then re-run with --standing"
                 )
-            if not standing and not revive:
-                claimed = claim_page(page_dir)
-                # The old session reaper and this claim meet at claim_lock. If
-                # it won, it exited before releasing the lock; do not return a
-                # URL from the liveness snapshot taken before that boundary.
-                existing = running_server(page_dir)
-            if existing:
-                print(existing["url"], flush=True)
-                print(lifetime_note(page_dir), file=sys.stderr, flush=True)
-                return
+            print(existing["url"], flush=True)
+            print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+            return
 
         access = page_access(page_dir, host)
         token = host_key()
         base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
         ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-        lease = open(page_dir / "server.lock", "a+b")  # noqa: SIM115 - process lease
+        lease = open(  # noqa: SIM115 - held until the server process exits
+            page_dir / "server.lock", "a+b"
+        )
         try:
             fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             lease.close()
-            sys.exit(f"another `server run` is serving {page_dir}; re-run")
+            winner = running_server(page_dir)
+            if winner:
+                print(winner["url"], flush=True)
+                print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+                return
+            sys.exit(f"another server run is serving {page_dir}; re-run")
+
         for port in ports:
             try:
                 httpd = server_at(
@@ -3190,27 +3414,22 @@ def cmd_serve(
                     handler_for(page_dir, token, protocol_version="HTTP/1.1"),
                 )
                 break
-            except OSError as e:
-                if e.errno == errno.EADDRINUSE and "port" not in access:
+            except OSError as error:
+                if error.errno == errno.EADDRINUSE and "port" not in access:
                     continue
                 lease.close()
                 sys.exit(
                     f"can't serve {page_dir} on {access['bind']}"
-                    f"{':' + str(access['port']) if 'port' in access else ''}: {e}\n"
-                    f"that address is kept in {page_dir / 'service.json'}; delete "
-                    "that file to derive the address again from this session, or "
-                    "re-run with --host NAME."
+                    f"{':' + str(access['port']) if 'port' in access else ''}: "
+                    f"{error}\nthat address is kept in "
+                    f"{page_dir / 'service.json'}; delete that file to derive "
+                    "the address again from this session, or re-run with "
+                    "--host NAME."
                 )
-        # A watcher claimed before deciding to revive. An explicit start claims
-        # only after every refusal and bind has succeeded, so a failed launch
-        # cannot take a live page away from another session.
-        if not standing and not revive and not claimed:
-            claimed = claim_page(page_dir)
+
         lifetime = (
             "standing"
-            if standing
-            or access.get("lifetime") == "standing"
-            or (not revive and not claimed)
+            if standing or access.get("lifetime") == "standing" or not claimed
             else "session"
         )
         service = {
@@ -3223,9 +3442,6 @@ def cmd_serve(
         write_json(page_dir / "service.json", service)
         url = page_url(service["host"], service["port"], token)
 
-    # The URL is the payload and goes to stdout alone, as everything downstream
-    # reads it there; what ends this process is the account beside it, and stderr
-    # is where leaf's other accounts of themselves already go.
     print(url, flush=True)
     print(lifetime_note(page_dir), file=sys.stderr, flush=True)
     threading.Thread(
@@ -3240,19 +3456,25 @@ def cmd_serve(
         lease.close()
 
 
-def write_status(
-    page_dir: Path, state: str, detail: str, handoff: bool = False
+def cmd_status(
+    page_dir: Path,
+    state: str,
+    detail: str,
+    handoff: bool = False,
+    on: str | None = None,
 ) -> None:
-    """Write a status while the caller holds the page's log lock."""
-    status = {"state": state, "detail": detail, "ts": now_iso()}
-    if handoff:
-        status["handoff"] = True
-    write_json(page_dir / "status.json", status)
-
-
-def cmd_status(page_dir: Path, state: str, detail: str, handoff: bool = False) -> None:
-    with flocked(page_dir / "comments.jsonl"):
-        write_status(page_dir, state, detail, handoff)
+    with PageTransaction(page_dir) as page:
+        if on is not None:
+            # A note says "I am on this now", so the two other states have
+            # nothing to put on a thread: `waiting` is the reader's move, and
+            # `idle` is the end of the agent's side.
+            if state != "working":
+                sys.exit("--on says what you are working on; use it with `working`")
+            if not detail:
+                sys.exit("--on needs a detail; a note with no words says nothing")
+            if on not in build_threads(page.events, {}):
+                sys.exit(f"{on} is not a comment thread on this page")
+        page.set_status(state, detail, handoff=handoff, on=on)
 
 
 def start_server(
@@ -3283,7 +3505,7 @@ def start_server(
             sys.executable,
             str(Path(__file__).resolve()),
             "server",
-            "run",
+            "_serve",
             str(page_dir),
             *(["--host", host] if host else []),
             *(["--standing"] if standing else []),
@@ -3322,29 +3544,25 @@ class PageTick(NamedTuple):
     watch_state: str
     lost: bool
     restarted: str | None
+    transaction: PageTransaction
 
 
 class Watch:
     """A session's watch, one locked page reading at a time.
 
-    The two carriers differ in what they do with a batch — a wait prints one and
-    exits, the channel notifies and keeps going — and in nothing else. Which
-    pages the session holds, exact liveness lease, ownership, status and
-    unacknowledged batch, and the five-second server check with its one revival
-    per death are the same facts whichever carrier asks.
-
-    A tick yields while the page's claim and log locks remain held. The caller
-    decides how to deliver the batch before asking for the next tick, so claim
-    transfer, event arrival, delivery, and the handoff status have one order.
-    A revival releases both locks before waiting for the service transition,
-    then rereads under both; no snapshot crosses that unlocked interval.
+    A tick yields while the page's log lock remains held. The caller decides how
+    to deliver the batch before asking for the next tick, so claim transfer,
+    SessionEnd, event arrival, delivery, and the handoff status have one order.
+    A revival releases that transaction before waiting for the service
+    transition, then rereads under a new transaction; no delivery snapshot
+    crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with no restart left to make.
     """
 
     def __init__(self, identity: dict | None, named: Path | None = None):
         self.identity = identity
-        self.session_id = identity["id"] if identity else ""
+        self.session_id = identity["id"] if identity else None
         self.named = named
         self.lease_path = waiter_lease_path(named, identity)
         self.lease = None
@@ -3363,11 +3581,12 @@ class Watch:
         """Every page this session holds, re-read each pass, so a page served
         mid-watch joins it and a page another session picked up drops out.
         Naming one holds it in the set whatever the registry says — how a
-        session picks up a leaf it didn't serve, and the whole set outside a
-        host session (a bare shell, the tests)."""
-        watched = owned_pages(self.session_id)
-        if self.named is not None and not any(
-            paths_same(d, self.named) for d in watched
+        session picks up a leaf it didn't serve. A bare shell has no implicit
+        ownership set, so it watches only a page explicitly named."""
+        watched = owned_pages(self.session_id) if self.identity is not None else []
+        named_at = None if self.named is None else _path_location(self.named)
+        if named_at is not None and not any(
+            _path_location(d) == named_at for d in watched
         ):
             watched.append(self.named)
         return watched
@@ -3383,14 +3602,15 @@ class Watch:
             # testable: a claim or SessionEnd can win after page selection,
             # and _read must then decline every stale act.
             observed = read_json(page_dir / "status.json") or {"state": "idle"}
-            with (
-                flocked(claim_lock(page_dir)),
-                flocked(page_dir / "comments.jsonl"),
-            ):
-                reading, revive = self._read(page_dir, observed)
-                if not revive:
-                    yield reading
-                    continue
+            try:
+                with PageTransaction(page_dir) as page:
+                    reading, revive = self._read(page, observed)
+                    if not revive:
+                        yield reading
+                        continue
+            except FileNotFoundError:
+                # Discovery can race deletion; a missing marker is no page.
+                continue
 
             started = start_server(page_dir, revive=True)
             key = str(page_dir)
@@ -3401,34 +3621,29 @@ class Watch:
                 self._lost.add(key)
 
             # Ownership or status may have changed while the service transition
-            # ran. Only this second reading may be delivered.
-            with (
-                flocked(claim_lock(page_dir)),
-                flocked(page_dir / "comments.jsonl"),
-            ):
-                reading, _ = self._read(page_dir, observed)
-                if (
-                    started
-                    and reading.watch_state == "watching"
-                    and reading.live
-                    and not reading.lost
-                ):
-                    reading = reading._replace(restarted=started[0])
-                yield reading
+            # ran. Only this second transactional reading may be delivered.
+            try:
+                with PageTransaction(page_dir) as page:
+                    reading, _ = self._read(page, observed)
+                    if (
+                        started
+                        and reading.watch_state == "watching"
+                        and reading.live
+                        and not reading.lost
+                    ):
+                        reading = reading._replace(restarted=started[0])
+                    yield reading
+            except FileNotFoundError:
+                continue
 
-    def _read(self, page_dir: Path, observed: dict) -> tuple[PageTick, bool]:
-        """Read one page under its claim and log locks; say if revival is due."""
-        watch_state = current_watch_state(page_dir, self.identity)
-        status = (
-            observed
-            if watch_state == "lost"
-            else read_json(page_dir / "status.json") or {"state": "idle"}
-        )
+    def _read(self, page: PageTransaction, observed: dict) -> tuple[PageTick, bool]:
+        """Read one page transaction and say whether revival is due."""
+        page_dir = page.page_dir
+        watch_state = page.watch_state(self.identity)
+        status = observed if watch_state == "lost" else page.status
         live = status["state"] != "idle"
         batch = (
-            unacknowledged(read_events(page_dir), read_cursor(page_dir))
-            if watch_state != "lost"
-            else []
+            unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
         )
         service = read_json(page_dir / "service.json")
         enabled = bool(service and service["enabled"])
@@ -3461,6 +3676,7 @@ class Watch:
                 watch_state,
                 key in self._lost,
                 None,
+                page,
             ),
             revive,
         )
@@ -3494,7 +3710,8 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     it announces the first while describing the second — and the second is the
     ordinary case. Only their browser can tell them apart, and the user holds
     the URL from the turn that handed it over, so the report comes from them;
-    SKILL.md's "Where the page is served" carries the recourse."""
+    references/serving-pages.md's "Unreachable URLs and `--host`" carries the
+    recourse."""
     if page_dir is not None:
         claim_page(page_dir)
     identity = host_identity()
@@ -3542,8 +3759,7 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                         # "waiting". The tick still holds the page lock, so a
                         # transfer cannot land between delivery and this claim.
                         n = len(reading.batch)
-                        write_status(
-                            reading.page_dir,
+                        reading.transaction.set_status(
                             "working",
                             f"picking up {n} update{'s' if n != 1 else ''}",
                             handoff=True,
@@ -3587,24 +3803,74 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
     advancing the cursor to a trailing log entry it never saw. Writing only when
     the cursor advances makes retries harmless.
     """
-    events = read_events(page_dir)
-    # By the seq the event carries, never by its position in the list. A seq is a
-    # line number and read_events skips what it can't read, so the two coincide
-    # only on a log nothing tore — and the one command that turns a seq back into
-    # an event is the last place that should have its own answer for what one is.
-    target = next((e for e in events if e["seq"] == seq), None)
-    if target is None:
-        end = events[-1]["seq"] if events else 0
-        sys.exit(f"event {seq} does not exist; the log ends at {end}")
-    if target["author"] != "user" and target["kind"] not in ("report", "error"):
-        sys.exit(f"event {seq} is not a user event, a report, or a page error")
-    # Under the log's lock: two concurrent acks each reading 0 would let the
-    # smaller seq land last and regress the cursor its guard exists to keep
-    # monotonic. The log file is the page's one lock, and the cursor is a seq
-    # into it.
-    with flocked(page_dir / "comments.jsonl"):
-        if seq > read_cursor(page_dir):
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        # By the seq the event carries, never by its position in the list. A seq
+        # is a line number and read_events skips what it can't read, so the two
+        # coincide only on a log nothing tore.
+        target = next((e for e in events if e["seq"] == seq), None)
+        if target is None:
+            end = events[-1]["seq"] if events else 0
+            sys.exit(f"event {seq} does not exist; the log ends at {end}")
+        if target["author"] != "user" and target["kind"] not in ("report", "error"):
+            sys.exit(f"event {seq} is not a user event, a report, or a page error")
+        if seq > page.cursor:
             write_json(page_dir / "cursor.json", {"seq": seq})
+
+
+def thread_roots(events: list) -> dict:
+    """Message id → the id of the comment that opened its thread.
+
+    Two readings of the panel's own document resolve a reply to its root, and they
+    must answer alike: a decision and an ask naming different conversations for one
+    message is a disagreement no reader could account for. (`build_threads` walks the
+    same relation to a different end — the thread object itself, with its resolution —
+    so it keeps its own.)
+
+    A reply whose root the log lost stands as its own thread rather than raising.
+    `read_events` skips a line nothing could be done with and keeps reading, and a
+    reader who can see the reply is owed the rest of the page around it."""
+    root = {}
+    for e in events:
+        if e["kind"] == "comment":
+            root[e["id"]] = e["id"]
+        elif e["kind"] == "reply":
+            root[e["id"]] = root.get(e["parent"], e["parent"])
+    return root
+
+
+def thread_universe(events: list, registry: dict):
+    """Every widget the log's frozen markup holds, read as one document.
+
+    id → record and id → spoken words, which is the panel's answer to a version's
+    `parser.by_id`/`spoken` pair, plus the thread each widget was sent in. A
+    version's element universe is one file; the panel's is every fragment the log
+    carries, and the two are separate documents that happen to share a page."""
+    structure = thread_structure(events)
+    root = thread_roots(events)
+    byid, spk, thread_of = {}, {}, {}
+    for e in events:
+        if markup := e.get("markup"):
+            fragment = structure.fragments[e["id"]]
+            byid.update(fragment.by_id)
+            spk.update(spoken(markup, registry))
+            thread_of.update(dict.fromkeys(fragment.by_id, root[e["id"]]))
+    return byid, spk, thread_of
+
+
+def thread_state(events: list, registry: dict):
+    """What the reader's gestures leave standing on the widgets an agent sent.
+
+    Thread markup is frozen in its event: no version window bounds it and no
+    retraction floor reaches it, so every action on it reads the whole
+    conversation window. Both doors that must answer for such a widget read it
+    here — the action gate, deciding whether a fresh press is allowed, and
+    `page state`, telling a session picking the page up what the reader has
+    already settled — so a decision made in the panel cannot stand at one door
+    and be missing at the other."""
+    byid, spk, thread_of = thread_universe(events, registry)
+    projection = state_projection(events, byid, spk, registry, None, floors={})
+    return projection, byid, thread_of
 
 
 def read_text_arg(text) -> str:
@@ -3614,39 +3880,22 @@ def read_text_arg(text) -> str:
     return body.strip()
 
 
-def thread_widget_ids(events: list) -> set:
-    """Ids claimed by widget markup in the logged messages. Thread markup is frozen
-    in the log and rendered into the panel, so its ids share one universe with page ids —
-    the runtime resolves actions document-wide by id, and a collision would silently
-    redirect a thread widget's replay to the page.
+class ThreadStructure(NamedTuple):
+    ids: set
+    by_id: dict
+    fragments: dict
 
-    The `markup` field is the whole question: text renders with every tag escaped, so a
-    lf- tag there is words about a widget, and the field's one door is the CLI gate."""
-    ids = set()
+
+def thread_structure(events: list) -> ThreadStructure:
+    """Parse each logged markup fragment once into the panel's id universe."""
+    ids, by_id, fragments = set(), {}, {}
     for e in events:
         if markup := e.get("markup"):
-            ids |= parse_structure(markup).ids
-    return ids
-
-
-def action_widget_tags(byid: dict, events: list) -> dict:
-    """Widget id → tag in the document that sent an action.
-
-    Page widgets come from the action's own published version, not whichever
-    version is newest now. `byid` is that version's structural reading; the caller
-    takes it, having a second question for the same reading. Thread widgets are
-    the other live document the runtime renders, so each message's `markup` joins
-    this map — text never carries a widget, in the panel or here. Both readings
-    use _StructParser, the same structure reading `version check` and markup
-    validation already trust.
-    """
-    widgets = {wid: rec["tag"] for wid, rec in byid.items()}
-    for event in events:
-        if markup := event.get("markup"):
-            widgets.update(
-                (wid, rec["tag"]) for wid, rec in parse_structure(markup).by_id.items()
-            )
-    return widgets
+            fragment = parse_structure(markup)
+            fragments[e["id"]] = fragment
+            ids.update(fragment.ids)
+            by_id.update(fragment.by_id)
+    return ThreadStructure(ids, by_id, fragments)
 
 
 def detail_error(schema: dict, detail: dict):
@@ -3654,6 +3903,24 @@ def detail_error(schema: dict, detail: dict):
     ordered so which one speaks doesn't depend on validator iteration order."""
     error = min(Draft202012Validator(schema).iter_errors(detail), key=str, default=None)
     return error.message if error else None
+
+
+def event_record_error(contract: dict, event: dict, browser: bool = False):
+    """The first complaint from one event kind's stored-record contract."""
+    schema = contract["record"]
+    instance = event
+    if browser:
+        # Supply the fields the server and reader add so the full record schema
+        # can validate the unstamped request beside its browser assertions.
+        schema = {"allOf": [schema, contract["browser"]]}
+        instance = {
+            **event,
+            "id": "browser",
+            "ts": "browser",
+            "author": "page" if event.get("kind") == "error" else "user",
+            "seq": 1,
+        }
+    return detail_error(schema, instance)
 
 
 def declared_event_error(
@@ -3676,26 +3943,27 @@ def declared_event_error(
     return None
 
 
-def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
-    """Why a structurally complete action violates its sending widget's contract."""
-    # One structural reading of the version, for both questions this door asks of
-    # it: which tag the widget is, and whether it stands inside an exhibit.
-    byid = parse_version(page_dir, event["version"]).by_id
-    tag = action_widget_tags(byid, events).get(event["widget"])
-    if tag is None:
+def declared_action_error(
+    event: dict, page_by_id: dict, thread_by_id: dict, registry: dict
+):
+    """Why a stored action violates its sending widget's durable declaration."""
+    # Page widgets come from the action's own published version. Thread widgets
+    # inhabit the panel's other live document. Either record answers both which
+    # tag sent the action and whether it stands inside an exhibit.
+    rec = page_by_id.get(event["widget"]) or thread_by_id.get(event["widget"])
+    if rec is None:
         return (
             f"unknown action widget {event['widget']!r} in v{event['version']} "
             "or agent-authored thread markup"
         )
+    tag = rec["tag"]
     if error := declared_event_error(event, tag, registry, "action", "x-state"):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
-    # made on quoted material. Any sender the key admits reaches this door. The
-    # page's own markup answers it, a thread's widgets standing in the document
-    # the panel renders rather than this one.
-    if (rec := byid.get(event["widget"])) and quoted_in(rec, registry):
+    # made on quoted material. Any sender the key admits reaches this door.
+    if quoted_in(rec, registry):
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
@@ -3703,13 +3971,86 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     return None
 
 
-def report_contract_error(page_dir: Path, event: dict, registry: dict):
+def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
+    """Why a fresh action violates its declaration or current applicability.
+
+    Eligibility is derived inside the append transaction from the action's
+    authored document and the standing log. A browser evaluates the same
+    declaration for honest controls, but its possibly stale reading never
+    authorizes this boundary.
+    """
+    version = event["version"]
+    page = parse_version(page_dir, version)
+    # One reading of the panel's document for the whole door: the id universe the
+    # declaration is looked up in and the projection the requirement is judged
+    # against are the same frozen fragments, and parsing them twice was two
+    # readings that could only ever agree.
+    thread_projection, thread_by_id, _threads = thread_state(events, registry)
+    if error := declared_action_error(event, page.by_id, thread_by_id, registry):
+        return error
+    page_rec = page.by_id.get(event["widget"])
+    rec = page_rec or thread_by_id[event["widget"]]
+    tag = rec["tag"]
+    spec = registry[tag]["x-state"][event["action"]]
+    requirement = spec.get("requires")
+    if not requirement:
+        return None
+
+    if page_rec:
+        html = version_path(page_dir, version).read_text(encoding="utf-8")
+        projection, parser, spk = page_projection(html, events, registry, version)
+        byid = parser.by_id
+        current = parser.by_id[event["widget"]]
+        passages = page_passages(
+            html, registry, decisions(projection.actions, registry)
+        )
+        _, awaiting_values = page_ask_projection(
+            parser,
+            projection,
+            byid,
+            spk,
+            registry,
+            set(passages.retired) | set(passages.gone),
+        )
+    else:
+        # Thread markup is frozen in the log: it has no version retraction floor
+        # and its actions read the whole conversation window.
+        projection, byid = thread_projection, thread_by_id
+        current = byid[event["widget"]]
+        page_html = version_path(page_dir, version).read_text(encoding="utf-8")
+        threads = build_threads(events, spoken(page_html, registry))
+        settled = {root for root, value in threads.items() if value["resolved"]}
+        _, awaiting_values = thread_ask_projection(events, registry, settled)
+
+    if requirement.get("change") == "increase":
+        current_value = replayed_attrs(current, projection)[spec["record"]["attr"]]
+        proposed = event["detail"][spec["record"]["value"]]
+        if int(proposed) <= int(current_value):
+            return None
+    holders = projected_action_holders(projection, byid, registry)
+    target = (
+        current
+        if requirement["target"] == "self"
+        else holders.get(current["attrs"]["id"], current["holder"])
+    )
+    target_id = target["attrs"]["id"]
+    awaiting = awaiting_values.get(target_id, False)
+    if awaiting != requirement["awaiting"]:
+        return (
+            f"<{tag}> {event['widget']!r} action {event['action']!r} is "
+            f"unavailable: {requirement['target']} {target_id!r} is "
+            f"{'still ' if awaiting else 'no longer '}awaiting the reader"
+        )
+    return None
+
+
+def report_contract_error(event: dict, page_by_id: dict, registry: dict):
     """Why a structurally complete report violates its widget's declaration —
     the CLI door's mirror of the POST door's action_contract_error. Page markup
     only, never a reply's: a report has to be answerable, and thread markup is
     frozen in the log, so no version could ever absorb or overrule one made
     there."""
-    rec = parse_version(page_dir, event["version"]).by_id.get(event["widget"])
+    rec = page_by_id.get(event["widget"])
     tag = rec["tag"] if rec else None
     if tag is None:
         return (
@@ -3769,6 +4110,20 @@ def id_errors(parser) -> list:
     return errors + reserved_marker_errors(parser)
 
 
+def thread_markup_contract_errors(parser, registry: dict) -> list:
+    """Registry-derived errors shared by admission and re-vendoring."""
+    errors = fragment_errors(parser, registry)
+    settled = retirement_slots(registry)
+    errors.extend(
+        f"<{rec['tag']}> is a settlement holder, but thread markup is frozen in "
+        "the log and no version could ever settle it; put the change in the next "
+        "version instead"
+        for rec in parser.lf_elements
+        if rec["tag"] in settled
+    )
+    return errors
+
+
 def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
@@ -3777,25 +4132,19 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     escaped, so it cannot claim a widget. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
-    errs = fragment_errors(frag, registry)
+    # Beside the vocabulary contract rather than inside it. That contract is what
+    # re-vendoring asks of every fragment already in the log — can this layer still
+    # speak it — and a presentation rule is no part of the answer. Put there, a page
+    # whose log held a <style> from before the rule existed could never be re-vendored
+    # again: the log is append-only, so it would have failed `page init` for good, with
+    # a message about replay that had nothing to do with what was wrong.
+    errs = thread_markup_contract_errors(frag, registry) + fragment_style_errors(frag)
     if errs:
         sys.exit(
             f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
         )
     if not frag.lf_elements:
         sys.exit("--markup carries no widget; put prose in --text")
-    # A widget a decision settles is a widget a version has to honor, retiring the
-    # slots the outcome names — and thread markup is frozen in the log, so no
-    # version can reach it. Read off the registry's own holder/slot relation, so
-    # the family a layer adds is refused here for the same reason the suggestion is.
-    settled = retirement_slots(registry)
-    for rec in frag.lf_elements:
-        if rec["tag"] in settled:
-            sys.exit(
-                f"a {kind} can't carry <{rec['tag']}>: thread markup is frozen in the "
-                "log, so no version could ever settle it — put the change in the next "
-                "version instead"
-            )
     if frag.duplicate_ids:
         sys.exit(
             f"{kind} widget markup reuses an id within itself: {frag.duplicate_ids}"
@@ -3804,7 +4153,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
     if marker_errors := reserved_marker_errors(frag):
         sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
-    clash = sorted(frag.ids & (version_ids(page_dir) | thread_widget_ids(events)))
+    clash = sorted(frag.ids & (version_ids(page_dir) | thread_structure(events).ids))
     if clash:
         sys.exit(
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
@@ -3832,128 +4181,60 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
     released is a passage nobody can be pointed at — and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
-    events = read_events(page_dir)
-    version = latest_published(page_dir, events)
-    anchor = None
-    if quote or section:
-        html = version_path(page_dir, version).read_text(encoding="utf-8")
-        registry = require_registry(page_dir)
-        fold, _, _ = page_fold(html, events, registry, version)
-        decided = decisions(fold, registry)
-        edited = rewritten_bodies(fold)
-        try:
-            anchor = capture_anchor(html, registry, quote, section, decided, edited)
-        except ValueError as err:
-            sys.exit(f"can't anchor in v{version}: {err}")
+    # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(text)
-    if markup:
-        check_markup(page_dir, "comment", markup, events)
-    event = {
-        "kind": "comment",
-        "author": "claude",
-        **message_identity(),
-        "version": version,
-        "text": body,
-    }
-    if anchor:
-        event["anchor"] = anchor
-    if markup:
-        event["markup"] = markup
-    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        version = latest_published(page_dir, events)
+        anchor = None
+        if quote or section:
+            html = version_path(page_dir, version).read_text(encoding="utf-8")
+            registry = require_registry(page_dir)
+            projection, _, _ = page_projection(html, events, registry, version)
+            decided = decisions(projection.actions, registry)
+            edited = rewritten_bodies(projection.actions)
+            try:
+                anchor = capture_anchor(html, registry, quote, section, decided, edited)
+            except ValueError as err:
+                sys.exit(f"can't anchor in v{version}: {err}")
+        if markup:
+            check_markup(page_dir, "comment", markup, events)
+        event = {
+            "kind": "comment",
+            "author": "claude",
+            **message_identity(),
+            "version": version,
+            "text": body,
+        }
+        if anchor:
+            event["anchor"] = anchor
+        if markup:
+            event["markup"] = markup
+        accepted = append_event(page, event)
+    print(json.dumps(accepted, ensure_ascii=False))
 
 
 @contract_writer
-def cmd_reply(page_dir: Path, to: str, text, markup: str, more: bool = False) -> dict:
-    """Post a threaded reply, whole or as a stream's head. `more` marks the
-    chain open — the channel's reply tool is what sets it, sending the opening
-    chunk the moment it is composed so the reader watches the reply arrive —
-    and `post_append` is the door the rest of the chain comes through."""
-    events = read_events(page_dir)
-    known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
-    if to not in known:
-        sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
-    if more:
-        require_streaming(page_dir)
-        # A chunk's edges are part of the stream — the next chunk concatenates
-        # raw onto this one — so the whole-message trim would eat the boundary.
-        if not text or not text.strip():
-            sys.exit("an unfinished chunk needs text")
-        body = text
-    else:
-        body = read_text_arg(text)
-    if markup:
-        if more:
-            sys.exit("markup rides a chain's closing chunk; send it with the final one")
-        check_markup(page_dir, "reply", markup, events)
-    event = {
-        "kind": "reply",
-        "author": "claude",
-        **message_identity(),
-        "parent": to,
-        "text": body,
-    }
-    if markup:
-        event["markup"] = markup
-    if more:
-        event["more"] = True
-    return append_event(page_dir, event)
-
-
-def require_streaming(page_dir: Path) -> None:
-    """A page renders streamed chunks only if its vendored runtime folds them,
-    and the vendored `$events` stamp is the one statement of what that runtime
-    speaks. Writing a chain into a page vendored before streaming would show
-    the reader the head chunk alone, forever, with nothing anywhere saying so —
-    so the door refuses and names the re-vendor instead."""
-    registry = require_registry(page_dir)
-    if "append" not in registry["$events"]["kinds"]:
-        sys.exit(
-            "this page's vendored layer predates streamed messages (no `append` "
-            "in its $events stamp), so its runtime would show only a stream's "
-            "first chunk; re-vendor with `leaf page init` and republish first, "
-            "or post the reply whole"
-        )
-
-
-@contract_writer
-def post_append(
-    page_dir: Path, continues: str, text: str, markup: str, more: bool = False
-) -> dict:
-    """A streamed chunk's own door: `continues` names an open chain's head — a
-    claude message whose last event carried `more` — and the chunk's text
-    concatenates onto it raw. Markup rides only a closing chunk, so a message
-    carries at most one and the panel never re-renders a widget mid-stream. A
-    closing chunk may be empty (the stream is done and the last words are
-    already out); an unfinished one may not, having nothing to stream."""
-    require_streaming(page_dir)
-    events = read_events(page_dir)
-    head = next(
-        (e for e in fold_messages(events) if e["id"] == continues and e.get("more")),
-        None,
-    )
-    if head is None:
-        sys.exit(
-            f"{continues!r} is not an open streamed message; a chunk continues a "
-            "claude comment or reply whose chain is still open (`more`)"
-        )
-    if markup:
-        if more:
-            sys.exit("markup rides a chain's closing chunk; send it with the final one")
-        check_markup(page_dir, "append", markup, events)
-    if not text and more:
-        sys.exit("an unfinished chunk needs text")
-    event = {
-        "kind": "append",
-        "author": "claude",
-        **message_identity(),
-        "continues": continues,
-        "text": text or "",
-    }
-    if markup:
-        event["markup"] = markup
-    if more:
-        event["more"] = True
-    return append_event(page_dir, event)
+def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
+    """Post one complete threaded reply."""
+    body = read_text_arg(text)
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+        if to not in known:
+            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+        if markup:
+            check_markup(page_dir, "reply", markup, events)
+        event = {
+            "kind": "reply",
+            "author": "claude",
+            **message_identity(),
+            "parent": to,
+            "text": body,
+        }
+        if markup:
+            event["markup"] = markup
+        return append_event(page, event)
 
 
 @contract_writer
@@ -3961,17 +4242,19 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
-    events = read_events(page_dir)
-    known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
-    if to not in known:
-        sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
-    event = {
-        "kind": "resolve",
-        "author": "claude",
-        **message_identity(),
-        "parent": to,
-    }
-    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+        if to not in known:
+            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+        event = {
+            "kind": "resolve",
+            "author": "claude",
+            **message_identity(),
+            "parent": to,
+        }
+        accepted = append_event(page, event)
+    print(json.dumps(accepted, ensure_ascii=False))
 
 
 @contract_writer
@@ -3984,27 +4267,31 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     `version publish`), and the page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""
-    events = read_events(page_dir)
-    version = latest_published(page_dir, events)
-    registry = require_registry(page_dir)
     detail = {}
     for field in fields:
         name, eq, value = field.partition("=")
         if not eq or not name:
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
-    event = {
-        "kind": "report",
-        "author": "claude",
-        **message_identity(),
-        "widget": widget,
-        "action": verb,
-        "detail": detail,
-        "version": version,
-    }
-    if error := report_contract_error(page_dir, event, registry):
-        sys.exit(error)
-    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        version = latest_published(page_dir, events)
+        registry = require_registry(page_dir)
+        event = {
+            "kind": "report",
+            "author": "claude",
+            **message_identity(),
+            "widget": widget,
+            "action": verb,
+            "detail": detail,
+            "version": version,
+        }
+        if error := report_contract_error(
+            event, parse_version(page_dir, version).by_id, registry
+        ):
+            sys.exit(error)
+        accepted = append_event(page, event)
+    print(json.dumps(accepted, ensure_ascii=False))
 
 
 @contract_writer
@@ -4015,52 +4302,41 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
         sys.exit(
             f"no v{version}.html in {page_dir / 'versions'}; write the version file first"
         )
-    # Publishing makes the note the server's visibility gate, so a version that
-    # fails the check cannot go live.
-    if cmd_check(page_dir, version, transition_held=True) != 0:
-        sys.exit(
-            f"refusing to publish {name}: `leaf version check` failed (issues above)"
-        )
-    # Publishing is also where a `restated` declaration becomes a fact. The
-    # attribute is how the author says it while writing the version — beside the
-    # words they rewrote, where it can't be forgotten — and the log is where it
-    # has to live, because the retraction outlives the version declaring it and
-    # no later version should have to repeat it (see retractions). It rides the
-    # note itself rather than a second event: `note` is one act, and two appends
-    # can be torn by a crash into a retraction for a version that never published.
-    html = path.read_text(encoding="utf-8")
-    parser = parse_structure(html)
-    retracts = sorted(parser.restated)
-    # Publishing is also where a standing report is answered, and the answer is
-    # explicit, by id: the note names every report this version carried into its
-    # markup (wrote the reported state — absorption) or marked `overruled` on
-    # (overruling), and replay stops those reports at this version. Silence names
-    # nothing, and the report keeps painting. All of a unit's standing reports go
-    # together, or a superseded older one would keep replaying under the answer.
-    # The check above already required the vendored registry, so read it plainly.
-    registry = load_registry(page_dir)
-    events = read_events(page_dir)
-    byid = parser.by_id
-    spk = spoken(html, registry)
-    answered = []
-    for unit, reports in standing_reports(events, byid, registry, None).items():
-        last, spec = reports[-1]
-        if unit in parser.overruled or markup_facet(
-            unit, spec, byid, spk
-        ) == folded_facet(last, spec):
-            answered.extend(r["id"] for r, _ in reports)
-    event = {
-        "kind": "note",
-        "author": "claude",
-        **message_identity(),
-        "version": version,
-        "text": read_text_arg(text),
-    }
-    if retracts:
-        event["restated"] = retracts
-    if answered:
-        event["reports"] = sorted(answered)
-    print(json.dumps(append_event(page_dir, event), ensure_ascii=False))
+    body = read_text_arg(text)
+    # Validation, projection, and append share the contract transition held by
+    # the decorator and this page transaction. A report therefore lands either
+    # before the note and may be answered by it, or after it on the new version.
+    with PageTransaction(page_dir) as page:
+        if cmd_check(page_dir, version, transition_held=True) != 0:
+            sys.exit(
+                f"refusing to publish {name}: leaf version check failed (issues above)"
+            )
+        html = path.read_text(encoding="utf-8")
+        registry = load_registry(page_dir)
+        events = page.events
+        projection, parser, spk = page_projection(html, events, registry, version)
+        retracts = sorted(parser.restated)
+        byid = parser.by_id
+        answered = []
+        for (_widget, unit, _facet), reports in projection.reports.items():
+            last, spec = reports[-1]
+            if unit in parser.overruled or markup_facet(
+                unit, spec, byid, spk, registry
+            ) == folded_facet(last, spec):
+                answered.extend(report["id"] for report, _ in reports)
+        event = {
+            "kind": "note",
+            "author": "claude",
+            **message_identity(),
+            "version": version,
+            "text": body,
+        }
+        if retracts:
+            event["restated"] = retracts
+        if answered:
+            event["reports"] = sorted(answered)
+        accepted = append_event(page, event)
+    print(json.dumps(accepted, ensure_ascii=False))
 
 
 def cmd_events(page_dir: Path, after: int) -> None:
@@ -4088,10 +4364,11 @@ def shown(quote: str) -> str:
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
-    versions = list_versions(page_dir)
+    published = published_versions(page_dir, events)
+    registry = load_registry(page_dir) or {}
     title = ""
-    if versions:
-        title = parse_version(page_dir, versions[-1]).title.strip()
+    if published:
+        title = parse_version(page_dir, published[-1]).title.strip()
     print(f"## Leaf: {title or page_dir.name}")
 
     notes = [e for e in events if e["kind"] == "note"]
@@ -4139,13 +4416,18 @@ def cmd_transcript(page_dir: Path) -> None:
     # Against the newest published version — the page as it now stands, which is
     # what a transcript is an account of. A page with nothing published yet has no
     # reading to give, and no action can have been made against one either.
-    published = published_versions(page_dir, events)
     latest = (
         version_path(page_dir, published[-1]).read_text(encoding="utf-8")
         if published
         else ""
     )
-    threads = build_threads(events, spoken(latest, load_registry(page_dir) or {}))
+    projection = parser = None
+    spk = {}
+    if published:
+        projection, parser, spk = page_projection(
+            latest, events, registry, published[-1]
+        )
+    threads = build_threads(events, spk)
     if threads:
         print("\n### Threads\n")
     for t in threads.values():
@@ -4180,11 +4462,8 @@ def cmd_transcript(page_dir: Path) -> None:
 
     # To stderr — stdout is the artifact. A transcript is a page's closing act,
     # and the record debt it reports here is about to stop being fixable.
-    published = published_versions(page_dir, events)
-    registry = load_registry(page_dir)
-    if published and registry:
-        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        for line in record_lag(html, events, registry):
+    if projection and registry:
+        for line in record_lag(projection, parser.by_id, spk, registry):
             print(f"record behind the log — {line}", file=sys.stderr)
 
 
@@ -4202,18 +4481,18 @@ CATALOG_PREAMBLE = """\
 
 
 # The layer-wide facts printed after the widget entries, each with the sentence saying
-# what an author reads it for. A table because the catalog is the agent's own
-# documentation of a vocabulary that grows: a `$` key a layer adds is a row here, not a
-# block of its own beside six that already say the same thing differently. $events is
-# absent because it is the vocabulary stamp — what this page's runtime speaks, for
-# `page init` to hold a re-vendor against — and nothing an author writes markup from.
+# what an author reads it for. Curated facts keep their useful names and order; a
+# layer-defined fact follows them under its own key, so extending the vocabulary does
+# not require teaching the catalog another name. $events is absent because it is the
+# vocabulary stamp — what this page's runtime speaks, for `page init` to hold a
+# re-vendor against — and nothing an author writes markup from.
 CATALOG_FACTS = (
     ("$keys", "The x- keys an entry may declare, and what each one means."),
     (
         "$restated",
         "`restated` — the one attribute that spans widgets; read it before revising one.",
     ),
-    ("$state", "x-state's fields — the fold unit and the record forms."),
+    ("$state", "x-state's fields — the facet, fold unit, and record forms."),
     ("$report", "x-report's fields — how a version answers a standing report."),
     ("$awaits", "x-awaits' fields — when an instance asks, and what answers it."),
     (
@@ -4242,6 +4521,31 @@ def cmd_catalog(page_dir: Path) -> None:
         if fact := reg.get(key):
             print(f"\n# {heading}\n")
             print(json.dumps(fact, indent=2, ensure_ascii=False))
+    known = {key for key, _ in CATALOG_FACTS} | {"$events"}
+    for key, fact in reg.items():
+        if key.startswith("$") and key not in known and fact:
+            print(f"\n# {key}, declared by this layer.\n")
+            print(json.dumps(fact, indent=2, ensure_ascii=False))
+
+
+def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
+    """One standing action, in the shape `page state` reports every one of them.
+
+    `version` is the version the action was taken on, which for a widget an agent
+    sent is a fact about the gesture and none about the widget: thread markup is
+    frozen in the log, so no version bounds one of these and none can ever record
+    it, which is why `lag` says nothing about them."""
+    widget, unit, facet = coordinate
+    return {
+        "widget": widget,
+        "unit": unit,
+        "facet": facet,
+        "action": e["action"],
+        "detail": e["detail"],
+        "version": e["version"],
+        "seq": e["seq"],
+        "thread": thread,
+    }
 
 
 def cmd_page_state(page_dir: Path) -> None:
@@ -4251,7 +4555,7 @@ def cmd_page_state(page_dir: Path) -> None:
     reading, and doing it in-head over `leaf events` is how a standing decision
     gets missed. So this prints the readings the runtime derives, from the same
     constructions it derives them with: the published markup's elements, the
-    fold of the user's standing state and the reports standing on the agent
+    projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), the open asks
     on the page and in threads (the banner's own count), the comment threads,
     and presence beside what answers for it. Computed on demand from the log,
@@ -4267,12 +4571,12 @@ def cmd_page_state(page_dir: Path) -> None:
     written = list_versions(page_dir)
     pres = presence(page_dir, events)
     # The published page's readings, up front and through the one construction
-    # (page_fold) every consumer of declared state reads, so the threads below
-    # settle against the same page the fold was built over rather than no page.
-    parser, fold, spk = None, {}, {}
+    # (page_projection) every consumer of declared state reads, so the threads
+    # settle against the same page the projection was built over rather than no page.
+    parser, projection, spk = None, None, {}
     if published:
         html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        fold, parser, spk = page_fold(html, events, registry, None)
+        projection, parser, spk = page_projection(html, events, registry, published[-1])
     threads = build_threads(events, spk)
     state = {
         "page": str(page_dir),
@@ -4304,25 +4608,25 @@ def cmd_page_state(page_dir: Path) -> None:
     }
     if published:
         byid = parser.by_id
-        reports = standing_reports(events, byid, registry, None)
         state["title"] = parser.title.strip()
         state["elements"] = [
-            {"tag": r["tag"], "id": r["attrs"].get("id"), "line": r["line"]}
+            {
+                "tag": r["tag"],
+                "id": r["attrs"].get("id"),
+                "line": r["line"],
+                "thread": None,
+            }
             for r in parser.lf_elements
         ]
         state["state"] = [
-            {
-                "unit": unit,
-                "action": e["action"],
-                "detail": e["detail"],
-                "version": e["version"],
-                "seq": e["seq"],
-            }
-            for unit, (e, _) in sorted(fold.items())
+            standing_entry(coordinate, e)
+            for coordinate, (e, _) in projection.actions.items()
         ]
         state["reports"] = [
             {
+                "widget": widget,
                 "unit": unit,
+                "facet": facet,
                 "action": e["action"],
                 "detail": e["detail"],
                 "version": e["version"],
@@ -4330,32 +4634,62 @@ def cmd_page_state(page_dir: Path) -> None:
                 "agent": e.get("agent"),
                 "standing": len(standing),
             }
-            for unit, standing in sorted(reports.items())
+            for (widget, unit, facet), standing in sorted(projection.reports.items())
             for e, _ in [standing[-1]]
         ]
         # An ask standing in a slot the log has retired — a group inside the lf-new
         # of a rejected suggestion — left the page with the slot, so it is nobody's
         # to answer; the passage reading already knows which ids a decision dropped.
-        passages = page_passages(html, registry, decisions(fold, registry))
+        passages = page_passages(
+            html, registry, decisions(projection.actions, registry)
+        )
         state["asks"] = page_asks(
             parser,
-            fold,
-            reports,
+            projection,
             byid,
             spk,
             registry,
             set(passages.retired) | set(passages.gone),
         )
-        state["lag"] = record_lag_entries(fold, byid, spk, events, registry)
+        state["lag"] = record_lag_entries(projection, byid, spk, registry)
     elif written:
         state["title"] = parse_version(page_dir, written[-1]).title.strip()
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
     )
+    # The panel's own document, listed and projected the way the version's is, and
+    # for the same reason: a widget an agent sent is a widget, and the reader
+    # answering one is answering the page. The projection above is of the published
+    # version's elements alone, so a press on an AskUserQuestion resolved no
+    # declaration and stood nowhere — a session picking the page up read the reader's
+    # answer to its own question as an answer nobody had given, with `asks` reporting
+    # the same question answered.
+    #
+    # `thread` is the one key that separates them, present on every entry so a reader
+    # of this can take the two halves the same way, and the elements come along so
+    # nothing here names a widget the same object never lists. Both lists are then in
+    # one order rather than two sorted halves.
+    thread_actions, thread_byid, thread_of = thread_state(events, registry)
+    state["elements"] += [
+        {
+            "tag": rec["tag"],
+            "id": wid,
+            "line": rec["line"],
+            "thread": thread_of[wid],
+        }
+        for wid, rec in thread_byid.items()
+    ]
+    state["elements"].sort(key=lambda e: (e["thread"] or "", e["line"]))
+    state["state"] += [
+        standing_entry(coordinate, e, thread_of[coordinate[0]])
+        for coordinate, (e, _) in thread_actions.actions.items()
+    ]
+    state["state"].sort(key=lambda s: (s["widget"], s["unit"], s["facet"]))
     print(json.dumps(state, indent=2, ensure_ascii=False))
 
 
 def cmd_stop(page_dir: Path) -> str:
+    """Disable the desired service and wait until its process lease is released."""
     require_cross_process_locking()
     with flocked(transition_lock(page_dir)):
         service = read_json(page_dir / "service.json")
@@ -4363,9 +4697,8 @@ def cmd_stop(page_dir: Path) -> str:
         if service and service["enabled"]:
             write_json(page_dir / "service.json", {**service, "enabled": False})
         if live:
-            # The serving process observes the disabled service and owns its own
-            # shutdown. Taking its lease is the release barrier: the socket is
-            # closed before the server lets the lease go.
+            # The serving process observes disabled desired state and exits.
+            # Taking its lease is the barrier proving every socket is closed.
             with open(page_dir / "server.lock", "a+b") as lease:
                 fcntl.flock(lease, fcntl.LOCK_EX)
             return "stopped server"
@@ -4434,8 +4767,12 @@ def unattended_pages(session_id: str) -> list:
     off the batch and nothing delivers it again."""
     reasons = []
     for page_dir in owned_pages(session_id):
-        events = read_events(page_dir)
-        state = full_state(page_dir, events, published_versions(page_dir, events))
+        page_reasons = []
+        try:
+            events = read_events(page_dir)
+            state = full_state(page_dir, events, published_versions(page_dir, events))
+        except FileNotFoundError:
+            continue
         codex = state["host"] == "codex"
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
@@ -4443,60 +4780,68 @@ def unattended_pages(session_id: str) -> list:
         stale = unanswered_asks(events, state["cursor"])
         if stale:
             ids = ", ".join(t["id"] for t in stale)
-            reasons.append(
+            page_reasons.append(
                 f"{page_dir}: {len(stale)} acknowledged "
                 f"comment{'s' if len(stale) != 1 else ''} with no answer "
                 f"({ids}). " + ANSWER_ASK_INSTRUCTION
             )
-        if state["listening"] and not codex:
-            # A live `leaf wait` is the watch, and it prints what's pending on its
-            # own. Reporting the page here would have Claude start a second one, and two
-            # waiters would print the same unacknowledged events twice.
+        # A live Claude `leaf wait` is the watch, and it prints what's pending on
+        # its own. Reporting the page here would start a second waiter and print
+        # the same unacknowledged events twice.
+        if not (state["listening"] and not codex):
+            # The watcher's whole batch — user events and workers' reports — not the
+            # reader-facing count, which deliberately leaves reports out.
+            n = len(unacknowledged(events, state["cursor"]))
+            if n:
+                if codex and state["listening"]:
+                    remedy = (
+                        "Poll the existing `leaf wait` unified-exec session with "
+                        "`write_stdin`."
+                    )
+                elif codex:
+                    remedy = (
+                        "Start `leaf wait` in unified exec, retain its session id, "
+                        "and poll it with `write_stdin`."
+                    )
+                else:
+                    remedy = "`leaf wait` prints them."
+                remedy += (
+                    f" {ACK_BATCH_INSTRUCTION} If this task is the consumer, then address "
+                    "every event."
+                )
+                page_reasons.append(
+                    f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
+                    + remedy
+                )
+            elif state["status"]["state"] != "idle":
+                if codex and state["listening"]:
+                    page_reasons.append(
+                        f"{page_dir}: the Codex page is still live. Keep this turn "
+                        "active and poll the existing `leaf wait` unified-exec "
+                        "session with `write_stdin`."
+                    )
+                elif codex:
+                    page_reasons.append(
+                        f"{page_dir}: no watcher. Start `leaf wait` in unified exec, "
+                        "retain its session id, and keep this turn active while polling it with "
+                        "`write_stdin`; or run `leaf status <page> idle` if the page "
+                        "is done."
+                    )
+                else:
+                    page_reasons.append(
+                        f"{page_dir}: no watcher. Start `leaf wait` as a background "
+                        "task — one wait covers every page this session holds — or "
+                        "run `leaf status <page> idle` if the page is done."
+                    )
+        # Discovery is only a candidate read. Transfer can happen while the
+        # hook reads status, so decide against current ownership at the end.
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if claim and claim["id"] == session_id:
+                    reasons.extend(page_reasons)
+        except FileNotFoundError:
             continue
-        # The watcher's whole batch — user events and workers' reports — not the
-        # reader-facing count, which deliberately leaves reports out.
-        n = len(unacknowledged(events, state["cursor"]))
-        if n:
-            if codex and state["listening"]:
-                remedy = (
-                    "Poll the existing `leaf wait` unified-exec session with "
-                    "`write_stdin`."
-                )
-            elif codex:
-                remedy = (
-                    "Start `leaf wait` in unified exec, retain its session id, "
-                    "and poll it with `write_stdin`."
-                )
-            else:
-                remedy = "`leaf wait` prints them."
-            remedy += (
-                f" {ACK_BATCH_INSTRUCTION} If this task is the consumer, then address "
-                "every event."
-            )
-            reasons.append(
-                f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
-                + remedy
-            )
-        elif state["status"]["state"] != "idle":
-            if codex and state["listening"]:
-                reasons.append(
-                    f"{page_dir}: the Codex page is still live. Keep this turn "
-                    "active and poll the existing `leaf wait` unified-exec "
-                    "session with `write_stdin`."
-                )
-            elif codex:
-                reasons.append(
-                    f"{page_dir}: no watcher. Start `leaf wait` in unified exec, "
-                    "retain its session id, and keep this turn active while polling it with "
-                    "`write_stdin`; or run `leaf status <page> idle` if the page "
-                    "is done."
-                )
-            else:
-                reasons.append(
-                    f"{page_dir}: no watcher. Start `leaf wait` as a background "
-                    "task — one wait covers every page this session holds — or "
-                    "run `leaf status <page> idle` if the page is done."
-                )
     return reasons
 
 
@@ -4504,13 +4849,28 @@ def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if event == "SessionEnd":
         for page_dir in owned_pages(sid):
-            # The claim is checked again under its own lock. A successor that
-            # arrived after owned_pages() was read remains current; lifecycle
-            # and authored work status are independent of this bookkeeping.
-            with flocked(transition_lock(page_dir)):
-                release_page(page_dir, sid)
-        (state_home() / "sessions" / f"{sid}.json").unlink(missing_ok=True)
+            try:
+                with PageTransaction(page_dir) as page:
+                    claim = page.claim
+                    # A successor that arrived after discovery remains current.
+                    # SessionEnd releases only ownership provenance: status is
+                    # authored work state, while service.json and the service
+                    # reaper own process lifetime.
+                    if claim and claim["released"] is None and claim["id"] == sid:
+                        page.release_claim()
+            except FileNotFoundError:
+                continue
         return
+    if event == "Stop":
+        # Ahead of both early returns below. The stamp is not a nudge and does not
+        # depend on there being one: the turn that ends with nothing outstanding is
+        # exactly the turn that leaves a `working` claim behind with nobody on it.
+        for page_dir in owned_pages(sid):
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with
@@ -4542,453 +4902,6 @@ def cmd_hook(payload: dict) -> None:
                 }
             )
         )
-
-
-# ---------- channel: the loop as a Claude Code channel ----------
-
-# The newest MCP revision whose connections still carry unsolicited server
-# notifications — the path a channel's inbound delivery is. Claude Code refuses
-# channel registration to a connection negotiated at 2026-07-28 or later, so
-# this pin is load-bearing, not a default.
-MCP_PROTOCOL = "2025-06-18"
-# An unacknowledged batch is re-sent on this cadence: the harness can drop a
-# notification (a reconnect, a restart), and delivery here is at-least-once
-# against a monotonic, idempotent ack — the same contract a rerun `leaf wait`
-# gives a truncated batch.
-CHANNEL_RENOTIFY_SECS = 60
-# A flurry (a drag session, a burst of picks) settles for one tick before it is
-# delivered, so it arrives as one batch; a stream that never settles is
-# delivered anyway at this cadence rather than waiting it out.
-CHANNEL_FLURRY_SECS = 5
-
-CHANNEL_INSTRUCTIONS = """\
-leaf can run its loop over this channel instead of background `leaf wait`. When a \
-session serves a leaf page and was launched with channels enabled, a greeting \
-arrives as a <channel source="plugin:leaf:leaf"> message naming the page; call the `watch` tool \
-once then — the greeting arriving is the proof of delivery, and watch is how you \
-bank it. From then on page events arrive as <channel source="plugin:leaf:leaf"> messages: a \
-batch of the event lines `leaf wait` prints, one per line. Whose events they are is \
-the message's own `page` attribute rather than a line of the batch, so every line is \
-an event. For each batch: call `ack` with the highest seq once the complete batch is \
-in context, then handle every event per the leaf skill. Answer comments with the \
-`reply` tool, streamed: send the opening chunk as soon as it is composed \
-(done: false), extend with `continues`, and close with done: true — the reader \
-watches the reply arrive instead of waiting for the whole of it. If no greeting \
-ever arrives, channels are off for this session; keep the skill's standard loop."""
-
-CHANNEL_TOOLS = [
-    {
-        "name": "watch",
-        "description": (
-            "Confirm leaf channel delivery for this session: call once, in "
-            "answer to the channel greeting. The greeting arriving is the proof "
-            "of delivery — without one this call would claim a watch nothing "
-            "delivers. Arms channel mode: this session's pages are watched from "
-            'here — events arrive as <channel source="plugin:leaf:leaf"> messages '
-            "and no background `leaf wait` is needed."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "reply",
-        "description": (
-            "Reply in a leaf page's thread. Streamed: pass done: false to open a "
-            "message with its first chunk (send it as soon as it is composed), "
-            "then extend with continues: <that reply's id> — chunks concatenate "
-            "raw, so end them mid-prose deliberately — and close with done: true. "
-            "A single call with done omitted posts a whole reply. Markup (widget "
-            "fragment) rides only a closing call."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "page": {"type": "string", "description": "the page directory"},
-                "to": {
-                    "type": "string",
-                    "description": "comment or reply id to answer (opens a message)",
-                },
-                "continues": {
-                    "type": "string",
-                    "description": "id of this agent's open streamed reply to extend",
-                },
-                "text": {"type": "string", "description": "the chunk's text"},
-                "done": {
-                    "type": "boolean",
-                    "description": "false while more chunks follow (default true)",
-                },
-                "markup": {
-                    "type": "string",
-                    "description": "widget markup rendered after the text; closing call only",
-                },
-            },
-            "required": ["page", "text"],
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "ack",
-        "description": (
-            "Acknowledge a complete channel batch once it is in context, through "
-            "its highest seq. Monotonic and idempotent; until acked, the batch is "
-            "re-delivered."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "page": {"type": "string", "description": "the page directory"},
-                "seq": {"type": "integer", "minimum": 1},
-            },
-            "required": ["page", "seq"],
-            "additionalProperties": False,
-        },
-    },
-]
-
-
-def cmd_mcp() -> None:
-    """The loop as a channel: an MCP stdio server a Claude Code session spawns
-    where an .mcp.json names it, pushing that session's page events into the
-    conversation as <channel source="plugin:leaf:leaf"> messages and taking
-    replies as tool calls. Inbound delivery is `notifications/claude/channel`,
-    which is also the wake: the harness enqueues each as a prompt, so an idle
-    session gets a turn.
-
-    Nothing shipped names it. Spawning this takes that .mcp.json plus a
-    `channels` entry in the Claude Code manifest, and the payload carries
-    neither, so the background wait is the loop every session runs. The repo's
-    own CLAUDE.md says why the section is kept and what wiring it back takes.
-
-    A channel is a door into the model's context, so what may come through it is
-    the question to answer first. This one adds no writer: it delivers what the
-    page log already holds, sooner than `leaf wait` would have printed it, and
-    the log's own gate is therefore the boundary — a browser event arrives at
-    `POST /api/event` carrying the page key, and everything else is written by a
-    command with filesystem access here. The batch is one event per line because
-    `jsonl_line` escapes every character that could pass for a line break, so a
-    comment cannot forge a second event beside its own.
-
-    Delivery must be demonstrated before it is relied on — the channel's
-    "printing is not receipt". Registration is decided harness-side (the
-    --channels launch flag, feature gates), and nothing tells this process the
-    outcome, so a greeting notification goes out when a page is first claimed
-    and the agent confirms it arrived by calling `watch`. Only that arms the
-    watcher: from then on it holds the same exact session lease as `leaf wait`,
-    delivers unacknowledged batches, re-delivers what stays unacked, and revives
-    a dead server the way `leaf wait` would. Unconfirmed, it holds no lease, so
-    the hooks keep enforcing the standard loop and a session without channels
-    never strands its reader.
-
-    The tools reuse the CLI's own doors (cmd_reply, post_append, cmd_ack), which
-    speak through sys.exit; the dispatcher turns that into a tool error, so the
-    gate and its words stay one implementation."""
-    # The harness spawns this server with the session id but no CLAUDE_PID, and
-    # everything downstream that claims a page requires both (claim_page). This
-    # process lives exactly as long as the session that spawned it, so its own
-    # pid is the claim's honest liveness: without it, a revive this watcher
-    # spawns cannot claim, and cmd_serve reads an unclaimed serve as standing —
-    # a server that outlives the session and nothing ever reaps.
-    os.environ.setdefault("CLAUDE_PID", str(os.getpid()))
-    out_lock = threading.Lock()
-    initialized = threading.Event()
-    armed = threading.Event()
-    stopping = threading.Event()
-    identity = host_identity()
-    watch = Watch(identity)
-
-    def send(msg: dict) -> None:
-        with out_lock:
-            sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
-            sys.stdout.flush()
-
-    def fail(msg_id, code: int, message: str) -> None:
-        # One shape for every refusal, as the CLI's errors have one shape: what
-        # a caller reads is the words, never the frame they arrive in.
-        send(
-            {
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {"code": code, "message": message},
-            }
-        )
-
-    def notify(content: str, meta: dict) -> None:
-        send(
-            {
-                "jsonrpc": "2.0",
-                "method": "notifications/claude/channel",
-                "params": {"content": content, "meta": meta},
-            }
-        )
-
-    def deliver(page_dir: Path, batch: list, flip: bool) -> None:
-        notify(
-            "\n".join(jsonl_line(e) for e in batch),
-            {
-                "page": str(page_dir),
-                "first": str(batch[0]["seq"]),
-                "last": str(batch[-1]["seq"]),
-                "count": str(len(batch)),
-            },
-        )
-        # The same pickup flip `leaf wait` makes when it prints a batch: the
-        # handoff gap between delivery and the agent's own status must not
-        # show "waiting". First delivery only — a re-send of a batch the agent
-        # may already be holding must not overwrite their declared status.
-        if not flip:
-            return
-        status = read_json(page_dir / "status.json") or {"state": "idle"}
-        if status["state"] != "working":
-            n = len(batch)
-            # Watch.tick still holds the page's claim and log locks through delivery.
-            write_status(
-                page_dir,
-                "working",
-                f"picking up {n} update{'s' if n != 1 else ''}",
-                handoff=True,
-            )
-
-    def watcher() -> None:
-        if identity is None:
-            return  # outside an agent host nothing is owed a watch
-        greeted = set()
-        prev_tail = {}
-        notified = {}
-        noted_at = {}
-        initialized.wait()
-        while not stopping.wait(1):
-            # A fault here must not end the channel process. Per pass and per
-            # page alike, the fault is contained and the next tick retries.
-            try:
-                if not armed.is_set():
-                    # Unconfirmed, the channel claims nothing — no tick and no
-                    # lease — so the hooks enforce the standard loop for a
-                    # session whose channels are off.
-                    for page_dir in watch.pages():
-                        key = str(page_dir)
-                        if key not in greeted:
-                            greeted.add(key)
-                            notify(
-                                f"leaf channel: delivering events for {page_dir}. "
-                                "This greeting arriving is the proof of delivery — "
-                                "call the leaf `watch` tool once to confirm and arm "
-                                "channel mode (events then arrive as messages like "
-                                "this one; no background `leaf wait` needed).",
-                                {"page": key, "kind": "greeting"},
-                            )
-                    continue
-                readings = watch.tick()
-                try:
-                    for r in readings:
-                        key = str(r.page_dir)
-                        # A neighbour's fault stays its own, as in other_leaves:
-                        # a page deleted or transferred mid-scan does not take
-                        # the channel process down.
-                        try:
-                            if r.watch_state == "lost":
-                                prev_tail.pop(key, None)
-                                notified.pop(key, None)
-                                noted_at.pop(key, None)
-                                continue
-                            if r.lost:
-                                # One session lease proves the whole watch. It
-                                # cannot honestly remain held while one owned
-                                # page has been dropped, so a failed revival
-                                # stands the channel down as a whole.
-                                armed.clear()
-                                watch.release()
-                                notify(
-                                    f"leaf channel: {r.page_dir} has no server and "
-                                    "would not restart, so the channel watch stopped. "
-                                    "Bring it back with "
-                                    f"`leaf server start {r.page_dir}`, then call "
-                                    "the leaf `watch` tool again.",
-                                    {"page": key, "kind": "unwatched"},
-                                )
-                                break
-                            if r.batch:
-                                tail = r.batch[-1]["seq"]
-                                now = time.time()
-                                # A recreated page directory restarts its log
-                                # below the seq last delivered. That is a
-                                # different page, not an old batch.
-                                if tail < notified.get(key, 0):
-                                    notified.pop(key, None)
-                                    prev_tail.pop(key, None)
-                                    noted_at.pop(key, None)
-                                # A flurry settles for one tick; an endless
-                                # stream still lands at the flurry cadence.
-                                noted_at.setdefault(key, now)
-                                settled = tail == prev_tail.get(key)
-                                overdue = now - noted_at[key] >= CHANNEL_FLURRY_SECS
-                                renotify = (
-                                    notified.get(key, 0) >= tail
-                                    and now - noted_at[key] >= CHANNEL_RENOTIFY_SECS
-                                )
-                                fresh = tail > notified.get(key, 0)
-                                if (fresh and (settled or overdue)) or renotify:
-                                    # The tick holds the page lock through both
-                                    # the notification and the pickup flip.
-                                    deliver(r.page_dir, r.batch, flip=fresh)
-                                    notified[key] = tail
-                                    noted_at[key] = now
-                                prev_tail[key] = tail
-                            else:
-                                prev_tail.pop(key, None)
-                                noted_at.pop(key, None)
-                        except Exception:  # noqa: BLE001, S112
-                            continue
-                finally:
-                    readings.close()
-            except Exception:  # noqa: BLE001, S112 - retry on the next pass
-                continue
-
-    def tool_watch(args: dict) -> str:
-        identity = host_identity()
-        if identity is None:
-            sys.exit(
-                "no agent host session identity in this environment; "
-                "the channel has no session to watch"
-            )
-        if not watch.acquire():
-            sys.exit(
-                "another Leaf carrier is already watching this session; "
-                "stop it before arming the channel"
-            )
-        armed.set()
-        pages = owned_pages(identity["id"])
-        lines = [
-            (
-                f"channel mode armed for session {identity['id']}: watching "
-                f"{len(pages)} page(s); drop any background `leaf wait` — events "
-                'arrive as <channel source="plugin:leaf:leaf"> messages from here'
-            )
-        ]
-        for page_dir in pages:
-            pending = len(unacknowledged(read_events(page_dir), read_cursor(page_dir)))
-            lines.append(
-                f"- {page_dir}"
-                + (f" ({pending} pending, delivery follows)" if pending else "")
-            )
-        return "\n".join(lines)
-
-    def tool_reply(args: dict) -> str:
-        page_dir = resolve_dir(args["page"])
-        text = args["text"]
-        done = args.get("done", True)
-        markup = args.get("markup") or ""
-        to, continues = args.get("to"), args.get("continues")
-        if bool(to) == bool(continues):
-            sys.exit(
-                "pass exactly one of `to` (open a message) or `continues` (extend one)"
-            )
-        if to:
-            event = cmd_reply(page_dir, to, text, markup, more=not done)
-        else:
-            event = post_append(page_dir, continues, text, markup, more=not done)
-        head = event["id"] if to else continues
-        line = json.dumps(event, ensure_ascii=False)
-        if done:
-            return line
-        return f'{line}\nstream open — extend with continues: "{head}"'
-
-    def tool_ack(args: dict) -> str:
-        cmd_ack(resolve_dir(args["page"]), args["seq"])
-        return f"acknowledged through seq {args['seq']}"
-
-    tools = {"watch": tool_watch, "reply": tool_reply, "ack": tool_ack}
-
-    def call_tool(params: dict) -> dict:
-        fn = tools.get(params.get("name"))
-        if fn is None:
-            return {
-                "content": [
-                    {"type": "text", "text": f"unknown tool {params.get('name')!r}"}
-                ],
-                "isError": True,
-            }
-        try:
-            text = fn(params.get("arguments") or {})
-        except SystemExit as err:
-            # The CLI doors speak through sys.exit; same words, tool-shaped.
-            return {"content": [{"type": "text", "text": str(err)}], "isError": True}
-        except Exception:  # noqa: BLE001 - surfaced whole, in the tool result
-            # A fault in one tool call must not close the transport the loop
-            # rides on — the model is the one caller that can act on it, so the
-            # traceback goes back as the result rather than dying unread on
-            # stderr with the channel.
-            return {
-                "content": [{"type": "text", "text": traceback.format_exc()}],
-                "isError": True,
-            }
-        return {"content": [{"type": "text", "text": text}]}
-
-    def answer(msg: dict) -> None:
-        method, msg_id = msg.get("method"), msg.get("id")
-        if msg_id is None:
-            return  # notifications (initialized, cancelled) need no answer
-        if method == "initialize":
-            result = {
-                "protocolVersion": MCP_PROTOCOL,
-                "capabilities": {
-                    "tools": {},
-                    "experimental": {"claude/channel": {}},
-                },
-                "serverInfo": {"name": "leaf", "version": "1.0.0"},
-                "instructions": CHANNEL_INSTRUCTIONS,
-            }
-            initialized.set()
-        elif method == "ping":
-            result = {}
-        elif method == "tools/list":
-            result = {"tools": CHANNEL_TOOLS}
-        elif method == "tools/call":
-            result = call_tool(msg.get("params") or {})
-        else:
-            fail(msg_id, -32601, f"method not found: {method}")
-            return
-        send({"jsonrpc": "2.0", "id": msg_id, "result": result})
-
-    def stand_down() -> None:
-        # However the watch ends, the claims it made deserve better than going
-        # quietly stale under a user who was promised delivery.
-        stopping.set()
-        watch.release()
-
-    def bow_out(signum, frame):
-        # The harness stops a server with SIGINT then SIGTERM. Python's default
-        # SIGINT raises somewhere under the stdin read and the dispatcher, and
-        # SIGTERM runs no finally at all — so neither route reaches the finally
-        # below reliably, and this is the one exit from either signal.
-        stand_down()
-        os._exit(0)
-
-    signal.signal(signal.SIGINT, bow_out)
-    signal.signal(signal.SIGTERM, bow_out)
-    threading.Thread(target=watcher, daemon=True).start()
-    try:
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            try:
-                answer(msg)
-            except Exception:  # noqa: BLE001 - answered, and the channel lives on
-                # One message's fault must not close the transport the loop
-                # rides on. The sender is told (a JSON-RPC error names the
-                # traceback), the next message is served, and nothing of the
-                # watch is lost.
-                if msg.get("id") is not None:
-                    fail(msg["id"], -32603, traceback.format_exc())
-    finally:
-        stand_down()
 
 
 # ---------- check: deterministic pre-handover lint ----------
@@ -5120,8 +5033,9 @@ COLUMN_FALLBACK = 780
 PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
 
 # Blocks a user predictably points at whole rather than quoting: a run of code,
-# a table, a figure, an aside set off from the prose — and the sections SKILL.md
-# already holds to "give every section an id". Widgets aren't listed because the
+# a table, a figure, an aside set off from the prose — and the sections
+# references/page-authoring.md holds to "Stable anchors". Widgets aren't listed
+# because the
 # registry's schemas already demand ids wherever pointing at one matters.
 POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
@@ -5182,8 +5096,8 @@ class _StructParser(HTMLParser):
         self.stack = []  # (tag, lineno, lf_record | None, id | None)
         self.errors = []
         self.all_ids = []
-        # {attrs, parent, early_head} per external asset. Applicability and placement
-        # belong to the asset record: parallel lists made one fact several
+        # {attrs, parent, position, early_head} per external asset. Applicability and
+        # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
         self.stylesheets = []
@@ -5299,6 +5213,7 @@ class _StructParser(HTMLParser):
                 {
                     "attrs": attrs_d,
                     "parent": self.stack[-1][0] if self.stack else None,
+                    "position": self.getpos(),
                     "early_head": bool(self.head_elements)
                     and self.head_elements[-1][1]
                     and not self.body_lines,
@@ -5538,7 +5453,7 @@ def parse_version(page_dir: Path, version: int) -> _StructParser:
     `version publish` writes a version and nothing writes it again, while the
     readings that cost most are the ones a reader waits through: the action door
     checks a press against the version it was made on, and every poll reads each
-    live neighbour's newest version for the one string the board shows of it. That
+    live neighbour's newest version for the one string the tray shows of it. That
     last one made a title cost a parse of the whole page, once a second, per
     neighbour — seven neighbours put more time between a press and its paint than
     everything else the server did for it put together."""
@@ -6030,15 +5945,13 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
-    # `enclosing` is the containment half, which a quote search has no use for: this
-    # asks where words are, not where elements sit.
-    text, owner, fences, retired, rewritten, gone, shown, _ = page_passages(
+    text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
         html, registry, decided, rewrites
     )
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
         # on a diagram or an image, and those hold no text to look for.
-        if section not in parse_structure(html).ids:
+        if section not in enclosing:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
             sid = retired[section]
@@ -6301,22 +6214,73 @@ def _number(text: str):
         return None
 
 
-def _px(declaration):
-    """The pixel length a declaration states, or None where it states something else: a
-    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
-    hard overflow, and only a lone length is fixed. A value keeps the whitespace around
-    it, which is a token like any other and not part of what the value says."""
-    value = [t for t in declaration.value if t.type != "whitespace"]
-    if len(value) == 1 and value[0].type == "dimension" and value[0].lower_unit == "px":
-        return value[0].value
+def _lone_px(value):
+    """The pixel length a value states outright, or None. A value keeps the whitespace
+    around it, which is a token like any other and not part of what the value says."""
+    tokens = [t for t in value if t.type != "whitespace"]
+    if (
+        len(tokens) == 1
+        and tokens[0].type == "dimension"
+        and tokens[0].lower_unit == "px"
+    ):
+        return tokens[0].value
     return None
 
 
-def _px_widths(declarations, props: tuple):
+def root_tokens(css: str) -> dict:
+    """The pixel lengths a stylesheet states outright as custom properties on the root.
+
+    A width naming one of these states a number as certainly as writing it out, so the
+    readings below resolve it. Only the root, and only unconditionally: a token set on
+    some element or inside a query is that element's or that condition's, and taking it
+    for the page's would be the same reading the column refuses a media query for.
+
+    One level. A token defined as another token is a stylesheet answering a different
+    question than these readings ask, and following it would be a resolver rather than
+    the two facts this needs."""
+    tokens = {}
+    for selector, block, conditional in css_rules(css):
+        if conditional or selector.strip() != ":root":
+            continue
+        for declaration in block:
+            if declaration.type == "declaration" and declaration.name.startswith("--"):
+                px = _lone_px(declaration.value)
+                if px is not None:
+                    tokens[declaration.name] = px
+    return tokens
+
+
+def _px(declaration, tokens: dict | None = None):
+    """The pixel length a declaration states, or None where it states something else: a
+    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
+    hard overflow, and only a lone length is fixed.
+
+    A lone `var()` naming a root token is one too. The stylesheet stated the number and
+    then named it, and a check that stopped at the name would read the fallback width
+    for a theme that had tidied its own constants into `:root` — which is a check that
+    quietly stops measuring the moment the file it measures gets tidier. The `var()`'s
+    own fallback answers where nothing declared the token, which is what the browser
+    would use."""
+    value = [t for t in declaration.value if t.type != "whitespace"]
+    px = _lone_px(value)
+    if px is not None:
+        return px
+    if len(value) == 1 and value[0].type == "function" and value[0].lower_name == "var":
+        args = [t for t in value[0].arguments if t.type != "whitespace"]
+        if args and args[0].type == "ident" and args[0].value.startswith("--"):
+            named = (tokens or {}).get(args[0].value)
+            if named is not None:
+                return named
+            if len(args) > 2 and args[1] == ",":
+                return _lone_px(args[2:])
+    return None
+
+
+def _px_widths(declarations, props: tuple, tokens: dict | None = None):
     """(property, pixels) per declaration in `props` pinned to a fixed pixel length."""
     for declaration in declarations:
         if declaration.type == "declaration" and declaration.lower_name in props:
-            px = _px(declaration)
+            px = _px(declaration, tokens)
             if px is not None:
                 yield declaration.lower_name, px
 
@@ -6331,32 +6295,41 @@ def _column_width(page_css: str, theme_css: str) -> int:
     disable this check with one line of print CSS — `@media print { main { max-width:
     2000px } }` measured every screen element against 2000px."""
     for css in (page_css, theme_css):
+        tokens = root_tokens(css)
         widths = [
             px
             for selector, block, conditional in css_rules(css)
             if not conditional and _names_column(selector)
-            for _, px in _px_widths(block, ("max-width",))
+            for _, px in _px_widths(block, ("max-width",), tokens)
         ]
         if widths:
             return int(max(widths))
     return COLUMN_FALLBACK
 
 
-def _overwide_elements(parser: _StructParser, column: int) -> list:
+def _overwide_elements(
+    parser: _StructParser, column: int, theme_tokens: dict | None = None
+) -> list:
     """Everything a version pins wider than the column: its own rules, its inline
     styles, and the width="" attributes that count as pixels.
 
     A conditional rule counts here, where it cannot define the column: a pin is a risk
-    rather than a baseline, and it overflows whenever its condition holds."""
+    rather than a baseline, and it overflows whenever its condition holds.
+
+    A width naming a token resolves against the page's own root first and the layer's
+    behind it, which is the order the cascade reads them in. A page pinning
+    `var(--wide)` is stating the layer's number, and a reading that knew only the page's
+    own tokens would let the vocabulary's own widths through unmeasured."""
     hits = []
+    tokens = {**(theme_tokens or {}), **root_tokens(parser.css)}
     for selector, block, _ in css_rules(parser.css):
-        for prop, px in _px_widths(block, OVERFLOW_PROPS):
+        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
             if px > column:
                 hits.append(
                     f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
                 )
     for style in parser.inline_styles:
-        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS):
+        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS, tokens):
             if px > column:
                 hits.append(f"inline style {prop}: {px:g}px (column is {column}px)")
     for tag, value in parser.attr_widths:
@@ -6437,6 +6410,13 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def state_specs(entry: dict):
+    """The state and report verb declarations on one widget entry."""
+    for channel in ("x-state", "x-report"):
+        for verb, spec in entry.get(channel, {}).items():
+            yield channel, verb, spec
+
+
 def validate_registry(registry: dict, source) -> dict:
     """Validate one complete vocabulary after its top-level overlays are merged."""
     path = source
@@ -6450,28 +6430,77 @@ def validate_registry(registry: dict, source) -> dict:
             f"{path}: registry must declare $events.kinds, $languages.names/paths "
             "and $tones.names"
         )
-    if not isinstance(kinds, dict) or not all(
-        isinstance(kind, str)
-        and isinstance(fields, list)
-        and all(isinstance(field, str) for field in fields)
-        and len(fields) == len(set(fields))
-        for kind, fields in kinds.items()
-    ):
-        raise RegistryError(
-            f"{path}: $events.kinds must map event names to unique field-name lists"
-        )
-    missing_events = []
-    for kind, required in EVENT_VOCABULARY.items():
-        if kind not in kinds:
-            missing_events.append(f"kind `{kind}`")
+    if not isinstance(kinds, dict):
+        raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
+    envelope = {"id", "ts", "author", "kind", "seq"}
+    for kind, contract in kinds.items():
+        if (
+            not isinstance(kind, str)
+            or not kind
+            or not isinstance(contract, dict)
+            or set(contract) - {"record", "browser"}
+            or not isinstance(contract.get("record"), dict)
+            or ("browser" in contract and not isinstance(contract["browser"], dict))
+        ):
+            raise RegistryError(
+                f"{path}: $events.kinds must map names to atomic record/browser "
+                "contracts"
+            )
+        for writer, schema in contract.items():
+            try:
+                Draft202012Validator.check_schema(schema)
+            except SchemaError as error:
+                raise RegistryError(
+                    f"{path}: $events kind `{kind}` {writer} is not a valid JSON "
+                    f"Schema: {error.message}"
+                )
+        record = contract["record"]
+        properties = record.get("properties", {})
+        required = record.get("required", [])
+        if (
+            set(record) != {"type", "properties", "required", "additionalProperties"}
+            or record.get("type") != "object"
+            or not envelope <= set(properties)
+            or not envelope <= set(required)
+            or properties.get("kind") != {"const": kind}
+            or record.get("additionalProperties") is not False
+        ):
+            raise RegistryError(
+                f"{path}: $events kind `{kind}` record must use only type, "
+                "properties, required, and additionalProperties to declare a closed "
+                "full event schema with required id/ts/author/kind/seq fields and "
+                "its kind const"
+            )
+
+    # Compare a vendored or overlaid contract with the installed producers' own.
+    # Optional fields may grow; installed fields, requirements, and browser doors
+    # may not change.
+    current = read_registry_entries(ASSETS / "registry.json")["$events"]["kinds"]
+    incompatible = []
+    for kind, expected in current.items():
+        actual = kinds.get(kind)
+        if actual is None:
+            incompatible.append(f"kind `{kind}`")
             continue
-        fields = required - set(kinds[kind])
-        if fields:
-            missing_events.append(f"`{kind}` fields {sorted(fields)}")
-    if missing_events:
+        expected_record = expected["record"]
+        actual_record = actual["record"]
+        expected_properties = expected_record["properties"]
+        actual_properties = actual_record["properties"]
+        changed = sorted(
+            name
+            for name, schema in expected_properties.items()
+            if actual_properties.get(name) != schema
+        )
+        if changed:
+            incompatible.append(f"`{kind}` fields {changed}")
+        elif set(actual_record["required"]) != set(expected_record["required"]):
+            incompatible.append(f"`{kind}` required fields")
+        elif actual.get("browser") != expected.get("browser"):
+            incompatible.append(f"`{kind}` browser writer")
+    if incompatible:
         raise RegistryError(
-            f"{path}: $events.kinds omits vocabulary the current layer writes: "
-            + ", ".join(missing_events)
+            f"{path}: $events.kinds omits or changes contracts the current layer "
+            "writes: " + ", ".join(incompatible)
         )
     # $keys documents exactly the x- keys the lint admits, one string per key: the
     # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
@@ -6544,31 +6573,30 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                try:
-                    Draft202012Validator.check_schema(spec["detail"])
-                except SchemaError as error:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
-                        f"detail schema: {error.message}"
-                    )
-                if spec["detail"].get("type") != "object":
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
-                        "must declare an object"
-                    )
-                # A verb carries only the detail keys its entry declares — the
-                # premise the layer's own field meanings rest on: both runtimes
-                # dispatch thread settlement on `resolves` being present, which
-                # is safe exactly because a closed schema makes carrying it a
-                # declaration.
-                if spec["detail"].get("additionalProperties") is not False:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
-                        "must state additionalProperties: false — a verb carries "
-                        "only the detail keys it declares"
-                    )
+        for channel, verb, spec in state_specs(entry):
+            try:
+                Draft202012Validator.check_schema(spec["detail"])
+            except SchemaError as error:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
+                    f"detail schema: {error.message}"
+                )
+            if spec["detail"].get("type") != "object":
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    "must declare an object"
+                )
+            # A verb carries only the detail keys its entry declares — the
+            # premise the layer's own field meanings rest on: both runtimes
+            # dispatch thread settlement on `resolves` being present, which
+            # is safe exactly because a closed schema makes carrying it a
+            # declaration.
+            if spec["detail"].get("additionalProperties") is not False:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    "must state additionalProperties: false — a verb carries "
+                    "only the detail keys it declares"
+                )
 
     slots = retirement_slots(registry)
     for tag, entry in widgets.items():
@@ -6654,10 +6682,25 @@ def validate_registry(registry: dict, source) -> dict:
                         )
         # A blanket answer is one of this widget's own verbs, so the log records it
         # the way every other decision is recorded.
+        answers = awaits.get("answers", [])
+        if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"
+            )
+        if awaits.get("rollup") and "id" not in entry.get("required", []):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits rollup through descendants does "
+                "not require an id"
+            )
         if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
             raise RegistryError(
                 f"{path}: <{tag}> x-awaits answers every one at once with "
                 f"`{blanket}`, which it does not declare as an x-state verb"
+            )
+        if blanket and blanket not in answers:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
+                "its answer verbs"
             )
         # The until verb closes a thread ask, so it too is one of the widget's own
         # verbs — same rule as `all`, same reason.
@@ -6704,8 +6747,7 @@ def validate_registry(registry: dict, source) -> dict:
         # widget itself: a verb folding per child (move's "card") rests its
         # decisions on elements this entry doesn't name.
         folds_whole = any(
-            spec.get("unit", "widget") == "widget"
-            for spec in entry.get("x-state", {}).values()
+            spec["unit"] == "widget" for spec in entry.get("x-state", {}).values()
         )
         if folds_whole and not (
             isinstance(properties.get("restated"), dict)
@@ -6716,154 +6758,333 @@ def validate_registry(registry: dict, source) -> dict:
                 "but not the boolean `restated` attribute a version retracts a "
                 "decision with"
             )
-        # One rule set for both channels: x-state and x-report differ in
-        # precedence, not in how a verb, its unit, and its record hang together.
-        for channel in ("x-state", "x-report"):
-            for verb, spec in entry.get(channel, {}).items():
-                detail_properties = spec["detail"].get("properties", {})
-                required = set(spec["detail"].get("required", []))
-                unit = spec.get("unit", "widget")
-                fields = [] if unit == "widget" else [unit]
-                record = spec.get("record")
-                if record:
-                    fields.append(record["value"])
-                    if record["kind"] == "position":
-                        fields.append(record["order"])
-                        if record["within"] not in widgets:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records a "
-                                f"position within unknown widget <{record['within']}>"
-                            )
-                    if record["kind"] == "value":
-                        attr = record["attr"]
-                        if attr not in properties:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"undeclared attribute `{attr}`"
-                            )
-                        # An x-says value is words the reader sees, and the file's
-                        # reading takes them from the markup — replay writing one
-                        # would change what the page says while that reading held
-                        # still, the desync the fence rules exist to prevent.
-                        if attr in said:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` records "
-                                f"x-says attribute `{attr}`, whose value is words "
-                                "the reader sees — declared state may not move the "
-                                "page's words"
-                            )
-                # `resolves` is a reserved detail field: thread settlement reads it
-                # off every action as "the comment thread this action answers"
-                # (build_threads, in both runtimes), so a verb spelling the name
-                # means that or is refused here — a widget using it otherwise
-                # would settle a thread silently.
-                if "resolves" in detail_properties:
-                    # The reader's channel only. Both thread builders read `resolves`
-                    # off actions, so the name on a report verb declares an answer
-                    # nothing gives: the report would fold like any other and settle
-                    # no thread ever — the feature nobody wired up, which this door
-                    # exists to turn into an error. A thread is the reader's to close,
-                    # or an action of theirs; the agent's own way is `leaf resolve`.
-                    if channel != "x-state":
-                        raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                            "field `resolves`, a reserved name (the comment thread "
-                            "this action answers) — only an x-state verb settles a "
-                            "thread, so rename the field"
-                        )
-                    if detail_properties["resolves"] != {"type": "string"}:
-                        raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
-                            "field `resolves`, a reserved name (the comment thread "
-                            'this action answers) — declare it {"type": "string"} or '
-                            "rename the field"
-                        )
-                    # A thread is answered by the ask, and an ask is a widget
-                    # instance (x-awaits) — so the answer is absolute across the
-                    # widget, and both thread builders key the standing answer on
-                    # the widget id, the one key a log outlives its markup with.
-                    # A per-part verb answering a thread would fold per part and
-                    # settle per widget, and the disagreement is invisible: the
-                    # thread reads right until a second part is acted on. Whoever
-                    # writes that widget needs an ask per part first, and this is
-                    # where they find that out.
-                    if unit != "widget":
-                        raise RegistryError(
-                            f"{path}: <{tag}> {channel} verb `{verb}` answers a "
-                            f"comment thread (`resolves`) but folds per `{unit}` — "
-                            "a thread is answered by the ask, and an ask is the "
-                            "whole widget"
-                        )
-                undeclared = [
-                    field for field in fields if field not in detail_properties
-                ]
-                optional = [field for field in fields if field not in required]
-                if undeclared or optional:
-                    problem = (
-                        f"does not declare {undeclared}"
-                        if undeclared
-                        else f"does not require {optional}"
-                    )
+        # A facet is one independently standing fact. Every way of stating that
+        # fact therefore agrees on what it folds over and how authored markup can
+        # record it. The name itself remains local to the tag: two widget families
+        # may both call a facet `status` without sharing a contract.
+        facet_specs: dict[str, tuple[str, str, dict | None]] = {}
+        for channel, verb, spec in state_specs(entry):
+            facet = spec["facet"]
+            previous = facet_specs.get(facet)
+            if previous is None:
+                facet_specs[facet] = (channel, verb, spec.get("record"))
+                continue
+            previous_channel, previous_verb, previous_record = previous
+            previous_spec = entry[previous_channel][previous_verb]
+            if spec["unit"] != previous_spec["unit"]:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` and "
+                    f"{previous_channel} verb `{previous_verb}` share facet "
+                    f"`{facet}` but declare different fold units "
+                    f"(`{spec['unit']}` and `{previous_spec['unit']}`)"
+                )
+            if spec.get("record") != previous_record:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` and "
+                    f"{previous_channel} verb `{previous_verb}` share facet "
+                    f"`{facet}` but do not declare identical record forms "
+                    "(or both remain recordless)"
+                )
+
+        # Eligibility reuses the one standing-request projection. Close the target
+        # relation here: self must be an ask, and every holder a child permits must be
+        # one. Runtime evaluators then neither guess a widget family nor maintain a
+        # second representation of whether the request remains open.
+        for verb, spec in entry.get("x-state", {}).items():
+            requirement = spec.get("requires")
+            if not requirement:
+                continue
+            target_tags = (
+                [tag] if requirement["target"] == "self" else entry.get("x-parent", [])
+            )
+            if not target_tags:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires its parent, "
+                    f"but <{tag}> declares no x-parent"
+                )
+            if not all(
+                widgets[target].get("x-awaits") is not None for target in target_tags
+            ):
+                missing = sorted(
+                    target
+                    for target in target_tags
+                    if widgets[target].get("x-awaits") is None
+                )
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires "
+                    f"{requirement['target']} awaiting state, but {missing} do not "
+                    "declare x-awaits"
+                )
+            idless = sorted(
+                target
+                for target in target_tags
+                if requirement["target"] == "parent"
+                and "id" not in widgets[target].get("required", [])
+            )
+            if idless:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` requires "
+                    f"{requirement['target']} awaiting state, but {idless} do not "
+                    "require an id"
+                )
+            record = spec.get("record")
+            if requirement.get("change") and (
+                spec["unit"] != "widget"
+                or not record
+                or record["kind"] != "value"
+                or spec["detail"]["properties"][record["value"]]
+                != {"type": "string", "pattern": "^[0-9]+$"}
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` conditions an "
+                    "increase, which requires a widget-unit unsigned-integer "
+                    "value record"
+                )
+
+        # A facet is semantic, but its record writes a physical slot. Body and
+        # position have one per unit; value and attribute-set are keyed by attr.
+        physical_slots: dict[tuple[str, str, str | None], tuple[str, str, str]] = {}
+        for channel, verb, spec in state_specs(entry):
+            record = spec.get("record")
+            if record is None:
+                continue
+            kind = record["kind"]
+            attr = record.get("attr")
+            key = spec["unit"], kind, attr
+            previous = physical_slots.setdefault(key, (channel, verb, spec["facet"]))
+            previous_channel, previous_verb, previous_facet = previous
+            if previous_facet == spec["facet"]:
+                continue
+            slot = kind + (f" `{attr}`" if attr else "")
+            raise RegistryError(
+                f"{path}: <{tag}> {channel} verb `{verb}` (facet "
+                f"`{spec['facet']}`) and {previous_channel} verb "
+                f"`{previous_verb}` (facet `{previous_facet}`) claim the "
+                f"same physical record slot (unit `{spec['unit']}`, "
+                f"{slot}); distinct facets must record independently"
+            )
+
+        # A resolves-bearing widget has one answer fact. Thread history can outlive
+        # the markup that declared its verbs, so both thread builders deliberately
+        # fold answers by widget id alone; requiring every action verb on that tag
+        # to share the answer facet makes that historical key exact rather than a
+        # compatibility approximation.
+        state = entry.get("x-state", {})
+        resolving = [
+            (verb, spec)
+            for verb, spec in state.items()
+            if "resolves" in spec["detail"].get("properties", {})
+        ]
+        if resolving:
+            answer_verb, answer_spec = resolving[0]
+            answer_facet = answer_spec["facet"]
+            for verb, spec in state.items():
+                if spec["facet"] != answer_facet:
                     raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
-                        f"its schema {problem}"
-                    )
-                if unit != "widget" and record and record["kind"] != "position":
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
-                        "state; only position records support that"
+                        f"{path}: <{tag}> x-state verb `{verb}` uses facet "
+                        f"`{spec['facet']}`, but `{answer_verb}` declares "
+                        "`resolves`; every x-state verb on a resolves-bearing "
+                        f"widget must share its answer facet `{answer_facet}`"
                     )
 
-                if unit != "widget" and not declares_string(detail_properties[unit]):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
-                        "must be a string"
-                    )
-                if record:
-                    value = record["value"]
-                    schema = detail_properties[value]
-                    # An attribute record names the set of elements wearing it, so its
-                    # detail field is a list of ids however many the group allows —
-                    # nothing downstream has to ask which kind of group it came from.
-                    if record["kind"] == "attribute":
-                        items = (
-                            schema.get("items") if isinstance(schema, dict) else None
+        # One rule set for both channels: x-state and x-report differ in
+        # precedence, not in how a verb, its facet, unit, and record hang together.
+        for channel, verb, spec in state_specs(entry):
+            detail_properties = spec["detail"].get("properties", {})
+            required = set(spec["detail"].get("required", []))
+            unit = spec["unit"]
+            fields = [] if unit == "widget" else [unit]
+            record = spec.get("record")
+            if record:
+                fields.append(record["value"])
+                if record["kind"] == "position":
+                    fields.append(record["order"])
+                    if record["within"] not in widgets:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records a "
+                            f"position within unknown widget <{record['within']}>"
                         )
-                        if not (
-                            isinstance(schema, dict)
-                            and schema.get("type") == "array"
-                            and isinstance(items, dict)
-                            and items.get("type") == "string"
-                        ):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must be an array of strings"
-                            )
-                    elif record["kind"] == "value":
-                        # The record reads and writes the attribute, so its detail
-                        # field speaks the attribute's own schema — one vocabulary,
-                        # or the log's contract and the markup's drift apart.
-                        if schema != properties[record["attr"]]:
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"value `{value}` must carry attribute "
-                                f"`{record['attr']}`'s own schema"
-                            )
-                    elif not declares_string(schema):
+                    if spec["unit"] == "widget" and record["within"] not in entry.get(
+                        "x-parent", []
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"its own position within <{record['within']}>, which "
+                            "its x-parent does not admit"
+                        )
+                if record["kind"] == "body":
+                    if entry.get("x-content") != "data":
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            "its body, so x-content must be data; projection "
+                            "states text rather than a prose subtree"
+                        )
+                    nested = sorted(
+                        child
+                        for child, child_entry in widgets.items()
+                        if tag in child_entry.get("x-parent", [])
+                    )
+                    if nested:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"its body but admits nested widgets {nested}; a "
+                            "text statement cannot reconstruct their state"
+                        )
+                if record["kind"] == "value":
+                    attr = record["attr"]
+                    if attr not in properties:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"undeclared attribute `{attr}`"
+                        )
+                    # Projection rebuilds a refused gesture from authored state.
+                    # A required string value gives every baseline an absolute
+                    # action detail; absence is represented by an admitted value.
+                    if attr not in entry.get("required", []):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"optional attribute `{attr}`; recorded state must be "
+                            "required so its authored value can be replayed"
+                        )
+                    # An x-says value is words the reader sees, and the file's
+                    # reading takes them from the markup — replay writing one
+                    # would change what the page says while that reading held
+                    # still, the desync the fence rules exist to prevent.
+                    if attr in said:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` records "
+                            f"x-says attribute `{attr}`, whose value is words "
+                            "the reader sees — declared state may not move the "
+                            "page's words"
+                        )
+            # `resolves` is a reserved detail field: thread settlement reads it
+            # off every action as "the comment thread this action answers"
+            # (build_threads, in both runtimes), so a verb spelling the name
+            # means that or is refused here — a widget using it otherwise
+            # would settle a thread silently.
+            if "resolves" in detail_properties:
+                # The reader's channel only. Both thread builders read `resolves`
+                # off actions, so the name on a report verb declares an answer
+                # nothing gives: the report would fold like any other and settle
+                # no thread ever — the feature nobody wired up, which this door
+                # exists to turn into an error. A thread is the reader's to close,
+                # or an action of theirs; the agent's own way is `leaf resolve`.
+                if channel != "x-state":
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        "this action answers) — only an x-state verb settles a "
+                        "thread, so rename the field"
+                    )
+                if detail_properties["resolves"] != {"type": "string"}:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` declares detail "
+                        "field `resolves`, a reserved name (the comment thread "
+                        'this action answers) — declare it {"type": "string"} or '
+                        "rename the field"
+                    )
+                # A thread is answered by the ask, and an ask is a widget
+                # instance (x-awaits) — so the answer is absolute across the
+                # widget, and both thread builders key the standing answer on
+                # the widget id, the one key a log outlives its markup with.
+                # A per-part verb answering a thread would fold per part and
+                # settle per widget, and the disagreement is invisible: the
+                # thread reads right until a second part is acted on. Whoever
+                # writes that widget needs an ask per part first, and this is
+                # where they find that out.
+                if unit != "widget":
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` answers a "
+                        f"comment thread (`resolves`) but folds per `{unit}` — "
+                        "a thread is answered by the ask, and an ask is the "
+                        "whole widget"
+                    )
+            undeclared = [field for field in fields if field not in detail_properties]
+            optional = [field for field in fields if field not in required]
+            if undeclared or optional:
+                problem = (
+                    f"does not declare {undeclared}"
+                    if undeclared
+                    else f"does not require {optional}"
+                )
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
+                    f"its schema {problem}"
+                )
+            # Undo restores a recorded action from authored markup. That markup
+            # can reconstruct exactly the fold unit and the record's value/order;
+            # any other required field would make a valid declaration impossible
+            # to restore without a widget-specific default hidden in core.
+            unrestorable = sorted(required.difference(fields))
+            if channel == "x-state" and record and unrestorable:
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
+                    f"fields {unrestorable} that authored markup cannot restore"
+                )
+            if unit != "widget" and record and record["kind"] != "position":
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` records per-part "
+                    "state; only position records support that"
+                )
+
+            if unit != "widget" and not declares_string(detail_properties[unit]):
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` fold unit `{unit}` "
+                    "must be a string"
+                )
+            if record:
+                value = record["value"]
+                schema = detail_properties[value]
+                # An attribute record names the set of elements wearing it, so its
+                # detail field is a list of ids however many the group allows —
+                # nothing downstream has to ask which kind of group it came from.
+                if record["kind"] == "attribute":
+                    items = schema.get("items") if isinstance(schema, dict) else None
+                    if not (
+                        isinstance(schema, dict)
+                        and schema.get("type") == "array"
+                        and isinstance(items, dict)
+                        and items.get("type") == "string"
+                    ):
                         raise RegistryError(
                             f"{path}: <{tag}> {channel} verb `{verb}` record "
-                            f"value `{value}` must be a string"
+                            f"value `{value}` must be an array of strings"
                         )
-                    if record["kind"] == "position":
-                        order = detail_properties[record["order"]]
-                        if not (
-                            isinstance(order, dict) and order.get("type") == "integer"
-                        ):
-                            raise RegistryError(
-                                f"{path}: <{tag}> {channel} verb `{verb}` record "
-                                f"order `{record['order']}` counts the unit's "
-                                "siblings, so its detail field must be an integer"
-                            )
+                elif record["kind"] == "value":
+                    # The record reads and writes the attribute, so its detail
+                    # field speaks the attribute's own schema — one vocabulary,
+                    # or the log's contract and the markup's drift apart.
+                    if schema != properties[record["attr"]]:
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must carry attribute "
+                            f"`{record['attr']}`'s own schema"
+                        )
+                    string_enum = (
+                        isinstance(schema, dict)
+                        and isinstance(schema.get("enum"), list)
+                        and bool(schema["enum"])
+                        and all(isinstance(value, str) for value in schema["enum"])
+                    )
+                    if not (declares_string(schema) or string_enum):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"value `{value}` must be a string or string enum; "
+                            "HTML attributes cannot restore another JSON type"
+                        )
+                elif not declares_string(schema):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` record "
+                        f"value `{value}` must be a string"
+                    )
+                if record["kind"] == "position":
+                    order = detail_properties[record["order"]]
+                    if not (isinstance(order, dict) and order.get("type") == "integer"):
+                        raise RegistryError(
+                            f"{path}: <{tag}> {channel} verb `{verb}` record "
+                            f"order `{record['order']}` counts the unit's "
+                            "siblings, so its detail field must be an integer"
+                        )
         # Withdrawal is the author taking an unanswered question back, and the
         # entry says which of its own outcomes that leaves the page in
         # (retirable_ids). A verb no slot of this widget retires under would
@@ -6889,10 +7110,42 @@ def validate_registry(registry: dict, source) -> dict:
                     f"{path}: <{tag}> x-retired-when `{retired}` is invalid: "
                     f"<{parent}> does not declare that x-state verb"
                 )
-            if parent_state[retired].get("unit", "widget") != "widget":
+            if parent_state[retired]["unit"] != "widget":
                 raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
                 )
+    # A holder's retired slots are halves of one decision; outcomes on different
+    # facets could stand at once, leaving no single settlement to render.
+    for holder, outcomes in slots.items():
+        state = widgets[holder]["x-state"]
+        facets = {state[outcome]["facet"] for outcome in outcomes}
+        if len(facets) > 1:
+            mapping = ", ".join(
+                f"`{outcome}` → `{state[outcome]['facet']}`" for outcome in outcomes
+            )
+            raise RegistryError(
+                f"{path}: <{holder}> x-retired-when outcomes span facets "
+                f"({mapping}); every retirement outcome for one holder must "
+                "share one facet"
+            )
+    # Asked only after the record and retirement gates above have reported their
+    # more fundamental structural errors. An answer closes the whole ask, so its
+    # fold coordinate must be the widget rather than one detail-named child.
+    for tag, entry in widgets.items():
+        answers = (entry.get("x-awaits") or {}).get("answers", [])
+        if non_widget := sorted(
+            verb for verb in answers if entry["x-state"][verb]["unit"] != "widget"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits answer verbs {non_widget} must fold on "
+                "the widget"
+            )
+        until = (entry.get("x-awaits") or {}).get("until")
+        if until and entry["x-state"][until["verb"]]["unit"] != "widget":
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
+                "on the widget"
+            )
     return registry
 
 
@@ -7016,29 +7269,43 @@ def incoming_registry(layers: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    event kinds or fields with no $events entry, or actions and reports whose
+    events its $events record schemas reject, or actions and reports whose
     sending tag, verb, or detail the incoming x-state or x-report contract
     rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
         return []
-    kind_fields = incoming["$events"]["kinds"]
+    contracts = incoming["$events"]["kinds"]
+    thread = thread_structure(events)
+    versions = {}
+
+    def page_by_id(version):
+        if version not in versions:
+            versions[version] = parse_version(page_dir, version).by_id
+        return versions[version]
+
     missing = {}
     for e in events:
         kind = e["kind"]
-        if kind not in kind_fields:
+        if kind not in contracts:
             key = f"kind `{kind}`"
-        elif fields := set(e) - EVENT_BASE_FIELDS - set(kind_fields[kind]):
-            key = f"kind `{kind}` fields {sorted(fields)}"
+        elif error := event_record_error(contracts[kind], e):
+            key = f"kind `{kind}` record: {error}"
         elif kind == "action" and (
-            error := action_contract_error(page_dir, e, events, incoming)
+            error := declared_action_error(
+                e, page_by_id(e["version"]), thread.by_id, incoming
+            )
         ):
             key = f"action contract: {error}"
         elif kind == "report" and (
-            error := report_contract_error(page_dir, e, incoming)
+            error := report_contract_error(e, page_by_id(e["version"]), incoming)
         ):
             key = f"report contract: {error}"
+        elif e.get("markup") and (
+            errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
+        ):
+            key = "thread markup contract: " + "; ".join(errors)
         else:
             continue
         missing[key] = missing.get(key, 0) + 1
@@ -7140,7 +7407,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
     ]
 
 
-def language_class_errors(blocks: list, known: list) -> list:
+def language_class_errors(blocks: list, registry: dict) -> list:
     """A `class="language-…"` the runtime won't honor: the class somewhere other than
     <pre><code>, or a word the layer doesn't speak. Neither is visible to the user — a
     class in the wrong place and a misspelt language both render as an ordinary
@@ -7152,15 +7419,27 @@ def language_class_errors(blocks: list, known: list) -> list:
     The list is indexed rather than tested: a layer naming none colors none, so a word
     declared to it is still one it can't honor, and the placement rule never depended on
     the list at all. A check whose two failures are both invisible on the page is the
-    last one that should be able to pass by finding nothing to check against."""
+    last one that should be able to pass by finding nothing to check against.
+
+    The misplaced block is offered the other way to color one, read from the same
+    declaration the check itself reads: whichever tags say an attribute of theirs names
+    a language (x-language). Naming one here would be this lint knowing a widget, and
+    the offer would go stale the moment a layer dropped it or added a second — so a
+    layer whose tags declare none says only to move the block."""
+    known = registry["$languages"]["names"]
+    colored = " or ".join(
+        f"<{tag} {attr}=…>"
+        for tag, entry in sorted(registry.items())
+        if tag.startswith("lf-") and (attr := entry.get("x-language"))
+    )
+    instead = f", or use {colored} for a walkthrough" if colored else ""
     errors = []
     for block in blocks:
         where = f'class="language-{block["lang"]}" (line {block["line"]})'
         if (block["tag"], block["parent"]) != ("code", "pre"):
             errors.append(
                 f"{where}: only <pre><code> is colored, found <{block['tag']}> in "
-                f"<{block['parent'] or 'nothing'}> — move it, or use <lf-code language=…> "
-                f"for a walkthrough"
+                f"<{block['parent'] or 'nothing'}> — move it{instead}"
             )
         elif block["lang"] not in known:
             errors.append(
@@ -7446,58 +7725,6 @@ def report_absorptions(events: list, upto=None) -> dict:
     return note_floors(events, "reports", upto)
 
 
-def declared_events(events, byid, registry, kind, channel, upto):
-    """Registry-declared events in a window, with their fold unit and verb spec.
-
-    Actions and reports share windowing, widget/verb lookup, and unit resolution;
-    what ends one remains the caller's channel-specific rule. The browser
-    runtime's `foldable` generator owns the same seam.
-    """
-    for event in events:
-        if event["kind"] != kind:
-            continue
-        if upto is not None and event["version"] > upto:
-            continue
-        rec = byid.get(event["widget"])
-        if rec is None:
-            continue
-        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
-        if not spec:
-            continue
-        unit = (
-            event["widget"]
-            if spec.get("unit", "widget") == "widget"
-            else event["detail"].get(spec["unit"])
-        )
-        if isinstance(unit, str):
-            yield unit, event, spec
-
-
-def standing_reports(events: list, byid: dict, registry: dict, upto=None) -> dict:
-    """unit id → the live report events on it, oldest first, each with its
-    x-report spec. Live means made against a version inside the window and not
-    yet answered by a note inside it. The last entry is the fold — every
-    report states an absolute value, so the newest per unit is the state — and
-    the whole list is what answering retires: publish names every id on the
-    unit, or an older superseded report would keep replaying under the new
-    version. A report whose widget the current markup lacks resolves no spec
-    and stands nowhere; a dropped id is id-survival's business, not this
-    channel's."""
-    absorbed = report_absorptions(events, upto)
-    per_unit = {}
-    for unit, event, spec in declared_events(
-        events,
-        byid,
-        registry,
-        "report",
-        "x-report",
-        upto,
-    ):
-        if event["id"] not in absorbed:
-            per_unit.setdefault(unit, []).append((event, spec))
-    return per_unit
-
-
 def action_rests_on(event: dict, spk: dict) -> list:
     """The runtime's restsOn, read the same way here: the sending widget plus
     every detail id it contains. This is the one key space for liveness — fold
@@ -7530,46 +7757,108 @@ def action_retracted(event: dict, floors: dict, spk: dict) -> bool:
 
 
 # A verb with no declared record form (accept/reject — the honoring version
-# retires the wrapper, so there is no state attribute to compare) has no facet.
+# retires the wrapper, so there is no markup value to compare) has no record.
 NO_RECORD = object()
 
 
-def state_fold(
-    events: list, byid: dict, spk: dict, registry: dict, upto, floors: dict
-) -> dict:
-    """unit id → (action, spec): the last surviving action per declared unit.
+class StateProjection(NamedTuple):
+    """The durable widget state declared by one page and log window."""
 
-    The registry's x-state names each verb's fold unit — the widget itself for
-    a verb absolute across the group (`choose` toggles every sibling, so
-    per-option folding would double-count superseded picks), the detail-named
-    element for one absolute per part (`move` places one card). Absolute
-    placements are what make this a fold at all: the last surviving action per
-    unit *is* the state, one linear scan, no replay simulation. Surviving means
-    not under a retraction floor keyed on what the action rests on. `upto` is
-    the consumer's window — the gate folds to the last published version (an
-    action made later belongs to no comparison of these two files), a lag
-    report to everything recorded (None)."""
+    actions: dict
+    reports: dict
+    desired: dict
+    report_answers: dict
+
+
+def state_coordinate(widget: str, unit: str, spec: dict) -> tuple[str, str, str]:
+    """The one identity of a durable fact: its owner, fold unit, and local facet."""
+    return widget, unit, spec["facet"]
+
+
+def state_projection(
+    events: list,
+    byid: dict,
+    spk: dict,
+    registry: dict,
+    upto,
+    floors: dict | None = None,
+) -> StateProjection:
+    """Project both durable channels onto owner-unit-facet coordinates.
+
+    `actions` holds the last surviving reader action per coordinate. `reports`
+    keeps every live report there because publishing retires all of them.
+    `desired` gives a reader action precedence over provisional agent news on
+    the same coordinate.
+
+    Both channels share one classification pass over the window. They end by
+    different facts: undo or a retraction floor ends an action, while a note
+    naming a report ends that report. `report_answers` retains the answer
+    version for gate diagnostics after an absorbed report leaves the live maps.
+    A report or action whose widget the markup lacks resolves no declaration
+    and stands nowhere."""
+    if floors is None:
+        floors = retractions(events, upto)
     withdrawn = taken_back(events)
-    fold = {}
-    for unit, event, spec in declared_events(
-        events,
-        byid,
-        registry,
-        "action",
-        "x-state",
-        upto,
-    ):
-        # Two ways an action stops standing, and the fold owes both the same
-        # answer: a version that rewrote what it rested on (`restated`), and the
-        # reader taking it back. Neither leaves a mark on the action itself —
-        # the log is append-only — so both are read from what came after it.
-        if event["id"] in withdrawn or action_retracted(event, floors, spk):
+    absorbed = report_absorptions(events, upto)
+    actions = {}
+    reports = {}
+    report_answers = {}
+    for event in events:
+        if event["kind"] == "action":
+            channel = "x-state"
+        elif event["kind"] == "report":
+            channel = "x-report"
+        else:
             continue
-        fold[unit] = (event, spec)
-    return fold
+        if upto is not None and event["version"] > upto:
+            continue
+        rec = byid.get(event["widget"])
+        if rec is None:
+            continue
+        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+        if not spec:
+            continue
+        unit = (
+            event["widget"]
+            if spec["unit"] == "widget"
+            else event["detail"].get(spec["unit"])
+        )
+        if not isinstance(unit, str):
+            continue
+        coordinate = state_coordinate(event["widget"], unit, spec)
+        entry = (event, spec)
+        if event["kind"] == "action":
+            if event["id"] in withdrawn or action_retracted(event, floors, spk):
+                continue
+            actions[coordinate] = entry
+        elif answered_at := absorbed.get(event["id"]):
+            report_answers[coordinate] = max(
+                report_answers.get(coordinate, 0), answered_at
+            )
+        else:
+            reports.setdefault(coordinate, []).append(entry)
+
+    desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
+    desired.update(actions)
+    return StateProjection(
+        actions,
+        reports,
+        desired,
+        report_answers,
+    )
 
 
-def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
+def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
+    """The nearest enclosing widget whose registry entry records state."""
+    for candidate in reversed(spk.get(unit, EMPTY).within):
+        rec = byid.get(candidate)
+        entry = registry.get(rec["tag"], {}) if rec else {}
+        if any(spec.get("record") for _, _, spec in state_specs(entry)):
+            return candidate
+    return None
+
+
+def markup_facet(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     """What one version's markup shows for a unit's declared record form: every
     element inside it carrying the attribute, the unit's own attribute's value,
     the declared container enclosing it, or its body's words — the empty list
@@ -7587,6 +7876,7 @@ def markup_facet(unit: str, spec: dict, byid: dict, spk: dict):
             for oid, orec in byid.items()
             if record["attr"] in orec["attrs"]
             and unit in spk.get(oid, EMPTY).within[:-1]
+            and recorded_owner(oid, byid, spk, registry) == unit
         )
     if record["kind"] == "value":
         rec = byid.get(unit)
@@ -7616,45 +7906,41 @@ def folded_facet(e: dict, spec: dict):
     return value
 
 
-def page_fold(html: str, events: list, registry: dict, upto):
-    """state_fold asked of one page: its elements, its words, and the log windowed
-    to `upto` — one construction, so its readers (`record_lag`, `page state`, and
-    the readings `decisions` and `rewritten_bodies` give `leaf comment` and
-    `version check`) cannot drift on floors or window. Returns (fold, parser, spk);
-    the extras are the page readings the fold was built from, for a caller
-    comparing it back against the markup."""
+def page_projection(html: str, events: list, registry: dict, upto):
+    """Project one page's markup and log window through one construction.
+
+    `record_lag`, `page state`, and the passage readings used by `leaf comment`
+    and `version check` therefore cannot drift on declarations, floors, or the
+    window. The parser and spoken reading travel with the projection for callers
+    that compare it with authored markup."""
     parser = parse_structure(html)
     spk = spoken(html, registry)
     return (
-        state_fold(
-            events, parser.by_id, spk, registry, upto, retractions(events, upto)
-        ),
+        state_projection(events, parser.by_id, spk, registry, upto),
         parser,
         spk,
     )
 
 
-def rewritten_bodies(fold: dict) -> dict:
+def rewritten_bodies(actions: dict) -> dict:
     """id → (verb, text): the user's standing rewrite of each element whose
     registry entry records a verb as the body (x-state record kind "body"), as
-    replay leaves it. The fold is state_fold's — the last surviving action per
-    unit under the retraction floors — read here for the one record kind whose
-    state is words rather than markup, so the passage reading can hold them
-    where the authored body was."""
+    replay leaves it. The action projection is read here for the one record kind
+    whose state is words rather than markup, so the passage reading can hold
+    those words where the authored body was."""
     return {
         unit: (e["action"], e["detail"][spec["record"]["value"]])
-        for unit, (e, spec) in fold.items()
+        for (_widget, unit, _facet), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
     }
 
 
-def decisions(fold: dict, registry: dict) -> dict:
-    """widget id → the accept/reject it stands under, read from the same fold every
-    other consumer of declared state reads. Which verbs decide is the registry's word
-    too: `x-retired-when` names the outcome under which an element leaves the page, so
-    its values are the vocabulary's decision verbs — nothing here knows a widget or a
-    verb by name, and a verb a later layer retires folds to nothing rather than
-    standing on trust."""
+def decisions(actions: dict, registry: dict) -> dict:
+    """widget id → the accept/reject its action projection leaves standing.
+
+    Which verbs decide is the registry's word too: `x-retired-when` names the
+    outcome under which an element leaves the page, so nothing here knows a
+    widget or verb by name."""
     # Widgets only: $keys spells its members in the x- keys' own names, so a sweep
     # over every entry would take its paragraph on x-retired-when for a verb.
     deciding = {
@@ -7663,69 +7949,55 @@ def decisions(fold: dict, registry: dict) -> dict:
         if tag.startswith("lf-") and "x-retired-when" in e
     }
     return {
-        unit: e["action"] for unit, (e, _) in fold.items() if e["action"] in deciding
+        unit: e["action"]
+        for (_widget, unit, _facet), (e, _) in actions.items()
+        if e["action"] in deciding
     }
 
 
-def record_lag_entries(fold, byid, spk, events: list, registry: dict) -> list:
-    """Units whose markup lags the user's standing state — the record debt a
+def record_lag_entries(projection: StateProjection, byid, spk, registry: dict) -> list:
+    """Coordinates whose markup lags the user's standing state — the record debt a
     log-less reader would miss. Advice, never errors: a version is free to stay
-    silent (replay resolves it), but SKILL.md's record obligation needs a
-    feedback loop, and a finished page's final version is the page that has
+    silent (replay resolves it), but references/page-authoring.md's "Honoring
+    reader state" obligation needs a feedback loop, and a finished page's final
+    version is the page that has
     to read right without the log. One comparison, rendered twice: `record_lag`
     speaks it, `page state` ships it — the same entries, so the advice a check
     prints and the debt an agent queries cannot disagree."""
     entries = []
-    for unit in sorted(fold):
-        e, spec = fold[unit]
+    for coordinate in sorted(projection.desired):
+        widget, unit, facet = coordinate
+        e, spec = projection.desired[coordinate]
         if unit not in byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, spk)
+        f_cur = markup_facet(unit, spec, byid, spk, registry)
         f_log = folded_facet(e, spec)
         if f_cur is NO_RECORD or f_cur == f_log:
             continue
         entries.append(
             {
+                "widget": widget,
                 "unit": unit,
-                "channel": "action",
+                "facet": facet,
+                "channel": e["kind"],
                 "action": e["action"],
                 "log": f_log,
-                "markup": f_cur,
-            }
-        )
-    # The agent channel's half of the same debt: a standing report is state the
-    # markup has not absorbed, and the final version is the page that has to
-    # read right without the log.
-    for unit, reports in sorted(standing_reports(events, byid, registry, None).items()):
-        e, spec = reports[-1]
-        if unit not in byid:
-            continue
-        f_cur = markup_facet(unit, spec, byid, spk)
-        f_rep = folded_facet(e, spec)
-        if f_cur == f_rep:
-            continue
-        entries.append(
-            {
-                "unit": unit,
-                "channel": "report",
-                "action": e["action"],
-                "log": f_rep,
                 "markup": f_cur,
             }
         )
     return entries
 
 
-def record_lag(html: str, events: list, registry: dict) -> list:
+def record_lag(
+    projection: StateProjection, byid: dict, spk: dict, registry: dict
+) -> list:
     """`record_lag_entries` as advice lines, for check and the transcript."""
-    if not registry:
-        return []
-    fold, parser, spk = page_fold(html, events, registry, None)
     lag = []
-    for n in record_lag_entries(fold, parser.by_id, spk, events, registry):
+    for n in record_lag_entries(projection, byid, spk, registry):
         who = "the log records" if n["channel"] == "action" else "a report records"
         lag.append(
-            f"`{n['unit']}`: {who} {n['action']} → {n['log']!r}; "
+            f"`{n['unit']}` ({n['facet']} facet): {who} {n['action']} → "
+            f"{n['log']!r}; "
             f"the markup still shows {n['markup']!r}"
         )
     return lag
@@ -7745,37 +8017,50 @@ def asking(attrs: dict, when: dict) -> bool:
     )
 
 
-def replayed_attrs(rec: dict, fold: dict, reports: dict) -> dict:
-    """An element's attributes as replay leaves them: the authored markup
-    overlaid with the surviving value-kind record — the browser evaluates an
-    ask's `when` against the replayed DOM, so a status a report moved reads
-    here the way it reads there. The user's action holds the unit over a
-    standing report, the channel precedence the registry states."""
+def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
+    """An element's attributes under the declared standing projection: authored
+    markup overlaid with every surviving value record. The user's action holds
+    one coordinate over a standing report, and independent facets coexist."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
-    held = fold.get(unit) or (reports.get(unit) or [(None, None)])[-1]
-    e, spec = held if held[0] else (None, None)
-    if e and (spec.get("record") or {}).get("kind") == "value":
-        return {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
+    if not unit:
+        return attrs
+    held = [
+        winner
+        for coordinate, winner in projection.desired.items()
+        if coordinate[1] == unit
+    ]
+    for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
+        if (spec.get("record") or {}).get("kind") == "value":
+            attrs = {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
     return attrs
 
 
-def answered_ask(rec: dict, entry: dict, fold: dict, byid: dict, spk: dict) -> bool:
-    """The runtime's `answeredAsk`: a verb that records as an attribute answers
-    on the record the replayed page carries — the fold's where an action
-    survives on the unit, the authored markup's otherwise, so a version that
-    honors a pick reads as answered with no log at all and a pick the reader
-    cleared reads as open again. Any other verb answers only through its own
-    fold entry."""
+def answered_ask(
+    rec: dict,
+    entry: dict,
+    projection: StateProjection,
+    byid: dict,
+    spk: dict,
+    registry: dict,
+) -> bool:
+    """Whether one of x-awaits' explicit answer verbs stands on this ask.
+
+    An attribute record reads through authored markup as well as the fold, so an
+    honoring version remains answered. Other records need their verb's standing
+    action. Actions absent from `answers` are orthogonal state — notably a deadline
+    snooze — and cannot close the request by accident.
+    """
     unit = rec["attrs"].get("id")
-    held = fold.get(unit)
-    for verb, spec in (entry.get("x-state") or {}).items():
+    for verb in entry["x-awaits"].get("answers", []):
+        spec = entry["x-state"][verb]
+        held = projection.actions.get(state_coordinate(unit, unit, spec))
         record = spec.get("record")
         if record and record["kind"] == "attribute":
             if held and (held[1].get("record") or {}).get("kind") == "attribute":
                 facet = folded_facet(*held)
             else:
-                facet = markup_facet(unit, spec, byid, spk) if unit else []
+                facet = markup_facet(unit, spec, byid, spk, registry) if unit else []
             if facet:
                 return True
         elif held and held[0]["action"] == verb:
@@ -7800,35 +8085,173 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     )
 
 
-def page_asks(parser, fold, reports, byid, spk, registry: dict, dropped: set) -> list:
-    """The published page's standing asks — the list the banner counts and the
-    `n`/`p` walk steps, read from the file and the log instead of the DOM. An
-    instance asks when its replayed attributes match its entry's `when`;
-    quoted material asks nothing; an instance a decision dropped from the page
-    (`dropped`: ids under retired slots, and decided-empty ids, from the passage
-    reading) asks nothing either, the way the runtime's own list skips what
-    `settledAway` hides; answered is what x-state already declares
-    (`answered_ask`)."""
-    asks = []
-    for rec in parser.lf_elements:
-        entry = registry.get(rec["tag"]) or {}
-        awaits = entry.get("x-awaits")
-        if not awaits:
+def projected_action_holders(
+    projection: StateProjection, byid: dict, registry: dict
+) -> dict[str, dict]:
+    """Unit id → its enclosing vocabulary widget after standing position records."""
+    holders = {}
+    for (_owner, unit, _facet), (event, spec) in projection.desired.items():
+        record = spec.get("record") or {}
+        if record.get("kind") != "position":
             continue
+        target = byid.get(event["detail"][record["value"]])
+        unit_rec = byid.get(unit)
+        if target and unit_rec:
+            holder = target if target["tag"] in registry else target.get("holder")
+            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-parent", [])
+            if holder and holder["tag"] in permitted:
+                holders[unit] = holder
+    return holders
+
+
+def page_ask_projection(
+    source,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+    *,
+    thread: bool = False,
+) -> tuple[list, dict[str, bool]]:
+    """The page's visible asks and exact awaiting value for every declared target.
+
+    An ordinary x-awaits instance is its local condition minus an explicit answer.
+    A roll-up projects the same fact through a nested plan: a false local condition
+    stops; direct ordinary interventions take precedence;
+    otherwise child roll-ups recurse; a matching leaf waits. The browser implements
+    this reducer over the DOM and the same standing fold.
+    """
+    elements = source.lf_elements if hasattr(source, "lf_elements") else source
+    records = [
+        rec
+        for rec in elements
+        if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+    ]
+    positioned_holders = projected_action_holders(projection, byid, registry)
+
+    def entry(rec):
+        return registry[rec["tag"]]
+
+    def holder(rec):
         unit = rec["attrs"].get("id")
-        if unit and unit in dropped:
-            continue
-        if quoted_in(rec, registry):
-            continue
-        if not asking(replayed_attrs(rec, fold, reports), awaits.get("when")):
-            continue
-        if answered_ask(rec, entry, fold, byid, spk):
-            continue
-        asks.append({"id": unit, "tag": rec["tag"], "thread": None})
-    return asks
+        return positioned_holders.get(unit, rec.get("holder"))
+
+    def contains(ancestor, rec):
+        while rec:
+            if rec is ancestor:
+                return True
+            rec = holder(rec)
+        return False
+
+    def answered(rec):
+        rec_entry = entry(rec)
+        if thread:
+            if not rec_entry.get("x-state"):
+                return True
+            until = rec_entry["x-awaits"].get("until")
+            attrs = replayed_attrs(rec, projection)
+            if until and asking(attrs, until["when"]):
+                unit = rec["attrs"].get("id")
+                return any(
+                    action["widget"] == unit and action["action"] == until["verb"]
+                    for action, _spec in projection.actions.values()
+                )
+        return answered_ask(rec, rec_entry, projection, byid, spk, registry)
+
+    def rollup_owner(rec):
+        rec = holder(rec)
+        while rec:
+            if (registry.get(rec["tag"]) or {}).get("x-awaits", {}).get("rollup"):
+                return rec
+            rec = holder(rec)
+        return None
+
+    exists: dict[int, bool] = {}
+    local: dict[int, bool] = {}
+    for rec in records:
+        unit = rec["attrs"].get("id")
+        exists[id(rec)] = not ((unit and unit in dropped) or quoted_in(rec, registry))
+        local[id(rec)] = exists[id(rec)] and asking(
+            replayed_attrs(rec, projection), entry(rec)["x-awaits"].get("when")
+        )
+
+    direct: dict[int, list] = {}
+    for rec in records:
+        if owner := rollup_owner(rec):
+            direct.setdefault(id(owner), []).append(rec)
+
+    values: dict[int, bool] = {}
+
+    def awaits(rec):
+        key = id(rec)
+        if key in values:
+            return values[key]
+        if not exists[key]:
+            values[key] = False
+            return False
+        if not local[key]:
+            values[key] = False
+            return False
+        declaration = entry(rec)["x-awaits"]
+        if not declaration.get("rollup"):
+            values[key] = not answered(rec)
+            return values[key]
+        descendants = direct.get(key, [])
+        interventions = [
+            candidate
+            for candidate in descendants
+            if not entry(candidate)["x-awaits"].get("rollup") and local[id(candidate)]
+        ]
+        if interventions:
+            values[key] = any(awaits(candidate) for candidate in interventions)
+            return values[key]
+        children = [
+            candidate
+            for candidate in descendants
+            if entry(candidate)["x-awaits"].get("rollup")
+        ]
+        values[key] = (
+            any(awaits(candidate) for candidate in children)
+            if children
+            else not answered(rec)
+        )
+        return values[key]
+
+    open_records = [rec for rec in records if awaits(rec)]
+    visible = [
+        rec
+        for rec in open_records
+        if not entry(rec)["x-awaits"].get("rollup")
+        or not any(inner is not rec and contains(rec, inner) for inner in open_records)
+    ]
+    return (
+        [
+            {"id": rec["attrs"].get("id"), "tag": rec["tag"], "thread": None}
+            for rec in visible
+        ],
+        {
+            rec["attrs"]["id"]: values[id(rec)]
+            for rec in records
+            if rec["attrs"].get("id")
+        },
+    )
 
 
-def thread_asks(events: list, registry: dict, settled: set) -> list:
+def page_asks(
+    parser,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+) -> list:
+    return page_ask_projection(parser, projection, byid, spk, registry, dropped)[0]
+
+
+def thread_ask_projection(
+    events: list, registry: dict, settled: set
+) -> tuple[list, dict]:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
@@ -7841,56 +8264,42 @@ def thread_asks(events: list, registry: dict, settled: set) -> list:
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
-    asks = []
-    thread_of = {}
-    # Folded, so a closing chunk's markup is met on its message and never as a
-    # fragment of its own — the same reading the panel takes.
-    for e in fold_messages(events):
-        if e["kind"] == "comment":
-            thread_of[e["id"]] = e["id"]
-        elif e["kind"] == "reply":
-            thread_of[e["id"]] = thread_of[e["parent"]]
-        else:
+    structure = thread_structure(events)
+    records, byid, spk = [], {}, {}
+    thread_of = thread_roots(events)
+    for e in events:
+        if e["kind"] not in ("comment", "reply"):
             continue
         markup = e.get("markup")
         if not markup or thread_of[e["id"]] in settled:
             continue
-        frag = parse_structure(markup)
-        byid = frag.by_id
-        spk = spoken(markup, registry)
-        fold = state_fold(events, byid, spk, registry, None, {})
-        reports = standing_reports(events, byid, registry, None)
-        for rec in frag.lf_elements:
-            entry = registry.get(rec["tag"]) or {}
-            awaits = entry.get("x-awaits")
-            if not awaits or not entry.get("x-state"):
-                continue
-            unit = rec["attrs"].get("id")
-            if quoted_in(rec, registry):
-                continue
-            attrs = replayed_attrs(rec, fold, reports)
-            if not asking(attrs, awaits.get("when")):
-                continue
-            until = awaits.get("until")
-            if until and asking(attrs, until["when"]):
-                answered = any(
-                    a["kind"] == "action"
-                    and a["widget"] == unit
-                    and a["action"] == until["verb"]
-                    for a in events
-                )
-            else:
-                answered = answered_ask(rec, entry, fold, byid, spk)
-            if not answered:
-                asks.append(
-                    {"id": unit, "tag": rec["tag"], "thread": thread_of[e["id"]]}
-                )
-    return asks
+        frag = structure.fragments[e["id"]]
+        byid.update(frag.by_id)
+        spk.update(spoken(markup, registry))
+        records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
+    projection = state_projection(events, byid, spk, registry, None, {})
+
+    asks, values = page_ask_projection(
+        [rec for _thread, rec in records],
+        projection,
+        byid,
+        spk,
+        registry,
+        set(),
+        thread=True,
+    )
+    thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}
+    return ([{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks], values)
+
+
+def thread_asks(events: list, registry: dict, settled: set) -> list:
+    return thread_ask_projection(events, registry, settled)[0]
 
 
 def unpointable_blocks(parser: _StructParser) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
-    gate, in the same register as record_lag: SKILL.md states the id rule, and this
+    gate, in the same register as record_lag:
+    references/page-authoring.md's "Stable anchors" states the id rule, and this
     is its feedback loop. The page that introduced item anchoring hit this
     failure itself — its code blocks carried no ids, so a comment aimed at one fell
     through to the enclosing section and read as the gesture being broken rather
@@ -7925,17 +8334,24 @@ def unpointable_blocks(parser: _StructParser) -> list:
 
 
 def restatement_errors(
-    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+    cur,
+    prev,
+    was: dict,
+    now: dict,
+    prev_num: int,
+    registry: dict,
+    projection: StateProjection,
+    floors: dict,
 ) -> list:
     """The other half of the id-survival rule. That one keeps a republish from
     dropping the anchors a user hung on the page; this one keeps it from
     dropping the decisions they recorded on it. CLAUDE.md carries why the log
     outranks the markup and what that cost.
 
-    The runtime replays every action onto every later version, so a version
-    cannot revise what a user acted on: replay would paint their recorded
-    state back over the revision and the new words would reach nobody. A version
-    that means to revise says so — `restated` on what it rewrote — and one that
+    The runtime reconciles every standing action onto every later version, so a
+    version cannot revise what a user acted on: reconciliation would paint their
+    recorded state back over the revision and the new words would reach nobody. A
+    version that means to revise says so — `restated` on what it rewrote — and one that
     changes those words in silence is refused here. An unearned `restated` is an
     error too: a decision thrown away for nothing, and, left unchecked, the
     one-word ritual that would make this gate meaningless.
@@ -7948,11 +8364,11 @@ def restatement_errors(
 
     Words are one divergence kind; declared state is the other. For each verb
     the registry declares (x-state), the fold gives the user's standing
-    state per unit, and a version whose markup actively changes that unit's
+    state per owner, unit, and facet, and a version whose markup actively changes that unit's
     record away from both the previous version's and the fold is refused the
     same way a silent rewrite of words is. Writing the folded state is the
     state-level echo (honoring); re-emitting the previous version's state is
-    blessed silence, which replay resolves; a unit with no surviving folded
+    blessed silence, which reconciliation resolves; a unit with no surviving folded
     action is exempt — never decided, or retracted back to the author. And
     `restated` is earned by either divergence kind: a words-unchanged
     relocation earns it at the unit even though no subject's words moved."""
@@ -7961,38 +8377,26 @@ def restatement_errors(
     # Retractions up to prev — never this version's own, which is what it is
     # here to declare, so re-checking a published version reaches the same
     # verdict as checking it did.
-    taken_back = retractions(events, prev_num)
     byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
-    for e in events:
-        if e["kind"] != "action":
-            continue
-        # One key space for liveness: an action is dead when any id it rests on
-        # was floored — replay skips it by this same containment, so a finer,
-        # subject-keyed floor here would keep alive a decision the browser has
-        # already dropped (a group-level retraction never names the option the
-        # pick rested on, and the pick must die with the group all the same).
-        if action_retracted(e, taken_back, now):
-            continue
+    for e, _spec in projection.actions.values():
         for subject in action_subjects(e, byid, now, registry):
-            # Only what the user had recorded by the time they were looking
-            # at prev.
-            if subject in was and e["version"] <= prev_num:
+            if subject in was:
                 decided.setdefault(subject, []).append(e)
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
     prev_byid = prev.by_id
-    fold = state_fold(events, byid, now, registry, prev_num, taken_back)
     facet_earned = set()
-    for unit in sorted(fold):
-        e, spec = fold[unit]
+    for coordinate in sorted(projection.actions):
+        _widget, unit, _facet = coordinate
+        e, spec = projection.actions[coordinate]
         rec = byid.get(unit)
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, now)
-        f_prev = markup_facet(unit, spec, prev_byid, was)
+        f_cur = markup_facet(unit, spec, byid, now, registry)
+        f_prev = markup_facet(unit, spec, prev_byid, was, registry)
         if f_cur is NO_RECORD or f_cur == f_prev:
             continue  # no record form, or no active change — replay resolves silence
         f_fold = folded_facet(e, spec)
@@ -8037,9 +8441,9 @@ def restatement_errors(
             # to be carried — so it gets its own answer rather than the
             # never-decided one, which would read as if the user had done
             # nothing.
-            if sid in taken_back:
+            if sid in floors:
                 errors.append(
-                    f"{where}: restated, but v{taken_back[sid]} already took that "
+                    f"{where}: restated, but v{floors[sid]} already took that "
                     f"back — a retraction is recorded when it is published and holds "
                     f"without being repeated. Drop the attribute."
                 )
@@ -8065,7 +8469,12 @@ def restatement_errors(
 
 
 def report_errors(
-    cur, prev, was: dict, now: dict, events: list, prev_num: int, registry: dict
+    cur,
+    prev,
+    was: dict,
+    now: dict,
+    registry: dict,
+    projection: StateProjection,
 ) -> list:
     """The report gate, beside the reviewer one — the same shape with the
     precedence reversed. A report is a worker's provisional news: the runtime
@@ -8089,11 +8498,16 @@ def report_errors(
     declared = cur.overruled
     byid = cur.by_id
     prev_byid = prev.by_id
-    standing = standing_reports(events, byid, registry, prev_num)
+    effective_standing = {
+        coordinate: reports
+        for coordinate, reports in projection.reports.items()
+        if coordinate not in projection.actions
+    }
     earned = set()
-    for unit in sorted(standing):
-        e, spec = standing[unit][-1]
-        f_cur = markup_facet(unit, spec, byid, now)
+    for coordinate in sorted(effective_standing):
+        _widget, unit, _facet = coordinate
+        e, spec = effective_standing[coordinate][-1]
+        f_cur = markup_facet(unit, spec, byid, now, registry)
         f_rep = folded_facet(e, spec)
         # Whether an `overruled` is earned is this version's markup against the
         # report, so it is settled ahead of the skip below: a unit the gate declines
@@ -8108,7 +8522,7 @@ def report_errors(
             continue
         if f_cur == f_rep:
             continue  # honoring: publishing absorbs the report by id
-        if f_cur == markup_facet(unit, spec, prev_byid, was):
+        if f_cur == markup_facet(unit, spec, prev_byid, was, registry):
             continue  # blessed silence: the report keeps painting
         where = at(rec, f"id={unit!r}")
         who = e.get("agent", "a worker")
@@ -8124,23 +8538,14 @@ def report_errors(
     # answered the unit's reports, for the message that says to drop it.
     answered_at = {}
     if unearned:
-        absorbed = report_absorptions(events, prev_num)
-        for unit, event, _ in declared_events(
-            events,
-            byid,
-            registry,
-            "report",
-            "x-report",
-            prev_num,
-        ):
-            if event["id"] in absorbed:
-                answered_at[unit] = max(answered_at.get(unit, 0), absorbed[event["id"]])
+        for (_widget, unit, _facet), version in projection.report_answers.items():
+            answered_at[unit] = max(answered_at.get(unit, 0), version)
     for sid in sorted(unearned):
         rec = byid.get(sid)
         if rec is None:
             continue
         where = at(rec, f"id={sid!r}")
-        if sid in standing:
+        if any(unit == sid for _widget, unit, _facet in effective_standing):
             errors.append(
                 f"{where}: overruled, but this version writes the reported state — "
                 f"that is absorption, which publishing records on its own. "
@@ -8194,6 +8599,38 @@ def page_boundary_errors(parser: _StructParser) -> list:
     return errors
 
 
+def fragment_style_errors(parser: _StructParser) -> list:
+    """A message may not dress the document it is put into.
+
+    A version's <style> is the page's own, and the gates a version answers to read
+    it as such — syntax, the column it may not overflow, the presentation
+    properties the theme keeps. A fragment has no page of its own: the runtime
+    parses an agent's reply markup into a template and moves those nodes into the
+    message body, where a <style> among them becomes a document stylesheet like
+    any other. `<style>main h1 { color: red !important }</style>` in a reply was
+    accepted here and repainted the version's own heading, past every gate the
+    same rule in a version answers to; an inline `!important` on a protected
+    property outranked the theme's first cascade layer the same way.
+
+    Nothing is lost by refusing them. The layer already dresses a widget an agent
+    sends — that is what a registry entry and its theme rules are for — and a rule
+    of a message's own has nowhere honest to sit, because the message is not the
+    page and its markup is frozen in the log where no version can revise it."""
+    errors = []
+    if parser.css.strip():
+        errors.append(
+            "<style> in message markup becomes a stylesheet of the whole document it "
+            "is put into; a widget's look belongs in the layer's theme, beside its "
+            "registry entry"
+        )
+    if parser.stylesheets:
+        errors.append(
+            "<link rel=stylesheet> in message markup dresses the whole document it is "
+            "put into; the page serves the one vendored theme it was reviewed with"
+        )
+    return errors + inline_presentation_override_errors(parser)
+
+
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
     carrying widgets): the discussion-side analog of `version check`. The declared-word
@@ -8204,7 +8641,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
-        + language_class_errors(parser.language_blocks, registry["$languages"]["names"])
+        + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )
@@ -8304,11 +8741,7 @@ def cmd_check(
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
-        errors.extend(
-            language_class_errors(
-                parser.language_blocks, registry["$languages"]["names"]
-            )
-        )
+        errors.extend(language_class_errors(parser.language_blocks, registry))
         errors.extend(declared_word_errors(parser.lf_elements, registry))
         errors.extend(line_ref_errors(parser.lf_elements, registry))
         # A family lint reads its own slots off the registry, so it stands with
@@ -8363,15 +8796,17 @@ def cmd_check(
         # retired would read as dropped, stacked on the "vendor the layer" error the
         # page already has.
         if registry is not None:
-            fold, _, prev_spoken = page_fold(prev_html, events, registry, None)
+            previous_projection = state_projection(
+                events, prev.by_id, was, registry, prev_num
+            )
             dropped = sorted(
                 gone
                 - retirable_ids(
                     retirement_holders(prev, registry),
                     events,
                     gone,
-                    decisions(fold, registry),
-                    prev_spoken,
+                    decisions(previous_projection.actions, registry),
+                    was,
                 )
             )
             if dropped:
@@ -8382,16 +8817,27 @@ def cmd_check(
     # And the decisions recorded on the ids that stayed — the reviewer channel's
     # gate, then its mirror for the agent channel's standing reports.
     now = spoken(html, registry or {})
-    errors.extend(
-        restatement_errors(parser, prev, was, now, events, prev_num, registry or {})
+    floors = retractions(events, prev_num)
+    projection = state_projection(
+        events, parser.by_id, now, registry or {}, prev_num, floors
     )
     errors.extend(
-        report_errors(parser, prev, was, now, events, prev_num, registry or {})
+        restatement_errors(
+            parser,
+            prev,
+            was,
+            now,
+            prev_num,
+            registry or {},
+            projection,
+            floors,
+        )
     )
+    errors.extend(report_errors(parser, prev, was, now, registry or {}, projection))
 
     # Thread markup is frozen in the log and rendered into the panel; a page id
-    # colliding with one would steal its action replays (see thread_widget_ids).
-    taken = sorted(parser.ids & thread_widget_ids(events))
+    # colliding with one would steal its action replays.
+    taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
 
@@ -8416,7 +8862,7 @@ def cmd_check(
     errors.extend(css_syntax_errors(theme_css, "theme.css"))
     errors.extend(inline_presentation_override_errors(parser))
     column = _column_width(parser.css, theme_css)
-    errors.extend(_overwide_elements(parser, column))
+    errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))
 
     if errors:
         print(f"✗ {name}: {len(errors)} issue(s)", file=sys.stderr)
@@ -8431,7 +8877,10 @@ def cmd_check(
     # log-less reader (a printout, a transcript's audience) sees only the markup,
     # so say where it lags the log. Loudest at the end of the exchange — the final
     # version is the page that must read right without the log.
-    for line in record_lag(html, events, registry or {}):
+    current_projection = state_projection(
+        events, parser.by_id, now, registry or {}, selected
+    )
+    for line in record_lag(current_projection, parser.by_id, now, registry or {}):
         print(f"  · record behind the log — {line}")
     # Same register, different debt: a block the id rule missed, named while the
     # author can still cheaply mint one.
@@ -8657,8 +9106,11 @@ UNREACHABLE_WORDS = """() => {
             if (value.length > 1 && shown.some(c => c.includes(value)))
                 found.push(`${at(el)} paints ${name}="${value}" rather than saying it`);
     }
-    // A widget's chrome is the .lf-ui inside a lf-* element; the runtime's own
-    // layer is appended to body and sits inside none of them.
+    // The lf-* element something stands in, if any. A .lf-ui is a widget's own
+    // chrome by standing in one of these, and the runtime's layer is appended to
+    // body and stands in none — but a widget riding a message stands in the
+    // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
+    // never of the words beneath it, which are inside a widget either way.
     const widget = el => { for (let a = el; a; a = a.parentElement)
                                if (a.tagName.startsWith('LF-')) return a; };
     // The anchor pass's own rule: the nearest element that answers wins.
@@ -8677,7 +9129,12 @@ UNREACHABLE_WORDS = """() => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || !el.closest('.lf-ui') || !widget(el)) continue;
+        if (!n.data.trim()) continue;
+        // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
+        // here wherever the widget stands, a message included; the panel around a
+        // widget riding one is not, which is what the note on the panel means.
+        const chrome = el.closest('.lf-ui');
+        if (!chrome || !widget(chrome)) continue;
         if (speaks(el) || el.closest(CONTROL)) continue;
         // .lf-quiet is words for a reader listening, clipped to nothing: not on
         // screen, so there is nothing here the eye can see and the pointer can't
@@ -8995,7 +9452,7 @@ MISPLACED_BOXES = """async () => {
 # the author's intent going down silently. The static half can't say which
 # attribute is a verb's state — that lives in each widget's applyAction, and a
 # table here would be the second copy the registry exists to prevent — so the
-# browser compares: applyActions records the ids replay wrote on the body
+# browser compares: projection reconciliation records the ids it wrote on the body
 # (data-lf-replay-wrote), and this pass asks which of them the author also
 # changed since the previous version, reading both files with the runtime's own
 # shallowSigs. An authored change replay then overrode is a conflict; an
@@ -9039,13 +9496,12 @@ REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
 #
 # So the page is asked rather than the code. Each standing action is applied a second
 # time onto the state the page's own replay produced, and an absolute one has nothing
-# to do. Replaying the whole log again would prove nothing — every action carries its
-# seq and applyActions retires each exactly once, so a second pass is a no-op whatever
-# the widgets do — which is why this reaches past the runtime's bookkeeping and calls
-# the method.
+# to do. Re-running reconciliation would prove nothing — an already committed
+# projection is clean whatever the widgets do — which is why this reaches past the
+# runtime's checkpoint and calls the method.
 #
 # The standing state rather than the whole log, because that is the set the contract is
-# for: the fold's own claim is that the last surviving action per unit *is* the state,
+# for: the fold's own claim is that the last surviving action per coordinate *is* the state,
 # so the page is already showing exactly these. It is also the set replay applied and
 # did not skip — a retracted decision, a version's future action and a widget the
 # markup dropped are all out of it — so nothing here re-applies what the page declined.
@@ -9078,7 +9534,7 @@ RELATIVE_REPLAYS = """async () => {
     if (!standing.length) return [];
     const found = [];
     const before = shallowSigs(document.body);
-    const stood = standing.map((s) => s.facet());
+    const stood = standing.map((s) => s.read());
     for (const s of standing) {
         const widget = s.widget;
         if (!widget?.applyAction) continue; // an earlier application replaced it
@@ -9110,12 +9566,12 @@ RELATIVE_REPLAYS = """async () => {
             if (a.applyAction) { widget = a; break; }
         note(widget ? at(widget) : `id=${id}`, id);
     }
-    // Only where the signature missed it: a record whose attribute the markup reading
-    // already caught is one fact, and naming it twice reads as two.
+    // Only body records need the second reading: shallowSigs deliberately excludes
+    // text. Key its wording by facet as well as unit, because a markup facet and a
+    // body facet may both stand on the same unit and both move in this batch.
     standing.forEach((s, i) => {
-        if (s.facet() === stood[i] || !s.widget) return;
-        if (!groups.get(at(s.widget))?.has(s.unit))
-            note(at(s.widget), `the state recorded on ${s.unit}`);
+        if (s.record !== 'body' || s.read() === stood[i] || !s.widget) return;
+        note(at(s.widget), `the ${s.facet} state recorded on ${s.unit}`);
     });
     return [...found, ...[...groups].map(([who, moved]) => {
         const said = verbs.get(who);
@@ -9166,6 +9622,18 @@ PAPER_WORDS = """() => {
 # up in is the copy, where there is nothing left to press. Text against text, because
 # text over a background, a border, or a picture is how a page is built.
 #
+# What floats over the document on purpose is answered for, and that is one exemption
+# rather than two. It reads as the runtime's, because for a long time the runtime owned
+# every float there was; the sentence is about the float and not about the owner. A
+# suggestion's controls hang out of the flow, level with the change they decide, and a
+# sidenote hangs out of the flow level with the block it annotates — both in the right
+# margin now, both pinned by what they belong to, so where a page stands them level the
+# controls are drawn over the note and neither can move. Reporting that would refuse
+# every page that writes a note beside a change, which is a composition the vocabulary
+# is meant to have; so the float is exempt and the note is what it may cover. Where the
+# same row docks back into the flow it is a resident again, and covering a word there is
+# a fault this still reports.
+#
 # A pair where one element contains the other is skipped: a paragraph and the <em>
 # inside it are one run of words that the flow lays out together, and their boxes
 # overlap by construction. Two pixels of slack, since a line box carries its leading and
@@ -9173,16 +9641,18 @@ PAPER_WORDS = """() => {
 # too: it floats over the document on purpose, and where that costs the user a press
 # it is the hit test that says so.
 #
-# The layer is in two places, so the skip names both. The line counting a passage's
-# comments lives inside the page's own elements by design — it is what a screen reader
-# hears where a painted mark says nothing — and it is clipped to nothing on screen.
-# checkVisibility answers for display, visibility and opacity and knows nothing of
-# clip-path, so that line read as drawn, and its text lays out past the 1px box holding
-# it: an anchor on a container put "1 comment" across the paragraph below the widget and
-# failed the gate on a page with nothing wrong with it. Asking for `.lf-chrome` alone was
-# the class standing in for the question, the same substitution the anchor pass made with
-# `.lf-ui`. The question is whose words these are, and the runtime marks its own in both
-# of the places it writes them.
+# The layer is in two places and the float rule reaches both, which is why only one of
+# them is named. The line counting a passage's comments lives inside the page's own
+# elements by design — it is what a screen reader hears where a painted mark says
+# nothing — and it is clipped to nothing on screen. checkVisibility answers for display,
+# visibility and opacity and knows nothing of clip-path, so that line read as drawn, and
+# its text lays out past the 1px box holding it: an anchor on a container put "1 comment"
+# across the paragraph below the widget and failed the gate on a page with nothing wrong
+# with it. It wore a name in this selector for a while, next to the container's, and the
+# name went the day the rule below could answer for it — the line is a control the
+# runtime hangs absolutely, which is the whole of what `floating` asks. Two skips over
+# one element is a guarantee kept twice, and the weaker of them is the one that has to be
+# remembered when the next float is written.
 #
 # checkVisibility knows nothing of content-visibility either, which is what a collapse
 # wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
@@ -9198,11 +9668,37 @@ COVERED_WORDS = """() => {
     const at = el => { const named = el.closest('[id]');
                        return named ? `<${named.tagName.toLowerCase()} id=${named.id}>`
                                     : `<${el.tagName.toLowerCase()}>`; };
+    // Chrome a widget hangs out of the flow, which is the same exemption the runtime's
+    // own layer has above and for the same reason. Read off the marker `offer` writes
+    // and the position the browser computed, so it holds for a control any widget hangs
+    // and stops holding the moment that control docks back into the flow — which is what
+    // a suggestion's row does when it finds no room, and where covering a word would be
+    // a fault again.
+    //
+    // Every marked ancestor, not the nearest: `offer` builds a row of presses out of
+    // presses, so a suggestion's ✓ Accept is a marked button inside a marked row, and the
+    // one that hangs in the margin is the outer of the two. Asking `closest` gets the
+    // button, which is in its row's flow and static, and the exemption reads as absent on
+    // exactly the control it was written for.
+    //
+    // The two values that take a box out of the flow, named rather than everything that
+    // isn't static: a relative or sticky box keeps its place in the flow and is painted
+    // offset from it, so it is a resident that has moved rather than chrome hanging over
+    // the page, and exempting it would retire this check for any control that nudges
+    // itself a pixel. PAST_THE_COLUMN asks the same question next door and asks it this
+    // way.
+    const outOfFlow = (s) => s.position === 'absolute' || s.position === 'fixed';
+    const floating = (el) => {
+        for (let a = el.closest('[data-lf-offer]'); a; a = a.parentElement?.closest('[data-lf-offer]'))
+            if (outOfFlow(getComputedStyle(a))) return true;
+        return false;
+    };
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
+        if (!n.data.trim() || el.closest('.lf-chrome, .lf-quiet, [hidden]')) continue;
         if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+        if (floating(el)) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
         for (const box of range.getClientRects())
@@ -9350,8 +9846,14 @@ UNREAD_SYNTAX = (
 # *child* and never for the element it was handed. The quiet word is in no such reading,
 # wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
 # span clipped to a pixel still has one wherever it renders, and none at all where it
-# doesn't. A collapsed card lays out nothing either and is asked for, so [hidden] is held
-# out here the way COVERED_WORDS holds it out.
+# doesn't. Which is only a question worth putting where the element renders at all — a
+# collapsed card, a tab nobody opened and a shut comment panel all lay out nothing, and
+# their rects report the ancestor rather than the widget. That is the *second* failure
+# here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
+# fault wherever the element stands, since a tab the reader has not opened is a tab they
+# can open. Splitting them that way is what retired the [hidden] exemption this carried:
+# `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
+# asking whether it renders covers both and the panel besides.
 SILENT_WORDS = (
     """(widgets) => import('/leaf.js').then(leaf => {"""
     + OPEN_ROOTS
@@ -9376,7 +9878,14 @@ SILENT_WORDS = (
             for (const el of every(tag)) {
                 if (!el.hasAttribute(attr)) continue;
                 const quiet = el.querySelector(':scope > .lf-quiet');
-                if (quiet && (quiet.getClientRects().length || el.closest('[hidden]')))
+                // A missing word is the fault, and it is the fault wherever the
+                // element stands: a tab the reader has not opened is still a tab
+                // they can open. What the box is asked for is the second failure,
+                // a word the widget wrote and then hid, and that question can only
+                // be put to an element that is being laid out — a message in a shut
+                // panel lays out nothing, so its rects report the panel's state and
+                // would be read as the widget's.
+                if (quiet && (quiet.getClientRects().length || !el.checkVisibility()))
                     continue;
                 found.push(`${at(el)} paints ${attr}="${el.getAttribute(attr)}" `
                            + `and says nothing a reader listening can hear`);
@@ -9435,8 +9944,9 @@ UNDECLARED_ATTRS = (
 
 
 # The two sides of the settlement contract, compared on the rendered page. The mark —
-# data-lf-state on a holder — is the layer's paint of a logged decision (applyActions
-# in leaf.js), and the anchor pass retires slots by it, so whatever it says, the page's
+# data-lf-state on a holder — is the layer's paint of a logged decision (projection
+# reconciliation in leaf.js), and the anchor pass retires slots by it, so whatever it
+# says, the page's
 # reading obeys. What can still go wrong is a family's, and both failures render
 # perfectly: a module that writes the mark where the log decided nothing silences words
 # the reader can still see and select, and a settled slot can show its words anyway — a
@@ -9933,6 +10443,14 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             # widget legitimately shows other words). A module that renders
             # something in the body's stead while the entry still says
             # verbatim strands quotes on words the screen no longer shows.
+            # Both documents, because a widget an agent sent has words of its
+            # own — in the frozen fragment that carries it, which is the file
+            # side for it exactly as the version is for a page widget. Asked of
+            # the version alone the two sides both read empty and the comparison
+            # passed on the agreement of two blanks; asked of neither, an
+            # x-verbatim widget in a message could render something other than
+            # its own words with nothing saying so, which is the one thing the
+            # declaration promises and the reason a quote may rest on it.
             shown = page.evaluate(
                 """({widgets, touched}) => import('/leaf.js').then(leaf =>
                     Object.entries(widgets)
@@ -9943,7 +10461,8 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 {"widgets": widgets, "touched": touched},
             )
             if shown:
-                spk = spoken(markup, registry)
+                _byid, thread_spk, _threads = thread_universe(state["events"], registry)
+                spk = {**thread_spk, **spoken(markup, registry)}
                 dishonest_verbatim = [
                     f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
                     f"{s['says'][:80]!r} where the file reads "
@@ -9962,9 +10481,9 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
             # that never caught up is already reported there and read no further.
             if replayed:
                 silent = page.evaluate(SILENT_WORDS, widgets)
-                # Behind the same wait, because replay is one of the two writers:
-                # an applyAction states its widget whole, and a record form is
-                # exactly the attribute it is allowed to state it in.
+                # Behind the same wait, because reconciliation is one of the two
+                # writers: an applyAction states one declared fact whole, and a
+                # record form is exactly the attribute it may state that fact in.
                 undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, widgets)
                 # Behind it too: the settlement mark is replay's own write, so a
                 # reading taken earlier asks after paint the page has not been
@@ -9976,10 +10495,10 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 # against anything wider would fail a page both sides are right
                 # about.
                 if slots := retirement_slots(registry):
-                    fold, vparser, _ = page_fold(
+                    projection, vparser, _ = page_projection(
                         markup, state["events"], registry, here
                     )
-                    outcomes = decisions(fold, registry)
+                    outcomes = decisions(projection.actions, registry)
                     holders = []
                     for h in retirement_holders(vparser, registry):
                         declared = slots[h["tag"]]
@@ -10096,6 +10615,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
                 f"in theme.css reaches it"
             )
+
         found += [f"[{scheme}] {r}" for r in retired]
         found += [f"[{scheme}] {u}" for u in unsettled]
         found += [f"[{scheme}] {c}" for c in conflicts]
@@ -10223,7 +10743,8 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
     print(
         f"✓ {name}: renders clean in Chrome, light and dark — no console errors, "
         "every widget takes space, no words on top of other words, code that reads "
-        "against the block it is on, nothing past the column, no sideways scroll"
+        "against the block it is on, boxes showing the inset they draw, nothing past the "
+        "column, no sideways scroll"
     )
     return 0
 
@@ -10246,17 +10767,24 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
 BAKE = """() => {
     document.documentElement.classList.add('lf-copy');
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
-    // A measurement of this window is not a fact about the reader's. The room a wide
-    // widget may take is measured on the live page (syncLayout) and stated inline on the
-    // root, and an inline value outranks every rule a stylesheet could write — so a copy
-    // carrying it would hold whatever width the exporter's headless window happened to
-    // have, on a file whose whole point is being opened somewhere else. The theme states
-    // the copy's own room from its viewport, which is honest there: no panel takes a
-    // strip from a file, and no session grows one. Taken off the way the chrome above is,
-    // rather than guarded against in the theme, because the stale number is the thing
-    // that is wrong here and a rule written around it would leave it there to be read by
-    // the next thing that asks.
-    document.documentElement.style.removeProperty('--lf-room');
+    // A measurement of this window is not a fact about the reader's. The live page
+    // measures two of them and states each inline on the root — the room a wide widget
+    // may take (syncLayout) and the width of the page's own box, which is what the
+    // margin strips are sized against (stateStrip) — and an inline value outranks every
+    // rule a stylesheet could write, so a copy carrying either would hold whatever width
+    // the exporter's headless window happened to have, on a file whose whole point is
+    // being opened somewhere else. Each rule that reads one falls back to the viewport,
+    // which is honest in a copy: no panel takes a strip from a file, and no session grows
+    // one. Taken off the way the chrome above is, rather than guarded against in the
+    // theme, because the stale number is the thing that is wrong here and a rule written
+    // around it would leave it there to be read by the next thing that asks.
+    //
+    // The width each edge stands at is the same kind of number and goes for the same
+    // reason rather than because anything in a copy reads it: both are stated on the
+    // root by the same hand, and each is a fact about a region this file hasn't got and
+    // about a reader who is not the one opening it.
+    for (const stale of ['--lf-room', '--lf-avail', '--lf-panel-w', '--lf-tray-w'])
+        document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has
     // no session behind it — a copy keeping the tone it was exported under would claim
     // one, which is the same lie the chrome above is dropped for. So it drops back to
@@ -10517,8 +11045,11 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     page_dir = Path(dir_arg).expanduser().resolve()
-    if must_exist and not page_dir.is_dir():
-        sys.exit(f"{page_dir} does not exist; run `leaf page init` first")
+    if must_exist and not (page_dir / "comments.jsonl").is_file():
+        sys.exit(
+            f"{page_dir} is not an initialized page; run `leaf page init` "
+            "to vendor the layer"
+        )
     return page_dir
 
 
@@ -10704,7 +11235,22 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
-    if not (started := start_server(resolve_dir(dir), host, standing)):
+    page_dir = resolve_dir(dir)
+    claim_transition = None if standing else take_page_claim(page_dir)
+    if claim_transition:
+        # Check the claim after taking it. The child checks it again under its
+        # own transaction, so SessionEnd winning the spawn gap makes startup
+        # fail instead of reviving a released page.
+        with PageTransaction(page_dir) as page:
+            if not page.owned_by(host_identity()):
+                raise SystemExit(
+                    f"this session no longer owns {page_dir}; the server was not started"
+                )
+    started = start_server(page_dir, host, standing)
+    if not started:
+        # A refusal or failed bind never transfers the page. Restore the prior
+        # provenance only if nobody replaced this startup's exact claim.
+        restore_page_claim(page_dir, claim_transition)
         raise SystemExit(1)
     url, note = started
     print(url)
@@ -10714,14 +11260,28 @@ def start(dir: str, host: str | None, standing: bool) -> None:
 @server.command(short_help="Serve a page in the foreground until stopped.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-@click.option("--revive", is_flag=True, hidden=True)
-def run(dir: str, host: str | None, standing: bool, revive: bool) -> None:
+def run(dir: str, host: str | None, standing: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
     From an agent session use `server start`. A page already served prints that
     server's URL and exits.
     """
+    page_dir = resolve_dir(dir)
+    claim_transition = None if standing else take_page_claim(page_dir)
+    try:
+        cmd_serve(page_dir, host, standing)
+    except BaseException:
+        restore_page_claim(page_dir, claim_transition)
+        raise
+
+
+@server.command("_serve", hidden=True)
+@click.argument("dir", metavar="PAGE")
+@serve_flags
+@click.option("--revive", is_flag=True, hidden=True)
+def _serve(dir: str, host: str | None, standing: bool, revive: bool) -> None:
+    """Private child process spawned by server start and Watch revival."""
     cmd_serve(resolve_dir(dir), host, standing, revive)
 
 
@@ -10736,13 +11296,28 @@ def stop(dir: str) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
 @click.argument("detail", required=False, default="")
-def status(dir: str, state: str, detail: str) -> None:
+@click.option(
+    "--on",
+    "on",
+    metavar="THREAD",
+    help="The comment thread this working detail is about.",
+)
+def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
 
     DETAIL is what the banner says after the state: what you are doing while
     `working`, and what you want back from the reader while `waiting` ("pick a
     storage engine"). A waiting page that declares none falls back to the
     standing "select text to comment".
+
+    --on names the comment thread that detail is about, and the reader sees it
+    under their own words as well as in the banner. It stands until you answer
+    that thread, so work in flight — a delegate, a long tool run — reads as
+    picked up rather than as silence. A `working` claim is believed while the
+    turn that wrote it is open; the page is told when that turn ends, so
+    something has to renew the claim within a couple of minutes of the ending,
+    and one nobody renews at all goes quiet after about a quarter of an hour —
+    on the banner and on each note alike.
     """
     page_dir = resolve_dir(dir)
     # Idling over an event nobody has answered ends the leaf on a user still
@@ -10752,11 +11327,11 @@ def status(dir: str, state: str, detail: str) -> None:
     # the log lock gives the check and the transition one order with an event
     # arriving or an acknowledgement advancing the cursor.
     if state != "idle":
-        cmd_status(page_dir, state, detail)
+        cmd_status(page_dir, state, detail, on=on)
         return
-    with flocked(page_dir / "comments.jsonl"):
-        events = read_events(page_dir)
-        cursor = read_cursor(page_dir)
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
         unanswered = unanswered_asks(events, cursor)
         if pending:
@@ -10776,7 +11351,7 @@ def status(dir: str, state: str, detail: str) -> None:
                 f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
                 f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
             )
-        write_status(page_dir, state, detail)
+        page.set_status(state, detail)
 
 
 @cli.command(
@@ -10893,12 +11468,6 @@ def transcript(dir: str) -> None:
 def hook() -> None:
     """Answer an agent-host hook on stdin."""
     cmd_hook(json.load(sys.stdin))
-
-
-@cli.command(hidden=True)
-def mcp() -> None:
-    """Run the session's channel server (MCP over stdio); nothing shipped wires it."""
-    cmd_mcp()
 
 
 if __name__ == "__main__":

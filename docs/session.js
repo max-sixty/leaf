@@ -148,7 +148,7 @@ const state = () => ({
   pending: 0,
   viewed: null,
   // No session, so nowhere it is working: a page here is a file on a web host rather
-  // than a leaf somebody's session holds, and the board's hover names the work behind
+  // than a leaf somebody's session holds, and the tray's hover names the work behind
   // a page. There is none behind this one, which `unattended` above already says.
   session_cwd: null,
   others: [],
@@ -174,6 +174,14 @@ window.fetch = (input, init) => {
   if (url.pathname === "/api/state") return Promise.resolve(json(state()));
   if (url.pathname === "/api/event") {
     const event = JSON.parse(init.body);
+    // The execution record the door keeps per attempt, which is the whole of what a
+    // retry meets: a browser whose answer was lost re-posts the same attempt, and an
+    // attempt already in the log is answered with the state holding it rather than
+    // appended a second time. One line, because the log is this tab's own — what the
+    // server spends a lock on here is the ordering two writers would need.
+    if (event.attempt && events.some((e) => e.attempt === event.attempt)) {
+      return Promise.resolve(json({ ok: true, state: state() }));
+    }
     const minted = append(event, event.kind === "error" ? "page" : "user");
     // The reply is written after the send has been answered, and lands on a later poll,
     // because that is when an answer arrives: written into the same response, it would
@@ -191,7 +199,11 @@ window.fetch = (input, init) => {
         1200,
       );
     }
-    return Promise.resolve(json({ event: minted }));
+    // An accepted POST hands back the state holding the event it minted, so the sender
+    // crosses one boundary rather than "the append succeeded" followed by a read that
+    // could fail on its own. The minted event is in there: this file's log and the
+    // state's are one list.
+    return Promise.resolve(json({ ok: true, state: state() }));
   }
   return realFetch(input, init);
 };

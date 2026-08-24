@@ -16373,6 +16373,562 @@ def wait_standing(page, text, ids=()):
         ) from None
 
 
+def hide_scroll_operation_promises(page):
+    """Exercise the scrollend path used by current Firefox and Safari."""
+    page.evaluate("""() => {
+        const scrollTo = document.body.scrollTo.bind(document.body);
+        document.body.scrollTo = options => { scrollTo(options); };
+        const scrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function(options) {
+            scrollIntoView.call(this, options);
+        };
+    }""")
+
+
+def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
+    """The page and panel are reciprocal views of a thread. Resting on a card lights
+    its passage; resting on that passage must identify the card too, or the common case
+    where the passage is parked and the card is visible answers on the off-screen side.
+    The signal follows the pointer from one thread to the next and leaves with it."""
+    url = serve(
+        INLINE_PAGE,
+        anchored=[("p", "bold text"), ("p2", "neighbouring block")],
+    )
+    comments = [
+        event
+        for event in interact.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    first_id, second_id = (comment["id"] for comment in comments)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    first = page.locator(f'.lf-thread[data-id="{first_id}"]')
+    second = page.locator(f'.lf-thread[data-id="{second_id}"]')
+    resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
+
+    page.mouse.move(*mark_point(page, "lf-mark", 0))
+    expect(first).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    expect(second).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
+    lit = first.evaluate("element => getComputedStyle(element).backgroundColor")
+    assert lit != resting, (
+        f"the page named the card in class but its paint stayed {resting!r}"
+    )
+
+    page.mouse.move(*mark_point(page, "lf-mark", 1))
+    expect(first).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
+    expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
+
+    page.mouse.move(2, 2)
+    expect(page.locator(".lf-thread.lf-mark-hover")).to_have_count(0)
+
+    # A narrowing can put a different card under a hand that has not moved. The list
+    # reconcile is therefore one of the hover's inputs, just like page geometry.
+    page.mouse.move(*card_body(page, "About this bit."))
+    wait_hovered(page, "bold text")
+    page.fill(".lf-find-box", "neighbouring block")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    wait_hovered(page, "neighbouring block")
+    assert errors == []
+    page.close()
+
+
+def test_pressing_a_page_mark_stands_in_the_thread_it_opens(browser, serve):
+    """A page mark is one view of a thread, so pressing it leaves the reader in the
+    card on the other surface rather than merely flashing that card and leaving focus
+    behind on the prose. The focus is the standing fact: it paints the card and its
+    passage through the same predicate, and gives the next key to the thread scope."""
+    page, errors = open_page(browser, serve(INLINE_PAGE, anchored=[("p", "bold text")]))
+    thread = page.locator(".lf-thread")
+
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    panel_settled(page)
+
+    expect(thread).to_be_focused()
+    wait_standing(page, "bold text")
+    assert errors == []
+    page.close()
+
+
+def hold_arrival_scroll_ends(page):
+    """Hold each fallback edge so an arrival can be inspected between operations."""
+    page.evaluate("""() => {
+        const add = document.body.addEventListener.bind(document.body);
+        const remove = document.body.removeEventListener.bind(document.body);
+        window.__lfHeldScrollEnds = new Set();
+        document.body.addEventListener = (type, listener, options) => {
+            if (type === 'scrollend') {
+                window.__lfHeldScrollEnds.add(listener);
+                return;
+            }
+            return add(type, listener, options);
+        };
+        document.body.removeEventListener = (type, listener, options) => {
+            if (type === 'scrollend') {
+                window.__lfHeldScrollEnds.delete(listener);
+                return;
+            }
+            return remove(type, listener, options);
+        };
+        const scrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function(options) {
+            if (this.closest('.lf-ui')) scrollIntoView.call(this, options);
+            else document.body.scrollTop += 1;
+        };
+        const scrollTo = document.body.scrollTo.bind(document.body);
+        window.__lfSmoothGoals = [];
+        document.body.scrollTo = options => {
+            if (options?.behavior === 'smooth') {
+                window.__lfSmoothGoals.push(options.top);
+                return;
+            }
+            scrollTo(options);
+        };
+        window.__lfArrivalStarts = 0;
+        document.addEventListener('animationstart', event => {
+            if (event.animationName.endsWith('-arrive')) window.__lfArrivalStarts++;
+        }, true);
+        window.__lfReleaseScrollEnd = () => {
+            const listener = [...window.__lfHeldScrollEnds][0];
+            if (!listener) throw new Error('no held scrollend');
+            listener(new Event('scrollend'));
+        };
+    }""")
+
+
+def test_the_scrollend_fallback_drains_a_one_pixel_preliminary_edge(browser, serve):
+    """A one-pixel instant correction still has a scrollend of its own. Drain that edge
+    before arming the glide's one-shot fallback, or it consumes the listener while the
+    mark is still far from the destination and the real landing has no signal left."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, anchored=[("p40", "Paragraph 40.")])
+    )
+    page.evaluate("""() => {
+        const scrollTo = document.body.scrollTo.bind(document.body);
+        document.body.scrollTo = options => { scrollTo(options); };
+        const scrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function(options) {
+            if (this.closest('.lf-ui')) scrollIntoView.call(this, options);
+            else document.body.scrollBy({top: 1, behavior: 'instant'});
+        };
+        window.__lfOnePixelArrival = null;
+        document.addEventListener('animationstart', (event) => {
+            if (!event.animationName.endsWith('-arrive')) return;
+            const mark = [...CSS.highlights.get('lf-mark-here')][0]
+                .getClientRects()[0];
+            window.__lfOnePixelArrival = Math.abs(
+                mark.top + mark.height / 2 - innerHeight / 2);
+        }, true);
+    }""")
+
+    page.keyboard.press("j")
+    page.wait_for_function("() => window.__lfOnePixelArrival !== null")
+    assert page.evaluate("() => window.__lfOnePixelArrival") < 1
+    assert errors == []
+    page.close()
+
+
+def test_superseding_a_fallback_travel_releases_its_listener(browser, serve):
+    """A fallback operation can be superseded before it moves and emit no scrollend.
+    Canceling the travel must both remove its listener and settle its promise, or every
+    such navigation retains one more dead continuation indefinitely."""
+    page, errors = open_page(
+        browser,
+        serve(
+            LONG_PAGE,
+            anchored=[("p40", "Paragraph 40."), ("p40", "Paragraph 40.")],
+        ),
+    )
+    page.evaluate("""() => {
+        const add = document.body.addEventListener.bind(document.body);
+        const remove = document.body.removeEventListener.bind(document.body);
+        window.__lfFallbackListeners = new Set();
+        document.body.addEventListener = (type, listener, options) => {
+            if (type === 'scrollend') window.__lfFallbackListeners.add(listener);
+            return add(type, listener, options);
+        };
+        document.body.removeEventListener = (type, listener, options) => {
+            if (type === 'scrollend') window.__lfFallbackListeners.delete(listener);
+            return remove(type, listener, options);
+        };
+        const scrollTo = document.body.scrollTo.bind(document.body);
+        document.body.scrollTo = options => {
+            if (options?.behavior === 'smooth') {
+                window.__lfDroppedSmooth = true;
+                return;
+            }
+            scrollTo(options);
+        };
+        const scrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function(options) {
+            scrollIntoView.call(this, options);
+        };
+    }""")
+
+    page.keyboard.press("j")
+    page.wait_for_function(
+        "() => window.__lfDroppedSmooth && window.__lfFallbackListeners.size === 1"
+    )
+
+    # Hold the replacement travel at its preliminary operation. Its own probe listener
+    # is canceled as soon as the returned Promise is detected; no later scroll edge can
+    # accidentally clean up the fallback the first travel left behind.
+    page.evaluate("""() => {
+        Element.prototype.scrollIntoView = () => new Promise(() => {});
+    }""")
+    page.keyboard.press("j")
+    page.wait_for_function("() => window.__lfFallbackListeners.size === 0")
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("anchor_kind", ["text", "element"])
+def test_a_mark_changed_before_repaint_cannot_start_stale_travel(
+    browser, serve, anchor_kind
+):
+    """Replacing main mutates a live Range or detaches an element before the next
+    anchor pass can replace it. A preliminary edge settling in that interval must not
+    centre the stale old record or mistake self-equality for target survival."""
+    url = serve(LONG_PAGE)
+    anchor = {"section": "p40"}
+    if anchor_kind == "text":
+        anchor["quote"] = "Paragraph 40."
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "About this bit.",
+            "anchor": anchor,
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    hold_arrival_scroll_ends(page)
+    page.evaluate(
+        """kind => {
+        const mark = kind === 'text'
+            ? [...CSS.highlights.get('lf-mark')][0]
+            : document.querySelector('#p40');
+        window.__lfTravelMark = mark;
+        window.__lfTravelBoundary = mark instanceof Range ? {
+                startContainer: mark.startContainer,
+                startOffset: mark.startOffset,
+                endContainer: mark.endContainer,
+                endOffset: mark.endOffset,
+            } : null;
+        }""",
+        arg=anchor_kind,
+    )
+    page.keyboard.press("j")
+    page.wait_for_function("() => window.__lfHeldScrollEnds.size === 1")
+
+    held_highlighter = []
+    page.evaluate("() => { document.startViewTransition = undefined; }")
+    page.route(
+        "**/vendor/highlight.esm.js", lambda route: held_highlighter.append(route)
+    )
+    v2 = LONG_PAGE.replace(
+        "Paragraph 40.", '<span data-v2="true">Paragraph 40.</span>'
+    ).replace(
+        "</main>",
+        '<pre><code class="language-rust">fn held() {}</code></pre></main>',
+    )
+    _publish(serve.page_dir, 2, v2, "kept the passage while replacing its markup")
+    told(page)
+    page.wait_for_selector('[data-v2="true"]')
+    assert held_highlighter, "version activation reached anchor paint before the hold"
+    mutation = page.evaluate("""() => {
+        const mark = window.__lfTravelMark;
+        const before = window.__lfTravelBoundary;
+        return {
+            stale: mark instanceof Range
+                ? mark.startContainer !== before.startContainer
+                    || mark.startOffset !== before.startOffset
+                    || mark.endContainer !== before.endContainer
+                    || mark.endOffset !== before.endOffset
+                : !mark.isConnected,
+        };
+    }""")
+    assert mutation == {"stale": True}, mutation
+
+    page.evaluate("() => window.__lfReleaseScrollEnd()")
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert page.evaluate("() => window.__lfSmoothGoals") == []
+    assert page.evaluate("() => window.__lfArrivalStarts") == 0
+
+    held_highlighter.pop().continue_()
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    page.wait_for_function(
+        """kind => {
+        const mark = kind === 'text'
+            ? [...CSS.highlights.get('lf-mark')][0]
+            : document.querySelector('#p40');
+        return mark !== window.__lfTravelMark
+            && (mark instanceof Range ? mark.startContainer.isConnected : mark.isConnected);
+    }""",
+        arg=anchor_kind,
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_repaint_keeps_and_a_replacement_restarts_a_held_arrival(browser, serve):
+    """A new Range object is a new target only when its boundaries changed. A live
+    version replacement while the preliminary edge waits must restart against its new
+    nodes; a routine repaint over those same nodes during the final edge must still
+    announce the landing."""
+    url = serve(LONG_PAGE, anchored=[("p40", "Paragraph 40.")])
+    page, errors = open_page(browser, live_url(url))
+    hold_arrival_scroll_ends(page)
+
+    page.keyboard.press("j")
+    page.wait_for_function("() => window.__lfHeldScrollEnds.size === 1")
+
+    v2 = LONG_PAGE.replace("Paragraph 40.", '<span data-v2="true">Paragraph 40.</span>')
+    _publish(serve.page_dir, 2, v2, "kept the passage while replacing its markup")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    page.wait_for_selector('[data-v2="true"]')
+
+    # Release the v1 preliminary edge. A fresh trip should stop at the v2 preliminary
+    # boundary instead of starting a smooth scroll from the detached v1 Range.
+    page.evaluate("() => window.__lfReleaseScrollEnd()")
+    page.wait_for_function("() => window.__lfHeldScrollEnds.size === 1")
+    assert page.evaluate("() => window.__lfSmoothGoals") == []
+
+    page.evaluate("() => window.__lfReleaseScrollEnd()")
+    page.wait_for_function("() => window.__lfSmoothGoals.length === 1")
+    destination = page.evaluate("""() => {
+        const mark = [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect();
+        return {
+            goal: window.__lfSmoothGoals[0],
+            expected: document.body.scrollTop + mark.top
+                - (innerHeight - mark.height) / 2,
+            connected: Boolean(mark.height),
+        };
+    }""")
+    assert destination["connected"]
+    assert abs(destination["goal"] - destination["expected"]) < 1, destination
+
+    # Put the final operation at its goal while completion remains held. An unrelated
+    # event now rebuilds every mark from the same authored nodes; that fresh Range is
+    # the same target, not an interruption.
+    page.evaluate("""() => {
+        document.body.scrollTop = window.__lfSmoothGoals[0];
+        window.__lfBeforeRepaint = [...CSS.highlights.get('lf-mark')][0];
+    }""")
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={"kind": "comment", "version": 2, "text": "unrelated arrival"},
+    )
+    told(page)
+    page.wait_for_function("""() =>
+        [...CSS.highlights.get('lf-mark')][0] !== window.__lfBeforeRepaint
+    """)
+    repaint = page.evaluate("""() => {
+        const before = window.__lfBeforeRepaint;
+        const after = [...CSS.highlights.get('lf-mark')][0];
+        return {
+            fresh: after !== before,
+            sameStart: after.startContainer === before.startContainer
+                && after.startOffset === before.startOffset,
+            sameEnd: after.endContainer === before.endContainer
+                && after.endOffset === before.endOffset,
+        };
+    }""")
+    assert repaint == {"fresh": True, "sameStart": True, "sameEnd": True}, repaint
+
+    page.evaluate("() => window.__lfReleaseScrollEnd()")
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    assert page.evaluate("() => window.__lfArrivalStarts") == 1, (
+        "a routine repaint of the same passage canceled its completed arrival"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_same_mark_moved_after_measurement_does_not_pulse_at_the_old_goal(
+    browser, serve
+):
+    """Boundary identity alone is insufficient: layout above an unchanged Range can
+    move its centred destination while the final edge waits. The obsolete operation
+    must not announce a landing merely because it reached the goal it first measured."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, anchored=[("p40", "Paragraph 40.")])
+    )
+    hold_arrival_scroll_ends(page)
+
+    page.keyboard.press("j")
+    page.wait_for_function("() => window.__lfHeldScrollEnds.size === 1")
+    page.evaluate("() => window.__lfReleaseScrollEnd()")
+    page.wait_for_function("() => window.__lfSmoothGoals.length === 1")
+    page.evaluate("""() => {
+        document.body.style.overflowAnchor = 'none';
+        document.body.scrollTop = window.__lfSmoothGoals[0];
+        const spacer = document.createElement('div');
+        spacer.style.height = '200px';
+        document.querySelector('#p40').before(spacer);
+    }""")
+
+    moved = page.evaluate("""() => {
+        const mark = [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect();
+        const currentGoal = document.body.scrollTop + mark.top
+            - (innerHeight - mark.height) / 2;
+        return currentGoal - window.__lfSmoothGoals[0];
+    }""")
+    assert moved > 100, moved
+    page.evaluate("() => window.__lfReleaseScrollEnd()")
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert page.evaluate("() => window.__lfArrivalStarts") == 0
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "operation_promises", [True, False], ids=["promise", "scrollend"]
+)
+@pytest.mark.parametrize(
+    "direct_block", [False, True], ids=["paragraph", "direct-block"]
+)
+def test_a_comment_arrival_lifts_its_mark_after_the_page_travel(
+    browser, serve, operation_promises, direct_block
+):
+    """The arrival belongs at the destination, not to the glide there. A long travel
+    used almost half the mark's 1.2s decay before the passage entered the viewport.
+
+    Record the animation's first frame because it is a transient state that cannot be
+    polled honestly. At that frame the final scroll operation must have completed and
+    the mark must be centred. A direct-text block proves the passage's parent carries
+    the lift when there is no p/li/etc. text block. A scroll-end count also refuses a
+    pulse at the request, before the browser has reported any completed movement."""
+    source = LONG_PAGE
+    if direct_block:
+        paragraph = f"<p id='p40'>Paragraph 40. {'Filler. ' * 20}</p>"
+        source = source.replace(
+            paragraph,
+            paragraph.replace("<p ", "<div ", 1).replace("</p>", "</div>"),
+        )
+    page, errors = open_page(
+        browser, serve(source, anchored=[("p40", "Paragraph 40.")])
+    )
+    if not operation_promises:
+        hide_scroll_operation_promises(page)
+    page.evaluate("""() => {
+        window.__lfArrival = {ends: 0, start: null};
+        document.body.addEventListener('scrollend', () => window.__lfArrival.ends++);
+        document.addEventListener('animationstart', (event) => {
+            if (!event.animationName.endsWith('-arrive') || window.__lfArrival.start)
+                return;
+            const mark = [...CSS.highlights.get('lf-mark-here')][0]
+                .getClientRects()[0];
+            window.__lfArrival.start = {
+                ends: window.__lfArrival.ends,
+                distance: Math.abs(mark.top + mark.height / 2 - innerHeight / 2),
+            };
+        }, true);
+    }""")
+
+    page.keyboard.press("j")
+    page.wait_for_function("() => window.__lfArrival.start !== null")
+    started = page.evaluate("() => window.__lfArrival.start")
+
+    assert started["ends"] >= 1, (
+        f"the mark began its arrival before any page scroll ended: {started}"
+    )
+    assert started["distance"] < 1, (
+        "the mark began spending its arrival before it reached the travel's destination: "
+        f"{started}"
+    )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "operation_promises", [True, False], ids=["promise", "scrollend"]
+)
+def test_an_interrupted_comment_travel_cannot_arrive_later(
+    browser, serve, operation_promises
+):
+    """An arrival belongs to the commanded travel, not merely to its old coordinate.
+
+    Interrupt a long glide, then reach the abandoned destination with an unrelated
+    instant scroll. Completion scoped to the original operation reports the abort, so
+    that later movement has no arrival left to satisfy."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, anchored=[("p40", "Paragraph 40.")])
+    )
+    if not operation_promises:
+        hide_scroll_operation_promises(page)
+    page.evaluate("""() => {
+        document.documentElement.style.overflowAnchor = 'none';
+        document.body.style.overflowAnchor = 'none';
+        const mark = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
+        const goal = Math.max(0, Math.min(
+            document.body.scrollHeight - document.body.clientHeight,
+            document.body.scrollTop + mark.top - (innerHeight - mark.height) / 2));
+        window.__lfInterruptedArrival = {goal, starts: 0};
+        document.addEventListener('animationstart', (event) => {
+            if (event.animationName.endsWith('-arrive'))
+                window.__lfInterruptedArrival.starts++;
+        }, true);
+    }""")
+
+    page.keyboard.press("j")
+    page.wait_for_function(
+        """() => { const s = window.__lfInterruptedArrival;
+                   return document.body.scrollTop > 0
+                       && document.body.scrollTop < s.goal - 50; }"""
+    )
+    page.evaluate(
+        """async () => {
+            const ended = new Promise(resolve =>
+                document.body.addEventListener('scrollend', resolve, {once: true}));
+            const completion = document.body.scrollTo({top: 0, behavior: 'instant'});
+            if (typeof completion?.then === 'function') await completion;
+            else await ended;
+        }"""
+    )
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    assert page.evaluate(
+        """() => Math.abs(document.body.scrollTop
+                        - window.__lfInterruptedArrival.goal) > 50"""
+    ), "the interrupt did not leave the commanded destination"
+    assert page.evaluate("() => window.__lfInterruptedArrival.starts") == 0, (
+        "the aborted glide announced a destination it never reached"
+    )
+
+    page.evaluate(
+        """async () => {
+            const ended = new Promise(resolve =>
+                document.body.addEventListener('scrollend', resolve, {once: true}));
+            const completion = document.body.scrollTo({
+                top: window.__lfInterruptedArrival.goal, behavior: 'instant'
+            });
+            if (typeof completion?.then === 'function') await completion;
+            else await ended;
+        }"""
+    )
+    assert page.evaluate(
+        """() => Math.abs(document.body.scrollTop
+                        - window.__lfInterruptedArrival.goal) < 1"""
+    )
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    assert page.evaluate("() => window.__lfInterruptedArrival.starts") == 0, (
+        "an unrelated later scroll satisfied the interrupted travel's old arrival"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     """A reader sent from a comment to its passage lands among every other mark on the
     page, all of them painted alike, and the panel is the only surface saying which one
@@ -16438,8 +16994,19 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
         "a page nobody has opened a comment on is already saying the reader is in one"
     )
 
+    # The standing paint follows focus immediately; its arrival waits for the travel's
+    # final operation to complete. Record that transient edge so the checks below inspect
+    # the pulse that actually began rather than racing the glide or polling a 1.2s class.
+    page.evaluate("""() => {
+        window.__lfArrivalStarted = false;
+        document.addEventListener('animationstart', (event) => {
+            if (event.animationName.endsWith('-arrive'))
+                window.__lfArrivalStarted = true;
+        }, true);
+    }""")
     page.keyboard.press("j")
     wait_standing(page, "bold text")
+    page.wait_for_function("() => window.__lfArrivalStarted")
     # The lift hangs on the block the standing passage sits in, not on the document: an
     # inherited custom property invalidates the subtree of whatever animates it, so on
     # body it recomputes every element's style on every frame of the pulse. Asserted
@@ -16553,6 +17120,55 @@ def card_body(page, says):
     while they read the comment, and where nothing presses."""
     box = page.locator(".lf-thread").filter(has_text=says).first.bounding_box()
     return box["x"] + box["width"] / 2, box["y"] + box["height"] - 8
+
+
+def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
+    """A live version replaces the authored nodes but keeps the thread and its anchor.
+    With the pointer parked on that card, the semantic hover id does not change; its
+    Range still must move from the detached v1 text node onto the connected v2 one."""
+    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
+    page, errors = open_page(browser, live_url(url))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    point = card_body(page, "About this bit.")
+    page.mouse.move(*point)
+    wait_hovered(page, "bold text")
+    page.evaluate(
+        "() => { window.__lfOldHoverNode = "
+        "[...CSS.highlights.get('lf-mark-hover')][0].startContainer; }"
+    )
+    # Keep the same live card under the pointer throughout the swap. This isolates the
+    # anchor pass's record replacement from the view transition's temporary snapshots.
+    page.evaluate("() => { document.startViewTransition = undefined; }")
+
+    v2 = INLINE_PAGE.replace(
+        "<strong>bold text</strong>", '<span data-v2="true">bold text</span>'
+    )
+    _publish(serve.page_dir, 2, v2, "kept the passage while replacing its markup")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    page.wait_for_selector('[data-v2="true"]')
+    wait_hovered(page, "bold text")
+    state = page.evaluate("""() => {
+        const range = [...CSS.highlights.get('lf-mark-hover')][0];
+        return {
+            oldConnected: window.__lfOldHoverNode.isConnected,
+            text: range?.toString() ?? null,
+            rebound: Boolean(range && range.startContainer !== window.__lfOldHoverNode),
+            connected: Boolean(range?.startContainer.isConnected),
+            card: document.querySelector('.lf-thread')?.classList.contains('lf-mark-hover'),
+        };
+    }""")
+    assert state == {
+        "oldConnected": False,
+        "text": "bold text",
+        "rebound": True,
+        "connected": True,
+        "card": True,
+    }, f"the parked hover did not move from the detached v1 anchor to v2: {state}"
+    expect(page.locator(".lf-thread")).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    assert errors == []
+    page.close()
 
 
 def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serve):
@@ -18244,26 +18860,34 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     dispatcher is already refusing. The drop is the same gap read backwards: a card
     put down where it was picked up takes the class off and returns before #send, so
     there is no send downstream to paint in its place."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    url = serve(BOARD_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "sprint",
+            "action": "move",
+            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+        },
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
     grip = page.locator("#card-heater .lf-grip")
     grip.focus()
-    for key in ["Enter", "ArrowRight", "Enter"]:
-        page.keyboard.press(key)
-    round_trip(page)
-    # The move carries a FLIP, and a box measured across it is a box the card has
-    # already left: the press lands on the grip at that instant and the pointer is
-    # somewhere else by the mousemove after it, so the drag never starts and the
-    # failure arrives as the assertion below timing out on a page nobody dragged.
+    # A box measured across replay's FLIP is a box the card has already left: the press
+    # lands on the grip at that instant and the pointer is somewhere else by the
+    # mousemove after it, so the drag never starts.
     page.wait_for_function(
         "() => document.getElementById('card-heater').getAnimations().length === 0"
     )
     assert "z undo" in _painted_line(page)
     sent = _traffic(page).sends
 
-    # The card the keyboard move left the grip focused on, so the mousedown lands on
-    # an already-focused control and fires no focusin — the paint under test is the
-    # only one that could clear the offer. Held inside the column it now has to
-    # itself, so the drop reorders nothing and onEnd returns before #send.
+    # The mousedown lands on an already-focused control and fires no focusin, so the
+    # paint under test is the only one that could clear the offer. Held inside the
+    # column it has to itself, the card reorders nothing and onEnd returns before #send.
     box = grip.bounding_box()
     start = (
         math.floor(box["x"] + box["width"] / 2),

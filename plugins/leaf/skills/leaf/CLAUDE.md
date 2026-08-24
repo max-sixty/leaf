@@ -788,15 +788,16 @@ parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the ask ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
 it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
-reply box. A press on a page mark does not, because `showThread` reveals the
-thread without focusing it, and nothing has put the reader in the comment.
-`paintHere` repaints it beside the ask ring, and `paintAnchors` repaints it after
-rebuilding the ranges it holds.
+reply box. A press on a page mark reaches `showThread`, which focuses the thread
+with `preventScroll` before its deliberate reveal; the page and card therefore
+both say which comment that press opened, and the next key belongs to the thread
+scope. `paintHere` repaints it beside the ask ring, and `paintAnchors` repaints
+it after rebuilding the ranges it holds.
 
 The panel paints the same fact on the card, through `.lf-thread:focus-within` —
 the same predicate, so the two halves cannot disagree about which comment the
-reader is in. Not `:focus-visible`, which is a claim about the last input device
-and left a mouse reader with the page marked and the card plain.
+reader is in. `:focus-visible` instead answers which input modality should draw
+the browser's focus indicator.
 
 `lf-mark-hover` answers a different question — which thread the pointer is
 indicating — and reads both surfaces in one frame. A card is the thread's view in
@@ -817,6 +818,11 @@ offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
 question again on the way out as well as in, because the panel is one of the two
 surfaces this reads: closing it from the keyboard, with a hand resting on a card,
 takes that card out from under a pointer that never moved.
+
+Hover state keeps both the semantic id and painted card node because reconciliation
+can replace one without changing the other. `paintAnchors` rebinds replaced ranges
+and element parts; `renderThreads`, page movement, and a version transition's end
+refresh the reading when content moves under a stationary pointer.
 
 `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
 paints glyphs, so a box takes no wash; the element mark says the same rank in the
@@ -841,13 +847,26 @@ Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
-in, so the arrival is announced there and a route added later inherits it. It
-calls `paintStanding` with the arrival, which lifts `--lf-mark-lift` from 1 to 0
-over the 1.2s the panel's own arrival takes; `MARK_RULES` carries the argument
-for why the landing needs a lift rather than a stronger resting colour. An
-element anchor's ring does not lift — it already differs from an ordinary mark's
-hairline in weight as well as hue. The theme's reduced-motion guard collapses the
-animation onto its resting end, which is the standing state.
+in, so the arrival is announced there. The target's own box first comes into
+view instantly, then `jumpBy` glides it to its final page position. The completion
+promise belongs to that final `scrollTo`. Where the browser does not return one,
+`settlePreliminaryScroll` consumes the instant operation's `scrollend` before
+`jumpBy` arms a one-shot listener for the glide. `announceThreadArrival` also
+requires the latest travel token, the commanded `scrollTop`, the same mark, and
+the matching focused thread before it calls `paintStanding(true)`. It snapshots
+a text mark's boundary points because `Range` is live and an ancestor replacement
+can mutate the old object before the next anchor pass; an ordinary paint pass creates
+a fresh `Range` over the same points. Chromium's promise result can report
+interruption; the destination and token checks cover
+implementations without that extension. A browser with neither signal keeps the
+standing paint and omits the pulse.
+
+The arrival lifts `--lf-mark-lift` from 1 to 0 over the 1.2s the panel's own
+arrival takes; `MARK_RULES` carries the argument for why the landing needs a lift
+rather than a stronger resting colour. An element anchor's ring does not lift —
+it already differs from an ordinary mark's hairline in weight as well as hue.
+The theme's reduced-motion guard collapses the animation onto its resting end,
+which is the standing state.
 
 The property is registered and inherits, so it is invalidated down the subtree of
 whatever animates it. The class therefore goes on the standing mark's own boxes —
@@ -1505,6 +1524,9 @@ landing in a thread in front of them — and takes the list as it stands.
 `showThread` insists: a press out on the page or in a message knows nothing of
 the narrowing it would be asking past, and a comment the reader has just written
 cannot vanish into a narrowing it does not match, so the narrowing goes instead.
+It focuses the containing thread before `revealThread` scrolls it, making the
+thread the standing result rather than a card flashed while focus remains on the
+page. `preventScroll` leaves the panel's reveal as the one writer of its position.
 A reveal that widened for a reply would take the reader's narrowing away for
 having been used, which is how the waiting-on-you list is emptied.
 

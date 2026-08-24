@@ -2239,12 +2239,12 @@ const MARK_RULES = `
   /* The arrival's lift, on whichever boxes carry the standing mark (paintStanding). Here
      rather than in the chrome's own block so a mark staged in a widget's shadow tree
      lifts too: its carrier is inside that tree, and a rule in the document reaches no
-     element there. The 1.2s is the panel's own arrival (.lf-thread.flash), because it is
-     the same arrival — one press moves the page to the passage and the list to the
-     thread, and two surfaces settling apart would read as two events. The shorthand
-     replaces any animation the page had put on that box, which is the cost of hanging a
-     runtime class on an authored element; the alternative was hanging it on body, which
-     costs every element on the page a style recalculation per frame. */
+     element there. The 1.2s is the panel's own arrival (.lf-thread.flash), so either
+     surface spends the same duration saying that a landing happened; the page clock
+     starts only when the final scroll operation completes without interruption. The
+     shorthand replaces any animation the page had put on that box, which is the cost of
+     hanging a runtime class on an authored element; the alternative was hanging it on
+     body, which costs every element on the page a style recalculation per frame. */
   @keyframes lf-runtime-4f3c2a8d-arrive { from { --lf-mark-lift: 1; } to { --lf-mark-lift: 0; } }
   .lf-arrived { animation: lf-runtime-4f3c2a8d-arrive 1.2s ease-out; }
   ::highlight(lf-mark) { background-color: var(--mark);
@@ -2964,6 +2964,11 @@ ${MARK_RULES}
        the outcome said in paint: the box is on its way out and may not also state
        that in metrics the fold is animating. */
     .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; --lf-frame: 1; }
+    /* The panel half of the mark the pointer is indicating (paintHover). The fallback
+       keeps a custom theme without the middle ramp token legible at its strongest mark
+       wash; the shipped theme supplies --mark-hover so indicated and standing stay two
+       distinct distances from the reader. */
+    .lf-thread.lf-mark-hover { background: var(--mark-hover, var(--mark-strong)); }
     .lf-going { overflow: hidden; box-sizing: border-box; }
     /* The outcome rides the closing edge, so it is legible for the whole fold rather
        than for the frame before the box swallows it: the actions row is the thread's
@@ -6164,6 +6169,9 @@ function renderThreads(threads) {
   // the record, and the one that changes what the record is painted on.
   paintThreadQuotes();
   paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
+  // Narrowing and reconciliation can move another card under a pointer that did not
+  // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
+  refreshHover();
 }
 
 // The two surfaces that say what the narrowing is doing, written together because they
@@ -6319,6 +6327,12 @@ function revealThread(id) {
 function showThread(id) {
   setPanel(true);
   if (!listNode(id)) widen();
+  // Showing a thread is an arrival in the panel, not a glimpse from the page. Focus is
+  // the standing fact shared by the card and its mark, so the route that begins on a
+  // painted passage has to end on the same focus target as j/k and the address chord.
+  // preventScroll leaves the panel's deliberate reveal below as the one writer of its
+  // position.
+  listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });
   revealThread(id);
 }
 
@@ -7292,8 +7306,85 @@ function captureView() {
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the reader asked for is the other case, and says so.
-const jumpBy = (dy, behavior = "instant") =>
-  pageScroller.scrollBy({ top: dy, behavior });
+const PAGE_SCROLL_END = "onscrollend" in pageScroller;
+function nextPageScrollEnd() {
+  if (!PAGE_SCROLL_END) return null;
+  let cancel;
+  const completion = new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      pageScroller.removeEventListener("scrollend", ended);
+      resolve(result);
+    };
+    const ended = () => finish({});
+    // Cancellation is completion too. Removing a listener without settling its promise
+    // leaves every continuation retaining this operation, and a superseding scroll at
+    // the same offset may emit no edge that could ever release it.
+    cancel = () => finish({ interrupted: true });
+    pageScroller.addEventListener("scrollend", ended, { passive: true });
+  });
+  return { completion, cancel };
+}
+const pageScrollGoal = (dy) =>
+  Math.max(
+    0,
+    Math.min(
+      pageScroller.scrollHeight - pageScroller.clientHeight,
+      pageScroller.scrollTop + dy,
+    ),
+  );
+const jumpBy = (dy, behavior = "instant") => {
+  const start = pageScroller.scrollTop;
+  const goal = pageScrollGoal(dy);
+  // Installed before the operation so Firefox and Safari cannot finish a short glide
+  // between the call and its fallback listener. Chromium's operation promise wins when
+  // present and removes this listener immediately.
+  const fallback = behavior === "smooth" ? nextPageScrollEnd() : null;
+  const nativeCompletion = pageScroller.scrollTo({ top: goal, behavior });
+  let completion = null;
+  let cancel = null;
+  if (typeof nativeCompletion?.then === "function") {
+    fallback?.cancel();
+    completion = nativeCompletion;
+  } else if (behavior === "instant" || Math.abs(start - goal) <= 1) {
+    fallback?.cancel();
+    completion = Promise.resolve({});
+  } else {
+    completion = fallback?.completion ?? null;
+    cancel = fallback?.cancel ?? null;
+  }
+  return {
+    goal,
+    // Chromium reports an `interrupted` result in addition to resolving at completion.
+    // Other promise implementations and the scrollend fallback need no such field: the
+    // destination check at the consumer distinguishes a landing from an interruption.
+    completion,
+    cancel,
+  };
+};
+
+// Drain the preliminary instant scroll before arming the final glide's fallback. Without
+// this boundary, the final listener can consume the earlier operation's scrollend and
+// announce while the target is still short of its destination.
+function settlePreliminaryScroll(move) {
+  const before = pageScroller.scrollTop;
+  const fallback = nextPageScrollEnd();
+  const nativeCompletion = move();
+  // Any change schedules a scrollend, including a one-pixel or subpixel correction.
+  // The one-pixel allowance belongs only to judging the final destination below.
+  const moved = pageScroller.scrollTop !== before;
+  if (typeof nativeCompletion?.then === "function") {
+    fallback?.cancel();
+    return { completion: nativeCompletion, cancel: null };
+  }
+  if (!moved || !fallback) {
+    fallback?.cancel();
+    return { completion: Promise.resolve({}), cancel: null };
+  }
+  return fallback;
+}
 function restoreView(view) {
   // Where the walk left off, put back before the scroll below restores the coarser
   // reading of the same fact — and put back whether or not this version answered that
@@ -7921,6 +8012,10 @@ function paintAnchors(threads = buildThreads()) {
   );
   noteMarks(noted); // and the same fact for a reader who can't see any of it
   paintStanding(); // the ranges are new objects and the element classes were just cleared
+  // The semantic thread may be unchanged while this pass replaced every Range or
+  // element part that paints its hover. Rebind the projection before geometry decides
+  // whether the parked pointer still indicates that thread at all.
+  if (hovering || hoverThread || hoverParts.length) paintHover(hovering);
   pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
 
   paintThreadQuotes();
@@ -7999,8 +8094,8 @@ function markAt(x, y) {
 // anchor takes the middle; an Ask takes the readable start so its context comes before
 // its control. The document scroller owns this travel, while an element in the panel's
 // list belongs to that region. Reveal first, since opening a tab or settled group moves
-// everything below it. The arithmetic is the range branch's below, because "the middle"
-// means the viewport's: scrollIntoView measures against the scroller's own
+// everything below it. For a centred destination, "the middle" means the viewport's:
+// scrollIntoView measures against the scroller's own
 // scroll-padding-top — declared so a native fragment jump clears the banner — and every
 // "center" through it therefore landed 27px low. An element taller than the viewport has
 // no middle to show, and centring one puts its opening words above the top edge, so it
@@ -8010,14 +8105,21 @@ function markAt(x, y) {
 // place in — the same reason a restore doesn't (jumpBy). An arrival passes "instant" for
 // exactly that reason: a document that appeared a moment ago holds no place to keep, so
 // the glide would be animating from nowhere.
+function centreBy(where, block = "center") {
+  const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+  const clear = parseFloat(getComputedStyle(pageScroller).scrollPaddingTop) || 0;
+  const place =
+    where instanceof Range
+      ? (innerHeight - rect.height) / 2
+      : block === "start"
+        ? clear
+        : Math.max((innerHeight - rect.height) / 2, clear);
+  return rect.top - place;
+}
 function scrollToElement(el, behavior = SCROLL, block = "center") {
   reveal(el);
   el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  const rect = shownBox(el);
-  const clear = parseFloat(getComputedStyle(pageScroller).scrollPaddingTop) || 0;
-  const place =
-    block === "start" ? clear : Math.max((innerHeight - rect.height) / 2, clear);
-  jumpBy(rect.top - place, behavior);
+  return jumpBy(centreBy(el, block), behavior);
 }
 
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
@@ -8031,12 +8133,108 @@ function scrollToElement(el, behavior = SCROLL, block = "center") {
 // there is no mark to look at, and a page flashing about a passage it hasn't got is
 // pointing at nothing. Which mark lifts is not this function's to say — the paint follows
 // the focus (paintStanding), and every caller has already put the reader in the thread.
+//
+// The announcement starts at the destination rather than at the request. Both travels
+// first make the target's own box visible instantly and then glide it to its final place.
+// settlePreliminaryScroll drains the first operation before centre starts the second, so
+// either the final operation promise or its one-shot scrollend fallback belongs to the
+// glide alone. A token prevents a superseded preliminary edge from even starting its
+// final glide and prevents older completions from announcing out of order. The anchor
+// itself is another part of that operation: a live version can replace its Range while
+// the preliminary edge is pending, so that edge restarts the trip against a new current
+// record rather than centring the detached one it began with.
+//
+// A text mark's identity is its boundary points. Snapshot them because Range is live:
+// replacing an ancestor can mutate the old object before paintAnchors installs the new
+// record. An ordinary paint pass instead creates a fresh Range over the same points.
+const snapshotMark = (mark) =>
+  mark instanceof Range
+    ? {
+        startContainer: mark.startContainer,
+        startOffset: mark.startOffset,
+        endContainer: mark.endContainer,
+        endOffset: mark.endOffset,
+      }
+    : mark;
+const sameMark = (mark, snapshot) =>
+  mark instanceof Range
+    ? mark.startContainer === snapshot?.startContainer &&
+      mark.startOffset === snapshot.startOffset &&
+      mark.endContainer === snapshot.endContainer &&
+      mark.endOffset === snapshot.endOffset
+    : mark === snapshot && mark?.isConnected;
+let arrivalTravel = null;
+function announceThreadArrival(id, anchor, preliminary, centre) {
+  arrivalTravel?.cancel?.();
+  const token = { cancel: null };
+  const target = snapshotMark(anchor);
+  arrivalTravel = token;
+  const first = settlePreliminaryScroll(preliminary);
+  token.cancel = first.cancel;
+  first.completion.then(
+    (preliminaryResult) => {
+      if (arrivalTravel !== token) return;
+      if (preliminaryResult?.interrupted) {
+        arrivalTravel = null;
+        return;
+      }
+      const current = marksOf(id)[0];
+      if (!sameMark(current, target)) {
+        arrivalTravel = null;
+        // Repaint has supplied a new target, so restart against it. If this is still
+        // the old live Range, activation mutated it before repaint and there is no
+        // current geometry to follow yet; suppress this stale trip.
+        if (current !== anchor) scrollToThread(id);
+        return;
+      }
+      const travel = centre();
+      token.cancel = travel.cancel;
+      if (!travel.completion) {
+        arrivalTravel = null;
+        return;
+      }
+      travel.completion.then(
+        (result) => {
+          if (arrivalTravel !== token) return;
+          arrivalTravel = null;
+          if (result?.interrupted || Math.abs(pageScroller.scrollTop - travel.goal) > 1)
+            return;
+          // A redraw may rebuild the same mark. It belongs to this arrival only while
+          // its boundaries and centred page position still match the measured target.
+          const current = marksOf(id)[0];
+          if (
+            !sameMark(current, target) ||
+            Math.abs(pageScrollGoal(centreBy(current)) - travel.goal) > 1
+          )
+            return;
+          if (focusedThreadOf()?.dataset.id === id) paintStanding(true);
+        },
+        () => {
+          if (arrivalTravel === token) arrivalTravel = null;
+        },
+      );
+    },
+    () => {
+      if (arrivalTravel === token) arrivalTravel = null;
+    },
+  );
+}
 function scrollToThread(id) {
   const where = marksOf(id)[0];
   if (!where) return;
-  paintStanding(true);
   if (!(where instanceof Range)) {
-    scrollToElement(where);
+    reveal(where);
+    announceThreadArrival(
+      id,
+      where,
+      () =>
+        where.scrollIntoView({
+          block: "nearest",
+          inline: "nearest",
+          behavior: "instant",
+        }),
+      () => jumpBy(centreBy(where), SCROLL),
+    );
     return;
   }
   const holder = where.startContainer.parentElement;
@@ -8044,9 +8242,17 @@ function scrollToThread(id) {
   // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
   // rendered diagram sits in a box with its own horizontal scroll, which the vertical
   // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
-  holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  const rect = where.getBoundingClientRect();
-  jumpBy(rect.top - (innerHeight - rect.height) / 2, SCROLL);
+  announceThreadArrival(
+    id,
+    where,
+    () =>
+      holder.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      }),
+    () => jumpBy(centreBy(where), SCROLL),
+  );
 }
 
 // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which
@@ -8078,8 +8284,21 @@ function scrollToThread(id) {
 const HOVER = "lf-mark-hover";
 const hoveredThreadOf = () => threadsBox.querySelector(".lf-thread:hover");
 let hoverParts = [];
+let hoverThread = null;
+const hoverCardOf = (id) =>
+  id ? threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`) : null;
 function paintHover(id) {
   hovering = id;
+  // The page and panel are reciprocal views of the thread. The highlight paints the
+  // passage when the pointer is on its card; this class paints the card when the pointer
+  // is on its passage. One writer keeps them on the same id, and keeping the node lets a
+  // sweep touch only the two cards whose answer changed.
+  const thread = hoverCardOf(id);
+  if (hoverThread !== thread) {
+    hoverThread?.classList.remove(HOVER);
+    thread?.classList.add(HOVER);
+    hoverThread = thread;
+  }
   const where = marksOf(id);
   // Both kinds of anchor, for the reason paintStanding takes both: one question about one
   // thread, and a reading that answered only the passages with words left an element
@@ -8117,15 +8336,16 @@ function paintHover(id) {
 // still standing in the comment they are replying to; that is exactly when knowing which
 // passage it is on is worth most.
 //
-// Above the hover and below the draft. The hover's own wash is the same strength, so what
-// the standing mark adds is the ink, and a pointer resting on it must not take that back:
-// the cursor is what promises the press, and the ink is what answers "which one".
+// Above the hover and below the draft. A pointer resting on the standing mark supplies
+// the middle wash, while this higher paint keeps the strongest wash and its accent ink:
+// the cursor promises the press, and the ink answers "which one".
 //
 // `arrived` says the reader was just carried here, and lifts the wash on the way in. It
 // is this function's rather than the travel's because the lift hangs on the boxes the
 // mark is painted over, and this is the only place that knows them — the travel knows an
-// id. Called straight from scrollToThread rather than left to the next repaint: the focus
-// that moved the reader has already been and gone, so paintHere's frame has run.
+// id. Called from the final scroll operation's successful completion rather than left to
+// the next focus repaint: the standing paint arrived with focus, while this pulse belongs
+// to the later moment the mark itself arrives.
 const HERE = "lf-mark-here";
 const ARRIVED = "lf-arrived";
 let hereParts = [];
@@ -8169,7 +8389,7 @@ function paintStanding(arrived = false) {
       ...parts,
       ...where
         .filter((mark) => mark instanceof Range)
-        .map((range) => blockAt(range.startContainer))
+        .map((range) => blockOf(range.startContainer))
         .filter(Boolean),
     ]),
   ];
@@ -8191,7 +8411,7 @@ function paintStanding(arrived = false) {
 // is what settles the panel's half too — that reading is the browser's own :hover state,
 // and asking for it from inside the pointer event that is moving it asks mid-move.
 function refreshHover() {
-  if (hoverQueued || (!marked.size && !hovering)) return;
+  if (hoverQueued || (!marked.size && !hovering && !hoverThread)) return;
   hoverQueued = true;
   requestAnimationFrame(() => {
     hoverQueued = false;
@@ -8203,7 +8423,10 @@ function refreshHover() {
     const onMark = markAt(pointer.x, pointer.y);
     document.body.classList.toggle("lf-over-mark", Boolean(onMark));
     const id = hoveredThreadOf()?.dataset.id ?? onMark;
-    if (id !== hovering) paintHover(id);
+    // A reconcile normally keeps a thread node, but settlement replaces it. If the
+    // pointer stayed over the same semantic thread, repaint the reciprocal class onto
+    // that new card even though the id did not change.
+    if (id !== hovering || hoverCardOf(id) !== hoverThread) paintHover(id);
   });
 }
 document.addEventListener("mousemove", (ev) => {
@@ -13752,6 +13975,10 @@ async function receiveState(state) {
             await transition.finished;
           } finally {
             document.documentElement.classList.remove("lf-versioning");
+            // The transition's snapshots temporarily replace what is under a parked
+            // pointer. Ask again once the live page owns those pixels, even when no
+            // mousemove reports the change.
+            refreshHover();
           }
         } else await apply();
       })();

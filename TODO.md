@@ -12,7 +12,10 @@
   about that tier rather than about the clock. Nothing has ever measured it:
   `test_examples_have_no_serious_wcag_a_or_aa_violations` reads every example with the
   panel shut, so no chrome inside the panel has been through axe at all. Whichever way
-  the tier goes, that sweep wants an arm with the panel open.
+  the tier goes, that sweep wants an arm with the panel open. Run by hand over a page of
+  twenty-four threads in both schemes, the clock is the only serious finding the open
+  panel produces — the head, the find row, the run headings and the thread controls are
+  clean — so the arm can go in the moment the tier is decided.
 
 - **Favicon pending count.** Whether a 16px tab icon can carry a readable pending count
   remains unmeasured.

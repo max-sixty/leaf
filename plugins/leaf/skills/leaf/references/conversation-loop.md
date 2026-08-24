@@ -27,13 +27,19 @@ The note stands under the reader's own words in the panel until you answer that
 thread, so a question in hand reads differently from one nobody has looked at.
 It is the banner's own claim at a second seat, and one command writes both.
 
-A `working` claim nothing renews for about a quarter of an hour stops being
-believed, and the banner reports the silence instead of the work. Refresh it
-inside that for as long as the work runs, and hand that job on with the work: a
-delegate outlives the turn that started it, and no part of this session can
-write the claim once the turn has ended. Give the delegate the launcher path,
-the page path, the thread id, and the command above to run as it starts and
-whenever what it is doing changes.
+A `working` claim is believed while the turn that wrote it is open. The page is
+told when that turn ends, so a claim nothing has renewed within a couple of
+minutes of the ending stops being believed, and the banner reports the silence
+instead of the work; a claim nobody renews at all ages out after about a
+quarter of an hour. Each note carries the same reading at its own thread, so
+one delegate still reporting keeps the banner green while another's note goes
+quiet under the words it answers.
+
+Renewing it is therefore part of the work and goes with it: a delegate outlives
+the turn that started it, and no part of this session can write the claim once
+the turn has ended. Give the delegate the launcher path, the page path, the
+thread id, and the command above to run as it starts — soon enough to land
+inside that couple of minutes — and again whenever what it is doing changes.
 
 ## Host wait loops
 
@@ -121,10 +127,21 @@ Use `--markup` for an inline widget such as a small `lf-options` question. Threa
 markup is frozen in the log; versions neither carry nor revise it. Use a page
 widget instead when the question and its answer belong in the final record.
 
-Reply with brief Markdown:
+Answer in as few words as the question takes; one sentence is a complete reply.
+The panel is a narrow column, so an answer past a few sentences goes in as
+separate Markdown paragraphs or a list with one point each. `--text` takes a
+one-line answer; longer text comes in on stdin:
 
 ```bash
-leaf reply <page> --to <thread-id> --text "<answer>"
+leaf reply <page> --to <thread-id> --text "Yes, and v3 already has it."
+
+leaf reply <page> --to <thread-id> <<'EOF'
+Three things put the retry on the client:
+
+- only the client can tell a dropped connection from a slow one
+- the client already holds the request body
+- retrying on the server would double the write
+EOF
 ```
 
 Fragment links such as `[the decision](#decision)` take the reader to page

@@ -103,7 +103,7 @@ customElements.define(
     #listenForDiff() {
       if (!this.#buttons.size || this.#diffEvents) return;
       this.#diffEvents = new AbortController();
-      document.addEventListener("lf-diff", () => this.#badges(), {
+      document.addEventListener("lf-comparison", () => this.#badges(), {
         signal: this.#diffEvents.signal,
       });
     }

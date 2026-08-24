@@ -86,7 +86,7 @@ graph LR
       </section>
 
       <section id="off-merge">
-        <h2>The merge rule</h2>
+        <h2>Merging by field cut clashes by two thirds</h2>
         <p id="off-merge-intro">
           Two people editing one document offline is the case the rest is built around.
           The rule that shipped in week 3 merges by field where the first two weeks
@@ -257,7 +257,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
           </tbody>
         </table>
         <details id="off-ios-evidence">
-          <summary>How the iOS stall was traced</summary>
+          <summary>The iOS stall reproduces without any of our code</summary>
           <p id="off-ios-evidence-body">
             Fifty-four stalls across 2,140 sessions, all on iOS 17.3 and 17.4 and none
             on 17.2. In every one the queue had already handed the batch to the network
@@ -271,7 +271,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       </section>
 
       <section id="off-beta-history">
-        <h2>How the beta went</h2>
+        <h2>The beta ended quiet apart from the iOS stall</h2>
         <lf-timeline id="off-beta">
           <lf-event id="off-e-open" at="week 1" kind="info">
             <strong>Beta opens</strong> Twelve workspaces, web only.
@@ -416,7 +416,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       </section>
 
       <section id="off-settled">
-        <h2>Settled in week 3</h2>
+        <h2>Settled in week 3: edits merge by field</h2>
         <p id="off-settled-note">
           The rule above was one of three answers and is folded to a line — open it for
           the one the section above doesn't cover.
@@ -669,7 +669,7 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="settled-transport">
-        <h2>Settled last week</h2>
+        <h2>Settled: the session id travels in a host-only Lax cookie</h2>
         <p id="transport-note">
           How the session id travels was decided before this page and the client change
           is merged, so it reads as one line — open it if you want the alternatives.
@@ -696,7 +696,7 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="precedent">
-        <h2>How payments were asked</h2>
+        <h2>The payments page is worth copying for its framing alone</h2>
         <aside class="sidenote" id="sn-payments-page">
           Their page is still served, at payments/2024-03-session-store.
         </aside>
@@ -999,13 +999,13 @@ graph LR
 </pre>
         </lf-diagram>
         <details id="pm-evidence">
-          <summary>Why that one job could never succeed</summary>
+          <summary>
+            A declared attachment size of −1 fails serialization every time
+          </summary>
           <p id="pm-evidence-body">
-            The export carried an attachment with a declared size of −1, which fails
-            serialization on every attempt. The upload predates the size check added in
-            March, and two other workspaces carry one; both are quarantined now. This is
-            what the sentence proposed for deletion was pointing at, and it reads as
-            blame however it is worded.
+            The upload predates the size check added in March, and two other workspaces
+            carry one; both are quarantined now. This is what the sentence proposed for
+            deletion was pointing at, and it reads as blame however it is worded.
           </p>
         </details>
       </section>
@@ -1297,7 +1297,7 @@ diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042
       </section>
 
       <section id="walkthrough">
-        <h2>Why the prefixes matter</h2>
+        <h2>Prefixes keep token and address buckets disjoint</h2>
         <lf-code id="key-walk" language="python" hi="3-4">
           <pre>
 def bucket_key(self, request):
@@ -1471,7 +1471,7 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
       </lf-board>
 
       <section id="notes">
-        <h2>Triage notes</h2>
+        <h2>The migration stamp bug blocks the release on its own</h2>
         <p id="p-notes">
           The migration stamp bug is the only one with data risk; it blocks the release
           even if the fix slips a day. The logout fix is trivial but touches the auth
@@ -1841,7 +1841,11 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
           deciding either way; any landed change there is a revert away for as long as
           you care to look.
         </p>
-        <lf-options id="hub-policy-grant" choose>
+        <lf-options
+          id="hub-policy-grant"
+          choose
+          label="How much may land without your word?"
+        >
           <lf-option id="hub-pg-tiers" chosen
             >Two-tier gates, as stated above</lf-option
           >
@@ -1851,13 +1855,18 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
       </section>
 
       <section id="hub-settled">
-        <h2>Settled</h2>
+        <h2>Settled: sessions take a branch each and merge in turn</h2>
         <p id="hub-settled-intro">
           Decisions this page has moved past, kept where the argument behind them can be
           reopened. Nothing here is live; reopen one and pick again if you have changed
           your mind.
         </p>
-        <lf-options id="hub-merge-model" choose settled>
+        <lf-options
+          id="hub-merge-model"
+          choose
+          settled
+          label="How do parallel sessions merge?"
+        >
           <lf-option id="hub-mm-serial" chosen>
             <lf-chip tone="ok">no shared branch</lf-chip
             ><lf-chip tone="warn">merges queue behind each other</lf-chip>

@@ -27,24 +27,10 @@ if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && [ -n "${CODEX_THREAD_ID:-}" ]; then
   export LEAF_AGENT=${LEAF_AGENT:-Codex}
 fi
 
-# The lock beside the script records an absolute pypi.org URL per wheel, and uv
-# fetches exactly those, so an index the host configures is never consulted while
-# the lock can be served. On a host whose index is a private mirror that fetch
-# fails, and it fails before the script runs — every command, not one of them. So
-# the install is asked for first, and where the lock cannot be served the run
-# resolves the header itself against whatever index the host has. `--upgrade` is
-# the one thing that reaches past the lock's pins: an index flag, a refresh flag
-# and the index variables do not. It rewrites the lock to what it resolved, so a
-# mirror host pays that resolve once and pins again afterwards.
-#
-# The ask costs a few milliseconds where the wheels are already there, which is
-# every host that was working before. The fallback says so on the way past,
-# because the run behind it succeeds and so reports nothing: any failed ask
-# reaches it, a blip as much as a mirror, and what follows re-resolves a header
-# with no upper bound and writes the result over the pins. Which one it was is
-# the ask's to say and not this line's, so the ask's own words come with it —
-# a missing `uv` reads nothing like a refused connection. Only stderr is kept,
-# so the fast path stays as silent as it was.
+# The script lock records absolute pypi.org URLs, so configured mirrors cannot
+# serve it. Probe the locked install first; on failure, `--upgrade` resolves the
+# header through the host's index and rewrites the lock. Any sync failure takes
+# this fallback and may move pins, so report uv's error before retrying.
 resolve=
 if ! sync_report=$(uv sync --script "$script" 2>&1 >/dev/null); then
   resolve=--upgrade

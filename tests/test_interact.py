@@ -256,6 +256,35 @@ def test_skill_assigns_acknowledgement_to_the_wait_owner():
     assert "After the host accepts the follow-up" in watcher
 
 
+def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
+    """A reply is written into a shell argument and never read where it lands.
+
+    The panel renders a reply through `marked` and the theme dresses its lists,
+    code, quotes and tables for a column that is narrow by default, so the shape
+    is available and nothing in the loop shows the author what they chose. The
+    guidance said "brief Markdown" over a single-line `--text "<answer>"`, and
+    brevity read as one paragraph: an answer carrying three independent reasons
+    arrived as four sentences of prose with the reasons buried in clauses.
+
+    So the rule states the short case as complete and the example carries the
+    long one, because a documented call is copied where a description is not.
+    The two assertions hold each half: brevity first, and a worked long answer
+    to copy from when brevity does not fit.
+    """
+    root = PLUGIN_ROOT / "skills" / "leaf" / "references"
+    conversation = (root / "conversation-loop.md").read_text()
+
+    assert "one sentence is a complete reply" in " ".join(conversation.split())
+    reply_block = conversation.split("leaf reply <page> --to <thread-id>")
+    assert any(part.startswith(" <<'EOF'") for part in reply_block[1:])
+    assert any(part.startswith(' --text "') for part in reply_block[1:])
+
+    # A worker reads its own file and nothing routes it here, so its reply
+    # example is the only shape that reaches it.
+    worker = (root / "worker-orchestration.md").read_text()
+    assert 'reply "$PAGE" --to "$THREAD" <<' in worker
+
+
 def test_leaf_skill_routes_its_complete_reference_set():
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()

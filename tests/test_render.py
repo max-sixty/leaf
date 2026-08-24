@@ -26762,23 +26762,58 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     page.close()
 
 
-# Where the two things in the right margin stand, and how much of the board is over the
-# controls. The controls are what the strip was reserved for, and they hang off the column
-# rather than out of the strip, so the strip's own edge says nothing about where they are.
-RAIL_OVERLAP = """() => {
-    const acts = document.querySelector('.lf-sug-actions');
-    const board = document.getElementById('plan').getBoundingClientRect();
+# A change to decide inside a board's card, and a second board 600px further down with
+# nothing in the margin beside it. The first board's row hangs level with the board it
+# is inside — the collision the rail's claim exists for — and the second is what keeps
+# the claim honest about its reach: a claim spent page-wide holds it too, for a row it
+# never meets.
+RAIL_BAND_PAGE = leaf_page(
+    "rail band",
+    """
+<h1 id="t">Release</h1>
+<lf-suggestion id="sug-copy">
+  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<lf-board id="plan">
+  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong>
+    <lf-suggestion id="sug-card">
+      <lf-old><p>By hand.</p></lf-old>
+      <lf-new><p>On the timer.</p></lf-new>
+    </lf-suggestion></lf-card></lf-column>
+  <lf-column id="r2" label="Doing"></lf-column>
+  <lf-column id="r3" label="Done"></lf-column>
+</lf-board>
+<p id="gap" style="margin-block: 600px">Prose far enough below the changes that no row
+reaches this part of the page.</p>
+<lf-board id="later">
+  <lf-column id="l1" label="Todo"><lf-card id="lk1"><strong>Two</strong></lf-card></lf-column>
+  <lf-column id="l2" label="Done"></lf-column>
+</lf-board>
+""",
+)
+
+
+# Where everything in and beside the right margin stands. The controls are what the
+# strip was reserved for, and they hang off the column rather than out of the strip, so
+# the strip's own edge says nothing about where they are.
+RAIL_BANDS = """() => {
+    const box = (el) => {
+        const b = el.getBoundingClientRect();
+        return { left: b.left, right: b.right, top: b.top, bottom: b.bottom,
+                 width: b.width };
+    };
     const body = document.body, bs = getComputedStyle(body);
     const bb = body.getBoundingClientRect();
-    const a = acts.getBoundingClientRect();
-    return { docked: acts.classList.contains('lf-docked'),
-             over: board.right - a.left, acts: a.left, board: board.right,
-             width: board.width,
-             column: (() => { const m = document.querySelector('main');
-                 const s = getComputedStyle(m), b = m.getBoundingClientRect();
-                 return b.width - parseFloat(s.paddingLeft)
-                        - parseFloat(s.paddingRight); })(),
-             pastPage: board.right - (bb.right - parseFloat(bs.paddingRight)),
+    const m = document.querySelector('main');
+    const ms = getComputedStyle(m), mb = m.getBoundingClientRect();
+    return { rows: [...document.querySelectorAll('.lf-sug-actions')].map(r => ({
+                 ...box(r), docked: r.classList.contains('lf-docked') })),
+             plan: box(document.getElementById('plan')),
+             later: box(document.getElementById('later')),
+             column: { left: mb.left + parseFloat(ms.paddingLeft),
+                       right: mb.right - parseFloat(ms.paddingRight) },
+             pageRight: bb.right - parseFloat(bs.paddingRight),
              sideways: body.scrollWidth - body.clientWidth };
 }"""
 
@@ -26787,49 +26822,201 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     """The rail is reserved out of the right of the page and the controls hang 22px off
     the column, and those are the same place only when the column is flush against the
     strip. It never is — the column centres in what the strip leaves — so on any window
-    wider than that the controls stand well inside the page's own box, and a widget grown
-    to the edge of that box is drawn over them. Measured before the claim was written:
-    76px of board over the controls at 1200px and 134px at 1400 and 1600, which is the
-    whole row.
+    wider than that the controls stand well inside the page's own box, and a widget
+    grown to the edge of that box is drawn over them. Measured before the claim was
+    written: 76px of board over the controls at 1200px and 134px at 1400 and 1600,
+    which is the whole row.
+
+    The claim is settled at the height it arises, which is what the two boards are for
+    — the same pair the sidenote's margin keeps on the left. One holds a change in its
+    own card, so its row hangs level with it and the board declines the right side; the
+    other is 600px further down with nothing beside it, and grows both ways where it
+    stands. Asserting only the first would pass just as well for a page that refused
+    every exhibit the margin because a change existed somewhere above it — the reading
+    that held a board 1400px below the only row to the column's width with 345px of
+    margin standing empty beside it.
 
     A range of windows rather than one, because the gap between the reservation and the
     occupancy is the column's leftover and grows with the window: a single viewport can
     be picked where the two happen to agree, and 1000px is that viewport here. What the
     controls are for is being pressed, so anything over them is the change undecidable —
     the page's own loop, stopped by its own exhibit."""
-    url = serve(RAIL_AND_WIDE_PAGE)
+    url = serve(RAIL_BAND_PAGE)
     page, errors = open_page(browser, url)
 
     for width in (1000, 1200, 1400, 1600):
         resized(page, width, 900)
-        at = page.evaluate(RAIL_OVERLAP)
-        assert not at["docked"], (
-            f"at {width}px the row docked, so nothing is in the margin to run over"
+        at = page.evaluate(RAIL_BANDS)
+        hanging = [r for r in at["rows"] if not r["docked"]]
+        assert hanging, (
+            f"at {width}px every row docked, so nothing is in the margin to run over"
         )
-        assert at["over"] <= 1, (
-            f"at {width}px the board is drawn {at['over']:.0f}px over the controls that "
-            f"decide the change above it: board ends {at['board']:.0f}px, controls "
-            f"start {at['acts']:.0f}px"
-        )
-        assert at["pastPage"] <= 1, f"at {width}px it is past the page's box as well"
+        for name in ("plan", "later"):
+            b = at[name]
+            for r in hanging:
+                across = b["left"] < r["right"] and b["right"] > r["left"]
+                down = b["top"] < r["bottom"] and b["bottom"] > r["top"]
+                assert not (across and down), (
+                    f"at {width}px the {name} board is drawn over the controls that "
+                    f"decide a change: board {b['left']:.0f}–{b['right']:.0f}px across "
+                    f"and {b['top']:.0f}–{b['bottom']:.0f}px down, controls "
+                    f"{r['left']:.0f}–{r['right']:.0f}px and "
+                    f"{r['top']:.0f}–{r['bottom']:.0f}px"
+                )
+            assert b["right"] <= at["pageRight"] + 1, (
+                f"at {width}px the {name} board is past the page's box as well"
+            )
         assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
-        assert at["width"] >= at["column"] - 1, (
+        assert (
+            at["plan"]["width"] >= at["column"]["right"] - at["column"]["left"] - 1
+        ), (
             f"at {width}px the claim cost the exhibit its own measure: board "
-            f"{at['width']:.0f}px inside a {at['column']:.0f}px column"
+            f"{at['plan']['width']:.0f}px inside the column"
         )
 
-    # The free margin is still spent, or the claim above is indistinguishable from having
-    # dropped the breakout on every page that carries a change to decide — which is five
-    # of the seven shipped examples that have a wide widget on them.
+    # The claim reaches the rows' own heights and no further: with the whole left margin
+    # free the near board still grows that way, and the far board, which no row is level
+    # with, takes both margins where it stands.
     resized(page, 1600, 900)
-    assert (
-        page.evaluate(RAIL_OVERLAP)["width"] > page.evaluate(RAIL_OVERLAP)["column"]
-    ), (
-        "a claim on one margin must cost that side only: with the whole left margin free "
-        "the board is still the column's width, so nothing grew at all"
+    at = page.evaluate(RAIL_BANDS)
+    assert at["plan"]["left"] < at["column"]["left"] - 1, (
+        "a claim on one margin must cost that side only: with the whole left margin "
+        "free the near board is still the column's width, so nothing grew at all"
+    )
+    assert at["later"]["right"] > at["column"]["right"] + 1, (
+        "a board with no row anywhere near it is held to the column's right edge: a "
+        "row claims the margin at its own height, not down the whole page"
     )
     assert errors == []
     page.close()
+
+
+def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
+    browser, serve, tmp_path
+):
+    """The mark that holds an exhibit off a row beside it is measured by the module and
+    painted on the widget, and a copy runs no script to measure anything: the mark rides
+    into the file the way the rail does, and it is all that holds the copy's board off
+    the decided control standing level with it. A decided change keeps that control —
+    the record is what the margin was reserved for — so the collision the live page
+    measured is still real in the file, while the exhibit 600px further down carries no
+    mark and takes the room the copy's own reading grants it."""
+    url = serve(RAIL_BAND_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "id": "a-accept",
+            "author": "user",
+            "version": 1,
+            "widget": "sug-card",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    out = tmp_path / "banded.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+
+    errors = []
+    copy = browser.new_page(viewport={"width": 1600, "height": 900})
+    copy.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    copy.on("pageerror", lambda e: errors.append(str(e)))
+    copy.goto(out.as_uri(), wait_until="load")
+    at = copy.evaluate(RAIL_BANDS)
+
+    decided = [r for r in at["rows"] if not r["docked"]]
+    assert decided, "no row survived into the copy, so there is nothing to stand over"
+    b = at["plan"]
+    for r in decided:
+        across = b["left"] < r["right"] and b["right"] > r["left"]
+        down = b["top"] < r["bottom"] and b["bottom"] > r["top"]
+        assert not (across and down), (
+            f"the copy draws the board over the decided control beside it: board "
+            f"{b['left']:.0f}–{b['right']:.0f}px across and {b['top']:.0f}–"
+            f"{b['bottom']:.0f}px down, control {r['left']:.0f}–{r['right']:.0f}px "
+            f"and {r['top']:.0f}–{r['bottom']:.0f}px"
+        )
+    assert at["later"]["right"] > at["column"]["right"] + 1, (
+        "the copy held the far board to the column: the mark is the one claim that "
+        "travels, and it belongs only to the exhibits a row stands beside"
+    )
+    assert at["sideways"] == 0
+    assert errors == []
+    copy.close()
+
+
+# A drawing the page has room for, below a change to decide. The room rule grows it to
+# that room and the rail's claim reaches only the rows' own bands, so this page shows
+# the drawing whole — and a page-wide claim held it to less and let it scroll beside an
+# empty margin, which no other reading calls a fault.
+DRAWN_PAST_A_RAIL_PAGE = leaf_page(
+    "drawn past a rail",
+    """
+<h1 id="t">Flow</h1>
+<lf-suggestion id="sug-copy">
+  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<p id="gap" style="margin-block: 600px">Prose far enough below the change that its row
+reaches nothing here.</p>
+<lf-diagram id="flow"><pre>
+graph LR
+  R[request] --> C{cookie valid?}
+  C -->|yes| S[read session from Redis]
+  S -->|hit| H[handle]
+  C -->|no| L[login]
+</pre></lf-diagram>
+""",
+)
+
+
+def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
+    """Scrolling is the theme's honest degrade when even the room runs short, so every
+    other reading calls a page well whose drawing scrolls beside an empty margin —
+    nothing is clipped without a scrollbar and nothing stands outside any box. That is
+    the shape both margin claims' faults arrived in, and WITHHELD_ROOM is the reading
+    that refuses it: a drawing that scrolls, inside room that would have held it, with
+    nothing standing in the margin at its own band.
+
+    The clean half proves the page this gate is for passes it: a change to decide above,
+    a drawing the room holds below, and the gate finds nothing. The capped half is what
+    makes that worth believing — the same page with the drawing's box held under its own
+    graph fires the reading, so a clean answer is the layout's and not the probe going
+    blind. The guard between them pins the premise: the graph is wider than the column
+    and narrower than the room, or neither half asks the question."""
+    url = serve(DRAWN_PAST_A_RAIL_PAGE)
+    page, errors = open_page(browser, url)
+    fit = page.evaluate("""() => {
+        const el = document.getElementById('flow');
+        const m = document.querySelector('main');
+        const s = getComputedStyle(m), b = m.getBoundingClientRect();
+        return { shows: el.clientWidth, drawn: el.scrollWidth,
+                 room: parseFloat(getComputedStyle(el).getPropertyValue('--lf-room')),
+                 column: b.width - parseFloat(s.paddingLeft)
+                         - parseFloat(s.paddingRight) };
+    }""")
+    assert fit["column"] < fit["drawn"] <= fit["room"], (
+        f"the premise is gone — the graph must need growing and fit the room, or "
+        f"neither half of this test asks the question: drawn {fit['drawn']:.0f}px, "
+        f"column {fit['column']:.0f}px, room {fit['room']:.0f}px"
+    )
+    assert fit["shows"] >= fit["drawn"] - 1, (
+        f"the page had {fit['room']:.0f}px of room and no note or row beside the "
+        f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
+    )
+    assert page.evaluate(interact.WITHHELD_ROOM) == []
+    assert errors == []
+    page.close()
+
+    capped = DRAWN_PAST_A_RAIL_PAGE.replace(
+        '<h1 id="t">Flow</h1>',
+        '<style>#flow { max-width: 640px }</style>\n<h1 id="t">Flow</h1>',
+    )
+    failures = interact.render_version(browser, serve(capped))
+    assert [f for f in failures if "<lf-diagram id=flow> scrolls" in f], (
+        f"a drawing held under its own graph beside an empty margin must be named at "
+        f"handover, and the gate said: {failures or 'nothing'}"
+    )
 
 
 # A page hanging apparatus of its own in the margin, level with a wide widget. The theme

@@ -1415,6 +1415,7 @@ The JavaScript readings embedded in `interact.py` each answer one failure class:
 | `TINY_BOXES` | every declared widget has a usable rendered box |
 | `UNMARKABLE_ITEMS` | every pointable item has a visible part for an outline |
 | `MISPLACED_BOXES` | boxes stay in the column or in genuinely reachable overflow |
+| `WITHHELD_ROOM` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `CLIPPED_CONTROLS` | actionable controls are visible and reachable |
 | `UNREACHABLE_WORDS` | visible page words remain in reachable flow |
 | `COVERED_WORDS` | browser words are not silently clipped, hidden, or claimed by chrome |

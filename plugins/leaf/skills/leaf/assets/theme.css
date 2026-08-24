@@ -834,9 +834,10 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        condition — a cramped page has handed the strip back and its notes are indented
        blocks in the flow, so there is no float out there to clear and no margin to take.
 
-       Only the left. The rail claims the other side for a suggestion's controls, which are
-       positioned rather than floated, so `clear` cannot see them and that claim is still
-       spent page-wide below.
+       Only the left. The rail claims the other side for a suggestion's controls, which
+       are positioned rather than floated, so `clear` cannot see them; the module that
+       hangs them measures the same collision instead, and the rule beside
+       .lf-sug-actions spends its answer.
 
        Every wide element, including one inside a box that withheld the room from it. A
        widget with no room has no negative margin and could not have reached the note, so
@@ -1195,15 +1196,24 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media screen and (min-width: 900px) {
   body:has(.lf-sug-actions) {
     --strip-r: var(--rail, 0px);
-    /* And the right margin is spoken for, so a wide widget grows to the left alone. The
-       row hangs 22px off the column and the strip is reserved out of the far side of the
-       page, which are not the same place once the column centres in what is left: a board
-       grown to the strip stood 134px over these controls at a laptop's width. Said here
-       because this is where the claim is made — the reservation above and this are the
-       two halves of taking a margin, and a page that reserves one without saying so is a
-       page whose exhibits are drawn over its own apparatus. */
-    & [data-lf-wide] { --lf-grow-r: 0px; }
   }
+  /* And the right margin is spoken for where a row hangs in it, so a wide widget level
+     with one grows to the left alone. The row hangs 22px off the column and the strip is
+     reserved out of the far side of the page, which are not the same place once the
+     column centres in what is left: a board grown to the strip stood 134px over these
+     controls at a laptop's width. Refusing the side page-wide answered that collision by
+     never having it, and charged every exhibit on the page for a row somewhere above it —
+     measured, one change near the top of a page held a board 1400px below it to the
+     column's width with 345px of margin standing empty beside it. The collision is a fact
+     about one height, the same fact `clear` states for a sidenote on the left; a row is
+     positioned rather than floated, so no layout rule can see it, and the module that
+     hangs the rows is what knows where they ended up — it marks the exhibits whose bands
+     a row reaches (lf-suggestion.js, data-lf-yield) and this is where the mark is spent.
+     Said beside the reservation because they are the two halves of taking a margin, and a
+     page that reserves one without saying so is a page whose exhibits are drawn over its
+     own apparatus. A copy runs no script and keeps the marks it was exported with, the
+     way it keeps the rail its decided rows reserved. */
+  [data-lf-wide][data-lf-yield~="r"] { --lf-grow-r: 0px; }
 }
 
 /* Where a widget upgrade fails, it fails soft into this box. */

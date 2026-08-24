@@ -1674,8 +1674,15 @@ def page_claim(page_dir: Path) -> dict | None:
 
 
 def claim_is_active(claim: dict | None) -> bool:
-    """Whether a claim still names a live owner."""
-    return bool(claim and claim["released"] is None and pid_alive(claim["pid"]))
+    """Whether a claim still names a live owner.
+
+    The claims directory is shared by every checkout on the machine, so a
+    record can come from a build whose claim has no `pid` — one that derives
+    liveness some other way. This version cannot read that record's owner, so
+    it is nobody's active claim here rather than a crash in every scan."""
+    return bool(
+        claim and claim["released"] is None and "pid" in claim and pid_alive(claim["pid"])
+    )
 
 
 def claim_records() -> list:

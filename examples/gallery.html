@@ -438,88 +438,92 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       </section>
 
       <section id="off-decide-store">
-        <h2>What a full store does</h2>
-        <p id="off-store-ask">
-          At 40 MB a workspace, something has to give. Nothing in the beta reached the
-          cap, so this decides what happens to the first workspace that does. My
-          recommendation is the first. Pick one to settle it; if you want a fourth
-          behaviour, the box below takes it.
-        </p>
-        <lf-options id="off-full-store" choose>
-          <lf-option id="off-fs-evict" recommended
-            ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
-            <strong>Drop the oldest documents</strong>
-            <dl class="facts">
-              <dt>At the cap</dt>
-              <dd>the least recently opened document leaves the device</dd>
-              <dt>Reader sees</dt>
-              <dd>a line naming what left, and how to keep it</dd>
-              <dt>Worst case</dt>
-              <dd>a document they meant to have offline isn't there</dd>
-            </dl>
-            <p id="off-fs-evict-why">
-              Editing never stops, and that is the whole point of the feature. A
-              document that leaves is still on the server, so what is lost is having it
-              here, not the work in it — and this is the only one of the three that does
-              not punish a reader for not reading a banner. Pinning a document keeps it,
-              and the line that says what left says so.
-            </p>
-          </lf-option>
-          <lf-option id="off-fs-stop"
-            ><lf-chip>effort: 3 days</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Stop accepting offline edits</strong>
-            <dl class="facts">
-              <dt>At the cap</dt>
-              <dd>the editor goes read-only until a reconnect</dd>
-              <dt>Reader sees</dt>
-              <dd>a banner saying editing is paused</dd>
-              <dt>Worst case</dt>
-              <dd>they are on a plane with the document they came to write</dd>
-            </dl>
-            <p id="off-fs-stop-why">
-              Nothing is ever dropped, and that is the cleanest sentence any of the
-              three gives a release note. It also fails at exactly the moment offline
-              editing is worth having, and a reader with no connection cannot act on the
-              banner telling them so.
-            </p>
-          </lf-option>
-          <lf-option id="off-fs-ask"
-            ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Ask which documents to keep</strong>
-            <dl class="facts">
-              <dt>At the cap</dt>
-              <dd>a picker, before anything leaves</dd>
-              <dt>Reader sees</dt>
-              <dd>a list of what is on the device, by size</dd>
-              <dt>Worst case</dt>
-              <dd>a dialog between them and their document</dd>
-            </dl>
-            <p id="off-fs-ask-why">
-              The most respectful of the three on paper. In practice it arrives without
-              warning, mid-sentence, and asks someone who came to write a question about
-              storage — and it still needs the eviction code underneath, for the reader
-              who dismisses it.
-            </p>
-          </lf-option>
-        </lf-options>
+        <lf-ask id="off-full-store-ask">
+          <h2>What a full store does</h2>
+          <p id="off-store-ask">
+            At 40 MB a workspace, something has to give. Nothing in the beta reached the
+            cap, so this decides what happens to the first workspace that does. My
+            recommendation is the first. Pick one to settle it; if you want a fourth
+            behaviour, the box below takes it.
+          </p>
+          <lf-options id="off-full-store" choose>
+            <lf-option id="off-fs-evict" recommended
+              ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+              <strong>Drop the oldest documents</strong>
+              <dl class="facts">
+                <dt>At the cap</dt>
+                <dd>the least recently opened document leaves the device</dd>
+                <dt>Reader sees</dt>
+                <dd>a line naming what left, and how to keep it</dd>
+                <dt>Worst case</dt>
+                <dd>a document they meant to have offline isn't there</dd>
+              </dl>
+              <p id="off-fs-evict-why">
+                Editing never stops, and that is the whole point of the feature. A
+                document that leaves is still on the server, so what is lost is having
+                it here, not the work in it — and this is the only one of the three that
+                does not punish a reader for not reading a banner. Pinning a document
+                keeps it, and the line that says what left says so.
+              </p>
+            </lf-option>
+            <lf-option id="off-fs-stop"
+              ><lf-chip>effort: 3 days</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+              <strong>Stop accepting offline edits</strong>
+              <dl class="facts">
+                <dt>At the cap</dt>
+                <dd>the editor goes read-only until a reconnect</dd>
+                <dt>Reader sees</dt>
+                <dd>a banner saying editing is paused</dd>
+                <dt>Worst case</dt>
+                <dd>they are on a plane with the document they came to write</dd>
+              </dl>
+              <p id="off-fs-stop-why">
+                Nothing is ever dropped, and that is the cleanest sentence any of the
+                three gives a release note. It also fails at exactly the moment offline
+                editing is worth having, and a reader with no connection cannot act on
+                the banner telling them so.
+              </p>
+            </lf-option>
+            <lf-option id="off-fs-ask"
+              ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+              <strong>Ask which documents to keep</strong>
+              <dl class="facts">
+                <dt>At the cap</dt>
+                <dd>a picker, before anything leaves</dd>
+                <dt>Reader sees</dt>
+                <dd>a list of what is on the device, by size</dd>
+                <dt>Worst case</dt>
+                <dd>a dialog between them and their document</dd>
+              </dl>
+              <p id="off-fs-ask-why">
+                The most respectful of the three on paper. In practice it arrives
+                without warning, mid-sentence, and asks someone who came to write a
+                question about storage — and it still needs the eviction code
+                underneath, for the reader who dismisses it.
+              </p>
+            </lf-option>
+          </lf-options>
+        </lf-ask>
       </section>
 
       <section id="off-decide-rollout">
-        <h2>How the rollout goes</h2>
-        <p id="off-rollout-ask">
-          The beta workspaces already have it. This is about everyone else, and the
-          three shapes differ mostly in how fast the iOS stall reaches people who never
-          agreed to a beta. I recommend the middle one.
-        </p>
-        <lf-options id="off-rollout" choose>
-          <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
-          <lf-option id="off-ro-ten" recommended
-            >Ten percent for a week, then everyone</lf-option
-          >
-          <lf-option id="off-ro-opt-in"
-            >An opt-in toggle until the iOS fix lands</lf-option
-          >
-        </lf-options>
+        <lf-ask id="off-rollout-ask-region">
+          <h2>How the rollout goes</h2>
+          <p id="off-rollout-ask">
+            The beta workspaces already have it. This is about everyone else, and the
+            three shapes differ mostly in how fast the iOS stall reaches people who
+            never agreed to a beta. I recommend the middle one.
+          </p>
+          <lf-options id="off-rollout" choose>
+            <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
+            <lf-option id="off-ro-ten" recommended
+              >Ten percent for a week, then everyone</lf-option
+            >
+            <lf-option id="off-ro-opt-in"
+              >An opt-in toggle until the iOS fix lands</lf-option
+            >
+          </lf-options>
+        </lf-ask>
         <p id="off-rollout-day">The day itself, whichever shape wins:</p>
         <ol class="steps" id="off-runbook">
           <li>
@@ -614,26 +618,28 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="off-followup">
-        <h2>What I pick up next</h2>
-        <p id="off-followup-intro">
-          Four jobs stand behind the ship, none of them holding it. Tick whichever you
-          want started, by click or by keyboard, and write a fifth in the box if I have
-          missed one.
-        </p>
-        <lf-options id="off-followups" choose multiple>
-          <lf-option id="off-fu-drill" for="off-merge"
-            >A merge drill with three devices offline at once</lf-option
-          >
-          <lf-option id="off-fu-cap" for="off-how"
-            >Telemetry on how close real workspaces get to 40 MB</lf-option
-          >
-          <lf-option id="off-fu-copy" for="off-surface"
-            >A second pass on the offline banner's wording</lf-option
-          >
-          <lf-option id="off-fu-comments" for="off-punch-list"
-            >A review of what offline comments would take</lf-option
-          >
-        </lf-options>
+        <lf-ask id="off-followups-ask">
+          <h2>What I pick up next</h2>
+          <p id="off-followup-intro">
+            Four jobs stand behind the ship, none of them holding it. Tick whichever you
+            want started, by click or by keyboard, and write a fifth in the box if I
+            have missed one.
+          </p>
+          <lf-options id="off-followups" choose multiple>
+            <lf-option id="off-fu-drill" for="off-merge"
+              >A merge drill with three devices offline at once</lf-option
+            >
+            <lf-option id="off-fu-cap" for="off-how"
+              >Telemetry on how close real workspaces get to 40 MB</lf-option
+            >
+            <lf-option id="off-fu-copy" for="off-surface"
+              >A second pass on the offline banner's wording</lf-option
+            >
+            <lf-option id="off-fu-comments" for="off-punch-list"
+              >A review of what offline comments would take</lf-option
+            >
+          </lf-options>
+        </lf-ask>
       </section>
 </lf-tab>
 
@@ -884,24 +890,26 @@ graph LR
       </section>
 
       <section id="next-up">
-        <h2>What I pick up next</h2>
-        <p id="next-intro">
-          Whichever store wins, three jobs stand behind it, and each is argued somewhere
-          above rather than in a card of its own. Pick the ones worth starting — click a
-          row, or Tab to its mark and press Enter — and the box takes anything the rows
-          don't cover, including "none of these".
-        </p>
-        <lf-options id="next-jobs" choose multiple>
-          <lf-option id="nx-revoke" for="constraints" recommended
-            >A revocation drill at support's volume</lf-option
-          >
-          <lf-option id="nx-fallback" for="flow"
-            >Key rotation for the fallback cookie</lf-option
-          >
-          <lf-option id="nx-load" for="options"
-            >A write load test at request rate</lf-option
-          >
-        </lf-options>
+        <lf-ask id="next-jobs-ask">
+          <h2>What I pick up next</h2>
+          <p id="next-intro">
+            Whichever store wins, three jobs stand behind it, and each is argued
+            somewhere above rather than in a card of its own. Pick the ones worth
+            starting — click a row, or Tab to its mark and press Enter — and the box
+            takes anything the rows don't cover, including "none of these".
+          </p>
+          <lf-options id="next-jobs" choose multiple>
+            <lf-option id="nx-revoke" for="constraints" recommended
+              >A revocation drill at support's volume</lf-option
+            >
+            <lf-option id="nx-fallback" for="flow"
+              >Key rotation for the fallback cookie</lf-option
+            >
+            <lf-option id="nx-load" for="options"
+              >A write load test at request rate</lf-option
+            >
+          </lf-options>
+        </lf-ask>
       </section>
 </lf-tab>
 
@@ -1109,50 +1117,54 @@ graph LR
       </section>
 
       <section id="pm-decisions">
-        <h2>Still open</h2>
-        <p id="pm-where-note">
-          Click an option to settle each of these, or write a different answer in the
-          box beneath it.
-        </p>
-        <lf-options id="pm-where" choose>
-          <lf-option id="pm-wh-status"
-            ><lf-chip>quietest</lf-chip><lf-chip tone="warn">easy to miss</lf-chip>
-            <strong>Status page only</strong> Anyone who checks finds it; the 412
-            affected workspaces are not told it exists.
-          </lf-option>
-          <lf-option id="pm-wh-email" recommended
-            ><lf-chip>reaches the affected</lf-chip
-            ><lf-chip tone="ok">matches the impact</lf-chip>
-            <strong>Status page, plus email the 412</strong> The workspaces that felt
-            the delay hear it from us rather than finding it, and nobody else's inbox is
-            spent on it.
-          </lf-option>
-          <lf-option id="pm-wh-blog"
-            ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
-            <strong>Blog post as well</strong> More reach than 94 minutes earns, and the
-            audience of a blog post is mostly people the incident never touched.
-          </lf-option>
-        </lf-options>
-        <p id="pm-date-note">
-          And whether the third fix carries a date. The alerting change is in review
-          now.
-        </p>
-        <lf-options id="pm-date" choose>
-          <lf-option id="pm-dt-week" recommended
-            ><lf-chip tone="warn">a public promise</lf-chip>
-            <strong>"Ships this week"</strong> Specific enough to hold us to it, and it
-            is in review with two days of margin.
-          </lf-option>
-          <lf-option id="pm-dt-quarter"
-            ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and
-            reads that way.
-          </lf-option>
-          <lf-option id="pm-dt-none"
-            ><lf-chip>no promise</lf-chip> <strong>No date</strong> The first two fixes
-            shipped before publishing; undated, the page promises nothing it hasn't
-            already done.
-          </lf-option>
-        </lf-options>
+        <lf-ask id="pm-where-ask">
+          <h2>Still open</h2>
+          <p id="pm-where-note">
+            Click an option to settle each of these, or write a different answer in the
+            box beneath it.
+          </p>
+          <lf-options id="pm-where" choose>
+            <lf-option id="pm-wh-status"
+              ><lf-chip>quietest</lf-chip><lf-chip tone="warn">easy to miss</lf-chip>
+              <strong>Status page only</strong> Anyone who checks finds it; the 412
+              affected workspaces are not told it exists.
+            </lf-option>
+            <lf-option id="pm-wh-email" recommended
+              ><lf-chip>reaches the affected</lf-chip
+              ><lf-chip tone="ok">matches the impact</lf-chip>
+              <strong>Status page, plus email the 412</strong> The workspaces that felt
+              the delay hear it from us rather than finding it, and nobody else's inbox
+              is spent on it.
+            </lf-option>
+            <lf-option id="pm-wh-blog"
+              ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
+              <strong>Blog post as well</strong> More reach than 94 minutes earns, and
+              the audience of a blog post is mostly people the incident never touched.
+            </lf-option>
+          </lf-options>
+        </lf-ask>
+        <lf-ask id="pm-date-ask">
+          <p id="pm-date-note">
+            And whether the third fix carries a date. The alerting change is in review
+            now.
+          </p>
+          <lf-options id="pm-date" choose>
+            <lf-option id="pm-dt-week" recommended
+              ><lf-chip tone="warn">a public promise</lf-chip>
+              <strong>"Ships this week"</strong> Specific enough to hold us to it, and
+              it is in review with two days of margin.
+            </lf-option>
+            <lf-option id="pm-dt-quarter"
+              ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and
+              reads that way.
+            </lf-option>
+            <lf-option id="pm-dt-none"
+              ><lf-chip>no promise</lf-chip> <strong>No date</strong> The first two
+              fixes shipped before publishing; undated, the page promises nothing it
+              hasn't already done.
+            </lf-option>
+          </lf-options>
+        </lf-ask>
       </section>
 
       <section id="pm-notice">
@@ -1500,17 +1512,18 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
           list you have to keep in your head.
         </p>
 
-        <h3 id="hub-ask-schema">Land the schema migration?</h3>
-        <p id="hub-ask-schema-why">
-          finch has written and tested the two nullable columns the reconciliation work
-          writes into. It is green, and it holds anyway: it touches
-          <code>schema/atlas.sql</code>, which the standing policy below reserves for
-          your word however green the tests are. Landing it unblocks the variance report
-          and frees junco after today; holding it leaves <code>main</code> untouched and
-          idles two of the five.
-        </p>
-        <lf-tree id="hub-schema-files">
-          <pre>
+        <lf-ask id="hub-schema-ask">
+          <h3 id="hub-ask-schema">Land the schema migration?</h3>
+          <p id="hub-ask-schema-why">
+            finch has written and tested the two nullable columns the reconciliation
+            work writes into. It is green, and it holds anyway: it touches
+            <code>schema/atlas.sql</code>, which the standing policy below reserves for
+            your word however green the tests are. Landing it unblocks the variance
+            report and frees junco after today; holding it leaves
+            <code>main</code> untouched and idles two of the five.
+          </p>
+          <lf-tree id="hub-schema-files">
+            <pre>
 schema/
   atlas.sql  +14
   migrations/
@@ -1520,14 +1533,14 @@ atlas/
 tests/
   test_migrations.py  +48
 </pre>
-        </lf-tree>
-        <details id="hub-schema-diff-box">
-          <summary>
-            The whole of <code>atlas-schema</code> at <code>9f3c2a1</code> — the four
-            files above, and what Land it now lands
-          </summary>
-          <lf-diff id="hub-schema-diff">
-            <pre>
+          </lf-tree>
+          <details id="hub-schema-diff-box">
+            <summary>
+              The whole of <code>atlas-schema</code> at <code>9f3c2a1</code> — the four
+              files above, and what Land it now lands
+            </summary>
+            <lf-diff id="hub-schema-diff">
+              <pre>
 diff --git a/schema/atlas.sql b/schema/atlas.sql
 --- a/schema/atlas.sql
 +++ b/schema/atlas.sql
@@ -1585,43 +1598,44 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
 +    plan = explain(db, "select * from ledger_entry where reconciled_at is null")
 +    assert "ledger_entry_unreconciled" in plan
 </pre>
-          </lf-diff>
-        </details>
-        <lf-options id="hub-gate-schema" choose>
-          <lf-option id="hub-gs-land">
-            <lf-chip tone="ok">tests green</lf-chip><lf-chip>4 files</lf-chip>
-            <strong>Land it now</strong>
-            <dl class="facts">
-              <dt>Unblocks</dt>
-              <dd>the variance report, and junco after today</dd>
-              <dt>Reversible</dt>
-              <dd>both columns are nullable; the revert is one migration</dd>
-            </dl>
-            <p>
-              The columns are additive and nothing reads them yet, so the shadow run
-              tonight exercises the new path against the old one before anything depends
-              on it.
-            </p>
-          </lf-option>
-          <lf-option id="hub-gs-hold">
-            <lf-chip>effort: none</lf-chip><lf-chip tone="warn">idles two</lf-chip>
-            <strong>Hold until the backfill is written</strong>
-            <dl class="facts">
-              <dt>Unblocks</dt>
-              <dd>nothing</dd>
-              <dt>Costs</dt>
-              <dd>junco and siskin have nothing else scoped this week</dd>
-            </dl>
-            <p>
-              Worth it if you would rather see the backfill and the schema land in one
-              piece, which is one review instead of two.
-            </p>
-          </lf-option>
-        </lf-options>
-        <p id="hub-gate-schema-ask">
-          Neither of those yet? Say so in the box under the options — a question for
-          finch goes to finch, and the gate stays open until you answer it.
-        </p>
+            </lf-diff>
+          </details>
+          <lf-options id="hub-gate-schema" choose>
+            <lf-option id="hub-gs-land">
+              <lf-chip tone="ok">tests green</lf-chip><lf-chip>4 files</lf-chip>
+              <strong>Land it now</strong>
+              <dl class="facts">
+                <dt>Unblocks</dt>
+                <dd>the variance report, and junco after today</dd>
+                <dt>Reversible</dt>
+                <dd>both columns are nullable; the revert is one migration</dd>
+              </dl>
+              <p>
+                The columns are additive and nothing reads them yet, so the shadow run
+                tonight exercises the new path against the old one before anything
+                depends on it.
+              </p>
+            </lf-option>
+            <lf-option id="hub-gs-hold">
+              <lf-chip>effort: none</lf-chip><lf-chip tone="warn">idles two</lf-chip>
+              <strong>Hold until the backfill is written</strong>
+              <dl class="facts">
+                <dt>Unblocks</dt>
+                <dd>nothing</dd>
+                <dt>Costs</dt>
+                <dd>junco and siskin have nothing else scoped this week</dd>
+              </dl>
+              <p>
+                Worth it if you would rather see the backfill and the schema land in one
+                piece, which is one review instead of two.
+              </p>
+            </lf-option>
+          </lf-options>
+          <p id="hub-gate-schema-ask">
+            Neither of those yet? Say so in the box under the options — a question for
+            finch goes to finch, and the gate stays open until you answer it.
+          </p>
+        </lf-ask>
 
         <h3 id="hub-ask-fixture">The reconciliation fixture is yours to pull</h3>
         <p id="hub-ask-fixture-why">
@@ -2050,64 +2064,68 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
               <lf-card id="card-mounts"><strong>South mounts</strong></lf-card>
             </lf-column>
           </lf-board>
-          <p id="feeder-order">
-            The bracket order goes in on Friday and there is room in it. These are the
-            extras the south pair turned out to want.
-          </p>
-          <lf-options
-            id="feeder-extras"
-            label="Which extras should join the bracket order?"
-            choose
-            multiple
-          >
-            <lf-option id="fx-tray"
-              ><lf-chip>£9 the pair</lf-chip
-              ><lf-chip tone="warn">more cleaning</lf-chip>
-              <strong>Seed tray</strong> Catches the spill under the south pair, where
-              the grass has thinned to bare earth.
-            </lf-option>
-            <lf-option id="fx-dome"
-              ><lf-chip>£15 each</lf-chip><lf-chip tone="ok">fits both pairs</lf-chip>
-              <strong>Weather dome</strong> Keeps the seed dry; the south feeders
-              clogged twice in the wet week.
-            </lf-option>
-            <lf-option id="fx-mount"
-              ><lf-chip>£24 fitted</lf-chip><lf-chip>uses the spare camera</lf-chip>
-              <strong>Second camera mount</strong> Puts the spare on the north post once
-              the feeders are up.
-            </lf-option>
-          </lf-options>
+          <lf-ask id="feeder-extras-ask">
+            <p id="feeder-order">
+              The bracket order goes in on Friday and there is room in it. These are the
+              extras the south pair turned out to want.
+            </p>
+            <lf-options
+              id="feeder-extras"
+              label="Which extras should join the bracket order?"
+              choose
+              multiple
+            >
+              <lf-option id="fx-tray"
+                ><lf-chip>£9 the pair</lf-chip
+                ><lf-chip tone="warn">more cleaning</lf-chip>
+                <strong>Seed tray</strong> Catches the spill under the south pair, where
+                the grass has thinned to bare earth.
+              </lf-option>
+              <lf-option id="fx-dome"
+                ><lf-chip>£15 each</lf-chip><lf-chip tone="ok">fits both pairs</lf-chip>
+                <strong>Weather dome</strong> Keeps the seed dry; the south feeders
+                clogged twice in the wet week.
+              </lf-option>
+              <lf-option id="fx-mount"
+                ><lf-chip>£24 fitted</lf-chip><lf-chip>uses the spare camera</lf-chip>
+                <strong>Second camera mount</strong> Puts the spare on the north post
+                once the feeders are up.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
         </lf-tab>
 
         <lf-tab id="tab-bath" label="Vision">
-          <p id="bath-status">
-            The winter habitat keeps food, water, and a camera available without adding
-            a daily round. The open question is how to keep the bird bath liquid through
-            January. Click an option to decide.
-          </p>
-          <lf-options
-            id="bath-heat"
-            label="How should the bird bath stay open through January?"
-            choose
-          >
-            <lf-option id="heat-immersion"
-              ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
-              ><lf-chip tone="ok">liquid all winter</lf-chip>
-              <strong>Immersion heater</strong> Drops into the basin; needs a cord run
-              across the lawn.
-            </lf-option>
-            <lf-option id="heat-solar" recommended
-              ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
-              ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
-              <strong>Solar basin</strong> Replace the basin with the heated model; no
-              cord, reversible.
-            </lf-option>
-            <lf-option id="heat-none"
-              ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip
-              ><lf-chip tone="danger">liquid on thaw days</lf-chip>
-              <strong>Let it freeze</strong> Refill on thaw days only.
-            </lf-option>
-          </lf-options>
+          <lf-ask id="bath-heat-ask">
+            <p id="bath-status">
+              The winter habitat keeps food, water, and a camera available without
+              adding a daily round. The open question is how to keep the bird bath
+              liquid through January. Click an option to decide.
+            </p>
+            <lf-options
+              id="bath-heat"
+              label="How should the bird bath stay open through January?"
+              choose
+            >
+              <lf-option id="heat-immersion"
+                ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
+                ><lf-chip tone="ok">liquid all winter</lf-chip>
+                <strong>Immersion heater</strong> Drops into the basin; needs a cord run
+                across the lawn.
+              </lf-option>
+              <lf-option id="heat-solar" recommended
+                ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
+                ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
+                <strong>Solar basin</strong> Replace the basin with the heated model; no
+                cord, reversible.
+              </lf-option>
+              <lf-option id="heat-none"
+                ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip
+                ><lf-chip tone="danger">liquid on thaw days</lf-chip>
+                <strong>Let it freeze</strong> Refill on thaw days only.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
         </lf-tab>
 
         <lf-tab id="tab-camera" label="Field evidence">

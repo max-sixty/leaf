@@ -218,50 +218,54 @@ graph LR
       </section>
 
       <section id="pm-decisions">
-        <h2>Still open</h2>
-        <p id="pm-where-note">
-          Click an option to settle each of these, or write a different answer in the
-          box beneath it.
-        </p>
-        <lf-options id="pm-where" choose>
-          <lf-option id="pm-wh-status"
-            ><lf-chip>quietest</lf-chip><lf-chip tone="warn">easy to miss</lf-chip>
-            <strong>Status page only</strong> Anyone who checks finds it; the 412
-            affected workspaces are not told it exists.
-          </lf-option>
-          <lf-option id="pm-wh-email" recommended
-            ><lf-chip>reaches the affected</lf-chip
-            ><lf-chip tone="ok">matches the impact</lf-chip>
-            <strong>Status page, plus email the 412</strong> The workspaces that felt
-            the delay hear it from us rather than finding it, and nobody else's inbox is
-            spent on it.
-          </lf-option>
-          <lf-option id="pm-wh-blog"
-            ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
-            <strong>Blog post as well</strong> More reach than 94 minutes earns, and the
-            audience of a blog post is mostly people the incident never touched.
-          </lf-option>
-        </lf-options>
-        <p id="pm-date-note">
-          And whether the third fix carries a date. The alerting change is in review
-          now.
-        </p>
-        <lf-options id="pm-date" choose>
-          <lf-option id="pm-dt-week" recommended
-            ><lf-chip tone="warn">a public promise</lf-chip>
-            <strong>"Ships this week"</strong> Specific enough to hold us to it, and it
-            is in review with two days of margin.
-          </lf-option>
-          <lf-option id="pm-dt-quarter"
-            ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and
-            reads that way.
-          </lf-option>
-          <lf-option id="pm-dt-none"
-            ><lf-chip>no promise</lf-chip> <strong>No date</strong> The first two fixes
-            shipped before publishing; undated, the page promises nothing it hasn't
-            already done.
-          </lf-option>
-        </lf-options>
+        <lf-ask id="pm-where-ask">
+          <h2>Still open</h2>
+          <p id="pm-where-note">
+            Click an option to settle each of these, or write a different answer in the
+            box beneath it.
+          </p>
+          <lf-options id="pm-where" choose>
+            <lf-option id="pm-wh-status"
+              ><lf-chip>quietest</lf-chip><lf-chip tone="warn">easy to miss</lf-chip>
+              <strong>Status page only</strong> Anyone who checks finds it; the 412
+              affected workspaces are not told it exists.
+            </lf-option>
+            <lf-option id="pm-wh-email" recommended
+              ><lf-chip>reaches the affected</lf-chip
+              ><lf-chip tone="ok">matches the impact</lf-chip>
+              <strong>Status page, plus email the 412</strong> The workspaces that felt
+              the delay hear it from us rather than finding it, and nobody else's inbox
+              is spent on it.
+            </lf-option>
+            <lf-option id="pm-wh-blog"
+              ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
+              <strong>Blog post as well</strong> More reach than 94 minutes earns, and
+              the audience of a blog post is mostly people the incident never touched.
+            </lf-option>
+          </lf-options>
+        </lf-ask>
+        <lf-ask id="pm-date-ask">
+          <p id="pm-date-note">
+            And whether the third fix carries a date. The alerting change is in review
+            now.
+          </p>
+          <lf-options id="pm-date" choose>
+            <lf-option id="pm-dt-week" recommended
+              ><lf-chip tone="warn">a public promise</lf-chip>
+              <strong>"Ships this week"</strong> Specific enough to hold us to it, and
+              it is in review with two days of margin.
+            </lf-option>
+            <lf-option id="pm-dt-quarter"
+              ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and
+              reads that way.
+            </lf-option>
+            <lf-option id="pm-dt-none"
+              ><lf-chip>no promise</lf-chip> <strong>No date</strong> The first two
+              fixes shipped before publishing; undated, the page promises nothing it
+              hasn't already done.
+            </lf-option>
+          </lf-options>
+        </lf-ask>
       </section>
 
       <section id="pm-notice">

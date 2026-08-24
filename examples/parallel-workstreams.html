@@ -54,64 +54,68 @@
               <lf-card id="card-mounts"><strong>South mounts</strong></lf-card>
             </lf-column>
           </lf-board>
-          <p id="feeder-order">
-            The bracket order goes in on Friday and there is room in it. These are the
-            extras the south pair turned out to want.
-          </p>
-          <lf-options
-            id="feeder-extras"
-            label="Which extras should join the bracket order?"
-            choose
-            multiple
-          >
-            <lf-option id="fx-tray"
-              ><lf-chip>£9 the pair</lf-chip
-              ><lf-chip tone="warn">more cleaning</lf-chip>
-              <strong>Seed tray</strong> Catches the spill under the south pair, where
-              the grass has thinned to bare earth.
-            </lf-option>
-            <lf-option id="fx-dome"
-              ><lf-chip>£15 each</lf-chip><lf-chip tone="ok">fits both pairs</lf-chip>
-              <strong>Weather dome</strong> Keeps the seed dry; the south feeders
-              clogged twice in the wet week.
-            </lf-option>
-            <lf-option id="fx-mount"
-              ><lf-chip>£24 fitted</lf-chip><lf-chip>uses the spare camera</lf-chip>
-              <strong>Second camera mount</strong> Puts the spare on the north post once
-              the feeders are up.
-            </lf-option>
-          </lf-options>
+          <lf-ask id="feeder-extras-ask">
+            <p id="feeder-order">
+              The bracket order goes in on Friday and there is room in it. These are the
+              extras the south pair turned out to want.
+            </p>
+            <lf-options
+              id="feeder-extras"
+              label="Which extras should join the bracket order?"
+              choose
+              multiple
+            >
+              <lf-option id="fx-tray"
+                ><lf-chip>£9 the pair</lf-chip
+                ><lf-chip tone="warn">more cleaning</lf-chip>
+                <strong>Seed tray</strong> Catches the spill under the south pair, where
+                the grass has thinned to bare earth.
+              </lf-option>
+              <lf-option id="fx-dome"
+                ><lf-chip>£15 each</lf-chip><lf-chip tone="ok">fits both pairs</lf-chip>
+                <strong>Weather dome</strong> Keeps the seed dry; the south feeders
+                clogged twice in the wet week.
+              </lf-option>
+              <lf-option id="fx-mount"
+                ><lf-chip>£24 fitted</lf-chip><lf-chip>uses the spare camera</lf-chip>
+                <strong>Second camera mount</strong> Puts the spare on the north post
+                once the feeders are up.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
         </lf-tab>
 
         <lf-tab id="tab-bath" label="Vision">
-          <p id="bath-status">
-            The winter habitat keeps food, water, and a camera available without adding
-            a daily round. The open question is how to keep the bird bath liquid through
-            January. Click an option to decide.
-          </p>
-          <lf-options
-            id="bath-heat"
-            label="How should the bird bath stay open through January?"
-            choose
-          >
-            <lf-option id="heat-immersion"
-              ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
-              ><lf-chip tone="ok">liquid all winter</lf-chip>
-              <strong>Immersion heater</strong> Drops into the basin; needs a cord run
-              across the lawn.
-            </lf-option>
-            <lf-option id="heat-solar" recommended
-              ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
-              ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
-              <strong>Solar basin</strong> Replace the basin with the heated model; no
-              cord, reversible.
-            </lf-option>
-            <lf-option id="heat-none"
-              ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip
-              ><lf-chip tone="danger">liquid on thaw days</lf-chip>
-              <strong>Let it freeze</strong> Refill on thaw days only.
-            </lf-option>
-          </lf-options>
+          <lf-ask id="bath-heat-ask">
+            <p id="bath-status">
+              The winter habitat keeps food, water, and a camera available without
+              adding a daily round. The open question is how to keep the bird bath
+              liquid through January. Click an option to decide.
+            </p>
+            <lf-options
+              id="bath-heat"
+              label="How should the bird bath stay open through January?"
+              choose
+            >
+              <lf-option id="heat-immersion"
+                ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
+                ><lf-chip tone="ok">liquid all winter</lf-chip>
+                <strong>Immersion heater</strong> Drops into the basin; needs a cord run
+                across the lawn.
+              </lf-option>
+              <lf-option id="heat-solar" recommended
+                ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
+                ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
+                <strong>Solar basin</strong> Replace the basin with the heated model; no
+                cord, reversible.
+              </lf-option>
+              <lf-option id="heat-none"
+                ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip
+                ><lf-chip tone="danger">liquid on thaw days</lf-chip>
+                <strong>Let it freeze</strong> Refill on thaw days only.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
         </lf-tab>
 
         <lf-tab id="tab-camera" label="Field evidence">

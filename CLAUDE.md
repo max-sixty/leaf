@@ -238,6 +238,8 @@ runtime branch.
 Declarations describe general behavior:
 
 - `x-upgrade` says that a module enhances the element.
+- `x-ask` says the element is the complete reading and arrival region around one
+  nested request. The nested `x-awaits` widget still owns the answer and fold.
 - `x-awaits` says the element can hold a request for the reader. It feeds the
   banner count, asks tray, keyboard walk, help, and conditional actions. Its
   answer verbs are explicit; `rollup` derives a nested plan from ordinary

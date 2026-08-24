@@ -3990,6 +3990,40 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
 
 
+def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
+    """The Ask list names the whole reading the reader arrives at. Its nested
+    request remains the action owner, so answering it closes the broader Ask without
+    moving the standing decision onto a wrapper that declares no state."""
+    opts = OPTIONS.format(
+        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
+    )
+    ask = (
+        '<lf-ask id="plan-ask"><h2>Plan</h2>'
+        "<p>Choose after reading this framing.</p>"
+        f"{opts}</lf-ask>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<h2>Plan</h2>", ask))
+    publish(page_dir)
+
+    state = state_json(page_dir)
+    assert state["asks"] == [{"id": "plan-ask", "tag": "lf-ask", "thread": None}]
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+    state = state_json(page_dir)
+    assert state["asks"] == []
+    assert state["state"][0]["widget"] == "g1"
+
+
 def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page_dir):
     """A report remains live for later absorption, but the reader's action is
     the desired state and the only record debt on their shared coordinate."""
@@ -10841,6 +10875,54 @@ def test_specimen_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
+def test_an_ask_region_frames_exactly_one_request(page_dir):
+    """A broad Ask has one source of liveness and state; zero leaves navigation
+    pointing at nothing, while two make its answer and roll-up ownership ambiguous."""
+    registry = interact.load_registry(page_dir)
+    first = (
+        '<lf-options id="g-one" choose>'
+        '<lf-option id="o-one"><strong>One</strong></lf-option>'
+        "</lf-options>"
+    )
+    second = (
+        '<lf-options id="g-two" choose>'
+        '<lf-option id="o-two"><strong>Two</strong></lf-option>'
+        "</lf-options>"
+    )
+
+    assert (
+        fragment_errors(
+            f'<lf-ask id="ask-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
+            registry,
+        )
+        == []
+    )
+
+    # Evidence can quote another request-shaped widget without giving this Ask a
+    # second live source. The runtime already excludes x-exhibit descendants from the
+    # Ask list, so the authored boundary must read the same relation.
+    with_evidence = (
+        '<lf-ask id="ask-with-evidence"><h2>Choose</h2>'
+        f'{first}<lf-specimen id="request-example" label="another request">'
+        f"{second}</lf-specimen></lf-ask>"
+    )
+    assert fragment_errors(with_evidence, registry) == []
+
+    empty = fragment_errors(
+        '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
+    )
+    assert "an Ask must frame exactly one x-awaits widget, found none" in " ".join(
+        empty
+    )
+
+    crowded = fragment_errors(
+        f'<lf-ask id="ask-crowded">{first}{second}</lf-ask>', registry
+    )
+    message = " ".join(crowded)
+    assert "an Ask must frame exactly one x-awaits widget" in message
+    assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
+
+
 def test_settling_a_decision_drops_no_ids(page_dir):
     """Retiring a settled decision is a collapse, not a deletion — which is the
     whole reason it's expressible: `version check` forbids dropping an id, and
@@ -12192,13 +12274,14 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "claude",
             "version": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-options id="gm" choose>'
+            "markup": '<lf-ask id="gm-ask"><p>The retry budget is shared.</p>'
+            '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options>",
+            "</lf-options></lf-ask>",
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+        {"id": "gm-ask", "tag": "lf-ask", "thread": root["id"]}
     ]
     interact.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}

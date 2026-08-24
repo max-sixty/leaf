@@ -7995,10 +7995,11 @@ function markAt(x, y) {
   return null;
 }
 
-// Bring an element of the document to the middle — a thread's element anchor, a page
-// ask n/p step to. The document scroller's, so an element standing in the
-// panel's own list is its region's to centre rather than this one's. reveal first,
-// since opening a tab or a settled group moves everything below it. The arithmetic is the range branch's below, because "the middle"
+// Bring an element in the document to the position its caller names. A thread's element
+// anchor takes the middle; an Ask takes the readable start so its context comes before
+// its control. The document scroller owns this travel, while an element in the panel's
+// list belongs to that region. Reveal first, since opening a tab or settled group moves
+// everything below it. The arithmetic is the range branch's below, because "the middle"
 // means the viewport's: scrollIntoView measures against the scroller's own
 // scroll-padding-top — declared so a native fragment jump clears the banner — and every
 // "center" through it therefore landed 27px low. An element taller than the viewport has
@@ -8009,12 +8010,14 @@ function markAt(x, y) {
 // place in — the same reason a restore doesn't (jumpBy). An arrival passes "instant" for
 // exactly that reason: a document that appeared a moment ago holds no place to keep, so
 // the glide would be animating from nowhere.
-function scrollToElement(el, behavior = SCROLL) {
+function scrollToElement(el, behavior = SCROLL, block = "center") {
   reveal(el);
   el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
   const rect = shownBox(el);
   const clear = parseFloat(getComputedStyle(pageScroller).scrollPaddingTop) || 0;
-  jumpBy(rect.top - Math.max((innerHeight - rect.height) / 2, clear), behavior);
+  const place =
+    block === "start" ? clear : Math.max((innerHeight - rect.height) / 2, clear);
+  jumpBy(rect.top - place, behavior);
 }
 
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
@@ -11102,7 +11105,8 @@ function showHelp(open) {
 // ---------- the ask, collected ----------
 // An ask is a standing request to the reader: a question with no pick on it, a change
 // nobody has decided, a piece of work the page says is waiting on them. Which widgets
-// can be one is the registry's answer (x-awaits) and nothing out here names a tag —
+// can source one is the registry's answer (x-awaits); x-ask may give that source a
+// broader reading and arrival surface. Nothing out here names a tag —
 // the banner's count, the n/p walk, and the "?" overlay's row are three readings of this
 // one list, so what the banner counts and what the key steps to cannot disagree. The
 // count used to be a query for `lf-suggestion:not([data-lf-state])`, which was
@@ -11116,6 +11120,27 @@ function showHelp(open) {
 // verb answers through its surviving fold entry. Verbs not named there are orthogonal
 // state, so moving a deadline cannot silently answer the decision it postpones.
 const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
+// A request may begin before the widget that records its answer. x-ask gives that
+// complete reading one authored region: the heading, context and evidence above the
+// control travel with it, while the nested x-awaits widget remains the state owner.
+// Both directions are structural and declaration-driven, so a custom region and a
+// custom request join without core naming either tag. `version check` holds each region
+// to one nested source, which makes askSource's answer unambiguous.
+const askSurfaceTags = () => tagsDeclaring((entry) => entry["x-ask"]);
+function askSurface(el) {
+  const tags = askSurfaceTags();
+  return (tags.length && closestAcross(el, tags.join(","))) || el;
+}
+function askSource(el) {
+  if (askEntry(el)) return el;
+  const tags = askTags();
+  if (!tags.length || !registry[el.localName]?.["x-ask"]) return el;
+  return (
+    [...el.querySelectorAll(tags.join(","))].find(
+      (candidate) => askSurface(candidate) === el,
+    ) ?? el
+  );
+}
 // Every declared attribute holding one of the values that ask — a flag's two values
 // being its presence and its absence, since it carries none of its own.
 function answeredAsk(el, projection) {
@@ -11252,13 +11277,17 @@ function openAsks() {
   // A roll-up delegates its visible request to the open intervention or child that
   // made it true. Keep the actionable leaf in the banner and keyboard walk, not the
   // same request repeated at each ancestor.
-  return open.filter(
+  const visible = open.filter(
     (el) =>
       !askEntry(el).rollup ||
       !open.some(
         (candidate) => candidate !== el && projectedContains(el, candidate, context),
       ),
   );
+  // The source decides whether the request stands; the surface is what the reader is
+  // asked to take in. A set keeps a malformed duplicate from inflating the chrome while
+  // the authored boundary still reports the ambiguity at version check.
+  return [...new Set(visible.map(askSurface))];
 }
 // A thread ask has no version or restatement, but undo still withdraws an action.
 // `x-awaits.until` therefore reads the same standing action projection as the DOM:
@@ -11295,8 +11324,10 @@ function buildBulkAnswers() {
     btn.onclick = async () => {
       btn.disabled = true;
       try {
-        for (const ask of openAsks())
-          if (askEntry(ask).all === verb) await ask[verb]?.();
+        for (const ask of openAsks()) {
+          const source = askSource(ask);
+          if (askEntry(source).all === verb) await source[verb]?.();
+        }
       } finally {
         btn.disabled = false;
       }
@@ -11319,7 +11350,7 @@ function blanketAnswers(asks) {
   return [...bulkButtons].map(([verb, { btn, label }]) => ({
     btn,
     label,
-    n: asks.filter((ask) => askEntry(ask).all === verb).length,
+    n: asks.filter((ask) => askEntry(askSource(ask)).all === verb).length,
   }));
 }
 // The ones with something to answer right now. Declared rather than assigned, like
@@ -11535,7 +11566,9 @@ function markHere() {
   if (row && openTray("asks")) row.scrollIntoView({ block: "nearest" });
   for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
     if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-  if (askLent !== here) lend(null);
+  // A control-less request can borrow its own tab stop while the broader x-ask
+  // region wears the ring. Keep that stop until the reader leaves the region.
+  if (askLent !== (here && askSource(here))) lend(null);
   for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
 }
 const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
@@ -11591,11 +11624,12 @@ function askStep(asks, dir) {
 // and a second answer to "where is that" would drift from this one the first time the
 // control rule changed.
 function standOn(el) {
+  const source = askSource(el);
   const control =
-    el.querySelector(ASK_CONTROL) ??
-    document.querySelector(`[${ASK_ROW}="${el.id}"] ${ASK_CONTROL}`);
-  if (!control) lend(el);
-  (control ?? el).focus({ preventScroll: true });
+    source.querySelector(ASK_CONTROL) ??
+    document.querySelector(`[${ASK_ROW}="${source.id}"] ${ASK_CONTROL}`);
+  if (!control) lend(source);
+  (control ?? source).focus({ preventScroll: true });
 }
 
 // Standing on one ask: what n and p do once they have decided which, what a press on a
@@ -11612,16 +11646,16 @@ function goToAsk(next, asks) {
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelOpen) setPanel(true);
   reveal(next); // a settled group or an inactive tab has no geometry until it opens
+  const source = askSource(next);
+  if (source !== next) reveal(source); // let the answering widget settle its own chrome
   landed = next;
   // The ring follows: the focus move is what paints it, so the walk says where to stand
   // and markHere says where the reader is standing, rather than both saying the second.
   standOn(next);
-  // Each ask centres in the region it stands in. The banner clearance
-  // scrollToElement answers for is the document scroller's alone, and a thread's
-  // ask is in the panel's own list, which has none — so that one is the platform's
-  // to centre and only a page ask takes the shared travel.
+  // A page Ask starts below the banner so its context comes before its control. A
+  // thread Ask is in the panel's own list, whose arrival stays centred in that region.
   if (inChrome(next)) next.scrollIntoView({ behavior: SCROLL, block: "center" });
-  else scrollToElement(next);
+  else scrollToElement(next, SCROLL, "start");
   announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
 }
 function stepAsk(dir) {

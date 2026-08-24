@@ -11467,6 +11467,28 @@ ASKS_PAGE = leaf_page(
 """,
 )
 ASKS_IN_ORDER = ["live-question", "sug-refill", "t-baffles", "t-bath"]
+
+ASK_WITH_CONTEXT_PAGE = leaf_page(
+    "ask with context",
+    f"""
+<h1 id="h">A decision with context</h1>
+{"".join(f"<p id='lead-{i}'>Earlier finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
+<lf-ask id="storage-ask">
+  <h2 id="storage-heading">How the full store behaves</h2>
+  <p id="storage-context-1">The beta never reached the cap, so this is the first
+  reader's experience of it. The recommendation follows the observed reopen rate.</p>
+  <p id="storage-context-2">The options are useful only after that premise is in view;
+  arriving straight at them starts in the middle of the question.</p>
+  <lf-options id="storage-options" choose label="What should a full store do?">
+    <lf-option id="storage-evict"><strong>Drop the oldest documents</strong>
+    Editing continues and the server keeps the work.</lf-option>
+    <lf-option id="storage-stop"><strong>Pause offline editing</strong>
+    Nothing leaves, but the editor becomes read-only.</lf-option>
+  </lf-options>
+</lf-ask>
+{"".join(f"<p id='tail-{i}'>Later finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
+""",
+)
 # The ask the walk is standing on. One ask wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
@@ -11607,6 +11629,60 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     page.keyboard.press("n")
     expect(page.locator("#t-baffles")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
+    """The ask is the question's whole reading region, not only its answer control.
+
+    An options group used to be both the state owner and the navigation target. When
+    the heading, premise, and evidence stood immediately above it, `n` centred the
+    options and made the reader scroll backward before they could answer. `lf-ask`
+    encodes that broader unit while the nested x-awaits widget still owns the action:
+    the walk focuses the first answering control, rings the region, and aligns the
+    region's opening below the banner.
+    """
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    resized(page, 900, 500)
+
+    # The options really do begin below context, and enough page follows the region for
+    # aligning its start to be possible. Without either condition, centring the inner
+    # widget could happen to look like the requested arrival.
+    before = page.evaluate(
+        """() => {
+          const ask = document.getElementById('storage-ask').getBoundingClientRect();
+          const options = document.getElementById('storage-options').getBoundingClientRect();
+          return {context: options.top - ask.top,
+                  room: document.body.scrollHeight - document.body.clientHeight};
+        }"""
+    )
+    assert before["context"] > 100, (
+        "the fixture has no meaningful context above the options"
+    )
+    assert before["room"] > 500, "the page has no room to put the ask at its start"
+
+    page.keyboard.press("n")
+    expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
+    expect(page.locator("#storage-ask")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    landed = page.evaluate(
+        """() => {
+          const ask = document.getElementById('storage-ask').getBoundingClientRect();
+          const options = document.getElementById('storage-options').getBoundingClientRect();
+          const clear = parseFloat(getComputedStyle(document.body).scrollPaddingTop);
+          return {ask: ask.top, options: options.top, clear};
+        }"""
+    )
+    assert abs(landed["ask"] - landed["clear"]) <= 2, (
+        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner at "
+        f"{landed['clear']:.1f}px"
+    )
+    assert landed["options"] > landed["ask"] + 100, (
+        "the arrival did not leave the Ask's context above its options"
+    )
     assert errors == []
     page.close()
 
@@ -12825,8 +12901,8 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     module the navigation threw away, so it did not, and the reader was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
     the third of four asks when v2 landed, they pressed `n` and were handed the third
-    again — the block at the top of the window is above the ask they were centred on, so
-    the walk measured from somewhere they had already walked past.
+    again — after looking slightly back above that Ask, the block at the top of the
+    window is somewhere they had already walked past.
 
     So the walk's place travels in the same record as the passage, and the press after
     the version lands is the press they would have made before it. The ring does not
@@ -12842,6 +12918,16 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     for ask in ASKS_IN_ORDER[:3]:
         page.keyboard.press("n")
         expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    # Ask travel now starts at the Ask's opening, which normally makes the coarse
+    # reading agree with the saved landing. Look back just far enough to make the two
+    # meanings diverge: the scroll position says the preceding change, while the walk's
+    # exact record still says the third Ask.
+    page.evaluate("""() => {
+        const earlier = document.getElementById('refill-now').getBoundingClientRect();
+        document.body.scrollBy({top: earlier.bottom - 80, behavior: 'instant'});
+    }""")
 
     (d / "versions" / "v2.html").write_text(ASKS_PAGE)
     interact.append_event(
@@ -13110,7 +13196,7 @@ graph LR
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     """Clicking a quoteless thread's § label brings its element to the middle — the
-    one promise every caller of that travel makes, the ask walk's landing included.
+    promise made by callers that travel to a document anchor.
 
     It was 27px short of the middle in every one of them, and invisibly so: the
     scroller declares `scroll-padding-top` to keep a native fragment jump clear of
@@ -18171,7 +18257,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.wait_for_function(
         "() => document.getElementById('card-heater').getAnimations().length === 0"
     )
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    assert "z undo" in _painted_line(page)
     sent = _traffic(page).sends
 
     # The card the keyboard move left the grip focused on, so the mousedown lands on
@@ -20424,10 +20510,11 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (2)")
     asks.click()
-    hidden_ask = page.locator(
-        ".lf-asks-row", has_text="How should the bird bath stay open through January?"
-    )
+    # The row names the broader Ask's opening context now, while the options inside it
+    # still take focus and own the choice.
+    hidden_ask = page.locator('.lf-asks-row[data-lf-at="bath-heat-ask"]')
     expect(hidden_ask).to_have_count(1)
+    expect(hidden_ask).to_contain_text("The winter habitat keeps food")
     hidden_ask.click()
     expect(vision).to_have_attribute("aria-selected", "true")
     expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()

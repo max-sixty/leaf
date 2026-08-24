@@ -674,6 +674,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
+        "x-ask": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-conversation": {
             "type": "object",
@@ -6670,6 +6671,19 @@ def validate_registry(registry: dict, source) -> dict:
         # attribute's own schema — a flag is there or it isn't, an enum admits what it
         # lists — and a subschema that states neither contradicts nothing.
         awaits = entry.get("x-awaits", {})
+        if entry.get("x-ask"):
+            if "id" not in entry.get("required", []):
+                raise RegistryError(f"{path}: <{tag}> x-ask does not require an id")
+            if entry.get("x-content") != "prose":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-ask must admit prose around the request it "
+                    "frames"
+                )
+            if awaits:
+                raise RegistryError(
+                    f"{path}: <{tag}> declares both x-ask and x-awaits — the broader "
+                    "Ask frames one nested request; the nested widget owns its state"
+                )
         conditions = [
             ("x-awaits", awaits.get("when", {})),
             ("x-awaits", awaits.get("until", {}).get("when", {})),
@@ -7426,6 +7440,42 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its items isn't allowed")
+    return errors
+
+
+def ask_region_errors(lf_elements: list, registry: dict) -> list:
+    """An x-ask region frames exactly one nested standing request.
+
+    The region owns the question's reading and arrival while the x-awaits widget owns
+    its answer. Requiring one structural source makes that split unambiguous for the
+    browser walk and for `page state`; liveness still comes from the ordinary projected
+    x-awaits value.
+    """
+
+    regions = [rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask")]
+    sources = {id(region): [] for region in regions}
+    for rec in lf_elements:
+        if registry.get(rec["tag"], {}).get("x-awaits") is None or quoted_in(
+            rec, registry
+        ):
+            continue
+        holder = rec.get("holder")
+        while holder and not registry.get(holder["tag"], {}).get("x-ask"):
+            holder = holder.get("holder")
+        if holder:
+            sources.setdefault(id(holder), []).append(rec)
+
+    errors = []
+    for region in regions:
+        nested = sources[id(region)]
+        if len(nested) != 1:
+            found = [
+                f"<{rec['tag']}#{rec['attrs'].get('id') or '?'}>" for rec in nested
+            ]
+            errors.append(
+                f"{at(region)}: an Ask must frame exactly one x-awaits widget, "
+                f"found {found or 'none'}"
+            )
     return errors
 
 
@@ -8262,10 +8312,23 @@ def page_ask_projection(
         if not entry(rec)["x-awaits"].get("rollup")
         or not any(inner is not rec and contains(rec, inner) for inner in open_records)
     ]
+    surfaces = []
+    seen_surfaces = set()
+    for rec in visible:
+        surface = rec
+        holder_rec = holder(rec)
+        while holder_rec:
+            if (registry.get(holder_rec["tag"]) or {}).get("x-ask"):
+                surface = holder_rec
+                break
+            holder_rec = holder(holder_rec)
+        if id(surface) not in seen_surfaces:
+            seen_surfaces.add(id(surface))
+            surfaces.append(surface)
     return (
         [
             {"id": rec["attrs"].get("id"), "tag": rec["tag"], "thread": None}
-            for rec in visible
+            for rec in surfaces
         ],
         {
             rec["attrs"]["id"]: values[id(rec)]
@@ -8678,6 +8741,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
+        + ask_region_errors(parser.lf_elements, registry)
         + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
@@ -8777,6 +8841,7 @@ def cmd_check(
     registry = load_registry(page_dir)
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
+        errors.extend(ask_region_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
         errors.extend(language_class_errors(parser.language_blocks, registry))
         errors.extend(declared_word_errors(parser.lf_elements, registry))

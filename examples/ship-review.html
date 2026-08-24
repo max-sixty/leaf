@@ -432,88 +432,92 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       </section>
 
       <section id="off-decide-store">
-        <h2>What a full store does</h2>
-        <p id="off-store-ask">
-          At 40 MB a workspace, something has to give. Nothing in the beta reached the
-          cap, so this decides what happens to the first workspace that does. My
-          recommendation is the first. Pick one to settle it; if you want a fourth
-          behaviour, the box below takes it.
-        </p>
-        <lf-options id="off-full-store" choose>
-          <lf-option id="off-fs-evict" recommended
-            ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
-            <strong>Drop the oldest documents</strong>
-            <dl class="facts">
-              <dt>At the cap</dt>
-              <dd>the least recently opened document leaves the device</dd>
-              <dt>Reader sees</dt>
-              <dd>a line naming what left, and how to keep it</dd>
-              <dt>Worst case</dt>
-              <dd>a document they meant to have offline isn't there</dd>
-            </dl>
-            <p id="off-fs-evict-why">
-              Editing never stops, and that is the whole point of the feature. A
-              document that leaves is still on the server, so what is lost is having it
-              here, not the work in it — and this is the only one of the three that does
-              not punish a reader for not reading a banner. Pinning a document keeps it,
-              and the line that says what left says so.
-            </p>
-          </lf-option>
-          <lf-option id="off-fs-stop"
-            ><lf-chip>effort: 3 days</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Stop accepting offline edits</strong>
-            <dl class="facts">
-              <dt>At the cap</dt>
-              <dd>the editor goes read-only until a reconnect</dd>
-              <dt>Reader sees</dt>
-              <dd>a banner saying editing is paused</dd>
-              <dt>Worst case</dt>
-              <dd>they are on a plane with the document they came to write</dd>
-            </dl>
-            <p id="off-fs-stop-why">
-              Nothing is ever dropped, and that is the cleanest sentence any of the
-              three gives a release note. It also fails at exactly the moment offline
-              editing is worth having, and a reader with no connection cannot act on the
-              banner telling them so.
-            </p>
-          </lf-option>
-          <lf-option id="off-fs-ask"
-            ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Ask which documents to keep</strong>
-            <dl class="facts">
-              <dt>At the cap</dt>
-              <dd>a picker, before anything leaves</dd>
-              <dt>Reader sees</dt>
-              <dd>a list of what is on the device, by size</dd>
-              <dt>Worst case</dt>
-              <dd>a dialog between them and their document</dd>
-            </dl>
-            <p id="off-fs-ask-why">
-              The most respectful of the three on paper. In practice it arrives without
-              warning, mid-sentence, and asks someone who came to write a question about
-              storage — and it still needs the eviction code underneath, for the reader
-              who dismisses it.
-            </p>
-          </lf-option>
-        </lf-options>
+        <lf-ask id="off-full-store-ask">
+          <h2>What a full store does</h2>
+          <p id="off-store-ask">
+            At 40 MB a workspace, something has to give. Nothing in the beta reached the
+            cap, so this decides what happens to the first workspace that does. My
+            recommendation is the first. Pick one to settle it; if you want a fourth
+            behaviour, the box below takes it.
+          </p>
+          <lf-options id="off-full-store" choose>
+            <lf-option id="off-fs-evict" recommended
+              ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+              <strong>Drop the oldest documents</strong>
+              <dl class="facts">
+                <dt>At the cap</dt>
+                <dd>the least recently opened document leaves the device</dd>
+                <dt>Reader sees</dt>
+                <dd>a line naming what left, and how to keep it</dd>
+                <dt>Worst case</dt>
+                <dd>a document they meant to have offline isn't there</dd>
+              </dl>
+              <p id="off-fs-evict-why">
+                Editing never stops, and that is the whole point of the feature. A
+                document that leaves is still on the server, so what is lost is having
+                it here, not the work in it — and this is the only one of the three that
+                does not punish a reader for not reading a banner. Pinning a document
+                keeps it, and the line that says what left says so.
+              </p>
+            </lf-option>
+            <lf-option id="off-fs-stop"
+              ><lf-chip>effort: 3 days</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+              <strong>Stop accepting offline edits</strong>
+              <dl class="facts">
+                <dt>At the cap</dt>
+                <dd>the editor goes read-only until a reconnect</dd>
+                <dt>Reader sees</dt>
+                <dd>a banner saying editing is paused</dd>
+                <dt>Worst case</dt>
+                <dd>they are on a plane with the document they came to write</dd>
+              </dl>
+              <p id="off-fs-stop-why">
+                Nothing is ever dropped, and that is the cleanest sentence any of the
+                three gives a release note. It also fails at exactly the moment offline
+                editing is worth having, and a reader with no connection cannot act on
+                the banner telling them so.
+              </p>
+            </lf-option>
+            <lf-option id="off-fs-ask"
+              ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+              <strong>Ask which documents to keep</strong>
+              <dl class="facts">
+                <dt>At the cap</dt>
+                <dd>a picker, before anything leaves</dd>
+                <dt>Reader sees</dt>
+                <dd>a list of what is on the device, by size</dd>
+                <dt>Worst case</dt>
+                <dd>a dialog between them and their document</dd>
+              </dl>
+              <p id="off-fs-ask-why">
+                The most respectful of the three on paper. In practice it arrives
+                without warning, mid-sentence, and asks someone who came to write a
+                question about storage — and it still needs the eviction code
+                underneath, for the reader who dismisses it.
+              </p>
+            </lf-option>
+          </lf-options>
+        </lf-ask>
       </section>
 
       <section id="off-decide-rollout">
-        <h2>How the rollout goes</h2>
-        <p id="off-rollout-ask">
-          The beta workspaces already have it. This is about everyone else, and the
-          three shapes differ mostly in how fast the iOS stall reaches people who never
-          agreed to a beta. I recommend the middle one.
-        </p>
-        <lf-options id="off-rollout" choose>
-          <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
-          <lf-option id="off-ro-ten" recommended
-            >Ten percent for a week, then everyone</lf-option
-          >
-          <lf-option id="off-ro-opt-in"
-            >An opt-in toggle until the iOS fix lands</lf-option
-          >
-        </lf-options>
+        <lf-ask id="off-rollout-ask-region">
+          <h2>How the rollout goes</h2>
+          <p id="off-rollout-ask">
+            The beta workspaces already have it. This is about everyone else, and the
+            three shapes differ mostly in how fast the iOS stall reaches people who
+            never agreed to a beta. I recommend the middle one.
+          </p>
+          <lf-options id="off-rollout" choose>
+            <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
+            <lf-option id="off-ro-ten" recommended
+              >Ten percent for a week, then everyone</lf-option
+            >
+            <lf-option id="off-ro-opt-in"
+              >An opt-in toggle until the iOS fix lands</lf-option
+            >
+          </lf-options>
+        </lf-ask>
         <p id="off-rollout-day">The day itself, whichever shape wins:</p>
         <ol class="steps" id="off-runbook">
           <li>
@@ -608,26 +612,28 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="off-followup">
-        <h2>What I pick up next</h2>
-        <p id="off-followup-intro">
-          Four jobs stand behind the ship, none of them holding it. Tick whichever you
-          want started, by click or by keyboard, and write a fifth in the box if I have
-          missed one.
-        </p>
-        <lf-options id="off-followups" choose multiple>
-          <lf-option id="off-fu-drill" for="off-merge"
-            >A merge drill with three devices offline at once</lf-option
-          >
-          <lf-option id="off-fu-cap" for="off-how"
-            >Telemetry on how close real workspaces get to 40 MB</lf-option
-          >
-          <lf-option id="off-fu-copy" for="off-surface"
-            >A second pass on the offline banner's wording</lf-option
-          >
-          <lf-option id="off-fu-comments" for="off-punch-list"
-            >A review of what offline comments would take</lf-option
-          >
-        </lf-options>
+        <lf-ask id="off-followups-ask">
+          <h2>What I pick up next</h2>
+          <p id="off-followup-intro">
+            Four jobs stand behind the ship, none of them holding it. Tick whichever you
+            want started, by click or by keyboard, and write a fifth in the box if I
+            have missed one.
+          </p>
+          <lf-options id="off-followups" choose multiple>
+            <lf-option id="off-fu-drill" for="off-merge"
+              >A merge drill with three devices offline at once</lf-option
+            >
+            <lf-option id="off-fu-cap" for="off-how"
+              >Telemetry on how close real workspaces get to 40 MB</lf-option
+            >
+            <lf-option id="off-fu-copy" for="off-surface"
+              >A second pass on the offline banner's wording</lf-option
+            >
+            <lf-option id="off-fu-comments" for="off-punch-list"
+              >A review of what offline comments would take</lf-option
+            >
+          </lf-options>
+        </lf-ask>
       </section>
     </main>
   </body>

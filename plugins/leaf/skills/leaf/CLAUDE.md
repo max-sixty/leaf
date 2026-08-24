@@ -506,6 +506,7 @@ The extension keys describe general behavior:
 | `x-parent` | the child widgets whose decisions belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
+| `x-ask` | the complete reading and arrival region around one nested request |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
 | `x-conversation` | the condition under which the widget owns a conversation seat |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
@@ -536,7 +537,8 @@ behavior, the layer implements it once. Current examples are:
   the theme.
 - `markSettled` paints the holder's authoritative settlement.
 - `renderRetired` marks slots retired by the declared holder relation.
-- `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
+- `rowPresence` reads `x-awaits`, while the ask tray projects a declared `x-ask`
+  region around that source where one exists; neither names a tag.
 - `standingState` exposes replay winners to the render gate without naming a
   widget, the panel's own folds included: a widget an agent sent folds the way a
   page widget does and the poll replays it the same way, so the premise that
@@ -1362,16 +1364,21 @@ can populate state-dependent rows. It restores intent through `showTray` without
 replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
 each persisted tray.
 
-Ask rows come from `x-awaits`, not from a list of ask tags. `itemSays` supplies
-each row's own label. Selecting a row travels through the same ask-arrival
-function as `n` and `p`, so numbered and directional navigation agree about
-focus, reveal, scroll, and `landed`.
+Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
+nested in an `x-ask` region, the row names the region: its heading, context, and
+evidence are the request the reader is being sent to, while the source remains
+the owner of the answer. `itemSays` supplies each row's own label. Selecting a
+row travels through the same ask-arrival function as `n` and `p`, so numbered
+and directional navigation agree about focus, reveal, start-aligned scroll, and
+`landed`.
 
 An ask is answered only through a verb listed in `x-awaits.answers`; do not infer
 that every state change is an answer. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
-roll-ups, and finally itself as a leaf. The visible list keeps the deepest open
-member, while `actionAvailable` may query an ancestor's exact value.
+roll-ups, and finally itself as a leaf. The standing projection keeps the
+deepest open member; an enclosing `x-ask` replaces that member only on the
+visible/navigation surface. `actionAvailable` still queries the source or an
+ancestor's exact projected value.
 
 ### Address chord
 

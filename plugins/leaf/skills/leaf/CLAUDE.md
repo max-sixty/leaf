@@ -1156,6 +1156,34 @@ on: `w` narrows the comment panel's list and `/` searches it, and both live in
 `PANEL`. The page's alphabet is small and every letter spent there is spent on
 every page, so a letter earns page scope only by acting on the page.
 
+A scope's rows act on contents the reader is looking at rather than standing in,
+which is why they can be sorted by surface at all. One press is not like that:
+`c` follows the reader, and what it means is whatever they are standing in.
+
+That it reaches into the panel is not an exception. Page scope already crosses
+there, and the register says so twice: `g c N` is a page address that lands the
+reader in a panel textarea, and `openAsks` counts a widget an agent sent as an
+ask like any other, so `g a N` can put them inside a thread. A page key that
+takes the reader somewhere owes them an answer once they are standing there.
+Rescoping `c` per surface would not even buy the tidiness it looks like — the
+reader stands in one place at a time, so it is several rows spelling one key,
+each live exactly where the others are not.
+
+Its destination is the anchor the 💬 carries, then the open thread the reader is
+in, then the item they are standing in, then the page. `commentTarget` names that
+destination and the row's `does` and `line` are both readings of it, so the key
+line and the reference cannot come to spell it differently. The pointer's answers
+outrank the standing: a selection or a raised 💬 is the more recent thing the
+reader said. `standingItem` and `standingConversation` are what "standing"
+means here, and **Standing somewhere** below owns that reading.
+
+The item's box is the composer, on the item, and not a widget's own conversation
+seat even where it has one. `openOnItem` writes the anchor `renderConversations`
+collects, so the remark lands in that seat's conversation by either route; reaching
+into the seat instead means escaping an author-written id into a selector, asking
+whether the box can take focus, and choosing among the boxes a seat holds once it
+carries threads. One route answers those by not asking them.
+
 Standing in a surface is where focus is, not merely that the surface is open. A
 tray's or panel's own button lives in the banner, so opening by pointer leaves
 the reader outside it, and a key, a Tab or a click on its contents is what puts
@@ -1238,6 +1266,27 @@ Focus is the reader's current place. `focused` follows it through declared
 shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
 control that contains focus. The ring is derived on each paint; it does not
 store the ask walk's position.
+
+A press that acts on where the reader is standing reads it through
+`standingItem`: the open ask where focus is on a control that works it — a pick,
+a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's own
+reading. It answers nothing in the chrome, where a reader is working on the page
+rather than standing in it.
+
+Working an ask and standing in one are different facts, and `markHere`'s ring
+answers the second. A reader who addressed a link inside a question has named
+something more particular than the question, so a press there means the link's
+own block; reading the ring instead overrode what they named, and made the same
+markup answer differently according to whether its question was still open. The
+two agree wherever the reader is working the ask, which is every arrival the ask
+walk makes.
+
+`standingConversation` is the exception, and covers all three containers that
+hold a conversation the reader can stand in: the panel's thread, a conversation
+seated on the page, and each thread inside that seat. It asks for the box rather
+than for the container's class, because a resolved thread is built by the same
+function and wears the same class while having no box to reach, and a collapsed
+one answers the same honest way.
 
 `landed` stores where the ask walk last arrived. This is distinct from focus:
 the banner's Asks button retains focus while the walk moves through the page.

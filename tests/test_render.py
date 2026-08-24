@@ -16380,6 +16380,15 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     # overlap the order exists for and because nothing registers the hover until a mouse
     # has been over a passage. A higher highlight supplies only the properties it states,
     # so this is what lets one mark say "clickable" and "you are here" at once.
+    #
+    # After the panel has finished making room, because the walk above opened it and the
+    # document slides into its new width over the fifth of a second that follows. A point
+    # taken on that flight is measured against a column that is still moving: the pointer
+    # goes where the mark was, the slide carries the mark out from under it, and no second
+    # mousemove ever comes to correct it. The mark is a highlight rather than an element,
+    # so nothing here retries — the wait for its hover simply runs out, 30 seconds later
+    # and reading as though the page had stopped lighting what the pointer is on.
+    panel_settled(page)
     page.mouse.move(*mark_point(page, "lf-mark-here"))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0) > 0")
     ranks = page.evaluate(

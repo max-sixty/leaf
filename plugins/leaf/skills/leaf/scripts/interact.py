@@ -4388,11 +4388,11 @@ CATALOG_PREAMBLE = """\
 
 
 # The layer-wide facts printed after the widget entries, each with the sentence saying
-# what an author reads it for. A table because the catalog is the agent's own
-# documentation of a vocabulary that grows: a `$` key a layer adds is a row here, not a
-# block of its own beside six that already say the same thing differently. $events is
-# absent because it is the vocabulary stamp — what this page's runtime speaks, for
-# `page init` to hold a re-vendor against — and nothing an author writes markup from.
+# what an author reads it for. Curated facts keep their useful names and order; a
+# layer-defined fact follows them under its own key, so extending the vocabulary does
+# not require teaching the catalog another name. $events is absent because it is the
+# vocabulary stamp — what this page's runtime speaks, for `page init` to hold a
+# re-vendor against — and nothing an author writes markup from.
 CATALOG_FACTS = (
     ("$keys", "The x- keys an entry may declare, and what each one means."),
     (
@@ -4427,6 +4427,11 @@ def cmd_catalog(page_dir: Path) -> None:
     for key, heading in CATALOG_FACTS:
         if fact := reg.get(key):
             print(f"\n# {heading}\n")
+            print(json.dumps(fact, indent=2, ensure_ascii=False))
+    known = {key for key, _ in CATALOG_FACTS} | {"$events"}
+    for key, fact in reg.items():
+        if key.startswith("$") and key not in known and fact:
+            print(f"\n# {key}, declared by this layer.\n")
             print(json.dumps(fact, indent=2, ensure_ascii=False))
 
 

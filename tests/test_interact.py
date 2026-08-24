@@ -10781,6 +10781,29 @@ def test_catalog_prints_widgets_and_idioms(page_dir):
         assert f'"{key}": "' in result.output, key
 
 
+def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
+    """The catalog is what the agent authors from, and a layer declaring a $ fact of
+    its own is the documented way to share one — so a catalog working from a list of $
+    names it had been taught dropped exactly what a project had gone to the trouble of
+    declaring, silently, in the one output that would have shown it. Same never-closed
+    rule as the widget list, one side of the registry over."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$hazards"] = {"freeze": {"description": "Deploys freeze on Fridays."}}
+    registry_path.write_text(json.dumps(registry))
+
+    result = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert "Deploys freeze on Fridays." in result.output
+    assert "# $hazards, declared by this layer." in result.output
+    # Every author-facing shipped section still stands under its curated heading,
+    # while the internal compatibility stamp remains out of the authoring catalog.
+    assert "x-state's fields — the facet, fold unit, and record forms" in result.output
+    assert "The tones this page's layer paints" in result.output
+    assert '"$events"' not in result.output
+
+
 def test_reply_validates_widget_markup(page_dir):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}

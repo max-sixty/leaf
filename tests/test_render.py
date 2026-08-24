@@ -5808,11 +5808,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    # The fold is driven from the reconcile this trip comes back on, so the trip lands
-    # as the fold begins rather than after it — a tighter window than the count-first
-    # sites, not a safer one. The disclosure listing the thread is the fold's own last
-    # step (foldOut drops it from `folding`, and only then is it rebuilt in here), and
-    # it costs nothing to wait for: the next line already needs this element.
+    # The round trip starts the fold; the disclosure holding the thread finishes it.
     expect(page.locator(f'.lf-details .lf-thread[data-id="{comment}"]')).to_have_count(
         1
     )
@@ -14290,13 +14286,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             "button", name="Resolve"
         ).click()
         expect(page.locator(".lf-details summary")).to_have_text(f"Resolved ({n})")
-    # Counted off the log, listed off the page: the summary says "Resolved (2)" from the
-    # frame the log settles the second one, while the thread itself reaches the
-    # disclosure only when its fold is over — measured, four of this assertion's own
-    # re-asks later. So a press taken on the summary alone is a press made inside the
-    # 220ms the list is moving, on a box the fold is still shifting under it. The
-    # disclosure holding both threads is what says the fold is done, and it is the fact
-    # every other resolve test here consumes before pressing.
+    # The summary counts the log before the disclosure finishes folding its list.
     expect(page.locator(".lf-details .lf-thread")).to_have_count(2)
     page.locator(".lf-details summary").click()
     resolved = page.locator(".lf-details .lf-thread").first
@@ -14359,10 +14349,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
 
-    # A focused resolved thread promises nothing, and the press acts on nothing. The
-    # disclosure holding the thread is waited for rather than its count, for the reason
-    # test_a_key_on_screen_is_a_key_that_works states: the count is the log's and lands a
-    # fold ahead of the list.
+    # A focused resolved thread promises nothing, and the press acts on nothing.
     expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     page.locator(".lf-details summary").click()
     resolved = page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')

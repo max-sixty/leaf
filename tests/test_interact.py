@@ -6791,6 +6791,27 @@ def test_server_round_trip(server, page_dir):
     }
 
 
+def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
+    server, page_dir
+):
+    """A Unicode separator before an indented script must not shift its marker."""
+    # Keep the separator escaped so normalization cannot silently weaken the fixture.
+    script = '<script type="module" src="/leaf.js"></script>'
+    source = PAGE.replace(
+        "<title>t</title>", "<title>Backfill plan\u2028Q3</title>"
+    ).replace(script, "  " + script)
+    (page_dir / "versions" / "v1.html").write_text(source, encoding="utf-8")
+    assert check(page_dir).exit_code == 0
+    publish(page_dir)
+
+    body = fetch(f"{server}/")[1].decode()
+
+    marker = '<meta name="lf-version" data-lf-runtime content="1">'
+    assert body == source.replace(script, marker + script)
+    # The old splice corrupted this tag while leaving the page renderable.
+    assert '<link rel="stylesheet" href="/theme.css">' in body
+
+
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     server, page_dir
 ):

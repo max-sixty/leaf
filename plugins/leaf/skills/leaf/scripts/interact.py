@@ -2255,9 +2255,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "published version has no canonical script"}, 500)
                 return
             line, column = scripts[0]["position"]
-            offset = sum(
-                len(part) for part in source.splitlines(keepends=True)[: line - 1]
-            )
+            # Match `_StructParser`, which counts only "\n"; splitlines() also treats
+            # Unicode separators and form feeds as lines, shifting the marker.
+            offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1])
             offset += column
             marker = f'<meta name="lf-version" data-lf-runtime content="{version}">'
             projected = (source[:offset] + marker + source[offset:]).encode()

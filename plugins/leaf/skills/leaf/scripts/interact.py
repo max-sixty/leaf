@@ -9433,6 +9433,18 @@ PAPER_WORDS = """() => {
 # up in is the copy, where there is nothing left to press. Text against text, because
 # text over a background, a border, or a picture is how a page is built.
 #
+# What floats over the document on purpose is answered for, and that is one exemption
+# rather than two. It reads as the runtime's, because for a long time the runtime owned
+# every float there was; the sentence is about the float and not about the owner. A
+# suggestion's controls hang out of the flow, level with the change they decide, and a
+# sidenote hangs out of the flow level with the block it annotates — both in the right
+# margin now, both pinned by what they belong to, so where a page stands them level the
+# controls are drawn over the note and neither can move. Reporting that would refuse
+# every page that writes a note beside a change, which is a composition the vocabulary
+# is meant to have; so the float is exempt and the note is what it may cover. Where the
+# same row docks back into the flow it is a resident again, and covering a word there is
+# a fault this still reports.
+#
 # A pair where one element contains the other is skipped: a paragraph and the <em>
 # inside it are one run of words that the flow lays out together, and their boxes
 # overlap by construction. Two pixels of slack, since a line box carries its leading and
@@ -9440,16 +9452,18 @@ PAPER_WORDS = """() => {
 # too: it floats over the document on purpose, and where that costs the user a press
 # it is the hit test that says so.
 #
-# The layer is in two places, so the skip names both. The line counting a passage's
-# comments lives inside the page's own elements by design — it is what a screen reader
-# hears where a painted mark says nothing — and it is clipped to nothing on screen.
-# checkVisibility answers for display, visibility and opacity and knows nothing of
-# clip-path, so that line read as drawn, and its text lays out past the 1px box holding
-# it: an anchor on a container put "1 comment" across the paragraph below the widget and
-# failed the gate on a page with nothing wrong with it. Asking for `.lf-chrome` alone was
-# the class standing in for the question, the same substitution the anchor pass made with
-# `.lf-ui`. The question is whose words these are, and the runtime marks its own in both
-# of the places it writes them.
+# The layer is in two places and the float rule reaches both, which is why only one of
+# them is named. The line counting a passage's comments lives inside the page's own
+# elements by design — it is what a screen reader hears where a painted mark says
+# nothing — and it is clipped to nothing on screen. checkVisibility answers for display,
+# visibility and opacity and knows nothing of clip-path, so that line read as drawn, and
+# its text lays out past the 1px box holding it: an anchor on a container put "1 comment"
+# across the paragraph below the widget and failed the gate on a page with nothing wrong
+# with it. It wore a name in this selector for a while, next to the container's, and the
+# name went the day the rule below could answer for it — the line is a control the
+# runtime hangs absolutely, which is the whole of what `floating` asks. Two skips over
+# one element is a guarantee kept twice, and the weaker of them is the one that has to be
+# remembered when the next float is written.
 #
 # checkVisibility knows nothing of content-visibility either, which is what a collapse
 # wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
@@ -9465,11 +9479,37 @@ COVERED_WORDS = """() => {
     const at = el => { const named = el.closest('[id]');
                        return named ? `<${named.tagName.toLowerCase()} id=${named.id}>`
                                     : `<${el.tagName.toLowerCase()}>`; };
+    // Chrome a widget hangs out of the flow, which is the same exemption the runtime's
+    // own layer has above and for the same reason. Read off the marker `offer` writes
+    // and the position the browser computed, so it holds for a control any widget hangs
+    // and stops holding the moment that control docks back into the flow — which is what
+    // a suggestion's row does when it finds no room, and where covering a word would be
+    // a fault again.
+    //
+    // Every marked ancestor, not the nearest: `offer` builds a row of presses out of
+    // presses, so a suggestion's ✓ Accept is a marked button inside a marked row, and the
+    // one that hangs in the margin is the outer of the two. Asking `closest` gets the
+    // button, which is in its row's flow and static, and the exemption reads as absent on
+    // exactly the control it was written for.
+    //
+    // The two values that take a box out of the flow, named rather than everything that
+    // isn't static: a relative or sticky box keeps its place in the flow and is painted
+    // offset from it, so it is a resident that has moved rather than chrome hanging over
+    // the page, and exempting it would retire this check for any control that nudges
+    // itself a pixel. PAST_THE_COLUMN asks the same question next door and asks it this
+    // way.
+    const outOfFlow = (s) => s.position === 'absolute' || s.position === 'fixed';
+    const floating = (el) => {
+        for (let a = el.closest('[data-lf-offer]'); a; a = a.parentElement?.closest('[data-lf-offer]'))
+            if (outOfFlow(getComputedStyle(a))) return true;
+        return false;
+    };
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
-        if (!n.data.trim() || el.closest('.lf-chrome, .lf-mark-note, .lf-quiet, [hidden]')) continue;
+        if (!n.data.trim() || el.closest('.lf-chrome, .lf-quiet, [hidden]')) continue;
         if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+        if (floating(el)) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
         for (const box of range.getClientRects())

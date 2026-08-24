@@ -1974,6 +1974,100 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 )
 
 
+# A note written level with a change, which is the one arrangement that puts two
+# residents of the right margin on the same line.
+NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
+    "</main>",
+    """<aside class="sidenote" id="level-note">Measured over a quarter, and the number
+moved twice inside it.</aside>
+<lf-suggestion id="sug-level">
+  <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
+  <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
+</lf-suggestion>
+</main>""",
+)
+
+
+def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, serve):
+    """Both residents of the right margin are pinned by the flow — the controls level
+    with the change they decide, the note level with the block it annotates — so on a
+    page that writes one beside the other, neither can step aside and the controls are
+    drawn over the note's first line. That is the arrangement leaf ships, so the gate
+    that reads words drawn on words has to let it through, or every page composing the
+    two idioms is refused at handover.
+
+    The exemption is the float rather than the control, which is what keeps it from
+    swallowing the check it lives in: the same row docks into the flow when it finds no
+    room, and a docked row covering a word is a fault again. So the docked reading is
+    asserted beside the floating one — a gate that has only ever passed has been tested
+    for nothing, and this one is one predicate away from exempting every control there
+    is."""
+    url = serve(NOTE_BESIDE_A_CHANGE)
+    page, errors = open_page(browser, url)
+    page.locator("#sug-level").scroll_into_view_if_needed()
+    geometry = """() => {
+        const note = document.getElementById('level-note').getBoundingClientRect();
+        const row = document.querySelector('.lf-sug-actions');
+        const b = row.getBoundingClientRect();
+        return {position: getComputedStyle(row).position,
+                across: Math.min(note.right, b.right) - Math.max(note.left, b.left),
+                down: Math.min(note.bottom, b.bottom) - Math.max(note.top, b.top)};
+    }"""
+    level = page.evaluate(geometry)
+    covered = page.evaluate(interact.COVERED_WORDS)
+    # The same row, docked: the theme releases the rail below its breakpoint, and the
+    # module observes the resulting body geometry on its next layout frame. What the
+    # gate asks is the computed position, so narrowing the window is how the other half
+    # of the predicate is reached — and the class is the fact that frame states.
+    resized(page, 800, 900)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-sug-actions')"
+        ".classList.contains('lf-docked')"
+    )
+    docked = page.evaluate(geometry)
+    page.close()
+
+    assert level["position"] == "absolute", (
+        f"the row never hung in the margin, so nothing here was tested: {level}"
+    )
+    assert level["across"] > 2 and level["down"] > 2, (
+        f"the controls and the note never met, so this proves nothing: {level}"
+    )
+    assert not [f for f in covered if "level-note" in f], (
+        f"a change's controls were refused the margin they are decided in: {covered}"
+    )
+    assert docked["position"] == "static", (
+        f"the row stayed out of the flow at a width that docks it: {docked}"
+    )
+    assert errors == []
+
+
+def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
+    """The other half of the exemption above, put back as a bug: a control the widget
+    hangs out of the flow is answered for, and one standing in the flow is a resident
+    like any other. Written against a control the page positions itself, because the
+    predicate is the computed position rather than any widget's name.
+
+    `relative` is the case it is written for, being the near-miss that reads as
+    positioned and is not: the box keeps its place in the flow and is painted offset
+    from it, so a control nudged a pixel would have carried the whole exemption with it
+    had the predicate been everything that isn't static."""
+    covering = LONG_PAGE.replace(
+        "</main>",
+        "<p id='under'>A paragraph with something standing on it.</p>"
+        "<span data-lf-offer role='button' id='over' style='position: relative;"
+        " display: block; margin-top: -28px'>Covering words</span>\n</main>",
+    )
+    page, errors = open_page(browser, serve(covering))
+    page.locator("#under").scroll_into_view_if_needed()
+    covered = page.evaluate(interact.COVERED_WORDS)
+    page.close()
+    assert [f for f in covered if "id=under" in f and "id=over" in f], (
+        f"a control the page put in the flow covered a paragraph unreported: {covered}"
+    )
+    assert errors == []
+
+
 def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     """A choose group clips its own box, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column
@@ -1990,8 +2084,11 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     url = serve(SIDENOTE_IN_A_WIDGET)
     page, errors = open_page(browser, url)
     # elementFromPoint answers about the viewport, so the question can only be put to a
-    # note that is in it — LONG_PAGE puts this one four thousand pixels down.
-    page.locator("#boxed-note").scroll_into_view_if_needed()
+    # note that is in it — LONG_PAGE puts this one four thousand pixels down. The group
+    # is what gets scrolled to, never the note: `overflow: hidden` refuses a reader and
+    # not a script, so scrolling to the clipped element hands the group's own box
+    # sideways until the note is inside it, and the test then measures a page it made.
+    page.locator("#where").scroll_into_view_if_needed()
     seen = page.evaluate("""() => {
         const n = document.getElementById('boxed-note');
         const b = n.getBoundingClientRect();
@@ -2185,11 +2282,15 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     panel_settled(page)
     cramped = page.evaluate(reading)
     misplaced = page.evaluate(interact.MISPLACED_BOXES)
-    resized(page, 1600, 900)
+    # Wide enough that the panel's 420px still leaves the floor a clear margin rather
+    # than the twenty-odd pixels 1600 leaves it: the reading is meant to say the strip
+    # survives a window with room for both, not to sit on the boundary and report which
+    # side of it this month's --note falls.
+    resized(page, 1728, 900)
     wide = page.evaluate(reading)
     page.close()
 
-    assert roomy["float"] == "left", (
+    assert roomy["float"] == "right", (
         f"no note stood in the margin to begin with, so this proves nothing: {roomy}"
     )
     assert cramped["float"] == "none", (
@@ -2198,7 +2299,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert misplaced == [], (
         f"content set outside a column the strip had crushed: {misplaced}"
     )
-    assert wide["float"] == "left", (
+    assert wide["float"] == "right", (
         f"a window wide enough for both moved the notes anyway: {wide}"
     )
     assert errors == []
@@ -5459,13 +5560,18 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     the gate knows the difference, one comment on an option is a page nobody can hand over,
     and every page the sweep above renders is a page with no comments on it.
 
-    The pass hunting words drawn on other words has to know the same difference, and knows
-    it the same way — by whose words these are. That line is clipped to nothing and
-    checkVisibility answers for display, visibility and opacity, so it reads as drawn, and
-    its characters fall down the document through the paragraphs under the passage. Holding
-    it out is the only thing keeping this page clean, so the reading is taken twice: once
-    as the gate runs it, and once with the line no longer held out, where it has to
-    report."""
+    The pass hunting words drawn on other words has to know the same difference, and
+    knows it as a float the runtime hangs over the page. That line is clipped to nothing
+    and checkVisibility answers for display, visibility and opacity, so it reads as drawn,
+    and its characters fall down the document through the paragraphs under the passage.
+    Holding it out is the only thing keeping this page clean, so the reading is taken
+    twice: once as the gate runs it, and once with the hold defeated, where it has to
+    report.
+
+    The hold is the float predicate rather than a class named in the skip list, which is
+    what the second reading has to reach for now: the line is out-of-flow chrome like a
+    suggestion's controls, so one rule answers for both and a name beside it would be the
+    same guarantee kept twice."""
     # The last option, because the unheld half below needs the line to land on words:
     # the note is the holder's last child, so its characters fall from the end of the
     # option's own prose, and from a mid-group option they fall through the whitespace
@@ -5478,16 +5584,18 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
-    # The same reading with the line no longer held out, taken while the page is up.
-    # Named out of the selector rather than cut from it, so the reading stays this
-    # reading however the classes it holds out are ordered or added to.
-    unheld = interact.COVERED_WORDS.replace(".lf-mark-note", ".lf-holds-nothing")
+    # The same reading with the hold defeated, taken while the page is up. The predicate
+    # is turned off rather than the pass rewritten, so what runs is this reading with one
+    # answer changed.
+    unheld = interact.COVERED_WORDS.replace(
+        "s.position === 'absolute' || s.position === 'fixed'", "false"
+    )
     reported = page.evaluate(unheld)
     assert errors == []
     page.close()
     assert interact.render_version(browser, url) == []
     assert unheld != interact.COVERED_WORDS, (
-        "the pass no longer holds the line out by name"
+        "the pass no longer holds a float out by the predicate this reaches for"
     )
     assert any("1 comment" in found for found in reported), (
         "the line falls on nobody, so a gate that never looked would pass this too"
@@ -27716,14 +27824,14 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough that the note has its strip (984px) and narrow enough that the room, not the
-# shared cap, is what decides the board's width — above about 1176px the cap binds first
-# and the two never compete. A window inside that band is where the question is live.
-NOTE_BAND = 1100
+# Wide enough that the note has its strip (1152px) and narrow enough that the room, not
+# the shared cap, is what decides the board's width — above about 1560px the cap binds
+# first and the two never compete. A window inside that band is where the question is live.
+NOTE_BAND = 1280
 
 
 def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
-    """The page has two claims on its left margin now: a note is read out there, and a
+    """The page has two claims on its right margin now: a note is read out there, and a
     wide widget expands into it. A widget drawn over a note is the note lost — it is the
     thing on top — and the reader loses words the page states, which is the same fault
     the clipped-float reading refuses a version for.
@@ -27774,10 +27882,10 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
                 f"{note['left']:.0f}–{note['right']:.0f}px and "
                 f"{note['top']:.0f}–{note['bottom']:.0f}px"
             )
-        assert wide["later"]["left"] < wide["column"]["left"] - 1, (
+        assert wide["later"]["right"] > wide["column"]["right"] + 1, (
             f"{medium} held a board with no note anywhere near it to the column's own "
-            f"left edge: board from {wide['later']['left']:.0f}px, column from "
-            f"{wide['column']['left']:.0f}px. A note claims the margin at its own height, "
+            f"right edge: board to {wide['later']['right']:.0f}px, column to "
+            f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
             f"not down the whole page."
         )
         assert wide["sideways"] == 0, (
@@ -27794,46 +27902,37 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     page.close()
 
 
-def test_a_note_moves_the_page_only_where_the_page_owes_it_room(browser, serve):
-    """The strip a note claims comes out of body's padding and the column centres in what
-    is left, so the page moves right by half of whatever is reserved. Reserving the note's
-    full width whenever a note exists charges that to every window, including the ones
-    already leaving more room than the note can use: a 1600px window centres a 768px
-    column with 416px each side, and the flat claim still pushed the whole page 108px off
-    the window's centre to buy room the note was standing in.
+def test_a_note_sets_the_page_axis_with_its_whole_strip(browser, serve):
+    """The strip a note claims comes out of body's right padding and the column centres
+    in what is left, so the page's axis sits half a strip left of the window's. The note
+    keeps that axis even on a window whose ordinary centring already left room beside the
+    prose: this is a page with a right margin, not a centred page spending spare room.
 
-    So the reservation is the shortfall and nothing more. On a window with the room the
-    page keeps the centring it would have had with no note at all, and the note is read
-    in the margin that centring already left. On one without, the strip appears and buys
-    exactly enough: the note stays on the page with the same gutter main gives its prose.
-
-    The narrow half is what stops this being answered by never reserving anything, which
-    would pass the wide assertion and paint the note off the edge of the window."""
+    Both widths matter. The wide one proves the claim is the axis rather than only the
+    shortfall, and the tighter one proves that keeping the whole claim still leaves the
+    note on the page without horizontal scrolling."""
     url = serve(NOTE_AND_WIDE_PAGE)
     page, errors = open_page(browser, url)
 
     resized(page, 1600, 900)
     roomy = page.evaluate(ROOM_GEOMETRY)
-    centred = (1600 - roomy["column"]["width"]) / 2
-    assert abs(roomy["column"]["centre"] - 800) <= 1, (
-        f"a note pushed the whole page off the window's centre on a window with room to "
-        f"spare: column centred at {roomy['column']['centre']:.0f}px of 1600px"
+    assert abs(roomy["column"]["centre"] - (1600 - 384) / 2) <= 1, (
+        f"the right strip did not set the page's axis: column centred at "
+        f"{roomy['column']['centre']:.0f}px of 1600px"
     )
-    assert roomy["note"]["left"] > 0, (
-        f"the note is off the left edge at 1600px: {roomy['note']['left']:.0f}px"
+    assert roomy["note"]["right"] <= 1600, (
+        f"the note is off the right edge at 1600px: {roomy['note']['right']:.0f}px"
     )
-    assert centred > 0  # the arithmetic above is only meaningful while the column fits
 
     resized(page, NOTE_BAND, 900)
     tight = page.evaluate(ROOM_GEOMETRY)
-    assert tight["note"]["left"] >= 0, (
-        f"the page kept its centring on a window too narrow to read the note in, so the "
-        f"note is painted {-tight['note']['left']:.0f}px off the left edge"
+    assert abs(tight["column"]["centre"] - (NOTE_BAND - 384) / 2) <= 1, (
+        f"the tighter page lost the note-set axis: column centred at "
+        f"{tight['column']['centre']:.0f}px of {NOTE_BAND}px"
     )
-    assert tight["column"]["centre"] > NOTE_BAND / 2, (
-        "a window that cannot fit the note beside a centred column has to move the page, "
-        f"and this one did not: column centred at {tight['column']['centre']:.0f}px of "
-        f"{NOTE_BAND}px"
+    assert tight["note"]["right"] <= NOTE_BAND, (
+        f"the note is off the right edge at {NOTE_BAND}px: "
+        f"{tight['note']['right']:.0f}px"
     )
     assert tight["sideways"] == 0
 

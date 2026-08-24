@@ -7751,13 +7751,20 @@ function place(node, left, top) {
     pageScroller.scrollTop +
     "px";
 }
-// The composer's first choice of a place is the column's margin, beside the passage:
-// the document is one centred column, so the margin holds no words by construction,
-// and the mark and the box then stand side by side — where the box opened instead at
-// the gesture (the fab, the ⌥-click's pointer), it stood on the page's own text next
-// to the passage, which is the one thing a 320px card over a 720px column can't avoid
-// doing there. placeClear steps it down past any control the page hangs out in that
-// same margin (a suggestion's Accept/Reject row).
+// The composer's first choice of a place is the column's margin, beside the passage, so
+// the mark and the box stand side by side — where the box opened instead at the gesture
+// (the fab, the ⌥-click's pointer), it stood on the page's own text next to the
+// passage, which is the one thing a 320px card over a 720px column can't avoid doing
+// there. placeClear steps it down past any control the page hangs out in that same
+// margin (a suggestion's Accept/Reject row).
+//
+// A sidenote is out there too and the box covers one whole while it stands, which is
+// where this stops short of stepping clear. What the walk steps past is controls,
+// because a control the box hides is a press the reader was reaching for; a note is
+// prose they are not mid-gesture on, and the box goes when they are done with it. The
+// walk could be taught the note as easily — the cost is where it would then put the box
+// on a page carrying a run of them, which is far enough down the margin to be about a
+// different paragraph.
 //
 // Where the margin is too narrow for the box — a laptop window, the panel open — it
 // has one thing left to stay clear of: its own mark. That mark is the only thing

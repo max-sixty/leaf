@@ -7585,13 +7585,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             "lf-address",
             "lf-over-mark",
             "lf-mark-el",
+            "lf-mark-hover",  # the same element mark, for the one the pointer indicates
             "lf-mark-here",  # the same element mark, for the comment the reader is in
             "lf-pending",
             "lf-ins-block",
             "lf-mark-note",
             "lf-aiming",
             "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
-            "lf-arrived",  # the arrival's clock, on body, because every mark descends from it
+            "lf-arrived",  # the arrival's clock, on the blocks the standing mark is painted over
             "lf-over-item",
             "lf-quiet",
         }
@@ -16357,6 +16358,234 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     assert painted(page, "lf-mark") != "", (
         "the posted marks went down with the standing one"
     )
+    assert errors == []
+    page.close()
+
+
+HOVERED = """(text) => {
+    const h = CSS.highlights.get('lf-mark-hover');
+    const said = (h ? [...h].map(r => r.toString()).join('') : '').split(/\\s+/)
+        .filter(Boolean).join(' ');
+    return said === text;
+}"""
+
+
+def wait_hovered(page, text):
+    """Wait for the page to be lighting exactly this passage under the pointer.
+
+    Answered in a coalesced frame rather than in the move itself: the page's half reads
+    layout, and the panel's half reads the browser's own :hover, which that frame is also
+    what settles. Reading straight after the move reads the move before its answer."""
+    try:
+        page.wait_for_function(HOVERED, arg=text, timeout=4000)
+    except PlaywrightTimeout:
+        raise AssertionError(
+            f"the pointer should be lighting {text!r} on the page; it is lighting"
+            f" {painted(page, 'lf-mark-hover')!r}"
+        ) from None
+
+
+def card_body(page, says):
+    """A point low on a comment's card, below the quote — where a reader's hand rests
+    while they read the comment, and where nothing presses."""
+    box = page.locator(".lf-thread").filter(has_text=says).first.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] - 8
+
+
+def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serve):
+    """A reader scanning a full panel asks the same thing of every card — which of these
+    is about what — and pressing one to find out spends a travel they may not want. The
+    pointer resting on the card answers it: a card is the thread's view in the list the
+    way a mark is its view in the prose, so the same wash lights the same passage from
+    either side. The standing mark answers the question for the comment the reader chose;
+    this answers it for the one under their hand.
+
+    Read in the frame that already answers the page's own hover, because the pointer is
+    in one place and the two readings are one answer: markAt refuses a point that lands
+    in the chrome, so a card's reading and a mark's cannot both name a thread, and a
+    second writer to this highlight would be overwritten by whichever frame ran last.
+
+    The cursor stays behind on the page. It is the promise that pressing here opens
+    something, and over a card the press on offer is the card's own."""
+    url = serve(INLINE_PAGE)
+    page, errors = open_page(browser, url)
+    api = url.rsplit("/versions/", 1)[0] + "/api/event"
+    for anchor, text in (
+        ({"section": "p", "quote": "bold text"}, "on the first"),
+        ({"section": "p2", "quote": "neighbouring block"}, "on the second"),
+        ({"section": "fig"}, "on the figure"),
+    ):
+        post_event(
+            page,
+            api,
+            data={"kind": "comment", "version": 1, "text": text, "anchor": anchor},
+        )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
+    page.locator(".lf-comments").click()
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
+
+    assert painted(page, "lf-mark-hover") == "", (
+        "a page whose pointer has touched nothing is already lighting a passage"
+    )
+
+    # Three things a mark can be — posted, indicated, stood in — are three steps of one
+    # wash, and the middle one exists because this gesture puts the pointer over the panel
+    # by construction: a hover sharing the standing wash left the two lit identically
+    # whenever a hand rested where it had just clicked, with a 2px underline hue the only
+    # thing between them.
+    #
+    # Measured as composited pixels rather than as declarations, because a rule full of
+    # var() and color-mix reads back non-empty whatever it resolves to, and two alphas of
+    # one hue is exactly the pair a string comparison calls different and the eye does
+    # not. So the wash is painted over the page's own ground and the result compared in
+    # Lab: ordering by distance from that ground, which holds in both colour schemes
+    # because the wash is darker than the page in one and lighter in the other, and a
+    # floor under each step, because ordering alone passes a middle set one alpha unit
+    # from its neighbour. The floor is 4, against a just noticeable difference near 2.3
+    # and the palette's own 6.4 and 6.5 in light, 7.4 and 7.2 in dark.
+    ramp = page.evaluate("""() => {
+        const rules = [...document.styleSheets].flatMap(s => {
+            try { return [...s.cssRules] } catch { return [] }
+        });
+        const probe = document.createElement('div');
+        probe.style.setProperty('--lf-mark-lift', '0');  // the standing wash at rest
+        document.body.append(probe);
+        const declared = (name) => {
+            const r = rules.find(r => (r.selectorText ?? '') === `::highlight(${name})`);
+            if (!r?.style?.backgroundColor) return null;
+            probe.style.backgroundColor = r.style.backgroundColor;
+            return getComputedStyle(probe).backgroundColor;
+        };
+        const paper = getComputedStyle(document.body).backgroundColor;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d', {willReadFrequently: true});
+        const over = (css) => {
+            ctx.fillStyle = paper; ctx.fillRect(0, 0, 1, 1);
+            if (css !== null) { ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        const lab = (px) => {
+            const [r, g, b] = px.map(v => {
+                const c = v / 255;
+                return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            });
+            const f = (t) => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+            const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047);
+            const y = f(r * 0.2126 + g * 0.7152 + b * 0.0722);
+            const z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+            return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+        };
+        const de = (a, b) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
+        const ground = over(null);
+        const steps = {};
+        for (const [step, name] of [['posted', 'lf-mark'], ['pointed', 'lf-mark-hover'],
+                                    ['standing', 'lf-mark-here']]) {
+            const css = declared(name);
+            steps[step] = css === null ? null : over(css);
+        }
+        probe.remove();
+        if (Object.values(steps).some(v => v === null)) return {missing: steps};
+        return {
+            fromGround: Object.fromEntries(
+                Object.entries(steps).map(([k, v]) => [k, +de(v, ground).toFixed(2)])),
+            apart: {
+                'posted→pointed': +de(steps.posted, steps.pointed).toFixed(2),
+                'pointed→standing': +de(steps.pointed, steps.standing).toFixed(2),
+            },
+        };
+    }""")
+    assert "missing" not in ramp, (
+        f"a step of the mark ramp has no wash rule at all: {ramp['missing']}"
+    )
+    order = ramp["fromGround"]
+    assert order["posted"] < order["pointed"] < order["standing"], (
+        "the three things a mark can be are not three steps away from the page's own"
+        f" ground, so the wash does not rank them: {order}"
+    )
+    assert min(ramp["apart"].values()) >= 4, (
+        "two steps of the mark ramp are too close for a reader to tell apart without one"
+        f" of the other beside it: {ramp['apart']}"
+    )
+
+    page.mouse.move(*card_body(page, "on the first"))
+    wait_hovered(page, "bold text")
+    # The wash is the page's, and the cursor is not: body wears lf-over-mark only while
+    # the pointer is on the page's own mark, or every card in the panel would promise a
+    # press the page does not make — the quote inside the card makes its own.
+    assert not page.evaluate(
+        "() => document.body.classList.contains('lf-over-mark')"
+    ), "resting on a card told the page the pointer was on a mark"
+
+    # It follows the pointer along the list, so a sweep down the panel reads out what
+    # each comment is about in turn.
+    page.mouse.move(*card_body(page, "on the second"))
+    wait_hovered(page, "neighbouring block")
+
+    # An element anchor answers too, in the property it has. ::highlight paints glyphs and
+    # a box has none, so the wash lands on nothing there and the middle step is said in
+    # the outline instead — the same rank, one weight up from the posted hairline. Without
+    # it the pointer over an element-anchored card did nothing at all, which from the
+    # panel reads as a broken hover rather than as a passage with no words.
+    page.mouse.move(*card_body(page, "on the figure"))
+    wait_hovered(page, "")
+    hovered_el = page.locator("#fig")
+    expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    assert (
+        page.evaluate(
+            "() => getComputedStyle(document.querySelector('#fig')).outlineWidth"
+        )
+        == "2px"
+    ), "the pointer on an element-anchored card left its box unchanged"
+
+    # Standing in one comment while pointing at another says both, because they answer
+    # different questions and rank apart: the standing mark keeps its ink above the wash.
+    page.locator(".lf-thread").filter(has_text="on the first").first.focus()
+    wait_standing(page, "bold text")
+    page.mouse.move(*card_body(page, "on the second"))
+    wait_hovered(page, "neighbouring block")
+    assert standing_mark(page)["text"] == "bold text", (
+        "pointing at another comment's card took the standing comment's mark away"
+    )
+
+    # And the pointer leaving the panel puts it down, while what the page posted stays.
+    page.mouse.move(2, 2)
+    wait_hovered(page, "")
+    assert painted(page, "lf-mark") != "", (
+        "the posted marks went down with the pointer's"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
+    """The panel going away is the card going out from under the pointer, and the wash it
+    was lighting has to go with it. Escape closes the panel from wherever the reader is
+    standing, so the pointer never moves and nothing else asks the hover question again —
+    the page is left washing a passage with no card, no pointer on it, and nothing on the
+    screen that says why."""
+    url = serve(INLINE_PAGE)
+    page, errors = open_page(browser, url)
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "version": 1,
+            "text": "on the first",
+            "anchor": {"section": "p", "quote": "bold text"},
+        },
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 1")
+    page.locator(".lf-comments").click()
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
+
+    page.mouse.move(*card_body(page, "on the first"))
+    wait_hovered(page, "bold text")
+
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => !document.body.hasAttribute('data-lf-panel')")
+    wait_hovered(page, "")
     assert errors == []
     page.close()
 

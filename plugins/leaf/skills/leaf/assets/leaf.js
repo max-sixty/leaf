@@ -2181,17 +2181,28 @@ const STRIP_MIN = parseFloat(
    dashed means detached.
 
    The wash and the ink answer two questions, so they are moved by two things. The wash
-   strengthens under the pointer, which is momentary and local and says only that a press
-   here would open something. The ink turns accent for the comment the reader is standing
-   in (paintStanding), which stands as long as they are in it and says which of a page's
-   marks the panel is talking about — "you are here", in the one band this page spends on
-   that fact everywhere else (--here-ring). Where they meet, the ink is what is left to
-   tell them apart: at rest the standing wash is --mark-strong, which is the hover's wash
-   exactly, so the pointer resting on a standing mark changes nothing about it and a
-   hovered ordinary mark matches its wash. That is the ink's to answer, and the promise
-   the wash would have made is already the cursor's (lf-over-mark). The draft's accent
-   wash cannot be confused with the standing mark's accent ink, because one focus decides
-   both and an open composer holds it.
+   says how near the reader's attention is, in three steps of one hue: --mark for a mark
+   the page merely holds, --mark-hover for the one the pointer is indicating, and
+   --mark-strong for the one the reader is standing in. The ink turns accent for that last
+   one alone (paintStanding), because "you are here" is a different claim from "you are
+   near here", and it is made in the one band this page spends on that fact everywhere
+   else (--here-ring).
+
+   Three steps and not two, because the hover is no longer a thing the reader does only by
+   pointing at the prose. A card in the panel indicates its thread the same way (paintHover
+   reads both surfaces), and the pointer is over the panel by construction in the moment
+   after a reader presses a card — so a hover sharing the standing wash left the two lit
+   identically whenever a hand rested where it had just clicked, with a 2px underline hue
+   the only thing between them and, on a page of one mark, nothing to compare it against.
+
+   What moved is the hover, downward. The constraint on the standing wash binds in one
+   direction only — it cannot go past --mark-strong without spending what code read
+   through a mark still has to clear — so the room was below rather than above, and taking
+   it raises what a hovered passage's code reads at instead of spending any (theme.css
+   states the numbers). The promise the hover's old strength was making is in any case
+   already the cursor's (lf-over-mark). The draft's accent wash cannot be confused with the
+   standing mark's accent ink, because one focus decides both and an open composer holds
+   it.
 
    The standing mark's own wash is a mix the arrival drives (--lf-mark-lift, 1 on landing
    and 0 at rest), because the two moments want different volumes out of one paint. On
@@ -2202,9 +2213,13 @@ const STRIP_MIN = parseFloat(
    what code read through a mark still has to clear. Nothing in the suite gates that —
    theme.css says so where it states the numbers, which is why they are a measurement
    kept by hand and not a floor something will catch. Measured for this: a resting wash
-   far enough past --mark-strong to tell it from the hover takes the worst syntax role
-   from 4.06 to 3.49, and one close enough to be cheap is not one the eye can find. A
-   moment of motion answers it where a stronger colour cannot, and costs nothing at rest.
+   past --mark-strong takes the worst syntax role from 4.06 to 3.49, and one close enough
+   to be cheap is not one the eye can find. That is what fixes --mark-strong as the top of
+   the ramp, and it is why the step separating the standing mark from the hovered one was
+   taken out of the hover's side. It buys a second glance, not a landing: arriving among a
+   dozen marks, the question is which one, and one step of wash does not carry across the
+   distance the eye has just travelled. A moment of motion answers it where a stronger
+   colour cannot, and costs nothing at rest.
    Afterwards the question is only *is it still that one*, which the settled wash and the
    accent ink answer to a second glance. The pulse decays into that state rather than
    uncovering it, so this is one paint at two volumes. The reduced-motion guard in
@@ -2233,7 +2248,7 @@ const MARK_RULES = `
   .lf-arrived { animation: lf-runtime-4f3c2a8d-arrive 1.2s ease-out; }
   ::highlight(lf-mark) { background-color: var(--mark);
     text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
-  ::highlight(lf-mark-hover) { background-color: var(--mark-strong); }
+  ::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
   ::highlight(lf-mark-here) {
     background-color: color-mix(in srgb, var(--accent) calc(var(--lf-mark-lift) * 45%), var(--mark-strong));
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
@@ -2592,6 +2607,17 @@ ${MARK_RULES}
      marks keeps the posted colour rather than taking this (paintAnchors), so the pair
      never contend on one element. */
   .lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto; }
+  /* The element anchor of the comment the pointer is indicating (paintHover), which is
+     the same middle step the text mark takes in its wash. A box has no glyphs, so
+     ::highlight paints nothing on one and the pointer used to leave an element-anchored
+     comment with no answer at all — from the panel especially, where there is no page
+     cursor to change and a card that lit nothing was indistinguishable from a card whose
+     hover had broken. Said in the property the element mark already ranks in: 1px
+     --mark-ink posted, 2px --mark-ink indicated, 2px --accent stood in. Inset to -2px
+     for the reason the standing ring gives below — the offset is to the outer edge, so a
+     doubled width at -1px pokes a pixel into the band a scrolling ancestor clips. Before
+     the standing rule, so an element that is both takes the accent. */
+  .lf-mark-el.lf-mark-hover { outline-width: 2px; outline-offset: -2px; }
   /* The standing comment's element anchor (paintStanding). It keeps the hairline's own
      inset rather than taking the ask ring's gap, so focusing the thread changes the ring
      where it already is instead of moving it outward by four pixels — the mark is the
@@ -4774,6 +4800,12 @@ function setPanel(open) {
     syncGeneral(); // a restored draft has to reach the Send button's disabled state
   }
   paintHere();
+  // The panel is one of the two surfaces the hover reads, so its arriving or going away
+  // is the pointer moving even when the pointer has not: closing it with the keyboard,
+  // from a hand resting on a card, took the card out from under the pointer and left the
+  // page lit about a comment with no panel to explain it. The open half came free through
+  // renderPanel; this is the half that has no render.
+  refreshHover();
 }
 toggleBtn.onclick = () => setPanel(!panelOpen);
 addEventListener("resize", pageShifted);
@@ -8010,12 +8042,49 @@ function scrollToThread(id) {
 // what lights up is what would open. It is a function of where the pointer is and what the
 // page's geometry is, so everything that moves either asks again: the pointer moving, the
 // page scrolling under a still pointer, and the pass redrawing the ranges themselves.
+//
+// The pointer can indicate a thread from either surface, and the panel is the other one.
+// A card is the thread's view in the list the way a mark is its view in the prose, so
+// resting on the card lights the passage exactly as resting on the passage lights it —
+// the same wash, because it is the same fact, and a second strength would be a third
+// thing to learn on a page that already asks the reader to tell a mark from a standing
+// mark. It answers the question a reader scanning a full list keeps asking, which of
+// these is about what, without a press and without a travel they may not want; the
+// standing mark answers it for the one comment they chose, and this answers it for the
+// one under their hand.
+//
+// One answer rather than two, because the pointer is in one place: markAt refuses a point
+// that lands in the chrome, so the panel's reading and the page's cannot both name a
+// thread. That is also why the two are read here rather than painted by separate hands —
+// a second writer to this highlight would be overwritten by whichever frame ran last, and
+// the hit-test runs on every mousemove.
+//
+// The whole card and not the quote alone, though the quote is the part that presses. The
+// card is where the eye is while it reads the comment, and the question arrives there
+// rather than on the three clamped lines at the top; a reader who wanted the quote's
+// press would already be on it.
 const HOVER = "lf-mark-hover";
+const hoveredThreadOf = () => threadsBox.querySelector(".lf-thread:hover");
+let hoverParts = [];
 function paintHover(id) {
   hovering = id;
-  document.body.classList.toggle("lf-over-mark", Boolean(id));
-  const ranges = marksOf(id).filter((where) => where instanceof Range);
-  CSS.highlights.set(HOVER, Object.assign(new Highlight(...ranges), { priority: 1 }));
+  const where = marksOf(id);
+  // Both kinds of anchor, for the reason paintStanding takes both: one question about one
+  // thread, and a reading that answered only the passages with words left an element
+  // anchor saying nothing back. Only what changed, and guarded on each side, for the
+  // reason spelled out there — this runs on every frame of a pointer sweep.
+  const parts = where.filter((mark) => mark instanceof Element);
+  for (const part of hoverParts)
+    if (!parts.includes(part)) part.classList.remove(HOVER);
+  for (const part of parts)
+    if (!part.classList.contains(HOVER)) part.classList.add(HOVER);
+  hoverParts = parts;
+  CSS.highlights.set(
+    HOVER,
+    Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
+      priority: 1,
+    }),
+  );
 }
 // Which comment the reader is standing in, said out on the page. The panel has always
 // answered it on its own surface — the thread holds the focus, and a press on a mark
@@ -8106,13 +8175,22 @@ function paintStanding(arrived = false) {
   }, 1300);
 }
 // Coalesced to a frame: scroll outruns layout, the hit-test reads layout, and a repaint
-// asks from inside a pass that must stay cheap enough to run from a mousedown.
+// asks from inside a pass that must stay cheap enough to run from a mousedown. The frame
+// is what settles the panel's half too — that reading is the browser's own :hover state,
+// and asking for it from inside the pointer event that is moving it asks mid-move.
 function refreshHover() {
   if (hoverQueued || (!marked.size && !hovering)) return;
   hoverQueued = true;
   requestAnimationFrame(() => {
     hoverQueued = false;
-    const id = markAt(pointer.x, pointer.y);
+    // The cursor stays with the page's own reading. It is the promise that a press here
+    // opens something, and over a card the press on offer is the card's own — which the
+    // panel already says for itself, on the quote that makes it. Unconditional because
+    // toggle runs no update step when the answer has not changed, unlike the add that
+    // noteMarks and the standing paint have to guard.
+    const onMark = markAt(pointer.x, pointer.y);
+    document.body.classList.toggle("lf-over-mark", Boolean(onMark));
+    const id = hoveredThreadOf()?.dataset.id ?? onMark;
     if (id !== hovering) paintHover(id);
   });
 }

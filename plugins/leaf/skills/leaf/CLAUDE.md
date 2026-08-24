@@ -796,9 +796,47 @@ the same predicate, so the two halves cannot disagree about which comment the
 reader is in. Not `:focus-visible`, which is a claim about the last input device
 and left a mouse reader with the page marked and the card plain.
 
+`lf-mark-hover` answers a different question — which thread the pointer is
+indicating — and reads both surfaces in one frame. A card is the thread's view in
+the list the way a mark is its view in the prose, so resting on the card lights
+the passage exactly as resting on the passage lights it, and a reader sweeping a
+full panel is told what each comment is about without pressing anything. There is
+one answer rather than two because the pointer is in one place: `markAt` refuses a
+point that lands in the chrome, so `hoveredThreadOf` and the page's hit test
+cannot both name a thread. Both are read inside `refreshHover`'s frame, which is
+also what settles `:hover` — asking for it from inside the pointer event that
+moves it asks mid-move — and a second writer to this highlight would be
+overwritten by whichever frame ran last.
+
+The whole card answers, not the quote alone, because the card is where the eye is
+while it reads the comment. `body.lf-over-mark` stays with the page's own reading:
+it is the promise that a press here opens something, and over a card the press on
+offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
+question again on the way out as well as in, because the panel is one of the two
+surfaces this reads: closing it from the keyboard, with a hand resting on a card,
+takes that card out from under a pointer that never moved.
+
+`paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
+paints glyphs, so a box takes no wash; the element mark says the same rank in the
+property it has, one weight up from the posted hairline
+(`.lf-mark-el.lf-mark-hover`). Without that, an element-anchored comment answered
+the pointer with nothing at all — which from the panel, where there is no page
+cursor to change, reads as a broken hover rather than as a passage with no words.
+
+Three steps of one wash, because three things a mark can be are three distances
+from the reader's attention: `--mark` posted, `--mark-hover` indicated,
+`--mark-strong` stood in. The middle step exists because this gesture puts the
+pointer over the panel by construction — a hover sharing the standing wash left
+the two lit identically whenever a hand rested where it had just clicked. It was
+the hover that moved down rather than the standing wash up, because the
+measurement in `theme.css` binds in one direction only, so the step costs no
+contrast and gains some.
+
 The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and
 a higher one supplies only the properties it states, so a standing mark under the
-pointer takes the hover's wash and keeps its own ink.
+pointer keeps its own wash and its own ink and takes nothing from the hover.
+Pointing at one comment while standing in another therefore says both, in two
+washes a reader can tell apart.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in, so the arrival is announced there and a route added later inherits it. It

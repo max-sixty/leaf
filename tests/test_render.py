@@ -27259,16 +27259,18 @@ DRAWING_PLACEMENT = """() => {
 def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     browser, serve
 ):
-    """A drawing's box is the room, which on a page with a claimed margin is a box the
-    column does not sit in the middle of. Centred in that box, a graph explaining the
-    prose beside it would sit hundreds of pixels off the words it explains — the fault
-    the axis rule names, arrived at from the other side.
+    """A drawing's box is the room, and a drawing is placed rather than the box: on the
+    column's axis while it fits, out into the margins when it needs the room, and behind
+    a reachable scrollbar when even the room is short. The rail's claim reaches only the
+    rows' own bands, and neither drawing here stands level with the row — the change is
+    a block above them — so both margins are the drawings' to take: the wide one held to
+    the column's right edge with the margin beside it empty was the reading the claim's
+    page-wide form produced, and is now the fault rather than the bargain.
 
-    So the drawing is placed rather than the box: on the column's axis while it fits
-    between the claimed edges, out into the free margin when it needs the room, and never
-    over the controls that decide the change above it. A board is held to the same
-    bargain — a side holding something of the page's gives nothing — and this is what
-    that bargain costs a widget whose width is not its box's."""
+    The narrow read is the other half. With the window closed in, the room genuinely
+    runs short, the box scrolls, and the overflow must be laid out where the scroll can
+    reach it: an overflow off the start edge is unreachable in any direction, and the
+    drawing's first node is the one a reader follows the graph from."""
     page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     resized(page, 1500, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
@@ -27291,16 +27293,24 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
         "a drawing that needs the room must take the free margin: its box starts at "
         f"{at['flow']['box']['left']:.0f}px, the column at {at['col']['left']:.0f}px"
     )
-    assert at["flow"]["box"]["right"] <= at["col"]["right"] + 1, (
-        f"and never the claimed one: its box ends at {at['flow']['box']['right']:.0f}px, "
-        f"the column at {at['col']['right']:.0f}px, the controls at {at['rail']:.0f}px"
+    assert at["flow"]["box"]["right"] > at["col"]["right"] + 1, (
+        f"a drawing no row is level with is held to the column's right edge: its box "
+        f"ends at {at['flow']['box']['right']:.0f}px, the column at "
+        f"{at['col']['right']:.0f}px — the rail claims the rows' bands, not the side"
     )
-    # What is left of a drawing too wide for even that is behind a scrollbar, which is
-    # only an answer if the scroll can reach it: an overflow laid out off the start edge
-    # is unreachable in any direction, and the drawing's first node is the one a reader
-    # follows the graph from.
+    assert not at["flow"]["scrolls"], (
+        "with both margins the room holds this drawing whole, so a scrollbar here is "
+        "room withheld"
+    )
+    assert abs(at["flow"]["offAxis"]) <= 1, (
+        f"a drawing the room holds sits {at['flow']['offAxis']:.0f}px off the column's "
+        "axis"
+    )
+
+    resized(page, 1200, 900)
+    at = page.evaluate(DRAWING_PLACEMENT)
     assert at["flow"]["scrolls"], (
-        "this drawing outgrows the claimed page's room, so its box must scroll"
+        "this drawing outgrows the narrow page's room, so its box must scroll"
     )
     assert abs(at["flow"]["left"] - at["flow"]["box"]["left"]) <= 1, (
         f"the overflow was laid out off the box's start edge, where no scroll reaches "

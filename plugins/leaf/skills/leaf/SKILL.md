@@ -18,6 +18,12 @@ work, milestones for stages, metrics for measurements, and prose only where
 prose adds something. `leaf page catalog <page>` is the authority for the
 vendored vocabulary and theme.
 
+The stakes decide the ceremony. A quick page — an idea, a sketch, options put
+up for the user to react to — goes out on the markup check publishing already
+runs. A finished record also passes the browser gate and a read-through before
+its URL first reaches the user, and a quick page that grows into the record
+takes that review then. Both kinds set status and enter the wait loop.
+
 Every ask has a control beside its evidence. A page that needs approval declares
 sign-off; an informative page does not. Publish when the subject changes and use
 status detail for finer progress between versions. Keep the waiter alive while
@@ -39,7 +45,7 @@ is absent, report that the plugin payload is incomplete. A checkout keeps it at
 
 1. Run `leaf page init <page>`, then run and read
    `leaf page catalog <page>`.
-2. Read `references/page-authoring.md`. Write a complete first version to
+2. Read `references/page-authoring.md`. Write the first version to
    `<page>/versions/v1.html` using only the catalog's tags, attributes, and
    idioms.
 3. Start the service with `leaf server start <page>` and retain its exact URL.
@@ -47,9 +53,10 @@ is absent, report that the plugin payload is incomplete. A checkout keeps it at
 4. Publish with
    `leaf version publish <page> --version 1 --text "<changelog>"`. Publishing
    runs the static markup check.
-5. Before the URL first reaches the user, repeat the pre-handover review in
+5. On a finished record, run the pre-handover review in
    `references/page-authoring.md`, including
-   `leaf version check <page> --render`.
+   `leaf version check <page> --render`, before the URL first reaches the
+   user. A quick page goes out on the publish check alone.
 6. Read `references/conversation-loop.md`. Set
    `leaf status <page> waiting "<what you want back>"`; leave the detail empty
    on an informational page with no concrete ask.
@@ -68,8 +75,8 @@ seen.
 Read references directly from this skill directory. They do not route to one
 another.
 
-- `references/page-authoring.md`: before writing or revising a version and again
-  before the first handoff.
+- `references/page-authoring.md`: before writing or revising a version; its
+  pre-handover review before a finished record's handoff.
 - `references/conversation-loop.md`: before waiting, processing a delivered
   batch, opening or replying to a thread, or ending a page.
 - `references/worker-orchestration.md`: when other sessions report into an

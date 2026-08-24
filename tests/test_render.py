@@ -20664,6 +20664,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
             "anchor": {"section": "p", "quote": "bold text"},
         },
     )
+    told(page)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     # Open a composer on other text and type nothing, so the next mousedown outside it
@@ -20674,6 +20675,10 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
 
+    # The selection that opened the composer can scroll this earlier passage above the
+    # viewport. Put the target under a real pointer before asking whether its mousedown
+    # can dismiss the composer without swallowing the click that follows.
+    page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)
 

@@ -429,8 +429,13 @@ lf-options[choose]:has(> lf-option > .lf-pick:focus-visible) > lf-option > .lf-a
  * landed. Answered is paint, never a wider word — the pressed control's own line
  * holds still. Keyed on the pressed state the press already wears, because the
  * group's markup is the author's: an `answered` attribute here was the same fact
- * a second time, in a namespace the entry closes (lf-options.js). */
-lf-options > .lf-done { margin-top: 8px; }
+ * a second time, in a namespace the entry closes (lf-options.js). It held 8px over
+ * itself once, from the days a group was options standing apart; the module adds it to a
+ * thread question only, every thread question is a live `choose` group, and a live
+ * `choose` group is the joined control, whose cells butt. Nothing was left for the margin
+ * to detach it from — the grid had been stretching it to the full column all along — so
+ * what it drew was a hairline with dead ground under it, on every thread the agent asked
+ * a set question in. */
 lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
 /* A group under `choose` is one control, not a set of options standing near each other.
@@ -469,6 +474,35 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
  * another and offer a question nobody is asking. Opened, its cards come back as
  * cards — with their rings, since the ring and the container are the same decision made
  * twice and a group that isn't joined has to say the offer itself. */
+/* Every child of a joined control is a cell, and a cell holds its words off the frame.
+ * Said once, as the thing that is true of a cell, rather than once per kind the block
+ * below expects to find: children arrive here from every layer — the options are the
+ * author's, the box for words is the module's, the question is the runtime's — and the
+ * block naming two of them left the third sitting on the frame, a full address column
+ * left of the words it was a question about. A fourth kind is a matter of time, and
+ * naming it after it arrives is the same bug one name longer.
+ *
+ * At no specificity at all, both guards inside :where(), so it is a floor rather than a
+ * rule to fight: every cell with an answer of its own already outranks it — a card's
+ * padding, a row's, the footer's 12px, a button's own — and only a cell nobody has
+ * dressed lands on it. That is also why it is stated out here rather than as `& > *`
+ * inside the block: nested there it would carry the block's own two class columns and
+ * clobber the form padding it is meant to defer to.
+ *
+ * Two floors, because they answer two questions. Where the group's words begin is the
+ * whole group's, `settled` included: a settled group reserves the same column on the
+ * cards behind its disclosure, so a question that skipped it opened three columns left of
+ * its own answers the moment a reader opened one — the same misalignment in a form the
+ * frame never reaches. Room above and below is the frame's, so only the joined control
+ * asks for it. */
+@media screen {
+ :where(html:not(.lf-copy)) {
+  :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
+                     padding-inline-start: var(--lf-address-col); }
+  :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
+                     padding-block: var(--sp-2); padding-inline-end: var(--sp-3); }
+ }
+}
 @media screen {
  html:not(.lf-copy) {
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
@@ -478,17 +512,39 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * (--lf-frame, theme.css). Its cells declare their own; this covers what stands
      * beside them. */
     --lf-frame: 1;
+    /* Cells butt, so nothing brings a block margin into the group: the hairline below is
+     * the whole of what separates one from the next, and a margin beside it is a second
+     * way to say what the line already says, drawn as a rule floating in a band of
+     * nothing. Over every child rather than over the kinds this block goes on to name.
+     * Each of the three that had one had it for standing alone — the question's 8px
+     * leading an unjoined group, the box for words hanging below its host, the thread
+     * question's Done press detaching itself — and each was written before the group
+     * became a grid that stretches every child to the column. Naming them one at a time
+     * is how the first two got reset here and the third did not, and the comment that
+     * used to stand here called it a float that "does not fill the row" when the grid
+     * had been filling it all along. */
+    & > *, &::before { margin-block: 0; }
     /* The hairline between neighbours: one line, stated once, on the upper of the
-     * two — so a child no rule here names arrives already separated, and a child
-     * that floats inside the group on a margin of its own (the thread question's
-     * Done press, a button with its own frame) is never handed a recolored top
-     * edge: the seam stays at the edge of what stands above it. `:not(:last-child)`
+     * two, so a child no rule here names arrives already separated. `:not(:last-child)`
      * outranks the cell reset below (a pseudo-class counts above a tag), which is
      * what lets that reset stay a plain `border: 0`. The line used to be each
      * cell's own outer shadow, cast into a 1px grid gap: three declarations for
      * one line, every interior line painted twice, and the edges leaning on the
-     * group's clip to take the overhang. */
-    & > :not(:last-child) { border-bottom: 1px solid var(--rule); }
+     * group's clip to take the overhang. The pseudo the question is written as
+     * (theme.css, above) is a grid item like any child and takes the same seam, which a
+     * child combinator cannot reach on its own. It is never the last of them: a group
+     * with no option is not a control. */
+    & > :not(:last-child), &::before { border-bottom: 1px solid var(--rule); }
+    /* The question the group asks (theme.css, above) takes the cell floor like any other
+     * child, which is what puts its words at the address column, where the options' words
+     * open: a question and its answers are one column of reading, and the digit rail is
+     * apparatus that belongs to neither. Only the pseudo needs saying, because a child
+     * combinator does not reach a pseudo-element and the floor is written as one — the
+     * page carrying no script is drawn from this, and the joined control is drawn there
+     * too. No --field behind either writing, unlike the footer below: these are the
+     * page's own words, and a header band would put them in the apparatus's clothes. */
+    &::before { padding-block: var(--sp-2); padding-inline-end: var(--sp-3);
+                     padding-inline-start: var(--lf-address-col); }
     /* A cell has no border of its own, so both statuses are paint within its box:
      * a stripe on the leading edge, which is what holding still asks for anyway.
      * Held in `--stripe` and `--fill` so a state names its colour and the composite
@@ -496,7 +552,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * and a cell redefining it for a different fact was one name meaning two
      * things.) */
     & > lf-option { --stripe: transparent; --fill: var(--card);
-                     margin: 0; border: 0; border-radius: 0; background: var(--fill);
+                     border: 0; border-radius: 0; background: var(--fill);
                      box-shadow: inset 3px 0 0 var(--stripe); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the reader — this one is being weighed — so both wear one paint. It
@@ -520,7 +576,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * border too, butted against the last cell by the hairline every child shares. It is
      * apparatus, and sits as the control's footer: first as the answer for a reader whom
      * none of the cells fits, then as the thread that answer opened. */
-    & > .lf-conversation { margin-top: 0; padding: 10px 12px; background: var(--field); }
+    & > .lf-conversation { padding: 10px 12px; background: var(--field); }
     /* On a single-pick card the mark keeps its box and stops drawing. The room stays
      * reserved, so a pick still moves nothing; the ring is the weaker of two ways to say
      * the same thing now that the group's shape says it, and one mechanism per guarantee
@@ -570,8 +626,18 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
    *
    * Live pages only, with the group's own shape: a copy and paper are handed no keys, so
    * they keep the options the markup describes rather than a rail held for an address
-   * nothing can type. */
-  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { padding-left: 30px; }
+   * nothing can type.
+   *
+   * Named, because the column is where the group's words begin and more than one thing in
+   * it has to begin there — the options spend it below, the question spends it above
+   * (the joined control's rules). Written as a number in each, the two agreed until one
+   * of them was edited. The floors below spend it, and so does the pseudo the
+   * question is also written as: no selector reaches an element child and a
+   * pseudo-element at once, so that one is stated twice and the column is the part
+   * that must not drift. */
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) { --lf-address-col: 30px; }
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
+                     padding-inline-start: var(--lf-address-col); }
  }
 }
 /* The row form: a list, so it reads like one. Every row opens at the same column with

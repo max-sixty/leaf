@@ -336,6 +336,14 @@ handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
   run `page init` again after changing the layer. A served page uses the quiescent
   stop, init, start sequence so the old contract releases its socket and lease
   before the new epoch appears at the same recorded URL.
+- Look at a composed page after changing the runtime, the theme, or the registry:
+  `/ui-sweep`. Green is not the same as looked at. The suite and the render gate
+  hold the invariants somebody has already stated, and a widget's spacing against
+  its own frame was not one of them — a `choose` group's question shipped set into
+  the frame an address column left of its own answers, on a corpus page, read in
+  both palettes on every nightly run and toured by `gallery.html`, and stayed for
+  three days. Nothing was missing from the corpus and no reading was wrong. The
+  skill exists for exactly that class and this is the only thing that points at it.
 - Land with `wt merge`, a direct local squash merge to main, never a PR. This
   chooses the landing form, not whether landing was requested. Finished work
   waits for the user's authorization unless the task already granted it.

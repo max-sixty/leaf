@@ -75,6 +75,11 @@ An ask must name itself without surrounding context. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
 `<strong>` title.
 
+The question leads the group in every shape it takes, and opens at the same
+column its answers open at. Under `choose` it is the joined control's first cell;
+under `settled` it stands above the line naming what was chosen, and above the
+cards that line hides.
+
 A page whose approval unblocks work declares:
 
 ```html

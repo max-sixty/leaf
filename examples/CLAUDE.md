@@ -32,15 +32,43 @@ at all is also what keeps each key a working selector —
 nothing asked.
 
 The floor only guarantees the widget appears; which of its shapes appear is a
-judgement. An `lf-options` group takes its form from what its options hold and
-its arity from `multiple`, and the two vary independently, so a rule written
-against one combination governs the other three without saying so. No example
-held a titled `multiple` group (a card form, in the days the forms were three).
-So when the empty box that says a slot is untaken was suppressed — as though
-drawing it were the list form's business alone — every example stayed green, and
-a titled group asking "which of these" gave the reader nothing to count. Where an
-attribute or a content shape changes what a reader sees, a page here shows that
-shape.
+judgement. An `lf-options` group takes its form from what its options hold, its
+arity from `multiple`, whether it is joined into one control from `choose` and
+`settled`, and whether it asks its question on itself from `label` — axes that
+vary independently, so a rule written against one combination governs the rest
+without saying so. No example held a titled `multiple` group (a card form, in the
+days the forms were three). So when the empty box that says a slot is untaken was
+suppressed — as though drawing it were the list form's business alone — every
+example stayed green, and a titled group asking "which of these" gave the reader
+nothing to count. Where an attribute or a content shape changes what a reader
+sees, a page here shows that shape.
+
+## Standing here is not the same as having been looked at
+
+The floor guarantees a shape is *rendered*. It never guarantees anyone *judged*
+what was rendered, and the two are easy to confuse because a corpus that holds
+the shape reads like a corpus that has checked it.
+
+`label` is the case that separates them. It arrived with its corpus shape in the
+same commit: a `choose` group carrying a question, on `design-decision.html`,
+joined into one control and drawn on every nightly run in both palettes and in
+print. The joined control gave that question none of the inset it gives every
+other cell, so it sat on the frame a full address column left of the words it was
+a question about, with dead ground under the hairline below it. The page was
+green for three days. Nothing in the loop looked at a composed page and judged
+spacing, and `gallery.html` — the first page a UI sweep tours — showed the same
+group.
+
+So a coverage gap and a judging gap want different answers, and only one of them
+is this file's. The settled form's question ordering was genuinely absent from
+the corpus and a page fixed it. The spacing was not absent; it was unexamined,
+and what closed it was a test that reads every cell of a joined control plus
+using the page. Note where that test is not: a reading in the render gate had to
+find the control by fingerprint, and a board column and a framed `<details>` wear
+the same one, so the gate would have failed correct pages to catch leaf's own
+theme. When a sweep finds something here, ask which of the two let it through
+before adding a page: a page that only re-renders a shape nobody judges buys
+nothing.
 
 ## An example is one version, and the log it ships beside it
 

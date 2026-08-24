@@ -10356,6 +10356,7 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                 f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
                 f"in theme.css reaches it"
             )
+
         found += [f"[{scheme}] {r}" for r in retired]
         found += [f"[{scheme}] {u}" for u in unsettled]
         found += [f"[{scheme}] {c}" for c in conflicts]
@@ -10483,7 +10484,8 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
     print(
         f"✓ {name}: renders clean in Chrome, light and dark — no console errors, "
         "every widget takes space, no words on top of other words, code that reads "
-        "against the block it is on, nothing past the column, no sideways scroll"
+        "against the block it is on, boxes showing the inset they draw, nothing past the "
+        "column, no sideways scroll"
     )
     return 0
 

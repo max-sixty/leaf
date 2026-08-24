@@ -638,6 +638,13 @@ point at it. Module-generated words that cannot be declared by attribute are
 inserted at the correct edge and marked `data-lf-gen`. Do not place a generated
 suffix after a control that semantically ends the row.
 
+The two edges are not mirror images. `after` goes inside the element's own words,
+because trailing chrome stands beside the last of them and a span past it lands
+on the far side of the apparatus. `before` goes at the element's start, because
+leading chrome is not something the words stand beside: a module puts one there
+to speak for the whole element, and stepping past it renders the element's own
+opening words underneath a summary of them.
+
 `renderQuiet` handles facts conveyed only by paint, such as an attribute-driven
 status. These words are clipped, unselectable, excluded from clipboard and
 anchor readings, but available to assistive technology. `quietFacts` derives
@@ -927,6 +934,23 @@ rows keep their complete width inside the group's border with
 Whether a group is answerable is independent of its form. The presence of
 `choose` gives the whole group a visible control boundary in cards and rows.
 Each form chooses its presentation, not whether the page admits a response.
+
+A group joined into one control has cells, and its children arrive from every
+layer: the options are the author's, the box for words is the module's, the
+question and the Done press are the runtime's. Each brings the spacing it wears
+standing alone, and the grid stretches all of them to the same column whatever
+they were written as.
+
+So what every cell owes is said over every child, and only what one kind alone
+answers is said by naming it. Block margins are zeroed for all of them, because
+the hairline is the whole of what separates a cell from the next; the inset each
+holds its words off the frame by is a floor at zero specificity, which any cell
+with an answer of its own outranks. Naming kinds is how three children got their
+margins reset and the fourth kept an 8px band under a line already separating,
+and how the question got no inset at all. Reserved columns the cells share, such
+as the room a keyboard address stands in, are named once and read by everything
+that opens at them — including the forms the frame never reaches, since a
+settled group reserves the same column on the cards behind its disclosure.
 
 ### Typography and scoped chrome
 

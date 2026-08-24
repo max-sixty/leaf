@@ -8028,6 +8028,232 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     page.close()
 
 
+# A question carried on the group rather than in a heading beside it, in every shape a
+# group takes it in: the two forms, the joined control and the plain stack, and the
+# settled collapse. One page, because the shapes are independent axes and a rule written
+# against one governs the rest without saying so — which is how the joined control came
+# to give the question none of the padding it gives every other cell while a corpus
+# holding one labelled card group stayed green (examples/CLAUDE.md).
+ASKED_PAGE = leaf_page(
+    "asked",
+    """
+<h1 id="t">Asked</h1>
+<lf-options id="cards" choose label="Where should a session live?">
+  <lf-option id="c-redis"><strong>Redis</strong>
+  <p>A store we already run, keyed by an opaque id.</p></lf-option>
+  <lf-option id="c-pg"><strong>Postgres</strong>
+  <p>One fewer moving part, at the cost of write load.</p></lf-option>
+</lf-options>
+<lf-options id="rows" choose multiple label="Which jobs are worth starting?">
+  <lf-option id="r-drill">A revocation drill</lf-option>
+  <lf-option id="r-rotate">Key rotation for the fallback cookie</lf-option>
+</lf-options>
+<lf-options id="done" choose settled label="How do parallel sessions merge?">
+  <lf-option id="d-serial" chosen><strong>A branch each</strong>
+  <p>Merged one at a time against current main.</p></lf-option>
+  <lf-option id="d-shared"><strong>One shared branch</strong>
+  <p>Cheapest to set up, and conflicts are the norm.</p></lf-option>
+</lf-options>
+""",
+)
+
+
+@pytest.mark.parametrize("group", ["cards", "rows"])
+def test_the_question_a_joined_group_asks_stands_with_its_answers(
+    browser, serve, group
+):
+    """The question opens where the answers open, and clears the frame around them.
+
+    A group under `choose` is one control and its members are cells of it, each holding
+    its words off the drawn edge and opening at the address column the group reserves.
+    The question is a cell too. It was not treated as one: the block naming the cells
+    named the two kinds it expected — the options and the box for words — and the
+    question is written by the runtime from `x-says`, so it arrived as a third kind with
+    no rule to meet it. What shipped was a question set hard into the frame's top-left
+    corner, a full address column to the left of every word it was a question about,
+    with a band of dead ground under the hairline below it.
+
+    Both forms, because which one a group takes is a fact about its options and neither
+    states its own answer to this. And read as a column rather than as a number: what
+    makes a question and its alternatives one reading is that they open at the same
+    place, whatever that place is."""
+    page, errors = open_page(browser, serve(ASKED_PAGE))
+    said = page.locator(f"#{group} > [data-lf-said='label']")
+    expect(said).to_have_count(1)
+
+    edges = """el => { const r = el.getBoundingClientRect();
+                       const s = getComputedStyle(el);
+                       return {left: r.left + parseFloat(s.paddingLeft),
+                               top: r.top + parseFloat(s.paddingTop),
+                               bottom: r.bottom}; }"""
+    frame = page.locator(f"#{group}").evaluate(
+        """el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+                   return {left: r.left + parseFloat(s.borderLeftWidth),
+                           top: r.top + parseFloat(s.borderTopWidth)}; }"""
+    )
+    question = said.evaluate(edges)
+    answer = page.locator(f"#{group} > lf-option").first.evaluate(edges)
+
+    assert abs(question["left"] - answer["left"]) < 1, (
+        f"the question opens at {question['left']:.0f} and its answers at "
+        f"{answer['left']:.0f}, so they read as two columns rather than one"
+    )
+    assert question["left"] - frame["left"] > 4, (
+        "the question's words stand against the frame the group draws"
+    )
+    assert question["top"] - frame["top"] > 4, (
+        "the question's words stand against the top of the frame the group draws"
+    )
+
+    # The hairline under the question is the whole of what separates it from the first
+    # answer, so there is nothing between them: the 8px it wears leading an unjoined
+    # group is a second way to say what the line already says, and it reads as a rule
+    # floating in a band of nothing.
+    gap = (
+        page.locator(f"#{group} > lf-option").first.evaluate(
+            "el => el.getBoundingClientRect().top"
+        )
+        - question["bottom"]
+    )
+    assert gap < 0.5, f"the seam under the question floats {gap:.0f}px above the answer"
+
+    # The theme writes the question twice — the pseudo is what a page carrying no script
+    # is drawn from, and the joined control is drawn there too — so both writings answer
+    # this the same way or the two renderings disagree about where the question sits.
+    assert page.locator(f"#{group}").evaluate(
+        "el => getComputedStyle(el, '::before').padding"
+    ) == said.evaluate("el => getComputedStyle(el).padding"), (
+        "the scriptless rendering of the question is inset differently from the one the "
+        "runtime writes"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
+    """A question leads, including where the group has already been answered.
+
+    Collapsed, a settled group is one line naming what was chosen, and the question is
+    the only thing on the page that says what was being chosen between. Rendered under
+    that line it read as an afterthought with nothing beneath it — and a reader met the
+    answer before learning there had been a question.
+
+    The placement is the runtime's, not the theme's: a settled group lays its members out
+    in normal flow, so DOM order is the only order there is, and the disclosure is built
+    during the upgrade, before the `x-says` pass runs. That pass steps past generated
+    chrome to keep the page's words beside the page's other words — which is right at the
+    trailing edge, where chrome stands next to the last of them, and wrong at the leading
+    edge, where a module puts one there to speak for the whole element."""
+    url = serve(ASKED_PAGE)
+    # The same widget, same markup, in the other place a group can stand. Which of the
+    # two writers gets there first is reversed in here — the panel renders a message's
+    # words into a detached body before any element connects, where the page upgrades
+    # first and renders words after — so this is the reading that says the order does
+    # not depend on that.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "And settled in here.",
+            "markup": '<lf-options id="th-done" choose settled label="Where, again?">'
+            '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
+            '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
+
+    top = "el => el.getBoundingClientRect().top"
+    for group in ("done", "th-done"):
+        expect(page.locator(f"#{group} .lf-settled")).to_have_count(1)
+        question = page.locator(f"#{group} > [data-lf-said='label']").evaluate(top)
+        summary = page.locator(f"#{group} .lf-settled").evaluate(top)
+        assert question < summary, (
+            f"#{group}'s question is drawn at {question:.0f} and its answer at "
+            f"{summary:.0f}, so the group states what it settled before what it asked"
+        )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("group", ["cards", "rows"])
+def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
+    browser, serve, group
+):
+    """Read over every cell, not only the question that sent us looking.
+
+    A group under `choose` is one control: cells sharing edges, divided by a hairline
+    instead of a gap. Two things follow for every one of them, and the question was
+    simply the child that had neither. The line is the whole of what separates a cell
+    from the next, so a margin beside it is a second way to say what the line already
+    says and draws a rule floating in a band of nothing. And each cell holds its words
+    off the frame at the column the group reserves, so a cell that opens on the frame
+    hangs out of the column its own neighbours share.
+
+    Here rather than in the render gate, on the line tests/CLAUDE.md draws: a property
+    caused by a particular page belongs to the gate, which must report it to that page's
+    author, and one identical for every valid page belongs to the suite. A joined
+    control is leaf's own theme — no authored page can make it wrong. A reading in the
+    gate had to find the control by fingerprint (a frame, a clip, a stacked pair), and
+    that fingerprint is worn by a board column, a framed scroller, an authored row-gap
+    and a framed `<details>`, none of which is wrong; it also never saw the same defect
+    written as `border-top` on the lower cell. Asked here, of the widget itself, both
+    forms are visible and nothing correct is accused.
+
+    Every child, because which kinds a group holds is not this test's to know: the
+    options are the author's, the box for words is the module's, the question and the
+    Done press are the runtime's, and each arrived carrying the spacing it wears
+    standing alone."""
+    page, errors = open_page(browser, serve(ASKED_PAGE))
+    cells = page.locator(f"#{group}").evaluate(
+        r"""el => {
+             const px = (v) => parseFloat(v) || 0;
+             const kids = [...el.children].filter((c) => c.checkVisibility());
+             return kids.map((c, i) => {
+               const s = getComputedStyle(c);
+               const r = c.getBoundingClientRect();
+               const next = kids[i + 1];
+               return {
+                 what: c.tagName.toLowerCase() + (c.dataset.lfSaid
+                        ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
+                 opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
+                 gap: next
+                   ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
+                   : null,
+               };
+             });
+           }"""
+    )
+    assert len(cells) > 2, f"a control of {len(cells)} cells proves little: {cells}"
+
+    apart = [c for c in cells if c["gap"] is not None and c["gap"] > 0.5]
+    assert not apart, (
+        f"cells of #{group} stand apart from the line that joins them: {apart}"
+    )
+
+    bare = [c for c in cells if c["opens"] < 0.5]
+    assert not bare, (
+        f"cells of #{group} open on the frame while their neighbours hold off it: "
+        f"{bare}"
+    )
+
+    # And they open at one column, which is the half a reader sees first: the question
+    # hung a whole address column left of the words it was a question about. The box for
+    # words is apparatus and states its own inset, so this asks the cells that carry the
+    # group's own words.
+    words = {c["opens"] for c in cells if "lf-conversation" not in c["what"]}
+    assert len(words) == 1, (
+        f"the cells carrying #{group}'s words open at {sorted(words)}, so the question "
+        "and its answers read as more than one column"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     """A specimen is a mention, not a use. The exhibited widgets render at full
     fidelity — that is the whole point of showing one — but wire nothing that
@@ -14399,15 +14625,38 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
 
-    # The group's hairline belongs to the upper neighbour, so the Done press — a
-    # control floating inside the group with a frame of its own — keeps that frame
-    # whole. Drawn by the lower neighbour instead, the divider recolored the press's
-    # top edge and left the seam above it to nothing.
+    # The group's hairline belongs to the upper neighbour, so the Done press keeps its
+    # own frame whole. Drawn by the lower neighbour instead, the divider recolored the
+    # press's top edge and left the seam above it to nothing.
     assert page.locator("#tq-set .lf-done").evaluate(
         """el => { const s = getComputedStyle(el);
                    return s.borderTopColor === s.borderBottomColor
                        && s.borderTopWidth === s.borderBottomWidth; }"""
     ), "the group's divider recolors the Done press's own frame"
+
+    # And it butts that hairline, like every other cell of the control. This is the one
+    # place the reading is asked at all: the joined-cell readings in the render gate see
+    # a served version, and a thread group lives in the panel the runtime builds, so the
+    # gate never reaches it. The press was written as a control floating inside the
+    # group on a margin of its own, and the theme comment said so — but the group is a
+    # grid and had been stretching it to the full column all along, so what the 8px
+    # actually drew was a hairline with dead ground under it, on every thread the agent
+    # asked a set question in.
+    seam = page.locator("#tq-set").evaluate(
+        """el => { const done = el.querySelector('.lf-done');
+                   const last = done.previousElementSibling;
+                   const a = last.getBoundingClientRect();
+                   const b = done.getBoundingClientRect();
+                   return {gap: Math.round((b.top - a.bottom) * 10) / 10,
+                           stretched: Math.abs(a.width - b.width) < 1}; }"""
+    )
+    assert seam["stretched"], (
+        "the Done press no longer fills the column, so what follows is about a shape "
+        "this test no longer describes"
+    )
+    assert seam["gap"] < 0.5, (
+        f"the hairline above the Done press floats {seam['gap']}px above it"
+    )
 
     page.locator("#tq-redis").click()
     expect(asks).to_have_text("Asks (1)")

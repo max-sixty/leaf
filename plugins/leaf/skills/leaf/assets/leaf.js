@@ -1816,18 +1816,39 @@ function renderSaid(root) {
         span.dataset.lfSaid = attr;
         span.dataset.lfGen = "1";
         span.textContent = text;
-        // At the edge of the element's own words rather than of the element, which are the
-        // same place on a page carrying no script and not once a module has injected
-        // chrome of its own. These are the page speaking, so they belong beside the page's
-        // other words: an option's risk chip landed past the pick mark that ends a compact
-        // row — outside the apparatus the row runs to its line's end, and on the far side
-        // of it from where the file's reading of that same version has it.
-        const own = [...el.childNodes].filter(
+        // The two edges are not mirror images, because the chrome at them is not the same
+        // kind of thing.
+        //
+        // After: inside the element's own words rather than past them. Trailing chrome
+        // stands *beside* the last of them and runs to the line's end, so a span placed
+        // at the element's true end lands on the far side of it — an option's risk chip
+        // came out past the pick mark that ends a compact row, and on the far side of it
+        // from where the file's reading of that same version has it.
+        //
+        // Before: the element's own start. Leading chrome is not something the words
+        // stand beside; a module puts one there to speak *for* the whole element — the
+        // disclosure a settled option group collapses to is the only one any x-says host
+        // has — so the same skip that keeps a chip beside its row put the group's own
+        // question underneath a summary of its answer. The file has the label first, the
+        // theme says the question leads, and a reader who opens the group finds it asked
+        // after it was settled.
+        //
+        // Each edge skips what the other keeps, which is the whole of the difference:
+        // trailing chrome is passed over by looking for the last authored node, leading
+        // chrome by looking for the first node this pass has not already written. The
+        // second reading also settles the order of two attributes declared at this edge,
+        // though no shipped entry declares two.
+        const pastTrailingChrome = [...el.childNodes].filter(
           (n) => !(n.nodeType === 1 && n.dataset.lfGen),
+        );
+        const beforeLeadingChrome = [...el.childNodes].find(
+          (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
         );
         el.insertBefore(
           span,
-          (edge === "before" ? own[0] : own.at(-1)?.nextSibling) ?? null,
+          (edge === "before"
+            ? beforeLeadingChrome
+            : pastTrailingChrome.at(-1)?.nextSibling) ?? null,
         );
       }
   }

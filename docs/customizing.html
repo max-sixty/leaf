@@ -111,8 +111,8 @@
   --serif: "Iowan Old Style", Georgia, serif;
 }
 
-lf-options {
-  gap: var(--sp-2);
+lf-chip {
+  border-radius: var(--r);
 }</code></pre>
         <p>
           A rule that draws an inset — padding, a border, a tinted field — says
@@ -132,6 +132,15 @@ lf-options {
   background: var(--field);
   --lf-frame: 1;
 }</code></pre>
+        <p>
+          An answerable <code>lf-options</code> group is cells sharing hairlines rather
+          than boxes standing apart, so the line between two cells is the whole of what
+          separates them, and each cell holds its own words off the frame. A
+          <code>gap</code> or a margin added between them is a second way to say what
+          the line already says, and what it draws is a rule floating in a band of
+          nothing. Tune what a cell holds — its inset, its fill, its type — rather than
+          the room between cells.
+        </p>
         <p>
           Three facts a rule cannot read off the element in front of it are declared in
           the registry instead, and the runtime paints each onto the page where a
@@ -373,11 +382,17 @@ lf-options {
             <tr>
               <td><code>x-says</code></td>
               <td>
-                Attributes whose values the reader sees as words, and the edge each
-                renders at (<code>before</code> or <code>after</code> the element's own
-                content). The runtime writes them as selectable text the user can quote
-                and comment on, where <code>content: attr()</code> would paint glyphs
-                into no text node.
+                Attributes whose values the reader sees as words, and where each
+                renders. <code>after</code> goes inside the element's own content, ahead
+                of the apparatus that ends it, so a word does not land on the far side
+                of a control that closes the row. <code>before</code> goes at the
+                element's start, ahead of chrome as well: leading chrome is not
+                something the words stand beside, it is a module speaking for the whole
+                element, so an element's opening words go above it; where an entry
+                declares two at that edge they render in the order the entry lists them.
+                The runtime writes them as selectable text the user can quote and
+                comment on, where <code>content: attr()</code> would paint glyphs into
+                no text node.
               </td>
             </tr>
             <tr>

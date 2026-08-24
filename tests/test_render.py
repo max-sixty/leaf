@@ -15867,27 +15867,37 @@ def mark_point(page, name, index=0):
     """A point inside a painted range, for a real mouse press. A highlight is not an
     element, so there is nothing for a locator to click.
 
-    On screen, and asserted here, because a press the reader cannot make proves nothing
-    about what a press does. A range keeps its client rects while it is scrolled away —
-    they simply go negative — so the arithmetic above will hand back a point above the
-    window as readily as one in it, and `page.mouse` will press there. Nothing in the
-    page hears that press: `elementFromPoint` answers null outside the window, the
-    runtime's hit test declines a point that is over none of the page's words, and the
-    click arrives at `<html>`. A caller pressing 141px above the top edge therefore read
-    the silence that followed as the mark's thread refusing to open, 30 seconds later
-    and in another function."""
+    Somewhere a press can reach, and asserted here, because a press the reader cannot
+    make proves nothing about what a press does. A range keeps its client rects while it
+    is scrolled away — they simply go negative — so the arithmetic below hands back a
+    point above the window as readily as one in it, and `page.mouse` presses there.
+    Nothing in the page hears it: `elementFromPoint` answers null outside the window, the
+    runtime declines a point that is over none of the page's words, and the click arrives
+    at `<html>`. A caller pressing 141px above the top edge therefore read the silence
+    that followed as the mark's thread refusing to open, 30 seconds later and in another
+    function.
+
+    So the question is the runtime's own — what is under the point — rather than a box
+    the window's size makes. The layer fails it too, and by the same mechanism: the
+    banner holds the top of every page and a composer floats over the words it quotes,
+    both `.lf-ui`, and a press either takes never reaches the mark. That case is the
+    worse of the two, because a press proving that nothing opens gets its green from a
+    press that opened nothing for the opposite reason."""
     box = page.evaluate(
         """([name, index]) => {
         const r = [...CSS.highlights.get(name)][index].getClientRects()[0];
-        return {x: r.left + r.width / 2, y: r.top + r.height / 2,
-                w: innerWidth, h: innerHeight};
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        const over = document.elementFromPoint(x, y);
+        const ui = over && over.closest('.lf-ui');
+        return {x, y, blocked: !over ? 'outside the window'
+            : ui ? `under the layer's ${ui.className.split(' ').pop()}` : null};
     }""",
         [name, index],
     )
-    assert 0 <= box["x"] <= box["w"] and 0 <= box["y"] <= box["h"], (
+    assert not box["blocked"], (
         f"the {name} mark at index {index} is painted at ({box['x']:.0f}, "
-        f"{box['y']:.0f}), off a {box['w']:.0f}×{box['h']:.0f} window — scroll the "
-        f"passage into view before pressing it"
+        f"{box['y']:.0f}), {box['blocked']} — no press there reaches the page, so "
+        f"bring the passage into view before pressing it"
     )
     return box["x"], box["y"]
 
@@ -20451,9 +20461,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
         panel_settled(page, open=False)
 
     page.locator("#fig").scroll_into_view_if_needed()
-    spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
-                                    return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
-    page.mouse.click(spot["x"], spot["y"])
+    page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)
     expect(
         page.locator(".lf-fab"),
